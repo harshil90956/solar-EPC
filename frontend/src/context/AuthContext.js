@@ -1,46 +1,58 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { USERS } from '../data/mockData';
+import { api } from '../lib/apiClient';
 import { getRolePermissions } from '../config/roles.config';
 
 const AuthContext = createContext(null);
 
-const SESSION_KEY = 'solar_session';
+const TOKEN_KEY = 'solar_token';
+const USER_KEY = 'solar_user';
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
     try {
-      const saved = localStorage.getItem(SESSION_KEY);
+      const saved = localStorage.getItem(USER_KEY);
       return saved ? JSON.parse(saved) : null;
     } catch { return null; }
   });
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const login = useCallback((email, password) => {
-    const found = USERS.find(u => u.email === email && u.password === password);
-    if (found) {
-      const permissions = getRolePermissions(found.role);
-      const authedUser = { ...found, permissions };
+  const login = useCallback(async (email, password) => {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await api.post('/auth/login', { email, password });
+      const { accessToken, user: backendUser } = res?.data || {};
+      if (!accessToken || !backendUser) {
+        throw new Error('Invalid response from server');
+      }
+      const permissions = getRolePermissions(backendUser.role);
+      const authedUser = { ...backendUser, permissions };
+      localStorage.setItem(TOKEN_KEY, accessToken);
+      localStorage.setItem(USER_KEY, JSON.stringify(authedUser));
       setUser(authedUser);
-      localStorage.setItem(SESSION_KEY, JSON.stringify(authedUser));
       setError('');
       return true;
+    } catch (err) {
+      const msg = err?.message || 'Login failed';
+      setError(msg);
+      return false;
+    } finally {
+      setLoading(false);
     }
-    setError('Invalid email or password');
-    return false;
   }, []);
 
   const logout = useCallback(() => {
     setUser(null);
-    localStorage.removeItem(SESSION_KEY);
-    localStorage.removeItem('solar_token');
-    // Clear hash so login shows dashboard fresh
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
     window.location.hash = '';
   }, []);
 
   const can = useCallback((action) => user?.permissions?.[action] ?? false, [user]);
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, error, can }}>
+    <AuthContext.Provider value={{ user, login, logout, error, can, loading }}>
       {children}
     </AuthContext.Provider>
   );
