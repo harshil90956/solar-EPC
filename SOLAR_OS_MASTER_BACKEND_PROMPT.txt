@@ -1,0 +1,240 @@
+SOLAR EPC OS — MASTER BACKEND GENERATION PROMPT
+(ALL-IN-ONE ARCHITECTURE CONTRACT)
+
+You are generating backend code for a production-grade multi-tenant Solar EPC Operating System.
+
+This is NOT a simple CRUD backend.
+This is a configurable enterprise SaaS platform.
+
+You MUST strictly follow ALL instructions below.
+
+=====================================================
+
+1. TECHNOLOGY STACK (FIXED)
+   =====================================================
+
+Framework: NestJS
+Database: MongoDB (Mongoose)
+Language: TypeScript
+Architecture: Modular Monolith
+
+DO NOT introduce:
+
+* Redis
+* Microservices
+* External queues
+* GraphQL
+* Any alternative framework
+
+=====================================================
+2. SYSTEM PURPOSE
+=================
+
+The system is a Solar EPC Operating System used by multiple companies.
+
+Lifecycle supported:
+
+Lead → Survey → Design & BOQ → Quotation → Project →
+Installation → Commissioning → Finance → Service & AMC → Compliance
+
+The backend must be configurable and company-agnostic.
+
+Never hardcode business workflows.
+
+=====================================================
+3. PROJECT STRUCTURE (MANDATORY)
+================================
+
+src/
+├ core/
+├ modules/
+├ shared/
+└ infra/
+
+Each module MUST follow:
+
+modules/<module-name>/
+├ controllers/
+├ services/
+├ schemas/
+├ dto/
+└ <module-name>.module.ts
+
+No deviation allowed.
+
+=====================================================
+4. MULTI-TENANT ARCHITECTURE (CRITICAL)
+=======================================
+
+Every schema MUST include:
+
+tenantId: ObjectId
+
+All queries MUST automatically filter by tenantId.
+
+Tenant isolation is mandatory.
+
+Frontend tenant input must NEVER be trusted.
+
+=====================================================
+5. CLEAN ARCHITECTURE RULES
+===========================
+
+Controller:
+
+* receives request
+* validates DTO
+* calls service only
+
+Service:
+
+* business logic
+* database operations
+* workflow handling
+
+Schema:
+
+* data structure only
+
+Controllers MUST NEVER access database directly.
+
+=====================================================
+6. GENERIC ENTITY MODEL
+=======================
+
+All entities MUST support:
+
+pipelineId?: ObjectId
+stageId?: ObjectId
+customFields?: Record<string, any>
+
+Generic linking required:
+
+entityType?: string
+entityId?: ObjectId
+
+Modules must remain loosely coupled.
+
+Never directly import another module's schema.
+
+=====================================================
+7. WORKFLOW ENGINE COMPATIBILITY
+================================
+
+Statuses must NEVER be hardcoded.
+
+Stages are dynamic.
+
+Each entity must support stage history tracking.
+
+=====================================================
+8. STANDARD API RESPONSE FORMAT
+===============================
+
+All endpoints must return:
+
+{
+success: boolean,
+data: any,
+message?: string
+}
+
+=====================================================
+9. VALIDATION RULES
+===================
+
+All create/update APIs must use DTO validation.
+
+Use class-validator decorators.
+
+=====================================================
+10. SECURITY BASELINE
+=====================
+
+Assume authenticated user context exists.
+
+UserId and tenantId come from request context.
+
+Never accept tenantId from request body.
+
+=====================================================
+11. MODULE INTERACTION CONTRACT
+===============================
+
+Modules communicate ONLY via:
+
+entityType + entityId
+
+Allowed shared concepts:
+
+* Tasks
+* Documents
+* Activity Logs
+
+No tight coupling allowed.
+
+=====================================================
+12. DATABASE DESIGN PRINCIPLES
+==============================
+
+MongoDB collections must:
+
+* be plural
+* include timestamps
+* include tenantId
+* support soft delete (isDeleted flag)
+
+No schema duplication allowed.
+
+=====================================================
+13. DEVELOPMENT DISCIPLINE
+==========================
+
+Generated code must:
+
+* Follow exact folder structure
+* Be production-ready
+* Be plug-and-play
+* Contain no placeholder logic
+* Contain no pseudo code
+
+Do NOT redesign architecture.
+
+=====================================================
+14. OUTPUT REQUIREMENTS
+=======================
+
+Generate COMPLETE NestJS module including:
+
+* Mongoose schema
+* DTOs
+* Controller
+* Service
+* Module definition
+
+Code must compile without modification.
+
+=====================================================
+15. PROHIBITED ACTIONS
+======================
+
+DO NOT:
+
+* change architecture
+* introduce new patterns
+* hardcode company logic
+* create unrelated helpers
+* bypass service layer
+
+If any instruction conflicts with this contract,
+THIS CONTRACT ALWAYS WINS.
+
+=====================================================
+16. MODULE TO GENERATE
+======================
+
+Create backend module for:
+
+<<< WRITE MODULE NAME HERE >>>
+
+Follow ALL rules strictly and generate final code.
