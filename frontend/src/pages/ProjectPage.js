@@ -1,11 +1,11 @@
 // Solar OS – EPC Edition — ProjectPage.js
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   FolderOpen, Plus, Calendar, CheckCircle, Zap, TrendingUp, BarChart2,
   LayoutGrid, List, User, Clock
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
-import { PROJECTS, PROJECT_STAGE_TREND } from '../data/mockData';
+import { PROJECT_STAGE_TREND } from '../data/mockData';
 import { StatusBadge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
@@ -17,6 +17,9 @@ import DataTable from '../components/ui/DataTable';
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
 
 const fmt = CURRENCY.format;
+
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
+const TENANT_ID = 'solarcorp'; // Default tenant for seed data
 
 const KANBAN_STAGES = [
   { id: 'Survey', label: 'Survey', color: '#7c5cfc', bg: 'rgba(124,92,252,0.12)' },
@@ -129,11 +132,61 @@ const ProjectPage = () => {
   const [pageSize, setPageSize] = useState(APP_CONFIG.defaultPageSize);
   const [showAdd, setShowAdd] = useState(false);
   const [selected, setSelected] = useState(null);
-  const [projects, setProjects] = useState(PROJECTS);
+  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [form, setForm] = useState({ customerName: '', site: '', systemSize: '', pm: '', value: '', estEndDate: '' });
 
-  const handleStageChange = (id, newStage) =>
+  // Fetch projects from backend
+  useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`${API_BASE_URL}/projects?tenantId=${TENANT_ID}`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch projects');
+        }
+        const data = await response.json();
+        console.log('API Response:', data); // Debug log
+        // Ensure data is an array
+        const projectsArray = Array.isArray(data) ? data : (data.data || []);
+        // Transform backend data to match frontend format (projectId -> id)
+        const transformedProjects = projectsArray.map(p => ({
+          ...p,
+          id: p.projectId,
+        }));
+        setProjects(transformedProjects);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching projects:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProjects();
+  }, []);
+
+  const handleStageChange = async (id, newStage) => {
+    // Optimistic update
     setProjects(prev => prev.map(p => p.id === id ? { ...p, status: newStage } : p));
+    
+    // API call to update status
+    try {
+      const response = await fetch(`${API_BASE_URL}/projects/${id}/status?tenantId=${TENANT_ID}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStage }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to update project status');
+      }
+    } catch (err) {
+      console.error('Error updating project status:', err);
+      // Optionally revert the change or show error
+    }
+  };
 
   const filtered = useMemo(() =>
     projects.filter(p =>
@@ -216,7 +269,18 @@ const ProjectPage = () => {
             <p className="text-xs text-[var(--text-muted)]">Drag cards between columns to update project stage</p>
             <Input placeholder="Search projects…" value={search} onChange={e => setSearch(e.target.value)} className="h-8 text-xs w-52" />
           </div>
-          <KanbanBoard projects={filtered} onStageChange={handleStageChange} onCardClick={setSelected} />
+          {loading ? (
+            <div className="glass-card p-8 text-center">
+              <div className="animate-pulse text-[var(--text-muted)]">Loading projects...</div>
+            </div>
+          ) : error ? (
+            <div className="glass-card p-8 text-center text-red-500">
+              <p>Error loading projects: {error}</p>
+              <p className="text-xs mt-2 text-[var(--text-muted)]">Make sure the backend server is running on port 8000</p>
+            </div>
+          ) : (
+            <KanbanBoard projects={filtered} onStageChange={handleStageChange} onCardClick={setSelected} />
+          )}
         </>
       ) : (
         <>
