@@ -1,0 +1,673 @@
+import React, { useState, useCallback, useEffect } from 'react';
+import { Sun, Bell, Search, ChevronDown, LogOut, Menu, X, Zap, Settings, User, Palette, AlertTriangle, Package, Clock, ChevronRight } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
+import { useReminders } from '../context/ReminderContext';
+import { NAV_CONFIG } from '../config/nav.config';
+import { canAccess } from '../config/roles.config';
+import { APP_CONFIG } from '../config/app.config';
+import { ALERTS, ACTIVITY_FEED } from '../data/mockData';
+import { Avatar } from './ui/Avatar';
+import { Badge } from './ui/Badge';
+import { cn } from '../lib/utils';
+import ThemeCustomizer from './ThemeCustomizer';
+import ReminderSidebar from './Reminder/ReminderSidebar';
+
+const Layout = ({ currentPage, onNavigate, children }) => {
+  const { user, logout } = useAuth();
+  const { theme, setTheme, themes, currentLabel, customization } = useTheme();
+  const { activeNotifications, upcomingCount, overdueCount } = useReminders();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarHovered, setSidebarHovered] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [themeMenuOpen, setThemeMenuOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [reminderSidebarOpen, setReminderSidebarOpen] = useState(false);
+  const [searchVal, setSearchVal] = useState('');
+  const [notifTab, setNotifTab] = useState('alerts');
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1280);
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const close = useCallback(() => setSidebarOpen(false), []);
+
+  const unreadCount = ALERTS.filter(a => a.severity === 'critical' || a.severity === 'warning').length;
+  const totalReminderAlerts = activeNotifications.length + upcomingCount + overdueCount;
+
+  // Filter nav based on role permissions (config-driven)
+  const visibleSections = NAV_CONFIG.map(section => ({
+    ...section,
+    items: section.items.filter(item => canAccess(user?.role, item.id)),
+  })).filter(s => s.items.length > 0);
+
+  /* ── Derive layout dimensions from customization ── */
+  const c = customization || {};
+  const isHorizontal = c.layout === 'horizontal';
+  const isMini = c.layout === 'mini' || c.sidebarSize === 'compact';
+  const isOverlay = c.layout === 'overlay';
+  const isHoverView = c.sidebarSize === 'hover';
+  const isDetached = c.layout === 'detached';
+  const isTwoColumn = c.layout === 'twocolumn';
+
+  // Sidebar width
+  const getSidebarWidth = () => {
+    if (isHorizontal) return 0;
+    if (isHoverView) return sidebarHovered ? 220 : 64;
+    if (isMini || isTwoColumn) return 64;
+    return 220;
+  };
+  const sidebarW = getSidebarWidth();
+  const showLabels = isOverlay ? sidebarHovered : sidebarW >= 220;
+
+  // Boxed layout
+  const isBoxed = c.layoutWidth === 'boxed';
+
+  // Sidebar custom styling
+  const sidebarStyle = {};
+  if (c.sidebarColor && c.sidebarColor !== 'default') {
+    const customBg = getComputedStyle(document.documentElement).getPropertyValue('--sidebar-bg-custom').trim();
+    if (customBg) sidebarStyle.backgroundColor = customBg;
+  }
+  if (c.sidebarBg) {
+    const bgImg = getComputedStyle(document.documentElement).getPropertyValue('--sidebar-bg-image').trim();
+    if (bgImg) sidebarStyle.background = bgImg;
+  }
+  sidebarStyle.backdropFilter = 'blur(20px)';
+
+  // Topbar custom styling
+  const topbarStyle = { backdropFilter: 'blur(20px)' };
+  if (c.topbarColor && c.topbarColor !== 'white') {
+    const customBg = getComputedStyle(document.documentElement).getPropertyValue('--topbar-bg-custom').trim();
+    if (customBg) {
+      if (customBg.startsWith('linear')) {
+        topbarStyle.background = customBg;
+      } else {
+        topbarStyle.backgroundColor = customBg;
+      }
+    }
+  }
+
+  // Card layout class
+  const cardClass = c.cardLayout === 'borderless' ? 'card-borderless' : c.cardLayout === 'shadow' ? 'card-shadow' : '';
+
+  // Topbar has custom color → use white text
+  const topbarHasCustomColor = c.topbarColor && c.topbarColor !== 'white';
+  const topbarTextCls = topbarHasCustomColor ? 'text-white/80' : 'text-[var(--text-faint)]';
+  const topbarTextPrimaryCls = topbarHasCustomColor ? 'text-white' : 'text-[var(--text-primary)]';
+
+  // Sidebar has custom color → use custom text
+  const sidebarHasCustomColor = (c.sidebarColor && c.sidebarColor !== 'default') || c.sidebarBg;
+
+  return (
+    <div className={cn('min-h-screen bg-[var(--bg-page)]', isBoxed && 'max-w-[1440px] mx-auto shadow-2xl', cardClass)}>
+
+      {/* ════════════════ TOP BAR ════════════════ */}
+      <header
+        className={cn(
+          'fixed top-0 left-0 right-0 z-50 h-14 flex items-center px-4 gap-3 border-b transition-colors duration-300 w-full',
+          !topbarHasCustomColor && 'topbar-bg border-[var(--border-base)]',
+          topbarHasCustomColor && 'border-white/10',
+        )}
+        style={topbarStyle}
+      >
+
+        {/* Mobile sidebar toggle */}
+        <button
+          className={cn(
+            'w-8 h-8 rounded-lg flex items-center justify-center hover:bg-[var(--bg-hover)] transition-colors',
+            topbarTextCls,
+            // Show on desktop too for overlay mode; hide on desktop for other layouts
+            !isOverlay && 'lg:hidden'
+          )}
+          onClick={() => { if (isOverlay) { setSidebarHovered(h => !h); } else { setSidebarOpen(p => !p); } }}
+        >
+          {(sidebarOpen || (isOverlay && sidebarHovered)) ? <X size={15} /> : <Menu size={15} />}
+        </button>
+
+        {/* Logo */}
+        <div className="flex items-center gap-2.5 min-w-[200px]">
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-lg shrink-0"
+            style={{
+              background: `linear-gradient(to bottom right, var(--primary), var(--primary-light))`,
+              boxShadow: `0 10px 15px -3px var(--primary-glow), 0 4px 6px -2px var(--primary-glow)`
+            }}>
+            <Sun size={15} className="text-white" strokeWidth={2.5} />
+          </div>
+          <div className="leading-none">
+            <p className={cn('font-extrabold text-sm tracking-tight', topbarHasCustomColor ? topbarTextPrimaryCls : 'gradient-text')}>{APP_CONFIG.name}</p>
+            <p className={cn('text-[9px] uppercase tracking-widest mt-0.5', topbarHasCustomColor ? 'text-white/50' : 'text-[var(--text-faint)]')}>{APP_CONFIG.edition}</p>
+          </div>
+        </div>
+
+        {/* Breadcrumb */}
+        {(() => {
+          let section = null;
+          let label = null;
+          for (const s of visibleSections) {
+            const found = s.items.find(i => i.id === currentPage);
+            if (found) { section = s.section; label = found.label; break; }
+          }
+          if (!section || !label) return null;
+          return (
+            <div className="hidden lg:flex items-center gap-1.5 text-[11px] font-medium">
+              <span className={topbarHasCustomColor ? 'text-white/40' : 'text-[var(--text-faint)]'}>{section}</span>
+              <ChevronRight size={10} className={topbarHasCustomColor ? 'text-white/30' : 'text-[var(--text-faint)]'} />
+              <span className={topbarHasCustomColor ? 'text-white/90 font-bold' : 'text-[var(--text-primary)] font-bold'}>{label}</span>
+            </div>
+          );
+        })()}
+
+        {/* Search */}
+        <div className="hidden md:flex flex-1 max-w-sm relative">
+          <Search size={12} className={cn('absolute left-3 top-1/2 -translate-y-1/2', topbarHasCustomColor ? 'text-white/40' : 'text-[var(--text-faint)]')} />
+          <input
+            value={searchVal}
+            onChange={e => setSearchVal(e.target.value)}
+            placeholder="Search projects, leads, invoices…"
+            className={cn(
+              'w-full h-8 pl-8 pr-3 text-xs rounded-xl focus:outline-none focus:ring-1 focus:ring-[var(--primary)] transition-all',
+              topbarHasCustomColor
+                ? 'bg-white/10 border border-white/15 text-white placeholder:text-white/40'
+                : 'bg-[var(--bg-elevated)] border border-[var(--border-base)] text-[var(--text-secondary)] placeholder:text-[var(--text-faint)] focus:border-[var(--border-active)]'
+            )}
+          />
+        </div>
+
+        <div className="flex-1" />
+
+        {/* AI pulse */}
+        <div className={cn(
+          'hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg',
+          topbarHasCustomColor
+            ? 'bg-white/10 border border-white/15'
+            : 'bg-[var(--primary)]/10 border border-[var(--primary)]/20'
+        )}>
+          <span className="w-1.5 h-1.5 rounded-full bg-[var(--primary)] animate-pulse-dot" />
+          <span className={cn('text-[10px] font-medium', topbarHasCustomColor ? 'text-white/90' : 'text-[var(--primary-light)]')}>AI Active</span>
+        </div>
+
+        {/* Reminders Button */}
+        <button
+          onClick={() => { setReminderSidebarOpen(true); setNotifOpen(false); setUserMenuOpen(false); }}
+          className={cn(
+            'relative w-8 h-8 rounded-lg flex items-center justify-center border transition-colors',
+            topbarHasCustomColor
+              ? 'text-white/70 hover:text-white border-white/15 hover:border-white/30 bg-white/10'
+              : 'text-[var(--text-faint)] hover:text-[var(--text-primary)] border-[var(--border-base)] hover:border-[var(--border-muted)] bg-[var(--bg-elevated)]'
+          )}
+          title="Reminders"
+        >
+          <Bell size={14} />
+          {(upcomingCount + overdueCount + activeNotifications.length) > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 rounded-full border-2 border-[var(--bg-page)] flex items-center justify-center text-[8px] font-bold text-white leading-none animate-pulse">
+              {Math.min(upcomingCount + overdueCount + activeNotifications.length, 99)}
+            </span>
+          )}
+        </button>
+
+        {/* Notifications */}
+        <div className="relative">
+          <button
+            onClick={() => { setNotifOpen(p => !p); setUserMenuOpen(false); setThemeMenuOpen(false); }}
+            className={cn(
+              'w-8 h-8 rounded-lg flex items-center justify-center border transition-colors',
+              topbarHasCustomColor
+                ? 'text-white/70 hover:text-white border-white/15 hover:border-white/30 bg-white/10'
+                : 'text-[var(--text-faint)] hover:text-[var(--text-primary)] border-[var(--border-base)] hover:border-[var(--border-muted)] bg-[var(--bg-elevated)]'
+            )}>
+            <Bell size={14} />
+          </button>
+          {(unreadCount > 0 || totalReminderAlerts > 0) && (
+            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 rounded-full border-2 border-[var(--bg-page)] flex items-center justify-center text-[8px] font-bold text-white leading-none">
+              {Math.min(unreadCount + totalReminderAlerts, 99)}
+            </span>
+          )}
+          {notifOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setNotifOpen(false)} />
+              <div className="absolute right-0 top-10 z-50 w-80 glass-card shadow-2xl shadow-black/60 animate-slide-up overflow-hidden">
+                {/* Header */}
+                <div className="px-4 py-3 border-b border-[var(--border-base)] flex items-center justify-between">
+                  <p className="text-xs font-bold text-[var(--text-primary)]">Notifications</p>
+                  <span className="px-1.5 py-0.5 rounded-full bg-red-500/15 border border-red-500/25 text-[9px] font-bold text-red-400">{unreadCount} new</span>
+                </div>
+                {/* Tabs */}
+                <div className="flex border-b border-[var(--border-base)]">
+                  {['alerts', 'activity'].map(t => (
+                    <button key={t} onClick={() => setNotifTab(t)}
+                      className={cn('flex-1 py-2 text-[10px] font-bold uppercase tracking-wide transition-colors',
+                        notifTab === t ? 'text-[var(--primary-light)] border-b-2 border-[var(--primary)]' : 'text-[var(--text-faint)] hover:text-[var(--text-secondary)]'
+                      )}>
+                      {t === 'alerts' ? `Alerts (${ALERTS.length})` : 'Activity'}
+                    </button>
+                  ))}
+                </div>
+                {/* Content */}
+                <div className="max-h-80 overflow-y-auto">
+                  {notifTab === 'alerts' ? (
+                    ALERTS.map(a => {
+                      const col = a.severity === 'critical' ? '#ef4444' : a.severity === 'warning' ? '#f59e0b' : '#3b82f6';
+                      const Icon = a.type === 'stock' ? Package : a.type === 'delay' ? Clock : AlertTriangle;
+                      return (
+                        <button key={a.id} onClick={() => { onNavigate(a.page); setNotifOpen(false); }}
+                          className="w-full flex items-start gap-2.5 px-4 py-3 border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)] transition-colors text-left">
+                          <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
+                            style={{ background: `${col}15`, border: `1px solid ${col}25` }}>
+                            <Icon size={11} style={{ color: col }} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[11px] text-[var(--text-secondary)] leading-snug">{a.message}</p>
+                            <p className="text-[9px] text-[var(--text-faint)] mt-0.5">{a.time}</p>
+                          </div>
+                          <span className="shrink-0 w-1.5 h-1.5 rounded-full mt-1.5" style={{ background: col }} />
+                        </button>
+                      );
+                    })
+                  ) : (
+                    ACTIVITY_FEED.slice(0, 8).map(item => (
+                      <div key={item.id} className="flex items-start gap-2.5 px-4 py-3 border-b border-[var(--border-base)] last:border-0">
+                        <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 bg-[var(--primary)]/10 border border-[var(--primary)]/20 text-[9px] font-bold text-[var(--primary-light)]">
+                          {item.avatar}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] text-[var(--text-secondary)] leading-snug">
+                            <span className="font-semibold text-[var(--text-primary)]">{item.actor}</span> {item.action}
+                          </p>
+                          <p className="text-[10px] text-[var(--text-muted)] truncate">{item.subject}</p>
+                          <p className="text-[9px] text-[var(--text-faint)] mt-0.5">{item.time}</p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+                {/* Footer */}
+                <div className="px-4 py-2.5 border-t border-[var(--border-base)]">
+                  <button className="w-full text-[10px] font-semibold text-[var(--primary-light)] hover:underline text-center">
+                    View all notifications
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Settings shortcut */}
+        <button
+          onClick={() => { onNavigate('settings'); setNotifOpen(false); setUserMenuOpen(false); setThemeMenuOpen(false); }}
+          title="Settings & Control Center"
+          className={cn(
+            'w-8 h-8 rounded-lg flex items-center justify-center border transition-colors',
+            currentPage === 'settings'
+              ? 'text-[var(--accent)] border-[var(--accent)]/40 bg-[var(--accent)]/8'
+              : topbarHasCustomColor
+                ? 'text-white/70 hover:text-white border-white/15 hover:border-white/30 bg-white/10'
+                : 'text-[var(--text-faint)] hover:text-[var(--text-primary)] border-[var(--border-base)] hover:border-[var(--border-muted)] bg-[var(--bg-elevated)]'
+          )}>
+          <Settings size={14} />
+        </button>
+
+        {/* Theme picker */}
+        <div className="relative">
+          <button
+            onClick={() => setThemeMenuOpen(p => !p)}
+            title={`Theme: ${currentLabel}`}
+            className={cn(
+              'w-8 h-8 rounded-lg flex items-center justify-center border transition-colors',
+              topbarHasCustomColor
+                ? 'text-white/70 hover:text-white border-white/15 hover:border-white/30 bg-white/10'
+                : 'text-[var(--text-faint)] hover:text-[var(--primary-light)] border-[var(--border-base)] hover:border-[var(--primary)]/40 bg-[var(--bg-elevated)]'
+            )}
+          >
+            <Palette size={14} />
+          </button>
+          {themeMenuOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setThemeMenuOpen(false)} />
+              <div className="absolute right-0 top-10 z-50 w-44 glass-card shadow-2xl shadow-black/60 py-1.5 animate-slide-up">
+                <p className="px-4 py-1.5 text-[9px] font-bold text-[var(--text-faint)] uppercase tracking-widest border-b border-[var(--border-base)] mb-1">Theme</p>
+                {themes.map(t => (
+                  <button
+                    key={t.key}
+                    onClick={() => { setTheme(t.key); setThemeMenuOpen(false); }}
+                    className={cn(
+                      'flex items-center gap-2.5 w-full px-4 py-2 text-xs transition-colors',
+                      theme === t.key
+                        ? 'text-[var(--primary-light)] bg-[var(--primary)]/10'
+                        : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                    )}
+                  >
+                    <span className={cn(
+                      'w-3 h-3 rounded-full border shrink-0',
+                      t.key === 'dark' && 'bg-[#0b1220] border-blue-500/60',
+                      t.key === 'light' && 'bg-[#f8fafc] border-blue-400/60',
+                      t.key === 'deep' && 'bg-[#080c14] border-blue-600/60',
+                      t.key === 'slate' && 'bg-[#1e293b] border-blue-400/50',
+                      t.key === 'solar' && 'bg-[#181200] border-amber-500/60',
+                    )} />
+                    {t.label}
+                    {theme === t.key && <span className="ml-auto text-[10px] text-[var(--primary-light)]">✓</span>}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* User menu */}
+        <div className="relative">
+          <button
+            onClick={() => setUserMenuOpen(p => !p)}
+            className={cn(
+              'flex items-center gap-2 h-8 px-2 rounded-lg border transition-all cursor-pointer',
+              topbarHasCustomColor
+                ? 'bg-white/10 border-white/15 hover:border-white/30'
+                : 'bg-[var(--bg-elevated)] border-[var(--border-base)] hover:border-[var(--border-muted)]'
+            )}
+          >
+            <Avatar size="xs">{user?.avatar}</Avatar>
+            <span className={cn('hidden sm:block text-xs font-medium', topbarHasCustomColor ? 'text-white/90' : 'text-[var(--text-secondary)]')}>{user?.name?.split(' ')[0]}</span>
+            <ChevronDown size={11} className={cn('hidden sm:block', topbarHasCustomColor ? 'text-white/50' : 'text-[var(--text-faint)]')} />
+          </button>
+
+          {userMenuOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setUserMenuOpen(false)} />
+              <div className="absolute right-0 top-10 z-50 w-56 glass-card shadow-2xl shadow-black/60 py-1.5 animate-slide-up">
+                <div className="px-4 py-3 border-b border-[var(--border-base)]">
+                  <p className="text-xs font-bold text-[var(--text-primary)]">{user?.name}</p>
+                  <p className="text-[10px] text-[var(--text-faint)] mt-0.5">{user?.email}</p>
+                  <Badge variant="blue" className="mt-2 text-[9px]">{user?.role}</Badge>
+                </div>
+                <button className="flex items-center gap-2.5 w-full px-4 py-2.5 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors">
+                  <User size={12} /> My Profile
+                </button>
+                <button
+                  onClick={() => { onNavigate('settings'); setUserMenuOpen(false); }}
+                  className="flex items-center gap-2.5 w-full px-4 py-2.5 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors">
+                  <Settings size={12} /> Settings
+                </button>
+                <div className="border-t border-[var(--border-base)] mt-1 pt-1">
+                  <button
+                    onClick={() => { logout(); setUserMenuOpen(false); }}
+                    className="flex items-center gap-2.5 w-full px-4 py-2.5 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
+                  >
+                    <LogOut size={12} /> Sign Out
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </header>
+
+      {/* ════════════════ MOBILE OVERLAY ════════════════ */}
+      {(sidebarOpen || (isOverlay && sidebarHovered)) && (
+        <div
+          className={cn(
+            'fixed inset-0 z-30 bg-black/70 backdrop-blur-sm transition-opacity duration-300',
+            // On desktop: only show for overlay mode
+            !isOverlay && 'lg:hidden'
+          )}
+          onClick={() => { close(); setSidebarHovered(false); }}
+        />
+      )}
+
+      {/* ════════════════ HORIZONTAL NAV BAR ════════════════ */}
+      {isHorizontal && (
+        <div
+          className="fixed top-14 left-0 right-0 z-30 h-11 flex items-center gap-1 px-4 border-b border-[var(--border-base)] overflow-x-auto"
+          style={{ ...sidebarStyle, background: sidebarStyle.background || sidebarStyle.backgroundColor || 'var(--bg-sidebar)', backdropFilter: 'blur(20px)' }}
+        >
+          {visibleSections.flatMap(s => s.items).map(item => {
+            const Icon = item.icon;
+            const active = currentPage === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => { onNavigate(item.id); close(); }}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium whitespace-nowrap transition-all duration-150 shrink-0',
+                  active
+                    ? 'bg-[var(--primary)]/15 text-[var(--primary-light)] font-semibold'
+                    : sidebarHasCustomColor
+                      ? 'text-white/60 hover:text-white/90 hover:bg-white/10'
+                      : 'text-[var(--text-faint)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
+                )}
+              >
+                <Icon size={13} />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ════════════════ SIDEBAR ════════════════ */}
+      {!isHorizontal && (
+        <aside
+          className={cn(
+            'fixed top-0 z-40 flex flex-col transition-all duration-300 overflow-y-auto overflow-x-hidden',
+            'border-r border-[var(--border-base)]',
+            !sidebarHasCustomColor && 'sidebar-bg',
+            // Full height sidebar
+            'h-screen',
+            // Detached: floating with gap/margin
+            isDetached && 'top-2 bottom-2 left-2 rounded-2xl border h-[calc(100vh-1rem)]',
+            !isDetached && 'left-0',
+            // Overlay: shadow when visible
+            (isOverlay && sidebarHovered) && 'shadow-2xl shadow-black/40',
+            // Hover-view: always visible on desktop at 64px, expands on hover with shadow
+            isHoverView && sidebarHovered && 'shadow-2xl shadow-black/30',
+            // Visibility: mobile = slide, desktop = depends on mode
+            sidebarOpen
+              ? 'translate-x-0'
+              : isOverlay
+                ? (sidebarHovered ? 'translate-x-0' : '-translate-x-full lg:-translate-x-full')
+                : '-translate-x-full lg:translate-x-0'
+          )}
+          style={{
+            width: `${isOverlay ? (sidebarHovered ? 220 : 0) : sidebarW}px`,
+            paddingTop: isDetached ? '0' : '56px',
+            ...sidebarStyle,
+          }}
+          onMouseEnter={() => { if (isHoverView || isOverlay) setSidebarHovered(true); }}
+          onMouseLeave={() => { if (isHoverView || isOverlay) setSidebarHovered(false); }}
+        >
+
+          {/* ════════════════ SIDEBAR LOGO ════════════════ */}
+          <div className={cn(
+            'flex items-center border-b border-[var(--border-base)] transition-all duration-300',
+            showLabels ? 'px-4 py-4 gap-3' : 'px-2 py-3 justify-center'
+          )}>
+            {/* Solar Logo Icon */}
+            <div className={cn(
+              'relative shrink-0 rounded-xl bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600 flex items-center justify-center shadow-lg transition-all duration-300',
+              showLabels ? 'w-10 h-10' : 'w-9 h-9'
+            )}
+              style={{
+                boxShadow: '0 8px 24px rgba(245, 158, 11, 0.4), 0 0 20px rgba(251, 191, 36, 0.3)',
+                animation: 'pulse-glow 3s ease-in-out infinite'
+              }}
+            >
+              {/* Sun rays animation */}
+              <div className="absolute inset-0 rounded-xl"
+                style={{
+                  background: 'radial-gradient(circle at center, rgba(251, 191, 36, 0.3) 0%, transparent 70%)',
+                  animation: 'rotate-slow 20s linear infinite'
+                }}
+              />
+
+              {/* Main sun icon */}
+              <Sun
+                size={showLabels ? 20 : 18}
+                className="relative z-10 text-white drop-shadow-lg"
+                strokeWidth={2.5}
+                style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' }}
+              />
+
+              {/* Solar panel detail */}
+              <div className="absolute bottom-1 right-1 w-2 h-2 rounded-sm opacity-80"
+                style={{
+                  boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.3)',
+                  background: `linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%)`
+                }}
+              />
+            </div>
+
+            {/* Logo Text */}
+            {showLabels && (
+              <div className="flex flex-col leading-tight">
+                <div className="flex items-baseline gap-1.5">
+                  <span className={cn(
+                    'font-extrabold text-base tracking-tight',
+                    sidebarHasCustomColor
+                      ? 'text-white'
+                      : 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 bg-clip-text text-transparent'
+                  )}
+                    style={{
+                      textShadow: sidebarHasCustomColor ? '0 2px 8px rgba(255,255,255,0.15)' : 'none'
+                    }}
+                  >
+                    {APP_CONFIG.name.split(' ')[0]}
+                  </span>
+                  <span className={cn(
+                    'font-bold text-base tracking-tight',
+                    sidebarHasCustomColor ? 'text-white/90' : 'text-[var(--text-primary)]'
+                  )}>
+                    {APP_CONFIG.name.split(' ')[1]}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className={cn(
+                    'text-[9px] font-bold uppercase tracking-[0.1em]',
+                    sidebarHasCustomColor ? 'text-white/50' : 'text-[var(--text-faint)]'
+                  )}>
+                    {APP_CONFIG.edition}
+                  </span>
+                  <div className="flex items-center gap-0.5">
+                    <span className="w-1 h-1 rounded-full bg-green-500 animate-pulse-dot" />
+                    <span className="text-[8px] font-semibold text-green-500">Active</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <nav className="flex-1 py-4 px-2">
+            {visibleSections.map(section => (
+              <div key={section.section} className="mb-3">
+                {showLabels && (
+                  <p className={cn(
+                    'px-3 pb-1.5 pt-2 text-[9px] font-bold uppercase tracking-[0.15em]',
+                    sidebarHasCustomColor ? 'text-white/40' : 'text-[var(--text-faint)]'
+                  )}>
+                    {section.section}
+                  </p>
+                )}
+                {section.items.map(item => {
+                  const Icon = item.icon;
+                  const active = currentPage === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => { onNavigate(item.id); close(); setSidebarHovered(false); }}
+                      title={!showLabels ? item.label : undefined}
+                      className={cn(
+                        'w-full flex items-center transition-all duration-150',
+                        showLabels ? 'nav-item' : 'justify-center py-2 px-1 rounded-lg my-0.5',
+                        active && showLabels && !sidebarHasCustomColor && 'nav-item-active',
+                        active && showLabels && sidebarHasCustomColor && 'bg-white/15 text-white font-semibold',
+                        active && !showLabels && 'bg-[var(--primary)]/15',
+                        !active && !showLabels && 'hover:bg-[var(--bg-hover)]',
+                        !active && sidebarHasCustomColor && showLabels && 'text-white/60 hover:text-white/90 hover:bg-white/10',
+                      )}
+                    >
+                      <Icon
+                        size={showLabels ? 14 : 18}
+                        className={cn(
+                          'shrink-0',
+                          active
+                            ? (sidebarHasCustomColor ? 'text-white' : 'text-[var(--primary-light)]')
+                            : (sidebarHasCustomColor ? 'text-white/50' : 'text-[var(--text-faint)]')
+                        )}
+                      />
+                      {showLabels && <span className="truncate">{item.label}</span>}
+                      {showLabels && item.badge && (
+                        <span className={cn(
+                          'ml-auto text-[9px] rounded-full px-1.5 py-0.5 font-bold',
+                          item.badgeVariant === 'red' ? 'bg-red-500 text-white' :
+                            item.badgeVariant === 'amber' ? 'bg-amber-500 text-black' :
+                              'bg-[var(--primary)] text-white'
+                        )}>{item.badge}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+          </nav>
+
+          {/* AI Engine badge — only when sidebar is expanded */}
+          {showLabels && (
+            <div className="m-3 p-3.5 rounded-xl border border-[var(--primary)]/20"
+              style={{ background: 'linear-gradient(135deg, var(--primary-glow) 0%, rgba(34,211,238,0.05) 100%)' }}>
+              <div className="flex items-center gap-2 mb-1">
+                <Zap size={12} className="text-[var(--primary-light)]" />
+                <span className="text-[11px] font-bold text-[var(--primary-light)]">AI Engine Active</span>
+              </div>
+              <p className={cn('text-[10px]', sidebarHasCustomColor ? 'text-white/40' : 'text-[var(--text-faint)]')}>
+                3 insights ready for review
+              </p>
+            </div>
+          )}
+
+          {/* Version */}
+          {showLabels && (
+            <div className="px-4 pb-4">
+              <p className={cn('text-[9px]', sidebarHasCustomColor ? 'text-white/30' : 'text-[var(--text-faint)]')}>{APP_CONFIG.company}</p>
+              <p className={cn('text-[9px] mt-0.5', sidebarHasCustomColor ? 'text-white/30' : 'text-[var(--text-faint)]')}>v{APP_CONFIG.version}</p>
+            </div>
+          )}
+        </aside>
+      )}
+
+      {/* ════════════════ OVERLAY / HOVER TRIGGER ZONE ════════════════ */}
+      {(isOverlay || isHoverView) && !sidebarOpen && !sidebarHovered && !isHorizontal && (
+        <div
+          className="fixed top-14 left-0 bottom-0 w-3 z-40 hidden lg:block"
+          onMouseEnter={() => setSidebarHovered(true)}
+        />
+      )}
+
+      {/* ════════════════ MAIN CONTENT ════════════════ */}
+      <main
+        className={cn(
+          'min-h-[calc(100vh-56px)] p-5 bg-[var(--bg-page)] transition-all duration-300',
+          isHorizontal ? 'mt-[100px]' : 'mt-14',
+        )}
+        style={{
+          marginLeft: isOverlay ? 0 : (windowWidth >= 1024 ? `${sidebarW}px` : 0),
+        }}
+        onClick={() => { if (userMenuOpen) setUserMenuOpen(false); if (themeMenuOpen) setThemeMenuOpen(false); if (notifOpen) setNotifOpen(false); }}
+      >
+        {children}
+      </main>
+
+      {/* ════════════════ REMINDER SIDEBAR ════════════════ */}
+      <ReminderSidebar
+        isOpen={reminderSidebarOpen}
+        onClose={() => setReminderSidebarOpen(false)}
+        onNavigate={onNavigate}
+      />
+
+      {/* ════════════════ THEME CUSTOMIZER ════════════════ */}
+      <ThemeCustomizer />
+    </div>
+  );
+};
+
+export default Layout;

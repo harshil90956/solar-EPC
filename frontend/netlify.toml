@@ -1,0 +1,20 @@
+[build]
+  command = "CI=false npm run build"
+  publish = "build"
+
+[build.environment]
+  NODE_VERSION = "18"
+  NPM_FLAGS = "--legacy-peer-deps"
+
+# Disable ESLint errors in production build
+[[plugins]]
+  package = "@netlify/plugin-lighthouse"
+
+[context.production]
+  command = "CI=false npm run build"
+
+[context.deploy-preview]
+  command = "CI=false npm run build"
+
+[context.branch-deploy]
+  command = "CI=false npm run build"
