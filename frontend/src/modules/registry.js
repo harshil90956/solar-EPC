@@ -1,0 +1,18 @@
+﻿export const MODULE_OWNERS = {
+  'dashboard': 'Harshil',
+  'ai-intelligence': 'Ankit',
+  'crm-sales': 'Akshit',
+  'survey': 'Harshil',
+  'boq-design': 'Jemish',
+  'quotation': 'Ankit',
+  'projects': 'Devanshee',
+  'inventory': 'Devanshee',
+  'procurement': 'Jeel',
+  'logistics': 'Jeel',
+  'installation': 'Akshit',
+  'commissioning': 'Rutvik',
+  'finance': 'Priyanshi',
+  'service-amc': 'Keyuri',
+  'compliance': 'Priya',
+  'settings': 'Harshil',
+};
