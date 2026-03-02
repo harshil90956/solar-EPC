@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, X, Save, Share2, Filter, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, X, Save, Share2, Filter, Trash2, ChevronDown, ChevronUp, Search } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Button } from './Button';
 import { Input } from './Input';
@@ -11,12 +11,33 @@ import { Input } from './Input';
  *  onSavePreset: (name, filters) => void
  *  presets: [{ name, filters }]
  */
-const FilterSystem = ({ fields = [], onApply, onSavePreset, presets = [], className }) => {
+const FilterSystem = ({ fields = [], onApply, onSavePreset, presets = [], className, isExpanded: externalExpanded, onToggle, onSearch }) => {
+    const [internalExpanded, setInternalExpanded] = useState(false);
+    const isExpanded = externalExpanded !== undefined ? externalExpanded : internalExpanded;
+    const setIsExpanded = (val) => {
+        if (onToggle) {
+            onToggle(val);
+        } else {
+            setInternalExpanded(val);
+        }
+    };
+
     const [conditions, setConditions] = useState([
         { id: Date.now(), field: fields[0]?.id, operator: 'equals', value: '', logic: 'AND' }
     ]);
-    const [isExpanded, setIsExpanded] = useState(false);
     const [presetName, setPresetName] = useState('');
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const handleSearchChange = (e) => {
+        const value = e.target.value;
+        setSearchTerm(value);
+        onSearch?.(value);
+    };
+
+    const clearSearch = () => {
+        setSearchTerm('');
+        onSearch?.('');
+    };
 
     const addCondition = () => {
         setConditions([...conditions, { id: Date.now(), field: fields[0]?.id, operator: 'equals', value: '', logic: 'AND' }]);
@@ -57,9 +78,9 @@ const FilterSystem = ({ fields = [], onApply, onSavePreset, presets = [], classN
 
                 {presets.length > 0 && (
                     <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
-                        {presets.map(p => (
+                        {presets.map((p, idx) => (
                             <button
-                                key={p.name}
+                                key={`${p.name}-${idx}`}
                                 onClick={() => { setConditions(p.filters); onApply?.(p.filters); }}
                                 className="px-3 py-1.5 rounded-full bg-[var(--bg-elevated)] border border-[var(--border-base)] text-[10px] font-bold text-[var(--text-muted)] hover:border-[var(--accent)] hover:text-[var(--text-primary)] transition-all whitespace-nowrap"
                             >
@@ -72,6 +93,25 @@ const FilterSystem = ({ fields = [], onApply, onSavePreset, presets = [], classN
 
             {isExpanded && (
                 <div className="glass-card p-5 animate-slide-up space-y-4">
+                    {/* Search Input */}
+                    <div className="relative">
+                        <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[var(--text-muted)]" />
+                        <Input
+                            placeholder="Search across all fields..."
+                            value={searchTerm}
+                            onChange={handleSearchChange}
+                            className="pl-10 pr-10"
+                        />
+                        {searchTerm && (
+                            <button
+                                onClick={clearSearch}
+                                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                            >
+                                <X size={14} />
+                            </button>
+                        )}
+                    </div>
+
                     <div className="space-y-3">
                         {conditions.map((c, index) => (
                             <div key={c.id} className="flex items-center gap-2">

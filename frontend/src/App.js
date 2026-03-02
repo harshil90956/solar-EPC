@@ -26,7 +26,6 @@ import IntelligenceDashboardPage from './pages/IntelligenceDashboardPage';
 import RemindersPage from './pages/RemindersPage';
 import NotificationSystem from './components/NotificationSystem';
 import { canAccess } from './config/roles.config';
-import { discoverModulePageMap } from './modules/discover-page-map';
 
 // ── Page Map ──────────────────────────────────────────────────────────────────
 const PAGE_MAP = {
@@ -48,7 +47,6 @@ const PAGE_MAP = {
   compliance: { component: CompliancePage, title: 'Compliance' },
   settings: { component: SettingsPage, title: 'Settings' },
   intelligence: { component: IntelligenceDashboardPage, title: 'AI Intelligence' },
-  ...discoverModulePageMap(),
 };
 
 const APP_NAME = 'Solar OS';

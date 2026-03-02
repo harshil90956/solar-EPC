@@ -40,8 +40,9 @@ const DataTable = ({
     rowKey = 'id',
     toolbar,
     className,
+    sort: controlledSort,
 }) => {
-    const [sort, setSort] = useState({ key: null, dir: 'asc' });
+    const [internalSort, setInternalSort] = useState({ key: null, dir: 'asc' });
     const [hiddenCols, setHiddenCols] = useState(new Set());
     const [openActionRow, setOpenActionRow] = useState(null);
     const [colToggleOpen, setColToggleOpen] = useState(false);
@@ -50,6 +51,11 @@ const DataTable = ({
     const [internalSelected, setInternalSelected] = useState(new Set());
     const selectedRows = controlledSelected ?? internalSelected;
     const setSelected = onSelectRows ?? setInternalSelected;
+
+    // Use controlled sort if provided, otherwise use internal
+    const isControlledSort = controlledSort !== undefined;
+    const sort = isControlledSort ? controlledSort : internalSort;
+    const setSort = isControlledSort ? null : setInternalSort;
 
     const visibleColumns = useMemo(() => columns.filter(c => !hiddenCols.has(c.key)), [columns, hiddenCols]);
     const totalPages = Math.ceil(total / pageSize) || 1;
@@ -69,7 +75,9 @@ const DataTable = ({
     const handleSort = (key) => {
         if (!onSort) return;
         const dir = sort.key === key && sort.dir === 'asc' ? 'desc' : 'asc';
-        setSort({ key, dir });
+        if (!isControlledSort) {
+            setInternalSort({ key, dir });
+        }
         onSort({ key, dir });
     };
 
@@ -185,8 +193,8 @@ const DataTable = ({
                                     <th
                                         key={col.key}
                                         className={cn(
-                                            'px-4 py-3 text-left label-muted whitespace-nowrap',
-                                            col.sortable && 'cursor-pointer select-none hover:text-[var(--text-secondary)]'
+                                            'px-3 py-2.5 text-left text-[11px] font-semibold text-[var(--text-muted)] whitespace-nowrap',
+                                            col.sortable && 'cursor-pointer select-none hover:text-[var(--text-primary)]'
                                         )}
                                         style={col.width ? { width: col.width } : undefined}
                                         onClick={() => col.sortable && handleSort(col.key)}
@@ -198,7 +206,7 @@ const DataTable = ({
                                     </th>
                                 ))}
                                 {allRowActions.length > 0 && (
-                                    <th className="w-10 px-3 py-3 sticky right-0 z-10 bg-[var(--bg-raised)] border-l border-[var(--border-base)] shadow-[-4px_0_8px_rgba(0,0,0,0.1)]" />
+                                    <th className="w-10 px-2 py-2.5 sticky right-0 z-10 bg-[var(--bg-raised)] border-l border-[var(--border-base)]" />
                                 )}
                             </tr>
                         </thead>
@@ -234,25 +242,25 @@ const DataTable = ({
                                             </td>
                                         )}
                                         {visibleColumns.map(col => (
-                                            <td key={col.key} className="px-4 py-3.5 text-xs text-[var(--text-secondary)]">
+                                            <td key={col.key} className="px-3 py-2 text-[12px] text-[var(--text-primary)]">
                                                 {col.render ? col.render(row[col.key], row) : row[col.key] ?? '—'}
                                             </td>
                                         ))}
                                         {allRowActions.length > 0 && (
-                                            <td className="px-3 py-3.5 relative sticky right-0 z-10 bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] transition-colors border-l border-[var(--border-base)] shadow-[-4px_0_8px_rgba(0,0,0,0.1)]">
+                                            <td className="px-2 py-2 relative sticky right-0 z-10 bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] transition-colors border-l border-[var(--border-base)]">
                                                 <button
                                                     onClick={() => setOpenActionRow(openActionRow === row[rowKey] ? null : row[rowKey])}
-                                                    className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--text-faint)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+                                                    className="w-6 h-6 rounded flex items-center justify-center text-[var(--text-faint)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
                                                 >
                                                     <MoreHorizontal size={14} />
                                                 </button>
                                                 {openActionRow === row[rowKey] && (
                                                     <>
                                                         <div className="fixed inset-0 z-30" onClick={() => setOpenActionRow(null)} />
-                                                        <div className="absolute right-8 top-0 z-40 w-44 glass-card shadow-2xl shadow-black/50 py-1.5 animate-slide-up">
-                                                            {allRowActions.map(a => (
+                                                        <div className="absolute right-8 top-0 z-50 w-44 glass-card shadow-2xl shadow-black/50 py-1.5 animate-slide-up">
+                                                            {allRowActions.map((a, idx) => (
                                                                 <button
-                                                                    key={a.label}
+                                                                    key={`${row[rowKey]}-${a.label}-${idx}`}
                                                                     onClick={() => { a.onClick(row); setOpenActionRow(null); }}
                                                                     className={cn(
                                                                         'flex items-center gap-2 w-full px-3 py-2 text-xs transition-colors',
