@@ -14,6 +14,10 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/Tabs'
 import DataTable from '../components/ui/DataTable';
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
 import { api } from '../lib/apiClient';
+import { usePermissions } from '../hooks/usePermissions';
+import { useAuditLog } from '../hooks/useAuditLog';
+import { toast } from '../components/ui/Toast';
+import CanAccess, { CanCreate } from '../components/CanAccess';
 
 const fmt = CURRENCY.format;
 const fmtFull = CURRENCY.formatFull;

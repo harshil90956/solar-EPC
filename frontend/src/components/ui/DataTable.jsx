@@ -258,8 +258,8 @@ const DataTable = ({
                                             <td className="px-3 py-3.5 sticky left-0 z-10 bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] transition-colors">
                                                 <input
                                                     type="checkbox"
-                                                    checked={selectedRows.has(uniqueKey)}
-                                                    onChange={() => toggleRow(uniqueKey)}
+                                                    checked={selectedRows.has(row[rowKey])}
+                                                    onChange={() => toggleRow(row[rowKey])}
                                                     className="w-3.5 h-3.5 accent-[var(--primary)] cursor-pointer"
                                                 />
                                             </td>
@@ -275,8 +275,8 @@ const DataTable = ({
                                                 onClick={e => e.stopPropagation()}
                                             >
                                                 <button
-                                                    ref={el => buttonRefs.current[idx] = el}
-                                                    onClick={e => handleMenuOpen(e, idx)}
+                                                    ref={el => buttonRefs.current[index] = el}
+                                                    onClick={e => handleMenuOpen(e, index)}
                                                     className="w-6 h-6 rounded flex items-center justify-center text-[var(--text-faint)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
                                                 >
                                                     <MoreHorizontal size={14} />
@@ -284,8 +284,7 @@ const DataTable = ({
                                             </td>
                                         )}
                                     </tr>
-                                    );
-                                })
+                                ))
                             )}
                         </tbody>
                     </table>
