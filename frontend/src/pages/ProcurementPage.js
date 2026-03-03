@@ -131,6 +131,34 @@ const POKanbanBoard = ({ pos, onStageChange, onCardClick }) => {
 
 /* ── Main Page ── */
 const ProcurementPage = () => {
+  const { can } = usePermissions();
+  const { logCreate, logUpdate, logDelete, logStatusChange } = useAuditLog('procurement');
+
+  // Permission guard helpers
+  const guardCreate = () => {
+    if (!can('procurement', 'create')) {
+      toast.error('Permission denied: Cannot create procurement items');
+      return false;
+    }
+    return true;
+  };
+
+  const guardEdit = () => {
+    if (!can('procurement', 'edit')) {
+      toast.error('Permission denied: Cannot edit procurement');
+      return false;
+    }
+    return true;
+  };
+
+  const guardDelete = () => {
+    if (!can('procurement', 'delete')) {
+      toast.error('Permission denied: Cannot delete procurement items');
+      return false;
+    }
+    return true;
+  };
+
   const [poView, setPoView] = useState('kanban');
   const [poSearch, setPoSearch] = useState('');
   const [poStatus, setPoStatus] = useState('All');
@@ -306,8 +334,12 @@ const ProcurementPage = () => {
           <p className="text-xs text-[var(--text-muted)] mt-0.5">Purchase orders · vendor management · delivery tracking</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="ghost" onClick={() => setShowVendor(true)}><Plus size={13} /> Add Vendor</Button>
-          <Button onClick={() => setShowPO(true)}><Plus size={13} /> Create PO</Button>
+          <CanCreate module="procurement">
+            <Button variant="ghost" onClick={() => { if (guardCreate()) setShowVendor(true); }}><Plus size={13} /> Add Vendor</Button>
+          </CanCreate>
+          <CanCreate module="procurement">
+            <Button onClick={() => { if (guardCreate()) setShowPO(true); }}><Plus size={13} /> Create PO</Button>
+          </CanCreate>
         </div>
       </div>
 

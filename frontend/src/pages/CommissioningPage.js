@@ -7,6 +7,10 @@ import { Input, FormField, Select } from '../components/ui/Input';
 import { KPICard } from '../components/ui/KPICard';
 import DataTable from '../components/ui/DataTable';
 import { APP_CONFIG } from '../config/app.config';
+import { usePermissions } from '../hooks/usePermissions';
+import { useAuditLog } from '../hooks/useAuditLog';
+import CanAccess, { CanCreate, CanEdit, CanDelete } from '../components/CanAccess';
+import { toast } from '../components/ui/Toast';
 
 const COMMISSIONED = [
   {
@@ -164,6 +168,34 @@ const CommKanbanBoard = ({ systems, onStageChange, onCardClick }) => {
 
 /* ── Main Page ── */
 const CommissioningPage = () => {
+  const { can } = usePermissions();
+  const { logCreate, logUpdate, logDelete, logStatusChange } = useAuditLog('commissioning');
+
+  // Permission guard helpers
+  const guardCreate = () => {
+    if (!can('commissioning', 'create')) {
+      toast.error('Permission denied: Cannot create commissioning records');
+      return false;
+    }
+    return true;
+  };
+
+  const guardEdit = () => {
+    if (!can('commissioning', 'edit')) {
+      toast.error('Permission denied: Cannot edit commissioning');
+      return false;
+    }
+    return true;
+  };
+
+  const guardApprove = () => {
+    if (!can('commissioning', 'approve')) {
+      toast.error('Permission denied: Cannot approve commissioning');
+      return false;
+    }
+    return true;
+  };
+
   const [view, setView] = useState('kanban');
   const [search, setSearch] = useState('');
   const [statusFilter, setFilter] = useState('All');
@@ -173,8 +205,15 @@ const CommissioningPage = () => {
   const [selected, setSelected] = useState(null);
   const [systems, setSystems] = useState(COMMISSIONED);
 
-  const handleStageChange = (id, newStatus) =>
-    setSystems(prev => prev.map(s => s.id === id ? { ...s, status: newStatus } : s));
+  const handleStageChange = (id, newStatus) => {
+    if (!can('commissioning', 'edit')) {
+      toast.error('Permission denied: Cannot change commissioning status');
+      return;
+    }
+    const ca = systems.find(c => c.id === id);
+    setSystems(prev => prev.map(c => c.id === id ? { ...c, status: newStatus } : c));
+    logStatusChange(ca, ca.status, newStatus);
+  };
 
   const filtered = useMemo(() =>
     systems.filter(c =>
@@ -189,9 +228,9 @@ const CommissioningPage = () => {
   const totalKW = systems.filter(c => c.status === 'Active').reduce((a, c) => a + c.systemSize, 0);
 
   const ROW_ACTIONS = [
-    { label: 'View Certificate', icon: Award, onClick: row => setSelected(row) },
-    { label: 'Download Report', icon: FileSignature, onClick: () => { } },
-    { label: 'Run Checklist', icon: CheckCircle, onClick: () => { } },
+    { label: 'View Details', icon: FileSignature, onClick: row => setSelected(row) },
+    { label: 'Run Tests', icon: Cpu, onClick: (row) => { if (guardEdit()) console.log('Run Tests', row); } },
+    { label: 'Generate Certificate', icon: Award, onClick: (row) => { if (guardApprove()) console.log('Generate Certificate', row); } },
   ];
 
   return (
@@ -206,7 +245,9 @@ const CommissioningPage = () => {
             <button onClick={() => setView('kanban')} className={`view-toggle-btn ${view === 'kanban' ? 'active' : ''}`}><LayoutGrid size={14} /></button>
             <button onClick={() => setView('table')} className={`view-toggle-btn ${view === 'table' ? 'active' : ''}`}><List size={14} /></button>
           </div>
-          <Button onClick={() => setShowAdd(true)}><Plus size={13} /> Commission System</Button>
+          <CanCreate module="commissioning">
+            <Button onClick={() => { if (guardCreate()) setShowAdd(true); }}><Plus size={13} /> New Record</Button>
+          </CanCreate>
         </div>
       </div>
 

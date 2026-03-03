@@ -30,8 +30,10 @@ import DataTable from '../components/ui/DataTable';
 import FilterSystem from '../components/ui/FilterSystem';
 import ImportExport from '../components/ui/ImportExport';
 import { useAuditLog } from '../hooks/useAuditLog';
+import { usePermissions } from '../hooks/usePermissions';
 import EnhancedSolarSurveyStudio from '../components/SolarDesignStudio/EnhancedSolarSurveyStudio';
-import CanAccess from '../components/CanAccess';
+import CanAccess, { CanCreate, CanEdit, CanDelete } from '../components/CanAccess';
+import { toast } from '../components/ui/Toast';
 
 // ── Advanced Survey Analytics Components ────────────────────────────────────────
 const SurveyDashboardKPI = ({ title, value, change, icon: Icon, color, subtitle, trend }) => (
@@ -464,6 +466,40 @@ const SurveyPage = () => {
   ]);
 
   const { logCreate, logDelete, logStatusChange } = useAuditLog('survey');
+  const { can } = usePermissions();
+
+  // Permission guard helpers
+  const guardCreate = () => {
+    if (!can('survey', 'create')) {
+      toast.error('Permission denied: Cannot create surveys');
+      return false;
+    }
+    return true;
+  };
+
+  const guardEdit = () => {
+    if (!can('survey', 'edit')) {
+      toast.error('Permission denied: Cannot edit surveys');
+      return false;
+    }
+    return true;
+  };
+
+  const guardDelete = () => {
+    if (!can('survey', 'delete')) {
+      toast.error('Permission denied: Cannot delete surveys');
+      return false;
+    }
+    return true;
+  };
+
+  const guardExport = () => {
+    if (!can('survey', 'export')) {
+      toast.error('Permission denied: Cannot export surveys');
+      return false;
+    }
+    return true;
+  };
 
   // Advanced survey scoring algorithm
   const calculateSurveyScore = useCallback((survey) => {
@@ -626,6 +662,10 @@ const SurveyPage = () => {
   ];
 
   const handleStageChange = (id, newStage) => {
+    if (!can('survey', 'edit')) {
+      toast.error('Permission denied: Cannot change survey status');
+      return;
+    }
     const survey = surveys.find(s => s.id === id);
     setSurveys(prev => prev.map(s => s.id === id ? { ...s, status: newStage } : s));
     logStatusChange(survey, survey.status, newStage);
@@ -686,19 +726,22 @@ const SurveyPage = () => {
                 }`} />
             </button>
           </div>
-          <ImportExport
-            onImport={(data) => {
-              setSurveys(prev => [...prev, ...data]);
-              logCreate({ id: 'batch', name: `Import batch of ${data.length} surveys` });
-            }}
-            onExport={() => console.log('Exporting surveys...')}
-            templateFields={SURVEY_FIELDS}
-          />
-          <CanAccess permission="survey:create">
+          <CanAccess module="survey" action="export">
+            <ImportExport
+              onImport={(data) => {
+                if (!guardCreate()) return;
+                setSurveys(prev => [...prev, ...data]);
+                logCreate({ id: 'batch', name: `Import batch of ${data.length} surveys` });
+              }}
+              onExport={() => { if (guardExport()) console.log('Exporting surveys...'); }}
+              templateFields={SURVEY_FIELDS}
+            />
+          </CanAccess>
+          <CanCreate module="survey">
             <Button onClick={() => setShowAdd(true)} className="shadow-lg shadow-[var(--primary)]/20">
               <Plus size={14} /> Schedule Survey
             </Button>
-          </CanAccess>
+          </CanCreate>
         </div>
       </div>
 
@@ -931,11 +974,12 @@ const SurveyPage = () => {
           selectedRows={selected}
           onSelectRows={setSelected}
           bulkActions={[
-            { label: 'Export', icon: Download, onClick: (rows) => console.log('Exporting', rows) },
-            { label: 'Assign Engineer', icon: Users, onClick: (rows) => console.log('Assigning', rows) },
-            { label: 'Schedule', icon: Calendar, onClick: (rows) => console.log('Scheduling', rows) },
+            { label: 'Export', icon: Download, onClick: (rows) => { if (guardExport()) console.log('Exporting', rows); } },
+            { label: 'Assign Engineer', icon: Users, onClick: (rows) => { if (guardEdit()) console.log('Assigning', rows); } },
+            { label: 'Schedule', icon: Calendar, onClick: (rows) => { if (guardEdit()) console.log('Scheduling', rows); } },
             {
               label: 'Delete', icon: Trash2, onClick: (rows) => {
+                if (!guardDelete()) return;
                 rows.forEach(row => logDelete(row));
                 console.log('Deleting', rows);
               }, danger: true
@@ -944,7 +988,7 @@ const SurveyPage = () => {
           rowActions={[
             { label: 'View Report', icon: Eye, onClick: (r) => setSelectedSurvey(r) },
             { label: 'Timeline', icon: History, onClick: (r) => console.log('Timeline', r) },
-            { label: 'Edit', icon: Edit2, onClick: (r) => console.log('Edit', r) },
+            { label: 'Edit', icon: Edit2, onClick: (r) => { if (guardEdit()) console.log('Edit', r); } },
             {
               label: '3D Studio', icon: Box, onClick: (r) => {
                 const analysis = SITE_ANALYSIS[r.id];
@@ -957,6 +1001,7 @@ const SurveyPage = () => {
             },
             {
               label: 'Delete', icon: Trash2, onClick: (r) => {
+                if (!guardDelete()) return;
                 logDelete(r);
                 console.log('Deleted', r);
               }, danger: true
@@ -1037,8 +1082,10 @@ const SurveyPage = () => {
           <div className="flex gap-2 justify-end">
             <Button variant="ghost" onClick={() => setShowAdd(false)}>Cancel</Button>
             <Button onClick={() => {
-              logCreate({ id: 'new', name: 'New survey scheduled' });
-              setShowAdd(false);
+              if (guardCreate()) {
+                logCreate({ id: 'new', name: 'New survey scheduled' });
+                setShowAdd(false);
+              }
             }}>
               <Plus size={14} /> Schedule Visit
             </Button>

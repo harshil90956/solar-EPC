@@ -22,6 +22,10 @@ import {
   computeFinancials, generatePanelGrid,
 } from '../config/projectTypes.config';
 import { useSettings } from '../context/SettingsContext';
+import { usePermissions } from '../hooks/usePermissions';
+import { useAuditLog } from '../hooks/useAuditLog';
+import CanAccess, { CanCreate, CanEdit, CanDelete, CanView } from '../components/CanAccess';
+import { toast } from '../components/ui/Toast';
 
 const fmt = CURRENCY.format;
 
@@ -379,6 +383,49 @@ const DesignKanbanBoard = ({ designs, onStageChange, onCardClick, getTypeCfg }) 
 // ── Main Page Component ───────────────────────────────────────────────────────
 const DesignPage = () => {
   const { getProjectTypeCfg } = useSettings();
+  const { can } = usePermissions();
+  const { logCreate, logUpdate, logDelete, logStatusChange } = useAuditLog('design');
+
+  // Permission guard helpers
+  const guardCreate = () => {
+    if (!can('design', 'create')) {
+      toast.error('Permission denied: Cannot create designs');
+      return false;
+    }
+    return true;
+  };
+
+  const guardEdit = () => {
+    if (!can('design', 'edit')) {
+      toast.error('Permission denied: Cannot edit designs');
+      return false;
+    }
+    return true;
+  };
+
+  const guardDelete = () => {
+    if (!can('design', 'delete')) {
+      toast.error('Permission denied: Cannot delete designs');
+      return false;
+    }
+    return true;
+  };
+
+  const guardApprove = () => {
+    if (!can('design', 'approve')) {
+      toast.error('Permission denied: Cannot approve designs');
+      return false;
+    }
+    return true;
+  };
+
+  const guardExport = () => {
+    if (!can('design', 'export')) {
+      toast.error('Permission denied: Cannot export designs');
+      return false;
+    }
+    return true;
+  };
 
   const [designs, setDesigns] = useState(DESIGNS_EXT);
   const [view, setView] = useState('kanban');
@@ -398,8 +445,15 @@ const DesignPage = () => {
 
   const STATUS_FILTERS = ['All', 'Draft', 'In Review', 'Approved', 'Rejected'];
 
-  const handleStageChange = (id, newStage) =>
+  const handleStageChange = (id, newStage) => {
+    if (!can('design', 'edit')) {
+      toast.error('Permission denied: Cannot change design status');
+      return;
+    }
+    const design = designs.find(d => d.id === id);
     setDesigns(prev => prev.map(d => d.id === id ? { ...d, status: newStage } : d));
+    logStatusChange(design, design.status, newStage);
+  };
 
   const filtered = useMemo(() => designs.filter(d =>
     (statusFilter === 'All' || d.status === statusFilter) &&
@@ -428,8 +482,8 @@ const DesignPage = () => {
     { label: 'Layout Preview', icon: LayoutGrid, onClick: row => { setSelected(row); setActiveTab('layout'); } },
     { label: 'View BOQ', icon: FileText, onClick: row => { setSelected(row); setActiveTab('boq'); } },
     { label: 'Financial Analysis', icon: BarChart2, onClick: row => { setSelected(row); setActiveTab('financials'); } },
-    { label: 'Generate BOQ', icon: Package, onClick: () => { } },
-    { label: 'Approve Design', icon: CheckCircle, onClick: () => { } },
+    { label: 'Generate BOQ', icon: Package, onClick: () => { if (guardEdit()) console.log('Generate BOQ'); } },
+    { label: 'Approve Design', icon: CheckCircle, onClick: () => { if (guardApprove()) console.log('Approve Design'); } },
   ];
 
   return (
@@ -450,7 +504,9 @@ const DesignPage = () => {
           >
             <Box size={13} /> Open 3D Design Studio
           </Button>
-          <Button onClick={() => setShowAdd(true)}><Plus size={13} /> New Design</Button>
+          <CanCreate module="design">
+            <Button onClick={() => { if (guardCreate()) setShowAdd(true); }}><Plus size={13} /> New Design</Button>
+          </CanCreate>
         </div>
       </div>
 
@@ -592,8 +648,12 @@ const DesignPage = () => {
         footer={
           <>
             <Button variant="secondary" onClick={() => setShowAdd(false)}>Cancel</Button>
-            <Button variant="outline">Save Draft</Button>
-            <Button>Create &amp; Generate BOQ</Button>
+            <CanEdit module="design">
+              <Button variant="outline" onClick={() => { if (guardEdit()) console.log('Save Draft'); }}>Save Draft</Button>
+            </CanEdit>
+            <CanCreate module="design">
+              <Button onClick={() => { if (guardCreate()) { console.log('Create & Generate BOQ'); setShowAdd(false); } }}>Create &amp; Generate BOQ</Button>
+            </CanCreate>
           </>
         }
       >
@@ -741,10 +801,24 @@ const DesignPage = () => {
             >
               <Box size={13} /> Open 3D Studio
             </Button>
-            <Button variant="outline"><Download size={13} /> Export BOQ</Button>
-            {selected?.status === 'Draft' && <Button variant="outline">Submit for Review</Button>}
-            {selected?.status === 'In Review' && <Button>Approve Design</Button>}
-            {selected?.status === 'Approved' && <Button>Create Quotation</Button>}
+            <CanEdit module="design">
+              <Button variant="outline" onClick={() => { if (guardExport()) console.log('Export BOQ'); }}><Download size={13} /> Export BOQ</Button>
+            </CanEdit>
+            {selected?.status === 'Draft' && (
+              <CanEdit module="design">
+                <Button variant="outline" onClick={() => { if (guardEdit()) console.log('Submit for Review'); }}>Submit for Review</Button>
+              </CanEdit>
+            )}
+            {selected?.status === 'In Review' && (
+              <CanAccess module="design" action="approve">
+                <Button onClick={() => { if (guardApprove()) console.log('Approve Design'); }}>Approve Design</Button>
+              </CanAccess>
+            )}
+            {selected?.status === 'Approved' && (
+              <CanCreate module="quotation">
+                <Button onClick={() => console.log('Create Quotation')}>Create Quotation</Button>
+              </CanCreate>
+            )}
           </>
         }
       >

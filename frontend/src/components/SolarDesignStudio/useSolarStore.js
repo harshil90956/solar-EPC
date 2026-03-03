@@ -357,7 +357,6 @@ export const useSolarStore = create(
             const roof = state.roofs.find(r => r.id === roofId);
 
             if (!roof || !roof.points || roof.points.length < 3) {
-                console.warn('No valid roof found for auto-fill');
                 return;
             }
 
