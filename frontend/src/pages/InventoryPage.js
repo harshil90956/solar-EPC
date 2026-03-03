@@ -1,10 +1,9 @@
 // Solar OS – EPC Edition — InventoryPage.js
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
-  Package, Plus, AlertTriangle, Warehouse, ArrowUp, ArrowDown, Zap, LayoutGrid, List
+  Package, Plus, AlertTriangle, Warehouse, ArrowUp, ArrowDown, Zap, LayoutGrid, List, Edit2, Trash2
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { INVENTORY } from '../data/mockData';
 import { StatusBadge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
@@ -13,30 +12,39 @@ import { KPICard } from '../components/ui/KPICard';
 import { Progress } from '../components/ui/Progress';
 import DataTable from '../components/ui/DataTable';
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
-import { usePermissions } from '../hooks/usePermissions';
-import { useAuditLog } from '../hooks/useAuditLog';
-import CanAccess, { CanCreate, CanEdit, CanDelete } from '../components/CanAccess';
-import { toast } from '../components/ui/Toast';
 
 const fmt = CURRENCY.format;
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
+const TENANT_ID = 'solarcorp';
 
 const getStockStatus = (item) => {
-  if (item.available === 0) return 'Out of Stock';
-  if (item.available <= item.minStock) return 'Low Stock';
-  if (item.reserved > 0 && item.available > item.minStock) return 'Partially Reserved';
-  return 'In Stock';
+  // If explicit status is set, return the stage ID format
+  if (item.status) {
+    const statusMap = {
+      'In Stock': 'in-stock',
+      'Partially Reserved': 'partially-reserved',
+      'Low Stock': 'low-stock',
+      'Out of Stock': 'out-of-stock'
+    };
+    return statusMap[item.status] || item.status;
+  }
+  // Otherwise calculate from stock values
+  if (item.available === 0) return 'out-of-stock';
+  if (item.available <= item.minStock) return 'low-stock';
+  if (item.reserved > 0 && item.available > item.minStock) return 'partially-reserved';
+  return 'in-stock';
 };
 
 // ── Kanban columns ─────────────────────────────────────────────────────────────
 const INV_STAGES = [
-  { id: 'In Stock', label: 'In Stock', color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
-  { id: 'Partially Reserved', label: 'Partially Reserved', color: '#06b6d4', bg: 'rgba(6,182,212,0.12)' },
-  { id: 'Low Stock', label: 'Low Stock', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
-  { id: 'Out of Stock', label: 'Out of Stock', color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
+  { id: 'in-stock', label: 'In Stock', color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
+  { id: 'partially-reserved', label: 'Partially Reserved', color: '#06b6d4', bg: 'rgba(6,182,212,0.12)' },
+  { id: 'low-stock', label: 'Low Stock', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
+  { id: 'out-of-stock', label: 'Out of Stock', color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
 ];
 
 const COLUMNS = [
-  { key: 'id', header: 'Item ID', render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span> },
+  { key: 'itemId', header: 'Item ID', render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span> },
   { key: 'name', header: 'Item Name', sortable: true, render: v => <span className="text-xs font-semibold text-[var(--text-primary)]">{v}</span> },
   { key: 'category', header: 'Category', render: v => <span className="text-xs text-[var(--text-secondary)]">{v}</span> },
   { key: 'stock', header: 'Total Stock', sortable: true, render: (v, row) => <span className="text-xs font-bold text-[var(--text-primary)]">{v} {row.unit}</span> },
@@ -66,7 +74,7 @@ const InvCard = ({ item, onDragStart, onClick }) => {
     <div draggable onDragStart={onDragStart} onClick={onClick}
       className="glass-card p-3 cursor-grab active:cursor-grabbing hover:border-[var(--primary)]/40 transition-all">
       <div className="flex items-start justify-between mb-1">
-        <span className="text-[10px] font-mono text-[var(--accent-light)]">{item.id}</span>
+        <span className="text-[10px] font-mono text-[var(--accent-light)]">{item.itemId}</span>
         <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: stage?.bg, color: stage?.color }}>{item.category}</span>
       </div>
       <p className="text-xs font-semibold text-[var(--text-primary)] mb-0.5 leading-tight">{item.name}</p>
@@ -99,28 +107,29 @@ const InvCard = ({ item, onDragStart, onClick }) => {
 };
 
 /* ── Kanban Board ── */
-const InvKanbanBoard = ({ items, onCardClick }) => {
+const InvKanbanBoard = ({ items, onCardClick, onDrop }) => {
   const draggingId = useRef(null);
   const [dragOver, setDragOver] = useState(null);
-  const [overrides, setOverrides] = useState({});
 
-  const getStatus = (item) => overrides[item.id] || getStockStatus(item);
+  const handleDrop = (stageId) => {
+    if (draggingId.current && onDrop) {
+      onDrop(draggingId.current, stageId);
+    }
+    draggingId.current = null; setDragOver(null);
+  };
 
   return (
     <div className="overflow-x-auto pb-3">
       <div className="flex gap-3 min-w-max">
         {INV_STAGES.map(stage => {
-          const cards = items.filter(i => getStatus(i) === stage.id);
+          const cards = items.filter(i => getStockStatus(i) === stage.id);
           const totalVal = cards.reduce((a, i) => a + i.available * i.rate, 0);
           return (
             <div key={stage.id}
               className={`flex flex-col w-60 rounded-xl border transition-colors ${dragOver === stage.id ? 'border-[var(--primary)]/50 bg-[var(--primary)]/5' : 'border-[var(--border-base)] bg-[var(--bg-surface)]'}`}
               onDragOver={e => { e.preventDefault(); setDragOver(stage.id); }}
               onDragLeave={() => setDragOver(null)}
-              onDrop={() => {
-                if (draggingId.current) setOverrides(o => ({ ...o, [draggingId.current]: stage.id }));
-                draggingId.current = null; setDragOver(null);
-              }}>
+              onDrop={() => handleDrop(stage.id)}>
               <div className="flex items-center justify-between p-3 border-b border-[var(--border-base)]">
                 <div className="flex items-center gap-2">
                   <div className="w-2.5 h-2.5 rounded-full" style={{ background: stage.color }} />
@@ -134,8 +143,8 @@ const InvKanbanBoard = ({ items, onCardClick }) => {
               </div>
               <div className="flex flex-col gap-2 p-2 flex-1 min-h-[180px]">
                 {cards.map(i => (
-                  <InvCard key={i.id} item={i}
-                    onDragStart={() => { draggingId.current = i.id; }}
+                  <InvCard key={i.itemId} item={i}
+                    onDragStart={() => { draggingId.current = i.itemId; }}
                     onClick={() => onCardClick(i)} />
                 ))}
                 {cards.length === 0 && (
@@ -154,34 +163,6 @@ const InvKanbanBoard = ({ items, onCardClick }) => {
 
 /* ── Main Page ── */
 const InventoryPage = () => {
-  const { can } = usePermissions();
-  const { logCreate, logUpdate, logDelete } = useAuditLog('inventory');
-
-  // Permission guard helpers
-  const guardCreate = () => {
-    if (!can('inventory', 'create')) {
-      toast.error('Permission denied: Cannot create inventory items');
-      return false;
-    }
-    return true;
-  };
-
-  const guardEdit = () => {
-    if (!can('inventory', 'edit')) {
-      toast.error('Permission denied: Cannot edit inventory');
-      return false;
-    }
-    return true;
-  };
-
-  const guardDelete = () => {
-    if (!can('inventory', 'delete')) {
-      toast.error('Permission denied: Cannot delete inventory items');
-      return false;
-    }
-    return true;
-  };
-
   const [view, setView] = useState('kanban');
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('All');
@@ -190,29 +171,361 @@ const InventoryPage = () => {
   const [showAdd, setShowAdd] = useState(false);
   const [showStockIn, setStockIn] = useState(false);
   const [selected, setSelected] = useState(null);
+  const [itemReservations, setItemReservations] = useState([]);
+  const [loadingReservations, setLoadingReservations] = useState(false);
   const [form, setForm] = useState({ name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
+  const [stockInForm, setStockInForm] = useState({ itemId: '', quantity: '', poReference: '', receivedDate: '', remarks: '' });
+  const [showEdit, setShowEdit] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [editForm, setEditForm] = useState({ name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
+  const [showStockOut, setShowStockOut] = useState(false);
+  const [stockOutForm, setStockOutForm] = useState({ itemId: '', quantity: '', projectId: '', issuedDate: '', remarks: '' });
+  const [inventory, setInventory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [stats, setStats] = useState({ totalItems: 0, totalValue: 0, lowStockItems: 0, outOfStockItems: 0 });
+  const [submitting, setSubmitting] = useState(false);
+
+  // Fetch inventory from backend
+  useEffect(() => {
+    const fetchInventory = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`${API_BASE_URL}/inventory?tenantId=${TENANT_ID}`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch inventory');
+        }
+        const data = await response.json();
+        console.log('Inventory API Response:', data);
+        const itemsArray = Array.isArray(data) ? data : (data.data || []);
+        setInventory(itemsArray);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching inventory:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchInventory();
+  }, []);
+
+  // Fetch stats
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/inventory/stats?tenantId=${TENANT_ID}`);
+        if (response.ok) {
+          const data = await response.json();
+          setStats(data);
+        }
+      } catch (err) {
+        console.error('Error fetching stats:', err);
+      }
+    };
+    fetchStats();
+  }, [inventory]);
 
   const filtered = useMemo(() =>
-    INVENTORY.filter(i =>
+    inventory.filter(i =>
       (catFilter === 'All' || i.category === catFilter) &&
       i.name.toLowerCase().includes(search.toLowerCase())
-    ), [search, catFilter]);
+    ), [inventory, search, catFilter]);
 
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
 
-  const lowStockItems = INVENTORY.filter(i => i.available <= i.minStock);
-  const totalValue = INVENTORY.reduce((a, i) => a + i.stock * i.rate, 0);
-  const outOfStock = INVENTORY.filter(i => i.available === 0).length;
+  const lowStockItems = inventory.filter(i => i.available <= i.minStock && i.available > 0);
+  const outOfStockItems = inventory.filter(i => i.available === 0);
+  const totalValue = inventory.reduce((a, i) => a + i.stock * i.rate, 0);
 
-  const chartData = INVENTORY.map(i => ({
+  const chartData = inventory.slice(0, 10).map(i => ({
     name: i.name.length > 14 ? i.name.slice(0, 14) + '…' : i.name,
     available: i.available, reserved: i.reserved,
   }));
 
+  const handleAddItem = async () => {
+    setSubmitting(true);
+    try {
+      const newItem = {
+        itemId: `INV${Date.now().toString().slice(-4)}`,
+        name: form.name,
+        category: form.category,
+        unit: form.unit,
+        stock: 0,
+        reserved: 0,
+        available: 0,
+        minStock: parseInt(form.minStock) || 0,
+        rate: parseFloat(form.rate) || 0,
+        warehouse: form.warehouse,
+      };
+
+      const response = await fetch(`${API_BASE_URL}/inventory?tenantId=${TENANT_ID}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newItem),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to create item: ${errorText}`);
+      }
+
+      const createdItem = await response.json();
+      const itemData = createdItem.data || createdItem;
+      setInventory(prev => [...prev, itemData]);
+      setShowAdd(false);
+      setForm({ name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
+      alert('Item added successfully!');
+    } catch (err) {
+      console.error('Error adding item:', err);
+      alert(err.message || 'Failed to add item. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleStockIn = async () => {
+    if (!stockInForm.itemId || !stockInForm.quantity) return;
+    
+    setSubmitting(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/inventory/${stockInForm.itemId}/stock-in?tenantId=${TENANT_ID}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          quantity: parseInt(stockInForm.quantity),
+          poReference: stockInForm.poReference,
+          receivedDate: stockInForm.receivedDate,
+          remarks: stockInForm.remarks,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to stock in: ${errorText}`);
+      }
+
+      const updatedItem = await response.json();
+      const itemData = updatedItem.data || updatedItem;
+      setInventory(prev => prev.map(i => i.itemId === stockInForm.itemId ? itemData : i));
+      setStockIn(false);
+      setStockInForm({ itemId: '', quantity: '', poReference: '', receivedDate: '', remarks: '' });
+      alert('Stock added successfully!');
+    } catch (err) {
+      console.error('Error adding stock:', err);
+      alert(err.message || 'Failed to add stock. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Fetch reservations when item is selected
+  useEffect(() => {
+    if (selected?.itemId) {
+      fetchItemReservations(selected.itemId);
+    } else {
+      setItemReservations([]);
+    }
+  }, [selected?.itemId]);
+
+  const fetchItemReservations = async (itemId) => {
+    setLoadingReservations(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/inventory/reservations/by-item/${itemId}?tenantId=${TENANT_ID}`);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Reservation API response:', data);
+        setItemReservations(data.data || data || []);
+      } else {
+        console.error('Reservation API error:', response.status, await response.text());
+      }
+    } catch (err) {
+      console.error('Error fetching reservations:', err);
+    } finally {
+      setLoadingReservations(false);
+    }
+  };
+
+  const handleEditClick = (item) => {
+    setEditingItem(item);
+    setEditForm({
+      name: item.name || '',
+      category: item.category || '',
+      unit: item.unit || '',
+      minStock: item.minStock || '',
+      rate: item.rate || '',
+      warehouse: item.warehouse || '',
+      status: item.status || ''
+    });
+    setShowEdit(true);
+  };
+
+  const handleUpdateItem = async () => {
+    if (!editingItem) return;
+    setSubmitting(true);
+    try {
+      const updateData = {
+        name: editForm.name,
+        category: editForm.category,
+        unit: editForm.unit,
+        minStock: parseInt(editForm.minStock) || 0,
+        rate: parseFloat(editForm.rate) || 0,
+        warehouse: editForm.warehouse,
+        status: editForm.status || undefined
+      };
+
+      const response = await fetch(`${API_BASE_URL}/inventory/${editingItem.itemId}?tenantId=${TENANT_ID}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updateData),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to update item: ${errorText}`);
+      }
+
+      const updatedItem = await response.json();
+      const itemData = updatedItem.data || updatedItem;
+      setInventory(prev => prev.map(i => i.itemId === editingItem.itemId ? itemData : i));
+      setShowEdit(false);
+      setEditingItem(null);
+      setEditForm({ name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
+      alert('Item updated successfully!');
+    } catch (err) {
+      console.error('Error updating item:', err);
+      alert(err.message || 'Failed to update item. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteItem = async (itemId) => {
+    if (!window.confirm('Are you sure you want to delete this item?')) return;
+    try {
+      const response = await fetch(`${API_BASE_URL}/inventory/${itemId}?tenantId=${TENANT_ID}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete item');
+      }
+
+      setInventory(prev => prev.filter(i => i.itemId !== itemId));
+      alert('Item deleted successfully!');
+    } catch (err) {
+      console.error('Error deleting item:', err);
+      alert(err.message || 'Failed to delete item. Please try again.');
+    }
+  };
+
+  const handleStockOut = async () => {
+    if (!stockOutForm.itemId || !stockOutForm.quantity) return;
+    
+    setSubmitting(true);
+    try {
+      // First do stock out
+      const response = await fetch(`${API_BASE_URL}/inventory/${stockOutForm.itemId}/stock-out?tenantId=${TENANT_ID}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          quantity: parseInt(stockOutForm.quantity),
+          projectId: stockOutForm.projectId,
+          issuedDate: stockOutForm.issuedDate,
+          remarks: stockOutForm.remarks,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to stock out: ${errorText}`);
+      }
+
+      const updatedItem = await response.json();
+      const itemData = updatedItem.data || updatedItem;
+      
+      // Create reservation record for the project
+      if (stockOutForm.projectId) {
+        try {
+          await fetch(`${API_BASE_URL}/inventory/reservations?tenantId=${TENANT_ID}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              itemId: stockOutForm.itemId,
+              projectId: stockOutForm.projectId,
+              quantity: parseInt(stockOutForm.quantity),
+              notes: stockOutForm.remarks || `Stock issued on ${stockOutForm.issuedDate || new Date().toISOString().split('T')[0]}`,
+            }),
+          });
+        } catch (resErr) {
+          console.error('Error creating reservation record:', resErr);
+          // Don't fail the whole operation if reservation creation fails
+        }
+      }
+      
+      setInventory(prev => prev.map(i => i.itemId === stockOutForm.itemId ? itemData : i));
+      setShowStockOut(false);
+      setStockOutForm({ itemId: '', quantity: '', projectId: '', issuedDate: '', remarks: '' });
+      alert('Stock issued successfully! Project reservation recorded.');
+    } catch (err) {
+      console.error('Error issuing stock:', err);
+      alert(err.message || 'Failed to issue stock. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Handle kanban drop - update status field directly
+  const handleKanbanDrop = async (itemId, targetStage) => {
+    // Map stage IDs to status values
+    const stageToStatus = {
+      'in-stock': 'In Stock',
+      'partially-reserved': 'Partially Reserved',
+      'low-stock': 'Low Stock',
+      'out-of-stock': 'Out of Stock'
+    };
+    
+    const newStatus = stageToStatus[targetStage];
+    if (!newStatus) return;
+
+    setSubmitting(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/inventory/${itemId}?tenantId=${TENANT_ID}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to update status: ${errorText}`);
+      }
+
+      const updatedItem = await response.json();
+      const itemData = updatedItem.data || updatedItem;
+      setInventory(prev => prev.map(i => i.itemId === itemId ? { ...i, status: newStatus } : i));
+      
+      // Refresh stats
+      const statsResponse = await fetch(`${API_BASE_URL}/inventory/stats?tenantId=${TENANT_ID}`);
+      if (statsResponse.ok) {
+        const statsData = await statsResponse.json();
+        setStats(statsData);
+      }
+    } catch (err) {
+      console.error('Error updating stock status:', err);
+      alert(err.message || 'Failed to update stock status. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const ROW_ACTIONS = [
     { label: 'View Details', icon: Package, onClick: row => setSelected(row) },
-    { label: 'Stock In', icon: ArrowUp, onClick: () => { if (guardEdit()) setStockIn(true); } },
-    { label: 'Stock Out', icon: ArrowDown, onClick: () => { if (guardEdit()) console.log('Stock Out'); } },
+    { label: 'Edit', icon: Edit2, onClick: row => handleEditClick(row) },
+    { label: 'Stock In', icon: ArrowUp, onClick: row => { setStockInForm({ ...stockInForm, itemId: row.itemId }); setStockIn(true); } },
+    { label: 'Stock Out', icon: ArrowDown, onClick: row => { setStockOutForm({ ...stockOutForm, itemId: row.itemId }); setShowStockOut(true); } },
+    { label: 'Delete', icon: Trash2, onClick: row => handleDeleteItem(row.itemId), danger: true },
   ];
 
   return (
@@ -229,20 +542,16 @@ const InventoryPage = () => {
             <button onClick={() => setView('table')}
               className={`view-toggle-btn ${view === 'table' ? 'active' : ''}`}><List size={14} /></button>
           </div>
-          <CanEdit module="inventory">
-            <Button variant="ghost" onClick={() => { if (guardEdit()) setStockIn(true); }}><ArrowUp size={13} /> Stock In</Button>
-          </CanEdit>
-          <CanCreate module="inventory">
-            <Button onClick={() => { if (guardCreate()) setShowAdd(true); }}><Plus size={13} /> Add Item</Button>
-          </CanCreate>
+          <Button variant="ghost" onClick={() => setStockIn(true)}><ArrowUp size={13} /> Stock In</Button>
+          <Button onClick={() => setShowAdd(true)}><Plus size={13} /> Add Item</Button>
         </div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KPICard label="Total Items" value={INVENTORY.length} sub="SKUs tracked" icon={Package} accentColor="#3b82f6" />
+        <KPICard label="Total Items" value={inventory.length} sub="SKUs tracked" icon={Package} accentColor="#3b82f6" />
         <KPICard label="Inventory Value" value={fmt(totalValue)} sub="At current rates" icon={Warehouse} accentColor="#f59e0b" trend="+5% vs last mo" trendUp />
         <KPICard label="Low Stock Alerts" value={lowStockItems.length} sub="Items need reorder" icon={AlertTriangle} accentColor="#f59e0b" />
-        <KPICard label="Out of Stock" value={outOfStock} sub="Immediate action needed" icon={AlertTriangle} accentColor="#ef4444" />
+        <KPICard label="Out of Stock" value={outOfStockItems.length} sub="Immediate action needed" icon={AlertTriangle} accentColor="#ef4444" />
       </div>
 
       {lowStockItems.length > 0 && (
@@ -279,38 +588,53 @@ const InventoryPage = () => {
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2 items-center">
-        <span className="text-xs text-[var(--text-muted)] mr-1">Category:</span>
-        {CATEGORY_FILTERS.map(c => (
-          <button key={c} onClick={() => { setCatFilter(c); setPage(1); }}
-            className={`filter-chip ${catFilter === c ? 'filter-chip-active' : ''}`}>{c}</button>
-        ))}
-        <div className="ml-auto">
-          <Input placeholder="Search inventory…" value={search}
-            onChange={e => { setSearch(e.target.value); setPage(1); }} className="h-8 text-xs w-52" />
-        </div>
-      </div>
-
-      {view === 'kanban' ? (
+      {view === 'table' ? (
         <>
-          <p className="text-xs text-[var(--text-muted)]">Drag items between columns to update stock status</p>
-          <InvKanbanBoard items={filtered} onCardClick={setSelected} />
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-xs text-[var(--text-muted)] mr-1">Category:</span>
+            {CATEGORY_FILTERS.map(c => (
+              <button key={c} onClick={() => { setCatFilter(c); setPage(1); }}
+                className={`filter-chip ${catFilter === c ? 'filter-chip-active' : ''}`}>{c}</button>
+            ))}
+            <div className="ml-auto">
+              <Input placeholder="Search inventory…" value={search}
+                onChange={e => { setSearch(e.target.value); setPage(1); }} className="h-8 text-xs w-52" />
+            </div>
+          </div>
+          <DataTable columns={COLUMNS} data={paginated} total={filtered.length}
+            page={page} pageSize={pageSize} onPageChange={setPage}
+            onPageSizeChange={s => { setPageSize(s); setPage(1); }}
+            search={search} onSearch={v => { setSearch(v); setPage(1); }}
+            rowActions={ROW_ACTIONS} emptyText="No inventory items found." />
         </>
       ) : (
-        <DataTable columns={COLUMNS} data={paginated} total={filtered.length}
-          page={page} pageSize={pageSize} onPageChange={setPage}
-          onPageSizeChange={s => { setPageSize(s); setPage(1); }}
-          search={search} onSearch={v => { setSearch(v); setPage(1); }}
-          rowActions={ROW_ACTIONS} emptyText="No inventory items found." />
+        <>
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-[var(--text-muted)]">Drag items between columns to update stock status</p>
+            <Input placeholder="Search inventory…" value={search} onChange={e => setSearch(e.target.value)} className="h-8 text-xs w-52" />
+          </div>
+          {loading ? (
+            <div className="glass-card p-8 text-center">
+              <div className="animate-pulse text-[var(--text-muted)]">Loading inventory...</div>
+            </div>
+          ) : error ? (
+            <div className="glass-card p-8 text-center text-red-500">
+              <p>Error loading inventory: {error}</p>
+              <p className="text-xs mt-2 text-[var(--text-muted)]">Make sure the backend server is running on port 3000</p>
+            </div>
+          ) : (
+            <InvKanbanBoard items={filtered} onCardClick={setSelected} onDrop={handleKanbanDrop} />
+          )}
+        </>
       )}
 
       {/* Add Item Modal */}
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Add Inventory Item"
         footer={<div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={() => setShowAdd(false)}>Cancel</Button>
-          <CanCreate module="inventory">
-            <Button onClick={() => { if (guardCreate()) { console.log('Add Item'); setShowAdd(false); } }}><Plus size={13} /> Add Item</Button>
-          </CanCreate>
+          <Button onClick={handleAddItem} disabled={submitting || !form.name || !form.category || !form.warehouse}>
+            {submitting ? 'Adding...' : <><Plus size={13} /> Add Item</>}
+          </Button>
         </div>}>
         <div className="space-y-3">
           <FormField label="Item Name"><Input placeholder="e.g. 400W Mono PERC Panel" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></FormField>
@@ -345,22 +669,93 @@ const InventoryPage = () => {
       <Modal open={showStockIn} onClose={() => setStockIn(false)} title="Stock In — Receive Materials"
         footer={<div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={() => setStockIn(false)}>Cancel</Button>
-          <CanEdit module="inventory">
-            <Button onClick={() => { if (guardEdit()) { console.log('Confirm Receipt'); setStockIn(false); } }}><ArrowUp size={13} /> Confirm Receipt</Button>
-          </CanEdit>
+          <Button onClick={handleStockIn} disabled={submitting || !stockInForm.itemId || !stockInForm.quantity}>
+            {submitting ? 'Processing...' : <><ArrowUp size={13} /> Confirm Receipt</>}
+          </Button>
         </div>}>
         <div className="space-y-3">
           <FormField label="Item">
-            <Select><option value="">Select Item</option>
-              {INVENTORY.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+            <Select value={stockInForm.itemId} onChange={e => setStockInForm(f => ({ ...f, itemId: e.target.value }))}>
+              <option value="">Select Item</option>
+              {inventory.map(i => <option key={i.itemId} value={i.itemId}>{i.name}</option>)}
             </Select>
           </FormField>
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="Quantity Received"><Input type="number" placeholder="100" /></FormField>
-            <FormField label="PO Reference"><Input placeholder="PO001" /></FormField>
+            <FormField label="Quantity Received"><Input type="number" placeholder="100" value={stockInForm.quantity} onChange={e => setStockInForm(f => ({ ...f, quantity: e.target.value }))} /></FormField>
+            <FormField label="PO Reference"><Input placeholder="PO001" value={stockInForm.poReference} onChange={e => setStockInForm(f => ({ ...f, poReference: e.target.value }))} /></FormField>
           </div>
-          <FormField label="Received Date"><Input type="date" /></FormField>
-          <FormField label="Remarks"><Input placeholder="Any notes about the delivery…" /></FormField>
+          <FormField label="Received Date"><Input type="date" value={stockInForm.receivedDate} onChange={e => setStockInForm(f => ({ ...f, receivedDate: e.target.value }))} /></FormField>
+          <FormField label="Remarks"><Input placeholder="Any notes about the delivery…" value={stockInForm.remarks} onChange={e => setStockInForm(f => ({ ...f, remarks: e.target.value }))} /></FormField>
+        </div>
+      </Modal>
+
+      {/* Edit Item Modal */}
+      <Modal open={showEdit} onClose={() => setShowEdit(false)} title={`Edit Item — ${editingItem?.itemId}`}
+        footer={<div className="flex gap-2 justify-end">
+          <Button variant="ghost" onClick={() => setShowEdit(false)}>Cancel</Button>
+          <Button onClick={handleUpdateItem} disabled={submitting || !editForm.name || !editForm.category || !editForm.warehouse}>
+            {submitting ? 'Saving...' : 'Save Changes'}
+          </Button>
+        </div>}>
+        <div className="space-y-3">
+          <FormField label="Item Name"><Input placeholder="e.g. 400W Mono PERC Panel" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} /></FormField>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Category">
+              <Select value={editForm.category} onChange={e => setEditForm(f => ({ ...f, category: e.target.value }))}>
+                <option value="">Select Category</option>
+                {['Panel', 'Inverter', 'BOS', 'Structure', 'Cable', 'Other'].map(c => <option key={c}>{c}</option>)}
+              </Select>
+            </FormField>
+            <FormField label="Unit">
+              <Select value={editForm.unit} onChange={e => setEditForm(f => ({ ...f, unit: e.target.value }))}>
+                <option value="">Select Unit</option>
+                {['Nos', 'Mtr', 'Kg', 'Set', 'Pairs', 'Box'].map(u => <option key={u}>{u}</option>)}
+              </Select>
+            </FormField>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Min Stock Level"><Input type="number" placeholder="100" value={editForm.minStock} onChange={e => setEditForm(f => ({ ...f, minStock: e.target.value }))} /></FormField>
+            <FormField label="Unit Rate (₹)"><Input type="number" placeholder="14500" value={editForm.rate} onChange={e => setEditForm(f => ({ ...f, rate: e.target.value }))} /></FormField>
+          </div>
+          <FormField label="Status">
+            <Select value={editForm.status} onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))}>
+              <option value="">Auto (calculated from stock)</option>
+              <option value="In Stock">In Stock</option>
+              <option value="Partially Reserved">Partially Reserved</option>
+              <option value="Low Stock">Low Stock</option>
+              <option value="Out of Stock">Out of Stock</option>
+            </Select>
+          </FormField>
+          <FormField label="Warehouse">
+            <Select value={editForm.warehouse} onChange={e => setEditForm(f => ({ ...f, warehouse: e.target.value }))}>
+              <option value="">Select Warehouse</option>
+              <option>WH-Ahmedabad</option><option>WH-Surat</option><option>WH-Mumbai</option>
+            </Select>
+          </FormField>
+        </div>
+      </Modal>
+
+      {/* Stock Out Modal */}
+      <Modal open={showStockOut} onClose={() => setShowStockOut(false)} title="Stock Out — Issue Materials"
+        footer={<div className="flex gap-2 justify-end">
+          <Button variant="ghost" onClick={() => setShowStockOut(false)}>Cancel</Button>
+          <Button onClick={handleStockOut} disabled={submitting || !stockOutForm.itemId || !stockOutForm.quantity}>
+            {submitting ? 'Processing...' : <><ArrowDown size={13} /> Confirm Issue</>}
+          </Button>
+        </div>}>
+        <div className="space-y-3">
+          <FormField label="Item">
+            <Select value={stockOutForm.itemId} onChange={e => setStockOutForm(f => ({ ...f, itemId: e.target.value }))}>
+              <option value="">Select Item</option>
+              {inventory.map(i => <option key={i.itemId} value={i.itemId}>{i.name}</option>)}
+            </Select>
+          </FormField>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Quantity to Issue"><Input type="number" placeholder="50" value={stockOutForm.quantity} onChange={e => setStockOutForm(f => ({ ...f, quantity: e.target.value }))} /></FormField>
+            <FormField label="Project ID"><Input placeholder="P001" value={stockOutForm.projectId} onChange={e => setStockOutForm(f => ({ ...f, projectId: e.target.value }))} /></FormField>
+          </div>
+          <FormField label="Issue Date"><Input type="date" value={stockOutForm.issuedDate} onChange={e => setStockOutForm(f => ({ ...f, issuedDate: e.target.value }))} /></FormField>
+          <FormField label="Remarks"><Input placeholder="Any notes about the issue…" value={stockOutForm.remarks} onChange={e => setStockOutForm(f => ({ ...f, remarks: e.target.value }))} /></FormField>
         </div>
       </Modal>
 
@@ -368,9 +763,9 @@ const InventoryPage = () => {
       {selected && (
         <Modal open={!!selected} onClose={() => setSelected(null)} title={selected.name}
           footer={<Button variant="ghost" onClick={() => setSelected(null)}>Close</Button>}>
-          <div className="grid grid-cols-2 gap-3 text-xs">
+          <div className="grid grid-cols-2 gap-3 text-xs mb-4">
             {[
-              ['Item ID', selected.id], ['Category', selected.category], ['Warehouse', selected.warehouse],
+              ['Item ID', selected.itemId], ['Category', selected.category], ['Warehouse', selected.warehouse],
               ['Unit', selected.unit], ['Total Stock', `${selected.stock} ${selected.unit}`],
               ['Reserved', `${selected.reserved} ${selected.unit}`], ['Available', `${selected.available} ${selected.unit}`],
               ['Min Stock', `${selected.minStock} ${selected.unit}`], ['Unit Rate', `₹${selected.rate.toLocaleString('en-IN')}`],
@@ -383,6 +778,34 @@ const InventoryPage = () => {
                 <div className="font-semibold text-[var(--text-primary)]">{v}</div>
               </div>
             ))}
+          </div>
+          
+          {/* Project Reservations Section */}
+          <div className="border-t border-[var(--border-base)] pt-3">
+            <h4 className="text-xs font-semibold text-[var(--text-primary)] mb-2">Reserved for Projects</h4>
+            {loadingReservations ? (
+              <p className="text-xs text-[var(--text-muted)]">Loading reservations...</p>
+            ) : itemReservations.length === 0 ? (
+              <p className="text-xs text-[var(--text-muted)]">No active reservations</p>
+            ) : (
+              <div className="space-y-1">
+                {itemReservations.map(res => (
+                  <div key={res.reservationId} className="flex items-center justify-between glass-card p-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--primary)]/20 text-[var(--primary-light)]">
+                        {res.status}
+                      </span>
+                      <span className="text-xs font-medium text-[var(--text-primary)]">
+                        Project: {res.projectId}
+                      </span>
+                    </div>
+                    <span className="text-xs font-bold text-amber-400">
+                      {res.quantity} {selected.unit}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </Modal>
       )}
