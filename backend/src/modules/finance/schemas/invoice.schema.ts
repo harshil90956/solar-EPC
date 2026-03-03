@@ -6,6 +6,17 @@ export type InvoiceDocument = Invoice & Document;
 
 export type InvoiceStatus = 'Draft' | 'Pending' | 'Partial' | 'Paid' | 'Overdue';
 
+export type PaymentTerm = '30% Advance' | '50% on Delivery' | 'Net 30' | 'Net 60';
+
+export interface Milestone {
+  label: string;
+  percentage: number;
+  amount: number;
+  dueDate: Date;
+  isPaid: boolean;
+  paidDate?: Date;
+}
+
 @Schema({ ...BaseSchemaOptions, collection: 'invoices' })
 export class Invoice {
   @Prop(BaseSchemaDefinition.tenantId)
@@ -61,8 +72,27 @@ export class Invoice {
   @Prop({ required: false })
   paymentTerms?: string;
 
+  @Prop({
+    type: [{
+      label: { type: String, required: true },
+      percentage: { type: Number, required: true },
+      amount: { type: Number, required: true },
+      dueDate: { type: Date, required: true },
+      isPaid: { type: Boolean, default: false },
+      paidDate: { type: Date, required: false },
+    }],
+    default: [],
+  })
+  milestones?: Milestone[];
+
   @Prop({ type: [{ type: MongooseSchema.Types.ObjectId }], ref: 'Payment', default: [] })
   paymentIds?: Types.ObjectId[];
+
+  @Prop({ required: false })
+  lastReminderSentAt?: Date;
+
+  @Prop({ required: false, default: 0 })
+  reminderCount?: number;
 }
 
 export const InvoiceSchema = SchemaFactory.createForClass(Invoice);
