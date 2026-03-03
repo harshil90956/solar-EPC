@@ -13,6 +13,10 @@ import { KPICard } from '../components/ui/KPICard';
 import { Progress } from '../components/ui/Progress';
 import DataTable from '../components/ui/DataTable';
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
+import { usePermissions } from '../hooks/usePermissions';
+import { useAuditLog } from '../hooks/useAuditLog';
+import CanAccess, { CanCreate, CanEdit, CanDelete } from '../components/CanAccess';
+import { toast } from '../components/ui/Toast';
 
 const fmt = CURRENCY.format;
 
@@ -150,6 +154,34 @@ const InvKanbanBoard = ({ items, onCardClick }) => {
 
 /* ── Main Page ── */
 const InventoryPage = () => {
+  const { can } = usePermissions();
+  const { logCreate, logUpdate, logDelete } = useAuditLog('inventory');
+
+  // Permission guard helpers
+  const guardCreate = () => {
+    if (!can('inventory', 'create')) {
+      toast.error('Permission denied: Cannot create inventory items');
+      return false;
+    }
+    return true;
+  };
+
+  const guardEdit = () => {
+    if (!can('inventory', 'edit')) {
+      toast.error('Permission denied: Cannot edit inventory');
+      return false;
+    }
+    return true;
+  };
+
+  const guardDelete = () => {
+    if (!can('inventory', 'delete')) {
+      toast.error('Permission denied: Cannot delete inventory items');
+      return false;
+    }
+    return true;
+  };
+
   const [view, setView] = useState('kanban');
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('All');
@@ -179,8 +211,8 @@ const InventoryPage = () => {
 
   const ROW_ACTIONS = [
     { label: 'View Details', icon: Package, onClick: row => setSelected(row) },
-    { label: 'Stock In', icon: ArrowUp, onClick: () => setStockIn(true) },
-    { label: 'Stock Out', icon: ArrowDown, onClick: () => { } },
+    { label: 'Stock In', icon: ArrowUp, onClick: () => { if (guardEdit()) setStockIn(true); } },
+    { label: 'Stock Out', icon: ArrowDown, onClick: () => { if (guardEdit()) console.log('Stock Out'); } },
   ];
 
   return (
@@ -197,8 +229,12 @@ const InventoryPage = () => {
             <button onClick={() => setView('table')}
               className={`view-toggle-btn ${view === 'table' ? 'active' : ''}`}><List size={14} /></button>
           </div>
-          <Button variant="ghost" onClick={() => setStockIn(true)}><ArrowUp size={13} /> Stock In</Button>
-          <Button onClick={() => setShowAdd(true)}><Plus size={13} /> Add Item</Button>
+          <CanEdit module="inventory">
+            <Button variant="ghost" onClick={() => { if (guardEdit()) setStockIn(true); }}><ArrowUp size={13} /> Stock In</Button>
+          </CanEdit>
+          <CanCreate module="inventory">
+            <Button onClick={() => { if (guardCreate()) setShowAdd(true); }}><Plus size={13} /> Add Item</Button>
+          </CanCreate>
         </div>
       </div>
 
@@ -272,7 +308,9 @@ const InventoryPage = () => {
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Add Inventory Item"
         footer={<div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={() => setShowAdd(false)}>Cancel</Button>
-          <Button onClick={() => setShowAdd(false)}><Plus size={13} /> Add Item</Button>
+          <CanCreate module="inventory">
+            <Button onClick={() => { if (guardCreate()) { console.log('Add Item'); setShowAdd(false); } }}><Plus size={13} /> Add Item</Button>
+          </CanCreate>
         </div>}>
         <div className="space-y-3">
           <FormField label="Item Name"><Input placeholder="e.g. 400W Mono PERC Panel" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></FormField>
@@ -307,7 +345,9 @@ const InventoryPage = () => {
       <Modal open={showStockIn} onClose={() => setStockIn(false)} title="Stock In — Receive Materials"
         footer={<div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={() => setStockIn(false)}>Cancel</Button>
-          <Button onClick={() => setStockIn(false)}><ArrowUp size={13} /> Confirm Receipt</Button>
+          <CanEdit module="inventory">
+            <Button onClick={() => { if (guardEdit()) { console.log('Confirm Receipt'); setStockIn(false); } }}><ArrowUp size={13} /> Confirm Receipt</Button>
+          </CanEdit>
         </div>}>
         <div className="space-y-3">
           <FormField label="Item">

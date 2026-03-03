@@ -15,6 +15,10 @@ import { Progress } from '../components/ui/Progress';
 import { Stepper } from '../components/ui/Stepper';
 import DataTable from '../components/ui/DataTable';
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
+import { usePermissions } from '../hooks/usePermissions';
+import { useAuditLog } from '../hooks/useAuditLog';
+import CanAccess, { CanCreate, CanEdit, CanDelete } from '../components/CanAccess';
+import { toast } from '../components/ui/Toast';
 
 const fmt = CURRENCY.format;
 
@@ -125,6 +129,34 @@ const KanbanBoard = ({ projects, onStageChange, onCardClick }) => {
 
 /* ── Main Page ── */
 const ProjectPage = () => {
+  const { can } = usePermissions();
+  const { logCreate, logUpdate, logDelete, logStatusChange } = useAuditLog('project');
+
+  // Permission guard helpers
+  const guardCreate = () => {
+    if (!can('project', 'create')) {
+      toast.error('Permission denied: Cannot create projects');
+      return false;
+    }
+    return true;
+  };
+
+  const guardEdit = () => {
+    if (!can('project', 'edit')) {
+      toast.error('Permission denied: Cannot edit projects');
+      return false;
+    }
+    return true;
+  };
+
+  const guardDelete = () => {
+    if (!can('project', 'delete')) {
+      toast.error('Permission denied: Cannot delete projects');
+      return false;
+    }
+    return true;
+  };
+
   const [view, setView] = useState('kanban');
   const [search, setSearch] = useState('');
   const [statusFilter, setFilter] = useState('All');
@@ -169,8 +201,14 @@ const ProjectPage = () => {
   }, []);
 
   const handleStageChange = async (id, newStage) => {
+    if (!can('project', 'edit')) {
+      toast.error('Permission denied: Cannot change project status');
+      return;
+    }
     // Optimistic update
+    const project = projects.find(p => p.id === id);
     setProjects(prev => prev.map(p => p.id === id ? { ...p, status: newStage } : p));
+    logStatusChange(project, project.status, newStage);
     
     // API call to update status
     try {
@@ -203,7 +241,7 @@ const ProjectPage = () => {
 
   const ROW_ACTIONS = [
     { label: 'View Details', icon: FolderOpen, onClick: row => setSelected(row) },
-    { label: 'Update Status', icon: CheckCircle, onClick: () => { } },
+    { label: 'Update Status', icon: CheckCircle, onClick: (row) => { if (guardEdit()) console.log('Update status', row); } },
     { label: 'View Timeline', icon: Calendar, onClick: () => { } },
   ];
 
@@ -223,7 +261,9 @@ const ProjectPage = () => {
             <button onClick={() => setView('table')}
               className={`view-toggle-btn ${view === 'table' ? 'active' : ''}`}><List size={14} /></button>
           </div>
-          <Button onClick={() => setShowAdd(true)}><Plus size={13} /> New Project</Button>
+          <CanCreate module="project">
+            <Button onClick={() => { if (guardCreate()) setShowAdd(true); }}><Plus size={13} /> New Project</Button>
+          </CanCreate>
         </div>
       </div>
 
@@ -306,7 +346,9 @@ const ProjectPage = () => {
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="New Project"
         footer={<div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={() => setShowAdd(false)}>Cancel</Button>
-          <Button onClick={() => setShowAdd(false)}><Plus size={13} /> Create Project</Button>
+          <CanCreate module="project">
+            <Button onClick={() => { if (guardCreate()) { console.log('Create Project'); setShowAdd(false); } }}><Plus size={13} /> Create Project</Button>
+          </CanCreate>
         </div>}>
         <div className="space-y-3">
           <FormField label="Customer Name"><Input placeholder="Customer name" value={form.customerName} onChange={e => setForm(f => ({ ...f, customerName: e.target.value }))} /></FormField>
@@ -332,13 +374,15 @@ const ProjectPage = () => {
         <Modal open={!!selected} onClose={() => setSelected(null)} title={`Project — ${selected.id}`}
           footer={<div className="flex gap-2 justify-end">
             <Button variant="ghost" onClick={() => setSelected(null)}>Close</Button>
-            <Button><CheckCircle size={13} /> Mark Stage Complete</Button>
+          <CanEdit module="project">
+            <Button onClick={() => { if (guardEdit()) console.log('Mark Stage Complete'); }}><CheckCircle size={13} /> Mark Stage Complete</Button>
+          </CanEdit>
           </div>}>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3 text-xs">
               {[['Customer', selected.customerName], ['Site', selected.site], ['System Size', `${selected.systemSize} kW`], ['Project Manager', selected.pm],
               ['Status', <StatusBadge domain="project" value={selected.status} />], ['Value', fmt(selected.value)],
-              ['Start Date', selected.startDate], ['Est. End Date', selected.estEndDate ?? '—']
+              // ...
               ].map(([k, v]) => (
                 <div key={k} className="glass-card p-2">
                   <div className="text-[var(--text-muted)] mb-0.5">{k}</div>

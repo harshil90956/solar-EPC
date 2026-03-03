@@ -14,6 +14,10 @@ import { Avatar } from '../components/ui/Avatar';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/Tabs';
 import DataTable from '../components/ui/DataTable';
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
+import { usePermissions } from '../hooks/usePermissions';
+import { useAuditLog } from '../hooks/useAuditLog';
+import CanAccess, { CanCreate, CanEdit, CanDelete } from '../components/CanAccess';
+import { toast } from '../components/ui/Toast';
 
 const fmt = CURRENCY.format;
 
@@ -139,6 +143,34 @@ const POKanbanBoard = ({ pos, onStageChange, onCardClick }) => {
 
 /* ── Main Page ── */
 const ProcurementPage = () => {
+  const { can } = usePermissions();
+  const { logCreate, logUpdate, logDelete, logStatusChange } = useAuditLog('procurement');
+
+  // Permission guard helpers
+  const guardCreate = () => {
+    if (!can('procurement', 'create')) {
+      toast.error('Permission denied: Cannot create procurement items');
+      return false;
+    }
+    return true;
+  };
+
+  const guardEdit = () => {
+    if (!can('procurement', 'edit')) {
+      toast.error('Permission denied: Cannot edit procurement');
+      return false;
+    }
+    return true;
+  };
+
+  const guardDelete = () => {
+    if (!can('procurement', 'delete')) {
+      toast.error('Permission denied: Cannot delete procurement items');
+      return false;
+    }
+    return true;
+  };
+
   const [poView, setPoView] = useState('kanban');
   const [poSearch, setPoSearch] = useState('');
   const [poStatus, setPoStatus] = useState('All');
@@ -152,8 +184,15 @@ const ProcurementPage = () => {
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [pos, setPos] = useState(PURCHASE_ORDERS);
 
-  const handlePOStageChange = (id, newStatus) =>
+  const handlePOStageChange = (id, newStatus) => {
+    if (!can('procurement', 'edit')) {
+      toast.error('Permission denied: Cannot change PO status');
+      return;
+    }
+    const po = pos.find(p => p.id === id);
     setPos(prev => prev.map(p => p.id === id ? { ...p, status: newStatus } : p));
+    logStatusChange(po, po.status, newStatus);
+  };
 
   const filteredPOs = useMemo(() =>
     pos.filter(po =>
@@ -170,7 +209,7 @@ const ProcurementPage = () => {
 
   const PO_ACTIONS = [
     { label: 'View PO', icon: Package, onClick: row => setSelectedPO(row) },
-    { label: 'Mark Delivered', icon: CheckCircle, onClick: () => { } },
+    { label: 'Mark Delivered', icon: CheckCircle, onClick: (row) => { if (guardEdit()) console.log('Mark Delivered', row); } },
     { label: 'Track Shipment', icon: Truck, onClick: () => { } },
   ];
   const VENDOR_ACTIONS = [
@@ -187,8 +226,12 @@ const ProcurementPage = () => {
           <p className="text-xs text-[var(--text-muted)] mt-0.5">Purchase orders · vendor management · delivery tracking</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="ghost" onClick={() => setShowVendor(true)}><Plus size={13} /> Add Vendor</Button>
-          <Button onClick={() => setShowPO(true)}><Plus size={13} /> Create PO</Button>
+          <CanCreate module="procurement">
+            <Button variant="ghost" onClick={() => { if (guardCreate()) setShowVendor(true); }}><Plus size={13} /> Add Vendor</Button>
+          </CanCreate>
+          <CanCreate module="procurement">
+            <Button onClick={() => { if (guardCreate()) setShowPO(true); }}><Plus size={13} /> Create PO</Button>
+          </CanCreate>
         </div>
       </div>
 
@@ -257,7 +300,9 @@ const ProcurementPage = () => {
       <Modal open={showPO} onClose={() => setShowPO(false)} title="Create Purchase Order"
         footer={<div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={() => setShowPO(false)}>Cancel</Button>
-          <Button onClick={() => setShowPO(false)}><Plus size={13} /> Create PO</Button>
+          <CanCreate module="procurement">
+            <Button onClick={() => { if (guardCreate()) { console.log('Create PO'); setShowPO(false); } }}><Plus size={13} /> Create PO</Button>
+          </CanCreate>
         </div>}>
         <div className="space-y-3">
           <FormField label="Vendor">
@@ -284,7 +329,9 @@ const ProcurementPage = () => {
       <Modal open={showVendor} onClose={() => setShowVendor(false)} title="Add Vendor"
         footer={<div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={() => setShowVendor(false)}>Cancel</Button>
-          <Button onClick={() => setShowVendor(false)}><Plus size={13} /> Add Vendor</Button>
+          <CanCreate module="procurement">
+            <Button onClick={() => { if (guardCreate()) { console.log('Add Vendor'); setShowVendor(false); } }}><Plus size={13} /> Add Vendor</Button>
+          </CanCreate>
         </div>}>
         <div className="space-y-3">
           <FormField label="Vendor Name"><Input placeholder="Company name" /></FormField>
