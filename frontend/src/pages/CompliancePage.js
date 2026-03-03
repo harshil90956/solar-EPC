@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
     FileText, CheckCircle, AlertTriangle, Zap, Upload,
     Plus, Download, Building2, ShieldCheck, IndianRupee, LayoutGrid, List,
+    Edit2, Trash2,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
@@ -241,8 +242,8 @@ const ComplianceKanbanBoard = ({ stages, items, CardComponent, onStageChange, on
                                     style={{ background: stage.bg, color: stage.color }}>{cards.length}</span>
                             </div>
                             <div className="flex flex-col gap-2 p-2 flex-1 min-h-[100px]">
-                                {cards.map(item => (
-                                    <CardComponent key={item.id} item={item}
+                                {cards.map((item, index) => (
+                                    <CardComponent key={item._id || item.id || item.applicationId || item.subsidyId || item.inspectionId || item.documentId || index} item={item}
                                         onDragStart={id => { draggingId.current = id; }}
                                         onClick={onCardClick}
                                     />
@@ -290,6 +291,7 @@ const CompliancePage = () => {
     const [subForm, setSubForm] = useState({ projectId: '', scheme: '', claimAmount: '', applicationDate: '', referenceNo: '' });
     const [insForm, setInsForm] = useState({ projectId: '', type: '', scheduledDate: '', inspector: '', notes: '' });
     const [docForm, setDocForm] = useState({ projectId: '', documentType: '', issuingAuthority: '', documentDate: '' });
+    const [docFile, setDocFile] = useState(null);
 
     useEffect(() => {
         const fetchComplianceData = async () => {
@@ -453,6 +455,230 @@ const CompliancePage = () => {
         } catch (err) { console.error('Error submitting Inspection:', err); alert('Failed to schedule inspection'); }
     };
 
+    const handleSubmitDoc = async () => {
+        if (!docForm.projectId) { alert('Please select a project'); return; }
+        if (!docForm.documentType) { alert('Please select document type'); return; }
+        
+        const selectedProject = projects.find(p => (p.projectId || p._id) === docForm.projectId);
+        
+        try {
+            const formData = new FormData();
+            formData.append('documentId', `DOC${Date.now().toString().slice(-6)}`);
+            formData.append('projectId', docForm.projectId);
+            formData.append('projectName', selectedProject?.customerName || 'Unknown');
+            formData.append('name', docForm.documentType);
+            formData.append('category', docForm.documentType);
+            formData.append('issuingAuthority', docForm.issuingAuthority);
+            formData.append('documentDate', docForm.documentDate);
+            formData.append('status', 'Uploaded');
+            if (docFile) {
+                formData.append('file', docFile);
+            }
+            
+            const response = await fetch(`${API_BASE_URL}/compliance/documents/upload?tenantId=${TENANT_ID}`, {
+                method: 'POST',
+                body: formData,
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const newItem = data.data || data;
+                setDocuments(prev => [newItem, ...prev]);
+                setShowUpload(false);
+                setDocForm({ projectId: '', documentType: '', issuingAuthority: '', documentDate: '' });
+                setDocFile(null);
+                alert('Document uploaded successfully!');
+            } else {
+                const error = await response.text();
+                alert(`Failed to upload: ${error}`);
+            }
+        } catch (err) { console.error('Error uploading document:', err); alert('Failed to upload document'); }
+    };
+
+    // Edit states
+    const [editingNM, setEditingNM] = useState(null);
+    const [editingSub, setEditingSub] = useState(null);
+    const [editingIns, setEditingIns] = useState(null);
+    const [editingDoc, setEditingDoc] = useState(null);
+
+    // Update handlers
+    const handleUpdateNM = async () => {
+        if (!nmForm.projectId) { alert('Please select a project'); return; }
+        const selectedProject = projects.find(p => (p.projectId || p._id) === nmForm.projectId);
+        try {
+            const payload = {
+                projectId: nmForm.projectId,
+                customer: selectedProject?.customerName || 'Unknown',
+                discom: nmForm.discom,
+                appliedDate: nmForm.applicationDate,
+                discomOfficer: nmForm.contactOfficer,
+                discomPhone: nmForm.contactPhone,
+            };
+            const response = await fetch(`${API_BASE_URL}/compliance/net-metering/${editingNM}?tenantId=${TENANT_ID}`, {
+                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const updatedItem = data.data || data;
+                setNmItems(prev => prev.map(i => i.applicationId === editingNM ? { ...i, ...updatedItem } : i));
+                setEditingNM(null);
+                setNmForm({ projectId: '', discom: '', applicationDate: '', contactOfficer: '', contactPhone: '' });
+                alert('Net Metering application updated successfully!');
+            } else {
+                const error = await response.text();
+                alert(`Failed to update: ${error}`);
+            }
+        } catch (err) { console.error('Error updating NM:', err); alert('Failed to update application'); }
+    };
+
+    const handleUpdateSub = async () => {
+        if (!subForm.projectId) { alert('Please select a project'); return; }
+        const selectedProject = projects.find(p => (p.projectId || p._id) === subForm.projectId);
+        try {
+            const payload = {
+                projectId: subForm.projectId,
+                customer: selectedProject?.customerName || 'Unknown',
+                scheme: subForm.scheme,
+                claimAmount: Number(subForm.claimAmount) || 0,
+                appliedDate: subForm.applicationDate,
+                applicationRef: subForm.referenceNo,
+            };
+            const response = await fetch(`${API_BASE_URL}/compliance/subsidies/${editingSub}?tenantId=${TENANT_ID}`, {
+                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const updatedItem = data.data || data;
+                setSubItems(prev => prev.map(i => i.subsidyId === editingSub ? { ...i, ...updatedItem } : i));
+                setEditingSub(null);
+                setSubForm({ projectId: '', scheme: '', claimAmount: '', applicationDate: '', referenceNo: '' });
+                alert('Subsidy application updated successfully!');
+            } else {
+                const error = await response.text();
+                alert(`Failed to update: ${error}`);
+            }
+        } catch (err) { console.error('Error updating Subsidy:', err); alert('Failed to update subsidy'); }
+    };
+
+    const handleUpdateIns = async () => {
+        if (!insForm.projectId) { alert('Please select a project'); return; }
+        const selectedProject = projects.find(p => (p.projectId || p._id) === insForm.projectId);
+        try {
+            const payload = {
+                projectId: insForm.projectId,
+                customer: selectedProject?.customerName || 'Unknown',
+                type: insForm.type,
+                remarks: insForm.notes,
+                scheduledDate: insForm.scheduledDate,
+                inspector: insForm.inspector,
+            };
+            const response = await fetch(`${API_BASE_URL}/compliance/inspections/${editingIns}?tenantId=${TENANT_ID}`, {
+                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const updatedItem = data.data || data;
+                setInspections(prev => prev.map(i => i.inspectionId === editingIns ? { ...i, ...updatedItem } : i));
+                setEditingIns(null);
+                setInsForm({ projectId: '', type: '', scheduledDate: '', inspector: '', notes: '' });
+                alert('Inspection updated successfully!');
+            } else {
+                const error = await response.text();
+                alert(`Failed to update: ${error}`);
+            }
+        } catch (err) { console.error('Error updating Inspection:', err); alert('Failed to update inspection'); }
+    };
+
+    const handleUpdateDoc = async () => {
+        if (!docForm.projectId) { alert('Please select a project'); return; }
+        if (!docForm.documentType) { alert('Please select document type'); return; }
+        const selectedProject = projects.find(p => (p.projectId || p._id) === docForm.projectId);
+        try {
+            const payload = {
+                projectId: docForm.projectId,
+                projectName: selectedProject?.customerName || 'Unknown',
+                name: docForm.documentType,
+                category: docForm.documentType,
+                issuingAuthority: docForm.issuingAuthority,
+                documentDate: docForm.documentDate,
+            };
+            const response = await fetch(`${API_BASE_URL}/compliance/documents/${editingDoc}?tenantId=${TENANT_ID}`, {
+                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const updatedItem = data.data || data;
+                setDocuments(prev => prev.map(i => i.documentId === editingDoc ? { ...i, ...updatedItem } : i));
+                setEditingDoc(null);
+                setDocForm({ projectId: '', documentType: '', issuingAuthority: '', documentDate: '' });
+                alert('Document updated successfully!');
+            } else {
+                const error = await response.text();
+                alert(`Failed to update: ${error}`);
+            }
+        } catch (err) { console.error('Error updating Document:', err); alert('Failed to update document'); }
+    };
+
+    // Delete handlers
+    const handleDeleteNM = async (id) => {
+        if (!window.confirm('Are you sure you want to delete this application?')) return;
+        try {
+            const response = await fetch(`${API_BASE_URL}/compliance/net-metering/${id}?tenantId=${TENANT_ID}`, { method: 'DELETE' });
+            if (response.ok) {
+                setNmItems(prev => prev.filter(i => i.applicationId !== id));
+                alert('Net Metering application deleted successfully!');
+            } else {
+                const error = await response.text();
+                alert(`Failed to delete: ${error}`);
+            }
+        } catch (err) { console.error('Error deleting NM:', err); alert('Failed to delete application'); }
+    };
+
+    const handleDeleteSub = async (id) => {
+        if (!window.confirm('Are you sure you want to delete this subsidy?')) return;
+        try {
+            const response = await fetch(`${API_BASE_URL}/compliance/subsidies/${id}?tenantId=${TENANT_ID}`, { method: 'DELETE' });
+            if (response.ok) {
+                setSubItems(prev => prev.filter(i => i.subsidyId !== id));
+                alert('Subsidy deleted successfully!');
+            } else {
+                const error = await response.text();
+                alert(`Failed to delete: ${error}`);
+            }
+        } catch (err) { console.error('Error deleting Subsidy:', err); alert('Failed to delete subsidy'); }
+    };
+
+    const handleDeleteIns = async (id) => {
+        if (!window.confirm('Are you sure you want to delete this inspection?')) return;
+        try {
+            const response = await fetch(`${API_BASE_URL}/compliance/inspections/${id}?tenantId=${TENANT_ID}`, { method: 'DELETE' });
+            if (response.ok) {
+                setInspections(prev => prev.filter(i => i.inspectionId !== id));
+                alert('Inspection deleted successfully!');
+            } else {
+                const error = await response.text();
+                alert(`Failed to delete: ${error}`);
+            }
+        } catch (err) { console.error('Error deleting Inspection:', err); alert('Failed to delete inspection'); }
+    };
+
+    const handleDeleteDoc = async (id) => {
+        if (!window.confirm('Are you sure you want to delete this document?')) return;
+        try {
+            const response = await fetch(`${API_BASE_URL}/compliance/documents/${id}?tenantId=${TENANT_ID}`, { method: 'DELETE' });
+            if (response.ok) {
+                setDocuments(prev => prev.filter(i => i.documentId !== id));
+                alert('Document deleted successfully!');
+            } else {
+                const error = await response.text();
+                alert(`Failed to delete: ${error}`);
+            }
+        } catch (err) { console.error('Error deleting Document:', err); alert('Failed to delete document'); }
+    };
+
     const paginatedNM = nmItems.slice((nmPage - 1) * pageSize, nmPage * pageSize);
     const paginatedSub = subItems.slice((subPage - 1) * pageSize, subPage * pageSize);
     const paginatedIns = inspections.slice((insPage - 1) * pageSize, insPage * pageSize);
@@ -464,10 +690,26 @@ const CompliancePage = () => {
     const pendingDocs = documents.filter(d => d.status === 'Pending').length;
     const docProgress = stats.documents?.complianceScore || (documents.length > 0 ? Math.round((uploadedDocs / documents.length) * 100) : 0);
 
-    const NM_ACTIONS = [{ label: 'View Application', icon: FileText, onClick: r => setSelected({ type: 'nm', data: r }) }];
-    const SUB_ACTIONS = [{ label: 'View Application', icon: FileText, onClick: r => setSelected({ type: 'sub', data: r }) }, { label: 'Download Form', icon: Download, onClick: () => { } }];
-    const INS_ACTIONS = [{ label: 'View Inspection', icon: FileText, onClick: r => setSelected({ type: 'ins', data: r }) }];
-    const DOC_ACTIONS = [{ label: 'View Document', icon: FileText, onClick: () => { } }, { label: 'Upload New Version', icon: Upload, onClick: () => setShowUpload(true) }];
+    const NM_ACTIONS = [
+        { label: 'View', icon: FileText, onClick: r => setSelected({ type: 'nm', data: r }) },
+        { label: 'Edit', icon: Edit2, onClick: r => { setNmForm({ projectId: r.projectId, discom: r.discom, applicationDate: r.appliedDate || '', contactOfficer: r.discomOfficer || '', contactPhone: r.discomPhone || '' }); setEditingNM(r.applicationId); setShowAddNM(true); } },
+        { label: 'Delete', icon: Trash2, onClick: r => handleDeleteNM(r.applicationId), danger: true }
+    ];
+    const SUB_ACTIONS = [
+        { label: 'View', icon: FileText, onClick: r => setSelected({ type: 'sub', data: r }) },
+        { label: 'Edit', icon: Edit2, onClick: r => { setSubForm({ projectId: r.projectId, scheme: r.scheme, claimAmount: r.claimAmount || '', applicationDate: r.appliedDate || '', referenceNo: r.applicationRef || '' }); setEditingSub(r.subsidyId); setShowAddSub(true); } },
+        { label: 'Delete', icon: Trash2, onClick: r => handleDeleteSub(r.subsidyId), danger: true }
+    ];
+    const INS_ACTIONS = [
+        { label: 'View', icon: FileText, onClick: r => setSelected({ type: 'ins', data: r }) },
+        { label: 'Edit', icon: Edit2, onClick: r => { setInsForm({ projectId: r.projectId, type: r.type, scheduledDate: r.scheduledDate || '', inspector: r.inspector || '', notes: r.remarks || '' }); setEditingIns(r.inspectionId); setShowAddIns(true); } },
+        { label: 'Delete', icon: Trash2, onClick: r => handleDeleteIns(r.inspectionId), danger: true }
+    ];
+    const DOC_ACTIONS = [
+        { label: 'View', icon: FileText, onClick: r => setSelected({ type: 'doc', data: r }) },
+        { label: 'Edit', icon: Edit2, onClick: r => { setDocForm({ projectId: r.projectId, documentType: r.name || r.category, issuingAuthority: r.issuingAuthority || '', documentDate: r.documentDate || '' }); setEditingDoc(r.documentId); setShowUpload(true); } },
+        { label: 'Delete', icon: Trash2, onClick: r => handleDeleteDoc(r.documentId), danger: true }
+    ];
 
     return (
         <div className="animate-fade-in space-y-5">
@@ -595,7 +837,7 @@ const CompliancePage = () => {
                         <div className="flex justify-end">
                             <Button size="sm" onClick={() => setShowAddIns(true)}><Plus size={12} /> Schedule Inspection</Button>
                         </div>
-                        <DataTable columns={INS_COLUMNS} data={paginatedIns}
+                        <DataTable columns={INS_COLUMNS} data={paginatedIns} rowActions={INS_ACTIONS}
                             pagination={{ page: insPage, pageSize, total: inspections.length, onChange: setInsPage }}
                             emptyMessage="No inspections found." />
                     </div>
@@ -606,7 +848,7 @@ const CompliancePage = () => {
                         <div className="flex justify-end">
                             <Button size="sm" onClick={() => setShowUpload(true)}><Upload size={12} /> Add Document</Button>
                         </div>
-                        <DataTable columns={DOC_COLUMNS} data={paginatedDoc}
+                        <DataTable columns={DOC_COLUMNS} data={paginatedDoc} rowActions={DOC_ACTIONS}
                             pagination={{ page: docPage, pageSize, total: documents.length, onChange: setDocPage }}
                             emptyMessage="No documents found." />
                     </div>
@@ -614,11 +856,11 @@ const CompliancePage = () => {
             </Tabs>
 
             {/* Net Metering Modal */}
-            <Modal open={showAddNM} onClose={() => setShowAddNM(false)} title="Apply for Net Metering"
+            <Modal open={showAddNM} onClose={() => { setShowAddNM(false); setEditingNM(null); }} title={editingNM ? "Edit Net Metering Application" : "Apply for Net Metering"}
                 footer={
                     <div className="flex gap-2 justify-end">
-                        <Button variant="ghost" onClick={() => setShowAddNM(false)}>Cancel</Button>
-                        <Button onClick={handleSubmitNM}><Plus size={13} /> Submit Application</Button>
+                        <Button variant="ghost" onClick={() => { setShowAddNM(false); setEditingNM(null); }}>Cancel</Button>
+                        <Button onClick={editingNM ? handleUpdateNM : handleSubmitNM}><Plus size={13} /> {editingNM ? 'Update' : 'Submit'} Application</Button>
                     </div>
                 }>
                 <div className="space-y-3">
@@ -653,11 +895,11 @@ const CompliancePage = () => {
             </Modal>
 
             {/* Subsidy Modal */}
-            <Modal open={showAddSub} onClose={() => setShowAddSub(false)} title="File Subsidy Application"
+            <Modal open={showAddSub} onClose={() => { setShowAddSub(false); setEditingSub(null); }} title={editingSub ? "Edit Subsidy Application" : "File Subsidy Application"}
                 footer={
                     <div className="flex gap-2 justify-end">
-                        <Button variant="ghost" onClick={() => setShowAddSub(false)}>Cancel</Button>
-                        <Button onClick={handleSubmitSub}><Plus size={13} /> Submit Application</Button>
+                        <Button variant="ghost" onClick={() => { setShowAddSub(false); setEditingSub(null); }}>Cancel</Button>
+                        <Button onClick={editingSub ? handleUpdateSub : handleSubmitSub}><Plus size={13} /> {editingSub ? 'Update' : 'Submit'} Application</Button>
                     </div>
                 }>
                 <div className="space-y-3">
@@ -692,16 +934,17 @@ const CompliancePage = () => {
             </Modal>
 
             {/* Upload Document Modal */}
-            <Modal open={showUpload} onClose={() => setShowUpload(false)} title="Upload Compliance Document"
+            <Modal open={showUpload} onClose={() => { setShowUpload(false); setEditingDoc(null); }} title={editingDoc ? "Edit Document" : "Upload Compliance Document"}
                 footer={
                     <div className="flex gap-2 justify-end">
-                        <Button variant="ghost" onClick={() => setShowUpload(false)}>Cancel</Button>
-                        <Button onClick={() => setShowUpload(false)}><Upload size={13} /> Upload</Button>
+                        <Button variant="ghost" onClick={() => { setShowUpload(false); setEditingDoc(null); }}>Cancel</Button>
+                        <Button onClick={editingDoc ? handleUpdateDoc : handleSubmitDoc}><Upload size={13} /> {editingDoc ? 'Update' : 'Upload'}</Button>
                     </div>
                 }>
                 <div className="space-y-3">
                     <FormField label="Project">
-                        <Select><option value="">Select Project</option>
+                        <Select value={docForm.projectId} onChange={e => setDocForm(f => ({ ...f, projectId: e.target.value }))}>
+                            <option value="">Select Project</option>
                             {projects.map(p => (
                                 <option key={p._id || p.projectId} value={p.projectId || p._id}>
                                     {p.projectId || p._id} – {p.customerName || 'Unknown'} {p.systemSize ? `(${p.systemSize} kW)` : ''}
@@ -710,40 +953,54 @@ const CompliancePage = () => {
                         </Select>
                     </FormField>
                     <FormField label="Document Type">
-                        <Select><option value="">Select Document Type</option>
-                            <option>Net Metering Application Form</option>
-                            <option>Single Line Diagram (SLD)</option>
-                            <option>Structural Load Certificate</option>
-                            <option>Electrical Completion Certificate</option>
-                            <option>Bidirectional Meter Installation Report</option>
-                            <option>Net Metering Agreement</option>
-                            <option>Subsidy Application</option>
-                            <option>Commissioning Certificate</option>
-                            <option>Generation Meter Calibration</option>
+                        <Select value={docForm.documentType} onChange={e => setDocForm(f => ({ ...f, documentType: e.target.value }))}>
+                            <option value="">Select Document Type</option>
+                            <option value="Net Metering Application Form">Net Metering Application Form</option>
+                            <option value="Single Line Diagram (SLD)">Single Line Diagram (SLD)</option>
+                            <option value="Structural Load Certificate">Structural Load Certificate</option>
+                            <option value="Electrical Completion Certificate">Electrical Completion Certificate</option>
+                            <option value="Bidirectional Meter Installation Report">Bidirectional Meter Installation Report</option>
+                            <option value="Net Metering Agreement">Net Metering Agreement</option>
+                            <option value="Subsidy Application">Subsidy Application</option>
+                            <option value="Commissioning Certificate">Commissioning Certificate</option>
+                            <option value="Generation Meter Calibration">Generation Meter Calibration</option>
                         </Select>
                     </FormField>
                     <FormField label="Issuing Authority">
-                        <Select><option value="">Select Authority</option>
-                            {['DISCOM', 'CEA', 'MNRE', 'GEDA', 'Internal', 'Structural Engineer'].map(a => <option key={a}>{a}</option>)}
+                        <Select value={docForm.issuingAuthority} onChange={e => setDocForm(f => ({ ...f, issuingAuthority: e.target.value }))}>
+                            <option value="">Select Authority</option>
+                            {['DISCOM', 'CEA', 'MNRE', 'GEDA', 'Internal', 'Structural Engineer'].map(a => <option key={a} value={a}>{a}</option>)}
                         </Select>
                     </FormField>
                     <FormField label="Document Date">
-                        <Input type="date" />
+                        <Input type="date" value={docForm.documentDate} onChange={e => setDocForm(f => ({ ...f, documentDate: e.target.value }))} />
                     </FormField>
-                    <div className="border-2 border-dashed border-[var(--border-base)] rounded-lg p-6 text-center">
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={e => setDocFile(e.target.files[0])}
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        style={{ display: 'none' }}
+                    />
+                    <div 
+                        className="border-2 border-dashed border-[var(--border-base)] rounded-lg p-6 text-center cursor-pointer hover:bg-[var(--bg-hover)] transition-colors"
+                        onClick={() => fileInputRef.current?.click()}
+                    >
                         <Upload size={24} className="mx-auto text-[var(--text-muted)] mb-2" />
-                        <p className="text-xs text-[var(--text-muted)]">Click to select file or drag & drop</p>
+                        <p className="text-xs text-[var(--text-muted)]">
+                            {docFile ? `Selected: ${docFile.name}` : 'Click to select file or drag & drop'}
+                        </p>
                         <p className="text-[11px] text-[var(--text-muted)] mt-1">PDF, JPG, PNG — max 10MB</p>
                     </div>
                 </div>
             </Modal>
 
             {/* Inspection Schedule Modal */}
-            <Modal open={showAddIns} onClose={() => setShowAddIns(false)} title="Schedule Inspection"
+            <Modal open={showAddIns} onClose={() => { setShowAddIns(false); setEditingIns(null); }} title={editingIns ? "Edit Inspection" : "Schedule Inspection"}
                 footer={
                     <div className="flex gap-2 justify-end">
-                        <Button variant="ghost" onClick={() => setShowAddIns(false)}>Cancel</Button>
-                        <Button onClick={handleSubmitIns}><Plus size={13} /> Schedule Inspection</Button>
+                        <Button variant="ghost" onClick={() => { setShowAddIns(false); setEditingIns(null); }}>Cancel</Button>
+                        <Button onClick={editingIns ? handleUpdateIns : handleSubmitIns}><Plus size={13} /> {editingIns ? 'Update' : 'Schedule'} Inspection</Button>
                     </div>
                 }>
                 <div className="space-y-3">
