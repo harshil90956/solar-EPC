@@ -1,5 +1,5 @@
 // Solar OS – EPC Edition — LogisticsPage.js
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Truck, Plus, MapPin, Package, CheckCircle, Clock, Zap, Navigation, LayoutGrid, List } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
@@ -7,16 +7,12 @@ import { Input, FormField, Select } from '../components/ui/Input';
 import { KPICard } from '../components/ui/KPICard';
 import DataTable from '../components/ui/DataTable';
 import { APP_CONFIG } from '../config/app.config';
+import { api } from '../lib/apiClient';
 
-// Local logistics data (extends mockData pattern)
-const DISPATCHES = [
-  { id: 'DS001', projectId: 'P001', customer: 'Ramesh Joshi', items: '125 Panels, 1 Inverter, BOS Kit', from: 'WH-Ahmedabad', to: 'GIDC Ahmedabad', status: 'Delivered', dispatchDate: '2026-02-20', driver: 'Mahesh K.', vehicle: 'GJ-01-AB-1234', cost: 8500 },
-  { id: 'DS002', projectId: 'P002', customer: 'Suresh Bhatt', items: '375 Panels, 3 Inverters', from: 'WH-Ahmedabad', to: 'Vapi GIDC', status: 'In Transit', dispatchDate: '2026-02-25', driver: 'Raju S.', vehicle: 'GJ-05-CD-5678', cost: 22000 },
-  { id: 'DS003', projectId: 'P001', customer: 'Ramesh Joshi', items: 'Mounting Structure (GI) x5 Sets', from: 'WH-Surat', to: 'GIDC Ahmedabad', status: 'Scheduled', dispatchDate: '2026-02-28', driver: 'TBD', vehicle: 'TBD', cost: 6000 },
-  { id: 'DS004', projectId: 'P004', customer: 'Dinesh Trivedi', items: '140 Panels, 2x50kW Inverters', from: 'WH-Ahmedabad', to: 'Nadiad Plant', status: 'Scheduled', dispatchDate: '2026-03-05', driver: 'TBD', vehicle: 'TBD', cost: 9500 },
-];
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
+const TENANT_ID = 'solarcorp';
 
-// Add logistics status to STATUS_CONFIG locally (domain: dispatch)
+// Local status map only (no data)
 const DISPATCH_STATUS_MAP = {
   Delivered: { label: 'Delivered', color: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' },
   'In Transit': { label: 'In Transit', color: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30' },
@@ -138,29 +134,158 @@ const LogisticsPage = () => {
   const [pageSize, setPageSize] = useState(APP_CONFIG.defaultPageSize);
   const [showAdd, setShowAdd] = useState(false);
   const [selected, setSelected] = useState(null);
-  const [dispatches, setDispatches] = useState(DISPATCHES);
+  const [dispatches, setDispatches] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({ delivered: 0, inTransit: 0, scheduled: 0, totalFreight: 0 });
 
-  const handleStageChange = (id, newStatus) =>
-    setDispatches(prev => prev.map(d => d.id === id ? { ...d, status: newStatus } : d));
+  // Form state for new dispatch
+  const [newDispatch, setNewDispatch] = useState({
+    projectId: '',
+    customer: '',
+    items: '',
+    from: '',
+    to: '',
+    dispatchDate: '',
+    driver: '',
+    vehicle: '',
+    cost: '',
+  });
+
+  const [projects, setProjects] = useState([]);
+  const [projectSearch, setProjectSearch] = useState('');
+
+  // Fetch data from backend
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const [dispatchesRes, statsRes] = await Promise.all([
+        api.get('/logistics/dispatches'),
+        api.get('/logistics/stats'),
+      ]);
+      
+      // Handle API response
+      let dispatchesData = [];
+      let statsData = { delivered: 0, inTransit: 0, scheduled: 0, totalFreight: 0 };
+      
+      if (Array.isArray(dispatchesRes.data)) {
+        dispatchesData = dispatchesRes.data;
+      } else if (dispatchesRes.data && typeof dispatchesRes.data === 'object') {
+        dispatchesData = dispatchesRes.data.data || [];
+      }
+
+      if (statsRes.data && typeof statsRes.data === 'object') {
+        statsData = statsRes.data.data || statsRes.data;
+      }
+
+      setDispatches(dispatchesData);
+      setStats(statsData);
+    } catch (error) {
+      console.error('Error fetching logistics data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch projects from backend (same as ProjectPage)
+  const fetchProjects = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/projects?tenantId=${TENANT_ID}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch projects');
+      }
+      const data = await response.json();
+      console.log('Projects API Response:', data);
+      const projectsArray = Array.isArray(data) ? data : (data.data || []);
+      setProjects(projectsArray);
+    } catch (err) {
+      console.error('Error fetching projects:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+    fetchProjects();
+  }, []);
+
+  const handleStageChange = async (id, newStatus) => {
+    try {
+      await api.patch(`/logistics/dispatches/${id}/status`, { status: newStatus });
+      setDispatches(prev => prev.map(d => d.id === id ? { ...d, status: newStatus } : d));
+      // Clear cached stats so KPI cards recalculate from updated dispatches
+      setStats({});
+    } catch (error) {
+      console.error('Error updating dispatch status:', error);
+    }
+  };
+
+  const handleCreateDispatch = async () => {
+    try {
+      const payload = {
+        ...newDispatch,
+        cost: Number(newDispatch.cost),
+        status: 'Scheduled',
+      };
+      await api.post('/logistics/dispatches', payload);
+      await fetchData();
+      setShowAdd(false);
+      setNewDispatch({
+        projectId: '',
+        customer: '',
+        items: '',
+        from: '',
+        to: '',
+        dispatchDate: '',
+        driver: '',
+        vehicle: '',
+        cost: '',
+      });
+    } catch (error) {
+      console.error('Error creating dispatch:', error);
+    }
+  };
+
+  const handleMarkDelivered = async (dispatch) => {
+    try {
+      await api.patch(`/logistics/dispatches/${dispatch.id}/status`, { status: 'Delivered' });
+      await fetchData();
+      setSelected(null);
+    } catch (error) {
+      console.error('Error marking as delivered:', error);
+    }
+  };
+
+  // Filter projects based on search
+  const filteredProjects = useMemo(() => {
+    if (!projectSearch.trim()) return projects;
+    return projects.filter(p => 
+      p.projectId?.toLowerCase().includes(projectSearch.toLowerCase()) ||
+      p.customerName?.toLowerCase().includes(projectSearch.toLowerCase()) ||
+      p.site?.toLowerCase().includes(projectSearch.toLowerCase())
+    );
+  }, [projects, projectSearch]);
 
   const filtered = useMemo(() =>
-    dispatches.filter(d =>
+    dispatches.filter(d => d &&
       (statusFilter === 'All' || d.status === statusFilter) &&
-      (d.customer.toLowerCase().includes(search.toLowerCase()) ||
-        d.items.toLowerCase().includes(search.toLowerCase()))
+      (d.customer?.toLowerCase().includes(search.toLowerCase()) ||
+        d.items?.toLowerCase().includes(search.toLowerCase()))
     ), [search, statusFilter, dispatches]);
 
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
-  const delivered = dispatches.filter(d => d.status === 'Delivered').length;
-  const inTransit = dispatches.filter(d => d.status === 'In Transit').length;
-  const scheduled = dispatches.filter(d => d.status === 'Scheduled').length;
-  const totalFreight = dispatches.reduce((a, d) => a + d.cost, 0);
+  const delivered = stats.delivered || dispatches.filter(d => d?.status === 'Delivered').length;
+  const inTransit = stats.inTransit || dispatches.filter(d => d?.status === 'In Transit').length;
+  const scheduled = stats.scheduled || dispatches.filter(d => d?.status === 'Scheduled').length;
+  const totalFreight = stats.totalFreight || dispatches.reduce((a, d) => a + (d?.cost || 0), 0);
 
   const ROW_ACTIONS = [
     { label: 'View Details', icon: Package, onClick: row => setSelected(row) },
     { label: 'Track Shipment', icon: Navigation, onClick: () => { } },
-    { label: 'Mark Delivered', icon: CheckCircle, onClick: () => { } },
+    { label: 'Mark Delivered', icon: CheckCircle, onClick: (row) => handleMarkDelivered(row) },
   ];
+
+  if (loading) {
+    return <div className="animate-fade-in space-y-5"><p className="text-xs text-[var(--text-muted)]">Loading...</p></div>;
+  }
 
   return (
     <div className="animate-fade-in space-y-5">
@@ -179,17 +304,21 @@ const LogisticsPage = () => {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KPICard title="In Transit" value={inTransit} icon={Truck} trend={0} trendLabel="active shipments" color="cyan" />
-        <KPICard title="Scheduled" value={scheduled} icon={Clock} trend={+2} trendLabel="upcoming dispatches" color="accent" />
-        <KPICard title="Delivered" value={delivered} icon={CheckCircle} trend={+1} trendLabel="this month" color="emerald" />
-        <KPICard title="Freight Cost" value={`₹${totalFreight.toLocaleString('en-IN')}`} icon={MapPin} trend={-5} trendLabel="vs last month" color="solar" />
+        <KPICard title="In Transit" value={inTransit} icon={Truck} trend={inTransit} trendLabel="active shipments" color="cyan" />
+        <KPICard title="Scheduled" value={scheduled} icon={Clock} trend={scheduled} trendLabel="upcoming dispatches" color="accent" />
+        <KPICard title="Delivered" value={delivered} icon={CheckCircle} trend={delivered} trendLabel="this month" color="emerald" />
+        <KPICard title="Freight Cost" value={`₹${totalFreight.toLocaleString('en-IN')}`} icon={MapPin} trend={totalFreight > 50000 ? -5 : +5} trendLabel="vs last month" color="solar" />
       </div>
 
       <div className="ai-banner">
         <Zap size={14} className="text-[var(--accent-light)] mt-0.5 shrink-0" />
         <p className="text-xs text-[var(--text-secondary)]">
           <span className="text-[var(--accent-light)] font-semibold">AI Insight:</span>{' '}
-          DS002 (Suresh Bhatt — Vapi GIDC) is in transit and expected within 2 days. DS003 and DS004 need vehicle assignment and driver confirmation before dispatch dates.
+          {inTransit > 0 
+            ? `${inTransit} shipment(s) currently in transit. ${scheduled > 0 ? `${scheduled} pending dispatch(es) need vehicle assignment.` : 'All dispatches are on track.'}`
+            : scheduled > 0 
+              ? `${scheduled} dispatch(es) scheduled. Assign vehicles and drivers to proceed.`
+              : 'All dispatches completed. No active shipments.'}
         </p>
       </div>
 
@@ -197,7 +326,7 @@ const LogisticsPage = () => {
       {view === 'kanban' && inTransit > 0 && (
         <div className="glass-card p-4">
           <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3 flex items-center gap-2">
-            <Truck size={14} className="text-cyan-400" /> Active Shipments
+            <Truck size={14} className="text-cyan-400" /> Active Shipments ({inTransit})
           </h3>
           <div className="space-y-2">
             {dispatches.filter(d => d.status === 'In Transit').map(d => (
@@ -253,30 +382,95 @@ const LogisticsPage = () => {
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Schedule Dispatch"
         footer={<div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={() => setShowAdd(false)}>Cancel</Button>
-          <Button onClick={() => setShowAdd(false)}><Plus size={13} /> Schedule</Button>
+          <Button onClick={handleCreateDispatch}><Plus size={13} /> Schedule</Button>
         </div>}>
         <div className="space-y-3">
           <FormField label="Project">
-            <Select><option value="">Select Project</option>
-              <option>P001 – Joshi Industries</option>
-              <option>P002 – Suresh Bhatt</option>
-              <option>P004 – Trivedi Foods</option>
-            </Select>
+            <div className="space-y-2">
+              <div className="relative">
+                <Input 
+                  type="text" 
+                  placeholder="Search projects by ID, name or site..." 
+                  value={projectSearch}
+                  onChange={e => setProjectSearch(e.target.value)}
+                  className="h-9 text-xs pr-8"
+                />
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-muted)]">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                </div>
+              </div>
+              <div className="max-h-40 overflow-y-auto border border-[var(--border)] rounded-md bg-[var(--bg-elevated)]">
+                {filteredProjects.length === 0 ? (
+                  <div className="p-3 text-xs text-[var(--text-muted)] text-center">
+                    {projects.length === 0 ? 'No projects available' : 'No matching projects found'}
+                  </div>
+                ) : (
+                  <div className="divide-y divide-[var(--border)]">
+                    {filteredProjects.map(p => (
+                      <div 
+                        key={p.projectId} 
+                        onClick={() => {
+                          setNewDispatch({
+                            ...newDispatch, 
+                            projectId: p.projectId,
+                            customer: p.customerName || ''
+                          });
+                        }}
+                        className={`p-2 cursor-pointer hover:bg-[var(--accent)]/10 transition-colors ${
+                          newDispatch.projectId === p.projectId ? 'bg-[var(--accent)]/20 border-l-2 border-[var(--accent)]' : ''
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-medium text-[var(--text-primary)]">{p.projectId}</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-tertiary)] text-[var(--text-muted)]">{p.site}</span>
+                        </div>
+                        <div className="text-[11px] text-[var(--text-secondary)] mt-0.5">{p.customerName}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {newDispatch.projectId && (
+                <div className="text-xs text-[var(--accent)]">
+                  Selected: {newDispatch.projectId}
+                </div>
+              )}
+            </div>
           </FormField>
-          <FormField label="Items to Dispatch"><Input placeholder="e.g. 125 Panels, 1 Inverter" /></FormField>
+          <FormField label="Customer">
+            <Input value={newDispatch.customer} onChange={e => setNewDispatch({...newDispatch, customer: e.target.value})} placeholder="Customer name" />
+          </FormField>
+          <FormField label="Items to Dispatch">
+            <Input value={newDispatch.items} onChange={e => setNewDispatch({...newDispatch, items: e.target.value})} placeholder="e.g. 125 Panels, 1 Inverter" />
+          </FormField>
           <div className="grid grid-cols-2 gap-3">
             <FormField label="From Warehouse">
-              <Select><option value="">Select Warehouse</option>
-                <option>WH-Ahmedabad</option><option>WH-Surat</option>
+              <Select value={newDispatch.from} onChange={e => setNewDispatch({...newDispatch, from: e.target.value})}>
+                <option value="">Select Warehouse</option>
+                <option value="WH-Ahmedabad">WH-Ahmedabad</option>
+                <option value="WH-Surat">WH-Surat</option>
               </Select>
             </FormField>
-            <FormField label="Dispatch Date"><Input type="date" /></FormField>
+            <FormField label="To Location">
+              <Input value={newDispatch.to} onChange={e => setNewDispatch({...newDispatch, to: e.target.value})} placeholder="Destination" />
+            </FormField>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="Driver Name"><Input placeholder="Driver name" /></FormField>
-            <FormField label="Vehicle Number"><Input placeholder="GJ-01-AB-1234" /></FormField>
+            <FormField label="Dispatch Date">
+              <Input type="date" value={newDispatch.dispatchDate} onChange={e => setNewDispatch({...newDispatch, dispatchDate: e.target.value})} />
+            </FormField>
+            <FormField label="Freight Cost (₹)">
+              <Input type="number" value={newDispatch.cost} onChange={e => setNewDispatch({...newDispatch, cost: e.target.value})} placeholder="8500" />
+            </FormField>
           </div>
-          <FormField label="Freight Cost (₹)"><Input type="number" placeholder="8500" /></FormField>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Driver Name">
+              <Input value={newDispatch.driver} onChange={e => setNewDispatch({...newDispatch, driver: e.target.value})} placeholder="Driver name" />
+            </FormField>
+            <FormField label="Vehicle Number">
+              <Input value={newDispatch.vehicle} onChange={e => setNewDispatch({...newDispatch, vehicle: e.target.value})} placeholder="GJ-01-AB-1234" />
+            </FormField>
+          </div>
         </div>
       </Modal>
 
@@ -285,7 +479,9 @@ const LogisticsPage = () => {
         <Modal open={!!selected} onClose={() => setSelected(null)} title={`Dispatch — ${selected.id}`}
           footer={<div className="flex gap-2 justify-end">
             <Button variant="ghost" onClick={() => setSelected(null)}>Close</Button>
-            <Button onClick={() => setSelected(null)}><CheckCircle size={13} /> Mark Delivered</Button>
+            {selected.status !== 'Delivered' && (
+              <Button onClick={() => handleMarkDelivered(selected)}><CheckCircle size={13} /> Mark Delivered</Button>
+            )}
           </div>}>
           <div className="grid grid-cols-2 gap-3 text-xs">
             {[

@@ -29,9 +29,11 @@ import { Input } from './Input';
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
 const DataTable = ({
-    columns = [], data = [], total = 0,
-    page = 1, pageSize = 25,
-    onPageChange, onPageSizeChange, onSort,
+    columns = [], data = [], total: propTotal = 0,
+    page: propPage = 1, pageSize: propPageSize = 25,
+    onPageChange: propOnPageChange, onPageSizeChange: propOnPageSizeChange,
+    pagination, // Support old pagination object format
+    onSort,
     search = '', onSearch,
     rowActions = [], bulkActions = [],
     loading = false, emptyText = 'No records found',
@@ -43,6 +45,12 @@ const DataTable = ({
     sort: controlledSort,
     onRowClick,
 }) => {
+    // Support both flat props and pagination object for backward compatibility
+    const total = pagination?.total != null ? pagination.total : propTotal;
+    const page = pagination?.page != null ? pagination.page : propPage;
+    const pageSize = pagination?.pageSize != null ? pagination.pageSize : propPageSize;
+    const onPageChange = pagination?.onChange != null ? pagination.onChange : propOnPageChange;
+    const onPageSizeChange = pagination?.onPageSizeChange != null ? pagination.onPageSizeChange : propOnPageSizeChange;
     const [internalSort, setInternalSort] = useState({ key: null, dir: 'asc' });
     const [hiddenCols, setHiddenCols] = useState(new Set());
     const [openMenuIndex, setOpenMenuIndex] = useState(null);
@@ -53,8 +61,8 @@ const DataTable = ({
     const [jumpPage, setJumpPage] = useState('');
 
     const [internalSelected, setInternalSelected] = useState(new Set());
-    const selectedRows = controlledSelected ?? internalSelected;
-    const setSelected = onSelectRows ?? setInternalSelected;
+    const selectedRows = controlledSelected != null ? controlledSelected : internalSelected;
+    const setSelected = onSelectRows != null ? onSelectRows : setInternalSelected;
 
     // Use controlled sort if provided, otherwise use internal
     const isControlledSort = controlledSort !== undefined;
@@ -284,8 +292,7 @@ const DataTable = ({
                                             </td>
                                         )}
                                     </tr>
-                                ))
-                            )}
+                                )))}
                         </tbody>
                     </table>
                 </div>

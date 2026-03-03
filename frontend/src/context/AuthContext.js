@@ -21,9 +21,12 @@ export const AuthProvider = ({ children }) => {
     setLoading(true);
     setError('');
     try {
+      console.log('Attempting login...', { email });
       const res = await api.post('/auth/login', { email, password });
+      console.log('Login API response:', res);
       const { accessToken, user: backendUser } = res?.data || {};
       if (!accessToken || !backendUser) {
+        console.error('Invalid response structure:', res);
         throw new Error('Invalid response from server');
       }
       const permissions = getRolePermissions(backendUser.role);
@@ -34,7 +37,8 @@ export const AuthProvider = ({ children }) => {
       setError('');
       return true;
     } catch (err) {
-      const msg = err?.message || 'Login failed';
+      console.error('Login error:', err);
+      const msg = err?.message || err?.response?.data?.message || 'Login failed';
       setError(msg);
       return false;
     } finally {
