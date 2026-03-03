@@ -529,12 +529,12 @@ const DesignPage = () => {
               <div className="hidden sm:block w-px h-10 bg-[var(--border-base)] mx-2" />
               <div className="flex gap-4 flex-wrap text-[10px]">
                 {[
-                  { l: 'Max Cap', v: `${cfg.capacityMax} kW` },
-                  { l: 'Tilt', v: `${cfg.tiltAngle}°` },
-                  { l: 'Row Spacing', v: `${cfg.rowSpacing}m` },
-                  { l: 'Rate', v: `₹${cfg.ratePerWp}/Wp` },
-                  { l: 'Tariff', v: `₹${cfg.tariff}/kWh` },
-                  { l: 'AI Goal', v: cfg.aiObjectiveLabel.split(' ')[0] },
+                  { l: 'Max Cap', v: `${cfg?.capacityMax} kW` },
+                  { l: 'Tilt', v: `${cfg?.tiltAngle}°` },
+                  { l: 'Row Spacing', v: `${cfg?.rowSpacing}m` },
+                  { l: 'Rate', v: `₹${cfg?.ratePerWp}/Wp` },
+                  { l: 'Tariff', v: `₹${cfg?.tariff}/kWh` },
+                  { l: 'AI Goal', v: cfg?.aiObjectiveLabel?.split(' ')[0] },
                 ].map(i => (
                   <div key={i.l}>
                     <p className="text-[var(--text-faint)]">{i.l}</p>
@@ -575,10 +575,10 @@ const DesignPage = () => {
                 </div>
                 <p className="text-[10px] text-[var(--text-muted)] mb-2 leading-relaxed">{pt.description}</p>
                 <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px]">
-                  <span className="text-[var(--text-faint)]">≤ <strong className="text-[var(--text-muted)]">{cfg.capacityMax} kW</strong></span>
-                  <span className="text-[var(--text-faint)]">Tilt <strong className="text-[var(--text-muted)]">{cfg.tiltAngle}°</strong></span>
-                  <span className="text-[var(--text-faint)]">₹<strong className="text-[var(--text-muted)]">{cfg.ratePerWp}/Wp</strong></span>
-                  <span className="font-semibold" style={{ color: pt.color }}>{cfg.financialMode.toUpperCase()} focus</span>
+                  <span className="text-[var(--text-faint)]">≤ <strong className="text-[var(--text-muted)]">{cfg?.capacityMax} kW</strong></span>
+                  <span className="text-[var(--text-faint)]">Tilt <strong className="text-[var(--text-muted)]">{cfg?.tiltAngle}°</strong></span>
+                  <span className="text-[var(--text-faint)]">₹<strong className="text-[var(--text-muted)]">{cfg?.ratePerWp}/Wp</strong></span>
+                  <span className="font-semibold" style={{ color: pt.color }}>{cfg?.financialMode?.toUpperCase()} focus</span>
                 </div>
               </div>
             </div>
@@ -672,15 +672,15 @@ const DesignPage = () => {
                 <ProjectTypeSelector value={newType} onChange={setNewType} />
                 {/* Live config summary strip */}
                 <div className="mt-2 p-2.5 rounded-xl border text-[10px] flex flex-wrap gap-x-4 gap-y-1"
-                  style={{ background: cfg.bg, borderColor: cfg.border }}>
-                  <span className="font-bold w-full" style={{ color: cfg.color }}>
-                    {cfg.aiObjectiveLabel} · {cfg.financialMode.toUpperCase()} financial model
+                  style={{ background: cfg?.bg, borderColor: cfg?.border }}>
+                  <span className="font-bold w-full" style={{ color: cfg?.color }}>
+                    {cfg?.aiObjectiveLabel} · {cfg?.financialMode?.toUpperCase()} financial model
                   </span>
-                  <span className="text-[var(--text-muted)]">Cap: <b>≤{cfg.capacityMax} kW</b></span>
-                  <span className="text-[var(--text-muted)]">Tilt: <b>{cfg.tiltAngle}°</b></span>
-                  <span className="text-[var(--text-muted)]">Row spacing: <b>{cfg.rowSpacing}m</b></span>
-                  <span className="text-[var(--text-muted)]">Rate: <b>₹{cfg.ratePerWp}/Wp</b></span>
-                  <span className="text-[var(--text-muted)]">Subsidy: <b>{cfg.subsidyLabel}</b></span>
+                  <span className="text-[var(--text-muted)]">Cap: <b>≤{cfg?.capacityMax} kW</b></span>
+                  <span className="text-[var(--text-muted)]">Tilt: <b>{cfg?.tiltAngle}°</b></span>
+                  <span className="text-[var(--text-muted)]">Row spacing: <b>{cfg?.rowSpacing}m</b></span>
+                  <span className="text-[var(--text-muted)]">Rate: <b>₹{cfg?.ratePerWp}/Wp</b></span>
+                  <span className="text-[var(--text-muted)]">Subsidy: <b>{cfg?.subsidyLabel}</b></span>
                 </div>
               </div>
 
@@ -702,41 +702,43 @@ const DesignPage = () => {
                   </Select>
                 </FormField>
 
-                <FormField label={`AC System Size (kW) — max ${cfg.capacityMax} kW`}>
-                  <Input type="number" placeholder={String(cfg.capacityStep * 5)}
-                    min={cfg.capacityMin} max={cfg.capacityMax} step={cfg.capacityStep}
+                <FormField label={`AC System Size (kW) — max ${cfg?.capacityMax} kW`}>
+                  <Input type="number" placeholder={String(cfg?.capacityStep * 5)}
+                    min={cfg?.capacityMin} max={cfg?.capacityMax} step={cfg?.capacityStep}
                     value={newKw} onChange={e => setNewKw(e.target.value)} />
-                  {parseFloat(newKw) > cfg.capacityMax && (
+                  {parseFloat(newKw) > cfg?.capacityMax && (
                     <p className="text-[10px] text-red-400 mt-1 flex items-center gap-1">
-                      <AlertTriangle size={9} /> Exceeds {cfg.capacityMax} kW limit for {cfg.label}
+                      <AlertTriangle size={9} /> Exceeds {cfg?.capacityMax} kW limit for {cfg?.label}
                     </p>
                   )}
                 </FormField>
-                <FormField label={`DC/AC Ratio (default ${cfg.dcAcRatio})`}>
-                  <Input type="number" placeholder={String(cfg.dcAcRatio)} step="0.01" />
+                <FormField label={`DC/AC Ratio (default ${cfg?.dcAcRatio})`}>
+                  <Input type="number" placeholder={String(cfg?.dcAcRatio)} step="0.01" />
                 </FormField>
 
                 <FormField label="Recommended Panel">
                   <Select>
-                    {cfg.recommendedPanels.map(p => <option key={p}>{p}</option>)}
+                    {cfg?.recommendedPanels?.map(p => <option key={p}>{p}</option>)
+                    }
                     <option disabled>────</option>
                     <option>Other…</option>
                   </Select>
                 </FormField>
                 <FormField label="Recommended Inverter">
                   <Select>
-                    {cfg.recommendedInverters.map(p => <option key={p}>{p}</option>)}
+                    {cfg?.recommendedInverters?.map(p => <option key={p}>{p}</option>)
+                    }
                     <option disabled>────</option>
                     <option>Custom…</option>
                   </Select>
                 </FormField>
 
-                <FormField label={`Tilt Angle (°) — default ${cfg.tiltAngle}°`}>
-                  <Input type="number" placeholder={String(cfg.tiltAngle)} min="0" max="45" />
+                <FormField label={`Tilt Angle (°) — default ${cfg?.tiltAngle}°`}>
+                  <Input type="number" placeholder={String(cfg?.tiltAngle)} min="0" max="45" />
                 </FormField>
                 <FormField label="Mounting Type">
                   <Select>
-                    {cfg.layoutDensity === 'wide'
+                    {cfg?.layoutDensity === 'wide'
                       ? <><option>Ground Mount — Fixed</option><option>Ground Mount — Single-Axis Tracker</option></>
                       : <><option>Rooftop Fixed Tilt (GI)</option><option>East-West Rooftop</option></>
                     }
@@ -746,17 +748,17 @@ const DesignPage = () => {
 
               {/* Live financial preview */}
               {previewFin && (
-                <div className="p-3 rounded-xl border" style={{ background: cfg.bg, borderColor: cfg.border }}>
-                  <p className="text-[11px] font-bold mb-2.5 flex items-center gap-1.5" style={{ color: cfg.color }}>
-                    <BarChart2 size={11} /> Live {cfg.financialMode.toUpperCase()} Preview
+                <div className="p-3 rounded-xl border" style={{ background: cfg?.bg, borderColor: cfg?.border }}>
+                  <p className="text-[11px] font-bold mb-2.5 flex items-center gap-1.5" style={{ color: cfg?.color }}>
+                    <BarChart2 size={11} /> Live {cfg?.financialMode?.toUpperCase()} Preview
                   </p>
                   <div className="grid grid-cols-3 gap-2 text-[10px]">
                     {[
                       { l: 'Est. CAPEX', v: fmt(previewFin.capex) },
                       { l: 'Net (post-sub)', v: fmt(previewFin.netCapex) },
                       { l: 'Annual Save', v: fmt(previewFin.annualSave) },
-                      cfg.financialMode === 'payback' ? { l: 'Payback', v: `${previewFin.payback} yrs` }
-                        : cfg.financialMode === 'roi' ? { l: 'Y1 ROI', v: `${previewFin.roi1}%` }
+                      cfg?.financialMode === 'payback' ? { l: 'Payback', v: `${previewFin.payback} yrs` }
+                        : cfg?.financialMode === 'roi' ? { l: 'Y1 ROI', v: `${previewFin.roi1}%` }
                           : { l: '25yr IRR', v: `${previewFin.irr25}%` },
                       { l: 'Monthly EMI', v: fmt(previewFin.emi) },
                       { l: 'CO₂ Offset', v: `${previewFin.co2Saved} t/yr` },
@@ -772,9 +774,9 @@ const DesignPage = () => {
 
               <FormField label="Design Notes">
                 <Textarea rows={2} placeholder={
-                  cfg.shadowPriority === 'high'
+                  cfg?.shadowPriority === 'high'
                     ? 'Industrial: inter-row shadow constraints, maintenance corridors, DISCOM HT connection details…'
-                    : cfg.financialMode === 'roi'
+                    : cfg?.financialMode === 'roi'
                       ? 'Commercial: accelerated depreciation eligibility, net metering, ROI targets…'
                       : 'Residential: subsidy category, roof load limits, single-phase / 3-phase connection…'
                 } />

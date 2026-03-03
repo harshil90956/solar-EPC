@@ -1,14 +1,39 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Lead, LeadDocument } from '../schemas/lead.schema';
 import { CreateLeadDto, UpdateLeadDto, QueryLeadDto, AddActivityDto } from '../dto/lead.dto';
+import { LeadStatus, LeadStatusDocument } from '../../settings/schemas/lead-status.schema';
 
 @Injectable()
 export class LeadsService {
   constructor(
     @InjectModel(Lead.name) private leadModel: Model<LeadDocument>,
+    @InjectModel(LeadStatus.name) private leadStatusModel: Model<LeadStatusDocument>,
   ) {}
+
+  private toObjectId(id: string | undefined): Types.ObjectId | undefined {
+    if (!id) return undefined;
+    try {
+      return new Types.ObjectId(id);
+    } catch {
+      return undefined;
+    }
+  }
+
+  private async assertValidStatusKey(statusKey: string | undefined, tenantId?: string): Promise<void> {
+    if (!statusKey) return;
+    const tid = this.toObjectId(tenantId);
+
+    const status = await this.leadStatusModel
+      .findOne({ tenantId: tid, entity: 'lead', key: statusKey, isActive: true })
+      .lean()
+      .exec();
+
+    if (!status) {
+      throw new BadRequestException(`Invalid lead statusKey '${statusKey}'`);
+    }
+  }
 
   // ============================================
   // LEAD SCORING ALGORITHM (matches frontend)
@@ -109,6 +134,8 @@ export class LeadsService {
   async create(createLeadDto: CreateLeadDto, tenantId?: string): Promise<Lead> {
     const now = new Date();
     const leadId = `LEAD-${Date.now()}`;
+
+    await this.assertValidStatusKey(createLeadDto.statusKey, tenantId);
     
     const activities = [{
       type: 'created',
@@ -147,7 +174,7 @@ export class LeadsService {
       sortOrder = 'desc',
       search,
       source,
-      stage,
+      statusKey,
       city,
       minScore,
       maxScore,
@@ -189,7 +216,7 @@ export class LeadsService {
     }
 
     if (source) filter.source = source;
-    if (stage) filter.stage = stage;
+    if (statusKey) filter.statusKey = statusKey;
     if (city) filter.city = { $regex: city, $options: 'i' };
 
     if (minScore !== undefined || maxScore !== undefined) {
@@ -280,12 +307,14 @@ export class LeadsService {
       throw new NotFoundException('Lead not found');
     }
 
-    if (updateLeadDto.stage && updateLeadDto.stage !== existingLead.stage) {
+    await this.assertValidStatusKey(updateLeadDto.statusKey, tenantId);
+
+    if (updateLeadDto.statusKey && updateLeadDto.statusKey !== (existingLead as any).statusKey) {
       const now = new Date();
       existingLead.activities.push({
         type: 'stage_change',
         ts: this.formatTimestamp(now),
-        note: `Stage changed from ${existingLead.stage} to ${updateLeadDto.stage}`,
+        note: `Stage changed from ${(existingLead as any).statusKey} to ${updateLeadDto.statusKey}`,
         by: 'System',
         timestamp: now,
       });
@@ -335,7 +364,7 @@ export class LeadsService {
       city: originalLead.city,
       state: originalLead.state,
       source: originalLead.source,
-      stage: 'new',
+      statusKey: 'new',
       value: originalLead.value,
       kw: originalLead.kw ? parseFloat(originalLead.kw as any) : 0,
       roofArea: originalLead.roofArea,
@@ -430,6 +459,7 @@ export class LeadsService {
   }
 
   async bulkUpdateStage(ids: string[], stage: string, tenantId?: string): Promise<{ modified: number }> {
+    await this.assertValidStatusKey(stage, tenantId);
     const objectIds = ids.filter(id => Types.ObjectId.isValid(id)).map(id => new Types.ObjectId(id));
     const filter: any = { 
       $or: [
@@ -445,7 +475,7 @@ export class LeadsService {
 
     const result = await this.leadModel.updateMany(
       filter,
-      { $set: { stage, lastContact: new Date() } },
+      { $set: { statusKey: stage, lastContact: new Date() } },
     );
     return { modified: result.modifiedCount };
   }
@@ -476,7 +506,7 @@ export class LeadsService {
       ]),
       this.leadModel.aggregate([
         { $match: filter },
-        { $group: { _id: '$stage', count: { $sum: 1 } } },
+        { $group: { _id: '$statusKey', count: { $sum: 1 } } },
       ]),
       this.leadModel.aggregate([
         { $match: filter },
@@ -492,6 +522,26 @@ export class LeadsService {
       totalPipelineValue: totalPipelineValue[0]?.total || 0,
       stageDistribution: stageCounts.reduce((acc: any, curr: any) => ({ ...acc, [curr._id]: curr.count }), {}),
       sourceDistribution: sourceCounts.reduce((acc: any, curr: any) => ({ ...acc, [curr._id]: curr.count }), {}),
+    };
+  }
+
+  async getStatusOptions(tenantId?: string): Promise<{ data: Array<{ key: string; label: string; color: string; order: number; type: string }> }> {
+    const tid = this.toObjectId(tenantId);
+
+    const statuses = await this.leadStatusModel
+      .find({ tenantId: tid, entity: 'lead', isActive: true })
+      .sort({ order: 1 })
+      .lean()
+      .exec();
+
+    return {
+      data: statuses.map(s => ({
+        key: (s as any).key,
+        label: (s as any).label,
+        color: (s as any).color,
+        order: (s as any).order,
+        type: (s as any).type,
+      })),
     };
   }
 

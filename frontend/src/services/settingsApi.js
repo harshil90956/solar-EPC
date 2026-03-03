@@ -1,10 +1,21 @@
 const API_BASE_URL = (process.env.REACT_APP_API_URL || 'http://localhost:3000') + '/api/v1';
 
+const getTenantId = () => {
+  try {
+    const user = JSON.parse(localStorage.getItem('solar_user') || '{}');
+    return user?.tenantId || user?.tenant?.id || user?.id || null;
+  } catch {
+    return null;
+  }
+};
+
 const getAuthHeaders = () => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('solar_token') || localStorage.getItem('token');
+  const tenantId = getTenantId();
   return {
     'Content-Type': 'application/json',
     ...(token && { Authorization: `Bearer ${token}` }),
+    ...(tenantId && { 'x-tenant-id': tenantId }),
   };
 };
 
@@ -207,6 +218,56 @@ export const settingsApi = {
       body: JSON.stringify(config),
     });
     if (!response.ok) throw new Error('Failed to update project type config');
+    return response.json();
+  },
+
+  // ── Lead Statuses (CRM → Lead) ───────────────────────────────────────────
+  async getLeadStatuses(activeOnly = false) {
+    const url = new URL(`${API_BASE_URL}/settings/lead-statuses`);
+    if (activeOnly) url.searchParams.set('active', 'true');
+    const response = await fetch(url.toString(), {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to fetch lead statuses');
+    return response.json();
+  },
+
+  async createLeadStatus(payload) {
+    const response = await fetch(`${API_BASE_URL}/settings/lead-statuses`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error('Failed to create lead status');
+    return response.json();
+  },
+
+  async updateLeadStatus(id, payload) {
+    const response = await fetch(`${API_BASE_URL}/settings/lead-statuses/${id}`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error('Failed to update lead status');
+    return response.json();
+  },
+
+  async deleteLeadStatus(id) {
+    const response = await fetch(`${API_BASE_URL}/settings/lead-statuses/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to delete lead status');
+    return response.json();
+  },
+
+  async reorderLeadStatuses(statusIds) {
+    const response = await fetch(`${API_BASE_URL}/settings/lead-statuses/reorder`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ statusIds }),
+    });
+    if (!response.ok) throw new Error('Failed to reorder lead statuses');
     return response.json();
   },
 };

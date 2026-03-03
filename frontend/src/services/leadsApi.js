@@ -1,10 +1,21 @@
 const API_BASE_URL = (process.env.REACT_APP_API_URL || 'http://localhost:3000') + '/api/v1';
 
+const getTenantId = () => {
+  try {
+    const user = JSON.parse(localStorage.getItem('solar_user') || '{}');
+    return user?.tenantId || user?.tenant?.id || user?.id || null;
+  } catch {
+    return null;
+  }
+};
+
 const getAuthHeaders = () => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('solar_token') || localStorage.getItem('token');
+  const tenantId = getTenantId();
   return {
     'Content-Type': 'application/json',
     ...(token && { Authorization: `Bearer ${token}` }),
+    ...(tenantId && { 'x-tenant-id': tenantId }),
   };
 };
 
@@ -16,6 +27,15 @@ export const leadsApi = {
       headers: getAuthHeaders(),
     });
     if (!response.ok) throw new Error('Failed to fetch leads');
+    return response.json();
+  },
+
+  // Get ordered active lead status options
+  async getStatusOptions() {
+    const response = await fetch(`${API_BASE_URL}/leads/status-options`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to fetch lead status options');
     return response.json();
   },
 
