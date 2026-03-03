@@ -1,5 +1,5 @@
 // Solar OS – EPC Edition — CommissioningPage.js
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { CheckCircle, Cpu, Sun, FileSignature, Award, Zap, Plus, AlertTriangle, LayoutGrid, List } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
@@ -11,6 +11,9 @@ import { usePermissions } from '../hooks/usePermissions';
 import { useAuditLog } from '../hooks/useAuditLog';
 import CanAccess, { CanCreate, CanEdit, CanDelete } from '../components/CanAccess';
 import { toast } from '../components/ui/Toast';
+
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
+const TENANT_ID = 'solarcorp'; // Default tenant for seed data
 
 const COMMISSIONED = [
   {
@@ -203,7 +206,196 @@ const CommissioningPage = () => {
   const [pageSize, setPageSize] = useState(APP_CONFIG.defaultPageSize);
   const [showAdd, setShowAdd] = useState(false);
   const [selected, setSelected] = useState(null);
-  const [systems, setSystems] = useState(COMMISSIONED);
+  const [systems, setSystems] = useState([]);
+  const [commissioningLoading, setCommissioningLoading] = useState(true);
+  const [commissioningError, setCommissioningError] = useState(null);
+
+  // Projects fetch state
+  const [projects, setProjects] = useState([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Form state
+  const [form, setForm] = useState({
+    projectId: '',
+    date: '',
+    percentage: '',
+    inverterSerialNo: '',
+    panelBatchNo: '',
+    panelWarranty: '',
+    inverterWarranty: '',
+    installWarranty: '',
+    notes: ''
+  });
+
+  // Fetch commissioning data from backend
+  const fetchCommissioningData = async () => {
+    try {
+      setCommissioningLoading(true);
+      const response = await fetch(`${API_BASE_URL}/commissioning?tenantId=${TENANT_ID}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch commissioning data');
+      }
+      const data = await response.json();
+      const commissioningArray = Array.isArray(data) ? data : (data.data || []);
+
+      // Transform backend data to frontend format
+      const transformedData = commissioningArray.map(c => ({
+        id: c._id || c.id,
+        projectId: c.projectIdString,
+        customer: c.projectId?.customerName || 'Unknown',
+        site: c.projectId?.site || 'Unknown',
+        systemSize: c.projectId?.systemSize || 0,
+        commissionDate: c.date,
+        status: c.status === 'Completed' ? 'Active' : c.status,
+        inverterSerial: c.inverterSerialNo,
+        panelBatch: c.panelBatchNo,
+        pr: c.percentage,
+        expectedPR: 78,
+        notes: c.notes,
+        warrantyPanel: c.panelWarranty,
+        warrantyInverter: c.inverterWarranty,
+        warrantyInstall: c.installWarranty,
+        checklist: [
+          { item: 'Insulation Resistance Test', pass: c.status === 'Completed' },
+          { item: 'Open Circuit Voltage Check', pass: c.status === 'Completed' },
+          { item: 'Short Circuit Current Check', pass: c.status === 'Completed' },
+          { item: 'Grid Synchronisation', pass: c.status === 'Completed' },
+          { item: 'Performance Ratio Test', pass: c.status === 'Completed' },
+          { item: 'Net Meter Test', pass: c.status === 'Completed' },
+          { item: 'Customer Handover Sign-off', pass: c.status === 'Completed' },
+        ]
+      }));
+
+      setSystems(transformedData);
+      setCommissioningError(null);
+    } catch (err) {
+      console.error('Error fetching commissioning data:', err);
+      setCommissioningError(err.message);
+      toast.error('Failed to load commissioning data');
+    } finally {
+      setCommissioningLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCommissioningData();
+  }, []);
+
+  // Fetch projects from backend
+  useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        setProjectsLoading(true);
+        const response = await fetch(`${API_BASE_URL}/projects?tenantId=${TENANT_ID}`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch projects');
+        }
+        const data = await response.json();
+        const projectsArray = Array.isArray(data) ? data : (data.data || []);
+        // Show all projects in commissioning dropdown (not just Installation stage)
+        setProjects(projectsArray);
+      } catch (err) {
+        console.error('Error fetching projects:', err);
+        toast.error('Failed to load projects');
+      } finally {
+        setProjectsLoading(false);
+      }
+    };
+
+    fetchProjects();
+  }, []);
+
+  // Handle form input changes
+  const handleFormChange = (field, value) => {
+    setForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Handle commissioning submit
+  const handleCreateCommissioning = async () => {
+    if (!form.projectId || !form.date || !form.percentage || !form.inverterSerialNo || !form.panelBatchNo) {
+      toast.error('Please fill all required fields');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/commissioning?tenantId=${TENANT_ID}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: form.projectId,
+          date: form.date,
+          percentage: parseFloat(form.percentage),
+          inverterSerialNo: form.inverterSerialNo,
+          panelBatchNo: form.panelBatchNo,
+          panelWarranty: form.panelWarranty,
+          inverterWarranty: form.inverterWarranty,
+          installWarranty: form.installWarranty,
+          notes: form.notes,
+          status: 'Completed'
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to create commissioning: ${errorText}`);
+      }
+
+      const created = await response.json();
+
+      // Add to local state
+      const selectedProject = projects.find(p => p.projectId === form.projectId);
+      const newRecord = {
+        id: created._id || created.id || `CA${Date.now()}`,
+        projectId: form.projectId,
+        customer: selectedProject?.customerName || 'Unknown',
+        site: selectedProject?.site || 'Unknown',
+        systemSize: selectedProject?.systemSize || 0,
+        commissionDate: form.date,
+        status: 'Active',
+        inverterSerial: form.inverterSerialNo,
+        panelBatch: form.panelBatchNo,
+        pr: parseFloat(form.percentage),
+        expectedPR: 78,
+        checklist: [
+          { item: 'Insulation Resistance Test', pass: true },
+          { item: 'Open Circuit Voltage Check', pass: true },
+          { item: 'Short Circuit Current Check', pass: true },
+          { item: 'Grid Synchronisation', pass: true },
+          { item: 'Performance Ratio Test', pass: true },
+          { item: 'Net Meter Test', pass: true },
+          { item: 'Customer Handover Sign-off', pass: true },
+        ]
+      };
+
+      setSystems(prev => [newRecord, ...prev]);
+
+      // Refresh data from backend to ensure consistency
+      await fetchCommissioningData();
+
+      // Reset form and close modal
+      setForm({
+        projectId: '',
+        date: '',
+        percentage: '',
+        inverterSerialNo: '',
+        panelBatchNo: '',
+        panelWarranty: '',
+        inverterWarranty: '',
+        installWarranty: '',
+        notes: ''
+      });
+      setShowAdd(false);
+      toast.success('Commissioning completed successfully!');
+      logCreate(newRecord);
+    } catch (err) {
+      console.error('Error creating commissioning:', err);
+      toast.error(err.message || 'Failed to complete commissioning');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const handleStageChange = (id, newStatus) => {
     if (!can('commissioning', 'edit')) {
@@ -266,83 +458,166 @@ const CommissioningPage = () => {
         </p>
       </div>
 
-      {/* Active system detail cards — both views */}
-      {systems.filter(c => c.status === 'Active').map(sys => (
-        <div key={sys.id} className="glass-card p-4">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[var(--solar)]/15 flex items-center justify-center">
-                <Sun size={18} className="text-[var(--solar)]" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-[var(--text-primary)]">{sys.id} — {sys.customer}</p>
-                <p className="text-xs text-[var(--text-muted)]">{sys.site} · {sys.systemSize} kW · Commissioned {sys.commissionDate}</p>
-              </div>
-            </div>
-            <CommBadge value={sys.status} />
-          </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-            <div className="glass-card p-2 text-center"><p className="text-[10px] text-[var(--text-muted)]">Performance Ratio</p><p className="text-lg font-black text-emerald-400">{sys.pr}%</p></div>
-            <div className="glass-card p-2 text-center"><p className="text-[10px] text-[var(--text-muted)]">Inverter Serial</p><p className="text-xs font-mono text-[var(--text-primary)] mt-0.5">{sys.inverterSerial}</p></div>
-            <div className="glass-card p-2 text-center"><p className="text-[10px] text-[var(--text-muted)]">Panel Warranty Till</p><p className="text-xs font-semibold text-[var(--text-primary)] mt-0.5">{sys.warrantyPanel}</p></div>
-            <div className="glass-card p-2 text-center"><p className="text-[10px] text-[var(--text-muted)]">Install Warranty Till</p><p className="text-xs font-semibold text-[var(--text-primary)] mt-0.5">{sys.warrantyInstall}</p></div>
-          </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-            {sys.checklist.map((c, i) => (
-              <div key={i} className={`flex items-center gap-1.5 text-[11px] ${c.pass ? 'text-emerald-400' : 'text-red-400'}`}>
-                <CheckCircle size={10} />{c.item}
-              </div>
-            ))}
-          </div>
+      {commissioningLoading ? (
+        <div className="glass-card p-8 text-center">
+          <div className="animate-pulse text-[var(--text-muted)]">Loading commissioning data...</div>
         </div>
-      ))}
-
-      {view === 'kanban' ? (
-        <>
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-[var(--text-muted)]">Drag systems between columns to update commissioning status</p>
-            <Input placeholder="Search systems…" value={search}
-              onChange={e => setSearch(e.target.value)} className="h-8 text-xs w-52" />
-          </div>
-          <CommKanbanBoard systems={filtered} onStageChange={handleStageChange} onCardClick={setSelected} />
-        </>
+      ) : commissioningError ? (
+        <div className="glass-card p-8 text-center text-red-500">
+          <p>Error loading commissioning data: {commissioningError}</p>
+        </div>
       ) : (
         <>
-          <div className="flex flex-wrap gap-2 items-center">
-            {['All', 'Active', 'In Progress', 'Pending', 'Flagged'].map(s => (
-              <button key={s} onClick={() => { setFilter(s); setPage(1); }}
-                className={`filter-chip ${statusFilter === s ? 'filter-chip-active' : ''}`}>{s}</button>
-            ))}
-            <div className="ml-auto">
-              <Input placeholder="Search systems…" value={search}
-                onChange={e => { setSearch(e.target.value); setPage(1); }} className="h-8 text-xs w-52" />
+          {/* Active system detail cards — both views */}
+          {systems.filter(c => c.status === 'Active').map(sys => (
+            <div key={sys.id} className="glass-card p-4">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[var(--solar)]/15 flex items-center justify-center">
+                    <Sun size={18} className="text-[var(--solar)]" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-[var(--text-primary)]">{sys.id} — {sys.customer}</p>
+                    <p className="text-xs text-[var(--text-muted)]">{sys.site} · {sys.systemSize} kW · Commissioned {sys.commissionDate}</p>
+                  </div>
+                </div>
+                <CommBadge value={sys.status} />
+              </div>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                <div className="glass-card p-2 text-center"><p className="text-[10px] text-[var(--text-muted)]">Performance Ratio</p><p className="text-lg font-black text-emerald-400">{sys.pr}%</p></div>
+                <div className="glass-card p-2 text-center"><p className="text-[10px] text-[var(--text-muted)]">Inverter Serial</p><p className="text-xs font-mono text-[var(--text-primary)] mt-0.5">{sys.inverterSerial}</p></div>
+                <div className="glass-card p-2 text-center"><p className="text-[10px] text-[var(--text-muted)]">Panel Warranty Till</p><p className="text-xs font-semibold text-[var(--text-primary)] mt-0.5">{sys.warrantyPanel}</p></div>
+                <div className="glass-card p-2 text-center"><p className="text-[10px] text-[var(--text-muted)]">Install Warranty Till</p><p className="text-xs font-semibold text-[var(--text-primary)] mt-0.5">{sys.warrantyInstall}</p></div>
+              </div>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+                {sys.checklist.map((c, i) => (
+                  <div key={i} className={`flex items-center gap-1.5 text-[11px] ${c.pass ? 'text-emerald-400' : 'text-red-400'}`}>
+                    <CheckCircle size={10} />{c.item}
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-          <DataTable columns={COLUMNS} data={paginated} total={filtered.length}
-            page={page} pageSize={pageSize} onPageChange={setPage}
-            onPageSizeChange={s => { setPageSize(s); setPage(1); }}
-            rowActions={ROW_ACTIONS} emptyText="No commissioning records found." />
+          ))}
+
+          {view === 'kanban' ? (
+            <>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-[var(--text-muted)]">Drag systems between columns to update commissioning status</p>
+                <Input placeholder="Search systems…" value={search}
+                  onChange={e => setSearch(e.target.value)} className="h-8 text-xs w-52" />
+              </div>
+              <CommKanbanBoard systems={filtered} onStageChange={handleStageChange} onCardClick={setSelected} />
+            </>
+          ) : (
+            <>
+              <div className="flex flex-wrap gap-2 items-center">
+                {['All', 'Active', 'In Progress', 'Pending', 'Flagged'].map(s => (
+                  <button key={s} onClick={() => { setFilter(s); setPage(1); }}
+                    className={`filter-chip ${statusFilter === s ? 'filter-chip-active' : ''}`}>{s}</button>
+                ))}
+                <div className="ml-auto">
+                  <Input placeholder="Search systems…" value={search}
+                    onChange={e => { setSearch(e.target.value); setPage(1); }} className="h-8 text-xs w-52" />
+                </div>
+              </div>
+              <DataTable columns={COLUMNS} data={paginated} total={filtered.length}
+                page={page} pageSize={pageSize} onPageChange={setPage}
+                onPageSizeChange={s => { setPageSize(s); setPage(1); }}
+                rowActions={ROW_ACTIONS} emptyText="No commissioning records found." />
+            </>
+          )}
         </>
       )}
 
       {/* Commission Modal */}
-      <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Commission System"
+      <Modal open={showAdd} onClose={() => { setShowAdd(false); fetchCommissioningData(); }} title="Commission System"
         footer={<div className="flex gap-2 justify-end">
-          <Button variant="ghost" onClick={() => setShowAdd(false)}>Cancel</Button>
-          <Button onClick={() => setShowAdd(false)}><CheckCircle size={13} /> Complete Commissioning</Button>
+          <Button variant="ghost" onClick={() => { setShowAdd(false); fetchCommissioningData(); }}>Cancel</Button>
+          <Button
+            onClick={handleCreateCommissioning}
+            disabled={submitting || !form.projectId || !form.date || !form.percentage || !form.inverterSerialNo || !form.panelBatchNo}
+          >
+            {submitting ? 'Saving...' : <><CheckCircle size={13} /> Complete Commissioning</>}
+          </Button>
         </div>}>
         <div className="space-y-3">
           <FormField label="Project">
-            <Select><option value="">Select Project</option><option>P001 – Joshi Industries 50kW</option></Select>
+            <Select
+              value={form.projectId}
+              onChange={e => handleFormChange('projectId', e.target.value)}
+              disabled={projectsLoading}
+            >
+              <option value="">{projectsLoading ? 'Loading projects...' : 'Select Project'}</option>
+              {projects.map(p => (
+                <option key={p.projectId} value={p.projectId}>
+                  {p.projectId} – {p.customerName} {p.systemSize}kW
+                </option>
+              ))}
+            </Select>
           </FormField>
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="Commission Date"><Input type="date" /></FormField>
-            <FormField label="Performance Ratio (%)"><Input type="number" placeholder="78.5" /></FormField>
+            <FormField label="Commission Date">
+              <Input
+                type="date"
+                value={form.date}
+                onChange={e => handleFormChange('date', e.target.value)}
+              />
+            </FormField>
+            <FormField label="Performance Ratio (%)">
+              <Input
+                type="number"
+                placeholder="78.5"
+                value={form.percentage}
+                onChange={e => handleFormChange('percentage', e.target.value)}
+              />
+            </FormField>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="Inverter Serial No."><Input placeholder="SMA-50K-…" /></FormField>
-            <FormField label="Panel Batch No."><Input placeholder="TSP-B2025-LOT-…" /></FormField>
+            <FormField label="Inverter Serial No.">
+              <Input
+                placeholder="SMA-50K-…"
+                value={form.inverterSerialNo}
+                onChange={e => handleFormChange('inverterSerialNo', e.target.value)}
+              />
+            </FormField>
+            <FormField label="Panel Batch No.">
+              <Input
+                placeholder="TSP-B2025-LOT-…"
+                value={form.panelBatchNo}
+                onChange={e => handleFormChange('panelBatchNo', e.target.value)}
+              />
+            </FormField>
           </div>
+          <div className="grid grid-cols-3 gap-3">
+            <FormField label="Panel Warranty Till">
+              <Input
+                type="date"
+                value={form.panelWarranty}
+                onChange={e => handleFormChange('panelWarranty', e.target.value)}
+              />
+            </FormField>
+            <FormField label="Inverter Warranty Till">
+              <Input
+                type="date"
+                value={form.inverterWarranty}
+                onChange={e => handleFormChange('inverterWarranty', e.target.value)}
+              />
+            </FormField>
+            <FormField label="Install Warranty Till">
+              <Input
+                type="date"
+                value={form.installWarranty}
+                onChange={e => handleFormChange('installWarranty', e.target.value)}
+              />
+            </FormField>
+          </div>
+          <FormField label="Notes (Optional)">
+            <Input
+              placeholder="Add any additional notes..."
+              value={form.notes}
+              onChange={e => handleFormChange('notes', e.target.value)}
+            />
+          </FormField>
         </div>
       </Modal>
 
