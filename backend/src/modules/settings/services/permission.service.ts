@@ -1,0 +1,282 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { FeatureFlagService } from './feature-flag.service';
+import { RBACService } from './rbac.service';
+import { CustomRoleService } from './custom-role.service';
+import { UserOverrideService } from './user-override.service';
+
+// Permission resolution result
+export interface PermissionResult {
+  permitted: boolean;
+  source: 'feature_flag' | 'user_override' | 'custom_role' | 'base_rbac' | 'default';
+  reason?: string;
+}
+
+// Full permission matrix for a user
+export interface UserPermissionMatrix {
+  [moduleId: string]: {
+    [actionId: string]: PermissionResult;
+  };
+}
+
+@Injectable()
+export class PermissionService {
+  private readonly logger = new Logger(PermissionService.name);
+
+  constructor(
+    private featureFlagService: FeatureFlagService,
+    private rbacService: RBACService,
+    private customRoleService: CustomRoleService,
+    private userOverrideService: UserOverrideService,
+  ) {}
+
+  /**
+   * Resolve permission using the hierarchy:
+   * 1. Feature Flag Check (Global Kill Switch) - Module/Action must be enabled
+   * 2. User Override Check (Hard Override) - User-specific override takes precedence
+   * 3. Custom Role Check (User-Assigned Role) - Custom role permissions
+   * 4. Base RBAC Check (Default Role Permissions) - System role defaults
+   */
+  async resolvePermission(
+    tenantId: string | undefined,
+    userId: string,
+    baseRoleId: string,
+    moduleId: string,
+    actionId: string,
+  ): Promise<PermissionResult> {
+    // ─────────────────────────────────────────────────────────────────────
+    // STEP 1: Feature Flag Check (Global Kill Switch)
+    // ─────────────────────────────────────────────────────────────────────
+    const moduleEnabled = await this.featureFlagService.isModuleEnabled(tenantId, moduleId);
+    if (!moduleEnabled) {
+      return {
+        permitted: false,
+        source: 'feature_flag',
+        reason: `Module ${moduleId} is disabled by feature flag`,
+      };
+    }
+
+    // Check if action is enabled at feature flag level
+    const actionEnabled = await this.featureFlagService.isActionEnabled(tenantId, moduleId, actionId);
+    if (!actionEnabled) {
+      return {
+        permitted: false,
+        source: 'feature_flag',
+        reason: `Action ${actionId} is disabled by feature flag for module ${moduleId}`,
+      };
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // STEP 2: User Override Check (Highest Priority)
+    // ─────────────────────────────────────────────────────────────────────
+    const userOverride = await this.userOverrideService.getOverride(tenantId, userId, moduleId, actionId);
+    if (userOverride !== null) {
+      return {
+        permitted: userOverride,
+        source: 'user_override',
+        reason: userOverride 
+          ? 'User override grants permission' 
+          : 'User override denies permission',
+      };
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // STEP 3: Custom Role Check
+    // ─────────────────────────────────────────────────────────────────────
+    const customRoleId = await this.userOverrideService.getCustomRoleId(tenantId, userId);
+    if (customRoleId) {
+      const customPerm = await this.customRoleService.getPermission(
+        tenantId, 
+        customRoleId, 
+        moduleId, 
+        actionId,
+      );
+      
+      if (customPerm !== undefined) {
+        return {
+          permitted: customPerm,
+          source: 'custom_role',
+          reason: `Custom role ${customRoleId} sets ${actionId}=${customPerm}`,
+        };
+      }
+      // If custom role doesn't define this permission, fall through to base role
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // STEP 4: Base RBAC Check (Default)
+    // ─────────────────────────────────────────────────────────────────────
+    const basePerm = await this.rbacService.getPermission(tenantId, baseRoleId, moduleId, actionId);
+    
+    return {
+      permitted: basePerm,
+      source: 'base_rbac',
+      reason: `Base role ${baseRoleId} sets ${actionId}=${basePerm}`,
+    };
+  }
+
+  /**
+   * Quick check - returns only boolean (for guards)
+   */
+  async can(
+    tenantId: string | undefined,
+    userId: string,
+    baseRoleId: string,
+    moduleId: string,
+    actionId: string,
+  ): Promise<boolean> {
+    const result = await this.resolvePermission(tenantId, userId, baseRoleId, moduleId, actionId);
+    return result.permitted;
+  }
+
+  /**
+   * Check if user can access a module (any action)
+   */
+  async canAccessModule(
+    tenantId: string | undefined,
+    userId: string,
+    baseRoleId: string,
+    moduleId: string,
+  ): Promise<boolean> {
+    // First check if module is enabled
+    const moduleEnabled = await this.featureFlagService.isModuleEnabled(tenantId, moduleId);
+    if (!moduleEnabled) return false;
+
+    // Check if user has any permission for this module
+    const matrix = await this.resolveAllPermissions(tenantId, userId, baseRoleId);
+    const modulePerms = matrix[moduleId];
+    
+    if (!modulePerms) return false;
+    
+    // User can access if they have at least one permitted action
+    return Object.values(modulePerms).some(result => result.permitted);
+  }
+
+  /**
+   * Resolve all permissions for a user across all modules
+   */
+  async resolveAllPermissions(
+    tenantId: string | undefined,
+    userId: string,
+    baseRoleId: string,
+  ): Promise<UserPermissionMatrix> {
+    const matrix: UserPermissionMatrix = {};
+    
+    // Get all feature flags to know which modules exist
+    const flags = await this.featureFlagService.getAllFlags(tenantId);
+    const modules = Object.keys(flags);
+    
+    // Standard actions to check
+    const actions = ['view', 'create', 'edit', 'delete', 'export', 'approve', 'assign'];
+
+    for (const moduleId of modules) {
+      matrix[moduleId] = {};
+      
+      for (const actionId of actions) {
+        matrix[moduleId][actionId] = await this.resolvePermission(
+          tenantId, 
+          userId, 
+          baseRoleId, 
+          moduleId, 
+          actionId,
+        );
+      }
+    }
+
+    return matrix;
+  }
+
+  /**
+   * Get enriched user data with effective permissions
+   */
+  async getEnrichedUser(
+    tenantId: string | undefined,
+    userId: string,
+    baseRoleId: string,
+    userData?: any,
+  ): Promise<any> {
+    const [customRoleId, overrideCount, matrix] = await Promise.all([
+      this.userOverrideService.getCustomRoleId(tenantId, userId),
+      this.userOverrideService.getOverrideCount(tenantId, userId),
+      this.resolveAllPermissions(tenantId, userId, baseRoleId),
+    ]);
+
+    // Calculate effective role
+    let effectiveRole = baseRoleId;
+    let effectiveRoleLabel = baseRoleId;
+    
+    if (customRoleId) {
+      const customRole = await this.customRoleService.getCustomRole(tenantId, customRoleId);
+      if (customRole) {
+        effectiveRole = customRoleId;
+        effectiveRoleLabel = customRole.label;
+      }
+    }
+
+    return {
+      ...userData,
+      id: userId,
+      baseRole: baseRoleId,
+      customRoleId,
+      effectiveRole,
+      effectiveRoleLabel,
+      overrideCount,
+      permissions: matrix,
+    };
+  }
+
+  /**
+   * Batch resolve permissions for multiple users
+   */
+  async getEnrichedUsers(
+    tenantId: string | undefined,
+    users: Array<{ id: string; role: string; [key: string]: any }>,
+  ): Promise<any[]> {
+    const enriched = await Promise.all(
+      users.map(user => this.getEnrichedUser(tenantId, user.id, user.role, user)),
+    );
+    return enriched;
+  }
+
+  /**
+   * Get permission summary for debugging
+   */
+  async getPermissionDebug(
+    tenantId: string | undefined,
+    userId: string,
+    baseRoleId: string,
+    moduleId: string,
+    actionId: string,
+  ): Promise<{
+    resolution: PermissionResult;
+    featureFlagEnabled: boolean;
+    actionEnabled: boolean;
+    userOverride: boolean | null;
+    customRoleId: string | null;
+    customRolePermission: boolean | undefined;
+    baseRolePermission: boolean;
+  }> {
+    const [featureFlagEnabled, actionEnabled, userOverride, customRoleId, customRolePermission, baseRolePermission] = 
+      await Promise.all([
+        this.featureFlagService.isModuleEnabled(tenantId, moduleId),
+        this.featureFlagService.isActionEnabled(tenantId, moduleId, actionId),
+        this.userOverrideService.getOverride(tenantId, userId, moduleId, actionId),
+        this.userOverrideService.getCustomRoleId(tenantId, userId),
+        this.userOverrideService.getCustomRoleId(tenantId, userId).then(async (roleId) => {
+          if (!roleId) return undefined;
+          return this.customRoleService.getPermission(tenantId, roleId, moduleId, actionId);
+        }),
+        this.rbacService.getPermission(tenantId, baseRoleId, moduleId, actionId),
+      ]);
+
+    const resolution = await this.resolvePermission(tenantId, userId, baseRoleId, moduleId, actionId);
+
+    return {
+      resolution,
+      featureFlagEnabled,
+      actionEnabled,
+      userOverride,
+      customRoleId,
+      customRolePermission,
+      baseRolePermission,
+    };
+  }
+}

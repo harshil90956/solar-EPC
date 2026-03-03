@@ -1185,11 +1185,13 @@ const RoleBuilderPanel = () => {
 // ─── PANEL H: USER PERMISSIONS ────────────────────────────────────────────────
 const UserPermissionsPanel = () => {
     const {
-        enrichedUsers, customRoles, userOverrides,
+        getEnrichedUsers, customRoles, userOverrides,
         rbac, resolvePermission,
         assignCustomRoleToUser, setUserPermissionOverride, clearUserOverrides,
     } = useSettings();
-    const { user: adminUser } = useAuth();
+    const { user: adminUser, users } = useAuth();
+
+    const enrichedUsers = getEnrichedUsers(users);
 
     const [selectedUserId, setSelectedUserId] = useState(null);
     const [modFilter, setModFilter] = useState('');
@@ -1387,10 +1389,13 @@ const UserPermissionsPanel = () => {
 // ─── PANEL I: VIEW AS ─────────────────────────────────────────────────────────
 const ViewAsPanel = () => {
     const {
-        enrichedUsers, customRoles, userOverrides,
+        getEnrichedUsers, customRoles, userOverrides,
         resolvePermission,
         viewAsUserId, setViewAs, clearViewAs,
     } = useSettings();
+    const { users } = useAuth();
+
+    const enrichedUsers = getEnrichedUsers(users);
 
     const [selectedUserId, setSelectedUserId] = useState(viewAsUserId);
     const [modFilter, setModFilter] = useState('');
@@ -1775,7 +1780,8 @@ const TABS = [
 
 const SettingsPage = () => {
     const [activeTab, setActiveTab] = useState('modules');
-    const { flags, rbac, workflows, auditLogs, customRoles, enrichedUsers, viewAsUserId, clearViewAs } = useSettings();
+    const { flags, rbac, workflows, auditLogs, customRoles, getEnrichedUsers, viewAsUserId, clearViewAs } = useSettings();
+    const { users } = useAuth();
 
     const ActivePanel = TABS.find(t => t.id === activeTab)?.panel || ModulesPanel;
 
@@ -1789,6 +1795,7 @@ const SettingsPage = () => {
     const activeWf = workflows.filter(w => w.enabled).length;
     const auditCount = auditLogs.length;
     const customRoleCount = Object.keys(customRoles).length;
+    const enrichedUsers = useMemo(() => getEnrichedUsers(users), [getEnrichedUsers, users]);
     const viewAsUser = viewAsUserId ? enrichedUsers.find(u => u.id === viewAsUserId) : null;
 
     return (
