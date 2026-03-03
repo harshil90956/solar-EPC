@@ -16,6 +16,9 @@ export class Activity {
 
   @Prop({ required: true })
   by!: string;
+
+  @Prop({ type: Date, default: Date.now })
+  timestamp!: Date;
 }
 
 const ActivitySchema = SchemaFactory.createForClass(Activity);
@@ -49,8 +52,8 @@ export class Lead {
   @Prop({ default: '' })
   assignedTo!: string;
 
-  @Prop({ default: '' })
-  kw!: string;
+  @Prop({ type: Number, default: 0 })
+  kw!: number;
 
   @Prop({ type: Number, default: 0 })
   value!: number;
@@ -105,6 +108,23 @@ export class Lead {
 
   @Prop({ type: Boolean, default: false })
   slaBreached!: boolean;
+
+  @Prop({ type: String, default: '' })
+  notes!: string;
+
+  @Prop({
+    type: [{
+      ruleId: Number,
+      name: String,
+      triggeredAt: { type: Date, default: Date.now }
+    }],
+    default: []
+  })
+  activeAutomation!: {
+    ruleId: number;
+    name: string;
+    triggeredAt: Date;
+  }[];
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Tenant', index: true })
   tenantId?: Types.ObjectId;

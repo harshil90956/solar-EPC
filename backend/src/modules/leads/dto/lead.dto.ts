@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsOptional, IsArray, IsBoolean, IsDate } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsArray, IsBoolean, IsEnum } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 
 export class ActivityDto {
@@ -13,11 +13,33 @@ export class ActivityDto {
 
   @IsString()
   by!: string;
+
+  @IsOptional()
+  timestamp?: Date;
+}
+
+export class AddActivityDto {
+  @IsEnum(['call', 'email', 'whatsapp', 'note', 'stage_change'])
+  type!: string;
+
+  @IsString()
+  note!: string;
+
+  @IsOptional()
+  @IsString()
+  by?: string;
+}
+
+export class BulkActionDto {
+  @IsArray()
+  @IsString({ each: true })
+  ids!: string[];
 }
 
 export class CreateLeadDto {
+  @IsOptional()
   @IsString()
-  leadId!: string;
+  leadId?: string;
 
   @IsString()
   name!: string;
@@ -26,14 +48,17 @@ export class CreateLeadDto {
   @IsString()
   company?: string;
 
+  @IsOptional()
   @IsString()
-  phone!: string;
+  phone?: string;
 
+  @IsOptional()
   @IsString()
-  email!: string;
+  email?: string;
 
+  @IsOptional()
   @IsString()
-  source!: string;
+  source?: string;
 
   @IsOptional()
   @IsString()
@@ -48,8 +73,9 @@ export class CreateLeadDto {
   assignedTo?: string;
 
   @IsOptional()
-  @IsString()
-  kw?: string;
+  @IsNumber()
+  @Type(() => Number)
+  kw?: number;
 
   @IsOptional()
   @IsNumber()
@@ -66,14 +92,6 @@ export class CreateLeadDto {
   @IsOptional()
   @IsString()
   state?: string;
-
-  @IsOptional()
-  @IsDate()
-  created?: Date;
-
-  @IsOptional()
-  @IsDate()
-  lastContact?: Date;
 
   @IsOptional()
   @IsNumber()
@@ -101,14 +119,6 @@ export class CreateLeadDto {
   tags?: string[];
 
   @IsOptional()
-  @IsNumber()
-  lat?: number;
-
-  @IsOptional()
-  @IsNumber()
-  lng?: number;
-
-  @IsOptional()
   @IsArray()
   activities?: ActivityDto[];
 
@@ -123,6 +133,14 @@ export class CreateLeadDto {
   @IsOptional()
   @IsBoolean()
   slaBreached?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  archived?: boolean;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
 }
 
 export class UpdateLeadDto extends CreateLeadDto {}
@@ -145,9 +163,28 @@ export class QueryLeadDto {
   assignedTo?: string;
 
   @IsOptional()
+  @IsString()
+  city?: string;
+
+  @IsOptional()
   @IsNumber()
   @Transform(({ value }) => value ? Number(value) : undefined)
   minScore?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) => value ? Number(value) : undefined)
+  maxScore?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) => value ? Number(value) : undefined)
+  minValue?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) => value ? Number(value) : undefined)
+  maxValue?: number;
 
   @IsOptional()
   @IsNumber()
@@ -166,4 +203,16 @@ export class QueryLeadDto {
   @IsOptional()
   @IsString()
   sortOrder?: 'asc' | 'desc';
+
+  @IsOptional()
+  @IsEnum(['highScore', 'slaBreached', 'highValue', 'referral', 'automation', 'recent'])
+  quickFilter?: string;
+
+  @IsOptional()
+  @IsString()
+  startDate?: string;
+
+  @IsOptional()
+  @IsString()
+  endDate?: string;
 }

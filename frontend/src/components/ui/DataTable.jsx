@@ -1,5 +1,5 @@
 // Universal DataTable — fully schema-driven, server-side pagination, column toggle, 3-dot menu, bulk actions
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { Search, ChevronDown, ChevronUp, MoreHorizontal, ChevronLeft, ChevronRight, Eye, EyeOff, Check, Clock, Activity } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Button } from './Button';
@@ -41,10 +41,14 @@ const DataTable = ({
     toolbar,
     className,
     sort: controlledSort,
+    onRowClick,
 }) => {
     const [internalSort, setInternalSort] = useState({ key: null, dir: 'asc' });
     const [hiddenCols, setHiddenCols] = useState(new Set());
-    const [openActionRow, setOpenActionRow] = useState(null);
+    const [openMenuIndex, setOpenMenuIndex] = useState(null);
+    const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+    const menuRef = useRef(null);
+    const buttonRefs = useRef({});
     const [colToggleOpen, setColToggleOpen] = useState(false);
     const [jumpPage, setJumpPage] = useState('');
 
@@ -59,6 +63,8 @@ const DataTable = ({
 
     const visibleColumns = useMemo(() => columns.filter(c => !hiddenCols.has(c.key)), [columns, hiddenCols]);
     const totalPages = Math.ceil(total / pageSize) || 1;
+
+    const buttonRef = useRef(null);
 
     // Standard rulebook actions to be injected if not present
     const standardActions = [
@@ -111,6 +117,26 @@ const DataTable = ({
         if (selectedRows.size === data.length) setSelected(new Set());
         else setSelected(new Set(data.map(r => r[rowKey])));
     };
+
+    const handleMenuOpen = useCallback((e, index) => {
+        e.stopPropagation();
+        const rect = e.currentTarget.getBoundingClientRect();
+        const menuWidth = 176;
+        
+        let left = rect.left - menuWidth - 8;
+        let top = rect.top;
+        
+        if (left < 8) left = rect.right + 8;
+        if (top + 200 > window.innerHeight) top = window.innerHeight - 200 - 8;
+        if (top < 8) top = 8;
+        
+        setMenuPosition({ top, left });
+        setOpenMenuIndex(openMenuIndex === index ? null : index);
+    }, [openMenuIndex]);
+
+    const handleMenuClose = useCallback(() => {
+        setOpenMenuIndex(null);
+    }, []);
 
     const SortIcon = ({ col }) => {
         if (sort.key !== col.key) return <ChevronDown size={11} className="text-[var(--text-faint)] opacity-50" />;
@@ -229,14 +255,20 @@ const DataTable = ({
                                     </td>
                                 </tr>
                             ) : (
-                                data.map(row => (
-                                    <tr key={row[rowKey]} className="table-row border-b border-[var(--border-base)] last:border-0 group">
+                                data.map((row, idx) => {
+                                    const uniqueKey = row[rowKey] || idx;
+                                    return (
+                                    <tr 
+                                        key={uniqueKey} 
+                                        className="table-row border-b border-[var(--border-base)] last:border-0 group cursor-pointer"
+                                        onClick={() => onRowClick?.(row)}
+                                    >
                                         {bulkActions.length > 0 && (
                                             <td className="px-3 py-3.5 sticky left-0 z-10 bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] transition-colors">
                                                 <input
                                                     type="checkbox"
-                                                    checked={selectedRows.has(row[rowKey])}
-                                                    onChange={() => toggleRow(row[rowKey])}
+                                                    checked={selectedRows.has(uniqueKey)}
+                                                    onChange={() => toggleRow(uniqueKey)}
                                                     className="w-3.5 h-3.5 accent-[var(--primary)] cursor-pointer"
                                                 />
                                             </td>
@@ -247,43 +279,60 @@ const DataTable = ({
                                             </td>
                                         ))}
                                         {allRowActions.length > 0 && (
-                                            <td className="px-2 py-2 relative sticky right-0 z-10 bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] transition-colors border-l border-[var(--border-base)]">
+                                            <td 
+                                                className="px-2 py-2 sticky right-0 z-10 bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] transition-colors border-l border-[var(--border-base)]"
+                                                onClick={e => e.stopPropagation()}
+                                            >
                                                 <button
-                                                    onClick={() => setOpenActionRow(openActionRow === row[rowKey] ? null : row[rowKey])}
+                                                    ref={el => buttonRefs.current[idx] = el}
+                                                    onClick={e => handleMenuOpen(e, idx)}
                                                     className="w-6 h-6 rounded flex items-center justify-center text-[var(--text-faint)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
                                                 >
                                                     <MoreHorizontal size={14} />
                                                 </button>
-                                                {openActionRow === row[rowKey] && (
-                                                    <>
-                                                        <div className="fixed inset-0 z-30" onClick={() => setOpenActionRow(null)} />
-                                                        <div className="absolute right-8 top-0 z-50 w-44 glass-card shadow-2xl shadow-black/50 py-1.5 animate-slide-up">
-                                                            {allRowActions.map((a, idx) => (
-                                                                <button
-                                                                    key={`${row[rowKey]}-${a.label}-${idx}`}
-                                                                    onClick={() => { a.onClick(row); setOpenActionRow(null); }}
-                                                                    className={cn(
-                                                                        'flex items-center gap-2 w-full px-3 py-2 text-xs transition-colors',
-                                                                        a.danger
-                                                                            ? 'text-red-400 hover:bg-red-500/10'
-                                                                            : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
-                                                                    )}
-                                                                >
-                                                                    {a.icon && <a.icon size={12} />} {a.label}
-                                                                </button>
-                                                            ))}
-                                                        </div>
-                                                    </>
-                                                )}
                                             </td>
                                         )}
                                     </tr>
-                                ))
+                                    );
+                                })
                             )}
                         </tbody>
                     </table>
                 </div>
             </div>
+
+            {/* ── Floating Menu ── */}
+            {openMenuIndex !== null && data[openMenuIndex] && (
+                <>
+                    <div className="fixed inset-0 z-40" onClick={handleMenuClose} />
+                    <div 
+                        ref={menuRef}
+                        className="fixed z-50 w-44 glass-card shadow-2xl shadow-black/50 py-1.5 animate-slide-up"
+                        style={{ 
+                            top: `${menuPosition.top}px`,
+                            left: `${menuPosition.left}px`,
+                        }}
+                    >
+                        {allRowActions.map((a, actionIdx) => (
+                            <button
+                                key={`menu-${openMenuIndex}-${a.label}-${actionIdx}`}
+                                onClick={() => { 
+                                    a.onClick(data[openMenuIndex]); 
+                                    handleMenuClose(); 
+                                }}
+                                className={cn(
+                                    'flex items-center gap-2 w-full px-3 py-2 text-xs transition-colors',
+                                    a.danger
+                                        ? 'text-red-400 hover:bg-red-500/10'
+                                        : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                                )}
+                            >
+                                {a.icon && <a.icon size={12} />} {a.label}
+                            </button>
+                        ))}
+                    </div>
+                </>
+            )}
 
             {/* ── Pagination ── */}
             <div className="flex items-center justify-between gap-3 flex-wrap">
