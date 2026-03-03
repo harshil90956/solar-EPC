@@ -21,7 +21,7 @@ import {
   AreaChart, Area, RadarChart, Radar, PolarGrid, PolarAngleAxis,
   PolarRadiusAxis, Treemap, ComposedChart, ScatterChart, Scatter
 } from 'recharts';
-import { PIPELINE_STAGES, USERS } from '../data/mockData';
+import { USERS } from '../data/mockData';
 import { leadsApi } from '../services/leadsApi';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
@@ -36,16 +36,6 @@ import CanAccess, { CanCreate, CanEdit } from '../components/CanAccess';
 import { toast } from '../components/ui/Toast';
 
 const fmt = CURRENCY.format;
-
-const CRM_FIELDS = [
-  { id: 'name', label: 'Lead Name', type: 'text', required: true },
-  { id: 'company', label: 'Company', type: 'text' },
-  { id: 'email', label: 'Email', type: 'email' },
-  { id: 'phone', label: 'Phone', type: 'tel' },
-  { id: 'stage', label: 'Stage', type: 'select', options: PIPELINE_STAGES },
-  { id: 'value', label: 'Deal Value', type: 'number' },
-  { id: 'source', label: 'Source', type: 'select', options: ['Website', 'Referral', 'Campaign', 'Ads'] },
-];
 
 const SOURCES = ['All', 'Website', 'Referral', 'Campaign', 'Ads', 'Walk-in', 'Cold Call', 'Partner', 'Event', 'Social Media'];
 const CITIES = ['All', 'Ahmedabad', 'Surat', 'Rajkot', 'Baroda', 'Mumbai', 'Pune', 'Delhi', 'Bangalore', 'Chennai'];
@@ -366,8 +356,8 @@ const SLADot = ({ breached }) => (
   <div className={`w-2 h-2 rounded-full ${breached ? 'bg-red-500 animate-pulse' : 'bg-emerald-500'}`} title={breached ? 'SLA Breached' : 'On Time'} />
 );
 
-const StagePill = ({ stageId }) => {
-  const s = PIPELINE_STAGES.find(p => p.id === stageId) || { label: stageId, color: '#94a3b8' };
+const StagePill = ({ stageId, stageMap }) => {
+  const s = stageMap?.[stageId] || { label: stageId, color: '#94a3b8' };
   return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ color: s.color, background: `${s.color}15`, border: `1px solid ${s.color}25` }}>{s.label}</span>;
 };
 
@@ -517,6 +507,7 @@ const SalesTeamReport = () => {
 const CRMPage = () => {
   const [view, setView] = useState('leads');
   const [activeLeads, setActiveLeads] = useState([]);
+  const [statusOptions, setStatusOptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [totalLeads, setTotalLeads] = useState(0);
@@ -551,7 +542,7 @@ const CRMPage = () => {
   const [visibleColumns, setVisibleColumns] = useState({
     name: true,
     email: true,
-    stage: true,
+    statusKey: true,
     score: true,
     value: true,
     automation: true,
@@ -560,6 +551,46 @@ const CRMPage = () => {
 
   const { logCreate, logUpdate, logDelete } = useAuditLog('CRM');
   const { can } = usePermissions();
+
+  const statusMap = useMemo(() => {
+    const map = {};
+    (statusOptions || []).forEach(s => {
+      map[s.key] = { label: s.label, color: s.color };
+    });
+    return map;
+  }, [statusOptions]);
+
+  const crmFields = useMemo(() => {
+    return [
+      { id: 'name', label: 'Lead Name', type: 'text', required: true },
+      { id: 'company', label: 'Company', type: 'text' },
+      { id: 'email', label: 'Email', type: 'email' },
+      { id: 'phone', label: 'Phone', type: 'tel' },
+      { id: 'statusKey', label: 'Stage', type: 'select', options: (statusOptions || []).map(s => ({ id: s.key, label: s.label, color: s.color })) },
+      { id: 'value', label: 'Deal Value', type: 'number' },
+      { id: 'source', label: 'Source', type: 'select', options: ['Website', 'Referral', 'Campaign', 'Ads'] },
+    ];
+  }, [statusOptions]);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        console.log('[DEBUG] Fetching status options...');
+        const res = await leadsApi.getStatusOptions();
+        console.log('[DEBUG] Status options response:', res);
+        const list = res?.data?.data || res?.data || [];
+        console.log('[DEBUG] Extracted list:', list);
+        if (!mounted) return;
+        setStatusOptions(Array.isArray(list) ? list : []);
+      } catch (e) {
+        console.error('[DEBUG] Error fetching status options:', e);
+        if (!mounted) return;
+        setStatusOptions([]);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   // Fetch leads from API with filters
   const fetchLeads = useCallback(async () => {
@@ -736,7 +767,7 @@ const CRMPage = () => {
         `"${lead.company || ''}"`,
         `"${lead.email || ''}"`,
         `"${lead.phone || ''}"`,
-        `"${lead.stage || ''}"`,
+        `"${statusMap?.[lead.statusKey]?.label || lead.statusKey || ''}"`,
         `"${lead.source || ''}"`,
         lead.value || 0,
         lead.score || 0,
@@ -780,7 +811,8 @@ const CRMPage = () => {
     phone: '',
     source: '',
     city: '',
-    notes: ''
+    notes: '',
+    statusKey: ''
   });
 
   const handleCreateLead = async () => {
@@ -789,7 +821,7 @@ const CRMPage = () => {
       const created = await leadsApi.create(newLead);
       logCreate(created.data || created);
       setShowAddModal(false);
-      setNewLead({ name: '', company: '', email: '', phone: '', source: '', city: '', notes: '' });
+      setNewLead({ name: '', company: '', email: '', phone: '', source: '', city: '', notes: '', statusKey: '' });
       fetchLeads(); // Refresh list
       alert('Lead created successfully!');
     } catch (err) {
@@ -1030,9 +1062,9 @@ const CRMPage = () => {
       },
       { key: 'email', header: 'Email', sortable: true, width: '180px' },
       {
-        key: 'stage', header: 'Stage', sortable: true, width: '120px',
+        key: 'statusKey', header: 'Stage', sortable: true, width: '120px',
         render: (val) => {
-          const stage = PIPELINE_STAGES.find(s => s.id === val) || { label: val, color: '#94a3b8' };
+          const stage = statusMap?.[val] || { label: val, color: '#94a3b8' };
           return (
             <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap" style={{ color: stage.color, background: `${stage.color}15`, border: `1px solid ${stage.color}25` }}>
               {stage.label}
@@ -1065,7 +1097,7 @@ const CRMPage = () => {
       { key: 'source', header: 'Source', width: '100px' },
     ];
     return allColumns.filter(col => visibleColumns[col.key] !== false);
-  }, [visibleColumns]);
+  }, [visibleColumns, statusMap]);
 
   const handleImport = ({ file, mapping }) => {
     console.log('Importing from', file.name, 'with mapping', mapping);
@@ -1083,7 +1115,7 @@ const CRMPage = () => {
         `"${lead.company || ''}"`,
         `"${lead.email || ''}"`,
         `"${lead.phone || ''}"`,
-        `"${lead.stage || ''}"`,
+        `"${statusMap?.[lead.statusKey]?.label || lead.statusKey || ''}"`,
         `"${lead.source || ''}"`,
         lead.value || 0,
         lead.score || 0,
@@ -1150,7 +1182,7 @@ const CRMPage = () => {
             </button>
           </div>
           <CanAccess module="crm" action="export">
-            <ImportExport moduleName="Leads" fields={CRM_FIELDS} onImport={handleImport} onExport={handleExport} />
+            <ImportExport moduleName="Leads" fields={crmFields} onImport={handleImport} onExport={handleExport} />
           </CanAccess>
           <CanCreate module="crm">
             <Button onClick={() => setShowAddModal(true)}><Plus size={14} /> Add Lead</Button>
@@ -1424,12 +1456,12 @@ const CRMPage = () => {
 
           <div className="overflow-x-auto pb-3">
             <div className="flex gap-3 min-w-max">
-              {PIPELINE_STAGES.map((stage) => {
-                const stageLeads = enhancedLeads.filter(lead => lead.stage === stage.id);
+              {(statusOptions || []).map((stage) => {
+                const stageLeads = enhancedLeads.filter(lead => lead.statusKey === stage.key);
                 const totalValue = stageLeads.reduce((sum, lead) => sum + (lead.value || 0), 0);
 
                 return (
-                  <div key={stage.id}
+                  <div key={stage.key}
                     className={`flex flex-col w-64 rounded-xl border transition-colors`}
                     onDragOver={e => { e.preventDefault(); }}
                     onDrop={(e) => {
@@ -1439,11 +1471,19 @@ const CRMPage = () => {
                       }
                       const leadId = e.dataTransfer.getData('leadId');
                       if (leadId) {
-                        const lead = enhancedLeads.find(l => l.id === leadId);
+                        const lead = enhancedLeads.find(l => String(l._id || l.id) === String(leadId));
                         if (lead) {
-                          const newLeads = activeLeads.map(l => l.id === leadId ? { ...l, stage: stage.id } : l);
+                          const newLeads = activeLeads.map(l => String(l._id || l.id) === String(leadId) ? { ...l, statusKey: stage.key } : l);
                           setActiveLeads(newLeads);
-                          logUpdate({ id: leadId, stage: stage.id });
+                          leadsApi.update(lead._id || lead.id, { statusKey: stage.key })
+                            .then(() => {
+                              logUpdate({ id: leadId, statusKey: stage.key });
+                              fetchLeads();
+                            })
+                            .catch(() => {
+                              toast.error('Failed to change lead status');
+                              fetchLeads();
+                            });
                         }
                       }
                     }}
@@ -1464,9 +1504,9 @@ const CRMPage = () => {
                     <div className="flex flex-col gap-2 p-2 flex-1 min-h-[120px]">
                       {stageLeads.map((lead) => (
                         <div
-                          key={lead.id}
+                          key={lead._id || lead.id}
                           draggable
-                          onDragStart={(e) => { e.dataTransfer.setData('leadId', lead.id); }}
+                          onDragStart={(e) => { e.dataTransfer.setData('leadId', String(lead._id || lead.id)); }}
                           className="glass-card p-3 cursor-grab active:cursor-grabbing hover:border-[var(--primary)]/40 transition-all"
                           onClick={() => setSelectedLead(lead)}
                         >
@@ -1577,7 +1617,7 @@ const CRMPage = () => {
                       {[
                         { key: 'name', label: 'Lead Name' },
                         { key: 'email', label: 'Email' },
-                        { key: 'stage', label: 'Stage' },
+                        { key: 'statusKey', label: 'Stage' },
                         { key: 'score', label: 'Lead Score' },
                         { key: 'value', label: 'Deal Value' },
                         { key: 'source', label: 'Source' }
@@ -1612,7 +1652,7 @@ const CRMPage = () => {
                       {[
                         { key: 'name', label: 'Lead' },
                         { key: 'email', label: 'Email' },
-                        { key: 'stage', label: 'Stage' },
+                        { key: 'statusKey', label: 'Stage' },
                         { key: 'score', label: 'Score' },
                         { key: 'value', label: 'Value' },
                         { key: 'automation', label: 'Automation' },
@@ -1792,6 +1832,14 @@ const CRMPage = () => {
               onChange={(e) => setNewLead({...newLead, notes: e.target.value})}
             />
           </FormField>
+          <FormField label="Status">
+            <Select
+              value={newLead.statusKey}
+              onChange={(e) => setNewLead({...newLead, statusKey: e.target.value})}
+            >
+              {(statusOptions || []).map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+            </Select>
+          </FormField>
         </div>
       </Modal>
 
@@ -1834,7 +1882,7 @@ const CRMPage = () => {
                     <SLADot breached={selectedLead.slaBreached} />
                   </div>
                   <div className="flex items-center gap-2 mt-2.5 flex-wrap">
-                    <StagePill stageId={selectedLead.stage} />
+                    <StagePill stageId={selectedLead.statusKey} stageMap={statusMap} />
                     <SourceBadge source={selectedLead.source} />
                     <ScoreBadge score={selectedLead.score} />
                   </div>
@@ -1954,10 +2002,10 @@ const CRMPage = () => {
             <div className="grid grid-cols-2 gap-3">
               <FormField label="Stage">
                 <Select
-                  value={editingLead.stage}
-                  onChange={(e) => setEditingLead({...editingLead, stage: e.target.value})}
+                  value={editingLead.statusKey}
+                  onChange={(e) => setEditingLead({...editingLead, statusKey: e.target.value})}
                 >
-                  {PIPELINE_STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                  {(statusOptions || []).map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
                 </Select>
               </FormField>
               <FormField label="Source">

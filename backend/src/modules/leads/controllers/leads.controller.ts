@@ -18,7 +18,7 @@ import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
 
 @Controller('leads')
-// @UseGuards(JwtAuthGuard, TenantGuard) // Temporarily disabled for testing
+@UseGuards(JwtAuthGuard, TenantGuard)
 export class LeadsController {
   constructor(private readonly leadsService: LeadsService) {}
 
@@ -39,6 +39,12 @@ export class LeadsController {
   getStats(@Request() req: any) {
     const tenantId = req.tenant?.id;
     return this.leadsService.getStats(tenantId);
+  }
+
+  @Get('status-options')
+  getStatusOptions(@Request() req: any) {
+    const tenantId = req.tenant?.id;
+    return this.leadsService.getStatusOptions(tenantId);
   }
 
   @Post('recalculate-scores')
