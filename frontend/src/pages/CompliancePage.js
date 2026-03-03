@@ -272,6 +272,7 @@ const CompliancePage = () => {
         inspections: { total: 0 },
         documents: { total: 0, uploaded: 0, pending: 0, complianceScore: 0 },
     });
+    const [projects, setProjects] = useState([]);
     const [nmView, setNmView] = useState('kanban');
     const [subView, setSubView] = useState('kanban');
     const [nmPage, setNmPage] = useState(1);
@@ -284,22 +285,29 @@ const CompliancePage = () => {
     const [showAddIns, setShowAddIns] = useState(false);
     const [showUpload, setShowUpload] = useState(false);
     const [selected, setSelected] = useState(null);
+    // Form states
+    const [nmForm, setNmForm] = useState({ projectId: '', discom: '', applicationDate: '', contactOfficer: '', contactPhone: '' });
+    const [subForm, setSubForm] = useState({ projectId: '', scheme: '', claimAmount: '', applicationDate: '', referenceNo: '' });
+    const [insForm, setInsForm] = useState({ projectId: '', type: '', scheduledDate: '', inspector: '', notes: '' });
+    const [docForm, setDocForm] = useState({ projectId: '', documentType: '', issuingAuthority: '', documentDate: '' });
 
     useEffect(() => {
         const fetchComplianceData = async () => {
             try {
-                const [nmRes, subRes, insRes, docRes, statsRes] = await Promise.all([
+                const [nmRes, subRes, insRes, docRes, statsRes, projectsRes] = await Promise.all([
                     fetch(`${API_BASE_URL}/compliance/net-metering?tenantId=${TENANT_ID}`),
                     fetch(`${API_BASE_URL}/compliance/subsidies?tenantId=${TENANT_ID}`),
                     fetch(`${API_BASE_URL}/compliance/inspections?tenantId=${TENANT_ID}`),
                     fetch(`${API_BASE_URL}/compliance/documents?tenantId=${TENANT_ID}`),
                     fetch(`${API_BASE_URL}/compliance/stats?tenantId=${TENANT_ID}`),
+                    fetch(`${API_BASE_URL}/projects?tenantId=${TENANT_ID}`),
                 ]);
                 if (nmRes.ok) { const data = await nmRes.json(); setNmItems(Array.isArray(data) ? data : (data.data || [])); }
                 if (subRes.ok) { const data = await subRes.json(); setSubItems(Array.isArray(data) ? data : (data.data || [])); }
                 if (insRes.ok) { const data = await insRes.json(); setInspections(Array.isArray(data) ? data : (data.data || [])); }
                 if (docRes.ok) { const data = await docRes.json(); setDocuments(Array.isArray(data) ? data : (data.data || [])); }
                 if (statsRes.ok) { const data = await statsRes.json(); setStats(data); }
+                if (projectsRes.ok) { const data = await projectsRes.json(); setProjects(Array.isArray(data) ? data : (data.data || [])); }
             } catch (err) { console.error('Error fetching compliance data:', err); }
         };
         fetchComplianceData();
@@ -333,6 +341,118 @@ const CompliancePage = () => {
         } catch (err) { console.error('Error updating subsidy status:', err); }
     };
 
+    const handleSubmitNM = async () => {
+        if (!nmForm.projectId) { alert('Please select a project'); return; }
+        
+        // Find selected project to get customer, site, systemSize
+        const selectedProject = projects.find(p => (p.projectId || p._id) === nmForm.projectId);
+        if (!selectedProject) { alert('Project not found'); return; }
+        
+        try {
+            const payload = {
+                applicationId: `NM${Date.now().toString().slice(-6)}`,
+                projectId: nmForm.projectId,
+                customer: selectedProject.customerName || 'Unknown',
+                site: selectedProject.site || selectedProject.location || 'Unknown',
+                systemSize: selectedProject.systemSize ? `${selectedProject.systemSize} kW` : '0 kW',
+                discom: nmForm.discom,
+                appliedDate: nmForm.applicationDate,
+                discomOfficer: nmForm.contactOfficer,
+                discomPhone: nmForm.contactPhone,
+                status: 'Draft',
+            };
+            
+            const response = await fetch(`${API_BASE_URL}/compliance/net-metering?tenantId=${TENANT_ID}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const newItem = data.data || data;
+                setNmItems(prev => [newItem, ...prev]);
+                setShowAddNM(false);
+                setNmForm({ projectId: '', discom: '', applicationDate: '', contactOfficer: '', contactPhone: '' });
+                alert('Net Metering application submitted successfully!');
+            } else {
+                const error = await response.text();
+                alert(`Failed to submit: ${error}`);
+            }
+        } catch (err) { console.error('Error submitting NM:', err); alert('Failed to submit application'); }
+    };
+
+    const handleSubmitSub = async () => {
+        if (!subForm.projectId) { alert('Please select a project'); return; }
+        
+        const selectedProject = projects.find(p => (p.projectId || p._id) === subForm.projectId);
+        if (!selectedProject) { alert('Project not found'); return; }
+        
+        try {
+            const payload = {
+                subsidyId: `SUB${Date.now().toString().slice(-6)}`,
+                projectId: subForm.projectId,
+                customer: selectedProject.customerName || 'Unknown',
+                systemSize: selectedProject.systemSize ? `${selectedProject.systemSize} kW` : '0 kW',
+                scheme: subForm.scheme,
+                claimAmount: Number(subForm.claimAmount) || 0,
+                appliedDate: subForm.applicationDate,
+                applicationRef: subForm.referenceNo,
+                status: 'Applied',
+            };
+            
+            const response = await fetch(`${API_BASE_URL}/compliance/subsidies?tenantId=${TENANT_ID}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const newItem = data.data || data;
+                setSubItems(prev => [newItem, ...prev]);
+                setShowAddSub(false);
+                setSubForm({ projectId: '', scheme: '', claimAmount: '', applicationDate: '', referenceNo: '' });
+                alert('Subsidy application submitted successfully!');
+            } else {
+                const error = await response.text();
+                alert(`Failed to submit: ${error}`);
+            }
+        } catch (err) { console.error('Error submitting Subsidy:', err); alert('Failed to submit application'); }
+    };
+
+    const handleSubmitIns = async () => {
+        if (!insForm.projectId) { alert('Please select a project'); return; }
+        
+        const selectedProject = projects.find(p => (p.projectId || p._id) === insForm.projectId);
+        if (!selectedProject) { alert('Project not found'); return; }
+        
+        try {
+            const payload = {
+                inspectionId: `INS${Date.now().toString().slice(-6)}`,
+                projectId: insForm.projectId,
+                customer: selectedProject.customerName || 'Unknown',
+                type: insForm.type,
+                remarks: insForm.notes,
+                scheduledDate: insForm.scheduledDate,
+                inspector: insForm.inspector,
+                status: 'Scheduled',
+            };
+            
+            const response = await fetch(`${API_BASE_URL}/compliance/inspections?tenantId=${TENANT_ID}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const newItem = data.data || data;
+                setInspections(prev => [newItem, ...prev]);
+                setShowAddIns(false);
+                setInsForm({ projectId: '', type: '', scheduledDate: '', inspector: '', notes: '' });
+                alert('Inspection scheduled successfully!');
+            } else {
+                const error = await response.text();
+                alert(`Failed to submit: ${error}`);
+            }
+        } catch (err) { console.error('Error submitting Inspection:', err); alert('Failed to schedule inspection'); }
+    };
+
     const paginatedNM = nmItems.slice((nmPage - 1) * pageSize, nmPage * pageSize);
     const paginatedSub = subItems.slice((subPage - 1) * pageSize, subPage * pageSize);
     const paginatedIns = inspections.slice((insPage - 1) * pageSize, insPage * pageSize);
@@ -342,7 +462,7 @@ const CompliancePage = () => {
     const disbursed = subItems.filter(s => s.status === 'Disbursed').reduce((a, s) => a + (s.disbursedAmount || s.claimAmount || 0), 0);
     const uploadedDocs = documents.filter(d => d.status === 'Uploaded').length;
     const pendingDocs = documents.filter(d => d.status === 'Pending').length;
-    const docProgress = stats.documents.complianceScore || (documents.length > 0 ? Math.round((uploadedDocs / documents.length) * 100) : 0);
+    const docProgress = stats.documents?.complianceScore || (documents.length > 0 ? Math.round((uploadedDocs / documents.length) * 100) : 0);
 
     const NM_ACTIONS = [{ label: 'View Application', icon: FileText, onClick: r => setSelected({ type: 'nm', data: r }) }];
     const SUB_ACTIONS = [{ label: 'View Application', icon: FileText, onClick: r => setSelected({ type: 'sub', data: r }) }, { label: 'Download Form', icon: Download, onClick: () => { } }];
@@ -364,10 +484,10 @@ const CompliancePage = () => {
 
             {/* KPIs */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <KPICard title="Net Metering Apps" value={stats.netMetering.total} icon={Building2} color="accent" />
+                <KPICard title="Net Metering Apps" value={stats.netMetering?.total || 0} icon={Building2} color="accent" />
                 <KPICard title="Subsidy Claimed" value={`₹${(totalSubsidy / 100000).toFixed(1)}L`} icon={IndianRupee} color="solar" />
                 <KPICard title="Subsidy Disbursed" value={`₹${(disbursed / 100000).toFixed(1)}L`} icon={CheckCircle} color="emerald" />
-                <KPICard title="Docs Pending" value={stats.documents.pending} icon={AlertTriangle} color="amber" />
+                <KPICard title="Docs Pending" value={stats.documents?.pending || 0} icon={AlertTriangle} color="amber" />
             </div>
 
             {/* AI Banner */}
@@ -498,31 +618,36 @@ const CompliancePage = () => {
                 footer={
                     <div className="flex gap-2 justify-end">
                         <Button variant="ghost" onClick={() => setShowAddNM(false)}>Cancel</Button>
-                        <Button onClick={() => setShowAddNM(false)}><Plus size={13} /> Submit Application</Button>
+                        <Button onClick={handleSubmitNM}><Plus size={13} /> Submit Application</Button>
                     </div>
                 }>
                 <div className="space-y-3">
                     <FormField label="Project">
-                        <Select><option value="">Select Project</option>
-                            <option>P001 – Joshi Industries 50kW</option>
-                            <option>P002 – Suresh Bhatt 150kW</option>
+                        <Select value={nmForm.projectId} onChange={e => setNmForm(f => ({ ...f, projectId: e.target.value }))}>
+                            <option value="">Select Project</option>
+                            {projects.map(p => (
+                                <option key={p._id || p.projectId} value={p.projectId || p._id}>
+                                    {p.projectId || p._id} – {p.customerName || 'Unknown'} {p.systemSize ? `(${p.systemSize} kW)` : ''}
+                                </option>
+                            ))}
                         </Select>
                     </FormField>
                     <div className="grid grid-cols-2 gap-3">
                         <FormField label="DISCOM">
-                            <Select><option value="">Select DISCOM</option>
-                                {['DGVCL', 'MGVCL', 'PGVCL', 'UGVCL', 'MSEDCL', 'BESCOM'].map(d => <option key={d}>{d}</option>)}
+                            <Select value={nmForm.discom} onChange={e => setNmForm(f => ({ ...f, discom: e.target.value }))}>
+                                <option value="">Select DISCOM</option>
+                                {['DGVCL', 'MGVCL', 'PGVCL', 'UGVCL', 'MSEDCL', 'BESCOM'].map(d => <option key={d} value={d}>{d}</option>)}
                             </Select>
                         </FormField>
                         <FormField label="Application Date">
-                            <Input type="date" />
+                            <Input type="date" value={nmForm.applicationDate} onChange={e => setNmForm(f => ({ ...f, applicationDate: e.target.value }))} />
                         </FormField>
                     </div>
                     <FormField label="DISCOM Contact Officer">
-                        <Input placeholder="Officer name" />
+                        <Input placeholder="Officer name" value={nmForm.contactOfficer} onChange={e => setNmForm(f => ({ ...f, contactOfficer: e.target.value }))} />
                     </FormField>
                     <FormField label="DISCOM Contact Phone">
-                        <Input placeholder="9876543210" />
+                        <Input placeholder="9876543210" value={nmForm.contactPhone} onChange={e => setNmForm(f => ({ ...f, contactPhone: e.target.value }))} />
                     </FormField>
                 </div>
             </Modal>
@@ -532,30 +657,36 @@ const CompliancePage = () => {
                 footer={
                     <div className="flex gap-2 justify-end">
                         <Button variant="ghost" onClick={() => setShowAddSub(false)}>Cancel</Button>
-                        <Button onClick={() => setShowAddSub(false)}><Plus size={13} /> Submit Application</Button>
+                        <Button onClick={handleSubmitSub}><Plus size={13} /> Submit Application</Button>
                     </div>
                 }>
                 <div className="space-y-3">
                     <FormField label="Project">
-                        <Select><option value="">Select Project</option>
-                            <option>P001 – Joshi Industries</option>
+                        <Select value={subForm.projectId} onChange={e => setSubForm(f => ({ ...f, projectId: e.target.value }))}>
+                            <option value="">Select Project</option>
+                            {projects.map(p => (
+                                <option key={p._id || p.projectId} value={p.projectId || p._id}>
+                                    {p.projectId || p._id} – {p.customerName || 'Unknown'} {p.systemSize ? `(${p.systemSize} kW)` : ''}
+                                </option>
+                            ))}
                         </Select>
                     </FormField>
                     <FormField label="Subsidy Scheme">
-                        <Select><option value="">Select Scheme</option>
-                            {['PM Surya Ghar', 'GEDA Rooftop', 'MNRE CAPEX', 'State CAPEX'].map(s => <option key={s}>{s}</option>)}
+                        <Select value={subForm.scheme} onChange={e => setSubForm(f => ({ ...f, scheme: e.target.value }))}>
+                            <option value="">Select Scheme</option>
+                            {['PM Surya Ghar', 'GEDA Rooftop', 'MNRE CAPEX', 'State CAPEX'].map(s => <option key={s} value={s}>{s}</option>)}
                         </Select>
                     </FormField>
                     <div className="grid grid-cols-2 gap-3">
                         <FormField label="Claim Amount (₹)">
-                            <Input type="number" placeholder="94500" />
+                            <Input type="number" placeholder="94500" value={subForm.claimAmount} onChange={e => setSubForm(f => ({ ...f, claimAmount: e.target.value }))} />
                         </FormField>
                         <FormField label="Application Date">
-                            <Input type="date" />
+                            <Input type="date" value={subForm.applicationDate} onChange={e => setSubForm(f => ({ ...f, applicationDate: e.target.value }))} />
                         </FormField>
                     </div>
                     <FormField label="Application Reference No.">
-                        <Input placeholder="PMSG/GJ/2026/..." />
+                        <Input placeholder="PMSG/GJ/2026/..." value={subForm.referenceNo} onChange={e => setSubForm(f => ({ ...f, referenceNo: e.target.value }))} />
                     </FormField>
                 </div>
             </Modal>
@@ -571,8 +702,11 @@ const CompliancePage = () => {
                 <div className="space-y-3">
                     <FormField label="Project">
                         <Select><option value="">Select Project</option>
-                            <option>P001 – Joshi Industries</option>
-                            <option>P003 – Prakash Agarwal</option>
+                            {projects.map(p => (
+                                <option key={p._id || p.projectId} value={p.projectId || p._id}>
+                                    {p.projectId || p._id} – {p.customerName || 'Unknown'} {p.systemSize ? `(${p.systemSize} kW)` : ''}
+                                </option>
+                            ))}
                         </Select>
                     </FormField>
                     <FormField label="Document Type">
@@ -601,6 +735,45 @@ const CompliancePage = () => {
                         <p className="text-xs text-[var(--text-muted)]">Click to select file or drag & drop</p>
                         <p className="text-[11px] text-[var(--text-muted)] mt-1">PDF, JPG, PNG — max 10MB</p>
                     </div>
+                </div>
+            </Modal>
+
+            {/* Inspection Schedule Modal */}
+            <Modal open={showAddIns} onClose={() => setShowAddIns(false)} title="Schedule Inspection"
+                footer={
+                    <div className="flex gap-2 justify-end">
+                        <Button variant="ghost" onClick={() => setShowAddIns(false)}>Cancel</Button>
+                        <Button onClick={handleSubmitIns}><Plus size={13} /> Schedule Inspection</Button>
+                    </div>
+                }>
+                <div className="space-y-3">
+                    <FormField label="Project">
+                        <Select value={insForm.projectId} onChange={e => setInsForm(f => ({ ...f, projectId: e.target.value }))}>
+                            <option value="">Select Project</option>
+                            {projects.map(p => (
+                                <option key={p._id || p.projectId} value={p.projectId || p._id}>
+                                    {p.projectId || p._id} – {p.customerName || 'Unknown'} {p.systemSize ? `(${p.systemSize} kW)` : ''}
+                                </option>
+                            ))}
+                        </Select>
+                    </FormField>
+                    <FormField label="Inspection Type">
+                        <Select value={insForm.type} onChange={e => setInsForm(f => ({ ...f, type: e.target.value }))}>
+                            <option value="">Select Type</option>
+                            {['DISCOM Inspection', 'CEA Inspection', 'MNRE Inspection', 'Structural', 'Electrical', 'Fire Safety'].map(t => <option key={t} value={t}>{t}</option>)}
+                        </Select>
+                    </FormField>
+                    <div className="grid grid-cols-2 gap-3">
+                        <FormField label="Scheduled Date">
+                            <Input type="date" value={insForm.scheduledDate} onChange={e => setInsForm(f => ({ ...f, scheduledDate: e.target.value }))} />
+                        </FormField>
+                        <FormField label="Inspector Name">
+                            <Input placeholder="Inspector name" value={insForm.inspector} onChange={e => setInsForm(f => ({ ...f, inspector: e.target.value }))} />
+                        </FormField>
+                    </div>
+                    <FormField label="Notes">
+                        <Input placeholder="Additional notes..." value={insForm.notes} onChange={e => setInsForm(f => ({ ...f, notes: e.target.value }))} />
+                    </FormField>
                 </div>
             </Modal>
 
