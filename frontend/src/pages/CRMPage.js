@@ -1464,9 +1464,9 @@ const CRMPage = () => {
                     <div className="flex flex-col gap-2 p-2 flex-1 min-h-[120px]">
                       {stageLeads.map((lead) => (
                         <div
-                          key={lead.id}
+                          key={lead._id || lead.id || `lead-${Math.random()}`}
                           draggable
-                          onDragStart={(e) => { e.dataTransfer.setData('leadId', lead.id); }}
+                          onDragStart={(e) => { e.dataTransfer.setData('leadId', lead._id || lead.id); }}
                           className="glass-card p-3 cursor-grab active:cursor-grabbing hover:border-[var(--primary)]/40 transition-all"
                           onClick={() => setSelectedLead(lead)}
                         >
