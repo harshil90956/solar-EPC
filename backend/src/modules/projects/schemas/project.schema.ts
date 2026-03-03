@@ -27,7 +27,7 @@ export class Project extends Document {
 
   @Prop({
     required: true,
-    enum: ['Survey', 'Design', 'Quotation', 'Procurement', 'Installation', 'Commissioned', 'On Hold'],
+    enum: ['Survey', 'Design', 'Quotation', 'Procurement', 'Installation', 'Commissioned', 'On Hold', 'Cancelled'],
   })
   status!: string;
 
@@ -61,6 +61,12 @@ export class Project extends Document {
 
   @Prop(BaseSchemaDefinition.isDeleted)
   isDeleted!: boolean;
+
+  @Prop({ required: false })
+  cancelledAt?: Date;
+
+  @Prop({ type: Types.ObjectId, ref: 'User', required: false })
+  cancelledBy?: Types.ObjectId;
 }
 
 export const ProjectSchema = SchemaFactory.createForClass(Project);
