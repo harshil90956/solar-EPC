@@ -5,7 +5,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
     LEADS, PROJECTS, QUOTATIONS, INVENTORY, INVOICES,
-    SURVEYS, DESIGNS, PURCHASE_ORDERS, TICKETS,
+    SURVEYS, DESIGNS, TICKETS,
 } from '../data/mockData';
 
 const STORE_KEY = 'solar-os-intelligence-store';
@@ -194,8 +194,7 @@ const computeProjectRisks = () => PROJECTS.map(p => {
     const hasLowStock = INVENTORY.some(i => i.available <= i.minStock && i.category === 'Panel');
     if (hasLowStock && ['Procurement', 'Design'].includes(p.status)) factors.push('Material shortage risk');
     if (['Installation', 'Procurement'].includes(p.status) && !p.estEndDate) factors.push('No completion date set');
-    const pendingPOs = PURCHASE_ORDERS.filter(po => po.status !== 'Delivered').length;
-    if (pendingPOs > 1 && p.status === 'Installation') factors.push('Pending supplier deliveries');
+    if (p.status === 'Installation') factors.push('Pending supplier deliveries');
 
     const riskScore = factors.length === 0 ? 'Low' : factors.length === 1 ? 'Medium' : 'High';
     return { ...p, riskFactors: factors, riskLevel: riskScore };

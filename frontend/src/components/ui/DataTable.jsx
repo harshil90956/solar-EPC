@@ -55,10 +55,7 @@ const DataTable = ({
     const totalPages = Math.ceil(total / pageSize) || 1;
 
     // Standard rulebook actions to be injected if not present
-    const standardActions = [
-        { label: 'Timeline', icon: Clock, onClick: (row) => console.log('Timeline', row) },
-        { label: 'Activity Log', icon: Activity, onClick: (row) => console.log('Activity', row) },
-    ];
+    const standardActions = [];
 
     const allRowActions = useMemo(() => {
         const existingLabels = new Set(rowActions.map(a => a.label));
@@ -207,7 +204,7 @@ const DataTable = ({
                                 Array.from({ length: 5 }).map((_, i) => (
                                     <tr key={i} className="border-b border-[var(--border-base)]">
                                         {visibleColumns.map(col => (
-                                            <td key={col.key} className="px-4 py-3.5">
+                                            <td key={`${i}-${col.key}`} className="px-4 py-3.5">
                                                 <div className="h-3 rounded animate-shimmer" style={{ width: `${40 + Math.random() * 40}%` }} />
                                             </td>
                                         ))}
@@ -221,8 +218,8 @@ const DataTable = ({
                                     </td>
                                 </tr>
                             ) : (
-                                data.map(row => (
-                                    <tr key={row[rowKey]} className="table-row border-b border-[var(--border-base)] last:border-0 group">
+                                data.map((row, index) => (
+                                    <tr key={row[rowKey] || index} className="table-row border-b border-[var(--border-base)] last:border-0 group">
                                         {bulkActions.length > 0 && (
                                             <td className="px-3 py-3.5 sticky left-0 z-10 bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] transition-colors">
                                                 <input
