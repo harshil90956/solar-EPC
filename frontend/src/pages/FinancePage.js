@@ -16,6 +16,7 @@ import { KPICard } from '../components/ui/KPICard';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/Tabs';
 import DataTable from '../components/ui/DataTable';
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
+import { useSettings } from '../context/SettingsContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { useAuditLog } from '../hooks/useAuditLog';
 import CanAccess, { CanCreate } from '../components/CanAccess';
@@ -668,7 +669,7 @@ const FinancePage = () => {
 
   const INV_ACTIONS = [
     { label: 'View Invoice', icon: FileText, onClick: row => setSelected(row) },
-    { label: 'Record Payment', icon: CheckCircle, onClick: (row) => { if (guardApprove()) console.log('Record Payment', row); } },
+    { label: 'Record Payment', icon: CheckCircle, onClick: (row) => console.log('Record Payment', row) },
     { label: 'Send Reminder', icon: Clock, onClick: () => { } },
   ];
 
@@ -710,7 +711,7 @@ const FinancePage = () => {
           <p className="text-xs text-[var(--text-muted)] mt-0.5">Revenue · receivables · payables · cash flow · invoices</p>
         </div>
         <CanCreate module="finance">
-          <Button onClick={() => { if (guardCreate()) setShowInvoice(true); }}><Plus size={13} /> New Invoice</Button>
+          <Button onClick={() => setShowInvoice(true)}><Plus size={13} /> New Invoice</Button>
         </CanCreate>
       </div>
 
@@ -978,7 +979,7 @@ const FinancePage = () => {
             <div className="flex gap-2 justify-end">
               <Button variant="ghost" onClick={() => setSelected(null)}>Close</Button>
           <CanAccess module="finance" action="approve">
-            <Button onClick={() => { if (guardApprove()) console.log('Record Payment'); }}><CheckCircle size={13} /> Record Payment</Button>
+            <Button onClick={() => console.log('Record Payment')}><CheckCircle size={13} /> Record Payment</Button>
           </CanAccess>
             </div>
           }>
