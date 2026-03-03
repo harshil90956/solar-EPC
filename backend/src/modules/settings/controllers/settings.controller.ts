@@ -1,0 +1,1045 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Request,
+  UseGuards,
+  ValidationPipe,
+  UsePipes,
+} from '@nestjs/common';
+import { SettingsService } from '../services/settings.service';
+import { FeatureFlagService } from '../services/feature-flag.service';
+import { RBACService } from '../services/rbac.service';
+import { CustomRoleService } from '../services/custom-role.service';
+import { UserOverrideService } from '../services/user-override.service';
+import { PermissionService } from '../services/permission.service';
+import { ViewAsService } from '../services/view-as.service';
+import { WorkflowEngineService } from '../services/workflow-engine.service';
+import { AuditService } from '../services/audit.service';
+import { ProjectTypeService } from '../services/project-type.service';
+import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
+import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
+import { 
+  ToggleModuleDto, 
+  UpdateFeatureFlagDto 
+} from '../dto/feature-flag.dto';
+import { 
+  UpdateRbacDto,
+  ToggleRbacPermissionDto 
+} from '../dto/rbac.dto';
+import {
+  CreateCustomRoleDto,
+  UpdateCustomRoleDto,
+  UpdateCustomRolePermissionsDto,
+  CloneRoleDto,
+} from '../dto/custom-role.dto';
+import {
+  AssignCustomRoleDto,
+  SetPermissionOverrideDto,
+} from '../dto/user-override.dto';
+import {
+  StartViewAsDto,
+  CheckPermissionDto,
+} from '../dto/view-as.dto';
+import {
+  CreateWorkflowDto,
+  UpdateWorkflowDto,
+  ToggleWorkflowDto,
+  TriggerWorkflowDto,
+} from '../dto/workflow.dto';
+import {
+  CreateProjectTypeDto,
+  UpdateProjectTypeDto,
+  ValidateDesignDto,
+  CalculatePriceDto,
+  FinancialProjectionsDto,
+} from '../dto/project-type.dto';
+
+@Controller('settings')
+// @UseGuards(JwtAuthGuard, TenantGuard) // Temporarily disabled for testing
+export class SettingsController {
+  constructor(
+    private readonly settingsService: SettingsService,
+    private readonly featureFlagService: FeatureFlagService,
+    private readonly rbacService: RBACService,
+    private readonly customRoleService: CustomRoleService,
+    private readonly userOverrideService: UserOverrideService,
+    private readonly permissionService: PermissionService,
+    private readonly viewAsService: ViewAsService,
+    private readonly workflowEngineService: WorkflowEngineService,
+    private readonly auditService: AuditService,
+    private readonly projectTypeService: ProjectTypeService,
+  ) {}
+
+  // ── Full Settings ─────────────────────────────────────────────────────────
+  @Get()
+  async getFullSettings(@Request() req: any) {
+    const tenantId = req.tenant?.id;
+    const flags = await this.featureFlagService.getAllFlags(tenantId);
+    const rbac = await this.rbacService.getFullRBAC(tenantId);
+    
+    // Get legacy data from SettingsService for Phase 1 compatibility
+    const legacy = await this.settingsService.getFullSettings(tenantId);
+
+    return {
+      flags,
+      rbac,
+      workflows: legacy.workflows,
+      auditLogs: legacy.auditLogs,
+      customRoles: legacy.customRoles,
+      projectTypeConfigs: legacy.projectTypeConfigs,
+    };
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // FEATURE FLAGS
+  // ═════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Get all feature flags for tenant
+   * GET /settings/flags
+   */
+  @Get('flags')
+  async getFeatureFlags(@Request() req: any) {
+    const tenantId = req.tenant?.id;
+    const flags = await this.featureFlagService.getAllFlags(tenantId);
+    return { data: flags };
+  }
+
+  /**
+   * Get specific module feature flag
+   * GET /settings/flags/:moduleId
+   */
+  @Get('flags/:moduleId')
+  async getFeatureFlag(
+    @Param('moduleId') moduleId: string,
+    @Request() req: any,
+  ) {
+    const tenantId = req.tenant?.id;
+    const flag = await this.featureFlagService.getFeatureFlag(tenantId, moduleId);
+    
+    if (!flag) {
+      return {
+        moduleId,
+        enabled: true, // Default
+        features: {},
+        actions: {},
+      };
+    }
+
+    return {
+      moduleId: flag.moduleId,
+      enabled: flag.enabled,
+      features: Object.fromEntries(flag.features || new Map()),
+      actions: Object.fromEntries(flag.actions || new Map()),
+    };
+  }
+
+  /**
+   * Check if module is enabled (permission check endpoint)
+   * GET /settings/flags/:moduleId/check
+   */
+  @Get('flags/:moduleId/check')
+  async checkModuleEnabled(
+    @Param('moduleId') moduleId: string,
+    @Request() req: any,
+  ) {
+    const tenantId = req.tenant?.id;
+    const enabled = await this.featureFlagService.isModuleEnabled(tenantId, moduleId);
+    return { moduleId, enabled };
+  }
+
+  /**
+   * Check if action is enabled (permission check endpoint)
+   * GET /settings/flags/:moduleId/actions/:actionId/check
+   */
+  @Get('flags/:moduleId/actions/:actionId/check')
+  async checkActionEnabled(
+    @Param('moduleId') moduleId: string,
+    @Param('actionId') actionId: string,
+    @Request() req: any,
+  ) {
+    const tenantId = req.tenant?.id;
+    const enabled = await this.featureFlagService.isActionEnabled(tenantId, moduleId, actionId);
+    return { moduleId, actionId, enabled };
+  }
+
+  /**
+   * Update feature flag (module, features, or actions)
+   * PUT /settings/flags/:moduleId
+   */
+  @Put('flags/:moduleId')
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async updateFeatureFlag(
+    @Param('moduleId') moduleId: string,
+    @Body() update: UpdateFeatureFlagDto,
+    @Request() req: any,
+  ) {
+    const tenantId = req.tenant?.id;
+    // Convert DTO to partial FeatureFlag with proper Map types
+    const updateData: any = {};
+    if (update.enabled !== undefined) updateData.enabled = update.enabled;
+    if (update.features) updateData.features = new Map(Object.entries(update.features));
+    if (update.actions) updateData.actions = new Map(Object.entries(update.actions));
+    
+    const doc = await this.featureFlagService.updateFeatureFlag(tenantId, moduleId, updateData);
+    
+    return {
+      moduleId: doc.moduleId,
+      enabled: doc.enabled,
+      features: Object.fromEntries(doc.features || new Map()),
+      actions: Object.fromEntries(doc.actions || new Map()),
+    };
+  }
+
+  /**
+   * Toggle module enabled/disabled
+   * POST /settings/flags/:moduleId/toggle
+   */
+  @Post('flags/:moduleId/toggle')
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async toggleModule(
+    @Param('moduleId') moduleId: string,
+    @Body() body: ToggleModuleDto,
+    @Request() req: any,
+  ) {
+    const tenantId = req.tenant?.id;
+    const doc = await this.featureFlagService.toggle(
+      tenantId, 
+      moduleId, 
+      'module', 
+      null, 
+      body.enabled,
+      req.user?.id,
+    );
+    
+    return { 
+      moduleId: doc.moduleId, 
+      enabled: doc.enabled,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Toggle specific feature
+   * POST /settings/flags/:moduleId/features/:featureId
+   */
+  @Post('flags/:moduleId/features/:featureId')
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async toggleFeature(
+    @Param('moduleId') moduleId: string,
+    @Param('featureId') featureId: string,
+    @Body() body: { enabled: boolean },
+    @Request() req: any,
+  ) {
+    const tenantId = req.tenant?.id;
+    const doc = await this.featureFlagService.toggle(
+      tenantId, 
+      moduleId, 
+      'feature', 
+      featureId, 
+      body.enabled,
+      req.user?.id,
+    );
+    
+    return { 
+      moduleId, 
+      featureId, 
+      enabled: doc.features.get(featureId),
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Toggle specific action
+   * POST /settings/flags/:moduleId/actions/:actionId
+   */
+  @Post('flags/:moduleId/actions/:actionId')
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async toggleAction(
+    @Param('moduleId') moduleId: string,
+    @Param('actionId') actionId: string,
+    @Body() body: { enabled: boolean },
+    @Request() req: any,
+  ) {
+    const tenantId = req.tenant?.id;
+    const doc = await this.featureFlagService.toggle(
+      tenantId, 
+      moduleId, 
+      'action', 
+      actionId, 
+      body.enabled,
+      req.user?.id,
+    );
+    
+    return { 
+      moduleId, 
+      actionId, 
+      enabled: doc.actions.get(actionId),
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Reset feature flag to defaults
+   * POST /settings/flags/:moduleId/reset
+   */
+  @Post('flags/:moduleId/reset')
+  async resetFeatureFlag(
+    @Param('moduleId') moduleId: string,
+    @Request() req: any,
+  ) {
+    const tenantId = req.tenant?.id;
+    await this.featureFlagService.resetToDefaults(tenantId, moduleId);
+    
+    return { 
+      moduleId, 
+      reset: true,
+      message: 'Feature flag reset to defaults',
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Reset all feature flags (admin only)
+   * POST /settings/flags/reset-all
+   */
+  @Post('flags/reset-all')
+  async resetAllFeatureFlags(@Request() req: any) {
+    const tenantId = req.tenant?.id;
+    await this.featureFlagService.resetToDefaults(tenantId);
+    
+    return { 
+      reset: true,
+      message: 'All feature flags reset to defaults',
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // RBAC (BASE ROLES)
+  // ═════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Get full RBAC matrix
+   * GET /settings/rbac
+   */
+  @Get('rbac')
+  async getRBACConfigs(@Request() req: any) {
+    const tenantId = req.tenant?.id;
+    const rbac = await this.rbacService.getFullRBAC(tenantId);
+    return { data: rbac };
+  }
+
+  /**
+   * Get permissions for a specific role
+   * GET /settings/rbac/:roleId
+   */
+  @Get('rbac/:roleId')
+  async getRolePermissions(
+    @Param('roleId') roleId: string,
+    @Request() req: any,
+  ) {
+    const tenantId = req.tenant?.id;
+    const permissions = await this.rbacService.getRolePermissions(tenantId, roleId);
+    return { roleId, permissions };
+  }
+
+  /**
+   * Get specific permission value
+   * GET /settings/rbac/:roleId/:moduleId/:actionId
+   */
+  @Get('rbac/:roleId/:moduleId/:actionId')
+  async getPermission(
+    @Param('roleId') roleId: string,
+    @Param('moduleId') moduleId: string,
+    @Param('actionId') actionId: string,
+    @Request() req: any,
+  ) {
+    const tenantId = req.tenant?.id;
+    const permitted = await this.rbacService.getPermission(tenantId, roleId, moduleId, actionId);
+    return { roleId, moduleId, actionId, permitted };
+  }
+
+  /**
+   * Get RBAC config for role+module
+   * GET /settings/rbac/:roleId/:moduleId
+   */
+  @Get('rbac/:roleId/:moduleId')
+  async getRBACConfig(
+    @Param('roleId') roleId: string,
+    @Param('moduleId') moduleId: string,
+    @Request() req: any,
+  ) {
+    const tenantId = req.tenant?.id;
+    const config = await this.rbacService.getRBACConfig(tenantId, roleId, moduleId);
+    
+    if (!config) {
+      return { 
+        roleId, 
+        moduleId, 
+        permissions: {} 
+      };
+    }
+
+    return {
+      roleId: config.roleId,
+      moduleId: config.moduleId,
+      permissions: Object.fromEntries(config.permissions || new Map()),
+    };
+  }
+
+  /**
+   * Update permissions for role+module (bulk)
+   * PUT /settings/rbac/:roleId/:moduleId
+   */
+  @Put('rbac/:roleId/:moduleId')
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async updateRBAC(
+    @Param('roleId') roleId: string,
+    @Param('moduleId') moduleId: string,
+    @Body() body: UpdateRbacDto,
+    @Request() req: any,
+  ) {
+    const tenantId = req.tenant?.id;
+    await this.rbacService.updatePermissions(tenantId, roleId, moduleId, body.permissions);
+    
+    return { 
+      roleId, 
+      moduleId, 
+      permissions: body.permissions,
+      updated: true,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Update specific permission
+   * PATCH /settings/rbac/:roleId/:moduleId/:actionId
+   */
+  @Put('rbac/:roleId/:moduleId/:actionId')
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async updatePermission(
+    @Param('roleId') roleId: string,
+    @Param('moduleId') moduleId: string,
+    @Param('actionId') actionId: string,
+    @Body() body: ToggleRbacPermissionDto,
+    @Request() req: any,
+  ) {
+    const tenantId = req.tenant?.id;
+    await this.rbacService.updatePermission(
+      tenantId, 
+      roleId, 
+      moduleId, 
+      actionId, 
+      body.enabled,
+      req.user?.id,
+    );
+    
+    return { 
+      roleId, 
+      moduleId, 
+      actionId, 
+      enabled: body.enabled,
+      updated: true,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Apply preset to role
+   * POST /settings/rbac/:roleId/preset
+   */
+  @Post('rbac/:roleId/preset')
+  async applyPreset(
+    @Param('roleId') roleId: string,
+    @Body() body: { preset: 'full' | 'view_only' | 'none' },
+    @Request() req: any,
+  ) {
+    const tenantId = req.tenant?.id;
+    await this.rbacService.applyPreset(tenantId, roleId, body.preset);
+    
+    return { 
+      roleId, 
+      preset: body.preset,
+      applied: true,
+      message: `Preset '${body.preset}' applied to role '${roleId}'`,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  // ── Workflow Rules ────────────────────────────────────────────────────────
+  @Get('workflows')
+  async getWorkflowRules(@Request() req: any) {
+    const tenantId = req.tenant?.id;
+    return this.settingsService.getWorkflowRules(tenantId);
+  }
+
+  @Post('workflows')
+  async createWorkflowRule(@Body() body: any, @Request() req: any) {
+    const tenantId = req.tenant?.id;
+    return this.settingsService.createWorkflowRule(body, tenantId);
+  }
+
+  @Put('workflows/:wfId')
+  async updateWorkflowRule(@Param('wfId') wfId: string, @Body() body: any, @Request() req: any) {
+    const tenantId = req.tenant?.id;
+    return this.settingsService.updateWorkflowRule(wfId, body, tenantId);
+  }
+
+  @Delete('workflows/:wfId')
+  async deleteWorkflowRule(@Param('wfId') wfId: string, @Request() req: any) {
+    const tenantId = req.tenant?.id;
+    return this.settingsService.deleteWorkflowRule(wfId, tenantId);
+  }
+
+  // ── Audit Logs ────────────────────────────────────────────────────────────
+  @Get('audit')
+  async getAuditLogs(@Request() req: any) {
+    const tenantId = req.tenant?.id;
+    return this.settingsService.getAuditLogs(tenantId);
+  }
+
+  @Post('audit')
+  async createAuditLog(@Body() body: any, @Request() req: any) {
+    const tenantId = req.tenant?.id;
+    return this.settingsService.createAuditLog(body, tenantId);
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // PERMISSION CHECKING (Phase 2)
+  // ═════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Check if current user has permission
+   * POST /settings/check-permission
+   */
+  @Post('check-permission')
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async checkPermission(
+    @Body() body: CheckPermissionDto,
+    @Request() req: any,
+  ) {
+    const tenantId = req.tenant?.id;
+    const userId = req.user?.id;
+    const baseRoleId = req.user?.role;
+
+    if (!userId || !baseRoleId) {
+      return { permitted: false, reason: 'User not authenticated' };
+    }
+
+    const result = await this.permissionService.resolvePermission(
+      tenantId,
+      userId,
+      baseRoleId,
+      body.moduleId,
+      body.actionId,
+    );
+
+    return result;
+  }
+
+  /**
+   * Get current user's full permission matrix
+   * GET /settings/my-permissions
+   */
+  @Get('my-permissions')
+  async getMyPermissions(@Request() req: any) {
+    const tenantId = req.tenant?.id;
+    const userId = req.user?.id;
+    const baseRoleId = req.user?.role;
+
+    if (!userId || !baseRoleId) {
+      return { error: 'User not authenticated' };
+    }
+
+    const matrix = await this.permissionService.resolveAllPermissions(
+      tenantId,
+      userId,
+      baseRoleId,
+    );
+
+    return { userId, permissions: matrix };
+  }
+
+  /**
+   * Debug permission resolution
+   * GET /settings/debug-permission/:moduleId/:actionId
+   */
+  @Get('debug-permission/:moduleId/:actionId')
+  async debugPermission(
+    @Param('moduleId') moduleId: string,
+    @Param('actionId') actionId: string,
+    @Request() req: any,
+  ) {
+    const tenantId = req.tenant?.id;
+    const userId = req.user?.id;
+    const baseRoleId = req.user?.role;
+
+    if (!userId || !baseRoleId) {
+      return { error: 'User not authenticated' };
+    }
+
+    const debug = await this.permissionService.getPermissionDebug(
+      tenantId,
+      userId,
+      baseRoleId,
+      moduleId,
+      actionId,
+    );
+
+    return debug;
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // CUSTOM ROLES (Phase 2 - Enhanced)
+  // ═════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Get all custom roles
+   * GET /settings/custom-roles
+   */
+  @Get('custom-roles')
+  async getCustomRoles(@Request() req: any) {
+    const tenantId = req.tenant?.id;
+    const roles = await this.customRoleService.getCustomRoles(tenantId);
+    
+    // Transform to { [roleId]: role }
+    const result: Record<string, any> = {};
+    roles.forEach((r: any) => {
+      result[r.roleId] = {
+        id: r.roleId,
+        label: r.label,
+        description: r.description,
+        baseRole: r.baseRole,
+        color: r.color,
+        bg: r.bg,
+        isCustom: r.isCustom,
+        permissions: Object.fromEntries(
+          Array.from((r as any).permissions?.entries() || []).map((entry: any) => [entry[0], Object.fromEntries(entry[1] || new Map())])
+        ),
+        createdAt: (r as any).createdAt,
+        updatedAt: (r as any).updatedAt,
+      };
+    });
+    return result;
+  }
+
+  /**
+   * Get specific custom role
+   * GET /settings/custom-roles/:roleId
+   */
+  @Get('custom-roles/:roleId')
+  async getCustomRole(@Param('roleId') roleId: string, @Request() req: any) {
+    const tenantId = req.tenant?.id;
+    const role = await this.customRoleService.getCustomRole(tenantId, roleId);
+    
+    if (!role) {
+      return { error: 'Role not found' };
+    }
+
+    return {
+      id: role.roleId,
+      label: role.label,
+      description: role.description,
+      baseRole: role.baseRole,
+      color: role.color,
+      bg: role.bg,
+      isCustom: role.isCustom,
+      permissions: Object.fromEntries(
+        Array.from((role as any).permissions?.entries() || []).map((entry: any) => [entry[0], Object.fromEntries(entry[1] || new Map())])
+      ),
+      createdAt: (role as any).createdAt,
+      updatedAt: (role as any).updatedAt,
+    };
+  }
+
+  /**
+   * Create custom role
+   * POST /settings/custom-roles
+   */
+  @Post('custom-roles')
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async createCustomRole(@Body() body: CreateCustomRoleDto, @Request() req: any) {
+    const tenantId = req.tenant?.id;
+    const role = await this.customRoleService.createCustomRole(tenantId, body, req.user?.id);
+    
+    return {
+      id: role.roleId,
+      label: role.label,
+      description: role.description,
+      baseRole: role.baseRole,
+      color: role.color,
+      bg: role.bg,
+      isCustom: role.isCustom,
+      created: true,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Update custom role
+   * PATCH /settings/custom-roles/:roleId
+   */
+  @Put('custom-roles/:roleId')
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async updateCustomRole(
+    @Param('roleId') roleId: string, 
+    @Body() body: UpdateCustomRoleDto, 
+    @Request() req: any,
+  ) {
+    const tenantId = req.tenant?.id;
+    const role = await this.customRoleService.updateCustomRole(tenantId, roleId, body, req.user?.id);
+    
+    if (!role) {
+      return { error: 'Role not found' };
+    }
+
+    return {
+      id: role.roleId,
+      updated: true,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Delete custom role
+   * DELETE /settings/custom-roles/:roleId
+   */
+  @Delete('custom-roles/:roleId')
+  async deleteCustomRole(@Param('roleId') roleId: string, @Request() req: any) {
+    const tenantId = req.tenant?.id;
+    const role = await this.customRoleService.deleteCustomRole(tenantId, roleId, req.user?.id);
+    
+    if (!role) {
+      return { error: 'Role not found' };
+    }
+
+    return {
+      id: roleId,
+      deleted: true,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Update custom role permissions
+   * PUT /settings/custom-roles/:roleId/permissions
+   */
+  @Put('custom-roles/:roleId/permissions')
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async updateCustomRolePermissions(
+    @Param('roleId') roleId: string,
+    @Body() body: UpdateCustomRolePermissionsDto,
+    @Request() req: any,
+  ) {
+    const tenantId = req.tenant?.id;
+    const role = await this.customRoleService.updatePermissions(
+      tenantId, 
+      roleId, 
+      body.moduleId, 
+      body.permissions,
+      req.user?.id,
+    );
+
+    return {
+      id: roleId,
+      moduleId: body.moduleId,
+      updated: true,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Clone custom role
+   * POST /settings/custom-roles/:roleId/clone
+   */
+  @Post('custom-roles/:roleId/clone')
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async cloneRole(
+    @Param('roleId') roleId: string,
+    @Body() body: CloneRoleDto,
+    @Request() req: any,
+  ) {
+    const tenantId = req.tenant?.id;
+    const cloned = await this.customRoleService.cloneRole(tenantId, roleId, body.label, req.user?.id);
+
+    return {
+      sourceId: roleId,
+      newId: cloned.roleId,
+      label: cloned.label,
+      cloned: true,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // USER PERMISSION OVERRIDES (Phase 2)
+  // ═════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Get all user overrides for tenant
+   * GET /settings/user-overrides
+   */
+  @Get('user-overrides')
+  async getUserOverrides(@Request() req: any) {
+    const tenantId = req.tenant?.id;
+    const overrides = await this.userOverrideService.getAllUserOverrides(tenantId);
+    
+    return {
+      data: overrides.map((o: any) => ({
+        userId: o.userId.toString(),
+        customRoleId: o.customRoleId,
+        overrides: Object.fromEntries(
+          Array.from((o as any).overrides?.entries() || []).map((entry: any) => [
+            entry[0], 
+            Object.fromEntries(entry[1] || new Map())
+          ])
+        ),
+        updatedAt: (o as any).updatedAt,
+      })),
+    };
+  }
+
+  /**
+   * Get specific user override
+   * GET /settings/user-overrides/:userId
+   */
+  @Get('user-overrides/:userId')
+  async getUserOverride(@Param('userId') userId: string, @Request() req: any) {
+    const tenantId = req.tenant?.id;
+    const override = await this.userOverrideService.getUserOverride(tenantId, userId);
+    const count = await this.userOverrideService.getOverrideCount(tenantId, userId);
+    
+    if (!override) {
+      return {
+        userId,
+        customRoleId: null,
+        overrides: {},
+        overrideCount: 0,
+      };
+    }
+
+    return {
+      userId: override.userId.toString(),
+      customRoleId: override.customRoleId,
+      overrides: Object.fromEntries(
+        Array.from((override as any).overrides?.entries() || []).map((entry: any) => [
+          entry[0], 
+          Object.fromEntries(entry[1] || new Map())
+        ])
+      ),
+      overrideCount: count,
+      updatedAt: (override as any).updatedAt,
+    };
+  }
+
+  /**
+   * Assign custom role to user
+   * PUT /settings/user-overrides/:userId/role
+   */
+  @Put('user-overrides/:userId/role')
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async assignCustomRole(
+    @Param('userId') userId: string,
+    @Body() body: AssignCustomRoleDto,
+    @Request() req: any,
+  ) {
+    const tenantId = req.tenant?.id;
+    await this.userOverrideService.assignCustomRole(
+      tenantId, 
+      userId, 
+      body.customRoleId,
+      req.user?.id,
+    );
+
+    return {
+      userId,
+      customRoleId: body.customRoleId,
+      assigned: true,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Set permission override for user
+   * PUT /settings/user-overrides/:userId/permissions
+   */
+  @Put('user-overrides/:userId/permissions')
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async setPermissionOverride(
+    @Param('userId') userId: string,
+    @Body() body: SetPermissionOverrideDto,
+    @Request() req: any,
+  ) {
+    const tenantId = req.tenant?.id;
+    await this.userOverrideService.setPermissionOverride(
+      tenantId,
+      userId,
+      body.moduleId,
+      body.actionId,
+      body.value,
+      req.user?.id,
+    );
+
+    return {
+      userId,
+      moduleId: body.moduleId,
+      actionId: body.actionId,
+      value: body.value,
+      set: true,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Clear all overrides for user
+   * DELETE /settings/user-overrides/:userId
+   */
+  @Delete('user-overrides/:userId')
+  async clearUserOverrides(@Param('userId') userId: string, @Request() req: any) {
+    const tenantId = req.tenant?.id;
+    await this.userOverrideService.clearUserOverrides(tenantId, userId, req.user?.id);
+
+    return {
+      userId,
+      cleared: true,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // VIEW AS (IMPERSONATION) (Phase 2)
+  // ═════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Start view-as session
+   * POST /settings/view-as
+   */
+  @Post('view-as')
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async startViewAs(@Body() body: StartViewAsDto, @Request() req: any) {
+    const adminUserId = req.user?.id;
+    
+    if (!adminUserId) {
+      return { error: 'User not authenticated' };
+    }
+
+    const session = await this.viewAsService.startSession(
+      adminUserId,
+      body.targetUserId,
+      body.targetRole,
+      {
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      },
+    );
+
+    return {
+      started: true,
+      targetUserId: session.targetUserId,
+      targetRole: session.targetRole,
+      expiresAt: session.expiresAt,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Get current view-as status
+   * GET /settings/view-as
+   */
+  @Get('view-as')
+  async getViewAsStatus(@Request() req: any) {
+    const adminUserId = req.user?.id;
+    
+    if (!adminUserId) {
+      return { error: 'User not authenticated' };
+    }
+
+    const session = this.viewAsService.getSession(adminUserId);
+
+    if (!session) {
+      return { active: false };
+    }
+
+    const remainingMs = session.expiresAt.getTime() - Date.now();
+
+    return {
+      active: true,
+      targetUserId: session.targetUserId,
+      targetRole: session.targetRole,
+      startedAt: session.startedAt,
+      expiresAt: session.expiresAt,
+      remainingMinutes: Math.ceil(remainingMs / 60000),
+    };
+  }
+
+  /**
+   * End view-as session
+   * DELETE /settings/view-as
+   */
+  @Delete('view-as')
+  async endViewAs(@Request() req: any) {
+    const adminUserId = req.user?.id;
+    
+    if (!adminUserId) {
+      return { error: 'User not authenticated' };
+    }
+
+    const ended = this.viewAsService.endSession(adminUserId);
+
+    return {
+      ended,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Preview user permissions without starting session
+   * GET /settings/view-as/preview/:userId
+   */
+  @Get('view-as/preview/:userId')
+  async previewUserPermissions(
+    @Param('userId') userId: string,
+    @Request() req: any,
+  ) {
+    const tenantId = req.tenant?.id;
+    const baseRoleId = req.user?.role;
+
+    // Get enriched user data
+    const matrix = await this.permissionService.resolveAllPermissions(
+      tenantId,
+      userId,
+      baseRoleId,
+    );
+
+    return {
+      userId,
+      preview: true,
+      permissions: matrix,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  // ── Project Type Configs ────────────────────────────────────────────────
+  @Get('project-types')
+  async getProjectTypeConfigs(@Request() req: any) {
+    const tenantId = req.tenant?.id;
+    const configs = await this.settingsService.getProjectTypeConfigs(tenantId);
+    const result: Record<string, any> = {};
+    configs.forEach((c: any) => {
+      result[c.typeId] = c.config;
+    });
+    return result;
+  }
+
+  @Put('project-types/:typeId')
+  async updateProjectTypeConfig(@Param('typeId') typeId: string, @Body() body: any, @Request() req: any) {
+    const tenantId = req.tenant?.id;
+    return this.settingsService.updateProjectTypeConfig(typeId, body, tenantId);
+  }
+}

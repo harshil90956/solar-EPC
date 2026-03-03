@@ -10,35 +10,11 @@ import React, {
 import {
     buildDefaultFlags,
     buildDefaultRBAC,
-    DEFAULT_WORKFLOW_RULES,
-    DEFAULT_AUDIT_LOGS,
     MODULE_DEFS,
     ROLE_DEFS,
     ACTION_DEFS,
 } from '../config/features.config';
-import { PROJECT_TYPE_DEFAULTS } from '../config/projectTypes.config';
-import { USERS } from '../data/mockData';
-
-const STORAGE_KEYS = {
-    FLAGS: 'solar-os-feature-flags',
-    RBAC: 'solar-os-rbac',
-    WORKFLOWS: 'solar-os-workflows',
-    AUDIT: 'solar-os-audit-logs',
-    CUSTOM_ROLES: 'solar-os-custom-roles',
-    USER_OVERRIDES: 'solar-os-user-overrides',
-    VIEW_AS: 'solar-os-view-as',
-    PROJECT_TYPE_CFG: 'solar-os-project-type-cfg',
-};
-
-const readStore = (key, fallback) => {
-    try {
-        const raw = localStorage.getItem(key);
-        return raw ? JSON.parse(raw) : fallback;
-    } catch { return fallback; }
-};
-const writeStore = (key, val) => {
-    try { localStorage.setItem(key, JSON.stringify(val)); } catch { }
-};
+import { settingsApi } from '../services/settingsApi';
 
 const SettingsContext = createContext(null);
 
@@ -51,98 +27,232 @@ const fullPerms = () =>
 export const SettingsProvider = ({ children }) => {
 
     // ── Core state ────────────────────────────────────────────────────────────
-    const [flags, setFlagsState] = useState(() => readStore(STORAGE_KEYS.FLAGS, buildDefaultFlags()));
-    const [rbac, setRBACState] = useState(() => readStore(STORAGE_KEYS.RBAC, buildDefaultRBAC()));
-    const [workflows, setWorkflowsState] = useState(() => readStore(STORAGE_KEYS.WORKFLOWS, DEFAULT_WORKFLOW_RULES));
-    const [auditLogs, setAuditLogsState] = useState(() => readStore(STORAGE_KEYS.AUDIT, DEFAULT_AUDIT_LOGS));
-    // Custom roles: { [roleId]: { id, label, description, baseRole, color, bg, isCustom, permissions: { [modId]: { [actionId]: bool } } } }
-    const [customRoles, setCustomRoles] = useState(() => readStore(STORAGE_KEYS.CUSTOM_ROLES, {}));
-    // User overrides: { [userId]: { customRoleId?: string|null, overrides: { [modId]: { [actionId]: bool|null } } } }
-    const [userOverrides, setUserOverrides] = useState(() => readStore(STORAGE_KEYS.USER_OVERRIDES, {}));
-    // "View As" userId for admin impersonation preview
-    const [viewAsUserId, setViewAsUserIdState] = useState(() => readStore(STORAGE_KEYS.VIEW_AS, null));
-    // Project type admin overrides: { residential: {…}, commercial: {…}, industrial: {…} }
-    const [projectTypeConfig, setProjectTypeConfig] = useState(() =>
-        readStore(STORAGE_KEYS.PROJECT_TYPE_CFG, JSON.parse(JSON.stringify(PROJECT_TYPE_DEFAULTS)))
-    );
+    const [flags, setFlagsState] = useState(buildDefaultFlags());
+    const [rbac, setRBACState] = useState(buildDefaultRBAC());
+    const [workflows, setWorkflowsState] = useState([]);
+    const [auditLogs, setAuditLogsState] = useState([]);
+    const [customRoles, setCustomRoles] = useState({});
+    const [userOverrides, setUserOverrides] = useState({});
+    const [viewAsUserId, setViewAsUserIdState] = useState(null);
+    const [projectTypeConfig, setProjectTypeConfig] = useState({});
+    const [isLoading, setIsLoading] = useState(true);
 
-    // ── Persist ───────────────────────────────────────────────────────────────
-    useEffect(() => writeStore(STORAGE_KEYS.FLAGS, flags), [flags]);
-    useEffect(() => writeStore(STORAGE_KEYS.RBAC, rbac), [rbac]);
-    useEffect(() => writeStore(STORAGE_KEYS.WORKFLOWS, workflows), [workflows]);
-    useEffect(() => writeStore(STORAGE_KEYS.AUDIT, auditLogs), [auditLogs]);
-    useEffect(() => writeStore(STORAGE_KEYS.CUSTOM_ROLES, customRoles), [customRoles]);
-    useEffect(() => writeStore(STORAGE_KEYS.USER_OVERRIDES, userOverrides), [userOverrides]);
-    useEffect(() => writeStore(STORAGE_KEYS.VIEW_AS, viewAsUserId), [viewAsUserId]);
-    useEffect(() => writeStore(STORAGE_KEYS.PROJECT_TYPE_CFG, projectTypeConfig), [projectTypeConfig]);
+    // ── Load data from API on mount ─────────────────────────────────────────────
+    useEffect(() => {
+        const loadSettings = async () => {
+            try {
+                setIsLoading(true);
+                const settings = await settingsApi.getFullSettings();
+
+                // Transform flags from API format
+                if (settings.flags) {
+                    const flagsObj = {};
+                    settings.flags.forEach(f => {
+                        flagsObj[f.moduleId] = {
+                            enabled: f.enabled,
+                            features: f.features || {},
+                            actions: f.actions || {},
+                        };
+                    });
+                    setFlagsState(flagsObj);
+                }
+
+                // Transform RBAC from API format
+                if (settings.rbac) {
+                    const rbacObj = {};
+                    settings.rbac.forEach(c => {
+                        if (!rbacObj[c.roleId]) rbacObj[c.roleId] = {};
+                        rbacObj[c.roleId][c.moduleId] = c.permissions || {};
+                    });
+                    setRBACState(rbacObj);
+                }
+
+                // Set workflows
+                if (settings.workflows) {
+                    setWorkflowsState(settings.workflows);
+                }
+
+                // Set audit logs
+                if (settings.auditLogs) {
+                    setAuditLogsState(settings.auditLogs);
+                }
+
+                // Transform custom roles
+                if (settings.customRoles) {
+                    const rolesObj = {};
+                    settings.customRoles.forEach(r => {
+                        rolesObj[r.roleId] = {
+                            id: r.roleId,
+                            label: r.label,
+                            description: r.description,
+                            baseRole: r.baseRole,
+                            color: r.color,
+                            bg: r.bg,
+                            isCustom: r.isCustom,
+                            permissions: r.permissions || {},
+                        };
+                    });
+                    setCustomRoles(rolesObj);
+                }
+
+                // Transform project type configs
+                if (settings.projectTypeConfigs) {
+                    const configsObj = {};
+                    settings.projectTypeConfigs.forEach(c => {
+                        configsObj[c.typeId] = c.config;
+                    });
+                    setProjectTypeConfig(configsObj);
+                }
+            } catch (error) {
+                console.error('Failed to load settings from API:', error);
+                // Fall back to defaults on API failure
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        loadSettings();
+    }, []);
 
     // ── Audit helper ──────────────────────────────────────────────────────────
-    const addAudit = useCallback((action, target, from, to, user = 'Admin User') => {
+    const addAudit = useCallback(async (action, target, from, to, user = 'Admin User') => {
         const entry = {
-            id: `a${Date.now()}`,
+            logId: `a${Date.now()}`,
             ts: new Date().toISOString().replace('T', ' ').slice(0, 16),
             user, action, target,
             from: String(from), to: String(to),
             ip: '127.0.0.1',
         };
         setAuditLogsState(prev => [entry, ...prev].slice(0, 500));
+        // Persist to backend
+        try {
+            await settingsApi.createAuditLog(entry);
+        } catch (e) {
+            console.error('Failed to save audit log:', e);
+        }
     }, []);
 
     // ── Feature Flag APIs ─────────────────────────────────────────────────────
-    const toggleModule = useCallback((moduleId, user) => {
-        setFlagsState(prev => {
-            const cur = prev[moduleId]?.enabled ?? true;
-            addAudit('TOGGLE_MODULE', `${moduleId} (entire module)`, cur, !cur, user);
-            return { ...prev, [moduleId]: { ...prev[moduleId], enabled: !cur } };
-        });
-    }, [addAudit]);
+    const toggleModule = useCallback(async (moduleId, user) => {
+        const cur = flags[moduleId]?.enabled ?? true;
+        const newEnabled = !cur;
 
-    const toggleFeature = useCallback((moduleId, featureId, user) => {
-        setFlagsState(prev => {
-            const cur = prev[moduleId]?.features?.[featureId] ?? true;
-            addAudit('TOGGLE_FEATURE', `${moduleId}.${featureId}`, cur, !cur, user);
-            return { ...prev, [moduleId]: { ...prev[moduleId], features: { ...prev[moduleId]?.features, [featureId]: !cur } } };
-        });
-    }, [addAudit]);
+        setFlagsState(prev => ({
+            ...prev,
+            [moduleId]: { ...prev[moduleId], enabled: newEnabled }
+        }));
 
-    const toggleAction = useCallback((moduleId, actionId, user) => {
-        setFlagsState(prev => {
-            const cur = prev[moduleId]?.actions?.[actionId] ?? false;
-            addAudit('TOGGLE_ACTION', `${moduleId}.action.${actionId}`, cur, !cur, user);
-            return { ...prev, [moduleId]: { ...prev[moduleId], actions: { ...prev[moduleId]?.actions, [actionId]: !cur } } };
-        });
-    }, [addAudit]);
+        await addAudit('TOGGLE_MODULE', `${moduleId} (entire module)`, cur, newEnabled, user);
 
-    const resetFlags = useCallback((user) => {
-        addAudit('RESET_FLAGS', 'ALL FLAGS', 'custom', 'defaults', user);
-        setFlagsState(buildDefaultFlags());
+        // Persist to backend
+        try {
+            await settingsApi.toggleModule(moduleId, newEnabled);
+        } catch (e) {
+            console.error('Failed to toggle module:', e);
+        }
+    }, [flags, addAudit]);
+
+    const toggleFeature = useCallback(async (moduleId, featureId, user) => {
+        const cur = flags[moduleId]?.features?.[featureId] ?? true;
+        const newEnabled = !cur;
+
+        setFlagsState(prev => ({
+            ...prev,
+            [moduleId]: {
+                ...prev[moduleId],
+                features: { ...prev[moduleId]?.features, [featureId]: newEnabled }
+            }
+        }));
+
+        await addAudit('TOGGLE_FEATURE', `${moduleId}.${featureId}`, cur, newEnabled, user);
+
+        // Persist to backend
+        try {
+            await settingsApi.toggleFeature(moduleId, featureId, newEnabled);
+        } catch (e) {
+            console.error('Failed to toggle feature:', e);
+        }
+    }, [flags, addAudit]);
+
+    const toggleAction = useCallback(async (moduleId, actionId, user) => {
+        const cur = flags[moduleId]?.actions?.[actionId] ?? false;
+        const newEnabled = !cur;
+
+        setFlagsState(prev => ({
+            ...prev,
+            [moduleId]: {
+                ...prev[moduleId],
+                actions: { ...prev[moduleId]?.actions, [actionId]: newEnabled }
+            }
+        }));
+
+        await addAudit('TOGGLE_ACTION', `${moduleId}.action.${actionId}`, cur, newEnabled, user);
+
+        // Persist to backend
+        try {
+            await settingsApi.toggleAction(moduleId, actionId, newEnabled);
+        } catch (e) {
+            console.error('Failed to toggle action:', e);
+        }
+    }, [flags, addAudit]);
+
+    const resetFlags = useCallback(async (user) => {
+        await addAudit('RESET_FLAGS', 'ALL FLAGS', 'custom', 'defaults', user);
+        const defaults = buildDefaultFlags();
+        setFlagsState(defaults);
+        // Note: Backend reset would require a specific endpoint
     }, [addAudit]);
 
     // ── Base RBAC APIs ────────────────────────────────────────────────────────
-    const toggleRBAC = useCallback((roleId, moduleId, actionId, user) => {
-        setRBACState(prev => {
-            const cur = prev[roleId]?.[moduleId]?.[actionId] ?? false;
-            addAudit('RBAC_EDIT', `${roleId} → ${moduleId}.${actionId}`, cur, !cur, user);
-            return { ...prev, [roleId]: { ...prev[roleId], [moduleId]: { ...prev[roleId]?.[moduleId], [actionId]: !cur } } };
-        });
-    }, [addAudit]);
+    const toggleRBAC = useCallback(async (roleId, moduleId, actionId, user) => {
+        const cur = rbac[roleId]?.[moduleId]?.[actionId] ?? false;
+        const newEnabled = !cur;
 
-    const setRolePreset = useCallback((roleId, preset, user) => {
-        setRBACState(prev => {
-            const updated = { ...prev, [roleId]: {} };
-            MODULE_DEFS.forEach(mod => {
-                if (preset === 'full') updated[roleId][mod.id] = fullPerms();
-                else if (preset === 'view_only') updated[roleId][mod.id] = { ...emptyPerms(), view: true };
-                else updated[roleId][mod.id] = emptyPerms();
-            });
-            addAudit('ROLE_PRESET', `${roleId} → ${preset}`, 'custom', preset, user);
-            return updated;
-        });
-    }, [addAudit]);
+        setRBACState(prev => ({
+            ...prev,
+            [roleId]: {
+                ...prev[roleId],
+                [moduleId]: { ...prev[roleId]?.[moduleId], [actionId]: newEnabled }
+            }
+        }));
 
-    const resetRBAC = useCallback((user) => {
-        addAudit('RESET_RBAC', 'ALL RBAC', 'custom', 'defaults', user);
-        setRBACState(buildDefaultRBAC());
+        await addAudit('RBAC_EDIT', `${roleId} → ${moduleId}.${actionId}`, cur, newEnabled, user);
+
+        // Persist to backend
+        try {
+            await settingsApi.toggleRBAC(roleId, moduleId, actionId, newEnabled);
+        } catch (e) {
+            console.error('Failed to toggle RBAC:', e);
+        }
+    }, [rbac, addAudit]);
+
+    const setRolePreset = useCallback(async (roleId, preset, user) => {
+        const updated = { ...rbac, [roleId]: {} };
+        MODULE_DEFS.forEach(mod => {
+            if (preset === 'full') updated[roleId][mod.id] = fullPerms();
+            else if (preset === 'view_only') updated[roleId][mod.id] = { ...emptyPerms(), view: true };
+            else updated[roleId][mod.id] = emptyPerms();
+        });
+        setRBACState(updated);
+        await addAudit('ROLE_PRESET', `${roleId} → ${preset}`, 'custom', preset, user);
+
+        // Persist to backend
+        try {
+            await Promise.all(
+                MODULE_DEFS.map(mod =>
+                    settingsApi.updateRBAC(roleId, mod.id, updated[roleId][mod.id])
+                )
+            );
+        } catch (e) {
+            console.error('Failed to set role preset:', e);
+        }
+    }, [rbac, addAudit]);
+
+    const resetRBAC = useCallback(async (user) => {
+        await addAudit('RESET_RBAC', 'ALL RBAC', 'custom', 'defaults', user);
+        const defaults = buildDefaultRBAC();
+        setRBACState(defaults);
+        // Note: Backend reset would require a specific endpoint
     }, [addAudit]);
 
     // ── Custom Role APIs ──────────────────────────────────────────────────────
@@ -289,62 +399,85 @@ export const SettingsProvider = ({ children }) => {
     const clearViewAs = useCallback(() => setViewAsUserIdState(null), []);
 
     // ── Project Type Config APIs ──────────────────────────────────────────────
-    /** Update a single field of a project type config (admin only) */
-    const updateProjectTypeField = useCallback((typeId, field, value, user) => {
+    const updateProjectTypeField = useCallback(async (typeId, field, value, user) => {
         setProjectTypeConfig(prev => {
             const updated = {
                 ...prev,
                 [typeId]: { ...prev[typeId], [field]: value },
             };
-            addAudit('PROJECT_TYPE_UPDATED', `${typeId}.${field}`, String(prev[typeId]?.[field]), String(value), user);
             return updated;
         });
+        await addAudit('PROJECT_TYPE_UPDATED', `${typeId}.${field}`, String(projectTypeConfig[typeId]?.[field]), String(value), user);
+
+        // Persist to backend
+        try {
+            const config = { ...projectTypeConfig[typeId], [field]: value };
+            await settingsApi.updateProjectTypeConfig(typeId, config);
+        } catch (e) {
+            console.error('Failed to update project type config:', e);
+        }
+    }, [projectTypeConfig, addAudit]);
+
+    const resetProjectType = useCallback(async (typeId, user) => {
+        await addAudit('PROJECT_TYPE_RESET', typeId, 'custom', 'defaults', user);
+        // Note: Would need backend endpoint for full reset
     }, [addAudit]);
 
-    /** Reset a single project type back to factory defaults */
-    const resetProjectType = useCallback((typeId, user) => {
-        setProjectTypeConfig(prev => {
-            addAudit('PROJECT_TYPE_RESET', typeId, 'custom', 'defaults', user);
-            return { ...prev, [typeId]: JSON.parse(JSON.stringify(PROJECT_TYPE_DEFAULTS[typeId])) };
-        });
+    const resetAllProjectTypes = useCallback(async (user) => {
+        await addAudit('PROJECT_TYPE_RESET_ALL', 'ALL', 'custom', 'defaults', user);
+        // Note: Would need backend endpoint for full reset
     }, [addAudit]);
 
-    /** Reset ALL project types to factory defaults */
-    const resetAllProjectTypes = useCallback((user) => {
-        addAudit('PROJECT_TYPE_RESET_ALL', 'ALL', 'custom', 'defaults', user);
-        setProjectTypeConfig(JSON.parse(JSON.stringify(PROJECT_TYPE_DEFAULTS)));
-    }, [addAudit]);
-
-    /**
-     * getProjectTypeCfg(typeId) — returns merged config (defaults + admin overrides).
-     * Components should always use this instead of PROJECT_TYPE_DEFAULTS directly.
-     */
     const getProjectTypeCfg = useCallback((typeId) =>
-        projectTypeConfig[typeId] ?? PROJECT_TYPE_DEFAULTS[typeId],
+        projectTypeConfig[typeId] || {},
         [projectTypeConfig]);
 
     // ── Workflow APIs ─────────────────────────────────────────────────────────
-    const toggleWorkflow = useCallback((wfId, user) => {
+    const toggleWorkflow = useCallback(async (wfId, user) => {
         setWorkflowsState(prev => prev.map(wf => {
             if (wf.id !== wfId) return wf;
             addAudit('WORKFLOW_TOGGLE', wf.label, wf.enabled, !wf.enabled, user);
             return { ...wf, enabled: !wf.enabled };
         }));
-    }, [addAudit]);
 
-    const addWorkflow = useCallback((rule, user) => {
+        // Persist to backend
+        try {
+            const wf = workflows.find(w => w.id === wfId);
+            if (wf) {
+                await settingsApi.updateWorkflowRule(wfId, { enabled: !wf.enabled });
+            }
+        } catch (e) {
+            console.error('Failed to toggle workflow:', e);
+        }
+    }, [workflows, addAudit]);
+
+    const addWorkflow = useCallback(async (rule, user) => {
         const newRule = { ...rule, id: `wf${Date.now()}`, createdBy: user, createdAt: new Date().toISOString().slice(0, 10) };
         setWorkflowsState(prev => [...prev, newRule]);
-        addAudit('WORKFLOW_CREATED', rule.label, 'null', 'created', user);
+        await addAudit('WORKFLOW_CREATED', rule.label, 'null', 'created', user);
+
+        // Persist to backend
+        try {
+            await settingsApi.createWorkflowRule(newRule);
+        } catch (e) {
+            console.error('Failed to create workflow:', e);
+        }
     }, [addAudit]);
 
-    const deleteWorkflow = useCallback((wfId, user) => {
+    const deleteWorkflow = useCallback(async (wfId, user) => {
         setWorkflowsState(prev => {
             const wf = prev.find(w => w.id === wfId);
             if (wf) addAudit('WORKFLOW_DELETED', wf.label, 'exists', 'deleted', user);
             return prev.filter(w => w.id !== wfId);
         });
-    }, [addAudit]);
+
+        // Persist to backend
+        try {
+            await settingsApi.deleteWorkflowRule(wfId);
+        } catch (e) {
+            console.error('Failed to delete workflow:', e);
+        }
+    }, [workflows, addAudit]);
 
     const rollbackAudit = useCallback((logId, user) => {
         addAudit('ROLLBACK', `log:${logId}`, 'current', 'rolled_back', user);
@@ -388,28 +521,31 @@ export const SettingsProvider = ({ children }) => {
         resolvePermission(userId, roleId, moduleId, actionId), [resolvePermission]);
 
     // ── Derived lists ─────────────────────────────────────────────────────────
-
     const allRoles = useMemo(() => [
         ...ROLE_DEFS,
         ...Object.values(customRoles),
     ], [customRoles]);
 
-    const enrichedUsers = useMemo(() => USERS.map(u => ({
-        ...u,
-        customRoleId: userOverrides[u.id]?.customRoleId ?? null,
-        overrideCount: Object.values(userOverrides[u.id]?.overrides ?? {})
-            .flatMap(m => Object.values(m)).filter(v => v !== null && v !== undefined).length,
-        effectiveRole: userOverrides[u.id]?.customRoleId
-            ? (customRoles[userOverrides[u.id].customRoleId]?.label ?? u.role)
-            : u.role,
-    })), [userOverrides, customRoles]);
+    // Note: enrichedUsers now expects users to be passed from AuthContext or fetched separately
+    const getEnrichedUsers = useCallback((users) => {
+        return (users || []).map(u => ({
+            ...u,
+            customRoleId: userOverrides[u.id]?.customRoleId ?? null,
+            overrideCount: Object.values(userOverrides[u.id]?.overrides ?? {})
+                .flatMap(m => Object.values(m)).filter(v => v !== null && v !== undefined).length,
+            effectiveRole: userOverrides[u.id]?.customRoleId
+                ? (customRoles[userOverrides[u.id].customRoleId]?.label ?? u.role)
+                : u.role,
+        }));
+    }, [userOverrides, customRoles]);
 
     // ── Context value ─────────────────────────────────────────────────────────
     const value = useMemo(() => ({
         // Raw state
         flags, rbac, workflows, auditLogs,
         customRoles, userOverrides, viewAsUserId,
-        allRoles, enrichedUsers,
+        allRoles,
+        isLoading,
         // Project type config (admin-overridable)
         projectTypeConfig,
         // Feature flag APIs
@@ -434,10 +570,11 @@ export const SettingsProvider = ({ children }) => {
         getProjectTypeCfg, updateProjectTypeField, resetProjectType, resetAllProjectTypes,
         // Utility
         emptyPerms, fullPerms,
+        getEnrichedUsers,
     }), [
         flags, rbac, workflows, auditLogs,
         customRoles, userOverrides, viewAsUserId,
-        allRoles, enrichedUsers,
+        allRoles, isLoading,
         projectTypeConfig,
         toggleModule, toggleFeature, toggleAction, resetFlags,
         toggleRBAC, setRolePreset, resetRBAC,
@@ -450,6 +587,7 @@ export const SettingsProvider = ({ children }) => {
         isModuleEnabled, isFeatureEnabled, isActionEnabled,
         canRoleDo, hasPermission, hasPermissionForUser, resolvePermission,
         getProjectTypeCfg, updateProjectTypeField, resetProjectType, resetAllProjectTypes,
+        getEnrichedUsers,
     ]);
 
     return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;

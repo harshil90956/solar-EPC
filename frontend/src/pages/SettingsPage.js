@@ -1,6 +1,6 @@
 // Solar OS — Settings & Control Center (Enterprise Edition)
 // Feature Flags · RBAC Matrix · Role Builder · User Permissions · Workflow Rules · Audit Logs · AI Suggestions
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
     Settings, Shield, Flag, GitBranch, ScrollText, Zap,
     Search, RotateCcw, Download, ChevronDown, ChevronUp,
@@ -16,11 +16,14 @@ import {
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
 import { MODULE_DEFS, ROLE_DEFS, ACTION_DEFS } from '../config/features.config';
+import { settingsApi } from '../services/settingsApi';
 import {
     PROJECT_TYPE_LIST, PROJECT_TYPES, ADMIN_EDITABLE_FIELDS,
     PROJECT_TYPE_DEFAULTS,
 } from '../config/projectTypes.config';
 import { Modal } from '../components/ui/Modal';
+import { toast } from '../components/ui/Toast';
+import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd';
 
 // ─── Icon map ────────────────────────────────────────────────────────────────
 const ICON_MAP = {
@@ -48,6 +51,263 @@ const Toggle = ({ on, onChange, size = 'md', disabled = false }) => {
         </button>
     );
 };
+
+// ─── CRM: Lead Status Builder ────────────────────────────────────────────────
+function LeadStatusBuilder() {
+    const [loading, setLoading] = useState(true);
+    const [statuses, setStatuses] = useState([]);
+    const [modalOpen, setModalOpen] = useState(false);
+    const [editing, setEditing] = useState(null);
+    const [saving, setSaving] = useState(false);
+    const [form, setForm] = useState({
+        key: '',
+        label: '',
+        color: '#64748b',
+        type: 'normal',
+    });
+
+    const load = async () => {
+        try {
+            setLoading(true);
+            const res = await settingsApi.getLeadStatuses(false);
+            const list = Array.isArray(res?.data?.data) ? res.data.data : Array.isArray(res?.data) ? res.data : [];
+            setStatuses(list);
+        } catch (e) {
+            toast.error(e?.message || 'Failed to load lead statuses');
+            setStatuses([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        load();
+    }, []);
+
+    const openCreate = () => {
+        setEditing(null);
+        setForm({ key: '', label: '', color: '#64748b', type: 'normal' });
+        setModalOpen(true);
+    };
+
+    const openEdit = (s) => {
+        setEditing(s);
+        setForm({
+            key: s?.key || '',
+            label: s?.label || '',
+            color: s?.color || '#64748b',
+            type: s?.type || 'normal',
+        });
+        setModalOpen(true);
+    };
+
+    const save = async () => {
+        if (!form.label?.trim()) {
+            toast.error('Label is required');
+            return;
+        }
+        if (!editing && !form.key?.trim()) {
+            toast.error('Key is required');
+            return;
+        }
+
+        try {
+            setSaving(true);
+            if (editing) {
+                await settingsApi.updateLeadStatus(editing._id || editing.id, {
+                    label: form.label.trim(),
+                    color: form.color,
+                    type: form.type,
+                });
+                toast.success('Status updated');
+            } else {
+                await settingsApi.createLeadStatus({
+                    key: form.key.trim(),
+                    label: form.label.trim(),
+                    color: form.color,
+                    type: form.type,
+                });
+                toast.success('Status created');
+            }
+            setModalOpen(false);
+            await load();
+        } catch (e) {
+            toast.error(e?.message || 'Failed to save status');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const remove = async (s) => {
+        try {
+            await settingsApi.deleteLeadStatus(s._id || s.id);
+            toast.success('Status deleted');
+            await load();
+        } catch (e) {
+            toast.error(e?.message || 'Failed to delete status');
+        }
+    };
+
+    const onDragEnd = async (result) => {
+        if (!result?.destination) return;
+        const from = result.source.index;
+        const to = result.destination.index;
+        if (from === to) return;
+
+        const next = Array.from(statuses);
+        const [moved] = next.splice(from, 1);
+        next.splice(to, 0, moved);
+        setStatuses(next);
+
+        try {
+            await settingsApi.reorderLeadStatuses(next.map(s => s._id || s.id));
+            toast.success('Order updated');
+            await load();
+        } catch (e) {
+            toast.error(e?.message || 'Failed to reorder statuses');
+            await load();
+        }
+    };
+
+    return (
+        <div className="rounded-xl border border-[var(--border-base)] bg-[var(--bg-surface)] overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-base)]">
+                <div>
+                    <p className="text-xs font-extrabold text-[var(--text-primary)]">Lead Status Builder</p>
+                    <p className="text-[10px] text-[var(--text-faint)] mt-0.5">Configure tenant-scoped lead statuses (key + label + color + type) and reorder by drag & drop.</p>
+                </div>
+                <button onClick={openCreate}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-semibold bg-[var(--accent)] text-black hover:opacity-90 transition-opacity">
+                    <Plus size={10} /> Add Status
+                </button>
+            </div>
+
+            {loading ? (
+                <div className="p-4">
+                    <p className="text-xs text-[var(--text-faint)]">Loading…</p>
+                </div>
+            ) : (
+                <div className="p-3">
+                    <DragDropContext onDragEnd={onDragEnd}>
+                        <Droppable droppableId="lead-statuses">
+                            {(provided) => (
+                                <div ref={provided.innerRef} {...provided.droppableProps} className="space-y-2">
+                                    {statuses.map((s, index) => (
+                                        <Draggable key={s._id || s.id} draggableId={String(s._id || s.id)} index={index}>
+                                            {(drag) => (
+                                                <div ref={drag.innerRef} {...drag.draggableProps}
+                                                    className={`flex items-center gap-3 px-3 py-2 rounded-xl border border-[var(--border-base)] bg-[var(--bg-elevated)]`}
+                                                >
+                                                    <div {...drag.dragHandleProps} className="text-[var(--text-faint)] text-xs select-none w-5 text-center">≡</div>
+                                                    <div className="w-2.5 h-2.5 rounded-full" style={{ background: s.color }} />
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <span className="text-xs font-bold text-[var(--text-primary)] truncate">{s.label}</span>
+                                                            <code className="text-[9px] px-2 py-0.5 rounded bg-[var(--bg-overlay)] border border-[var(--border-base)] text-[var(--text-faint)]">{s.key}</code>
+                                                            <span className="text-[9px] px-2 py-0.5 rounded bg-[var(--bg-overlay)] border border-[var(--border-base)] text-[var(--text-faint)] uppercase">{s.type}</span>
+                                                            {!s.isActive && <span className="text-[9px] px-2 py-0.5 rounded bg-red-500/10 border border-red-500/20 text-red-400 font-bold">INACTIVE</span>}
+                                                            {s.isSystem && <span className="text-[9px] px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400 font-bold">SYSTEM</span>}
+                                                        </div>
+                                                    </div>
+                                                    <button onClick={() => openEdit(s)}
+                                                        className="w-7 h-7 rounded-lg flex items-center justify-center border border-[var(--border-base)] text-[var(--text-faint)] hover:text-[var(--accent)] hover:border-[var(--accent)]/40 transition-colors">
+                                                        <Edit2 size={12} />
+                                                    </button>
+                                                    {!s.isSystem && (
+                                                        <button onClick={() => remove(s)}
+                                                            className="w-7 h-7 rounded-lg flex items-center justify-center border border-[var(--border-base)] text-[var(--text-faint)] hover:text-red-400 hover:border-red-500/40 hover:bg-red-500/5 transition-colors">
+                                                            <Trash2 size={12} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </Draggable>
+                                    ))}
+                                    {provided.placeholder}
+                                    {statuses.length === 0 && (
+                                        <div className="p-8 text-center text-[var(--text-faint)] text-xs">
+                                            No statuses configured yet.
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </Droppable>
+                    </DragDropContext>
+                </div>
+            )}
+
+            <Modal
+                open={modalOpen}
+                onClose={() => setModalOpen(false)}
+                title={editing ? 'Edit Lead Status' : 'Add Lead Status'}
+                size="sm"
+                footer={
+                    <>
+                        <button onClick={() => setModalOpen(false)}
+                            className="px-4 py-2 rounded-lg text-xs font-semibold border border-[var(--border-base)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
+                            Cancel
+                        </button>
+                        <button onClick={save} disabled={saving}
+                            className={`px-4 py-2 rounded-lg text-xs font-bold bg-[var(--accent)] text-black hover:opacity-90 transition-opacity ${saving ? 'opacity-60 cursor-not-allowed' : ''}`}
+                        >
+                            {saving ? 'Saving…' : 'Save'}
+                        </button>
+                    </>
+                }
+            >
+                <div className="space-y-3">
+                    {!editing && (
+                        <div>
+                            <label className="text-[11px] font-semibold text-[var(--text-faint)] block mb-1">Key *</label>
+                            <input
+                                value={form.key}
+                                onChange={e => setForm(p => ({ ...p, key: e.target.value }))}
+                                placeholder="e.g. contacted"
+                                className="w-full px-3 py-2 rounded-lg border border-[var(--border-base)] bg-[var(--bg-elevated)] text-xs text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--accent)]"
+                            />
+                            <p className="text-[10px] text-[var(--text-faint)] mt-1">Stored on lead as <code>statusKey</code>. Do not use labels here.</p>
+                        </div>
+                    )}
+
+                    <div>
+                        <label className="text-[11px] font-semibold text-[var(--text-faint)] block mb-1">Label *</label>
+                        <input
+                            value={form.label}
+                            onChange={e => setForm(p => ({ ...p, label: e.target.value }))}
+                            placeholder="e.g. Contacted"
+                            className="w-full px-3 py-2 rounded-lg border border-[var(--border-base)] bg-[var(--bg-elevated)] text-xs text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--accent)]"
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="text-[11px] font-semibold text-[var(--text-faint)] block mb-1">Color</label>
+                            <input
+                                type="color"
+                                value={form.color}
+                                onChange={e => setForm(p => ({ ...p, color: e.target.value }))}
+                                className="w-full h-10 rounded-lg border border-[var(--border-base)] bg-[var(--bg-elevated)]"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[11px] font-semibold text-[var(--text-faint)] block mb-1">Type</label>
+                            <select
+                                value={form.type}
+                                onChange={e => setForm(p => ({ ...p, type: e.target.value }))}
+                                className="w-full px-3 py-2 rounded-lg border border-[var(--border-base)] bg-[var(--bg-elevated)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]"
+                            >
+                                <option value="start">start</option>
+                                <option value="normal">normal</option>
+                                <option value="success">success</option>
+                                <option value="failure">failure</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </Modal>
+        </div>
+    );
+}
 
 // ─── Section header ───────────────────────────────────────────────────────────
 const SectionHeader = ({ icon: Icon, title, subtitle, badge, children }) => (
@@ -207,6 +467,14 @@ const ModulesPanel = () => {
                                             })}
                                         </div>
                                     </div>
+
+                                    {/* CRM → Lead: Dynamic Status Builder */}
+                                    {mod.id === 'crm' && (
+                                        <div>
+                                            <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider mb-2">CRM · Lead</p>
+                                            <LeadStatusBuilder />
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -1185,11 +1453,13 @@ const RoleBuilderPanel = () => {
 // ─── PANEL H: USER PERMISSIONS ────────────────────────────────────────────────
 const UserPermissionsPanel = () => {
     const {
-        enrichedUsers, customRoles, userOverrides,
+        getEnrichedUsers, customRoles, userOverrides,
         rbac, resolvePermission,
         assignCustomRoleToUser, setUserPermissionOverride, clearUserOverrides,
     } = useSettings();
-    const { user: adminUser } = useAuth();
+    const { user: adminUser, users } = useAuth();
+
+    const enrichedUsers = getEnrichedUsers(users);
 
     const [selectedUserId, setSelectedUserId] = useState(null);
     const [modFilter, setModFilter] = useState('');
@@ -1387,10 +1657,13 @@ const UserPermissionsPanel = () => {
 // ─── PANEL I: VIEW AS ─────────────────────────────────────────────────────────
 const ViewAsPanel = () => {
     const {
-        enrichedUsers, customRoles, userOverrides,
+        getEnrichedUsers, customRoles, userOverrides,
         resolvePermission,
         viewAsUserId, setViewAs, clearViewAs,
     } = useSettings();
+    const { users } = useAuth();
+
+    const enrichedUsers = getEnrichedUsers(users);
 
     const [selectedUserId, setSelectedUserId] = useState(viewAsUserId);
     const [modFilter, setModFilter] = useState('');
@@ -1775,7 +2048,8 @@ const TABS = [
 
 const SettingsPage = () => {
     const [activeTab, setActiveTab] = useState('modules');
-    const { flags, rbac, workflows, auditLogs, customRoles, enrichedUsers, viewAsUserId, clearViewAs } = useSettings();
+    const { flags, rbac, workflows, auditLogs, customRoles, getEnrichedUsers, viewAsUserId, clearViewAs } = useSettings();
+    const { users } = useAuth();
 
     const ActivePanel = TABS.find(t => t.id === activeTab)?.panel || ModulesPanel;
 
@@ -1789,6 +2063,7 @@ const SettingsPage = () => {
     const activeWf = workflows.filter(w => w.enabled).length;
     const auditCount = auditLogs.length;
     const customRoleCount = Object.keys(customRoles).length;
+    const enrichedUsers = useMemo(() => getEnrichedUsers(users), [getEnrichedUsers, users]);
     const viewAsUser = viewAsUserId ? enrichedUsers.find(u => u.id === viewAsUserId) : null;
 
     return (
