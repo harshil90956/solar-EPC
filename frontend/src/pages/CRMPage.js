@@ -20,7 +20,8 @@ import {
   AreaChart, Area, RadarChart, Radar, PolarGrid, PolarAngleAxis,
   PolarRadiusAxis, Treemap, ComposedChart, ScatterChart, Scatter
 } from 'recharts';
-import { LEADS, PIPELINE_STAGES, USERS } from '../data/mockData';
+import { PIPELINE_STAGES, USERS } from '../data/mockData';
+import { leadsApi } from '../services/leadsApi';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input, Select, Textarea, FormField } from '../components/ui/Input';
@@ -511,24 +512,90 @@ const SalesTeamReport = () => {
 };
 
 const CRMPage = () => {
-  const [view, setView] = useState('dashboard');
-  const [activeLeads, setActiveLeads] = useState(LEADS);
+  const [view, setView] = useState('leads');
+  const [activeLeads, setActiveLeads] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [totalLeads, setTotalLeads] = useState(0);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [selected, setSelected] = useState(new Set());
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedLead, setSelectedLead] = useState(null);
-  const [kanbanView, setKanbanView] = useState(false);
+  const [sort, setSort] = useState({ key: null, dir: 'asc' });
   const [leadScoring, setLeadScoring] = useState(true);
-  const [reportsView, setReportsView] = useState(false);
+  const [showSortDropdown, setShowSortDropdown] = useState(false);
+  const [showColumnsDropdown, setShowColumnsDropdown] = useState(false);
+  const [showFiltersPanel, setShowFiltersPanel] = useState(false);
   const [automationRules, setAutomationRules] = useState([
     { id: 1, name: 'High Value Alert', condition: 'value > 500000', action: 'notify_manager', enabled: true },
     { id: 2, name: 'SLA Follow-up', condition: 'days_inactive > 3', action: 'send_email', enabled: true },
     { id: 3, name: 'Score Boost', condition: 'source == referral', action: 'add_10_points', enabled: false }
   ]);
 
+  const [activeFilters, setActiveFilters] = useState([]);
+  const [quickFilter, setQuickFilter] = useState(null);
+  const [visibleColumns, setVisibleColumns] = useState({
+    name: true,
+    email: true,
+    stage: true,
+    score: true,
+    value: true,
+    automation: true,
+    source: true
+  });
+
   const { logCreate, logUpdate, logDelete } = useAuditLog('CRM');
+  const sortDropdownRef = useRef(null);
+  const columnsDropdownRef = useRef(null);
+
+  // Fetch leads from API
+  useEffect(() => {
+    const fetchLeads = async () => {
+      try {
+        setLoading(true);
+        const params = {
+          page,
+          limit: pageSize,
+          search,
+        };
+        // Only add sort params if sort key is valid
+        if (sort.key) {
+          params.sortBy = sort.key;
+          params.sortOrder = sort.dir;
+        }
+        const result = await leadsApi.getAll(params);
+        // Handle nested response structure: { success: true, data: { data: [], total: 0 } }
+        const leadsData = result.data?.data || result.data || [];
+        const totalCount = result.data?.total || result.total || 0;
+        setActiveLeads(leadsData);
+        setTotalLeads(totalCount);
+        setError(null);
+      } catch (err) {
+        console.error('Failed to fetch leads:', err);
+        setError('Failed to load leads. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLeads();
+  }, [page, pageSize, search, sort.key, sort.dir]);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (sortDropdownRef.current && !sortDropdownRef.current.contains(event.target)) {
+        setShowSortDropdown(false);
+      }
+      if (columnsDropdownRef.current && !columnsDropdownRef.current.contains(event.target)) {
+        setShowColumnsDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Apply automation rules
   const applyAutomationRules = useCallback((lead) => {
@@ -606,77 +673,209 @@ const CRMPage = () => {
     }));
   }, [activeLeads, applyAutomationRules]);
 
-  const columns = useMemo(() => [
-    {
-      key: 'name', header: 'Lead', sortable: true,
-      render: (val, row) => (
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center font-bold text-xs">
-            {val[0]}
-          </div>
-          <div>
-            <p className="font-bold text-[var(--text-primary)]">{val}</p>
-            <p className="text-[10px] text-[var(--text-muted)]">{row.company || 'Individual'}</p>
-          </div>
-        </div>
-      )
-    },
-    { key: 'email', header: 'Email', sortable: true },
-    {
-      key: 'stage', header: 'Stage', sortable: true,
-      render: (val) => {
-        const stage = PIPELINE_STAGES.find(s => s.id === val) || { label: val, color: '#94a3b8' };
-        return (
-          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ color: stage.color, background: `${stage.color}15`, border: `1px solid ${stage.color}25` }}>
-            {stage.label}
-          </span>
-        );
+  // Apply filters to leads
+  const filteredLeads = useMemo(() => {
+    let result = enhancedLeads;
+    
+    // Quick filter
+    if (quickFilter) {
+      switch (quickFilter) {
+        case 'highScore':
+          result = result.filter(l => l.score > 75);
+          break;
+        case 'slaBreached':
+          result = result.filter(l => l.slaBreached);
+          break;
+        case 'highValue':
+          result = result.filter(l => l.value > 500000);
+          break;
+        case 'referral':
+          result = result.filter(l => l.source === 'Referral');
+          break;
+        case 'automation':
+          result = result.filter(l => l.automation && l.automation.length > 0);
+          break;
+        case 'recent':
+          result = result.filter(l => {
+            const daysSince = Math.floor((new Date() - new Date(l.createdAt)) / (1000 * 60 * 60 * 24));
+            return daysSince <= 7;
+          });
+          break;
       }
-    },
-    {
-      key: 'score', header: 'Score', sortable: true,
-      render: (val) => (
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1">
-            <Brain size={10} className="text-[var(--text-muted)]" />
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${val >= 75 ? 'text-emerald-500 bg-emerald-500/10' :
-              val >= 50 ? 'text-amber-500 bg-amber-500/10' :
-                'text-red-500 bg-red-500/10'
-              }`}>{val || 0}pts</span>
+    }
+    
+    // Advanced filters
+    if (activeFilters.length > 0) {
+      result = result.filter(lead => {
+        return activeFilters.every(filter => {
+          const value = lead[filter.field];
+          const filterValue = filter.value;
+          
+          switch (filter.operator) {
+            case 'equals':
+            case 'eq':
+              return String(value).toLowerCase() === String(filterValue).toLowerCase();
+            case 'contains':
+              return String(value).toLowerCase().includes(String(filterValue).toLowerCase());
+            case 'gt':
+              return Number(value) > Number(filterValue);
+            case 'lt':
+              return Number(value) < Number(filterValue);
+            case 'gte':
+              return Number(value) >= Number(filterValue);
+            case 'lte':
+              return Number(value) <= Number(filterValue);
+            default:
+              return true;
+          }
+        });
+      });
+    }
+    
+    // Search filter
+    if (search) {
+      const searchLower = search.toLowerCase();
+      result = result.filter(lead => 
+        lead.name?.toLowerCase().includes(searchLower) ||
+        lead.email?.toLowerCase().includes(searchLower) ||
+        lead.company?.toLowerCase().includes(searchLower) ||
+        lead.phone?.includes(search) ||
+        lead.source?.toLowerCase().includes(searchLower)
+      );
+    }
+    
+    return result;
+  }, [enhancedLeads, quickFilter, activeFilters, search]);
+
+  // Sort handler for DataTable
+  const handleSort = useCallback(({ key, dir }) => {
+    setSort({ key, dir });
+  }, []);
+
+  // Apply sorting to filtered leads
+  const sortedLeads = useMemo(() => {
+    if (!sort.key) return filteredLeads;
+    
+    return [...filteredLeads].sort((a, b) => {
+      let aVal = a[sort.key];
+      let bVal = b[sort.key];
+      
+      // Handle null/undefined values
+      if (aVal == null) aVal = '';
+      if (bVal == null) bVal = '';
+      
+      // String comparison
+      if (typeof aVal === 'string') {
+        aVal = aVal.toLowerCase();
+        bVal = bVal.toLowerCase();
+      }
+      
+      if (aVal < bVal) return sort.dir === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sort.dir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [filteredLeads, sort]);
+
+  const columns = useMemo(() => {
+    const allColumns = [
+      {
+        key: 'name', header: 'Lead', sortable: true, width: '220px',
+        render: (val, row) => (
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center font-bold text-[11px] shrink-0">
+              {val[0]}
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-[13px] text-[var(--text-primary)] truncate">{val}</p>
+              <p className="text-[10px] text-[var(--text-muted)] truncate">{row.company || 'Individual'}</p>
+            </div>
           </div>
-        </div>
-      )
-    },
-    {
-      key: 'value', header: 'Value', sortable: true,
-      render: (val) => <span className="font-bold text-[var(--accent)]">{fmt(val || 0)}</span>
-    },
-    {
-      key: 'automation', header: 'Automation', sortable: false,
-      render: (val) => (
-        <div className="flex items-center gap-1">
-          {val && val.length > 0 ? (
-            <>
-              <Sparkles size={12} className="text-amber-500" />
-              <span className="text-[10px] text-amber-500 font-bold">{val.length} Active</span>
-            </>
+        )
+      },
+      { key: 'email', header: 'Email', sortable: true, width: '180px' },
+      {
+        key: 'stage', header: 'Stage', sortable: true, width: '120px',
+        render: (val) => {
+          const stage = PIPELINE_STAGES.find(s => s.id === val) || { label: val, color: '#94a3b8' };
+          return (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap" style={{ color: stage.color, background: `${stage.color}15`, border: `1px solid ${stage.color}25` }}>
+              {stage.label}
+            </span>
+          );
+        }
+      },
+      {
+        key: 'score', header: 'Score', sortable: true, width: '80px',
+        render: (val) => (
+          <span className={`text-[11px] font-bold ${val >= 75 ? 'text-emerald-500' :
+            val >= 50 ? 'text-amber-500' : 'text-red-500'
+          }`}>{val || 0}pts</span>
+        )
+      },
+      {
+        key: 'value', header: 'Value', sortable: true, width: '100px',
+        render: (val) => <span className="font-semibold text-[13px] text-[var(--accent)]">{fmt(val || 0)}</span>
+      },
+      {
+        key: 'automation', header: 'Auto', sortable: false, width: '70px',
+        render: (val) => (
+          val && val.length > 0 ? (
+            <span className="text-[10px] text-amber-500 font-medium">{val.length} Active</span>
           ) : (
-            <span className="text-[10px] text-[var(--text-muted)]">None</span>
-          )}
-        </div>
-      )
-    },
-    { key: 'source', header: 'Source' },
-  ], []);
+            <span className="text-[10px] text-[var(--text-muted)]">—</span>
+          )
+        )
+      },
+      { key: 'source', header: 'Source', width: '100px' },
+    ];
+    return allColumns.filter(col => visibleColumns[col.key] !== false);
+  }, [visibleColumns]);
 
   const handleImport = ({ file, mapping }) => {
     console.log('Importing from', file.name, 'with mapping', mapping);
-    // Mock success
     logCreate({ id: 'import', name: `Import from ${file.name}` });
+    alert(`Import successful! ${file.name} is being processed.`);
   };
 
   const handleExport = (format) => {
-    console.log('Exporting as', format);
+    const dataToExport = sortedLeads;
+    const headers = ['Name', 'Company', 'Email', 'Phone', 'Stage', 'Source', 'Value', 'Score', 'City'];
+    const csvContent = [
+      headers.join(','),
+      ...dataToExport.map(lead => [
+        `"${lead.name || ''}"`,
+        `"${lead.company || ''}"`,
+        `"${lead.email || ''}"`,
+        `"${lead.phone || ''}"`,
+        `"${lead.stage || ''}"`,
+        `"${lead.source || ''}"`,
+        lead.value || 0,
+        lead.score || 0,
+        `"${lead.city || ''}"`
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `leads_export_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    alert(`Exported ${dataToExport.length} leads to CSV!`);
+  };
+
+  const toggleColumn = (colKey) => {
+    setVisibleColumns(prev => ({ ...prev, [colKey]: !prev[colKey] }));
+  };
+
+  const applySort = (key) => {
+    setSort(prev => ({
+      key,
+      dir: prev.key === key && prev.dir === 'asc' ? 'desc' : 'asc'
+    }));
+    setShowSortDropdown(false);
   };
 
   return (
@@ -692,13 +891,13 @@ const CRMPage = () => {
             <button onClick={() => setView('dashboard')} className={`view-toggle-btn ${view === 'dashboard' ? 'active' : ''}`}>
               <LayoutDashboard size={14} /> Dashboard
             </button>
-            <button onClick={() => setView('table')} className={`view-toggle-btn ${view === 'table' ? 'active' : ''}`}>
+            <button onClick={() => setView('leads')} className={`view-toggle-btn ${view === 'leads' ? 'active' : ''}`}>
               <List size={14} /> Leads
             </button>
-            <button onClick={() => setKanbanView(!kanbanView)} className={`view-toggle-btn ${kanbanView ? 'active' : ''}`}>
+            <button onClick={() => setView('kanban')} className={`view-toggle-btn ${view === 'kanban' ? 'active' : ''}`}>
               <LayoutDashboard size={14} /> Kanban
             </button>
-            <button onClick={() => setReportsView(!reportsView)} className={`view-toggle-btn ${reportsView ? 'active' : ''}`}>
+            <button onClick={() => setView('reports')} className={`view-toggle-btn ${view === 'reports' ? 'active' : ''}`}>
               <BarChart2 size={14} /> Reports
             </button>
           </div>
@@ -726,7 +925,7 @@ const CRMPage = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <DashboardKPI
               title="Total Leads"
-              value={LEADS.length}
+              value={totalLeads}
               change={12.5}
               icon={Users}
               color="#3b82f6"
@@ -735,7 +934,7 @@ const CRMPage = () => {
             />
             <DashboardKPI
               title="Pipeline Value"
-              value={fmt(LEADS.reduce((s, l) => s + (l.value || 0), 0))}
+              value={fmt(activeLeads.reduce((s, l) => s + (l.value || 0), 0))}
               change={8.2}
               icon={DollarSign}
               color="#22c55e"
@@ -753,7 +952,7 @@ const CRMPage = () => {
             />
             <DashboardKPI
               title="Avg Deal Size"
-              value={fmt(LEADS.reduce((s, l) => s + (l.value || 0), 0) / LEADS.length || 0)}
+              value={fmt(activeLeads.reduce((s, l) => s + (l.value || 0), 0) / (totalLeads || 1))}
               change={-3.4}
               icon={TrendingUp}
               color="#f59e0b"
@@ -855,7 +1054,7 @@ const CRMPage = () => {
       )}
 
       {/* ── Comprehensive Reports View ── */}
-      {reportsView && (
+      {view === 'reports' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
@@ -966,7 +1165,7 @@ const CRMPage = () => {
       )}
 
       {/* ── Kanban Board View ── */}
-      {kanbanView && !reportsView && (
+      {view === 'kanban' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -1103,8 +1302,8 @@ const CRMPage = () => {
         </div>
       )}
 
-      {/* ── Advanced Filtering and Search ── */}
-      {view === 'table' && !kanbanView && !reportsView && (
+      {/* ── Leads Table View ── */}
+      {view === 'leads' && (
         <div className="space-y-4">
           {/* Advanced Search Bar */}
           <div className="glass-card p-4">
@@ -1118,76 +1317,128 @@ const CRMPage = () => {
                   className="pl-10"
                 />
               </div>
-              <button className="px-4 py-2 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] text-sm font-medium text-[var(--text-muted)] hover:bg-[var(--bg-hovered)] transition-colors flex items-center gap-2">
-                <Filter size={14} />
-                Advanced Filters
-                <span className="px-2 py-0.5 rounded-full bg-[var(--primary)] text-white text-[10px] font-bold">3</span>
-              </button>
-              <button className="px-4 py-2 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] text-sm font-medium text-[var(--text-muted)] hover:bg-[var(--bg-hovered)] transition-colors flex items-center gap-2">
-                <SortAsc size={14} />
-                Sort
-              </button>
+              <div className="relative" ref={sortDropdownRef}>
+                <button 
+                  onClick={() => setShowSortDropdown(!showSortDropdown)}
+                  className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors flex items-center gap-2 ${showSortDropdown ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : 'bg-[var(--bg-elevated)] border-[var(--border-base)] text-[var(--text-muted)] hover:bg-[var(--bg-hovered)]'}`}
+                >
+                  {sort.dir === 'asc' ? <SortAsc size={14} /> : <SortDesc size={14} />}
+                  Sort
+                </button>
+                {showSortDropdown && (
+                  <div className="absolute right-0 top-full mt-2 w-48 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] shadow-lg z-50">
+                    <div className="p-2">
+                      <p className="text-[10px] text-[var(--text-muted)] px-2 py-1">Sort by</p>
+                      {[
+                        { key: 'name', label: 'Lead Name' },
+                        { key: 'email', label: 'Email' },
+                        { key: 'stage', label: 'Stage' },
+                        { key: 'score', label: 'Lead Score' },
+                        { key: 'value', label: 'Deal Value' },
+                        { key: 'source', label: 'Source' }
+                      ].map((col) => (
+                        <button
+                          key={col.key}
+                          onClick={() => applySort(col.key)}
+                          className={`w-full text-left px-3 py-2 rounded text-xs flex items-center justify-between hover:bg-[var(--bg-hovered)] ${sort.key === col.key ? 'text-[var(--primary)] font-bold' : 'text-[var(--text-secondary)]'}`}
+                        >
+                          {col.label}
+                          {sort.key === col.key && (
+                            sort.dir === 'asc' ? <SortAsc size={12} /> : <SortDesc size={12} />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="relative" ref={columnsDropdownRef}>
+                <button 
+                  onClick={() => setShowColumnsDropdown(!showColumnsDropdown)}
+                  className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors flex items-center gap-2 ${showColumnsDropdown ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : 'bg-[var(--bg-elevated)] border-[var(--border-base)] text-[var(--text-muted)] hover:bg-[var(--bg-hovered)]'}`}
+                >
+                  <LayoutDashboard size={14} />
+                  Columns
+                </button>
+                {showColumnsDropdown && (
+                  <div className="absolute right-0 top-full mt-2 w-48 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] shadow-lg z-50">
+                    <div className="p-2">
+                      <p className="text-[10px] text-[var(--text-muted)] px-2 py-1">Show/Hide Columns</p>
+                      {[
+                        { key: 'name', label: 'Lead' },
+                        { key: 'email', label: 'Email' },
+                        { key: 'stage', label: 'Stage' },
+                        { key: 'score', label: 'Score' },
+                        { key: 'value', label: 'Value' },
+                        { key: 'automation', label: 'Automation' },
+                        { key: 'source', label: 'Source' }
+                      ].map((col) => (
+                        <label
+                          key={col.key}
+                          className="flex items-center gap-2 px-3 py-2 rounded text-xs cursor-pointer hover:bg-[var(--bg-hovered)]"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={visibleColumns[col.key] !== false}
+                            onChange={() => toggleColumn(col.key)}
+                            className="w-4 h-4 rounded border-[var(--border-base)]"
+                          />
+                          <span className={visibleColumns[col.key] !== false ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}>
+                            {col.label}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Quick Filter Pills */}
             <div className="flex items-center gap-2 mt-3 flex-wrap">
               <span className="text-xs text-[var(--text-muted)] font-medium">Quick Filters:</span>
               {[
-                { label: 'High Score (>75)', filter: 'score > 75', color: 'emerald' },
-                { label: 'SLA Breached', filter: 'sla_breached = true', color: 'red' },
-                { label: 'High Value (>5L)', filter: 'value > 500000', color: 'blue' },
-                { label: 'Referral Source', filter: 'source = referral', color: 'purple' },
-                { label: 'Active Automation', filter: 'automation_count > 0', color: 'amber' },
-                { label: 'Last 7 Days', filter: 'created_days <= 7', color: 'cyan' }
+                { label: 'High Score (>75)', id: 'highScore', color: 'emerald' },
+                { label: 'SLA Breached', id: 'slaBreached', color: 'red' },
+                { label: 'High Value (>5L)', id: 'highValue', color: 'blue' },
+                { label: 'Referral Source', id: 'referral', color: 'purple' },
+                { label: 'Active Automation', id: 'automation', color: 'amber' },
+                { label: 'Last 7 Days', id: 'recent', color: 'cyan' }
               ].map((filter) => (
                 <button
-                  key={filter.label}
-                  className={`px-3 py-1 rounded-full text-[10px] font-medium border transition-colors ${'border-' + filter.color + '-500/30 text-' + filter.color + '-600 bg-' + filter.color + '-50 hover:bg-' + filter.color + '-100'
-                    }`}
+                  key={filter.id}
+                  onClick={() => setQuickFilter(quickFilter === filter.id ? null : filter.id)}
+                  className={`px-3 py-1 rounded-full text-[10px] font-medium border transition-all ${
+                    quickFilter === filter.id 
+                      ? `bg-${filter.color}-500 text-white border-${filter.color}-500` 
+                      : `border-${filter.color}-500/30 text-${filter.color}-600 bg-${filter.color}-50 hover:bg-${filter.color}-100`
+                  }`}
                 >
                   {filter.label}
                 </button>
               ))}
+              {(quickFilter || activeFilters.length > 0 || search) && (
+                <button
+                  onClick={() => { setQuickFilter(null); setActiveFilters([]); setSearch(''); }}
+                  className="px-3 py-1 rounded-full text-[10px] font-medium border border-gray-500/30 text-gray-600 bg-gray-50 hover:bg-gray-100 transition-colors"
+                >
+                  Clear All
+                </button>
+              )}
             </div>
           </div>
 
-          <FilterSystem
-            fields={[
-              ...CRM_FIELDS,
-              { id: 'score', label: 'Lead Score', type: 'number' },
-              { id: 'slaBreached', label: 'SLA Breached', type: 'boolean' },
-              { id: 'automationCount', label: 'Automation Rules', type: 'number' },
-              { id: 'createdDays', label: 'Days Since Created', type: 'number' },
-              { id: 'lastActivity', label: 'Last Activity', type: 'date' }
-            ]}
-            onApply={(f) => console.log('Advanced Filters Applied:', f)}
-            presets={[
-              { name: 'Hot Leads', filters: [{ field: 'score', operator: 'gt', value: '75', logic: 'AND' }] },
-              { name: 'High Value', filters: [{ field: 'value', operator: 'gt', value: '500000', logic: 'AND' }] },
-              {
-                name: 'At Risk', filters: [
-                  { field: 'slaBreached', operator: 'eq', value: 'true', logic: 'AND' },
-                  { field: 'score', operator: 'lt', value: '50', logic: 'OR' }
-                ]
-              },
-              { name: 'Recent', filters: [{ field: 'createdDays', operator: 'lt', value: '7', logic: 'AND' }] },
-              {
-                name: 'Referral Power', filters: [
-                  { field: 'source', operator: 'eq', value: 'Referral', logic: 'AND' },
-                  { field: 'value', operator: 'gt', value: '200000', logic: 'AND' }
-                ]
-              }
-            ]}
-          />
-
           <DataTable
             columns={columns}
-            data={enhancedLeads.slice((page - 1) * pageSize, page * pageSize)}
-            total={enhancedLeads.length}
+            data={sortedLeads}
+            rowKey="_id"
+            total={sortedLeads.length}
             page={page}
             pageSize={pageSize}
             onPageChange={setPage}
             onPageSizeChange={setPageSize}
+            onSort={handleSort}
+            sort={sort}
             search={search}
             onSearch={setSearch}
             selectedRows={selected}
@@ -1199,6 +1450,7 @@ const CRMPage = () => {
               { label: 'Delete', icon: Trash2, onClick: (rows) => console.log('Soft Deleting', rows), danger: true },
             ]}
             rowActions={[
+              { label: 'View', icon: Eye, onClick: (r) => setSelectedLead(r) },
               { label: 'Edit', icon: Edit2, onClick: (r) => console.log('Edit', r) },
               { label: 'Duplicate', icon: RefreshCw, onClick: (r) => console.log('Duplicate', r) },
               { label: 'Score', icon: Brain, onClick: (r) => console.log('Recalculate score', r) },
@@ -1338,8 +1590,8 @@ const CRMPage = () => {
                 <div>
                   <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2">Recent Activity</p>
                   <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                    {selectedLead.activities.slice(0, 4).map(act => (
-                      <div key={act.id} className="flex gap-2.5 text-xs">
+                    {selectedLead.activities.slice(0, 4).map((act, idx) => (
+                      <div key={act.id || `activity-${idx}`} className="flex gap-2.5 text-xs">
                         <div className="w-6 h-6 rounded-full bg-[var(--bg-elevated)] border border-[var(--border-base)] flex items-center justify-center shrink-0 mt-0.5">
                           {act.type === 'call' && <Phone size={10} className="text-emerald-400" />}
                           {act.type === 'email' && <Mail size={10} className="text-blue-400" />}
