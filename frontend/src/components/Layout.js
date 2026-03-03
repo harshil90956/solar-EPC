@@ -128,8 +128,8 @@ const Layout = ({ currentPage, onNavigate, children }) => {
           {(sidebarOpen || (isOverlay && sidebarHovered)) ? <X size={15} /> : <Menu size={15} />}
         </button>
 
-        {/* Logo */}
-        <div className="flex items-center gap-2.5 min-w-[200px]">
+        {/* Logo - Hidden, only sidebar logo remains */}
+        <div className="flex items-center gap-2.5 min-w-[200px] opacity-0 pointer-events-none">
           <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-lg shrink-0"
             style={{
               background: `linear-gradient(to bottom right, var(--primary), var(--primary-light))`,
@@ -471,7 +471,7 @@ const Layout = ({ currentPage, onNavigate, children }) => {
           )}
           style={{
             width: `${isOverlay ? (sidebarHovered ? 220 : 0) : sidebarW}px`,
-            paddingTop: isDetached ? '0' : '56px',
+            paddingTop: '0',
             ...sidebarStyle,
           }}
           onMouseEnter={() => { if (isHoverView || isOverlay) setSidebarHovered(true); }}

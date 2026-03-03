@@ -30,8 +30,10 @@ import DataTable from '../components/ui/DataTable';
 import FilterSystem from '../components/ui/FilterSystem';
 import ImportExport from '../components/ui/ImportExport';
 import { useAuditLog } from '../hooks/useAuditLog';
+import { usePermissions } from '../hooks/usePermissions';
 import { CURRENCY } from '../config/app.config';
-import CanAccess from '../components/CanAccess';
+import CanAccess, { CanCreate, CanEdit } from '../components/CanAccess';
+import { toast } from '../components/ui/Toast';
 
 const fmt = CURRENCY.format;
 
@@ -535,6 +537,8 @@ const CRMPage = () => {
   const [leadScoring, setLeadScoring] = useState(true);
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const [showColumnsDropdown, setShowColumnsDropdown] = useState(false);
+  const sortDropdownRef = useRef(null);
+  const columnsDropdownRef = useRef(null);
   const [showFiltersPanel, setShowFiltersPanel] = useState(false);
   const [automationRules, setAutomationRules] = useState([
     { id: 1, name: 'High Value Alert', condition: 'value > 500000', action: 'notify_manager', enabled: true },
@@ -555,8 +559,7 @@ const CRMPage = () => {
   });
 
   const { logCreate, logUpdate, logDelete } = useAuditLog('CRM');
-  const sortDropdownRef = useRef(null);
-  const columnsDropdownRef = useRef(null);
+  const { can } = usePermissions();
 
   // Fetch leads from API with filters
   const fetchLeads = useCallback(async () => {
@@ -806,19 +809,21 @@ const CRMPage = () => {
     }
   };
 
-  // Close dropdowns when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (sortDropdownRef.current && !sortDropdownRef.current.contains(event.target)) {
-        setShowSortDropdown(false);
-      }
-      if (columnsDropdownRef.current && !columnsDropdownRef.current.contains(event.target)) {
-        setShowColumnsDropdown(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  const guardDelete = () => {
+    if (!can('crm', 'delete')) {
+      toast.error('Permission denied: Cannot delete leads');
+      return false;
+    }
+    return true;
+  };
+
+  const guardExport = () => {
+    if (!can('crm', 'export')) {
+      toast.error('Permission denied: Cannot export leads');
+      return false;
+    }
+    return true;
+  };
 
   // Apply automation rules
   const applyAutomationRules = useCallback((lead) => {
@@ -1136,8 +1141,12 @@ const CRMPage = () => {
                 }`} />
             </button>
           </div>
-          <ImportExport moduleName="Leads" fields={CRM_FIELDS} onImport={handleImport} onExport={handleExport} />
-          <Button onClick={() => setShowAddModal(true)}><Plus size={14} /> Add Lead</Button>
+          <CanAccess module="crm" action="export">
+            <ImportExport moduleName="Leads" fields={CRM_FIELDS} onImport={handleImport} onExport={handleExport} />
+          </CanAccess>
+          <CanCreate module="crm">
+            <Button onClick={() => setShowAddModal(true)}><Plus size={14} /> Add Lead</Button>
+          </CanCreate>
         </div>
       </div>
 
@@ -1416,12 +1425,17 @@ const CRMPage = () => {
                     className={`flex flex-col w-64 rounded-xl border transition-colors`}
                     onDragOver={e => { e.preventDefault(); }}
                     onDrop={(e) => {
+                      if (!can('crm', 'edit')) {
+                        toast.error('Permission denied: Cannot change lead status');
+                        return;
+                      }
                       const leadId = e.dataTransfer.getData('leadId');
                       if (leadId) {
                         const lead = enhancedLeads.find(l => l.id === leadId);
                         if (lead) {
                           const newLeads = activeLeads.map(l => l.id === leadId ? { ...l, stage: stage.id } : l);
                           setActiveLeads(newLeads);
+                          logUpdate({ id: leadId, stage: stage.id });
                         }
                       }
                     }}
@@ -1668,10 +1682,10 @@ const CRMPage = () => {
             selectedRows={selected}
             onSelectRows={setSelected}
             bulkActions={[
-              { label: 'Export', icon: Download, onClick: (rows) => console.log('Exporting', rows) },
-              { label: 'Assign', icon: Users, onClick: (rows) => console.log('Assigning', rows) },
-              { label: 'Score Boost', icon: Brain, onClick: (rows) => console.log('Boosting scores', rows) },
-              { label: 'Delete', icon: Trash2, onClick: (rows) => console.log('Soft Deleting', rows), danger: true },
+              { label: 'Export', icon: Download, onClick: (rows) => { if (guardExport()) console.log('Exporting', rows); } },
+              { label: 'Assign', icon: Users, onClick: (rows) => { if (guardEdit()) console.log('Assigning', rows); } },
+              { label: 'Score Boost', icon: Brain, onClick: (rows) => { if (guardEdit()) console.log('Boosting scores', rows); } },
+              { label: 'Delete', icon: Trash2, onClick: (rows) => { if (guardDelete()) console.log('Soft Deleting', rows); }, danger: true },
             ]}
             rowActions={[
               { label: 'View', icon: Eye, onClick: handleViewLead },

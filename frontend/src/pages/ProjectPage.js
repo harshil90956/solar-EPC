@@ -1,11 +1,11 @@
 // Solar OS – EPC Edition — ProjectPage.js
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   FolderOpen, Plus, Calendar, CheckCircle, Zap, TrendingUp, BarChart2,
   LayoutGrid, List, User, Clock
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
-import { PROJECTS, PROJECT_STAGE_TREND } from '../data/mockData';
+import { PROJECT_STAGE_TREND } from '../data/mockData';
 import { StatusBadge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
@@ -15,8 +15,15 @@ import { Progress } from '../components/ui/Progress';
 import { Stepper } from '../components/ui/Stepper';
 import DataTable from '../components/ui/DataTable';
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
+import { usePermissions } from '../hooks/usePermissions';
+import { useAuditLog } from '../hooks/useAuditLog';
+import CanAccess, { CanCreate, CanEdit, CanDelete } from '../components/CanAccess';
+import { toast } from '../components/ui/Toast';
 
 const fmt = CURRENCY.format;
+
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
+const TENANT_ID = 'solarcorp'; // Default tenant for seed data
 
 const KANBAN_STAGES = [
   { id: 'Survey', label: 'Survey', color: '#7c5cfc', bg: 'rgba(124,92,252,0.12)' },
@@ -122,6 +129,34 @@ const KanbanBoard = ({ projects, onStageChange, onCardClick }) => {
 
 /* ── Main Page ── */
 const ProjectPage = () => {
+  const { can } = usePermissions();
+  const { logCreate, logUpdate, logDelete, logStatusChange } = useAuditLog('project');
+
+  // Permission guard helpers
+  const guardCreate = () => {
+    if (!can('project', 'create')) {
+      toast.error('Permission denied: Cannot create projects');
+      return false;
+    }
+    return true;
+  };
+
+  const guardEdit = () => {
+    if (!can('project', 'edit')) {
+      toast.error('Permission denied: Cannot edit projects');
+      return false;
+    }
+    return true;
+  };
+
+  const guardDelete = () => {
+    if (!can('project', 'delete')) {
+      toast.error('Permission denied: Cannot delete projects');
+      return false;
+    }
+    return true;
+  };
+
   const [view, setView] = useState('kanban');
   const [search, setSearch] = useState('');
   const [statusFilter, setFilter] = useState('All');
@@ -129,11 +164,67 @@ const ProjectPage = () => {
   const [pageSize, setPageSize] = useState(APP_CONFIG.defaultPageSize);
   const [showAdd, setShowAdd] = useState(false);
   const [selected, setSelected] = useState(null);
-  const [projects, setProjects] = useState(PROJECTS);
+  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [form, setForm] = useState({ customerName: '', site: '', systemSize: '', pm: '', value: '', estEndDate: '' });
 
-  const handleStageChange = (id, newStage) =>
+  // Fetch projects from backend
+  useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`${API_BASE_URL}/projects?tenantId=${TENANT_ID}`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch projects');
+        }
+        const data = await response.json();
+        console.log('API Response:', data); // Debug log
+        // Ensure data is an array
+        const projectsArray = Array.isArray(data) ? data : (data.data || []);
+        // Transform backend data to match frontend format (projectId -> id)
+        const transformedProjects = projectsArray.map(p => ({
+          ...p,
+          id: p.projectId,
+        }));
+        setProjects(transformedProjects);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching projects:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProjects();
+  }, []);
+
+  const handleStageChange = async (id, newStage) => {
+    if (!can('project', 'edit')) {
+      toast.error('Permission denied: Cannot change project status');
+      return;
+    }
+    // Optimistic update
+    const project = projects.find(p => p.id === id);
     setProjects(prev => prev.map(p => p.id === id ? { ...p, status: newStage } : p));
+    logStatusChange(project, project.status, newStage);
+    
+    // API call to update status
+    try {
+      const response = await fetch(`${API_BASE_URL}/projects/${id}/status?tenantId=${TENANT_ID}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStage }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to update project status');
+      }
+    } catch (err) {
+      console.error('Error updating project status:', err);
+      // Optionally revert the change or show error
+    }
+  };
 
   const filtered = useMemo(() =>
     projects.filter(p =>
@@ -150,7 +241,7 @@ const ProjectPage = () => {
 
   const ROW_ACTIONS = [
     { label: 'View Details', icon: FolderOpen, onClick: row => setSelected(row) },
-    { label: 'Update Status', icon: CheckCircle, onClick: () => { } },
+    { label: 'Update Status', icon: CheckCircle, onClick: (row) => { if (guardEdit()) console.log('Update status', row); } },
     { label: 'View Timeline', icon: Calendar, onClick: () => { } },
   ];
 
@@ -170,7 +261,9 @@ const ProjectPage = () => {
             <button onClick={() => setView('table')}
               className={`view-toggle-btn ${view === 'table' ? 'active' : ''}`}><List size={14} /></button>
           </div>
-          <Button onClick={() => setShowAdd(true)}><Plus size={13} /> New Project</Button>
+          <CanCreate module="project">
+            <Button onClick={() => { if (guardCreate()) setShowAdd(true); }}><Plus size={13} /> New Project</Button>
+          </CanCreate>
         </div>
       </div>
 
@@ -216,7 +309,18 @@ const ProjectPage = () => {
             <p className="text-xs text-[var(--text-muted)]">Drag cards between columns to update project stage</p>
             <Input placeholder="Search projects…" value={search} onChange={e => setSearch(e.target.value)} className="h-8 text-xs w-52" />
           </div>
-          <KanbanBoard projects={filtered} onStageChange={handleStageChange} onCardClick={setSelected} />
+          {loading ? (
+            <div className="glass-card p-8 text-center">
+              <div className="animate-pulse text-[var(--text-muted)]">Loading projects...</div>
+            </div>
+          ) : error ? (
+            <div className="glass-card p-8 text-center text-red-500">
+              <p>Error loading projects: {error}</p>
+              <p className="text-xs mt-2 text-[var(--text-muted)]">Make sure the backend server is running on port 8000</p>
+            </div>
+          ) : (
+            <KanbanBoard projects={filtered} onStageChange={handleStageChange} onCardClick={setSelected} />
+          )}
         </>
       ) : (
         <>
@@ -242,7 +346,9 @@ const ProjectPage = () => {
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="New Project"
         footer={<div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={() => setShowAdd(false)}>Cancel</Button>
-          <Button onClick={() => setShowAdd(false)}><Plus size={13} /> Create Project</Button>
+          <CanCreate module="project">
+            <Button onClick={() => { if (guardCreate()) { console.log('Create Project'); setShowAdd(false); } }}><Plus size={13} /> Create Project</Button>
+          </CanCreate>
         </div>}>
         <div className="space-y-3">
           <FormField label="Customer Name"><Input placeholder="Customer name" value={form.customerName} onChange={e => setForm(f => ({ ...f, customerName: e.target.value }))} /></FormField>
@@ -268,13 +374,15 @@ const ProjectPage = () => {
         <Modal open={!!selected} onClose={() => setSelected(null)} title={`Project — ${selected.id}`}
           footer={<div className="flex gap-2 justify-end">
             <Button variant="ghost" onClick={() => setSelected(null)}>Close</Button>
-            <Button><CheckCircle size={13} /> Mark Stage Complete</Button>
+          <CanEdit module="project">
+            <Button onClick={() => { if (guardEdit()) console.log('Mark Stage Complete'); }}><CheckCircle size={13} /> Mark Stage Complete</Button>
+          </CanEdit>
           </div>}>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3 text-xs">
               {[['Customer', selected.customerName], ['Site', selected.site], ['System Size', `${selected.systemSize} kW`], ['Project Manager', selected.pm],
               ['Status', <StatusBadge domain="project" value={selected.status} />], ['Value', fmt(selected.value)],
-              ['Start Date', selected.startDate], ['Est. End Date', selected.estEndDate ?? '—']
+              // ...
               ].map(([k, v]) => (
                 <div key={k} className="glass-card p-2">
                   <div className="text-[var(--text-muted)] mb-0.5">{k}</div>
