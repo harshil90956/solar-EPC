@@ -15,6 +15,10 @@ import { Progress } from '../components/ui/Progress';
 import { Stepper } from '../components/ui/Stepper';
 import DataTable from '../components/ui/DataTable';
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
+import { usePermissions } from '../hooks/usePermissions';
+import { useAuditLog } from '../hooks/useAuditLog';
+import CanAccess, { CanCreate, CanEdit, CanDelete } from '../components/CanAccess';
+import { toast } from '../components/ui/Toast';
 
 const fmt = CURRENCY.format;
 
@@ -126,6 +130,34 @@ const KanbanBoard = ({ projects, onStageChange, onCardClick }) => {
 
 /* ── Main Page ── */
 const ProjectPage = () => {
+  const { can } = usePermissions();
+  const { logCreate, logUpdate, logDelete, logStatusChange } = useAuditLog('project');
+
+  // Permission guard helpers
+  const guardCreate = () => {
+    if (!can('project', 'create')) {
+      toast.error('Permission denied: Cannot create projects');
+      return false;
+    }
+    return true;
+  };
+
+  const guardEdit = () => {
+    if (!can('project', 'edit')) {
+      toast.error('Permission denied: Cannot edit projects');
+      return false;
+    }
+    return true;
+  };
+
+  const guardDelete = () => {
+    if (!can('project', 'delete')) {
+      toast.error('Permission denied: Cannot delete projects');
+      return false;
+    }
+    return true;
+  };
+
   const [view, setView] = useState('kanban');
   const [search, setSearch] = useState('');
   const [statusFilter, setFilter] = useState('All');
@@ -212,7 +244,9 @@ const ProjectPage = () => {
     }
     
     // Optimistic update
+    const project = projects.find(p => p.id === id);
     setProjects(prev => prev.map(p => p.id === id ? { ...p, status: newStage } : p));
+    logStatusChange(project, project.status, newStage);
     
     // API call to update status
     try {
@@ -490,7 +524,9 @@ const ProjectPage = () => {
             <button onClick={() => setView('table')}
               className={`view-toggle-btn ${view === 'table' ? 'active' : ''}`}><List size={14} /></button>
           </div>
-          <Button onClick={() => setShowAdd(true)}><Plus size={13} /> New Project</Button>
+          <CanCreate module="project">
+            <Button onClick={() => { if (guardCreate()) setShowAdd(true); }}><Plus size={13} /> New Project</Button>
+          </CanCreate>
         </div>
       </div>
 
@@ -671,7 +707,7 @@ const ProjectPage = () => {
             <div className="grid grid-cols-2 gap-3 text-xs">
               {[['Customer', selected.customerName], ['Site', selected.site], ['System Size', `${selected.systemSize} kW`], ['Project Manager', selected.pm],
               ['Status', <StatusBadge domain="project" value={selected.status} />], ['Value', fmt(selected.value)],
-              ['Start Date', selected.startDate], ['Est. End Date', selected.estEndDate ?? '—']
+              // ...
               ].map(([k, v]) => (
                 <div key={k} className="glass-card p-2">
                   <div className="text-[var(--text-muted)] mb-0.5">{k}</div>

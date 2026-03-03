@@ -12,7 +12,8 @@ import {
   CalendarDays, FileText, MessageSquareQuote, PhoneCall, Video,
   MailOpen, Send, CheckSquare, Square, ArrowRight, Sparkles,
   Brain, ZapOff, BatteryCharging, Wind, Sun, Moon, Cloud,
-  Gauge, Targeted, FilterX, SearchX, UserPlus, UserMinus
+  Gauge, Targeted, FilterX, SearchX, UserPlus, UserMinus,
+  Save, GitCommit
 } from 'lucide-react';
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
@@ -20,7 +21,8 @@ import {
   AreaChart, Area, RadarChart, Radar, PolarGrid, PolarAngleAxis,
   PolarRadiusAxis, Treemap, ComposedChart, ScatterChart, Scatter
 } from 'recharts';
-import { LEADS, PIPELINE_STAGES, USERS } from '../data/mockData';
+import { PIPELINE_STAGES, USERS } from '../data/mockData';
+import { leadsApi } from '../services/leadsApi';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input, Select, Textarea, FormField } from '../components/ui/Input';
@@ -28,8 +30,10 @@ import DataTable from '../components/ui/DataTable';
 import FilterSystem from '../components/ui/FilterSystem';
 import ImportExport from '../components/ui/ImportExport';
 import { useAuditLog } from '../hooks/useAuditLog';
+import { usePermissions } from '../hooks/usePermissions';
 import { CURRENCY } from '../config/app.config';
-import CanAccess from '../components/CanAccess';
+import CanAccess, { CanCreate, CanEdit } from '../components/CanAccess';
+import { toast } from '../components/ui/Toast';
 
 const fmt = CURRENCY.format;
 
@@ -511,24 +515,315 @@ const SalesTeamReport = () => {
 };
 
 const CRMPage = () => {
-  const [view, setView] = useState('dashboard');
-  const [activeLeads, setActiveLeads] = useState(LEADS);
+  const [view, setView] = useState('leads');
+  const [activeLeads, setActiveLeads] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [totalLeads, setTotalLeads] = useState(0);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [selected, setSelected] = useState(new Set());
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedLead, setSelectedLead] = useState(null);
-  const [kanbanView, setKanbanView] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingLead, setEditingLead] = useState(null);
+  const [showTimelineModal, setShowTimelineModal] = useState(false);
+  const [showActivityModal, setShowActivityModal] = useState(false);
+  const [timelineData, setTimelineData] = useState([]);
+  const [activityData, setActivityData] = useState([]);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [sort, setSort] = useState({ key: null, dir: 'asc' });
   const [leadScoring, setLeadScoring] = useState(true);
-  const [reportsView, setReportsView] = useState(false);
+  const [showSortDropdown, setShowSortDropdown] = useState(false);
+  const [showColumnsDropdown, setShowColumnsDropdown] = useState(false);
+  const sortDropdownRef = useRef(null);
+  const columnsDropdownRef = useRef(null);
+  const [showFiltersPanel, setShowFiltersPanel] = useState(false);
   const [automationRules, setAutomationRules] = useState([
     { id: 1, name: 'High Value Alert', condition: 'value > 500000', action: 'notify_manager', enabled: true },
     { id: 2, name: 'SLA Follow-up', condition: 'days_inactive > 3', action: 'send_email', enabled: true },
     { id: 3, name: 'Score Boost', condition: 'source == referral', action: 'add_10_points', enabled: false }
   ]);
 
+  const [activeFilters, setActiveFilters] = useState([]);
+  const [quickFilter, setQuickFilter] = useState(null);
+  const [visibleColumns, setVisibleColumns] = useState({
+    name: true,
+    email: true,
+    stage: true,
+    score: true,
+    value: true,
+    automation: true,
+    source: true
+  });
+
   const { logCreate, logUpdate, logDelete } = useAuditLog('CRM');
+  const { can } = usePermissions();
+
+  // Fetch leads from API with filters
+  const fetchLeads = useCallback(async () => {
+    try {
+      setLoading(true);
+      const params = {
+        page,
+        limit: pageSize,
+        search,
+      };
+      // Only add sort params if sort key is valid
+      if (sort.key) {
+        params.sortBy = sort.key;
+        params.sortOrder = sort.dir;
+      }
+      // Add quick filter
+      if (quickFilter) {
+        params.quickFilter = quickFilter;
+      }
+      const result = await leadsApi.getAll(params);
+      // Handle nested response structure: { success: true, data: { data: [], total: 0 } }
+      const leadsData = result.data?.data || result.data || [];
+      const totalCount = result.data?.total || result.total || 0;
+      setActiveLeads(leadsData);
+      setTotalLeads(totalCount);
+      setError(null);
+    } catch (err) {
+      console.error('Failed to fetch leads:', err);
+      setError('Failed to load leads. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, [page, pageSize, search, sort.key, sort.dir, quickFilter]);
+
+  useEffect(() => {
+    fetchLeads();
+  }, [fetchLeads]);
+
+  // Row Actions with real API calls
+  const handleViewLead = (lead) => {
+    setSelectedLead(lead);
+  };
+
+  const handleEditLead = (lead) => {
+    setEditingLead(lead);
+    setShowEditModal(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingLead) return;
+    try {
+      setActionLoading(true);
+      await leadsApi.update(editingLead._id, editingLead);
+      logUpdate(editingLead);
+      setShowEditModal(false);
+      setEditingLead(null);
+      fetchLeads(); // Refresh list
+      // If detail modal is open, refresh it
+      if (selectedLead && selectedLead._id === editingLead._id) {
+        const updated = await leadsApi.getById(editingLead._id);
+        setSelectedLead(updated.data || updated);
+      }
+    } catch (err) {
+      console.error('Failed to update lead:', err);
+      alert('Failed to update lead: ' + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDuplicateLead = async (lead) => {
+    try {
+      setActionLoading(true);
+      const duplicated = await leadsApi.duplicate(lead._id);
+      logCreate(duplicated.data || duplicated);
+      fetchLeads(); // Refresh list
+      alert(`Lead "${lead.name}" duplicated successfully!`);
+    } catch (err) {
+      console.error('Failed to duplicate lead:', err);
+      alert('Failed to duplicate lead: ' + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleArchiveLead = async (lead) => {
+    try {
+      setActionLoading(true);
+      await leadsApi.archive(lead._id);
+      logUpdate({ ...lead, archived: true });
+      fetchLeads(); // Refresh list
+      if (selectedLead && selectedLead._id === lead._id) {
+        setSelectedLead(null); // Close detail modal
+      }
+      alert(`Lead "${lead.name}" archived!`);
+    } catch (err) {
+      console.error('Failed to archive lead:', err);
+      alert('Failed to archive lead: ' + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDeleteLead = async (lead) => {
+    if (!window.confirm(`Are you sure you want to delete "${lead.name}"?`)) return;
+    try {
+      setActionLoading(true);
+      await leadsApi.delete(lead._id);
+      logDelete(lead);
+      fetchLeads(); // Refresh list
+      if (selectedLead && selectedLead._id === lead._id) {
+        setSelectedLead(null); // Close detail modal
+      }
+      alert(`Lead "${lead.name}" deleted!`);
+    } catch (err) {
+      console.error('Failed to delete lead:', err);
+      alert('Failed to delete lead: ' + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRecalculateScore = async (lead) => {
+    try {
+      setActionLoading(true);
+      await leadsApi.recalculateScores();
+      fetchLeads(); // Refresh list
+      alert('Scores recalculated!');
+    } catch (err) {
+      console.error('Failed to recalculate scores:', err);
+      alert('Failed to recalculate scores: ' + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleViewTimeline = async (lead) => {
+    try {
+      setActionLoading(true);
+      const result = await leadsApi.getTimeline(lead._id);
+      setTimelineData(result.data || result || []);
+      setShowTimelineModal(true);
+    } catch (err) {
+      console.error('Failed to fetch timeline:', err);
+      alert('Failed to fetch timeline: ' + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleViewActivity = async (lead) => {
+    try {
+      setActionLoading(true);
+      // Activity is same as timeline for now
+      const result = await leadsApi.getTimeline(lead._id);
+      setActivityData(result.data || result || []);
+      setShowActivityModal(true);
+    } catch (err) {
+      console.error('Failed to fetch activity:', err);
+      alert('Failed to fetch activity: ' + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Bulk Actions
+  const handleBulkExport = (selectedIds) => {
+    const leadsToExport = sortedLeads.filter(l => selectedIds.includes(l._id));
+    const headers = ['Name', 'Company', 'Email', 'Phone', 'Stage', 'Source', 'Value', 'Score', 'City'];
+    const csvContent = [
+      headers.join(','),
+      ...leadsToExport.map(lead => [
+        `"${lead.name || ''}"`,
+        `"${lead.company || ''}"`,
+        `"${lead.email || ''}"`,
+        `"${lead.phone || ''}"`,
+        `"${lead.stage || ''}"`,
+        `"${lead.source || ''}"`,
+        lead.value || 0,
+        lead.score || 0,
+        `"${lead.city || ''}"`
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `leads_export_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    alert(`Exported ${leadsToExport.length} leads to CSV!`);
+  };
+
+  const handleBulkDelete = async (selectedIds) => {
+    if (!window.confirm(`Are you sure you want to delete ${selectedIds.length} leads?`)) return;
+    try {
+      setActionLoading(true);
+      await leadsApi.bulkDelete(selectedIds);
+      logDelete({ ids: selectedIds });
+      fetchLeads();
+      setSelected(new Set());
+      alert(`${selectedIds.length} leads deleted!`);
+    } catch (err) {
+      console.error('Failed to bulk delete:', err);
+      alert('Failed to delete leads: ' + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Add Lead
+  const [newLead, setNewLead] = useState({
+    name: '',
+    company: '',
+    email: '',
+    phone: '',
+    source: '',
+    city: '',
+    notes: ''
+  });
+
+  const handleCreateLead = async () => {
+    try {
+      setActionLoading(true);
+      const created = await leadsApi.create(newLead);
+      logCreate(created.data || created);
+      setShowAddModal(false);
+      setNewLead({ name: '', company: '', email: '', phone: '', source: '', city: '', notes: '' });
+      fetchLeads(); // Refresh list
+      alert('Lead created successfully!');
+    } catch (err) {
+      console.error('Failed to create lead:', err);
+      alert('Failed to create lead: ' + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Handle call lead
+  const handleCallLead = (lead) => {
+    if (lead.phone) {
+      window.location.href = `tel:${lead.phone}`;
+    } else {
+      alert('No phone number available for this lead');
+    }
+  };
+
+  const guardDelete = () => {
+    if (!can('crm', 'delete')) {
+      toast.error('Permission denied: Cannot delete leads');
+      return false;
+    }
+    return true;
+  };
+
+  const guardExport = () => {
+    if (!can('crm', 'export')) {
+      toast.error('Permission denied: Cannot export leads');
+      return false;
+    }
+    return true;
+  };
 
   // Apply automation rules
   const applyAutomationRules = useCallback((lead) => {
@@ -606,77 +901,209 @@ const CRMPage = () => {
     }));
   }, [activeLeads, applyAutomationRules]);
 
-  const columns = useMemo(() => [
-    {
-      key: 'name', header: 'Lead', sortable: true,
-      render: (val, row) => (
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center font-bold text-xs">
-            {val[0]}
-          </div>
-          <div>
-            <p className="font-bold text-[var(--text-primary)]">{val}</p>
-            <p className="text-[10px] text-[var(--text-muted)]">{row.company || 'Individual'}</p>
-          </div>
-        </div>
-      )
-    },
-    { key: 'email', header: 'Email', sortable: true },
-    {
-      key: 'stage', header: 'Stage', sortable: true,
-      render: (val) => {
-        const stage = PIPELINE_STAGES.find(s => s.id === val) || { label: val, color: '#94a3b8' };
-        return (
-          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ color: stage.color, background: `${stage.color}15`, border: `1px solid ${stage.color}25` }}>
-            {stage.label}
-          </span>
-        );
+  // Apply filters to leads
+  const filteredLeads = useMemo(() => {
+    let result = enhancedLeads;
+    
+    // Quick filter
+    if (quickFilter) {
+      switch (quickFilter) {
+        case 'highScore':
+          result = result.filter(l => l.score > 75);
+          break;
+        case 'slaBreached':
+          result = result.filter(l => l.slaBreached);
+          break;
+        case 'highValue':
+          result = result.filter(l => l.value > 500000);
+          break;
+        case 'referral':
+          result = result.filter(l => l.source === 'Referral');
+          break;
+        case 'automation':
+          result = result.filter(l => l.automation && l.automation.length > 0);
+          break;
+        case 'recent':
+          result = result.filter(l => {
+            const daysSince = Math.floor((new Date() - new Date(l.createdAt)) / (1000 * 60 * 60 * 24));
+            return daysSince <= 7;
+          });
+          break;
       }
-    },
-    {
-      key: 'score', header: 'Score', sortable: true,
-      render: (val) => (
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1">
-            <Brain size={10} className="text-[var(--text-muted)]" />
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${val >= 75 ? 'text-emerald-500 bg-emerald-500/10' :
-              val >= 50 ? 'text-amber-500 bg-amber-500/10' :
-                'text-red-500 bg-red-500/10'
-              }`}>{val || 0}pts</span>
+    }
+    
+    // Advanced filters
+    if (activeFilters.length > 0) {
+      result = result.filter(lead => {
+        return activeFilters.every(filter => {
+          const value = lead[filter.field];
+          const filterValue = filter.value;
+          
+          switch (filter.operator) {
+            case 'equals':
+            case 'eq':
+              return String(value).toLowerCase() === String(filterValue).toLowerCase();
+            case 'contains':
+              return String(value).toLowerCase().includes(String(filterValue).toLowerCase());
+            case 'gt':
+              return Number(value) > Number(filterValue);
+            case 'lt':
+              return Number(value) < Number(filterValue);
+            case 'gte':
+              return Number(value) >= Number(filterValue);
+            case 'lte':
+              return Number(value) <= Number(filterValue);
+            default:
+              return true;
+          }
+        });
+      });
+    }
+    
+    // Search filter
+    if (search) {
+      const searchLower = search.toLowerCase();
+      result = result.filter(lead => 
+        lead.name?.toLowerCase().includes(searchLower) ||
+        lead.email?.toLowerCase().includes(searchLower) ||
+        lead.company?.toLowerCase().includes(searchLower) ||
+        lead.phone?.includes(search) ||
+        lead.source?.toLowerCase().includes(searchLower)
+      );
+    }
+    
+    return result;
+  }, [enhancedLeads, quickFilter, activeFilters, search]);
+
+  // Sort handler for DataTable
+  const handleSort = useCallback(({ key, dir }) => {
+    setSort({ key, dir });
+  }, []);
+
+  // Apply sorting to filtered leads
+  const sortedLeads = useMemo(() => {
+    if (!sort.key) return filteredLeads;
+    
+    return [...filteredLeads].sort((a, b) => {
+      let aVal = a[sort.key];
+      let bVal = b[sort.key];
+      
+      // Handle null/undefined values
+      if (aVal == null) aVal = '';
+      if (bVal == null) bVal = '';
+      
+      // String comparison
+      if (typeof aVal === 'string') {
+        aVal = aVal.toLowerCase();
+        bVal = bVal.toLowerCase();
+      }
+      
+      if (aVal < bVal) return sort.dir === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sort.dir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [filteredLeads, sort]);
+
+  const columns = useMemo(() => {
+    const allColumns = [
+      {
+        key: 'name', header: 'Lead', sortable: true, width: '220px',
+        render: (val, row) => (
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center font-bold text-[11px] shrink-0">
+              {val[0]}
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-[13px] text-[var(--text-primary)] truncate">{val}</p>
+              <p className="text-[10px] text-[var(--text-muted)] truncate">{row.company || 'Individual'}</p>
+            </div>
           </div>
-        </div>
-      )
-    },
-    {
-      key: 'value', header: 'Value', sortable: true,
-      render: (val) => <span className="font-bold text-[var(--accent)]">{fmt(val || 0)}</span>
-    },
-    {
-      key: 'automation', header: 'Automation', sortable: false,
-      render: (val) => (
-        <div className="flex items-center gap-1">
-          {val && val.length > 0 ? (
-            <>
-              <Sparkles size={12} className="text-amber-500" />
-              <span className="text-[10px] text-amber-500 font-bold">{val.length} Active</span>
-            </>
+        )
+      },
+      { key: 'email', header: 'Email', sortable: true, width: '180px' },
+      {
+        key: 'stage', header: 'Stage', sortable: true, width: '120px',
+        render: (val) => {
+          const stage = PIPELINE_STAGES.find(s => s.id === val) || { label: val, color: '#94a3b8' };
+          return (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap" style={{ color: stage.color, background: `${stage.color}15`, border: `1px solid ${stage.color}25` }}>
+              {stage.label}
+            </span>
+          );
+        }
+      },
+      {
+        key: 'score', header: 'Score', sortable: true, width: '80px',
+        render: (val) => (
+          <span className={`text-[11px] font-bold ${val >= 75 ? 'text-emerald-500' :
+            val >= 50 ? 'text-amber-500' : 'text-red-500'
+          }`}>{val || 0}pts</span>
+        )
+      },
+      {
+        key: 'value', header: 'Value', sortable: true, width: '100px',
+        render: (val) => <span className="font-semibold text-[13px] text-[var(--accent)]">{fmt(val || 0)}</span>
+      },
+      {
+        key: 'automation', header: 'Auto', sortable: false, width: '70px',
+        render: (val) => (
+          val && val.length > 0 ? (
+            <span className="text-[10px] text-amber-500 font-medium">{val.length} Active</span>
           ) : (
-            <span className="text-[10px] text-[var(--text-muted)]">None</span>
-          )}
-        </div>
-      )
-    },
-    { key: 'source', header: 'Source' },
-  ], []);
+            <span className="text-[10px] text-[var(--text-muted)]">—</span>
+          )
+        )
+      },
+      { key: 'source', header: 'Source', width: '100px' },
+    ];
+    return allColumns.filter(col => visibleColumns[col.key] !== false);
+  }, [visibleColumns]);
 
   const handleImport = ({ file, mapping }) => {
     console.log('Importing from', file.name, 'with mapping', mapping);
-    // Mock success
     logCreate({ id: 'import', name: `Import from ${file.name}` });
+    alert(`Import successful! ${file.name} is being processed.`);
   };
 
   const handleExport = (format) => {
-    console.log('Exporting as', format);
+    const dataToExport = sortedLeads;
+    const headers = ['Name', 'Company', 'Email', 'Phone', 'Stage', 'Source', 'Value', 'Score', 'City'];
+    const csvContent = [
+      headers.join(','),
+      ...dataToExport.map(lead => [
+        `"${lead.name || ''}"`,
+        `"${lead.company || ''}"`,
+        `"${lead.email || ''}"`,
+        `"${lead.phone || ''}"`,
+        `"${lead.stage || ''}"`,
+        `"${lead.source || ''}"`,
+        lead.value || 0,
+        lead.score || 0,
+        `"${lead.city || ''}"`
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `leads_export_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    alert(`Exported ${dataToExport.length} leads to CSV!`);
+  };
+
+  const toggleColumn = (colKey) => {
+    setVisibleColumns(prev => ({ ...prev, [colKey]: !prev[colKey] }));
+  };
+
+  const applySort = (key) => {
+    setSort(prev => ({
+      key,
+      dir: prev.key === key && prev.dir === 'asc' ? 'desc' : 'asc'
+    }));
+    setShowSortDropdown(false);
   };
 
   return (
@@ -692,13 +1119,13 @@ const CRMPage = () => {
             <button onClick={() => setView('dashboard')} className={`view-toggle-btn ${view === 'dashboard' ? 'active' : ''}`}>
               <LayoutDashboard size={14} /> Dashboard
             </button>
-            <button onClick={() => setView('table')} className={`view-toggle-btn ${view === 'table' ? 'active' : ''}`}>
+            <button onClick={() => setView('leads')} className={`view-toggle-btn ${view === 'leads' ? 'active' : ''}`}>
               <List size={14} /> Leads
             </button>
-            <button onClick={() => setKanbanView(!kanbanView)} className={`view-toggle-btn ${kanbanView ? 'active' : ''}`}>
+            <button onClick={() => setView('kanban')} className={`view-toggle-btn ${view === 'kanban' ? 'active' : ''}`}>
               <LayoutDashboard size={14} /> Kanban
             </button>
-            <button onClick={() => setReportsView(!reportsView)} className={`view-toggle-btn ${reportsView ? 'active' : ''}`}>
+            <button onClick={() => setView('reports')} className={`view-toggle-btn ${view === 'reports' ? 'active' : ''}`}>
               <BarChart2 size={14} /> Reports
             </button>
           </div>
@@ -714,8 +1141,12 @@ const CRMPage = () => {
                 }`} />
             </button>
           </div>
-          <ImportExport moduleName="Leads" fields={CRM_FIELDS} onImport={handleImport} onExport={handleExport} />
-          <Button onClick={() => setShowAddModal(true)}><Plus size={14} /> Add Lead</Button>
+          <CanAccess module="crm" action="export">
+            <ImportExport moduleName="Leads" fields={CRM_FIELDS} onImport={handleImport} onExport={handleExport} />
+          </CanAccess>
+          <CanCreate module="crm">
+            <Button onClick={() => setShowAddModal(true)}><Plus size={14} /> Add Lead</Button>
+          </CanCreate>
         </div>
       </div>
 
@@ -726,7 +1157,7 @@ const CRMPage = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <DashboardKPI
               title="Total Leads"
-              value={LEADS.length}
+              value={totalLeads}
               change={12.5}
               icon={Users}
               color="#3b82f6"
@@ -735,7 +1166,7 @@ const CRMPage = () => {
             />
             <DashboardKPI
               title="Pipeline Value"
-              value={fmt(LEADS.reduce((s, l) => s + (l.value || 0), 0))}
+              value={fmt(activeLeads.reduce((s, l) => s + (l.value || 0), 0))}
               change={8.2}
               icon={DollarSign}
               color="#22c55e"
@@ -753,7 +1184,7 @@ const CRMPage = () => {
             />
             <DashboardKPI
               title="Avg Deal Size"
-              value={fmt(LEADS.reduce((s, l) => s + (l.value || 0), 0) / LEADS.length || 0)}
+              value={fmt(activeLeads.reduce((s, l) => s + (l.value || 0), 0) / (totalLeads || 1))}
               change={-3.4}
               icon={TrendingUp}
               color="#f59e0b"
@@ -855,7 +1286,7 @@ const CRMPage = () => {
       )}
 
       {/* ── Comprehensive Reports View ── */}
-      {reportsView && (
+      {view === 'reports' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
@@ -966,7 +1397,7 @@ const CRMPage = () => {
       )}
 
       {/* ── Kanban Board View ── */}
-      {kanbanView && !reportsView && (
+      {view === 'kanban' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -994,12 +1425,17 @@ const CRMPage = () => {
                     className={`flex flex-col w-64 rounded-xl border transition-colors`}
                     onDragOver={e => { e.preventDefault(); }}
                     onDrop={(e) => {
+                      if (!can('crm', 'edit')) {
+                        toast.error('Permission denied: Cannot change lead status');
+                        return;
+                      }
                       const leadId = e.dataTransfer.getData('leadId');
                       if (leadId) {
                         const lead = enhancedLeads.find(l => l.id === leadId);
                         if (lead) {
                           const newLeads = activeLeads.map(l => l.id === leadId ? { ...l, stage: stage.id } : l);
                           setActiveLeads(newLeads);
+                          logUpdate({ id: leadId, stage: stage.id });
                         }
                       }
                     }}
@@ -1103,8 +1539,8 @@ const CRMPage = () => {
         </div>
       )}
 
-      {/* ── Advanced Filtering and Search ── */}
-      {view === 'table' && !kanbanView && !reportsView && (
+      {/* ── Leads Table View ── */}
+      {view === 'leads' && (
         <div className="space-y-4">
           {/* Advanced Search Bar */}
           <div className="glass-card p-4">
@@ -1118,92 +1554,148 @@ const CRMPage = () => {
                   className="pl-10"
                 />
               </div>
-              <button className="px-4 py-2 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] text-sm font-medium text-[var(--text-muted)] hover:bg-[var(--bg-hovered)] transition-colors flex items-center gap-2">
-                <Filter size={14} />
-                Advanced Filters
-                <span className="px-2 py-0.5 rounded-full bg-[var(--primary)] text-white text-[10px] font-bold">3</span>
-              </button>
-              <button className="px-4 py-2 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] text-sm font-medium text-[var(--text-muted)] hover:bg-[var(--bg-hovered)] transition-colors flex items-center gap-2">
-                <SortAsc size={14} />
-                Sort
-              </button>
+              <div className="relative" ref={sortDropdownRef}>
+                <button 
+                  onClick={() => setShowSortDropdown(!showSortDropdown)}
+                  className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors flex items-center gap-2 ${showSortDropdown ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : 'bg-[var(--bg-elevated)] border-[var(--border-base)] text-[var(--text-muted)] hover:bg-[var(--bg-hovered)]'}`}
+                >
+                  {sort.dir === 'asc' ? <SortAsc size={14} /> : <SortDesc size={14} />}
+                  Sort
+                </button>
+                {showSortDropdown && (
+                  <div className="absolute right-0 top-full mt-2 w-48 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] shadow-lg z-50">
+                    <div className="p-2">
+                      <p className="text-[10px] text-[var(--text-muted)] px-2 py-1">Sort by</p>
+                      {[
+                        { key: 'name', label: 'Lead Name' },
+                        { key: 'email', label: 'Email' },
+                        { key: 'stage', label: 'Stage' },
+                        { key: 'score', label: 'Lead Score' },
+                        { key: 'value', label: 'Deal Value' },
+                        { key: 'source', label: 'Source' }
+                      ].map((col) => (
+                        <button
+                          key={col.key}
+                          onClick={() => applySort(col.key)}
+                          className={`w-full text-left px-3 py-2 rounded text-xs flex items-center justify-between hover:bg-[var(--bg-hovered)] ${sort.key === col.key ? 'text-[var(--primary)] font-bold' : 'text-[var(--text-secondary)]'}`}
+                        >
+                          {col.label}
+                          {sort.key === col.key && (
+                            sort.dir === 'asc' ? <SortAsc size={12} /> : <SortDesc size={12} />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="relative" ref={columnsDropdownRef}>
+                <button 
+                  onClick={() => setShowColumnsDropdown(!showColumnsDropdown)}
+                  className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors flex items-center gap-2 ${showColumnsDropdown ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : 'bg-[var(--bg-elevated)] border-[var(--border-base)] text-[var(--text-muted)] hover:bg-[var(--bg-hovered)]'}`}
+                >
+                  <LayoutDashboard size={14} />
+                  Columns
+                </button>
+                {showColumnsDropdown && (
+                  <div className="absolute right-0 top-full mt-2 w-48 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] shadow-lg z-50">
+                    <div className="p-2">
+                      <p className="text-[10px] text-[var(--text-muted)] px-2 py-1">Show/Hide Columns</p>
+                      {[
+                        { key: 'name', label: 'Lead' },
+                        { key: 'email', label: 'Email' },
+                        { key: 'stage', label: 'Stage' },
+                        { key: 'score', label: 'Score' },
+                        { key: 'value', label: 'Value' },
+                        { key: 'automation', label: 'Automation' },
+                        { key: 'source', label: 'Source' }
+                      ].map((col) => (
+                        <label
+                          key={col.key}
+                          className="flex items-center gap-2 px-3 py-2 rounded text-xs cursor-pointer hover:bg-[var(--bg-hovered)]"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={visibleColumns[col.key] !== false}
+                            onChange={() => toggleColumn(col.key)}
+                            className="w-4 h-4 rounded border-[var(--border-base)]"
+                          />
+                          <span className={visibleColumns[col.key] !== false ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}>
+                            {col.label}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Quick Filter Pills */}
             <div className="flex items-center gap-2 mt-3 flex-wrap">
               <span className="text-xs text-[var(--text-muted)] font-medium">Quick Filters:</span>
               {[
-                { label: 'High Score (>75)', filter: 'score > 75', color: 'emerald' },
-                { label: 'SLA Breached', filter: 'sla_breached = true', color: 'red' },
-                { label: 'High Value (>5L)', filter: 'value > 500000', color: 'blue' },
-                { label: 'Referral Source', filter: 'source = referral', color: 'purple' },
-                { label: 'Active Automation', filter: 'automation_count > 0', color: 'amber' },
-                { label: 'Last 7 Days', filter: 'created_days <= 7', color: 'cyan' }
+                { label: 'High Score (>75)', id: 'highScore', color: 'emerald' },
+                { label: 'SLA Breached', id: 'slaBreached', color: 'red' },
+                { label: 'High Value (>5L)', id: 'highValue', color: 'blue' },
+                { label: 'Referral Source', id: 'referral', color: 'purple' },
+                { label: 'Active Automation', id: 'automation', color: 'amber' },
+                { label: 'Last 7 Days', id: 'recent', color: 'cyan' }
               ].map((filter) => (
                 <button
-                  key={filter.label}
-                  className={`px-3 py-1 rounded-full text-[10px] font-medium border transition-colors ${'border-' + filter.color + '-500/30 text-' + filter.color + '-600 bg-' + filter.color + '-50 hover:bg-' + filter.color + '-100'
-                    }`}
+                  key={filter.id}
+                  onClick={() => setQuickFilter(quickFilter === filter.id ? null : filter.id)}
+                  className={`px-3 py-1 rounded-full text-[10px] font-medium border transition-all ${
+                    quickFilter === filter.id 
+                      ? `bg-${filter.color}-500 text-white border-${filter.color}-500` 
+                      : `border-${filter.color}-500/30 text-${filter.color}-600 bg-${filter.color}-50 hover:bg-${filter.color}-100`
+                  }`}
                 >
                   {filter.label}
                 </button>
               ))}
+              {(quickFilter || activeFilters.length > 0 || search) && (
+                <button
+                  onClick={() => { setQuickFilter(null); setActiveFilters([]); setSearch(''); }}
+                  className="px-3 py-1 rounded-full text-[10px] font-medium border border-gray-500/30 text-gray-600 bg-gray-50 hover:bg-gray-100 transition-colors"
+                >
+                  Clear All
+                </button>
+              )}
             </div>
           </div>
 
-          <FilterSystem
-            fields={[
-              ...CRM_FIELDS,
-              { id: 'score', label: 'Lead Score', type: 'number' },
-              { id: 'slaBreached', label: 'SLA Breached', type: 'boolean' },
-              { id: 'automationCount', label: 'Automation Rules', type: 'number' },
-              { id: 'createdDays', label: 'Days Since Created', type: 'number' },
-              { id: 'lastActivity', label: 'Last Activity', type: 'date' }
-            ]}
-            onApply={(f) => console.log('Advanced Filters Applied:', f)}
-            presets={[
-              { name: 'Hot Leads', filters: [{ field: 'score', operator: 'gt', value: '75', logic: 'AND' }] },
-              { name: 'High Value', filters: [{ field: 'value', operator: 'gt', value: '500000', logic: 'AND' }] },
-              {
-                name: 'At Risk', filters: [
-                  { field: 'slaBreached', operator: 'eq', value: 'true', logic: 'AND' },
-                  { field: 'score', operator: 'lt', value: '50', logic: 'OR' }
-                ]
-              },
-              { name: 'Recent', filters: [{ field: 'createdDays', operator: 'lt', value: '7', logic: 'AND' }] },
-              {
-                name: 'Referral Power', filters: [
-                  { field: 'source', operator: 'eq', value: 'Referral', logic: 'AND' },
-                  { field: 'value', operator: 'gt', value: '200000', logic: 'AND' }
-                ]
-              }
-            ]}
-          />
-
           <DataTable
             columns={columns}
-            data={enhancedLeads.slice((page - 1) * pageSize, page * pageSize)}
-            total={enhancedLeads.length}
+            data={sortedLeads}
+            rowKey="_id"
+            total={sortedLeads.length}
             page={page}
             pageSize={pageSize}
             onPageChange={setPage}
             onPageSizeChange={setPageSize}
+            onSort={handleSort}
+            onRowClick={(row) => setSelectedLead(row)}
+            sort={sort}
             search={search}
             onSearch={setSearch}
             selectedRows={selected}
             onSelectRows={setSelected}
             bulkActions={[
-              { label: 'Export', icon: Download, onClick: (rows) => console.log('Exporting', rows) },
-              { label: 'Assign', icon: Users, onClick: (rows) => console.log('Assigning', rows) },
-              { label: 'Score Boost', icon: Brain, onClick: (rows) => console.log('Boosting scores', rows) },
-              { label: 'Delete', icon: Trash2, onClick: (rows) => console.log('Soft Deleting', rows), danger: true },
+              { label: 'Export', icon: Download, onClick: (rows) => { if (guardExport()) console.log('Exporting', rows); } },
+              { label: 'Assign', icon: Users, onClick: (rows) => { if (guardEdit()) console.log('Assigning', rows); } },
+              { label: 'Score Boost', icon: Brain, onClick: (rows) => { if (guardEdit()) console.log('Boosting scores', rows); } },
+              { label: 'Delete', icon: Trash2, onClick: (rows) => { if (guardDelete()) console.log('Soft Deleting', rows); }, danger: true },
             ]}
             rowActions={[
-              { label: 'Edit', icon: Edit2, onClick: (r) => console.log('Edit', r) },
-              { label: 'Duplicate', icon: RefreshCw, onClick: (r) => console.log('Duplicate', r) },
-              { label: 'Score', icon: Brain, onClick: (r) => console.log('Recalculate score', r) },
-              { label: 'Archive', icon: Building2, onClick: (r) => console.log('Archive', r) },
-              { label: 'Delete', icon: Trash2, onClick: (r) => { logDelete(r); console.log('Delete', r); }, danger: true },
+              { label: 'View', icon: Eye, onClick: handleViewLead },
+              { label: 'Edit', icon: Edit2, onClick: handleEditLead },
+              { label: 'Duplicate', icon: RefreshCw, onClick: handleDuplicateLead },
+              { label: 'Score', icon: Brain, onClick: handleRecalculateScore },
+              { label: 'Archive', icon: Building2, onClick: handleArchiveLead },
+              { label: 'Delete', icon: Trash2, onClick: handleDeleteLead, danger: true },
+              { label: 'Timeline', icon: Clock, onClick: handleViewTimeline },
+              { label: 'Activity Log', icon: Activity, onClick: handleViewActivity },
             ]}
           />
         </div>
@@ -1217,35 +1709,81 @@ const CRMPage = () => {
         footer={
           <div className="flex gap-2 justify-end">
             <Button variant="ghost" onClick={() => setShowAddModal(false)}>Cancel</Button>
-            <Button onClick={() => setShowAddModal(false)}><Plus size={13} /> Create Lead</Button>
+            <Button onClick={handleCreateLead} disabled={actionLoading}>
+            {actionLoading ? 'Creating...' : <><Plus size={13} /> Create Lead</>}
+          </Button>
           </div>
         }
       >
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="First Name"><Input placeholder="Enter first name" /></FormField>
-            <FormField label="Last Name"><Input placeholder="Enter last name" /></FormField>
+            <FormField label="First Name">
+              <Input 
+                placeholder="Enter first name" 
+                value={newLead.name}
+                onChange={(e) => setNewLead({...newLead, name: e.target.value})}
+              />
+            </FormField>
+            <FormField label="Last Name">
+              <Input 
+                placeholder="Enter last name"
+                value={newLead.company}
+                onChange={(e) => setNewLead({...newLead, company: e.target.value})}
+              />
+            </FormField>
           </div>
-          <FormField label="Company"><Input placeholder="Company name (optional)" /></FormField>
+          <FormField label="Company">
+            <Input 
+              placeholder="Company name (optional)"
+              value={newLead.company}
+              onChange={(e) => setNewLead({...newLead, company: e.target.value})}
+            />
+          </FormField>
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="Email"><Input type="email" placeholder="email@example.com" /></FormField>
-            <FormField label="Phone"><Input placeholder="+91 98765 43210" /></FormField>
+            <FormField label="Email">
+              <Input 
+                type="email" 
+                placeholder="email@example.com"
+                value={newLead.email}
+                onChange={(e) => setNewLead({...newLead, email: e.target.value})}
+              />
+            </FormField>
+            <FormField label="Phone">
+              <Input 
+                placeholder="+91 98765 43210"
+                value={newLead.phone}
+                onChange={(e) => setNewLead({...newLead, phone: e.target.value})}
+              />
+            </FormField>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <FormField label="Source">
-              <Select>
+              <Select
+                value={newLead.source}
+                onChange={(e) => setNewLead({...newLead, source: e.target.value})}
+              >
                 <option value="">Select source</option>
                 {SOURCES.filter(s => s !== 'All').map(s => <option key={s}>{s}</option>)}
               </Select>
             </FormField>
             <FormField label="City">
-              <Select>
+              <Select
+                value={newLead.city}
+                onChange={(e) => setNewLead({...newLead, city: e.target.value})}
+              >
                 <option value="">Select city</option>
                 {CITIES.filter(c => c !== 'All').map(c => <option key={c}>{c}</option>)}
               </Select>
             </FormField>
           </div>
-          <FormField label="Notes"><Textarea placeholder="Additional notes..." rows={3} /></FormField>
+          <FormField label="Notes">
+            <Textarea 
+              placeholder="Additional notes..." 
+              rows={3}
+              value={newLead.notes}
+              onChange={(e) => setNewLead({...newLead, notes: e.target.value})}
+            />
+          </FormField>
         </div>
       </Modal>
 
@@ -1259,8 +1797,8 @@ const CRMPage = () => {
             footer={
               <div className="flex gap-2 justify-end">
                 <Button variant="ghost" onClick={() => setSelectedLead(null)}>Close</Button>
-                <Button variant="outline"><Edit2 size={13} /> Edit</Button>
-                <Button><Phone size={13} /> Call Lead</Button>
+                <Button variant="outline" onClick={() => handleEditLead(selectedLead)}><Edit2 size={13} /> Edit</Button>
+                <Button onClick={() => handleCallLead(selectedLead)}><Phone size={13} /> Call Lead</Button>
               </div>
             }
           >
@@ -1338,8 +1876,8 @@ const CRMPage = () => {
                 <div>
                   <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2">Recent Activity</p>
                   <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                    {selectedLead.activities.slice(0, 4).map(act => (
-                      <div key={act.id} className="flex gap-2.5 text-xs">
+                    {selectedLead.activities.slice(0, 4).map((act, idx) => (
+                      <div key={act.id || `activity-${idx}`} className="flex gap-2.5 text-xs">
                         <div className="w-6 h-6 rounded-full bg-[var(--bg-elevated)] border border-[var(--border-base)] flex items-center justify-center shrink-0 mt-0.5">
                           {act.type === 'call' && <Phone size={10} className="text-emerald-400" />}
                           {act.type === 'email' && <Mail size={10} className="text-blue-400" />}
@@ -1359,6 +1897,166 @@ const CRMPage = () => {
           </Modal>
         )
       }
+
+      {/* EDIT LEAD MODAL */}
+      {showEditModal && editingLead && (
+        <Modal
+          open={showEditModal}
+          onClose={() => { setShowEditModal(false); setEditingLead(null); }}
+          title={`Edit Lead — ${editingLead.name}`}
+          footer={
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" onClick={() => { setShowEditModal(false); setEditingLead(null); }}>Cancel</Button>
+              <Button onClick={handleSaveEdit} disabled={actionLoading}>
+                {actionLoading ? 'Saving...' : <><Save size={13} /> Save Changes</>}
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Name">
+                <Input 
+                  value={editingLead.name}
+                  onChange={(e) => setEditingLead({...editingLead, name: e.target.value})}
+                />
+              </FormField>
+              <FormField label="Company">
+                <Input 
+                  value={editingLead.company || ''}
+                  onChange={(e) => setEditingLead({...editingLead, company: e.target.value})}
+                />
+              </FormField>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Email">
+                <Input 
+                  type="email"
+                  value={editingLead.email || ''}
+                  onChange={(e) => setEditingLead({...editingLead, email: e.target.value})}
+                />
+              </FormField>
+              <FormField label="Phone">
+                <Input 
+                  value={editingLead.phone || ''}
+                  onChange={(e) => setEditingLead({...editingLead, phone: e.target.value})}
+                />
+              </FormField>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Stage">
+                <Select
+                  value={editingLead.stage}
+                  onChange={(e) => setEditingLead({...editingLead, stage: e.target.value})}
+                >
+                  {PIPELINE_STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                </Select>
+              </FormField>
+              <FormField label="Source">
+                <Select
+                  value={editingLead.source}
+                  onChange={(e) => setEditingLead({...editingLead, source: e.target.value})}
+                >
+                  {SOURCES.filter(s => s !== 'All').map(s => <option key={s}>{s}</option>)}
+                </Select>
+              </FormField>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Value (₹)">
+                <Input 
+                  type="number"
+                  value={editingLead.value || 0}
+                  onChange={(e) => setEditingLead({...editingLead, value: parseInt(e.target.value) || 0})}
+                />
+              </FormField>
+              <FormField label="City">
+                <Input 
+                  value={editingLead.city || ''}
+                  onChange={(e) => setEditingLead({...editingLead, city: e.target.value})}
+                />
+              </FormField>
+            </div>
+            <FormField label="Notes">
+              <Textarea 
+                rows={3}
+                value={editingLead.notes || ''}
+                onChange={(e) => setEditingLead({...editingLead, notes: e.target.value})}
+              />
+            </FormField>
+          </div>
+        </Modal>
+      )}
+
+      {/* TIMELINE MODAL */}
+      {showTimelineModal && (
+        <Modal
+          open={showTimelineModal}
+          onClose={() => setShowTimelineModal(false)}
+          title="Lead Timeline"
+          footer={
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" onClick={() => setShowTimelineModal(false)}>Close</Button>
+            </div>
+          }
+        >
+          <div className="space-y-3 max-h-80 overflow-y-auto">
+            {timelineData.length === 0 ? (
+              <p className="text-sm text-[var(--text-muted)]">No timeline events found.</p>
+            ) : (
+              timelineData.map((event, idx) => (
+                <div key={idx} className="flex gap-3 text-sm border-l-2 border-[var(--border-subtle)] pl-3 py-1">
+                  <div className="w-6 h-6 rounded-full bg-[var(--bg-elevated)] flex items-center justify-center shrink-0">
+                    {event.type === 'call' && <Phone size={12} className="text-emerald-400" />}
+                    {event.type === 'email' && <Mail size={12} className="text-blue-400" />}
+                    {event.type === 'stage_change' && <GitCommit size={12} className="text-purple-400" />}
+                    {event.type === 'created' && <UserPlus size={12} className="text-green-400" />}
+                    {event.type === 'note' && <FileText size={12} className="text-amber-400" />}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-[var(--text-primary)]">{event.note}</p>
+                    <p className="text-[10px] text-[var(--text-muted)]">{event.ts} · {event.by}</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </Modal>
+      )}
+
+      {/* ACTIVITY LOG MODAL */}
+      {showActivityModal && (
+        <Modal
+          open={showActivityModal}
+          onClose={() => setShowActivityModal(false)}
+          title="Activity Log"
+          footer={
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" onClick={() => setShowActivityModal(false)}>Close</Button>
+            </div>
+          }
+        >
+          <div className="space-y-3 max-h-80 overflow-y-auto">
+            {activityData.length === 0 ? (
+              <p className="text-sm text-[var(--text-muted)]">No activities found.</p>
+            ) : (
+              activityData.map((act, idx) => (
+                <div key={idx} className="flex gap-3 text-sm p-2 rounded-lg bg-[var(--bg-elevated)]">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center shrink-0">
+                    {act.type === 'call' && <Phone size={14} className="text-white" />}
+                    {act.type === 'email' && <Mail size={14} className="text-white" />}
+                    {act.type === 'whatsapp' && <MessageSquare size={14} className="text-white" />}
+                    {act.type === 'note' && <FileText size={14} className="text-white" />}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-[var(--text-primary)] font-medium">{act.note}</p>
+                    <p className="text-[10px] text-[var(--text-muted)]">{act.ts} · {act.by}</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </Modal>
+      )}
 
     </div >
   );

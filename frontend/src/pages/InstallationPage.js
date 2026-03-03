@@ -11,6 +11,10 @@ import { KPICard } from '../components/ui/KPICard';
 import { Progress } from '../components/ui/Progress';
 import DataTable from '../components/ui/DataTable';
 import { APP_CONFIG } from '../config/app.config';
+import { usePermissions } from '../hooks/usePermissions';
+import { useAuditLog } from '../hooks/useAuditLog';
+import CanAccess, { CanCreate, CanEdit, CanDelete } from '../components/CanAccess';
+import { toast } from '../components/ui/Toast';
 
 // Local installation data
 const INSTALLATION_LOGS = [
@@ -173,6 +177,34 @@ const InstallKanbanBoard = ({ logs, onStageChange, onCardClick }) => {
 
 /* ── Main Page ── */
 const InstallationPage = () => {
+  const { can } = usePermissions();
+  const { logCreate, logUpdate, logDelete, logStatusChange } = useAuditLog('installation');
+
+  // Permission guard helpers
+  const guardCreate = () => {
+    if (!can('installation', 'create')) {
+      toast.error('Permission denied: Cannot create installation logs');
+      return false;
+    }
+    return true;
+  };
+
+  const guardEdit = () => {
+    if (!can('installation', 'edit')) {
+      toast.error('Permission denied: Cannot edit installation');
+      return false;
+    }
+    return true;
+  };
+
+  const guardDelete = () => {
+    if (!can('installation', 'delete')) {
+      toast.error('Permission denied: Cannot delete installation logs');
+      return false;
+    }
+    return true;
+  };
+
   const [view, setView] = useState('kanban');
   const [search, setSearch] = useState('');
   const [statusFilter, setFilter] = useState('All');
@@ -182,8 +214,15 @@ const InstallationPage = () => {
   const [selected, setSelected] = useState(null);
   const [logs, setLogs] = useState(INSTALLATION_LOGS);
 
-  const handleStageChange = (id, newStatus) =>
+  const handleStageChange = (id, newStatus) => {
+    if (!can('installation', 'edit')) {
+      toast.error('Permission denied: Cannot change installation status');
+      return;
+    }
+    const log = logs.find(l => l.id === id);
     setLogs(prev => prev.map(l => l.id === id ? { ...l, status: newStatus } : l));
+    logStatusChange(log, log.status, newStatus);
+  };
 
   const filtered = useMemo(() =>
     logs.filter(l =>
@@ -198,9 +237,9 @@ const InstallationPage = () => {
   const avgProg = Math.round(logs.reduce((a, l) => a + l.progress, 0) / logs.length);
 
   const ROW_ACTIONS = [
-    { label: 'View Log', icon: Wrench, onClick: row => setSelected(row) },
-    { label: 'Upload Photos', icon: Camera, onClick: () => { } },
-    { label: 'Mark Complete', icon: CheckCircle, onClick: () => { } },
+    { label: 'View Log', icon: Camera, onClick: row => setSelected(row) },
+    { label: 'Add Photo', icon: Camera, onClick: (row) => { if (guardEdit()) console.log('Add Photo', row); } },
+    { label: 'Mark Complete', icon: CheckCircle, onClick: (row) => { if (guardEdit()) console.log('Mark Complete', row); } },
   ];
 
   return (
@@ -298,7 +337,9 @@ const InstallationPage = () => {
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="New Installation Log"
         footer={<div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={() => setShowAdd(false)}>Cancel</Button>
-          <Button onClick={() => setShowAdd(false)}><Plus size={13} /> Create Log</Button>
+          <CanCreate module="installation">
+            <Button onClick={() => { if (guardCreate()) setShowAdd(true); }}><Plus size={13} /> New Log</Button>
+          </CanCreate>
         </div>}>
         <div className="space-y-3">
           <FormField label="Project">
