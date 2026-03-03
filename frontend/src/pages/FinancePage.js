@@ -17,7 +17,7 @@ import DataTable from '../components/ui/DataTable';
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
 import { usePermissions } from '../hooks/usePermissions';
 import { useAuditLog } from '../hooks/useAuditLog';
-import CanAccess, { CanCreate, CanEdit, CanDelete } from '../components/CanAccess';
+import CanAccess, { CanCreate } from '../components/CanAccess';
 import { toast } from '../components/ui/Toast';
 
 const fmt = CURRENCY.format;
@@ -185,6 +185,50 @@ const FinancePage = () => {
     paymentTerms: '',
     description: '',
   });
+
+  // Get permissions hook at component level
+  const { can } = usePermissions();
+
+  // Guard functions for permission checks
+  const guardCreate = () => {
+    if (!can('finance', 'create')) {
+      toast.error('Permission denied: Cannot create invoices');
+      return false;
+    }
+    return true;
+  };
+
+  const guardApprove = () => {
+    if (!can('finance', 'approve')) {
+      toast.error('Permission denied: Cannot approve payments');
+      return false;
+    }
+    return true;
+  };
+
+  const guardDelete = () => {
+    if (!can('finance', 'delete')) {
+      toast.error('Permission denied: Cannot delete invoices');
+      return false;
+    }
+    return true;
+  };
+
+  const guardUpdate = () => {
+    if (!can('finance', 'update')) {
+      toast.error('Permission denied: Cannot update invoices');
+      return false;
+    }
+    return true;
+  };
+
+  const guardView = () => {
+    if (!can('finance', 'view')) {
+      toast.error('Permission denied: Cannot view invoices');
+      return false;
+    }
+    return true;
+  };
 
   // Fetch data on mount
   useEffect(() => {
