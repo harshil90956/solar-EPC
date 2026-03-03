@@ -32,7 +32,7 @@ export class CreateProjectDto {
   @Min(0)
   systemSize!: number;
 
-  @IsEnum(['Survey', 'Design', 'Quotation', 'Procurement', 'Installation', 'Commissioned', 'On Hold'])
+  @IsEnum(['Survey', 'Design', 'Quotation', 'Procurement', 'Installation', 'Commissioned', 'On Hold', 'Cancelled'])
   status!: string;
 
   @IsString()
@@ -64,7 +64,7 @@ export class CreateProjectDto {
 export class UpdateProjectDto extends PartialType(CreateProjectDto) {}
 
 export class UpdateProjectStatusDto {
-  @IsEnum(['Survey', 'Design', 'Quotation', 'Procurement', 'Installation', 'Commissioned', 'On Hold'])
+  @IsEnum(['Survey', 'Design', 'Quotation', 'Procurement', 'Installation', 'Commissioned', 'On Hold', 'Cancelled'])
   status!: string;
 
   @IsOptional()
@@ -72,4 +72,18 @@ export class UpdateProjectStatusDto {
   @Min(0)
   @Max(100)
   progress?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MilestoneDto)
+  milestones?: MilestoneDto[];
+
+  @IsOptional()
+  @IsString()
+  cancelledBy?: string;
+
+  @IsOptional()
+  @IsString()
+  userRole?: string;
 }

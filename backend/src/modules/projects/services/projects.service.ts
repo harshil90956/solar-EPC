@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Project } from '../schemas/project.schema';
@@ -78,11 +78,39 @@ export class ProjectsService {
     tenantCode: string,
     projectId: string,
     updateStatusDto: UpdateProjectStatusDto,
+    userRole?: string,
   ) {
     const tenantId = await this.getTenantId(tenantCode);
+    
+    // Role validation for Cancelled status
+    if (updateStatusDto.status === 'Cancelled') {
+      const allowedRoles = ['Admin', 'Project Manager'];
+      if (!userRole || !allowedRoles.includes(userRole)) {
+        throw new UnauthorizedException('Only Admin or Project Manager can cancel a project');
+      }
+    }
+    
+    // Build update object dynamically
+    const updateData: any = {
+      status: updateStatusDto.status,
+    };
+    
+    if (updateStatusDto.progress !== undefined) {
+      updateData.progress = updateStatusDto.progress;
+    }
+    
+    if (updateStatusDto.milestones !== undefined) {
+      updateData.milestones = updateStatusDto.milestones;
+    }
+    
+    // Handle Cancelled status timestamp
+    if (updateStatusDto.status === 'Cancelled') {
+      updateData.cancelledAt = new Date();
+    }
+    
     const project = await this.projectModel.findOneAndUpdate(
       { tenantId, projectId },
-      { $set: { status: updateStatusDto.status, progress: updateStatusDto.progress } },
+      { $set: updateData },
       { new: true },
     ).exec();
 
@@ -115,6 +143,7 @@ export class ProjectsService {
         $match: {
           tenantId,
           isDeleted: false,
+          status: { $ne: 'Cancelled' }, // Exclude cancelled projects from stats
         },
       },
       {
@@ -151,6 +180,7 @@ export class ProjectsService {
         $match: {
           tenantId,
           isDeleted: false,
+          status: { $ne: 'Cancelled' }, // Exclude cancelled projects
         },
       },
       {

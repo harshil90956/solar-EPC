@@ -65,7 +65,12 @@ export class ProjectsController {
     @Param('projectId') projectId: string,
     @Body() updateStatusDto: UpdateProjectStatusDto,
   ) {
-    return this.projectsService.updateStatus(tenantId, projectId, updateStatusDto);
+    return this.projectsService.updateStatus(
+      tenantId, 
+      projectId, 
+      updateStatusDto,
+      updateStatusDto.userRole
+    );
   }
 
   @Delete(':projectId')
