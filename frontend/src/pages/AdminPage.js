@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import {
   USERS, PROJECTS, LEADS, INVENTORY, TICKETS, QUOTATIONS,
-  VENDORS, PURCHASE_ORDERS, PIPELINE_STAGES
+  VENDORS, PIPELINE_STAGES
 } from '../data/mockData';
 import { StatusBadge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
