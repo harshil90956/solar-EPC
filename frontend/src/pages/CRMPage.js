@@ -29,8 +29,10 @@ import DataTable from '../components/ui/DataTable';
 import FilterSystem from '../components/ui/FilterSystem';
 import ImportExport from '../components/ui/ImportExport';
 import { useAuditLog } from '../hooks/useAuditLog';
+import { usePermissions } from '../hooks/usePermissions';
 import { CURRENCY } from '../config/app.config';
-import CanAccess from '../components/CanAccess';
+import CanAccess, { CanCreate, CanEdit } from '../components/CanAccess';
+import { toast } from '../components/ui/Toast';
 
 const fmt = CURRENCY.format;
 
@@ -527,6 +529,8 @@ const CRMPage = () => {
   const [leadScoring, setLeadScoring] = useState(true);
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const [showColumnsDropdown, setShowColumnsDropdown] = useState(false);
+  const sortDropdownRef = useRef(null);
+  const columnsDropdownRef = useRef(null);
   const [showFiltersPanel, setShowFiltersPanel] = useState(false);
   const [automationRules, setAutomationRules] = useState([
     { id: 1, name: 'High Value Alert', condition: 'value > 500000', action: 'notify_manager', enabled: true },
@@ -547,55 +551,40 @@ const CRMPage = () => {
   });
 
   const { logCreate, logUpdate, logDelete } = useAuditLog('CRM');
-  const sortDropdownRef = useRef(null);
-  const columnsDropdownRef = useRef(null);
+  const { can } = usePermissions();
 
-  // Fetch leads from API
-  useEffect(() => {
-    const fetchLeads = async () => {
-      try {
-        setLoading(true);
-        const params = {
-          page,
-          limit: pageSize,
-          search,
-        };
-        // Only add sort params if sort key is valid
-        if (sort.key) {
-          params.sortBy = sort.key;
-          params.sortOrder = sort.dir;
-        }
-        const result = await leadsApi.getAll(params);
-        // Handle nested response structure: { success: true, data: { data: [], total: 0 } }
-        const leadsData = result.data?.data || result.data || [];
-        const totalCount = result.data?.total || result.total || 0;
-        setActiveLeads(leadsData);
-        setTotalLeads(totalCount);
-        setError(null);
-      } catch (err) {
-        console.error('Failed to fetch leads:', err);
-        setError('Failed to load leads. Please try again.');
-      } finally {
-        setLoading(false);
-      }
-    };
+  // Permission guard helpers
+  const guardCreate = () => {
+    if (!can('crm', 'create')) {
+      toast.error('Permission denied: Cannot create leads');
+      return false;
+    }
+    return true;
+  };
 
-    fetchLeads();
-  }, [page, pageSize, search, sort.key, sort.dir]);
+  const guardEdit = () => {
+    if (!can('crm', 'edit')) {
+      toast.error('Permission denied: Cannot edit leads');
+      return false;
+    }
+    return true;
+  };
 
-  // Close dropdowns when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (sortDropdownRef.current && !sortDropdownRef.current.contains(event.target)) {
-        setShowSortDropdown(false);
-      }
-      if (columnsDropdownRef.current && !columnsDropdownRef.current.contains(event.target)) {
-        setShowColumnsDropdown(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  const guardDelete = () => {
+    if (!can('crm', 'delete')) {
+      toast.error('Permission denied: Cannot delete leads');
+      return false;
+    }
+    return true;
+  };
+
+  const guardExport = () => {
+    if (!can('crm', 'export')) {
+      toast.error('Permission denied: Cannot export leads');
+      return false;
+    }
+    return true;
+  };
 
   // Apply automation rules
   const applyAutomationRules = useCallback((lead) => {
@@ -913,8 +902,12 @@ const CRMPage = () => {
                 }`} />
             </button>
           </div>
-          <ImportExport moduleName="Leads" fields={CRM_FIELDS} onImport={handleImport} onExport={handleExport} />
-          <Button onClick={() => setShowAddModal(true)}><Plus size={14} /> Add Lead</Button>
+          <CanAccess module="crm" action="export">
+            <ImportExport moduleName="Leads" fields={CRM_FIELDS} onImport={handleImport} onExport={handleExport} />
+          </CanAccess>
+          <CanCreate module="crm">
+            <Button onClick={() => setShowAddModal(true)}><Plus size={14} /> Add Lead</Button>
+          </CanCreate>
         </div>
       </div>
 
@@ -1193,12 +1186,17 @@ const CRMPage = () => {
                     className={`flex flex-col w-64 rounded-xl border transition-colors`}
                     onDragOver={e => { e.preventDefault(); }}
                     onDrop={(e) => {
+                      if (!can('crm', 'edit')) {
+                        toast.error('Permission denied: Cannot change lead status');
+                        return;
+                      }
                       const leadId = e.dataTransfer.getData('leadId');
                       if (leadId) {
                         const lead = enhancedLeads.find(l => l.id === leadId);
                         if (lead) {
                           const newLeads = activeLeads.map(l => l.id === leadId ? { ...l, stage: stage.id } : l);
                           setActiveLeads(newLeads);
+                          logUpdate({ id: leadId, stage: stage.id });
                         }
                       }
                     }}
@@ -1444,18 +1442,17 @@ const CRMPage = () => {
             selectedRows={selected}
             onSelectRows={setSelected}
             bulkActions={[
-              { label: 'Export', icon: Download, onClick: (rows) => console.log('Exporting', rows) },
-              { label: 'Assign', icon: Users, onClick: (rows) => console.log('Assigning', rows) },
-              { label: 'Score Boost', icon: Brain, onClick: (rows) => console.log('Boosting scores', rows) },
-              { label: 'Delete', icon: Trash2, onClick: (rows) => console.log('Soft Deleting', rows), danger: true },
+              { label: 'Export', icon: Download, onClick: (rows) => { if (guardExport()) console.log('Exporting', rows); } },
+              { label: 'Assign', icon: Users, onClick: (rows) => { if (guardEdit()) console.log('Assigning', rows); } },
+              { label: 'Score Boost', icon: Brain, onClick: (rows) => { if (guardEdit()) console.log('Boosting scores', rows); } },
+              { label: 'Delete', icon: Trash2, onClick: (rows) => { if (guardDelete()) console.log('Soft Deleting', rows); }, danger: true },
             ]}
             rowActions={[
-              { label: 'View', icon: Eye, onClick: (r) => setSelectedLead(r) },
-              { label: 'Edit', icon: Edit2, onClick: (r) => console.log('Edit', r) },
-              { label: 'Duplicate', icon: RefreshCw, onClick: (r) => console.log('Duplicate', r) },
-              { label: 'Score', icon: Brain, onClick: (r) => console.log('Recalculate score', r) },
-              { label: 'Archive', icon: Building2, onClick: (r) => console.log('Archive', r) },
-              { label: 'Delete', icon: Trash2, onClick: (r) => { logDelete(r); console.log('Delete', r); }, danger: true },
+              { label: 'Edit', icon: Edit2, onClick: (r) => { if (guardEdit()) console.log('Edit', r); } },
+              { label: 'Duplicate', icon: RefreshCw, onClick: (r) => { if (guardCreate()) console.log('Duplicate', r); } },
+              { label: 'Score', icon: Brain, onClick: (r) => { if (guardEdit()) console.log('Recalculate score', r); } },
+              { label: 'Archive', icon: Building2, onClick: (r) => { if (guardEdit()) console.log('Archive', r); } },
+              { label: 'Delete', icon: Trash2, onClick: (r) => { if (guardDelete()) { logDelete(r); console.log('Delete', r); } }, danger: true },
             ]}
           />
         </div>
@@ -1469,7 +1466,12 @@ const CRMPage = () => {
         footer={
           <div className="flex gap-2 justify-end">
             <Button variant="ghost" onClick={() => setShowAddModal(false)}>Cancel</Button>
-            <Button onClick={() => setShowAddModal(false)}><Plus size={13} /> Create Lead</Button>
+            <Button onClick={() => {
+              if (guardCreate()) {
+                setShowAddModal(false);
+                logCreate({ id: 'new', name: 'New Lead' });
+              }
+            }}><Plus size={13} /> Create Lead</Button>
           </div>
         }
       >
@@ -1511,7 +1513,9 @@ const CRMPage = () => {
             footer={
               <div className="flex gap-2 justify-end">
                 <Button variant="ghost" onClick={() => setSelectedLead(null)}>Close</Button>
-                <Button variant="outline"><Edit2 size={13} /> Edit</Button>
+                <CanEdit module="crm">
+                  <Button variant="outline" onClick={() => { if (guardEdit()) console.log('Editing lead', selectedLead); }}><Edit2 size={13} /> Edit</Button>
+                </CanEdit>
                 <Button><Phone size={13} /> Call Lead</Button>
               </div>
             }
