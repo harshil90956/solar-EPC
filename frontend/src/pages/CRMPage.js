@@ -12,7 +12,8 @@ import {
   CalendarDays, FileText, MessageSquareQuote, PhoneCall, Video,
   MailOpen, Send, CheckSquare, Square, ArrowRight, Sparkles,
   Brain, ZapOff, BatteryCharging, Wind, Sun, Moon, Cloud,
-  Gauge, Targeted, FilterX, SearchX, UserPlus, UserMinus
+  Gauge, Targeted, FilterX, SearchX, UserPlus, UserMinus,
+  Save, GitCommit
 } from 'lucide-react';
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
@@ -523,6 +524,13 @@ const CRMPage = () => {
   const [selected, setSelected] = useState(new Set());
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedLead, setSelectedLead] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingLead, setEditingLead] = useState(null);
+  const [showTimelineModal, setShowTimelineModal] = useState(false);
+  const [showActivityModal, setShowActivityModal] = useState(false);
+  const [timelineData, setTimelineData] = useState([]);
+  const [activityData, setActivityData] = useState([]);
+  const [actionLoading, setActionLoading] = useState(false);
   const [sort, setSort] = useState({ key: null, dir: 'asc' });
   const [leadScoring, setLeadScoring] = useState(true);
   const [showSortDropdown, setShowSortDropdown] = useState(false);
@@ -550,38 +558,253 @@ const CRMPage = () => {
   const sortDropdownRef = useRef(null);
   const columnsDropdownRef = useRef(null);
 
-  // Fetch leads from API
-  useEffect(() => {
-    const fetchLeads = async () => {
-      try {
-        setLoading(true);
-        const params = {
-          page,
-          limit: pageSize,
-          search,
-        };
-        // Only add sort params if sort key is valid
-        if (sort.key) {
-          params.sortBy = sort.key;
-          params.sortOrder = sort.dir;
-        }
-        const result = await leadsApi.getAll(params);
-        // Handle nested response structure: { success: true, data: { data: [], total: 0 } }
-        const leadsData = result.data?.data || result.data || [];
-        const totalCount = result.data?.total || result.total || 0;
-        setActiveLeads(leadsData);
-        setTotalLeads(totalCount);
-        setError(null);
-      } catch (err) {
-        console.error('Failed to fetch leads:', err);
-        setError('Failed to load leads. Please try again.');
-      } finally {
-        setLoading(false);
+  // Fetch leads from API with filters
+  const fetchLeads = useCallback(async () => {
+    try {
+      setLoading(true);
+      const params = {
+        page,
+        limit: pageSize,
+        search,
+      };
+      // Only add sort params if sort key is valid
+      if (sort.key) {
+        params.sortBy = sort.key;
+        params.sortOrder = sort.dir;
       }
-    };
+      // Add quick filter
+      if (quickFilter) {
+        params.quickFilter = quickFilter;
+      }
+      const result = await leadsApi.getAll(params);
+      // Handle nested response structure: { success: true, data: { data: [], total: 0 } }
+      const leadsData = result.data?.data || result.data || [];
+      const totalCount = result.data?.total || result.total || 0;
+      setActiveLeads(leadsData);
+      setTotalLeads(totalCount);
+      setError(null);
+    } catch (err) {
+      console.error('Failed to fetch leads:', err);
+      setError('Failed to load leads. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, [page, pageSize, search, sort.key, sort.dir, quickFilter]);
 
+  useEffect(() => {
     fetchLeads();
-  }, [page, pageSize, search, sort.key, sort.dir]);
+  }, [fetchLeads]);
+
+  // Row Actions with real API calls
+  const handleViewLead = (lead) => {
+    setSelectedLead(lead);
+  };
+
+  const handleEditLead = (lead) => {
+    setEditingLead(lead);
+    setShowEditModal(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingLead) return;
+    try {
+      setActionLoading(true);
+      await leadsApi.update(editingLead._id, editingLead);
+      logUpdate(editingLead);
+      setShowEditModal(false);
+      setEditingLead(null);
+      fetchLeads(); // Refresh list
+      // If detail modal is open, refresh it
+      if (selectedLead && selectedLead._id === editingLead._id) {
+        const updated = await leadsApi.getById(editingLead._id);
+        setSelectedLead(updated.data || updated);
+      }
+    } catch (err) {
+      console.error('Failed to update lead:', err);
+      alert('Failed to update lead: ' + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDuplicateLead = async (lead) => {
+    try {
+      setActionLoading(true);
+      const duplicated = await leadsApi.duplicate(lead._id);
+      logCreate(duplicated.data || duplicated);
+      fetchLeads(); // Refresh list
+      alert(`Lead "${lead.name}" duplicated successfully!`);
+    } catch (err) {
+      console.error('Failed to duplicate lead:', err);
+      alert('Failed to duplicate lead: ' + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleArchiveLead = async (lead) => {
+    try {
+      setActionLoading(true);
+      await leadsApi.archive(lead._id);
+      logUpdate({ ...lead, archived: true });
+      fetchLeads(); // Refresh list
+      if (selectedLead && selectedLead._id === lead._id) {
+        setSelectedLead(null); // Close detail modal
+      }
+      alert(`Lead "${lead.name}" archived!`);
+    } catch (err) {
+      console.error('Failed to archive lead:', err);
+      alert('Failed to archive lead: ' + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDeleteLead = async (lead) => {
+    if (!window.confirm(`Are you sure you want to delete "${lead.name}"?`)) return;
+    try {
+      setActionLoading(true);
+      await leadsApi.delete(lead._id);
+      logDelete(lead);
+      fetchLeads(); // Refresh list
+      if (selectedLead && selectedLead._id === lead._id) {
+        setSelectedLead(null); // Close detail modal
+      }
+      alert(`Lead "${lead.name}" deleted!`);
+    } catch (err) {
+      console.error('Failed to delete lead:', err);
+      alert('Failed to delete lead: ' + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRecalculateScore = async (lead) => {
+    try {
+      setActionLoading(true);
+      await leadsApi.recalculateScores();
+      fetchLeads(); // Refresh list
+      alert('Scores recalculated!');
+    } catch (err) {
+      console.error('Failed to recalculate scores:', err);
+      alert('Failed to recalculate scores: ' + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleViewTimeline = async (lead) => {
+    try {
+      setActionLoading(true);
+      const result = await leadsApi.getTimeline(lead._id);
+      setTimelineData(result.data || result || []);
+      setShowTimelineModal(true);
+    } catch (err) {
+      console.error('Failed to fetch timeline:', err);
+      alert('Failed to fetch timeline: ' + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleViewActivity = async (lead) => {
+    try {
+      setActionLoading(true);
+      // Activity is same as timeline for now
+      const result = await leadsApi.getTimeline(lead._id);
+      setActivityData(result.data || result || []);
+      setShowActivityModal(true);
+    } catch (err) {
+      console.error('Failed to fetch activity:', err);
+      alert('Failed to fetch activity: ' + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Bulk Actions
+  const handleBulkExport = (selectedIds) => {
+    const leadsToExport = sortedLeads.filter(l => selectedIds.includes(l._id));
+    const headers = ['Name', 'Company', 'Email', 'Phone', 'Stage', 'Source', 'Value', 'Score', 'City'];
+    const csvContent = [
+      headers.join(','),
+      ...leadsToExport.map(lead => [
+        `"${lead.name || ''}"`,
+        `"${lead.company || ''}"`,
+        `"${lead.email || ''}"`,
+        `"${lead.phone || ''}"`,
+        `"${lead.stage || ''}"`,
+        `"${lead.source || ''}"`,
+        lead.value || 0,
+        lead.score || 0,
+        `"${lead.city || ''}"`
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `leads_export_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    alert(`Exported ${leadsToExport.length} leads to CSV!`);
+  };
+
+  const handleBulkDelete = async (selectedIds) => {
+    if (!window.confirm(`Are you sure you want to delete ${selectedIds.length} leads?`)) return;
+    try {
+      setActionLoading(true);
+      await leadsApi.bulkDelete(selectedIds);
+      logDelete({ ids: selectedIds });
+      fetchLeads();
+      setSelected(new Set());
+      alert(`${selectedIds.length} leads deleted!`);
+    } catch (err) {
+      console.error('Failed to bulk delete:', err);
+      alert('Failed to delete leads: ' + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Add Lead
+  const [newLead, setNewLead] = useState({
+    name: '',
+    company: '',
+    email: '',
+    phone: '',
+    source: '',
+    city: '',
+    notes: ''
+  });
+
+  const handleCreateLead = async () => {
+    try {
+      setActionLoading(true);
+      const created = await leadsApi.create(newLead);
+      logCreate(created.data || created);
+      setShowAddModal(false);
+      setNewLead({ name: '', company: '', email: '', phone: '', source: '', city: '', notes: '' });
+      fetchLeads(); // Refresh list
+      alert('Lead created successfully!');
+    } catch (err) {
+      console.error('Failed to create lead:', err);
+      alert('Failed to create lead: ' + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Handle call lead
+  const handleCallLead = (lead) => {
+    if (lead.phone) {
+      window.location.href = `tel:${lead.phone}`;
+    } else {
+      alert('No phone number available for this lead');
+    }
+  };
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -1438,6 +1661,7 @@ const CRMPage = () => {
             onPageChange={setPage}
             onPageSizeChange={setPageSize}
             onSort={handleSort}
+            onRowClick={(row) => setSelectedLead(row)}
             sort={sort}
             search={search}
             onSearch={setSearch}
@@ -1450,12 +1674,14 @@ const CRMPage = () => {
               { label: 'Delete', icon: Trash2, onClick: (rows) => console.log('Soft Deleting', rows), danger: true },
             ]}
             rowActions={[
-              { label: 'View', icon: Eye, onClick: (r) => setSelectedLead(r) },
-              { label: 'Edit', icon: Edit2, onClick: (r) => console.log('Edit', r) },
-              { label: 'Duplicate', icon: RefreshCw, onClick: (r) => console.log('Duplicate', r) },
-              { label: 'Score', icon: Brain, onClick: (r) => console.log('Recalculate score', r) },
-              { label: 'Archive', icon: Building2, onClick: (r) => console.log('Archive', r) },
-              { label: 'Delete', icon: Trash2, onClick: (r) => { logDelete(r); console.log('Delete', r); }, danger: true },
+              { label: 'View', icon: Eye, onClick: handleViewLead },
+              { label: 'Edit', icon: Edit2, onClick: handleEditLead },
+              { label: 'Duplicate', icon: RefreshCw, onClick: handleDuplicateLead },
+              { label: 'Score', icon: Brain, onClick: handleRecalculateScore },
+              { label: 'Archive', icon: Building2, onClick: handleArchiveLead },
+              { label: 'Delete', icon: Trash2, onClick: handleDeleteLead, danger: true },
+              { label: 'Timeline', icon: Clock, onClick: handleViewTimeline },
+              { label: 'Activity Log', icon: Activity, onClick: handleViewActivity },
             ]}
           />
         </div>
@@ -1469,35 +1695,81 @@ const CRMPage = () => {
         footer={
           <div className="flex gap-2 justify-end">
             <Button variant="ghost" onClick={() => setShowAddModal(false)}>Cancel</Button>
-            <Button onClick={() => setShowAddModal(false)}><Plus size={13} /> Create Lead</Button>
+            <Button onClick={handleCreateLead} disabled={actionLoading}>
+            {actionLoading ? 'Creating...' : <><Plus size={13} /> Create Lead</>}
+          </Button>
           </div>
         }
       >
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="First Name"><Input placeholder="Enter first name" /></FormField>
-            <FormField label="Last Name"><Input placeholder="Enter last name" /></FormField>
+            <FormField label="First Name">
+              <Input 
+                placeholder="Enter first name" 
+                value={newLead.name}
+                onChange={(e) => setNewLead({...newLead, name: e.target.value})}
+              />
+            </FormField>
+            <FormField label="Last Name">
+              <Input 
+                placeholder="Enter last name"
+                value={newLead.company}
+                onChange={(e) => setNewLead({...newLead, company: e.target.value})}
+              />
+            </FormField>
           </div>
-          <FormField label="Company"><Input placeholder="Company name (optional)" /></FormField>
+          <FormField label="Company">
+            <Input 
+              placeholder="Company name (optional)"
+              value={newLead.company}
+              onChange={(e) => setNewLead({...newLead, company: e.target.value})}
+            />
+          </FormField>
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="Email"><Input type="email" placeholder="email@example.com" /></FormField>
-            <FormField label="Phone"><Input placeholder="+91 98765 43210" /></FormField>
+            <FormField label="Email">
+              <Input 
+                type="email" 
+                placeholder="email@example.com"
+                value={newLead.email}
+                onChange={(e) => setNewLead({...newLead, email: e.target.value})}
+              />
+            </FormField>
+            <FormField label="Phone">
+              <Input 
+                placeholder="+91 98765 43210"
+                value={newLead.phone}
+                onChange={(e) => setNewLead({...newLead, phone: e.target.value})}
+              />
+            </FormField>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <FormField label="Source">
-              <Select>
+              <Select
+                value={newLead.source}
+                onChange={(e) => setNewLead({...newLead, source: e.target.value})}
+              >
                 <option value="">Select source</option>
                 {SOURCES.filter(s => s !== 'All').map(s => <option key={s}>{s}</option>)}
               </Select>
             </FormField>
             <FormField label="City">
-              <Select>
+              <Select
+                value={newLead.city}
+                onChange={(e) => setNewLead({...newLead, city: e.target.value})}
+              >
                 <option value="">Select city</option>
                 {CITIES.filter(c => c !== 'All').map(c => <option key={c}>{c}</option>)}
               </Select>
             </FormField>
           </div>
-          <FormField label="Notes"><Textarea placeholder="Additional notes..." rows={3} /></FormField>
+          <FormField label="Notes">
+            <Textarea 
+              placeholder="Additional notes..." 
+              rows={3}
+              value={newLead.notes}
+              onChange={(e) => setNewLead({...newLead, notes: e.target.value})}
+            />
+          </FormField>
         </div>
       </Modal>
 
@@ -1511,8 +1783,8 @@ const CRMPage = () => {
             footer={
               <div className="flex gap-2 justify-end">
                 <Button variant="ghost" onClick={() => setSelectedLead(null)}>Close</Button>
-                <Button variant="outline"><Edit2 size={13} /> Edit</Button>
-                <Button><Phone size={13} /> Call Lead</Button>
+                <Button variant="outline" onClick={() => handleEditLead(selectedLead)}><Edit2 size={13} /> Edit</Button>
+                <Button onClick={() => handleCallLead(selectedLead)}><Phone size={13} /> Call Lead</Button>
               </div>
             }
           >
@@ -1611,6 +1883,166 @@ const CRMPage = () => {
           </Modal>
         )
       }
+
+      {/* EDIT LEAD MODAL */}
+      {showEditModal && editingLead && (
+        <Modal
+          open={showEditModal}
+          onClose={() => { setShowEditModal(false); setEditingLead(null); }}
+          title={`Edit Lead — ${editingLead.name}`}
+          footer={
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" onClick={() => { setShowEditModal(false); setEditingLead(null); }}>Cancel</Button>
+              <Button onClick={handleSaveEdit} disabled={actionLoading}>
+                {actionLoading ? 'Saving...' : <><Save size={13} /> Save Changes</>}
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Name">
+                <Input 
+                  value={editingLead.name}
+                  onChange={(e) => setEditingLead({...editingLead, name: e.target.value})}
+                />
+              </FormField>
+              <FormField label="Company">
+                <Input 
+                  value={editingLead.company || ''}
+                  onChange={(e) => setEditingLead({...editingLead, company: e.target.value})}
+                />
+              </FormField>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Email">
+                <Input 
+                  type="email"
+                  value={editingLead.email || ''}
+                  onChange={(e) => setEditingLead({...editingLead, email: e.target.value})}
+                />
+              </FormField>
+              <FormField label="Phone">
+                <Input 
+                  value={editingLead.phone || ''}
+                  onChange={(e) => setEditingLead({...editingLead, phone: e.target.value})}
+                />
+              </FormField>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Stage">
+                <Select
+                  value={editingLead.stage}
+                  onChange={(e) => setEditingLead({...editingLead, stage: e.target.value})}
+                >
+                  {PIPELINE_STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                </Select>
+              </FormField>
+              <FormField label="Source">
+                <Select
+                  value={editingLead.source}
+                  onChange={(e) => setEditingLead({...editingLead, source: e.target.value})}
+                >
+                  {SOURCES.filter(s => s !== 'All').map(s => <option key={s}>{s}</option>)}
+                </Select>
+              </FormField>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Value (₹)">
+                <Input 
+                  type="number"
+                  value={editingLead.value || 0}
+                  onChange={(e) => setEditingLead({...editingLead, value: parseInt(e.target.value) || 0})}
+                />
+              </FormField>
+              <FormField label="City">
+                <Input 
+                  value={editingLead.city || ''}
+                  onChange={(e) => setEditingLead({...editingLead, city: e.target.value})}
+                />
+              </FormField>
+            </div>
+            <FormField label="Notes">
+              <Textarea 
+                rows={3}
+                value={editingLead.notes || ''}
+                onChange={(e) => setEditingLead({...editingLead, notes: e.target.value})}
+              />
+            </FormField>
+          </div>
+        </Modal>
+      )}
+
+      {/* TIMELINE MODAL */}
+      {showTimelineModal && (
+        <Modal
+          open={showTimelineModal}
+          onClose={() => setShowTimelineModal(false)}
+          title="Lead Timeline"
+          footer={
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" onClick={() => setShowTimelineModal(false)}>Close</Button>
+            </div>
+          }
+        >
+          <div className="space-y-3 max-h-80 overflow-y-auto">
+            {timelineData.length === 0 ? (
+              <p className="text-sm text-[var(--text-muted)]">No timeline events found.</p>
+            ) : (
+              timelineData.map((event, idx) => (
+                <div key={idx} className="flex gap-3 text-sm border-l-2 border-[var(--border-subtle)] pl-3 py-1">
+                  <div className="w-6 h-6 rounded-full bg-[var(--bg-elevated)] flex items-center justify-center shrink-0">
+                    {event.type === 'call' && <Phone size={12} className="text-emerald-400" />}
+                    {event.type === 'email' && <Mail size={12} className="text-blue-400" />}
+                    {event.type === 'stage_change' && <GitCommit size={12} className="text-purple-400" />}
+                    {event.type === 'created' && <UserPlus size={12} className="text-green-400" />}
+                    {event.type === 'note' && <FileText size={12} className="text-amber-400" />}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-[var(--text-primary)]">{event.note}</p>
+                    <p className="text-[10px] text-[var(--text-muted)]">{event.ts} · {event.by}</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </Modal>
+      )}
+
+      {/* ACTIVITY LOG MODAL */}
+      {showActivityModal && (
+        <Modal
+          open={showActivityModal}
+          onClose={() => setShowActivityModal(false)}
+          title="Activity Log"
+          footer={
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" onClick={() => setShowActivityModal(false)}>Close</Button>
+            </div>
+          }
+        >
+          <div className="space-y-3 max-h-80 overflow-y-auto">
+            {activityData.length === 0 ? (
+              <p className="text-sm text-[var(--text-muted)]">No activities found.</p>
+            ) : (
+              activityData.map((act, idx) => (
+                <div key={idx} className="flex gap-3 text-sm p-2 rounded-lg bg-[var(--bg-elevated)]">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center shrink-0">
+                    {act.type === 'call' && <Phone size={14} className="text-white" />}
+                    {act.type === 'email' && <Mail size={14} className="text-white" />}
+                    {act.type === 'whatsapp' && <MessageSquare size={14} className="text-white" />}
+                    {act.type === 'note' && <FileText size={14} className="text-white" />}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-[var(--text-primary)] font-medium">{act.note}</p>
+                    <p className="text-[10px] text-[var(--text-muted)]">{act.ts} · {act.by}</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </Modal>
+      )}
 
     </div >
   );

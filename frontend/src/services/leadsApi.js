@@ -79,4 +79,96 @@ export const leadsApi = {
     if (!response.ok) throw new Error('Failed to add activity');
     return response.json();
   },
+
+  // Duplicate lead
+  async duplicate(id) {
+    const response = await fetch(`${API_BASE_URL}/leads/${id}/duplicate`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to duplicate lead');
+    return response.json();
+  },
+
+  // Archive lead
+  async archive(id) {
+    const response = await fetch(`${API_BASE_URL}/leads/${id}/archive`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to archive lead');
+    return response.json();
+  },
+
+  // Unarchive lead
+  async unarchive(id) {
+    const response = await fetch(`${API_BASE_URL}/leads/${id}/unarchive`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to unarchive lead');
+    return response.json();
+  },
+
+  // Get lead timeline
+  async getTimeline(id) {
+    const response = await fetch(`${API_BASE_URL}/leads/${id}/timeline`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to fetch timeline');
+    return response.json();
+  },
+
+  // Bulk archive leads
+  async bulkArchive(ids) {
+    const response = await fetch(`${API_BASE_URL}/leads/bulk/archive`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ ids }),
+    });
+    if (!response.ok) throw new Error('Failed to archive leads');
+    return response.json();
+  },
+
+  // Bulk delete leads
+  async bulkDelete(ids) {
+    const response = await fetch(`${API_BASE_URL}/leads/bulk/delete`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ ids }),
+    });
+    if (!response.ok) throw new Error('Failed to delete leads');
+    return response.json();
+  },
+
+  // Bulk update stage
+  async bulkUpdateStage(ids, stage) {
+    const response = await fetch(`${API_BASE_URL}/leads/bulk/stage/${stage}`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ ids }),
+    });
+    if (!response.ok) throw new Error('Failed to update stages');
+    return response.json();
+  },
+
+  // Recalculate all scores
+  async recalculateScores() {
+    const response = await fetch(`${API_BASE_URL}/leads/recalculate-scores`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to recalculate scores');
+    return response.json();
+  },
+
+  // Export leads to CSV
+  async exportCSV(ids = null) {
+    const params = ids ? `?ids=${ids.join(',')}` : '';
+    const response = await fetch(`${API_BASE_URL}/leads/export${params}`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to export leads');
+    return response.blob();
+  },
 };
