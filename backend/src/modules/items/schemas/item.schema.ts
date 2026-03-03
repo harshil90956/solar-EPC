@@ -9,6 +9,9 @@ export interface Tax {
 
 @Schema(BaseSchemaOptions)
 export class Item extends Document {
+  @Prop({ required: false })
+  itemId?: string;
+
   @Prop({ required: true })
   description!: string;
 
@@ -26,6 +29,21 @@ export class Item extends Document {
 
   @Prop({ required: false })
   unit?: string;
+
+  @Prop({ required: false })
+  category?: string;
+
+  @Prop({ required: false })
+  warehouse?: string;
+
+  @Prop({ required: false, default: 0 })
+  stock?: number;
+
+  @Prop({ required: false, default: 0 })
+  minStock?: number;
+
+  @Prop({ required: false, default: 0 })
+  reserved?: number;
 
   @Prop({ type: Types.ObjectId, ref: 'ItemGroup', required: false })
   itemGroupId?: Types.ObjectId;

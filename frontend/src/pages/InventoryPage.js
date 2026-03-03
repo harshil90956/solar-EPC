@@ -181,27 +181,48 @@ const InventoryPage = () => {
   const [showStockOut, setShowStockOut] = useState(false);
   const [stockOutForm, setStockOutForm] = useState({ itemId: '', quantity: '', projectId: '', issuedDate: '', remarks: '' });
   const [inventory, setInventory] = useState([]);
+  const [items, setItems] = useState([]); // Items from Items module
+  const [projects, setProjects] = useState([]); // Projects for reservation display
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [stats, setStats] = useState({ totalItems: 0, totalValue: 0, lowStockItems: 0, outOfStockItems: 0 });
   const [submitting, setSubmitting] = useState(false);
 
-  // Fetch inventory from backend
+  // Fetch items from Items module (instead of inventory)
   useEffect(() => {
     const fetchInventory = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`${API_BASE_URL}/inventory?tenantId=${TENANT_ID}`);
+        const response = await fetch(`${API_BASE_URL}/items?tenantId=${TENANT_ID}`);
         if (!response.ok) {
-          throw new Error('Failed to fetch inventory');
+          throw new Error('Failed to fetch items');
         }
         const data = await response.json();
-        console.log('Inventory API Response:', data);
-        const itemsArray = Array.isArray(data) ? data : (data.data || []);
-        setInventory(itemsArray);
+        console.log('Items API Response:', data);
+        
+        // Parse items array from response
+        let itemsArray = [];
+        if (Array.isArray(data)) {
+          itemsArray = data;
+        } else if (data.data && Array.isArray(data.data)) {
+          itemsArray = data.data;
+        } else if (data.items && Array.isArray(data.items)) {
+          itemsArray = data.items;
+        }
+        
+        // Map items to inventory format (description -> name, add reserved/available)
+        const inventoryData = itemsArray.map(item => ({
+          ...item,
+          name: item.description || item.name || 'Unnamed Item',
+          reserved: item.reserved || 0,
+          available: (item.stock || 0) - (item.reserved || 0),
+          lastUpdated: item.updatedAt || new Date().toISOString().split('T')[0]
+        }));
+        
+        setInventory(inventoryData);
         setError(null);
       } catch (err) {
-        console.error('Error fetching inventory:', err);
+        console.error('Error fetching items:', err);
         setError(err.message);
       } finally {
         setLoading(false);
@@ -211,36 +232,72 @@ const InventoryPage = () => {
     fetchInventory();
   }, []);
 
-  // Fetch stats
+  // Fetch items from Items module for Stock In/Out modals
   useEffect(() => {
-    const fetchStats = async () => {
+    const fetchItems = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/inventory/stats?tenantId=${TENANT_ID}`);
+        const response = await fetch(`${API_BASE_URL}/items?tenantId=${TENANT_ID}`);
         if (response.ok) {
           const data = await response.json();
-          setStats(data);
+          const itemsArray = Array.isArray(data) ? data : (data.data || []);
+          setItems(itemsArray);
         }
       } catch (err) {
-        console.error('Error fetching stats:', err);
+        console.error('Error fetching items:', err);
       }
     };
-    fetchStats();
+
+    fetchItems();
+  }, []);
+
+  // Fetch projects for reservation display
+  useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/projects?tenantId=${TENANT_ID}`);
+        if (response.ok) {
+          const data = await response.json();
+          const projectsArray = Array.isArray(data) ? data : (data.data || []);
+          setProjects(projectsArray);
+        }
+      } catch (err) {
+        console.error('Error fetching projects:', err);
+      }
+    };
+
+    fetchProjects();
+  }, []);
+
+  // Fetch stats from items (calculated locally since items don't have stats endpoint)
+  useEffect(() => {
+    // Calculate stats from inventory data
+    const totalItems = inventory.length;
+    const totalValue = inventory.reduce((a, i) => a + (i.stock || 0) * (i.rate || 0), 0);
+    const lowStockItems = inventory.filter(i => ((i.stock || 0) - (i.reserved || 0)) <= (i.minStock || 0) && ((i.stock || 0) - (i.reserved || 0)) > 0).length;
+    const outOfStockItems = inventory.filter(i => (i.stock || 0) === 0).length;
+    
+    setStats({
+      totalItems,
+      totalValue,
+      lowStockItems,
+      outOfStockItems
+    });
   }, [inventory]);
 
   const filtered = useMemo(() =>
     inventory.filter(i =>
       (catFilter === 'All' || i.category === catFilter) &&
-      i.name.toLowerCase().includes(search.toLowerCase())
+      i.name?.toLowerCase().includes(search.toLowerCase())
     ), [inventory, search, catFilter]);
 
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
 
-  const lowStockItems = inventory.filter(i => i.available <= i.minStock && i.available > 0);
-  const outOfStockItems = inventory.filter(i => i.available === 0);
-  const totalValue = inventory.reduce((a, i) => a + i.stock * i.rate, 0);
+  const lowStockItems = inventory.filter(i => ((i.stock || 0) - (i.reserved || 0)) <= (i.minStock || 0) && ((i.stock || 0) - (i.reserved || 0)) > 0);
+  const outOfStockItems = inventory.filter(i => (i.stock || 0) === 0);
+  const totalValue = inventory.reduce((a, i) => a + (i.stock || 0) * (i.rate || 0), 0);
 
   const chartData = inventory.slice(0, 10).map(i => ({
-    name: i.name.length > 14 ? i.name.slice(0, 14) + '…' : i.name,
+    name: (i.name || i.description || 'Unknown').length > 14 ? (i.name || i.description || 'Unknown').slice(0, 14) + '…' : (i.name || i.description || 'Unknown'),
     available: i.available, reserved: i.reserved,
   }));
 
@@ -290,7 +347,7 @@ const InventoryPage = () => {
     
     setSubmitting(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/inventory/${stockInForm.itemId}/stock-in?tenantId=${TENANT_ID}`, {
+      const response = await fetch(`${API_BASE_URL}/items/${stockInForm.itemId}/stock-in?tenantId=${TENANT_ID}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -308,7 +365,7 @@ const InventoryPage = () => {
 
       const updatedItem = await response.json();
       const itemData = updatedItem.data || updatedItem;
-      setInventory(prev => prev.map(i => i.itemId === stockInForm.itemId ? itemData : i));
+      setInventory(prev => prev.map(i => i._id === stockInForm.itemId ? itemData : i));
       setStockIn(false);
       setStockInForm({ itemId: '', quantity: '', poReference: '', receivedDate: '', remarks: '' });
       alert('Stock added successfully!');
@@ -425,8 +482,7 @@ const InventoryPage = () => {
     
     setSubmitting(true);
     try {
-      // First do stock out
-      const response = await fetch(`${API_BASE_URL}/inventory/${stockOutForm.itemId}/stock-out?tenantId=${TENANT_ID}`, {
+      const response = await fetch(`${API_BASE_URL}/items/${stockOutForm.itemId}/stock-out?tenantId=${TENANT_ID}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -448,11 +504,14 @@ const InventoryPage = () => {
       // Create reservation record for the project
       if (stockOutForm.projectId) {
         try {
+          // Find the item to get its itemId (not _id)
+          const item = inventory.find(i => i._id === stockOutForm.itemId);
           await fetch(`${API_BASE_URL}/inventory/reservations?tenantId=${TENANT_ID}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              itemId: stockOutForm.itemId,
+              reservationId: `RES-${Date.now()}`,
+              itemId: item?.itemId || stockOutForm.itemId,
               projectId: stockOutForm.projectId,
               quantity: parseInt(stockOutForm.quantity),
               notes: stockOutForm.remarks || `Stock issued on ${stockOutForm.issuedDate || new Date().toISOString().split('T')[0]}`,
@@ -464,7 +523,7 @@ const InventoryPage = () => {
         }
       }
       
-      setInventory(prev => prev.map(i => i.itemId === stockOutForm.itemId ? itemData : i));
+      setInventory(prev => prev.map(i => i._id === stockOutForm.itemId ? itemData : i));
       setShowStockOut(false);
       setStockOutForm({ itemId: '', quantity: '', projectId: '', issuedDate: '', remarks: '' });
       alert('Stock issued successfully! Project reservation recorded.');
@@ -543,13 +602,12 @@ const InventoryPage = () => {
               className={`view-toggle-btn ${view === 'table' ? 'active' : ''}`}><List size={14} /></button>
           </div>
           <Button variant="ghost" onClick={() => setStockIn(true)}><ArrowUp size={13} /> Stock In</Button>
-          <Button onClick={() => setShowAdd(true)}><Plus size={13} /> Add Item</Button>
         </div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KPICard label="Total Items" value={inventory.length} sub="SKUs tracked" icon={Package} accentColor="#3b82f6" />
-        <KPICard label="Inventory Value" value={fmt(totalValue)} sub="At current rates" icon={Warehouse} accentColor="#f59e0b" trend="+5% vs last mo" trendUp />
+        <KPICard label="Inventory Value" value={fmt(totalValue)} sub="At current rates" icon={Warehouse} accentColor="#f59e0b" />
         <KPICard label="Low Stock Alerts" value={lowStockItems.length} sub="Items need reorder" icon={AlertTriangle} accentColor="#f59e0b" />
         <KPICard label="Out of Stock" value={outOfStockItems.length} sub="Immediate action needed" icon={AlertTriangle} accentColor="#ef4444" />
       </div>
@@ -559,7 +617,7 @@ const InventoryPage = () => {
           <AlertTriangle size={14} className="text-amber-400 mt-0.5 shrink-0" />
           <p className="text-xs text-[var(--text-secondary)]">
             <span className="text-amber-400 font-semibold">Low Stock Alert:</span>{' '}
-            {lowStockItems.map(i => i.name).join(', ')} — reorder immediately to avoid project delays.
+            {lowStockItems.map(i => i.name || i.description).join(', ')} — reorder immediately to avoid project delays.
           </p>
         </div>
       )}
@@ -677,7 +735,7 @@ const InventoryPage = () => {
           <FormField label="Item">
             <Select value={stockInForm.itemId} onChange={e => setStockInForm(f => ({ ...f, itemId: e.target.value }))}>
               <option value="">Select Item</option>
-              {inventory.map(i => <option key={i.itemId} value={i.itemId}>{i.name}</option>)}
+              {inventory.map(i => <option key={i._id} value={i._id}>{i.name || i.description} ({i.itemId})</option>)}
             </Select>
           </FormField>
           <div className="grid grid-cols-2 gap-3">
@@ -747,7 +805,7 @@ const InventoryPage = () => {
           <FormField label="Item">
             <Select value={stockOutForm.itemId} onChange={e => setStockOutForm(f => ({ ...f, itemId: e.target.value }))}>
               <option value="">Select Item</option>
-              {inventory.map(i => <option key={i.itemId} value={i.itemId}>{i.name}</option>)}
+              {inventory.map(i => <option key={i._id} value={i._id}>{i.name || i.description} ({i.itemId})</option>)}
             </Select>
           </FormField>
           <div className="grid grid-cols-2 gap-3">
@@ -789,21 +847,24 @@ const InventoryPage = () => {
               <p className="text-xs text-[var(--text-muted)]">No active reservations</p>
             ) : (
               <div className="space-y-1">
-                {itemReservations.map(res => (
-                  <div key={res.reservationId} className="flex items-center justify-between glass-card p-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--primary)]/20 text-[var(--primary-light)]">
-                        {res.status}
-                      </span>
-                      <span className="text-xs font-medium text-[var(--text-primary)]">
-                        Project: {res.projectId}
+                {itemReservations.map(res => {
+                  const project = projects.find(p => p.projectId === res.projectId || p._id === res.projectId);
+                  return (
+                    <div key={res.reservationId} className="flex items-center justify-between glass-card p-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--primary)]/20 text-[var(--primary-light)]">
+                          {res.status}
+                        </span>
+                        <span className="text-xs font-medium text-[var(--text-primary)]">
+                          {project ? `${project.name} (${res.projectId})` : `Project: ${res.projectId}`}
+                        </span>
+                      </div>
+                      <span className="text-xs font-bold text-amber-400">
+                        {res.quantity} {selected.unit}
                       </span>
                     </div>
-                    <span className="text-xs font-bold text-amber-400">
-                      {res.quantity} {selected.unit}
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

@@ -54,9 +54,29 @@ export class InventoryService {
 
   async create(tenantCode: string, createDto: CreateInventoryDto) {
     const tenantId = await this.getTenantId(tenantCode);
+    
+    // Auto-calculate status based on stock levels
+    const stock = createDto.stock || 0;
+    const available = createDto.available || 0;
+    const minStock = createDto.minStock || 0;
+    
+    let status: string;
+    if (stock === 0) {
+      status = 'Out of Stock';
+    } else if (available === 0) {
+      status = 'Out of Stock';
+    } else if (available <= minStock) {
+      status = 'Low Stock';
+    } else if (createDto.reserved && createDto.reserved > 0) {
+      status = 'Partially Reserved';
+    } else {
+      status = 'In Stock';
+    }
+    
     const item = new this.inventoryModel({
       ...createDto,
       tenantId,
+      status,
       lastUpdated: new Date().toISOString().split('T')[0],
     });
     return item.save();

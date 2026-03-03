@@ -2,6 +2,10 @@ import { PartialType } from '@nestjs/mapped-types';
 import { IsString, IsNumber, IsOptional, Min, IsMongoId } from 'class-validator';
 
 export class CreateItemDto {
+  @IsOptional()
+  @IsString()
+  itemId?: string;
+
   @IsString()
   description!: string;
 
@@ -26,6 +30,24 @@ export class CreateItemDto {
   @IsOptional()
   @IsString()
   unit?: string;
+
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @IsOptional()
+  @IsString()
+  warehouse?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  stock?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  minStock?: number;
 
   @IsOptional()
   @IsString()
