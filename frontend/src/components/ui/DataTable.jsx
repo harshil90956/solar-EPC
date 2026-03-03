@@ -46,11 +46,11 @@ const DataTable = ({
     onRowClick,
 }) => {
     // Support both flat props and pagination object for backward compatibility
-    const total = pagination?.total ?? propTotal;
-    const page = pagination?.page ?? propPage;
-    const pageSize = pagination?.pageSize ?? propPageSize;
-    const onPageChange = pagination?.onChange ?? propOnPageChange;
-    const onPageSizeChange = pagination?.onPageSizeChange ?? propOnPageSizeChange;
+    const total = pagination?.total != null ? pagination.total : propTotal;
+    const page = pagination?.page != null ? pagination.page : propPage;
+    const pageSize = pagination?.pageSize != null ? pagination.pageSize : propPageSize;
+    const onPageChange = pagination?.onChange != null ? pagination.onChange : propOnPageChange;
+    const onPageSizeChange = pagination?.onPageSizeChange != null ? pagination.onPageSizeChange : propOnPageSizeChange;
     const [internalSort, setInternalSort] = useState({ key: null, dir: 'asc' });
     const [hiddenCols, setHiddenCols] = useState(new Set());
     const [openMenuIndex, setOpenMenuIndex] = useState(null);
@@ -61,8 +61,8 @@ const DataTable = ({
     const [jumpPage, setJumpPage] = useState('');
 
     const [internalSelected, setInternalSelected] = useState(new Set());
-    const selectedRows = controlledSelected ?? internalSelected;
-    const setSelected = onSelectRows ?? setInternalSelected;
+    const selectedRows = controlledSelected != null ? controlledSelected : internalSelected;
+    const setSelected = onSelectRows != null ? onSelectRows : setInternalSelected;
 
     // Use controlled sort if provided, otherwise use internal
     const isControlledSort = controlledSort !== undefined;
@@ -263,38 +263,39 @@ const DataTable = ({
                                 data.map((row, index) => {
                                     const uniqueKey = row[rowKey] || index;
                                     return (
-                                    <tr key={uniqueKey} className="table-row border-b border-[var(--border-base)] last:border-0 group">
-                                        {bulkActions.length > 0 && (
-                                            <td className="px-3 py-3.5 sticky left-0 z-10 bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] transition-colors">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedRows.has(row[rowKey])}
-                                                    onChange={() => toggleRow(row[rowKey])}
-                                                    className="w-3.5 h-3.5 accent-[var(--primary)] cursor-pointer"
-                                                />
-                                            </td>
-                                        )}
-                                        {visibleColumns.map(col => (
-                                            <td key={col.key} className="px-3 py-2 text-[12px] text-[var(--text-primary)]">
-                                                {col.render ? col.render(row[col.key], row) : row[col.key] ?? '—'}
-                                            </td>
-                                        ))}
-                                        {allRowActions.length > 0 && (
-                                            <td 
-                                                className="px-2 py-2 sticky right-0 z-10 bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] transition-colors border-l border-[var(--border-base)]"
-                                                onClick={e => e.stopPropagation()}
-                                            >
-                                                <button
-                                                    ref={el => buttonRefs.current[index] = el}
-                                                    onClick={e => handleMenuOpen(e, index)}
-                                                    className="w-6 h-6 rounded flex items-center justify-center text-[var(--text-faint)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+                                        <tr key={uniqueKey} className="table-row border-b border-[var(--border-base)] last:border-0 group">
+                                            {bulkActions.length > 0 && (
+                                                <td className="px-3 py-3.5 sticky left-0 z-10 bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] transition-colors">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedRows.has(row[rowKey])}
+                                                        onChange={() => toggleRow(row[rowKey])}
+                                                        className="w-3.5 h-3.5 accent-[var(--primary)] cursor-pointer"
+                                                    />
+                                                </td>
+                                            )}
+                                            {visibleColumns.map(col => (
+                                                <td key={col.key} className="px-3 py-2 text-[12px] text-[var(--text-primary)]">
+                                                    {col.render ? col.render(row[col.key], row) : (row[col.key] != null ? row[col.key] : '—')}
+                                                </td>
+                                            ))}
+                                            {allRowActions.length > 0 && (
+                                                <td 
+                                                    className="px-2 py-2 sticky right-0 z-10 bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] transition-colors border-l border-[var(--border-base)]"
+                                                    onClick={e => e.stopPropagation()}
                                                 >
-                                                    <MoreHorizontal size={14} />
-                                                </button>
-                                            </td>
-                                        )}
-                                    </tr>
-                                ))
+                                                    <button
+                                                        ref={el => { buttonRefs.current[index] = el; }}
+                                                        onClick={e => handleMenuOpen(e, index)}
+                                                        className="w-6 h-6 rounded flex items-center justify-center text-[var(--text-faint)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+                                                    >
+                                                        <MoreHorizontal size={14} />
+                                                    </button>
+                                                </td>
+                                            )}
+                                        </tr>
+                                    );
+                                })
                             )}
                         </tbody>
                     </table>
