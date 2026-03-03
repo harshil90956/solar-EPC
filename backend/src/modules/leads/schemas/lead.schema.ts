@@ -44,7 +44,7 @@ export class Lead {
   source!: string;
 
   @Prop({ required: true, default: 'new' })
-  stage!: string;
+  statusKey!: string;
 
   @Prop({ type: Number, default: 0 })
   score!: number;
@@ -136,7 +136,6 @@ export class Lead {
 export const LeadSchema = SchemaFactory.createForClass(Lead);
 
 LeadSchema.index({ email: 1, tenantId: 1 }, { unique: true, sparse: true });
-LeadSchema.index({ leadId: 1 });
-LeadSchema.index({ stage: 1 });
+LeadSchema.index({ statusKey: 1 });
 LeadSchema.index({ source: 1 });
 LeadSchema.index({ score: -1 });

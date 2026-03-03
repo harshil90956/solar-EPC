@@ -16,14 +16,10 @@ import { KPICard } from '../components/ui/KPICard';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/Tabs';
 import DataTable from '../components/ui/DataTable';
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
-<<<<<<< HEAD
 import { usePermissions } from '../hooks/usePermissions';
 import { useAuditLog } from '../hooks/useAuditLog';
-import CanAccess, { CanCreate, CanEdit, CanDelete } from '../components/CanAccess';
+import CanAccess, { CanCreate } from '../components/CanAccess';
 import { toast } from '../components/ui/Toast';
-=======
-import { useSettings } from '../context/SettingsContext';
->>>>>>> f005dbd (Finance module enhancement)
 
 const fmt = CURRENCY.format;
 
@@ -671,55 +667,9 @@ const FinancePage = () => {
   };
 
   const INV_ACTIONS = [
-<<<<<<< HEAD
     { label: 'View Invoice', icon: FileText, onClick: row => setSelected(row) },
     { label: 'Record Payment', icon: CheckCircle, onClick: (row) => { if (guardApprove()) console.log('Record Payment', row); } },
     { label: 'Send Reminder', icon: Clock, onClick: () => { } },
-=======
-    ...(canFinance('view') ? [{ label: 'View Invoice', icon: FileText, onClick: row => setSelected(row) }] : []),
-    ...(canFinance('edit') ? [{
-      label: 'Edit',
-      icon: Edit,
-      show: (row) => row?.status !== 'Paid',
-      onClick: (row) => openEditInvoice(row),
-    }] : []),
-    ...(canFinance('export') ? [{
-      label: 'Export',
-      icon: Download,
-      onClick: (row) => exportInvoiceCsv(row),
-    }] : []),
-    { label: 'Record Payment', icon: CheckCircle, onClick: () => { } },
-    { 
-      label: 'Timeline', 
-      icon: Clock, 
-      onClick: (row) => {
-        setTimelineInvoice(row);
-        setShowTimeline(true);
-        fetchTimeline(row._id || row.id);
-      },
-    },
-    ...(canFinance('delete') ? [{
-      label: 'Delete',
-      icon: Trash2,
-      show: (row) => row?.status !== 'Paid',
-      onClick: (row) => openDeleteInvoice(row),
-    }] : []),
-    {
-      label: 'Send Reminder',
-      icon: Clock,
-      show: (row) => canShowSendReminder(row),
-      onClick: (row) => {
-        setSelectedReminderInvoice(row);
-        setReminderForm({
-          reminderType: row.status === 'Overdue' ? 'Overdue' : 'Gentle',
-          customerEmail: '',
-          messageBody: '',
-        });
-        setReminderSuccess(false);
-        setShowReminderModal(true);
-      },
-    },
->>>>>>> f005dbd (Finance module enhancement)
   ];
 
   // Calculate KPI values from real data
@@ -759,15 +709,9 @@ const FinancePage = () => {
           <h1 className="heading-page">Finance</h1>
           <p className="text-xs text-[var(--text-muted)] mt-0.5">Revenue · receivables · payables · cash flow · invoices</p>
         </div>
-<<<<<<< HEAD
         <CanCreate module="finance">
           <Button onClick={() => { if (guardCreate()) setShowInvoice(true); }}><Plus size={13} /> New Invoice</Button>
         </CanCreate>
-=======
-        {canFinance('create') && (
-          <Button onClick={() => setShowInvoice(true)}><Plus size={13} /> New Invoice</Button>
-        )}
->>>>>>> f005dbd (Finance module enhancement)
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

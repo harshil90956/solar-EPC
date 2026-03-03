@@ -2,7 +2,7 @@
 import {
     LayoutDashboard, Users, MapPin, Pencil, FileText, FolderOpen,
     Package, ShoppingCart, Truck, Wrench, CheckCircle, DollarSign,
-    Headphones, FileCheck, Settings, Brain, Bell, Shield,
+    Headphones, FileCheck, Settings, Brain, Bell, Shield, List,
 } from 'lucide-react';
 import { INVENTORY, TICKETS, LEADS, PROJECTS, QUOTATIONS } from '../data/mockData';
 
@@ -38,6 +38,7 @@ export const NAV_CONFIG = [
             { id: 'inventory', label: 'Inventory', icon: Package, badge: lowStockCount || null, badgeVariant: 'amber' },
             { id: 'procurement', label: 'Procurement', icon: ShoppingCart, badge: null },
             { id: 'logistics', label: 'Logistics', icon: Truck, badge: null },
+            { id: 'items', label: 'Items', icon: List, badge: null },
         ],
     },
     {

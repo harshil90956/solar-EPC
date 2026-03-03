@@ -214,7 +214,7 @@ const LoginPage = () => {
               {/* Login hint */}
               <div className="mt-4 px-3 py-2 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">
                 <p className="text-[10px] text-[var(--text-faint)] text-center">
-                  Example: sales@solarcorp.com / sales123
+                  Super Admin: harshildobariya070@gmail.com / 123456
                 </p>
               </div>
             </div>

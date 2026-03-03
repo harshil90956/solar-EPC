@@ -6,3 +6,4 @@ export * from './audit-log.schema';
 export * from './custom-role.schema';
 export * from './user-override.schema';
 export * from './project-type-config.schema';
+export * from './lead-status.schema';

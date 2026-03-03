@@ -5,3 +5,4 @@ export * from './user-override.dto';
 export * from './view-as.dto';
 export * from './workflow.dto';
 export * from './project-type.dto';
+export * from './lead-status.dto';

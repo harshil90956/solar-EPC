@@ -259,12 +259,6 @@ export const VENDORS = [
   { id: 'V004', name: 'Nextracker Structures', category: 'Structure', contact: 'Sanjay Verma', phone: '9655443322', email: 'sanjay@nextracker.com', rating: 4, city: 'Pune', totalOrders: 6 },
 ];
 
-export const PURCHASE_ORDERS = [
-  { id: 'PO001', vendorId: 'V001', vendorName: 'Tata Solar Products', items: '200 x 400W Panels', totalAmount: 2900000, status: 'Delivered', orderedDate: '2026-02-10', expectedDate: '2026-02-20', deliveredDate: '2026-02-19' },
-  { id: 'PO002', vendorId: 'V002', vendorName: 'SMA Energy India', items: '5 x 50kW Inverters', totalAmount: 925000, status: 'In Transit', orderedDate: '2026-02-22', expectedDate: '2026-02-28', deliveredDate: null },
-  { id: 'PO003', vendorId: 'V003', vendorName: 'Polycab Wires', items: '3000 Mtr DC Cable', totalAmount: 126000, status: 'Ordered', orderedDate: '2026-02-25', expectedDate: '2026-03-03', deliveredDate: null },
-];
-
 export const INVOICES = [
   { id: 'INV001', projectId: 'P003', customerName: 'Prakash Agarwal', amount: 448000, paid: 448000, balance: 0, status: 'Paid', invoiceDate: '2026-01-12', dueDate: '2026-02-12', paidDate: '2026-02-05' },
   { id: 'INV002', projectId: 'P001', customerName: 'Ramesh Joshi', amount: 280000, paid: 140000, balance: 140000, status: 'Partial', invoiceDate: '2026-02-24', dueDate: '2026-03-24', paidDate: null },
