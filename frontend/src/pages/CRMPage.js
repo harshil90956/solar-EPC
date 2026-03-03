@@ -817,6 +817,14 @@ const CRMPage = () => {
     return true;
   };
 
+  const guardEdit = () => {
+    if (!can('crm', 'edit')) {
+      toast.error('Permission denied: Cannot edit leads');
+      return false;
+    }
+    return true;
+  };
+
   const guardExport = () => {
     if (!can('crm', 'export')) {
       toast.error('Permission denied: Cannot export leads');

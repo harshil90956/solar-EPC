@@ -29,9 +29,11 @@ import { Input } from './Input';
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
 const DataTable = ({
-    columns = [], data = [], total = 0,
-    page = 1, pageSize = 25,
-    onPageChange, onPageSizeChange, onSort,
+    columns = [], data = [], total: propTotal = 0,
+    page: propPage = 1, pageSize: propPageSize = 25,
+    onPageChange: propOnPageChange, onPageSizeChange: propOnPageSizeChange,
+    pagination, // Support old pagination object format
+    onSort,
     search = '', onSearch,
     rowActions = [], bulkActions = [],
     loading = false, emptyText = 'No records found',
@@ -43,6 +45,12 @@ const DataTable = ({
     sort: controlledSort,
     onRowClick,
 }) => {
+    // Support both flat props and pagination object for backward compatibility
+    const total = pagination?.total ?? propTotal;
+    const page = pagination?.page ?? propPage;
+    const pageSize = pagination?.pageSize ?? propPageSize;
+    const onPageChange = pagination?.onChange ?? propOnPageChange;
+    const onPageSizeChange = pagination?.onPageSizeChange ?? propOnPageSizeChange;
     const [internalSort, setInternalSort] = useState({ key: null, dir: 'asc' });
     const [hiddenCols, setHiddenCols] = useState(new Set());
     const [openMenuIndex, setOpenMenuIndex] = useState(null);
@@ -252,8 +260,10 @@ const DataTable = ({
                                     </td>
                                 </tr>
                             ) : (
-                                data.map((row, index) => (
-                                    <tr key={row[rowKey] || index} className="table-row border-b border-[var(--border-base)] last:border-0 group">
+                                data.map((row, index) => {
+                                    const uniqueKey = row[rowKey] || index;
+                                    return (
+                                    <tr key={uniqueKey} className="table-row border-b border-[var(--border-base)] last:border-0 group">
                                         {bulkActions.length > 0 && (
                                             <td className="px-3 py-3.5 sticky left-0 z-10 bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] transition-colors">
                                                 <input
@@ -275,8 +285,8 @@ const DataTable = ({
                                                 onClick={e => e.stopPropagation()}
                                             >
                                                 <button
-                                                    ref={el => buttonRefs.current[idx] = el}
-                                                    onClick={e => handleMenuOpen(e, idx)}
+                                                    ref={el => buttonRefs.current[index] = el}
+                                                    onClick={e => handleMenuOpen(e, index)}
                                                     className="w-6 h-6 rounded flex items-center justify-center text-[var(--text-faint)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
                                                 >
                                                     <MoreHorizontal size={14} />
