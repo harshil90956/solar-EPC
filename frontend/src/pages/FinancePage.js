@@ -15,6 +15,10 @@ import { KPICard } from '../components/ui/KPICard';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/Tabs';
 import DataTable from '../components/ui/DataTable';
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
+import { usePermissions } from '../hooks/usePermissions';
+import { useAuditLog } from '../hooks/useAuditLog';
+import CanAccess, { CanCreate, CanEdit, CanDelete } from '../components/CanAccess';
+import { toast } from '../components/ui/Toast';
 
 const fmt = CURRENCY.format;
 
@@ -407,7 +411,7 @@ const FinancePage = () => {
 
   const INV_ACTIONS = [
     { label: 'View Invoice', icon: FileText, onClick: row => setSelected(row) },
-    { label: 'Record Payment', icon: CheckCircle, onClick: () => { } },
+    { label: 'Record Payment', icon: CheckCircle, onClick: (row) => { if (guardApprove()) console.log('Record Payment', row); } },
     { label: 'Send Reminder', icon: Clock, onClick: () => { } },
   ];
 
@@ -448,7 +452,9 @@ const FinancePage = () => {
           <h1 className="heading-page">Finance</h1>
           <p className="text-xs text-[var(--text-muted)] mt-0.5">Revenue · receivables · payables · cash flow · invoices</p>
         </div>
-        <Button onClick={() => setShowInvoice(true)}><Plus size={13} /> New Invoice</Button>
+        <CanCreate module="finance">
+          <Button onClick={() => { if (guardCreate()) setShowInvoice(true); }}><Plus size={13} /> New Invoice</Button>
+        </CanCreate>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -713,7 +719,9 @@ const FinancePage = () => {
           footer={
             <div className="flex gap-2 justify-end">
               <Button variant="ghost" onClick={() => setSelected(null)}>Close</Button>
-              <Button><CheckCircle size={13} /> Record Payment</Button>
+          <CanAccess module="finance" action="approve">
+            <Button onClick={() => { if (guardApprove()) console.log('Record Payment'); }}><CheckCircle size={13} /> Record Payment</Button>
+          </CanAccess>
             </div>
           }>
           <div className="grid grid-cols-2 gap-3 text-xs">

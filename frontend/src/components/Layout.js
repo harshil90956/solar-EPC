@@ -3,6 +3,7 @@ import { Sun, Bell, Search, ChevronDown, LogOut, Menu, X, Zap, Settings, User, P
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useReminders } from '../context/ReminderContext';
+import { useSettings } from '../context/SettingsContext';
 import { NAV_CONFIG } from '../config/nav.config';
 import { canAccess } from '../config/roles.config';
 import { APP_CONFIG } from '../config/app.config';
@@ -17,6 +18,7 @@ const Layout = ({ currentPage, onNavigate, children }) => {
   const { user, logout } = useAuth();
   const { theme, setTheme, themes, currentLabel, customization } = useTheme();
   const { activeNotifications, upcomingCount, overdueCount } = useReminders();
+  const { isModuleEnabled } = useSettings();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarHovered, setSidebarHovered] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -38,10 +40,12 @@ const Layout = ({ currentPage, onNavigate, children }) => {
   const unreadCount = ALERTS.filter(a => a.severity === 'critical' || a.severity === 'warning').length;
   const totalReminderAlerts = activeNotifications.length + upcomingCount + overdueCount;
 
-  // Filter nav based on role permissions (config-driven)
+  // Filter nav based on role permissions AND module enabled flags
   const visibleSections = NAV_CONFIG.map(section => ({
     ...section,
-    items: section.items.filter(item => canAccess(user?.role, item.id)),
+    items: section.items.filter(item => 
+      canAccess(user?.role, item.id) && isModuleEnabled(item.id)
+    ),
   })).filter(s => s.items.length > 0);
 
   /* ── Derive layout dimensions from customization ── */
@@ -128,8 +132,8 @@ const Layout = ({ currentPage, onNavigate, children }) => {
           {(sidebarOpen || (isOverlay && sidebarHovered)) ? <X size={15} /> : <Menu size={15} />}
         </button>
 
-        {/* Logo */}
-        <div className="flex items-center gap-2.5 min-w-[200px]">
+        {/* Logo - Hidden, only sidebar logo remains */}
+        <div className="flex items-center gap-2.5 min-w-[200px] opacity-0 pointer-events-none">
           <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-lg shrink-0"
             style={{
               background: `linear-gradient(to bottom right, var(--primary), var(--primary-light))`,
@@ -471,7 +475,7 @@ const Layout = ({ currentPage, onNavigate, children }) => {
           )}
           style={{
             width: `${isOverlay ? (sidebarHovered ? 220 : 0) : sidebarW}px`,
-            paddingTop: isDetached ? '0' : '56px',
+            paddingTop: '0',
             ...sidebarStyle,
           }}
           onMouseEnter={() => { if (isHoverView || isOverlay) setSidebarHovered(true); }}

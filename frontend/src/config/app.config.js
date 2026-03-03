@@ -20,6 +20,20 @@ export const CURRENCY = {
         if (n >= 1000) return `₹${(n / 1000).toFixed(1)}K`;
         return `₹${n?.toLocaleString('en-IN') ?? 0}`;
     },
+    formatFull: (n) => {
+        if (!n || n === 0) return '₹0';
+        // Indian numbering: Crores (1,00,00,000), Lakhs (1,00,000)
+        if (n >= 10000000) { // 1 Crore or more
+            return `₹${(n / 10000000).toFixed(2)} Crores`;
+        }
+        if (n >= 100000) { // 1 Lakh or more
+            return `₹${(n / 100000).toFixed(2)} Lakhs`;
+        }
+        if (n >= 1000) { // 1 Thousand or more
+            return `₹${(n / 1000).toFixed(0)}K`;
+        }
+        return `₹${n.toLocaleString('en-IN')}`;
+    },
 };
 
 export const DATE_FORMAT = {

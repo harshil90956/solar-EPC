@@ -20,6 +20,8 @@ import { PermissionsModule } from './core/permissions/permissions.module';
 import { AuthModule } from './core/auth/auth.module';
 import { TenantModule } from './core/tenant/tenant.module';
 
+import { EmailModule } from './modules/email/email.module';
+
 @Module({
   imports: [
     CoreConfigModule,
@@ -29,6 +31,7 @@ import { TenantModule } from './core/tenant/tenant.module';
     TenantModule,
     WorkflowModule,
     PermissionsModule,
+    EmailModule,
 
     LeadsModule,
     SurveyModule,
