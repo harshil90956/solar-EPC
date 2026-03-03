@@ -11,6 +11,9 @@ import { ViewAsService } from './services/view-as.service';
 import { WorkflowEngineService } from './services/workflow-engine.service';
 import { AuditService } from './services/audit.service';
 import { ProjectTypeService } from './services/project-type.service';
+import { LeadStatusService } from './services/lead-status.service';
+import { LeadStatusController } from './controllers/lead-status.controller';
+import { Lead, LeadSchema } from '../leads/schemas/lead.schema';
 import {
   FeatureFlag,
   FeatureFlagSchema,
@@ -28,6 +31,8 @@ import {
   UserOverrideSchema,
   ProjectTypeConfig,
   ProjectTypeConfigSchema,
+  LeadStatus,
+  LeadStatusSchema,
 } from './schemas';
 
 @Module({
@@ -41,9 +46,11 @@ import {
       { name: CustomRole.name, schema: CustomRoleSchema },
       { name: UserOverride.name, schema: UserOverrideSchema },
       { name: ProjectTypeConfig.name, schema: ProjectTypeConfigSchema },
+      { name: LeadStatus.name, schema: LeadStatusSchema },
+      { name: Lead.name, schema: LeadSchema },
     ]),
   ],
-  controllers: [SettingsController],
+  controllers: [SettingsController, LeadStatusController],
   providers: [
     SettingsService, 
     FeatureFlagService, 
@@ -55,6 +62,7 @@ import {
     WorkflowEngineService,
     AuditService,
     ProjectTypeService,
+    LeadStatusService,
   ],
   exports: [
     SettingsService, 
@@ -67,6 +75,7 @@ import {
     WorkflowEngineService,
     AuditService,
     ProjectTypeService,
+    LeadStatusService,
   ],
 })
 export class SettingsModule {}
