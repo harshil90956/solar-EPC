@@ -1,5 +1,5 @@
-// Solar OS – EPC Edition — CompliancePage.js
-import React, { useState, useRef } from 'react';
+// Solar OS – EPC Edition — CompliancePage.js (API Integrated)
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
     FileText, CheckCircle, AlertTriangle, Zap, Upload,
     Plus, Download, Building2, ShieldCheck, IndianRupee, LayoutGrid, List,
@@ -11,7 +11,9 @@ import { KPICard } from '../components/ui/KPICard';
 import { Progress } from '../components/ui/Progress';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/Tabs';
 import DataTable from '../components/ui/DataTable';
-import { APP_CONFIG } from '../config/app.config';
+
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
+const TENANT_ID = 'solarcorp';
 
 /* ─── Config-driven Status Maps ─── */
 const NEUTRAL = 'bg-[var(--bg-elevated)] text-[var(--text-muted)] border-[var(--border-muted)]';
@@ -259,35 +261,88 @@ const ComplianceKanbanBoard = ({ stages, items, CardComponent, onStageChange, on
     );
 };
 
-/* ─── Main Page ─── */
 const CompliancePage = () => {
-    const [nmItems, setNmItems] = useState(NET_METERING);
-    const [subItems, setSubItems] = useState(SUBSIDIES);
+    const [nmItems, setNmItems] = useState([]);
+    const [subItems, setSubItems] = useState([]);
+    const [inspections, setInspections] = useState([]);
+    const [documents, setDocuments] = useState([]);
+    const [stats, setStats] = useState({
+        netMetering: { total: 0 },
+        subsidies: { total: 0, totalAmount: 0, disbursed: 0, disbursedAmount: 0 },
+        inspections: { total: 0 },
+        documents: { total: 0, uploaded: 0, pending: 0, complianceScore: 0 },
+    });
     const [nmView, setNmView] = useState('kanban');
     const [subView, setSubView] = useState('kanban');
     const [nmPage, setNmPage] = useState(1);
     const [subPage, setSubPage] = useState(1);
     const [insPage, setInsPage] = useState(1);
     const [docPage, setDocPage] = useState(1);
-    const [pageSize] = useState(APP_CONFIG.defaultPageSize);
+    const [pageSize] = useState(10);
     const [showAddNM, setShowAddNM] = useState(false);
     const [showAddSub, setShowAddSub] = useState(false);
+    const [showAddIns, setShowAddIns] = useState(false);
     const [showUpload, setShowUpload] = useState(false);
     const [selected, setSelected] = useState(null);
 
-    const handleNMStage = (id, s) => setNmItems(prev => prev.map(i => i.id === id ? { ...i, status: s } : i));
-    const handleSubStage = (id, s) => setSubItems(prev => prev.map(i => i.id === id ? { ...i, status: s } : i));
+    useEffect(() => {
+        const fetchComplianceData = async () => {
+            try {
+                const [nmRes, subRes, insRes, docRes, statsRes] = await Promise.all([
+                    fetch(`${API_BASE_URL}/compliance/net-metering?tenantId=${TENANT_ID}`),
+                    fetch(`${API_BASE_URL}/compliance/subsidies?tenantId=${TENANT_ID}`),
+                    fetch(`${API_BASE_URL}/compliance/inspections?tenantId=${TENANT_ID}`),
+                    fetch(`${API_BASE_URL}/compliance/documents?tenantId=${TENANT_ID}`),
+                    fetch(`${API_BASE_URL}/compliance/stats?tenantId=${TENANT_ID}`),
+                ]);
+                if (nmRes.ok) { const data = await nmRes.json(); setNmItems(Array.isArray(data) ? data : (data.data || [])); }
+                if (subRes.ok) { const data = await subRes.json(); setSubItems(Array.isArray(data) ? data : (data.data || [])); }
+                if (insRes.ok) { const data = await insRes.json(); setInspections(Array.isArray(data) ? data : (data.data || [])); }
+                if (docRes.ok) { const data = await docRes.json(); setDocuments(Array.isArray(data) ? data : (data.data || [])); }
+                if (statsRes.ok) { const data = await statsRes.json(); setStats(data); }
+            } catch (err) { console.error('Error fetching compliance data:', err); }
+        };
+        fetchComplianceData();
+    }, []);
+
+    const handleNMStage = async (id, newStatus) => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/compliance/net-metering/${id}?tenantId=${TENANT_ID}`, {
+                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: newStatus }),
+            });
+            if (response.ok) {
+                const updated = await response.json();
+                const itemData = updated.data || updated;
+                setNmItems(prev => prev.map(i => i.applicationId === id ? { ...i, ...itemData } : i));
+            }
+        } catch (err) { console.error('Error updating NM status:', err); }
+    };
+
+    const handleSubStage = async (id, newStatus) => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/compliance/subsidies/${id}?tenantId=${TENANT_ID}`, {
+                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: newStatus }),
+            });
+            if (response.ok) {
+                const updated = await response.json();
+                const itemData = updated.data || updated;
+                setSubItems(prev => prev.map(i => i.subsidyId === id ? { ...i, ...itemData } : i));
+            }
+        } catch (err) { console.error('Error updating subsidy status:', err); }
+    };
 
     const paginatedNM = nmItems.slice((nmPage - 1) * pageSize, nmPage * pageSize);
     const paginatedSub = subItems.slice((subPage - 1) * pageSize, subPage * pageSize);
-    const paginatedIns = INSPECTIONS.slice((insPage - 1) * pageSize, insPage * pageSize);
-    const paginatedDoc = DOCUMENTS.slice((docPage - 1) * pageSize, docPage * pageSize);
+    const paginatedIns = inspections.slice((insPage - 1) * pageSize, insPage * pageSize);
+    const paginatedDoc = documents.slice((docPage - 1) * pageSize, docPage * pageSize);
 
-    const totalSubsidy = subItems.reduce((a, s) => a + s.claimAmount, 0);
-    const disbursed = subItems.filter(s => s.status === 'Disbursed').reduce((a, s) => a + s.claimAmount, 0);
-    const uploadedDocs = DOCUMENTS.filter(d => d.status === 'Uploaded').length;
-    const pendingDocs = DOCUMENTS.filter(d => d.status === 'Pending').length;
-    const docProgress = Math.round((uploadedDocs / DOCUMENTS.length) * 100);
+    const totalSubsidy = subItems.reduce((a, s) => a + (s.claimAmount || 0), 0);
+    const disbursed = subItems.filter(s => s.status === 'Disbursed').reduce((a, s) => a + (s.disbursedAmount || s.claimAmount || 0), 0);
+    const uploadedDocs = documents.filter(d => d.status === 'Uploaded').length;
+    const pendingDocs = documents.filter(d => d.status === 'Pending').length;
+    const docProgress = stats.documents.complianceScore || (documents.length > 0 ? Math.round((uploadedDocs / documents.length) * 100) : 0);
 
     const NM_ACTIONS = [{ label: 'View Application', icon: FileText, onClick: r => setSelected({ type: 'nm', data: r }) }];
     const SUB_ACTIONS = [{ label: 'View Application', icon: FileText, onClick: r => setSelected({ type: 'sub', data: r }) }, { label: 'Download Form', icon: Download, onClick: () => { } }];
@@ -309,10 +364,10 @@ const CompliancePage = () => {
 
             {/* KPIs */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <KPICard title="Net Metering Apps" value={nmItems.length} icon={Building2} trend={+1} trendLabel="applied this month" color="accent" />
-                <KPICard title="Subsidy Claimed" value={`₹${(totalSubsidy / 100000).toFixed(1)}L`} icon={IndianRupee} trend={+2} trendLabel="total claims filed" color="solar" />
-                <KPICard title="Subsidy Disbursed" value={`₹${(disbursed / 100000).toFixed(1)}L`} icon={CheckCircle} trend={+1} trendLabel="received this quarter" color="emerald" />
-                <KPICard title="Docs Pending" value={pendingDocs} icon={AlertTriangle} trend={-2} trendLabel="need upload" color="amber" />
+                <KPICard title="Net Metering Apps" value={stats.netMetering.total} icon={Building2} color="accent" />
+                <KPICard title="Subsidy Claimed" value={`₹${(totalSubsidy / 100000).toFixed(1)}L`} icon={IndianRupee} color="solar" />
+                <KPICard title="Subsidy Disbursed" value={`₹${(disbursed / 100000).toFixed(1)}L`} icon={CheckCircle} color="emerald" />
+                <KPICard title="Docs Pending" value={stats.documents.pending} icon={AlertTriangle} color="amber" />
             </div>
 
             {/* AI Banner */}
@@ -336,7 +391,7 @@ const CompliancePage = () => {
                 <div className="flex gap-4 text-xs text-[var(--text-muted)]">
                     <span className="text-emerald-400 font-semibold">{uploadedDocs} Uploaded</span>
                     <span className="text-amber-400 font-semibold">{pendingDocs} Pending</span>
-                    <span>{DOCUMENTS.length} Total Required</span>
+                    <span>{documents.length} Total Required</span>
                 </div>
             </div>
 
@@ -345,8 +400,8 @@ const CompliancePage = () => {
                 <TabsList>
                     <TabsTrigger value="netmetering">Net Metering ({nmItems.length})</TabsTrigger>
                     <TabsTrigger value="subsidies">Subsidies ({subItems.length})</TabsTrigger>
-                    <TabsTrigger value="inspections">Inspections ({INSPECTIONS.length})</TabsTrigger>
-                    <TabsTrigger value="documents">Documents ({DOCUMENTS.length})</TabsTrigger>
+                    <TabsTrigger value="inspections">Inspections ({inspections.length})</TabsTrigger>
+                    <TabsTrigger value="documents">Documents ({documents.length})</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="netmetering">
@@ -416,18 +471,23 @@ const CompliancePage = () => {
                 </TabsContent>
 
                 <TabsContent value="inspections">
-                    <DataTable columns={INS_COLUMNS} data={paginatedIns} rowActions={INS_ACTIONS}
-                        pagination={{ page: insPage, pageSize, total: INSPECTIONS.length, onChange: setInsPage }}
-                        emptyMessage="No inspections found." />
+                    <div className="space-y-3">
+                        <div className="flex justify-end">
+                            <Button size="sm" onClick={() => setShowAddIns(true)}><Plus size={12} /> Schedule Inspection</Button>
+                        </div>
+                        <DataTable columns={INS_COLUMNS} data={paginatedIns}
+                            pagination={{ page: insPage, pageSize, total: inspections.length, onChange: setInsPage }}
+                            emptyMessage="No inspections found." />
+                    </div>
                 </TabsContent>
 
                 <TabsContent value="documents">
                     <div className="space-y-3">
                         <div className="flex justify-end">
-                            <Button size="sm" onClick={() => setShowUpload(true)}><Upload size={12} /> Upload Document</Button>
+                            <Button size="sm" onClick={() => setShowUpload(true)}><Upload size={12} /> Add Document</Button>
                         </div>
-                        <DataTable columns={DOC_COLUMNS} data={paginatedDoc} rowActions={DOC_ACTIONS}
-                            pagination={{ page: docPage, pageSize, total: DOCUMENTS.length, onChange: setDocPage }}
+                        <DataTable columns={DOC_COLUMNS} data={paginatedDoc}
+                            pagination={{ page: docPage, pageSize, total: documents.length, onChange: setDocPage }}
                             emptyMessage="No documents found." />
                     </div>
                 </TabsContent>
@@ -516,8 +576,16 @@ const CompliancePage = () => {
                         </Select>
                     </FormField>
                     <FormField label="Document Type">
-                        <Select><option value="">Select Document</option>
-                            {DOCUMENTS.filter(d => d.status === 'Pending').map(d => <option key={d.id}>{d.name}</option>)}
+                        <Select><option value="">Select Document Type</option>
+                            <option>Net Metering Application Form</option>
+                            <option>Single Line Diagram (SLD)</option>
+                            <option>Structural Load Certificate</option>
+                            <option>Electrical Completion Certificate</option>
+                            <option>Bidirectional Meter Installation Report</option>
+                            <option>Net Metering Agreement</option>
+                            <option>Subsidy Application</option>
+                            <option>Commissioning Certificate</option>
+                            <option>Generation Meter Calibration</option>
                         </Select>
                     </FormField>
                     <FormField label="Issuing Authority">

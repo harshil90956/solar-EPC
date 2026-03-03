@@ -531,10 +531,10 @@ const ProjectPage = () => {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KPICard label="Active Projects" value={active} sub="Currently executing" icon={FolderOpen} accentColor="#3b82f6" trend="+12% vs last mo" trendUp />
-        <KPICard label="Total Capacity" value={`${totalKW} kW`} sub="Pipeline capacity" icon={Zap} accentColor="#f59e0b" trend="+8% installed" trendUp />
-        <KPICard label="Avg. Progress" value={`${avgProgress}%`} sub="Across all projects" icon={TrendingUp} accentColor="#22c55e" trend="+5% completion" trendUp />
-        <KPICard label="Commissioned" value={commissioned} sub="Completed this year" icon={CheckCircle} accentColor="#06b6d4" trend="+2 this month" trendUp />
+        <KPICard label="Active Projects" value={active} sub="Currently executing" icon={FolderOpen} accentColor="#3b82f6" />
+        <KPICard label="Total Capacity" value={`${totalKW} kW`} sub="Pipeline capacity" icon={Zap} accentColor="#f59e0b" />
+        <KPICard label="Avg. Progress" value={`${avgProgress}%`} sub="Across all projects" icon={TrendingUp} accentColor="#22c55e" />
+        <KPICard label="Commissioned" value={commissioned} sub="Completed this year" icon={CheckCircle} accentColor="#06b6d4" />
       </div>
 
       <div className="ai-banner">
