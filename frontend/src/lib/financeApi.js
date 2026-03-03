@@ -30,9 +30,10 @@ export const financeApi = {
   // Customers
   getCustomers: () => api.get('/finance/customers').then(extractData).catch(handleError),
 
-  // Projects
-  getProject: (projectId) => api.get(`/projects/${projectId}`).then(extractData).catch(handleError),
+  // Projects - using finance module endpoint
+  getProject: (projectId) => api.get(`/finance/projects/${projectId}`).then(extractData).catch(handleError),
   getProjects: () => api.get('/finance/projects').then(extractData).catch(handleError),
+  getAllowedPaymentTerms: (projectStatus) => api.get('/finance/allowed-payment-terms', { projectStatus }).then(extractData).catch(handleError),
 
   // Invoices
   getInvoices: (status) => api.get('/finance/invoices', { status }).then(extractData).catch(handleError),
@@ -55,6 +56,12 @@ export const financeApi = {
   deleteInvoice: (id) => api.delete(`/finance/invoices/${id}`).then(extractData).catch(handleError),
   updateInvoiceStatus: (id, status) => api.patch(`/finance/invoices/${id}/status`, { status }).then(extractData).catch(handleError),
   recordPayment: (data) => api.post('/finance/invoices/record-payment', data).then(extractData).catch(handleError),
+  sendInvoiceReminder: (invoiceId, data) => api.post(`/finance/invoices/${invoiceId}/send-reminder`, {
+    reminderType: data.reminderType,
+    customerEmail: data.customerEmail,
+    messageBody: data.messageBody,
+  }).then(extractData).catch(handleError),
+  getInvoiceTimeline: (invoiceId) => api.get(`/finance/invoices/${invoiceId}/timeline`).then(extractData).catch(handleError),
 
   // Payments
   getPayments: (invoiceId) => api.get('/finance/payments', { invoiceId }).then(extractData).catch(handleError),
