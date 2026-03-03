@@ -21,6 +21,7 @@ import { AuthModule } from './core/auth/auth.module';
 import { TenantModule } from './core/tenant/tenant.module';
 
 import { EmailModule } from './modules/email/email.module';
+import { ItemsModule } from './modules/items/items.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { EmailModule } from './modules/email/email.module';
     InventoryModule,
     ProcurementModule,
     LogisticsModule,
+    ItemsModule,
     InstallationModule,
     CommissioningModule,
     FinanceModule,
