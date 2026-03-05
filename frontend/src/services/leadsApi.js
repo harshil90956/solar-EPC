@@ -143,6 +143,29 @@ export const leadsApi = {
     return response.json();
   },
 
+  // Get lead tracker / status progress
+  async getTracker(id) {
+    const response = await fetch(`${API_BASE_URL}/leads/${id}/tracker`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to fetch tracker');
+    return response.json();
+  },
+
+  // Update lead stage (with tracker update)
+  async updateStage(id, stage) {
+    const response = await fetch(`${API_BASE_URL}/leads/${id}/stage`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ stage }),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to update stage: ${errorText}`);
+    }
+    return response.json();
+  },
+
   // Bulk archive leads
   async bulkArchive(ids) {
     const response = await fetch(`${API_BASE_URL}/leads/bulk/archive`, {
