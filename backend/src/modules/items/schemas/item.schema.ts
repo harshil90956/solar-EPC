@@ -45,6 +45,9 @@ export class Item extends Document {
   @Prop({ required: false, default: 0 })
   reserved?: number;
 
+  @Prop({ required: false, default: 'In Stock' })
+  status?: string;
+
   @Prop({ type: Types.ObjectId, ref: 'ItemGroup', required: false })
   itemGroupId?: Types.ObjectId;
 

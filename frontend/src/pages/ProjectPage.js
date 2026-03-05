@@ -183,6 +183,40 @@ const ProjectPage = () => {
   const [usersLoading, setUsersLoading] = useState(false);
   const [hiddenCols, setHiddenCols] = useState(new Set());
   const [colToggleOpen, setColToggleOpen] = useState(false);
+  const [projectStats, setProjectStats] = useState(null);
+  const [projectsByStage, setProjectsByStage] = useState([]);
+
+  // Fetch projects stats from backend
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/projects/stats?tenantId=${TENANT_ID}`);
+        if (response.ok) {
+          const data = await response.json();
+          setProjectStats(data.data || data);
+        }
+      } catch (err) {
+        console.error('Error fetching project stats:', err);
+      }
+    };
+    fetchStats();
+  }, []);
+
+  // Fetch projects by stage for chart
+  useEffect(() => {
+    const fetchByStage = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/projects/by-stage?tenantId=${TENANT_ID}`);
+        if (response.ok) {
+          const data = await response.json();
+          setProjectsByStage(data.data || data || []);
+        }
+      } catch (err) {
+        console.error('Error fetching projects by stage:', err);
+      }
+    };
+    fetchByStage();
+  }, []);
 
   // Fetch projects from backend
   useEffect(() => {
@@ -639,11 +673,11 @@ const ProjectPage = () => {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <KPICard label="Total Projects" value={projects.length} sub="All projects" icon={Layers} accentColor="#6366f1" />
-        <KPICard label="Active Projects" value={active} sub="Currently executing" icon={FolderOpen} accentColor="#3b82f6" />
-        <KPICard label="Total Capacity" value={`${totalKW} kW`} sub="Pipeline capacity" icon={Zap} accentColor="#f59e0b" />
-        <KPICard label="Current Progress" value={`${avgProgress}%`} sub="Across all projects" icon={TrendingUp} accentColor="#22c55e" />
-        <KPICard label="Completed" value={commissioned} sub="Finished projects" icon={CheckCircle} accentColor="#06b6d4" />
+        <KPICard label="Total Projects" value={projectStats?.totalProjects ?? projects.length} sub="All projects" icon={Layers} accentColor="#6366f1" />
+        <KPICard label="Active Projects" value={projectStats?.active ?? active} sub="Currently executing" icon={FolderOpen} accentColor="#3b82f6" />
+        <KPICard label="Total Capacity" value={`${Math.round(projectStats?.totalCapacity ?? totalKW)} kW`} sub="Pipeline capacity" icon={Zap} accentColor="#f59e0b" />
+        <KPICard label="Current Progress" value={`${Math.round(projectStats?.avgProgress ?? avgProgress)}%`} sub="Across all projects" icon={TrendingUp} accentColor="#22c55e" />
+        <KPICard label="Completed" value={projectStats?.commissioned ?? commissioned} sub="Finished projects" icon={CheckCircle} accentColor="#06b6d4" />
       </div>
 
       <div className="ai-banner">
@@ -658,18 +692,16 @@ const ProjectPage = () => {
         <div className="glass-card p-4">
           <div className="flex items-center gap-2 mb-3">
             <BarChart2 size={15} className="text-[var(--accent)]" />
-            <h3 className="text-sm font-semibold text-[var(--text-primary)]">Project Stage Trend (5 months)</h3>
+            <h3 className="text-sm font-semibold text-[var(--text-primary)]">Projects by Stage</h3>
           </div>
           <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={PROJECT_STAGE_TREND} barSize={12} barGap={3}>
+            <BarChart data={projectsByStage.map(s => ({ stage: s._id, count: s.count, capacity: s.capacity }))} barSize={20} barGap={3}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-              <XAxis dataKey="month" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="stage" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)', borderRadius: 8, fontSize: 12 }} />
-              <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
-              <Bar dataKey="survey" fill="#8b5cf6" radius={[3, 3, 0, 0]} name="Survey" />
-              <Bar dataKey="design" fill="#06b6d4" radius={[3, 3, 0, 0]} name="Design" />
-              <Bar dataKey="installation" fill="#f59e0b" radius={[3, 3, 0, 0]} name="Installation" />
+              <Bar dataKey="count" fill="#8b5cf6" radius={[3, 3, 0, 0]} name="Projects" />
+              <Bar dataKey="capacity" fill="#06b6d4" radius={[3, 3, 0, 0]} name="Capacity (kW)" />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -677,9 +709,15 @@ const ProjectPage = () => {
 
       {view === 'kanban' ? (
         <>
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-[var(--text-muted)]">Drag cards between columns to update project stage</p>
-            <Input placeholder="Search projects…" value={search} onChange={e => setSearch(e.target.value)} className="h-8 text-xs w-52" />
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-xs text-[var(--text-muted)] mr-1">Status:</span>
+            {STATUS_FILTERS.map(s => (
+              <button key={s} onClick={() => setFilter(s)}
+                className={`filter-chip ${statusFilter === s ? 'filter-chip-active' : ''}`}>{s}</button>
+            ))}
+            <div className="ml-auto">
+              <Input placeholder="Search projects…" value={search} onChange={e => setSearch(e.target.value)} className="h-8 text-xs w-52" />
+            </div>
           </div>
           {loading ? (
             <div className="glass-card p-8 text-center">
