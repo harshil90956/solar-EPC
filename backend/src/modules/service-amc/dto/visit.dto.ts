@@ -52,6 +52,10 @@ export class CreateVisitDto {
   @IsString()
   @IsOptional()
   tenant_id?: string;
+
+  @IsString()
+  @IsOptional()
+  email?: string;
 }
 
 export class UpdateVisitDto {
