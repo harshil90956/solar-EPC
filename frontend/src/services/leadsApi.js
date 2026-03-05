@@ -81,6 +81,8 @@ export const leadsApi = {
       headers: getAuthHeaders(),
     });
     if (!response.ok) throw new Error('Failed to delete lead');
+    // Backend returns NO_CONTENT (204) with empty body
+    if (response.status === 204) return { success: true };
     return response.json();
   },
 

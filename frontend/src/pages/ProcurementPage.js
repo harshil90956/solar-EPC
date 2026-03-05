@@ -159,6 +159,7 @@ const ProcurementPage = () => {
 
   // Form states
   const [newPO, setNewPO] = useState({ vendorId: '', items: '', totalAmount: '', expectedDate: '', relatedProjectId: '' });
+  const [newVendor, setNewVendor] = useState({ name: '', category: '', city: '', contact: '', phone: '', email: '' });
 
   // Vendors list for dropdown
   const [vendors, setVendors] = useState([]);
@@ -371,7 +372,6 @@ const ProcurementPage = () => {
   const handleCreateVendor = async () => {
     try {
       const res = await api.post('/procurement/vendors', newVendor);
-      // Refetch all data to ensure UI is in sync with backend
       await fetchData();
       setShowVendor(false);
       setNewVendor({ name: '', category: '', city: '', contact: '', phone: '', email: '' });
