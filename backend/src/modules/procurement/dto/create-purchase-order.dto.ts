@@ -1,7 +1,8 @@
-import { IsString, IsNumber, IsIn, IsOptional, IsMongoId } from 'class-validator';
+import { IsString, IsNumber, IsIn, IsOptional, IsMongoId, IsNotEmpty } from 'class-validator';
 
 export class CreatePurchaseOrderDto {
   @IsString()
+  @IsNotEmpty()
   vendorId!: string;
 
   @IsString()

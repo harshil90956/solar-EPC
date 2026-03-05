@@ -18,7 +18,7 @@ import DataTable from '../components/ui/DataTable';
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
 import { usePermissions } from '../hooks/usePermissions';
 import { useAuditLog } from '../hooks/useAuditLog';
-import CanAccess, { CanCreate, CanEdit, CanDelete } from '../components/CanAccess';
+import CanAccess, { CanCreate } from '../components/CanAccess';
 import { toast } from '../components/ui/Toast';
 
 const fmt = CURRENCY.format;
@@ -140,28 +140,12 @@ const KanbanBoard = ({ projects, onStageChange, onCardClick }) => {
 /* ── Main Page ── */
 const ProjectPage = () => {
   const { can } = usePermissions();
-  const { logCreate, logUpdate, logDelete, logStatusChange } = useAuditLog('project');
+  const { logStatusChange } = useAuditLog('project');
 
-  // Permission guard helpers
+  // Permission guard helper
   const guardCreate = () => {
     if (!can('project', 'create')) {
       toast.error('Permission denied: Cannot create projects');
-      return false;
-    }
-    return true;
-  };
-
-  const guardEdit = () => {
-    if (!can('project', 'edit')) {
-      toast.error('Permission denied: Cannot edit projects');
-      return false;
-    }
-    return true;
-  };
-
-  const guardDelete = () => {
-    if (!can('project', 'delete')) {
-      toast.error('Permission denied: Cannot delete projects');
       return false;
     }
     return true;

@@ -55,7 +55,6 @@ export class InventoryService {
   async create(tenantCode: string, createDto: CreateInventoryDto) {
     const tenantId = await this.getTenantId(tenantCode);
     
-    // Auto-calculate status based on stock levels
     const stock = createDto.stock || 0;
     const available = createDto.available || 0;
     const minStock = createDto.minStock || 0;
@@ -102,12 +101,9 @@ export class InventoryService {
     return item;
   }
 
-  // ==================== RESERVATION METHODS ====================
-
   async createReservation(tenantCode: string, createDto: CreateReservationDto) {
     const tenantId = await this.getTenantId(tenantCode);
     
-    // Check if item exists and has enough available stock
     const item = await this.inventoryModel.findOne({ tenantId, itemId: createDto.itemId }).exec();
     if (!item) {
       throw new NotFoundException(`Item ${createDto.itemId} not found`);
@@ -119,7 +115,6 @@ export class InventoryService {
       );
     }
 
-    // Create reservation
     const reservationId = `RES${Date.now().toString(36).toUpperCase()}`;
     const reservation = new this.reservationModel({
       ...createDto,
@@ -129,7 +124,6 @@ export class InventoryService {
       reservedDate: new Date().toISOString().split('T')[0],
     });
 
-    // Update inventory reserved count
     const newReserved = item.reserved + createDto.quantity;
     const newAvailable = item.stock - newReserved;
 
@@ -175,7 +169,6 @@ export class InventoryService {
       throw new NotFoundException(`Reservation ${reservationId} not found`);
     }
 
-    // If quantity is being updated, adjust inventory
     if (updateDto.quantity && updateDto.quantity !== reservation.quantity) {
       const item = await this.inventoryModel.findOne({ 
         tenantId, 
@@ -205,7 +198,6 @@ export class InventoryService {
       }
     }
 
-    // If status changed to cancelled, release the reservation
     if (updateDto.status === 'cancelled' && reservation.status !== 'cancelled') {
       const item = await this.inventoryModel.findOne({ 
         tenantId, 
@@ -244,7 +236,6 @@ export class InventoryService {
     return this.updateReservation(tenantCode, reservationId, { status: 'fulfilled' });
   }
 
-  // Get item with reservation details
   async findOneWithReservations(tenantCode: string, itemId: string) {
     const tenantId = await this.getTenantId(tenantCode);
     
@@ -374,5 +365,89 @@ export class InventoryService {
         },
       },
     ]).exec();
+  }
+
+  // Backward compatibility methods for logistics service
+  async addStock(
+    itemName: string,
+    quantity: number,
+    reason: string,
+    referenceId?: string,
+    tenantCode: string = 'solarcorp',
+  ): Promise<Inventory | null> {
+    const tenantId = await this.getTenantId(tenantCode);
+    
+    let item = await this.inventoryModel.findOne({ tenantId, name: itemName }).exec();
+    
+    if (!item) {
+      // Create new inventory item if it doesn't exist
+      const newItem = new this.inventoryModel({
+        tenantId,
+        itemId: `INV${Date.now().toString(36).toUpperCase()}`,
+        name: itemName,
+        category: 'Auto-created',
+        stock: quantity,
+        available: quantity,
+        reserved: 0,
+        minStock: 0,
+        rate: 0,
+        unit: 'Nos',
+        warehouse: 'Main',
+        status: 'In Stock',
+        lastUpdated: new Date().toISOString().split('T')[0],
+      });
+      item = await newItem.save();
+      return item;
+    }
+
+    const newStock = item.stock + quantity;
+    const newAvailable = newStock - item.reserved;
+
+    return this.inventoryModel.findOneAndUpdate(
+      { tenantId, _id: item._id },
+      {
+        $set: {
+          stock: newStock,
+          available: newAvailable,
+          lastUpdated: new Date().toISOString().split('T')[0],
+        }
+      },
+      { new: true },
+    ).exec();
+  }
+
+  async removeStock(
+    itemName: string,
+    quantity: number,
+    reason: string,
+    referenceId?: string,
+    tenantCode: string = 'solarcorp',
+  ): Promise<Inventory | null> {
+    const tenantId = await this.getTenantId(tenantCode);
+    
+    const item = await this.inventoryModel.findOne({ tenantId, name: itemName }).exec();
+    
+    if (!item) {
+      throw new NotFoundException(`Inventory item "${itemName}" not found`);
+    }
+
+    if (item.available < quantity) {
+      throw new BadRequestException(`Insufficient stock for "${itemName}". Available: ${item.available}, Requested: ${quantity}`);
+    }
+
+    const newStock = item.stock - quantity;
+    const newAvailable = newStock - item.reserved;
+
+    return this.inventoryModel.findOneAndUpdate(
+      { tenantId, _id: item._id },
+      {
+        $set: {
+          stock: newStock,
+          available: newAvailable,
+          lastUpdated: new Date().toISOString().split('T')[0],
+        }
+      },
+      { new: true },
+    ).exec();
   }
 }
