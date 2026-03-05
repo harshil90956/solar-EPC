@@ -127,6 +127,10 @@ export class CreateReservationDto {
   @IsString()
   projectId!: string;
 
+  @IsOptional()
+  @IsString()
+  projectName?: string;
+
   @IsNumber()
   @Min(1)
   quantity!: number;

@@ -34,7 +34,32 @@ export class InventoryService {
       query.$text = { $search: search };
     }
 
-    return this.inventoryModel.find(query).sort({ createdAt: -1 }).exec();
+    const items = await this.inventoryModel.find(query).sort({ createdAt: -1 }).exec();
+    
+    // Fetch reservations and map to items (handle both 'active' and 'Reserved' for backward compatibility)
+    const reservations = await this.reservationModel.find({ 
+      tenantId: tenantId,
+      status: { $in: ['active', 'Reserved'] }
+    }).exec();
+    
+    // Add reservedFor field to items that have reservations
+    const itemsWithReservations = items.map(item => {
+      const itemReservations = reservations.filter(r => r.itemId === item.itemId);
+      if (itemReservations.length > 0) {
+        // If multiple reservations, show the first one or aggregate
+        const reservation = itemReservations[0];
+        return {
+          ...item.toObject(),
+          reservedFor: {
+            projectId: reservation.projectId,
+            projectName: reservation.projectName
+          }
+        };
+      }
+      return item.toObject();
+    });
+    
+    return itemsWithReservations;
   }
 
   async findOne(tenantCode: string, itemId: string) {
