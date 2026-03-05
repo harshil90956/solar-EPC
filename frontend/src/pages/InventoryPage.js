@@ -119,14 +119,14 @@ const InvKanbanBoard = ({ items, onCardClick, onDrop }) => {
   };
 
   return (
-    <div className="overflow-x-auto pb-3">
+    <div className="overflow-x-auto pb-3 -mx-2 px-2">
       <div className="flex gap-3 min-w-max">
         {INV_STAGES.map(stage => {
           const cards = items.filter(i => getStockStatus(i) === stage.id);
           const totalVal = cards.reduce((a, i) => a + i.available * i.rate, 0);
           return (
             <div key={stage.id}
-              className={`flex flex-col w-60 rounded-xl border transition-colors ${dragOver === stage.id ? 'border-[var(--primary)]/50 bg-[var(--primary)]/5' : 'border-[var(--border-base)] bg-[var(--bg-surface)]'}`}
+              className={`flex flex-col w-72 sm:w-60 rounded-xl border transition-colors ${dragOver === stage.id ? 'border-[var(--primary)]/50 bg-[var(--primary)]/5' : 'border-[var(--border-base)] bg-[var(--bg-surface)]'}`}
               onDragOver={e => { e.preventDefault(); setDragOver(stage.id); }}
               onDragLeave={() => setDragOver(null)}
               onDrop={() => handleDrop(stage.id)}>
@@ -136,7 +136,7 @@ const InvKanbanBoard = ({ items, onCardClick, onDrop }) => {
                   <span className="text-xs font-semibold text-[var(--text-primary)]">{stage.label}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  {totalVal > 0 && <span className="text-[10px] text-[var(--text-muted)]">₹{(totalVal / 100000).toFixed(1)}L</span>}
+                  {totalVal > 0 && <span className="text-[10px] text-[var(--text-muted)] hidden sm:inline">₹{(totalVal / 100000).toFixed(1)}L</span>}
                   <span className="min-w-[20px] h-5 rounded-full text-[10px] font-bold flex items-center justify-center"
                     style={{ background: stage.bg, color: stage.color }}>{cards.length}</span>
                 </div>
@@ -572,23 +572,24 @@ const InventoryPage = () => {
 
   return (
     <div className="animate-fade-in space-y-5">
-      <div className="page-header">
+      <div className="page-header flex-col sm:flex-row gap-3">
         <div>
-          <h1 className="heading-page">Inventory Management</h1>
+          <h1 className="heading-page text-lg sm:text-xl">Inventory Management</h1>
           <p className="text-xs text-[var(--text-muted)] mt-0.5">Stock levels · reservations · low-stock alerts · warehouses</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="view-toggle-pill">
             <button onClick={() => setView('kanban')}
               className={`view-toggle-btn ${view === 'kanban' ? 'active' : ''}`}><LayoutGrid size={14} /></button>
             <button onClick={() => setView('table')}
               className={`view-toggle-btn ${view === 'table' ? 'active' : ''}`}><List size={14} /></button>
           </div>
-          <Button variant="ghost" onClick={() => setStockIn(true)}><ArrowUp size={13} /> Stock In</Button>
+          <Button variant="ghost" size="sm" onClick={() => setStockIn(true)}><ArrowUp size={13} /> <span className="hidden sm:inline">Stock In</span></Button>
+          <Button variant="ghost" size="sm" onClick={() => setShowStockOut(true)}><ArrowDown size={13} /> <span className="hidden sm:inline">Stock Out</span></Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <KPICard label="Total Items" value={inventory.length} sub="SKUs tracked" icon={Package} accentColor="#3b82f6" />
         <KPICard label="Inventory Value" value={fmt(totalValue)} sub="At current rates" icon={Warehouse} accentColor="#f59e0b" />
         <KPICard label="Low Stock Alerts" value={lowStockItems.length} sub="Items need reorder" icon={AlertTriangle} accentColor="#f59e0b" />
@@ -677,9 +678,8 @@ const InventoryPage = () => {
             {submitting ? 'Adding...' : <><Plus size={13} /> Add Item</>}
           </Button>
         </div>}>
-        <div className="space-y-3">
-          <FormField label="Item Name"><Input placeholder="e.g. 400W Mono PERC Panel" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></FormField>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <FormField label="Item Name"><Input placeholder="e.g. 400W Mono PERC Panel" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></FormField>
             <FormField label="Category">
               <Select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
                 <option value="">Select Category</option>
@@ -692,18 +692,15 @@ const InventoryPage = () => {
                 {['Nos', 'Mtr', 'Kg', 'Set', 'Pairs', 'Box'].map(u => <option key={u}>{u}</option>)}
               </Select>
             </FormField>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
             <FormField label="Min Stock Level"><Input type="number" placeholder="100" value={form.minStock} onChange={e => setForm(f => ({ ...f, minStock: e.target.value }))} /></FormField>
             <FormField label="Unit Rate (₹)"><Input type="number" placeholder="14500" value={form.rate} onChange={e => setForm(f => ({ ...f, rate: e.target.value }))} /></FormField>
+            <FormField label="Warehouse">
+              <Select value={form.warehouse} onChange={e => setForm(f => ({ ...f, warehouse: e.target.value }))}>
+                <option value="">Select Warehouse</option>
+                <option>WH-Ahmedabad</option><option>WH-Surat</option><option>WH-Mumbai</option>
+              </Select>
+            </FormField>
           </div>
-          <FormField label="Warehouse">
-            <Select value={form.warehouse} onChange={e => setForm(f => ({ ...f, warehouse: e.target.value }))}>
-              <option value="">Select Warehouse</option>
-              <option>WH-Ahmedabad</option><option>WH-Surat</option><option>WH-Mumbai</option>
-            </Select>
-          </FormField>
-        </div>
       </Modal>
 
       {/* Stock In Modal */}
@@ -714,14 +711,14 @@ const InventoryPage = () => {
             {submitting ? 'Processing...' : <><ArrowUp size={13} /> Confirm Receipt</>}
           </Button>
         </div>}>
-        <div className="space-y-3">
+        <div className="space-y-3 max-h-[60vh] sm:max-h-[70vh] overflow-y-auto">
           <FormField label="Item">
             <Select value={stockInForm.itemId} onChange={e => setStockInForm(f => ({ ...f, itemId: e.target.value }))}>
               <option value="">Select Item</option>
               {inventory.map(i => <option key={i._id} value={i._id}>{i.name || i.description} ({i.itemId})</option>)}
             </Select>
           </FormField>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="Quantity Received"><Input type="number" placeholder="100" value={stockInForm.quantity} onChange={e => setStockInForm(f => ({ ...f, quantity: e.target.value }))} /></FormField>
             <FormField label="PO Reference"><Input placeholder="PO001" value={stockInForm.poReference} onChange={e => setStockInForm(f => ({ ...f, poReference: e.target.value }))} /></FormField>
           </div>
@@ -738,9 +735,9 @@ const InventoryPage = () => {
             {submitting ? 'Saving...' : 'Save Changes'}
           </Button>
         </div>}>
-        <div className="space-y-3">
+        <div className="space-y-3 max-h-[60vh] sm:max-h-[70vh] overflow-y-auto">
           <FormField label="Item Name"><Input placeholder="e.g. 400W Mono PERC Panel" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} /></FormField>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="Category">
               <Select value={editForm.category} onChange={e => setEditForm(f => ({ ...f, category: e.target.value }))}>
                 <option value="">Select Category</option>
@@ -753,26 +750,24 @@ const InventoryPage = () => {
                 {['Nos', 'Mtr', 'Kg', 'Set', 'Pairs', 'Box'].map(u => <option key={u}>{u}</option>)}
               </Select>
             </FormField>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
             <FormField label="Min Stock Level"><Input type="number" placeholder="100" value={editForm.minStock} onChange={e => setEditForm(f => ({ ...f, minStock: e.target.value }))} /></FormField>
             <FormField label="Unit Rate (₹)"><Input type="number" placeholder="14500" value={editForm.rate} onChange={e => setEditForm(f => ({ ...f, rate: e.target.value }))} /></FormField>
+            <FormField label="Status">
+              <Select value={editForm.status} onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))}>
+                <option value="">Auto (calculated from stock)</option>
+                <option value="In Stock">In Stock</option>
+                <option value="Partially Reserved">Partially Reserved</option>
+                <option value="Low Stock">Low Stock</option>
+                <option value="Out of Stock">Out of Stock</option>
+              </Select>
+            </FormField>
+            <FormField label="Warehouse">
+              <Select value={editForm.warehouse} onChange={e => setEditForm(f => ({ ...f, warehouse: e.target.value }))}>
+                <option value="">Select Warehouse</option>
+                <option>WH-Ahmedabad</option><option>WH-Surat</option><option>WH-Mumbai</option>
+              </Select>
+            </FormField>
           </div>
-          <FormField label="Status">
-            <Select value={editForm.status} onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))}>
-              <option value="">Auto (calculated from stock)</option>
-              <option value="In Stock">In Stock</option>
-              <option value="Partially Reserved">Partially Reserved</option>
-              <option value="Low Stock">Low Stock</option>
-              <option value="Out of Stock">Out of Stock</option>
-            </Select>
-          </FormField>
-          <FormField label="Warehouse">
-            <Select value={editForm.warehouse} onChange={e => setEditForm(f => ({ ...f, warehouse: e.target.value }))}>
-              <option value="">Select Warehouse</option>
-              <option>WH-Ahmedabad</option><option>WH-Surat</option><option>WH-Mumbai</option>
-            </Select>
-          </FormField>
         </div>
       </Modal>
 
@@ -784,14 +779,14 @@ const InventoryPage = () => {
             {submitting ? 'Processing...' : <><ArrowDown size={13} /> Confirm Issue</>}
           </Button>
         </div>}>
-        <div className="space-y-3">
+        <div className="space-y-3 max-h-[60vh] sm:max-h-[70vh] overflow-y-auto">
           <FormField label="Item">
             <Select value={stockOutForm.itemId} onChange={e => setStockOutForm(f => ({ ...f, itemId: e.target.value }))}>
               <option value="">Select Item</option>
               {inventory.map(i => <option key={i._id} value={i._id}>{i.name || i.description} ({i.itemId})</option>)}
             </Select>
           </FormField>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="Quantity to Issue"><Input type="number" placeholder="50" value={stockOutForm.quantity} onChange={e => setStockOutForm(f => ({ ...f, quantity: e.target.value }))} /></FormField>
             <FormField label="Project">
               <Select value={stockOutForm.projectId} onChange={e => setStockOutForm(f => ({ ...f, projectId: e.target.value }))}>
@@ -817,7 +812,7 @@ const InventoryPage = () => {
       {selected && (
         <Modal open={!!selected} onClose={() => setSelected(null)} title={selected.name}
           footer={<Button variant="ghost" onClick={() => setSelected(null)}>Close</Button>}>
-          <div className="grid grid-cols-2 gap-3 text-xs mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs mb-4">
             {[
               ['Item ID', selected.itemId], ['Category', selected.category], ['Warehouse', selected.warehouse],
               ['Unit', selected.unit], ['Total Stock', `${selected.stock} ${selected.unit}`],
