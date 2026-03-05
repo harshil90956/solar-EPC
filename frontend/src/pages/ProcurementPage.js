@@ -7,6 +7,7 @@ import { StatusBadge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input, FormField, Select, Textarea } from '../components/ui/Input';
+import { PageHeader } from '../components/ui/PageHeader';
 import { KPICard } from '../components/ui/KPICard';
 import { Avatar } from '../components/ui/Avatar';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/Tabs';
@@ -223,13 +224,20 @@ const ProcurementPage = () => {
       const posRes = await api.get('/procurement/purchase-orders');
       // Handle API response - could be direct array or wrapped object
       let posData = [];
-      
+
+      if (Array.isArray(vendorsRes.data)) {
+        vendorsData = vendorsRes.data;
+      } else if (vendorsRes.data && typeof vendorsRes.data === 'object') {
+        vendorsData = vendorsRes.data.data || [];
+      }
+
       if (Array.isArray(posRes.data)) {
         posData = posRes.data;
       } else if (posRes.data && typeof posRes.data === 'object') {
         posData = posRes.data.data || [];
       }
-      
+
+      setVendors(vendorsData);
       setPos(posData);
     } catch (error) {
       console.error('Error fetching procurement data:', error);
@@ -244,6 +252,52 @@ const ProcurementPage = () => {
       setPos(prev => prev.map(p => p.id === id ? { ...p, status: newStatus } : p));
     } catch (error) {
       console.error('Error updating PO status:', error);
+    }
+  };
+
+  const handleCreateVendor = async () => {
+    try {
+      const res = await api.post('/procurement/vendors', newVendor);
+      // Refetch all data to ensure UI is in sync with backend
+      await fetchData();
+      setShowVendor(false);
+      setNewVendor({ name: '', category: '', city: '', contact: '', phone: '', email: '' });
+    } catch (error) {
+      console.error('Error creating vendor:', error);
+    }
+  };
+
+  const handleCallVendor = (vendor) => {
+    if (vendor?.phone) {
+      window.open(`tel:${vendor.phone}`, '_self');
+    } else {
+      alert('No phone number available');
+    }
+  };
+
+  const handleEmailVendor = async (vendor) => {
+    if (vendor?.email) {
+      try {
+        const subject = 'Purchase Order Inquiry';
+        const text = `Dear ${vendor.name || vendor.contact || 'Vendor'},\n\nI hope this email finds you well. We are interested in discussing potential purchase orders and would like to connect with you regarding our requirements.\n\nPlease let us know your availability for a brief discussion.\n\nBest regards,\nSolarOS Team`;
+
+        const res = await api.post('/email/send', {
+          to: vendor.email,
+          subject,
+          text
+        });
+
+        if (res.data?.success) {
+          alert(`Email sent to ${vendor.email}`);
+        } else {
+          alert(`Email queued: ${res.data?.message || 'Will be sent shortly'}`);
+        }
+      } catch (error) {
+        console.error('Error sending email:', error);
+        alert('Failed to send email. Please try again later.');
+      }
+    } else {
+      alert('No email address available');
     }
   };
 
@@ -271,7 +325,7 @@ const ProcurementPage = () => {
   };
 
   const filteredPOs = useMemo(() =>
-    pos.filter(po => po && 
+    pos.filter(po => po &&
       (poStatus === 'All' || po?.status === poStatus) &&
       po?.vendorName?.toLowerCase().includes(poSearch.toLowerCase())
     ), [poSearch, poStatus, pos]);
@@ -295,17 +349,14 @@ const ProcurementPage = () => {
 
   return (
     <div className="animate-fade-in space-y-5">
-      <div className="page-header">
-        <div>
-          <h1 className="heading-page">Procurement</h1>
-          <p className="text-xs text-[var(--text-muted)] mt-0.5">Purchase orders · vendor management · delivery tracking</p>
-        </div>
-        <div className="flex gap-2">
-          <CanCreate module="procurement">
-            <Button onClick={() => { if (guardCreate()) setShowPO(true); }}><Plus size={13} /> Create PO</Button>
-          </CanCreate>
-        </div>
-      </div>
+      <PageHeader
+        title="Procurement"
+        subtitle="Purchase orders · vendor management · delivery tracking"
+        actions={[
+          { type: 'button', label: 'Add Vendor', icon: Plus, onClick: () => { if (guardCreate()) setShowVendor(true); } },
+          { type: 'button', label: 'Create PO', icon: Plus, variant: 'primary', onClick: () => { if (guardCreate()) setShowPO(true); } }
+        ]}
+      />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KPICard title="Active POs" value={pendingPOs} icon={ShoppingCart} color="accent" />
@@ -438,7 +489,7 @@ const ProcurementPage = () => {
               <TabsTrigger value="timeline">Timeline ({pos.filter(p => p && (p?.vendorId?._id === selectedVendor?._id || p?.vendorName === selectedVendor?.name)).length})</TabsTrigger>
               <TabsTrigger value="activity">Activity Log</TabsTrigger>
             </TabsList>
-            
+
             <TabsContent value="details">
               <div className="grid grid-cols-2 gap-3 text-xs mt-3">
                 {[
@@ -462,7 +513,7 @@ const ProcurementPage = () => {
                 </div>
               </div>
             </TabsContent>
-            
+
             <TabsContent value="timeline">
               <div className="space-y-2 mt-3">
                 {pos.filter(p => p && (p?.vendorId?._id === selectedVendor?._id || p?.vendorName === selectedVendor?.name))
@@ -482,7 +533,7 @@ const ProcurementPage = () => {
                 )}
               </div>
             </TabsContent>
-            
+
             <TabsContent value="activity">
               <div className="space-y-2 mt-3">
                 <div className="glass-card p-3">
