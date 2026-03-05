@@ -114,6 +114,17 @@ export const SettingsProvider = ({ children }) => {
         loadSettings();
     }, []);
 
+    useEffect(() => {
+        try {
+            const modulePermissions = Object.fromEntries(
+                Object.entries(flags || {}).map(([moduleId, cfg]) => [moduleId, cfg?.actions || {}])
+            );
+            localStorage.setItem('modulePermissions', JSON.stringify(modulePermissions));
+        } catch (e) {
+            console.error('Failed to persist modulePermissions to localStorage:', e);
+        }
+    }, [flags]);
+
     // ── Audit helper ──────────────────────────────────────────────────────────
     const addAudit = useCallback(async (action, target, from, to, user = 'Admin User') => {
         const entry = {
