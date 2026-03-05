@@ -3,7 +3,7 @@ import {
     LayoutDashboard, Users, MapPin, Pencil, FileText, FolderOpen,
     Package, ShoppingCart, Truck, Wrench, CheckCircle, DollarSign,
     Headphones, FileCheck, Settings, Brain, Bell, Shield,
-    Briefcase, UserCircle, Calendar, Wallet, TrendingUp,
+    Briefcase, UserCircle, Calendar, Wallet, TrendingUp, List,
 } from 'lucide-react';
 import { INVENTORY, TICKETS, LEADS, PROJECTS, QUOTATIONS } from '../data/mockData';
 
