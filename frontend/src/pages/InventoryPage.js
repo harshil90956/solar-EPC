@@ -187,7 +187,41 @@ const InventoryPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [stats, setStats] = useState({ totalItems: 0, totalValue: 0, lowStockItems: 0, outOfStockItems: 0 });
+  const [inventoryStats, setInventoryStats] = useState(null);
+  const [itemsByCategory, setItemsByCategory] = useState([]);
   const [submitting, setSubmitting] = useState(false);
+
+  // Fetch inventory stats from backend
+  useEffect(() => {
+    const fetchInventoryStats = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/inventory/stats?tenantId=${TENANT_ID}`);
+        if (response.ok) {
+          const data = await response.json();
+          setInventoryStats(data.data || data);
+        }
+      } catch (err) {
+        console.error('Error fetching inventory stats:', err);
+      }
+    };
+    fetchInventoryStats();
+  }, []);
+
+  // Fetch items by category for chart
+  useEffect(() => {
+    const fetchByCategory = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/inventory/by-category?tenantId=${TENANT_ID}`);
+        if (response.ok) {
+          const data = await response.json();
+          setItemsByCategory(data.data || data || []);
+        }
+      } catch (err) {
+        console.error('Error fetching items by category:', err);
+      }
+    };
+    fetchByCategory();
+  }, []);
 
   // Fetch items from Items module (instead of inventory)
   useEffect(() => {
@@ -269,20 +303,24 @@ const InventoryPage = () => {
     fetchProjects();
   }, []);
 
-  // Fetch stats from items (calculated locally since items don't have stats endpoint)
-  useEffect(() => {
-    // Calculate stats from inventory data
+  // Calculate dynamic stats from inventory
+  const dynamicStats = useMemo(() => {
     const totalItems = inventory.length;
     const totalValue = inventory.reduce((a, i) => a + (i.stock || 0) * (i.rate || 0), 0);
-    const lowStockItems = inventory.filter(i => ((i.stock || 0) - (i.reserved || 0)) <= (i.minStock || 0) && ((i.stock || 0) - (i.reserved || 0)) > 0).length;
-    const outOfStockItems = inventory.filter(i => (i.stock || 0) === 0).length;
     
-    setStats({
-      totalItems,
-      totalValue,
-      lowStockItems,
-      outOfStockItems
-    });
+    // Count by actual status if available, otherwise calculate
+    const lowStockItems = inventory.filter(i => {
+      if (i.status) return i.status === 'Low Stock';
+      const avail = (i.stock || 0) - (i.reserved || 0);
+      return avail <= (i.minStock || 0) && avail > 0;
+    }).length;
+    
+    const outOfStockItems = inventory.filter(i => {
+      if (i.status) return i.status === 'Out of Stock';
+      return (i.stock || 0) === 0;
+    }).length;
+    
+    return { totalItems, totalValue, lowStockItems, outOfStockItems };
   }, [inventory]);
 
   const filtered = useMemo(() =>
@@ -292,10 +330,6 @@ const InventoryPage = () => {
     ), [inventory, search, catFilter]);
 
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
-
-  const lowStockItems = inventory.filter(i => ((i.stock || 0) - (i.reserved || 0)) <= (i.minStock || 0) && ((i.stock || 0) - (i.reserved || 0)) > 0);
-  const outOfStockItems = inventory.filter(i => (i.stock || 0) === 0);
-  const totalValue = inventory.reduce((a, i) => a + (i.stock || 0) * (i.rate || 0), 0);
 
   const chartData = inventory.slice(0, 10).map(i => ({
     name: (i.name || i.description || 'Unknown').length > 14 ? (i.name || i.description || 'Unknown').slice(0, 14) + '…' : (i.name || i.description || 'Unknown'),
@@ -536,7 +570,7 @@ const InventoryPage = () => {
     }
   };
 
-  // Handle kanban drop - update status field directly
+  // Handle kanban drop - update item status
   const handleKanbanDrop = async (itemId, targetStage) => {
     // Map stage IDs to status values
     const stageToStatus = {
@@ -551,7 +585,14 @@ const InventoryPage = () => {
 
     setSubmitting(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/inventory/${itemId}?tenantId=${TENANT_ID}`, {
+      // Find the item to get its _id
+      const item = inventory.find(i => i.itemId === itemId || i._id === itemId);
+      if (!item) {
+        alert('Item not found');
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/items/${item._id || itemId}?tenantId=${TENANT_ID}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
@@ -564,13 +605,13 @@ const InventoryPage = () => {
 
       const updatedItem = await response.json();
       const itemData = updatedItem.data || updatedItem;
-      setInventory(prev => prev.map(i => i.itemId === itemId ? { ...i, status: newStatus } : i));
+      setInventory(prev => prev.map(i => (i._id || i.itemId) === (itemData._id || itemData.itemId) ? { ...i, status: newStatus } : i));
       
       // Refresh stats
       const statsResponse = await fetch(`${API_BASE_URL}/inventory/stats?tenantId=${TENANT_ID}`);
       if (statsResponse.ok) {
         const statsData = await statsResponse.json();
-        setStats(statsData);
+        setInventoryStats(statsData.data || statsData);
       }
     } catch (err) {
       console.error('Error updating stock status:', err);
@@ -608,18 +649,18 @@ const InventoryPage = () => {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KPICard label="Total Items" value={inventory.length} sub="SKUs tracked" icon={Package} accentColor="#3b82f6" />
-        <KPICard label="Inventory Value" value={fmt(totalValue)} sub="At current rates" icon={Warehouse} accentColor="#f59e0b" />
-        <KPICard label="Low Stock Alerts" value={lowStockItems.length} sub="Items need reorder" icon={AlertTriangle} accentColor="#f59e0b" />
-        <KPICard label="Out of Stock" value={outOfStockItems.length} sub="Immediate action needed" icon={AlertTriangle} accentColor="#ef4444" />
+        <KPICard label="Total Items" value={dynamicStats.totalItems} sub="SKUs tracked" icon={Package} accentColor="#3b82f6" />
+        <KPICard label="Inventory Value" value={fmt(dynamicStats.totalValue)} sub="At current rates" icon={Warehouse} accentColor="#f59e0b" />
+        <KPICard label="Low Stock Alerts" value={dynamicStats.lowStockItems} sub="Items need reorder" icon={AlertTriangle} accentColor="#f59e0b" />
+        <KPICard label="Out of Stock" value={dynamicStats.outOfStockItems} sub="Immediate action needed" icon={AlertTriangle} accentColor="#ef4444" />
       </div>
 
-      {lowStockItems.length > 0 && (
+      {dynamicStats.lowStockItems > 0 && (
         <div className="ai-banner border-amber-500/20 bg-amber-500/5">
           <AlertTriangle size={14} className="text-amber-400 mt-0.5 shrink-0" />
           <p className="text-xs text-[var(--text-secondary)]">
             <span className="text-amber-400 font-semibold">Low Stock Alert:</span>{' '}
-            {lowStockItems.map(i => i.name || i.description).join(', ')} — reorder immediately to avoid project delays.
+            {inventory.filter(i => i.status === 'Low Stock' || ((i.stock || 0) - (i.reserved || 0)) <= (i.minStock || 0) && ((i.stock || 0) - (i.reserved || 0)) > 0).map(i => i.name || i.description).slice(0, 3).join(', ')}{inventory.filter(i => i.status === 'Low Stock' || ((i.stock || 0) - (i.reserved || 0)) <= (i.minStock || 0) && ((i.stock || 0) - (i.reserved || 0)) > 0).length > 3 ? '...' : ''} — reorder immediately to avoid project delays.
           </p>
         </div>
       )}
@@ -634,15 +675,15 @@ const InventoryPage = () => {
 
       {view === 'table' && (
         <div className="glass-card p-4">
-          <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3">Available vs Reserved Stock</h3>
+          <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3">Inventory by Category</h3>
           <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={chartData} barSize={14} barGap={3}>
+            <BarChart data={itemsByCategory.map(c => ({ category: c._id, count: c.count, value: c.totalValue / 100000 }))} barSize={20} barGap={3}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-              <XAxis dataKey="name" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="category" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)', borderRadius: 8, fontSize: 12 }} />
-              <Bar dataKey="available" fill="#22c55e" radius={[3, 3, 0, 0]} name="Available" />
-              <Bar dataKey="reserved" fill="#f59e0b" radius={[3, 3, 0, 0]} name="Reserved" />
+              <Bar dataKey="count" fill="#22c55e" radius={[3, 3, 0, 0]} name="Items" />
+              <Bar dataKey="value" fill="#f59e0b" radius={[3, 3, 0, 0]} name="Value (₹ Lakhs)" />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -669,9 +710,15 @@ const InventoryPage = () => {
         </>
       ) : (
         <>
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-[var(--text-muted)]">Drag items between columns to update stock status</p>
-            <Input placeholder="Search inventory…" value={search} onChange={e => setSearch(e.target.value)} className="h-8 text-xs w-52" />
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-xs text-[var(--text-muted)] mr-1">Category:</span>
+            {CATEGORY_FILTERS.map(c => (
+              <button key={c} onClick={() => setCatFilter(c)}
+                className={`filter-chip ${catFilter === c ? 'filter-chip-active' : ''}`}>{c}</button>
+            ))}
+            <div className="ml-auto">
+              <Input placeholder="Search inventory…" value={search} onChange={e => setSearch(e.target.value)} className="h-8 text-xs w-52" />
+            </div>
           </div>
           {loading ? (
             <div className="glass-card p-8 text-center">
