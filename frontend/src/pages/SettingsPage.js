@@ -1195,9 +1195,9 @@ const ROLE_COLORS = [
 ];
 
 const RoleBuilderPanel = () => {
-    const { customRoles, allRoles, createCustomRole, cloneRole,
+    const { customRoles, createCustomRole, cloneRole,
         updateCustomRole, toggleCustomRolePermission,
-        setCustomRolePreset, deleteCustomRole, roleDefs } = useSettings();
+        setCustomRolePreset, deleteCustomRole } = useSettings();
     const { user } = useAuth();
 
     const [selectedId, setSelectedId] = useState(null);
@@ -1205,7 +1205,7 @@ const RoleBuilderPanel = () => {
     const [cloneOpen, setCloneOpen] = useState(false);
     const [cloneSourceId, setCloneSourceId] = useState('');
     const [modFilter, setModFilter] = useState('');
-    const [newRole, setNewRole] = useState({ label: '', description: '', baseRole: '', color: '#8b5cf6' });
+    const [newRole, setNewRole] = useState({ label: '', description: '', color: '#8b5cf6' });
     const [cloneLabel, setCloneLabel] = useState('');
     const [editingLabel, setEditingLabel] = useState(false);
     const [labelDraft, setLabelDraft] = useState('');
@@ -1218,7 +1218,7 @@ const RoleBuilderPanel = () => {
         const id = createCustomRole(newRole, user?.name);
         setSelectedId(id);
         setCreateOpen(false);
-        setNewRole({ label: '', description: '', baseRole: '', color: '#8b5cf6' });
+        setNewRole({ label: '', description: '', color: '#8b5cf6' });
     };
 
     const handleClone = () => {
@@ -1245,7 +1245,7 @@ const RoleBuilderPanel = () => {
                 subtitle="Create custom roles, clone existing ones, and configure per-module permissions."
                 badge={`${customRoleList.length} custom roles`}>
                 <div className="flex gap-2">
-                    <button onClick={() => { setCloneSourceId(roleDefs?.[0]?.id); setCloneOpen(true); }}
+                    <button onClick={() => { setCloneSourceId(customRoleList?.[0]?.id || ''); setCloneOpen(true); }}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-semibold border border-[var(--border-base)] text-[var(--text-faint)] hover:text-[var(--accent)] hover:border-[var(--accent)] transition-colors">
                         <Copy size={10} /> Clone Role
                     </button>
@@ -1259,20 +1259,9 @@ const RoleBuilderPanel = () => {
             <div className="flex gap-4">
                 {/* Left: role list */}
                 <div className="w-52 shrink-0 space-y-2">
-                    <p className="text-[9px] font-bold text-[var(--text-faint)] uppercase tracking-wider mb-2">Base Roles (read-only)</p>
-                    {roleDefs?.map(r => (
-                        <div key={r.id}
-                            className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border-base)] text-[11px] opacity-60 cursor-default"
-                            style={{ background: r.bg }}>
-                            <div className="w-2 h-2 rounded-full shrink-0" style={{ background: r.color }} />
-                            <span className="text-[var(--text-secondary)] font-medium truncate">{r.label}</span>
-                            <span className="ml-auto text-[8px] text-[var(--text-faint)] bg-[var(--bg-overlay)] px-1 rounded">BASE</span>
-                        </div>
-                    ))}
-
                     {customRoleList.length > 0 && (
                         <>
-                            <p className="text-[9px] font-bold text-[var(--text-faint)] uppercase tracking-wider mt-4 mb-2">Custom Roles</p>
+                            <p className="text-[9px] font-bold text-[var(--text-faint)] uppercase tracking-wider mb-2">Custom Roles</p>
                             {customRoleList.map(r => (
                                 <button key={r.id} onClick={() => setSelectedId(r.id)}
                                     className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg border text-[11px] text-left transition-all ${selectedId === r.id ? 'border-[var(--accent)] bg-[var(--accent)]/8' : 'border-[var(--border-base)] hover:border-[var(--accent)]/40'}`}
@@ -1409,14 +1398,6 @@ const RoleBuilderPanel = () => {
                             className="w-full px-3 py-2 rounded-lg border border-[var(--border-base)] bg-[var(--bg-elevated)] text-xs text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--accent)] resize-none" />
                     </div>
                     <div>
-                        <label className="text-[11px] font-semibold text-[var(--text-faint)] block mb-1">Base On (optional)</label>
-                        <select value={newRole.baseRole} onChange={e => setNewRole(p => ({ ...p, baseRole: e.target.value }))}
-                            className="w-full px-3 py-2 rounded-lg border border-[var(--border-base)] bg-[var(--bg-elevated)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]">
-                            <option value="">Start from scratch</option>
-                            {roleDefs?.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
-                        </select>
-                    </div>
-                    <div>
                         <label className="text-[11px] font-semibold text-[var(--text-faint)] block mb-2">Role Colour</label>
                         <div className="flex gap-2 flex-wrap">
                             {ROLE_COLORS.map(c => (
@@ -1444,7 +1425,7 @@ const RoleBuilderPanel = () => {
                         <select value={cloneSourceId} onChange={e => setCloneSourceId(e.target.value)}
                             className="w-full px-3 py-2 rounded-lg border border-[var(--border-base)] bg-[var(--bg-elevated)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]">
                             <option value="">Select source role…</option>
-                            {allRoles.map(r => <option key={r.id} value={r.id}>{r.label}{r.isCustom ? ' (custom)' : ''}</option>)}
+                            {customRoleList.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
                         </select>
                     </div>
                     <div>
