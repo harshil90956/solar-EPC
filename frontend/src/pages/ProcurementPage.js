@@ -596,4 +596,5 @@ const ProcurementPage = () => {
   );
 };
 
+
 export default ProcurementPage;
