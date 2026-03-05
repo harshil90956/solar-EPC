@@ -174,6 +174,8 @@ const ProjectPage = () => {
   const [form, setForm] = useState({ customerName: '', site: '', systemSize: '', pm: '', value: '', estEndDate: '', email: '', mobileNumber: '', materials: [] });
   const [items, setItems] = useState([]); // Items for material selection
   const [itemsLoading, setItemsLoading] = useState(false);
+  const [projectReservations, setProjectReservations] = useState([]);
+  const [loadingProjectReservations, setLoadingProjectReservations] = useState(false);
   const [editForm, setEditForm] = useState({ customerName: '', site: '', systemSize: '', pm: '', value: '', estEndDate: '', email: '', mobileNumber: '' });
   const [submitting, setSubmitting] = useState(false);
   const [users, setUsers] = useState([]);
