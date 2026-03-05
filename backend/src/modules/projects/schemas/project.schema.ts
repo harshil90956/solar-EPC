@@ -8,6 +8,14 @@ export interface Milestone {
   date: string | null;
 }
 
+export interface Material {
+  itemId: string;
+  itemName: string;
+  quantity: number;
+  issuedDate?: string;
+  remarks?: string;
+}
+
 @Schema(BaseSchemaOptions)
 export class Project extends Document {
   @Prop({ required: true, unique: true })
@@ -18,6 +26,12 @@ export class Project extends Document {
 
   @Prop({ required: true })
   customerName!: string;
+
+  @Prop({ required: false })
+  email?: string;
+
+  @Prop({ required: false })
+  mobileNumber?: string;
 
   @Prop({ required: true })
   site!: string;
@@ -55,6 +69,18 @@ export class Project extends Document {
     default: [],
   })
   milestones!: Milestone[];
+
+  @Prop({
+    type: [{
+      itemId: { type: String, required: true },
+      itemName: { type: String, required: true },
+      quantity: { type: Number, required: true, min: 1 },
+      issuedDate: { type: String, required: false },
+      remarks: { type: String, required: false },
+    }],
+    default: [],
+  })
+  materials?: Material[];
 
   @Prop(BaseSchemaDefinition.tenantId)
   tenantId!: Types.ObjectId;
