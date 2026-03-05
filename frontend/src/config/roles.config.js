@@ -17,6 +17,7 @@ export const ROLES = {
 export const MODULES = {
     DASHBOARD: 'dashboard',
     REMINDERS: 'reminders',
+    HRM: 'hrm',
     CRM: 'crm',
     SURVEY: 'survey',
     DESIGN: 'design',
@@ -32,6 +33,7 @@ export const MODULES = {
     COMPLIANCE: 'compliance',
     SETTINGS: 'settings',
     INTELLIGENCE: 'intelligence',
+    HRM: 'hrm',
 };
 
 const ALL_MODULES = Object.values(MODULES);

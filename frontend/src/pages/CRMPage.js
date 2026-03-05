@@ -26,7 +26,9 @@ import { leadsApi } from '../services/leadsApi';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input, Select, Textarea, FormField } from '../components/ui/Input';
+import { PageHeader } from '../components/ui/PageHeader';
 import DataTable from '../components/ui/DataTable';
+import { format, subMonths } from 'date-fns';
 import FilterSystem from '../components/ui/FilterSystem';
 import ImportExport from '../components/ui/ImportExport';
 import { useAuditLog } from '../hooks/useAuditLog';
@@ -537,6 +539,12 @@ const CRMPage = () => {
   const [leadScoring, setLeadScoring] = useState(true);
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const [showColumnsDropdown, setShowColumnsDropdown] = useState(false);
+  const [dateRange, setDateRange] = useState({
+    start: format(subMonths(new Date(), 6), 'yyyy-MM-dd'),
+    end: format(new Date(), 'yyyy-MM-dd')
+  });
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const sortDropdownRef = useRef(null);
   const columnsDropdownRef = useRef(null);
   const [showFiltersPanel, setShowFiltersPanel] = useState(false);
@@ -912,7 +920,7 @@ const CRMPage = () => {
   // Apply filters to leads
   const filteredLeads = useMemo(() => {
     let result = enhancedLeads;
-    
+
     // Quick filter
     if (quickFilter) {
       switch (quickFilter) {
@@ -939,14 +947,14 @@ const CRMPage = () => {
           break;
       }
     }
-    
+
     // Advanced filters
     if (activeFilters.length > 0) {
       result = result.filter(lead => {
         return activeFilters.every(filter => {
           const value = lead[filter.field];
           const filterValue = filter.value;
-          
+
           switch (filter.operator) {
             case 'equals':
             case 'eq':
@@ -967,11 +975,11 @@ const CRMPage = () => {
         });
       });
     }
-    
+
     // Search filter
     if (search) {
       const searchLower = search.toLowerCase();
-      result = result.filter(lead => 
+      result = result.filter(lead =>
         lead.name?.toLowerCase().includes(searchLower) ||
         lead.email?.toLowerCase().includes(searchLower) ||
         lead.company?.toLowerCase().includes(searchLower) ||
@@ -979,7 +987,7 @@ const CRMPage = () => {
         lead.source?.toLowerCase().includes(searchLower)
       );
     }
-    
+
     return result;
   }, [enhancedLeads, quickFilter, activeFilters, search]);
 
@@ -991,21 +999,21 @@ const CRMPage = () => {
   // Apply sorting to filtered leads
   const sortedLeads = useMemo(() => {
     if (!sort.key) return filteredLeads;
-    
+
     return [...filteredLeads].sort((a, b) => {
       let aVal = a[sort.key];
       let bVal = b[sort.key];
-      
+
       // Handle null/undefined values
       if (aVal == null) aVal = '';
       if (bVal == null) bVal = '';
-      
+
       // String comparison
       if (typeof aVal === 'string') {
         aVal = aVal.toLowerCase();
         bVal = bVal.toLowerCase();
       }
-      
+
       if (aVal < bVal) return sort.dir === 'asc' ? -1 : 1;
       if (aVal > bVal) return sort.dir === 'asc' ? 1 : -1;
       return 0;
@@ -1045,7 +1053,7 @@ const CRMPage = () => {
         render: (val) => (
           <span className={`text-[11px] font-bold ${val >= 75 ? 'text-emerald-500' :
             val >= 50 ? 'text-amber-500' : 'text-red-500'
-          }`}>{val || 0}pts</span>
+            }`}>{val || 0}pts</span>
         )
       },
       {
@@ -1117,46 +1125,100 @@ const CRMPage = () => {
   return (
     <div className="animate-fade-in space-y-5">
       {/* ── Header ── */}
-      <div className="page-header">
-        <div>
-          <h1 className="heading-page">CRM Module</h1>
-          <p className="text-xs text-[var(--text-muted)] mt-0.5">Rulebook Compliant Lead Management</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="view-toggle-pill">
-            <button onClick={() => setView('dashboard')} className={`view-toggle-btn ${view === 'dashboard' ? 'active' : ''}`}>
-              <LayoutDashboard size={14} /> Dashboard
-            </button>
-            <button onClick={() => setView('leads')} className={`view-toggle-btn ${view === 'leads' ? 'active' : ''}`}>
-              <List size={14} /> Leads
-            </button>
-            <button onClick={() => setView('kanban')} className={`view-toggle-btn ${view === 'kanban' ? 'active' : ''}`}>
-              <LayoutDashboard size={14} /> Kanban
-            </button>
-            <button onClick={() => setView('reports')} className={`view-toggle-btn ${view === 'reports' ? 'active' : ''}`}>
-              <BarChart2 size={14} /> Reports
-            </button>
+      <PageHeader
+        title="CRM Module"
+        subtitle="Rulebook Compliant Lead Management"
+        tabs={[
+          { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+          { id: 'leads', label: 'Leads', icon: List },
+          { id: 'kanban', label: 'Kanban', icon: LayoutDashboard },
+          { id: 'reports', label: 'Reports', icon: BarChart2 }
+        ]}
+        activeTab={view}
+        onTabChange={setView}
+        actions={[
+          { type: 'toggle', label: 'Scoring', icon: Brain, value: leadScoring, onToggle: () => setLeadScoring(!leadScoring) },
+          { type: 'button', label: 'Add Lead', icon: Plus, variant: 'primary', onClick: () => setShowAddModal(true) }
+        ]}
+      />
+
+      {/* ── Date Filters ── */}
+      {(view === 'dashboard' || view === 'reports') && (
+        <div className="glass-card p-3">
+          <div className="flex flex-wrap gap-3 items-center">
+            <div className="flex items-center gap-2">
+              <Calendar size={14} className="text-[var(--text-muted)]" />
+              <span className="text-xs text-[var(--text-muted)]">Date Range:</span>
+              <Input
+                type="date"
+                value={dateRange.start}
+                onChange={e => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                className="h-7 text-xs w-32"
+              />
+              <span className="text-xs text-[var(--text-muted)]">to</span>
+              <Input
+                type="date"
+                value={dateRange.end}
+                onChange={e => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                className="h-7 text-xs w-32"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[var(--text-muted)]">Year:</span>
+              <Select
+                value={selectedYear}
+                onChange={e => setSelectedYear(Number(e.target.value))}
+                className="h-7 text-xs w-24"
+              >
+                {[2024, 2025, 2026].map(year => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[var(--text-muted)]">Month:</span>
+              <Select
+                value={selectedMonth}
+                onChange={e => setSelectedMonth(Number(e.target.value))}
+                className="h-7 text-xs w-28"
+              >
+                {[
+                  { value: 1, label: 'January' },
+                  { value: 2, label: 'February' },
+                  { value: 3, label: 'March' },
+                  { value: 4, label: 'April' },
+                  { value: 5, label: 'May' },
+                  { value: 6, label: 'June' },
+                  { value: 7, label: 'July' },
+                  { value: 8, label: 'August' },
+                  { value: 9, label: 'September' },
+                  { value: 10, label: 'October' },
+                  { value: 11, label: 'November' },
+                  { value: 12, label: 'December' },
+                ].map(m => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </Select>
+            </div>
+            <div className="ml-auto flex gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setDateRange({
+                    start: format(subMonths(new Date(), 6), 'yyyy-MM-dd'),
+                    end: format(new Date(), 'yyyy-MM-dd')
+                  });
+                  setSelectedYear(new Date().getFullYear());
+                  setSelectedMonth(new Date().getMonth() + 1);
+                }}
+              >
+                <RefreshCw size={12} /> Reset
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)]">
-            <Brain size={12} className="text-[var(--text-muted)]" />
-            <span className="text-[10px] text-[var(--text-muted)]">Scoring</span>
-            <button
-              onClick={() => setLeadScoring(!leadScoring)}
-              className={`w-8 h-4 rounded-full transition-colors ${leadScoring ? 'bg-emerald-500' : 'bg-gray-300'
-                }`}
-            >
-              <div className={`w-3 h-3 bg-white rounded-full transition-transform ${leadScoring ? 'translate-x-4' : 'translate-x-0.5'
-                }`} />
-            </button>
-          </div>
-          <CanAccess module="crm" action="export">
-            <ImportExport moduleName="Leads" fields={CRM_FIELDS} onImport={handleImport} onExport={handleExport} />
-          </CanAccess>
-          <CanCreate module="crm">
-            <Button onClick={() => setShowAddModal(true)}><Plus size={14} /> Add Lead</Button>
-          </CanCreate>
         </div>
-      </div>
+      )}
 
       {/* ── Advanced Dashboard ── */}
       {view === 'dashboard' && (
@@ -1563,7 +1625,7 @@ const CRMPage = () => {
                 />
               </div>
               <div className="relative" ref={sortDropdownRef}>
-                <button 
+                <button
                   onClick={() => setShowSortDropdown(!showSortDropdown)}
                   className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors flex items-center gap-2 ${showSortDropdown ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : 'bg-[var(--bg-elevated)] border-[var(--border-base)] text-[var(--text-muted)] hover:bg-[var(--bg-hovered)]'}`}
                 >
@@ -1598,7 +1660,7 @@ const CRMPage = () => {
                 )}
               </div>
               <div className="relative" ref={columnsDropdownRef}>
-                <button 
+                <button
                   onClick={() => setShowColumnsDropdown(!showColumnsDropdown)}
                   className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors flex items-center gap-2 ${showColumnsDropdown ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : 'bg-[var(--bg-elevated)] border-[var(--border-base)] text-[var(--text-muted)] hover:bg-[var(--bg-hovered)]'}`}
                 >
@@ -1653,11 +1715,10 @@ const CRMPage = () => {
                 <button
                   key={filter.id}
                   onClick={() => setQuickFilter(quickFilter === filter.id ? null : filter.id)}
-                  className={`px-3 py-1 rounded-full text-[10px] font-medium border transition-all ${
-                    quickFilter === filter.id 
-                      ? `bg-${filter.color}-500 text-white border-${filter.color}-500` 
-                      : `border-${filter.color}-500/30 text-${filter.color}-600 bg-${filter.color}-50 hover:bg-${filter.color}-100`
-                  }`}
+                  className={`px-3 py-1 rounded-full text-[10px] font-medium border transition-all ${quickFilter === filter.id
+                    ? `bg-${filter.color}-500 text-white border-${filter.color}-500`
+                    : `border-${filter.color}-500/30 text-${filter.color}-600 bg-${filter.color}-50 hover:bg-${filter.color}-100`
+                    }`}
                 >
                   {filter.label}
                 </button>
@@ -1718,49 +1779,49 @@ const CRMPage = () => {
           <div className="flex gap-2 justify-end">
             <Button variant="ghost" onClick={() => setShowAddModal(false)}>Cancel</Button>
             <Button onClick={handleCreateLead} disabled={actionLoading}>
-            {actionLoading ? 'Creating...' : <><Plus size={13} /> Create Lead</>}
-          </Button>
+              {actionLoading ? 'Creating...' : <><Plus size={13} /> Create Lead</>}
+            </Button>
           </div>
         }
       >
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <FormField label="First Name">
-              <Input 
-                placeholder="Enter first name" 
+              <Input
+                placeholder="Enter first name"
                 value={newLead.name}
-                onChange={(e) => setNewLead({...newLead, name: e.target.value})}
+                onChange={(e) => setNewLead({ ...newLead, name: e.target.value })}
               />
             </FormField>
             <FormField label="Last Name">
-              <Input 
+              <Input
                 placeholder="Enter last name"
                 value={newLead.company}
-                onChange={(e) => setNewLead({...newLead, company: e.target.value})}
+                onChange={(e) => setNewLead({ ...newLead, company: e.target.value })}
               />
             </FormField>
           </div>
           <FormField label="Company">
-            <Input 
+            <Input
               placeholder="Company name (optional)"
               value={newLead.company}
-              onChange={(e) => setNewLead({...newLead, company: e.target.value})}
+              onChange={(e) => setNewLead({ ...newLead, company: e.target.value })}
             />
           </FormField>
           <div className="grid grid-cols-2 gap-3">
             <FormField label="Email">
-              <Input 
-                type="email" 
+              <Input
+                type="email"
                 placeholder="email@example.com"
                 value={newLead.email}
-                onChange={(e) => setNewLead({...newLead, email: e.target.value})}
+                onChange={(e) => setNewLead({ ...newLead, email: e.target.value })}
               />
             </FormField>
             <FormField label="Phone">
-              <Input 
+              <Input
                 placeholder="+91 98765 43210"
                 value={newLead.phone}
-                onChange={(e) => setNewLead({...newLead, phone: e.target.value})}
+                onChange={(e) => setNewLead({ ...newLead, phone: e.target.value })}
               />
             </FormField>
           </div>
@@ -1768,7 +1829,7 @@ const CRMPage = () => {
             <FormField label="Source">
               <Select
                 value={newLead.source}
-                onChange={(e) => setNewLead({...newLead, source: e.target.value})}
+                onChange={(e) => setNewLead({ ...newLead, source: e.target.value })}
               >
                 <option value="">Select source</option>
                 {SOURCES.filter(s => s !== 'All').map(s => <option key={s}>{s}</option>)}
@@ -1777,7 +1838,7 @@ const CRMPage = () => {
             <FormField label="City">
               <Select
                 value={newLead.city}
-                onChange={(e) => setNewLead({...newLead, city: e.target.value})}
+                onChange={(e) => setNewLead({ ...newLead, city: e.target.value })}
               >
                 <option value="">Select city</option>
                 {CITIES.filter(c => c !== 'All').map(c => <option key={c}>{c}</option>)}
@@ -1785,11 +1846,11 @@ const CRMPage = () => {
             </FormField>
           </div>
           <FormField label="Notes">
-            <Textarea 
-              placeholder="Additional notes..." 
+            <Textarea
+              placeholder="Additional notes..."
               rows={3}
               value={newLead.notes}
-              onChange={(e) => setNewLead({...newLead, notes: e.target.value})}
+              onChange={(e) => setNewLead({ ...newLead, notes: e.target.value })}
             />
           </FormField>
         </div>
@@ -1924,30 +1985,30 @@ const CRMPage = () => {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <FormField label="Name">
-                <Input 
+                <Input
                   value={editingLead.name}
-                  onChange={(e) => setEditingLead({...editingLead, name: e.target.value})}
+                  onChange={(e) => setEditingLead({ ...editingLead, name: e.target.value })}
                 />
               </FormField>
               <FormField label="Company">
-                <Input 
+                <Input
                   value={editingLead.company || ''}
-                  onChange={(e) => setEditingLead({...editingLead, company: e.target.value})}
+                  onChange={(e) => setEditingLead({ ...editingLead, company: e.target.value })}
                 />
               </FormField>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <FormField label="Email">
-                <Input 
+                <Input
                   type="email"
                   value={editingLead.email || ''}
-                  onChange={(e) => setEditingLead({...editingLead, email: e.target.value})}
+                  onChange={(e) => setEditingLead({ ...editingLead, email: e.target.value })}
                 />
               </FormField>
               <FormField label="Phone">
-                <Input 
+                <Input
                   value={editingLead.phone || ''}
-                  onChange={(e) => setEditingLead({...editingLead, phone: e.target.value})}
+                  onChange={(e) => setEditingLead({ ...editingLead, phone: e.target.value })}
                 />
               </FormField>
             </div>
@@ -1955,7 +2016,7 @@ const CRMPage = () => {
               <FormField label="Stage">
                 <Select
                   value={editingLead.stage}
-                  onChange={(e) => setEditingLead({...editingLead, stage: e.target.value})}
+                  onChange={(e) => setEditingLead({ ...editingLead, stage: e.target.value })}
                 >
                   {PIPELINE_STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
                 </Select>
@@ -1963,7 +2024,7 @@ const CRMPage = () => {
               <FormField label="Source">
                 <Select
                   value={editingLead.source}
-                  onChange={(e) => setEditingLead({...editingLead, source: e.target.value})}
+                  onChange={(e) => setEditingLead({ ...editingLead, source: e.target.value })}
                 >
                   {SOURCES.filter(s => s !== 'All').map(s => <option key={s}>{s}</option>)}
                 </Select>
@@ -1971,24 +2032,24 @@ const CRMPage = () => {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <FormField label="Value (₹)">
-                <Input 
+                <Input
                   type="number"
                   value={editingLead.value || 0}
-                  onChange={(e) => setEditingLead({...editingLead, value: parseInt(e.target.value) || 0})}
+                  onChange={(e) => setEditingLead({ ...editingLead, value: parseInt(e.target.value) || 0 })}
                 />
               </FormField>
               <FormField label="City">
-                <Input 
+                <Input
                   value={editingLead.city || ''}
-                  onChange={(e) => setEditingLead({...editingLead, city: e.target.value})}
+                  onChange={(e) => setEditingLead({ ...editingLead, city: e.target.value })}
                 />
               </FormField>
             </div>
             <FormField label="Notes">
-              <Textarea 
+              <Textarea
                 rows={3}
                 value={editingLead.notes || ''}
-                onChange={(e) => setEditingLead({...editingLead, notes: e.target.value})}
+                onChange={(e) => setEditingLead({ ...editingLead, notes: e.target.value })}
               />
             </FormField>
           </div>

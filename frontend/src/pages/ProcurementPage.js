@@ -8,6 +8,7 @@ import { StatusBadge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input, FormField, Select, Textarea } from '../components/ui/Input';
+import { PageHeader } from '../components/ui/PageHeader';
 import { KPICard } from '../components/ui/KPICard';
 import { Avatar } from '../components/ui/Avatar';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/Tabs';
@@ -202,19 +203,19 @@ const ProcurementPage = () => {
       // Handle API response - could be direct array or wrapped object
       let vendorsData = [];
       let posData = [];
-      
+
       if (Array.isArray(vendorsRes.data)) {
         vendorsData = vendorsRes.data;
       } else if (vendorsRes.data && typeof vendorsRes.data === 'object') {
         vendorsData = vendorsRes.data.data || [];
       }
-      
+
       if (Array.isArray(posRes.data)) {
         posData = posRes.data;
       } else if (posRes.data && typeof posRes.data === 'object') {
         posData = posRes.data.data || [];
       }
-      
+
       setVendors(vendorsData);
       setPos(posData);
     } catch (error) {
@@ -258,13 +259,13 @@ const ProcurementPage = () => {
       try {
         const subject = 'Purchase Order Inquiry';
         const text = `Dear ${vendor.name || vendor.contact || 'Vendor'},\n\nI hope this email finds you well. We are interested in discussing potential purchase orders and would like to connect with you regarding our requirements.\n\nPlease let us know your availability for a brief discussion.\n\nBest regards,\nSolarOS Team`;
-        
+
         const res = await api.post('/email/send', {
           to: vendor.email,
           subject,
           text
         });
-        
+
         if (res.data?.success) {
           alert(`Email sent to ${vendor.email}`);
         } else {
@@ -296,7 +297,7 @@ const ProcurementPage = () => {
   };
 
   const filteredPOs = useMemo(() =>
-    pos.filter(po => po && 
+    pos.filter(po => po &&
       (poStatus === 'All' || po?.status === poStatus) &&
       po?.vendorName?.toLowerCase().includes(poSearch.toLowerCase())
     ), [poSearch, poStatus, pos]);
@@ -332,20 +333,14 @@ const ProcurementPage = () => {
 
   return (
     <div className="animate-fade-in space-y-5">
-      <div className="page-header">
-        <div>
-          <h1 className="heading-page">Procurement</h1>
-          <p className="text-xs text-[var(--text-muted)] mt-0.5">Purchase orders · vendor management · delivery tracking</p>
-        </div>
-        <div className="flex gap-2">
-          <CanCreate module="procurement">
-            <Button variant="ghost" onClick={() => { if (guardCreate()) setShowVendor(true); }}><Plus size={13} /> Add Vendor</Button>
-          </CanCreate>
-          <CanCreate module="procurement">
-            <Button onClick={() => { if (guardCreate()) setShowPO(true); }}><Plus size={13} /> Create PO</Button>
-          </CanCreate>
-        </div>
-      </div>
+      <PageHeader
+        title="Procurement"
+        subtitle="Purchase orders · vendor management · delivery tracking"
+        actions={[
+          { type: 'button', label: 'Add Vendor', icon: Plus, onClick: () => { if (guardCreate()) setShowVendor(true); } },
+          { type: 'button', label: 'Create PO', icon: Plus, variant: 'primary', onClick: () => { if (guardCreate()) setShowPO(true); } }
+        ]}
+      />
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <KPICard title="Active POs" value={pendingPOs} icon={ShoppingCart} color="accent" />
@@ -513,7 +508,7 @@ const ProcurementPage = () => {
               <TabsTrigger value="timeline">Timeline ({pos.filter(p => p && (p?.vendorId?._id === selectedVendor?._id || p?.vendorName === selectedVendor?.name)).length})</TabsTrigger>
               <TabsTrigger value="activity">Activity Log</TabsTrigger>
             </TabsList>
-            
+
             <TabsContent value="details">
               <div className="grid grid-cols-2 gap-3 text-xs mt-3">
                 {[
@@ -537,7 +532,7 @@ const ProcurementPage = () => {
                 </div>
               </div>
             </TabsContent>
-            
+
             <TabsContent value="timeline">
               <div className="space-y-2 mt-3">
                 {pos.filter(p => p && (p?.vendorId?._id === selectedVendor?._id || p?.vendorName === selectedVendor?.name))
@@ -557,7 +552,7 @@ const ProcurementPage = () => {
                 )}
               </div>
             </TabsContent>
-            
+
             <TabsContent value="activity">
               <div className="space-y-2 mt-3">
                 <div className="glass-card p-3">

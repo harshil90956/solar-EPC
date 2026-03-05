@@ -257,7 +257,7 @@ export const SettingsProvider = ({ children }) => {
 
     // ── Custom Role APIs ──────────────────────────────────────────────────────
 
-    const createCustomRole = useCallback((roleData, user) => {
+    const createCustomRole = useCallback(async (roleData, user) => {
         const id = `custom_${Date.now()}`;
         const newRole = {
             id,
@@ -271,6 +271,14 @@ export const SettingsProvider = ({ children }) => {
         };
         setCustomRoles(prev => ({ ...prev, [id]: newRole }));
         addAudit('CUSTOM_ROLE_CREATED', newRole.label, 'null', 'created', user);
+
+        // Persist to backend
+        try {
+            await settingsApi.createCustomRole(newRole);
+        } catch (e) {
+            console.error('Failed to create custom role:', e);
+        }
+
         return id;
     }, [addAudit]);
 
@@ -299,12 +307,19 @@ export const SettingsProvider = ({ children }) => {
         return id;
     }, [customRoles, rbac, addAudit]);
 
-    const updateCustomRole = useCallback((roleId, updates, user) => {
+    const updateCustomRole = useCallback(async (roleId, updates, user) => {
         setCustomRoles(prev => {
             if (!prev[roleId]) return prev;
             addAudit('CUSTOM_ROLE_UPDATED', roleId, 'old', JSON.stringify(updates), user);
             return { ...prev, [roleId]: { ...prev[roleId], ...updates } };
         });
+
+        // Persist to backend
+        try {
+            await settingsApi.updateCustomRole(roleId, updates);
+        } catch (e) {
+            console.error('Failed to update custom role:', e);
+        }
     }, [addAudit]);
 
     const toggleCustomRolePermission = useCallback((roleId, moduleId, actionId, user) => {
@@ -342,7 +357,7 @@ export const SettingsProvider = ({ children }) => {
         });
     }, [addAudit]);
 
-    const deleteCustomRole = useCallback((roleId, user) => {
+    const deleteCustomRole = useCallback(async (roleId, user) => {
         setCustomRoles(prev => {
             const { [roleId]: _removed, ...rest } = prev;
             addAudit('CUSTOM_ROLE_DELETED', roleId, 'exists', 'deleted', user);
@@ -356,6 +371,13 @@ export const SettingsProvider = ({ children }) => {
             });
             return updated;
         });
+
+        // Persist to backend
+        try {
+            await settingsApi.deleteCustomRole(roleId);
+        } catch (e) {
+            console.error('Failed to delete custom role:', e);
+        }
     }, [addAudit]);
 
     // ── User Override APIs ────────────────────────────────────────────────────

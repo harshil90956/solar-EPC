@@ -3,7 +3,7 @@ import React, { useState, useMemo, useRef } from 'react';
 import {
   DollarSign, TrendingUp, TrendingDown,
   CheckCircle, Clock, Zap, FileText, Plus, IndianRupee,
-  LayoutGrid, List, Calendar, AlertCircle,
+  LayoutGrid, List, Calendar, AlertCircle, RefreshCw,
 } from 'lucide-react';
 import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { INVOICES, KPI_STATS, CASH_FLOW, MONTHLY_REVENUE } from '../data/mockData';
@@ -11,7 +11,9 @@ import { StatusBadge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input, FormField, Select } from '../components/ui/Input';
+import { PageHeader } from '../components/ui/PageHeader';
 import { KPICard } from '../components/ui/KPICard';
+import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/Tabs';
 import DataTable from '../components/ui/DataTable';
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
@@ -181,13 +183,19 @@ const FinancePage = () => {
   };
 
   const [invoices, setInvoices] = useState(INVOICES);
+  const [showInvoice, setShowInvoice] = useState(false);
+  const [selected, setSelected] = useState(null);
   const [view, setView] = useState('kanban');
   const [invSearch, setInvSearch] = useState('');
   const [invStatus, setInvStatus] = useState('All');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(APP_CONFIG.defaultPageSize);
-  const [showInvoice, setShowInvoice] = useState(false);
-  const [selected, setSelected] = useState(null);
+  const [dateRange, setDateRange] = useState({
+    start: format(subMonths(new Date(), 6), 'yyyy-MM-dd'),
+    end: format(new Date(), 'yyyy-MM-dd')
+  });
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
 
   const handleStageChange = (id, newStage) => {
     if (!can('finance', 'edit')) {
@@ -211,6 +219,20 @@ const FinancePage = () => {
   const totalCollected = invoices.reduce((a, i) => a + i.paid, 0);
   const totalBalance = invoices.reduce((a, i) => a + i.balance, 0);
 
+  // Filter data based on date range
+  const filteredRevenueData = useMemo(() => {
+    return MONTHLY_REVENUE.filter(item => {
+      const itemDate = new Date(item.month + ' 01, ' + selectedYear);
+      return itemDate >= new Date(dateRange.start) && itemDate <= new Date(dateRange.end);
+    });
+  }, [dateRange, selectedYear]);
+
+  const filteredCashFlowData = useMemo(() => {
+    return CASH_FLOW.filter(item => {
+      const itemDate = new Date(item.month + ' 01, ' + selectedYear);
+      return itemDate >= new Date(dateRange.start) && itemDate <= new Date(dateRange.end);
+    });
+  }, [dateRange, selectedYear]);
   const INV_ACTIONS = [
     { label: 'View Invoice', icon: FileText, onClick: row => setSelected(row) },
     { label: 'Record Payment', icon: CheckCircle, onClick: (row) => { if (guardApprove()) console.log('Record Payment', row); } },
@@ -219,15 +241,13 @@ const FinancePage = () => {
 
   return (
     <div className="animate-fade-in space-y-5">
-      <div className="page-header">
-        <div>
-          <h1 className="heading-page">Finance</h1>
-          <p className="text-xs text-[var(--text-muted)] mt-0.5">Revenue · receivables · payables · cash flow · invoices</p>
-        </div>
-        <CanCreate module="finance">
-          <Button onClick={() => { if (guardCreate()) setShowInvoice(true); }}><Plus size={13} /> New Invoice</Button>
-        </CanCreate>
-      </div>
+      <PageHeader
+        title="Finance"
+        subtitle="Revenue · receivables · payables · cash flow · invoices"
+        actions={[
+          { type: 'button', label: 'New Invoice', icon: Plus, variant: 'primary', onClick: () => { if (guardCreate()) setShowInvoice(true); } }
+        ]}
+      />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KPICard label="Total Revenue" value={fmt(KPI_STATS.revenue.current)} sub={`Target ${fmt(KPI_STATS.revenue.target)}`} icon={TrendingUp} accentColor="#22c55e" trend={`+${KPI_STATS.revenue.growth}% YoY`} trendUp />
@@ -236,11 +256,87 @@ const FinancePage = () => {
         <KPICard label="Payables" value={fmt(KPI_STATS.payables)} sub="Due in 30 days" icon={TrendingDown} accentColor="#ef4444" trend="+3% vs last mo" trendUp={false} />
       </div>
 
+      {/* Date Filters */}
+      <div className="glass-card p-3">
+        <div className="flex flex-wrap gap-3 items-center">
+          <div className="flex items-center gap-2">
+            <Calendar size={14} className="text-[var(--text-muted)]" />
+            <span className="text-xs text-[var(--text-muted)]">Date Range:</span>
+            <Input
+              type="date"
+              value={dateRange.start}
+              onChange={e => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+              className="h-7 text-xs w-32"
+            />
+            <span className="text-xs text-[var(--text-muted)]">to</span>
+            <Input
+              type="date"
+              value={dateRange.end}
+              onChange={e => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+              className="h-7 text-xs w-32"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-[var(--text-muted)]">Year:</span>
+            <Select
+              value={selectedYear}
+              onChange={e => setSelectedYear(Number(e.target.value))}
+              className="h-7 text-xs w-24"
+            >
+              {[2024, 2025, 2026].map(year => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </Select>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-[var(--text-muted)]">Month:</span>
+            <Select
+              value={selectedMonth}
+              onChange={e => setSelectedMonth(Number(e.target.value))}
+              className="h-7 text-xs w-28"
+            >
+              {[
+                { value: 1, label: 'January' },
+                { value: 2, label: 'February' },
+                { value: 3, label: 'March' },
+                { value: 4, label: 'April' },
+                { value: 5, label: 'May' },
+                { value: 6, label: 'June' },
+                { value: 7, label: 'July' },
+                { value: 8, label: 'August' },
+                { value: 9, label: 'September' },
+                { value: 10, label: 'October' },
+                { value: 11, label: 'November' },
+                { value: 12, label: 'December' },
+              ].map(m => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
+            </Select>
+          </div>
+          <div className="ml-auto flex gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setDateRange({
+                  start: format(subMonths(new Date(), 6), 'yyyy-MM-dd'),
+                  end: format(new Date(), 'yyyy-MM-dd')
+                });
+                setSelectedYear(new Date().getFullYear());
+                setSelectedMonth(new Date().getMonth() + 1);
+              }}
+            >
+              <RefreshCw size={12} /> Reset
+            </Button>
+          </div>
+        </div>
+      </div>
+      {/* AI Banner */}
       <div className="ai-banner">
         <Zap size={14} className="text-[var(--accent-light)] mt-0.5 shrink-0" />
         <p className="text-xs text-[var(--text-secondary)]">
           <span className="text-[var(--accent-light)] font-semibold">AI Insight:</span>{' '}
-          INV002 (Ramesh Joshi — ₹1.4L balance) due Mar 24. Recommend payment follow-up now. INV003 (Suresh Bhatt — ₹8.4L) at risk — project milestone billing should be triggered after commissioning.
+          INV002 (Ramesh Joshi — ₹1.4L balance) due Mar 24. Recommend payment follow-up now. INV003 (Suresh Bhatt — ₹8.4L) at risk.
         </p>
       </div>
 
@@ -252,7 +348,7 @@ const FinancePage = () => {
               <TrendingUp size={14} className="text-emerald-400" /> Revenue vs Cost (6M)
             </h3>
             <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={MONTHLY_REVENUE} barSize={14} barGap={3}>
+              <BarChart data={filteredRevenueData} barSize={14} barGap={3}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                 <XAxis dataKey="month" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis tickFormatter={v => `${(v / 100000).toFixed(0)}L`} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
@@ -268,7 +364,7 @@ const FinancePage = () => {
               <DollarSign size={14} className="text-cyan-400" /> Cash Flow Trend (6M)
             </h3>
             <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={CASH_FLOW}>
+              <AreaChart data={filteredCashFlowData}>
                 <defs>
                   <linearGradient id="inflowGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3} />
@@ -290,8 +386,10 @@ const FinancePage = () => {
             </ResponsiveContainer>
           </div>
         </div>
-      )}
+      )
+      }
 
+      {/* Summary Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
           { label: 'Total Invoiced', value: fmt(totalRevenue), color: 'text-[var(--text-primary)]' },
@@ -380,9 +478,9 @@ const FinancePage = () => {
         footer={
           <div className="flex gap-2 justify-end">
             <Button variant="ghost" onClick={() => setShowInvoice(false)}>Cancel</Button>
-          <CanCreate module="finance">
-            <Button onClick={() => { if (guardCreate()) { console.log('Create Invoice'); setShowInvoice(false); } }}><Plus size={13} /> Create Invoice</Button>
-          </CanCreate>
+            <CanCreate module="finance">
+              <Button onClick={() => { if (guardCreate()) { console.log('Create Invoice'); setShowInvoice(false); } }}><Plus size={13} /> Create Invoice</Button>
+            </CanCreate>
           </div>
         }>
         <div className="space-y-3">
@@ -415,9 +513,9 @@ const FinancePage = () => {
           footer={
             <div className="flex gap-2 justify-end">
               <Button variant="ghost" onClick={() => setSelected(null)}>Close</Button>
-          <CanAccess module="finance" action="approve">
-            <Button onClick={() => { if (guardApprove()) console.log('Record Payment'); }}><CheckCircle size={13} /> Record Payment</Button>
-          </CanAccess>
+              <CanAccess module="finance" action="approve">
+                <Button onClick={() => { if (guardApprove()) console.log('Record Payment'); }}><CheckCircle size={13} /> Record Payment</Button>
+              </CanAccess>
             </div>
           }>
           <div className="grid grid-cols-2 gap-3 text-xs">

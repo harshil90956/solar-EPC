@@ -8,6 +8,7 @@ import { StatusBadge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input, FormField, Select, Textarea } from '../components/ui/Input';
+import { PageHeader } from '../components/ui/PageHeader';
 import { KPICard } from '../components/ui/KPICard';
 import { Avatar } from '../components/ui/Avatar';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/Tabs';
@@ -202,13 +203,13 @@ const ServicePage = () => {
 
   return (
     <div className="animate-fade-in space-y-5">
-      <div className="page-header">
-        <div>
-          <h1 className="heading-page">Service & AMC</h1>
-          <p className="text-xs text-[var(--text-muted)] mt-0.5">Support tickets · maintenance · AMC contracts · warranty claims</p>
-        </div>
-        <Button onClick={() => setShowAdd(true)}><Plus size={13} /> New Ticket</Button>
-      </div>
+      <PageHeader
+        title="Service & AMC"
+        subtitle="Support tickets · maintenance · AMC contracts · warranty claims"
+        actions={[
+          { type: 'button', label: 'New Ticket', icon: Plus, variant: 'primary', onClick: () => setShowAdd(true) }
+        ]}
+      />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KPICard title="Open Tickets" value={openTickets} icon={AlertTriangle} trend={+1} trendLabel="need attention" color="red" />

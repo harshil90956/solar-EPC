@@ -16,6 +16,7 @@ import { ServiceAmcModule } from './modules/service-amc/service-amc.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { SurveyModule } from './modules/survey/survey.module';
 import { WorkflowModule } from './core/workflow/workflow.module';
+import { HrmModule } from './modules/hrm/hrm.module';
 import { PermissionsModule } from './core/permissions/permissions.module';
 import { AuthModule } from './core/auth/auth.module';
 import { TenantModule } from './core/tenant/tenant.module';
@@ -47,6 +48,7 @@ import { EmailModule } from './modules/email/email.module';
     ServiceAmcModule,
     ComplianceModule,
     SettingsModule,
+    HrmModule,
   ],
 })
 export class AppModule {}
