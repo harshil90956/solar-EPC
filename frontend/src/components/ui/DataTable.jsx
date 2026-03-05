@@ -365,8 +365,9 @@ const DataTable = ({
                                         <th className="w-10 px-2 py-2.5 sticky right-0 z-10 bg-[var(--bg-raised)] border-l border-[var(--border-base)]" />
                                     )}
                                 </tr>
-                            ) : (
-                                data.map((row, index) => (
+                            </thead>
+                            <tbody>
+                                {data.map((row, index) => (
                                     <tr key={row[rowKey] || index} className="table-row border-b border-[var(--border-base)] last:border-0 group">
                                         {bulkActions.length > 0 && (
                                             <td className="px-3 py-3.5 sticky left-0 z-10 bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] transition-colors">
@@ -398,9 +399,10 @@ const DataTable = ({
                                             </td>
                                         )}
                                     </tr>
-                                )))}
-                        </tbody>
-                    </table>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             )}
 
