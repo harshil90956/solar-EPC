@@ -95,14 +95,14 @@ const KanbanBoard = ({ projects, onStageChange, onCardClick }) => {
   const draggingId = useRef(null);
   const [dragOver, setDragOver] = useState(null);
   return (
-    <div className="overflow-x-auto pb-3">
+    <div className="overflow-x-auto pb-3 -mx-2 px-2">
       <div className="flex gap-3 min-w-max">
         {KANBAN_STAGES.map(stage => {
           const cards = projects.filter(p => p.status === stage.id);
           const kw = cards.reduce((a, p) => a + p.systemSize, 0);
           return (
             <div key={stage.id}
-              className={`flex flex-col w-60 rounded-xl border transition-colors ${dragOver === stage.id ? 'border-[var(--primary)]/50 bg-[var(--primary)]/5' : 'border-[var(--border-base)] bg-[var(--bg-surface)]'}`}
+              className={`flex flex-col w-72 sm:w-60 rounded-xl border transition-colors ${dragOver === stage.id ? 'border-[var(--primary)]/50 bg-[var(--primary)]/5' : 'border-[var(--border-base)] bg-[var(--bg-surface)]'}`}
               onDragOver={e => { e.preventDefault(); setDragOver(stage.id); }}
               onDragLeave={() => setDragOver(null)}
               onDrop={() => { if (draggingId.current) onStageChange(draggingId.current, stage.id); draggingId.current = null; setDragOver(null); }}>
@@ -112,7 +112,7 @@ const KanbanBoard = ({ projects, onStageChange, onCardClick }) => {
                   <span className="text-xs font-semibold text-[var(--text-primary)]">{stage.label}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  {kw > 0 && <span className="text-[10px] text-[var(--solar)] font-bold">{kw}kW</span>}
+                  {kw > 0 && <span className="text-[10px] text-[var(--solar)] font-bold hidden sm:inline">{kw}kW</span>}
                   <span className="min-w-[20px] h-5 rounded-full text-[10px] font-bold flex items-center justify-center"
                     style={{ background: stage.bg, color: stage.color }}>{cards.length}</span>
                 </div>
@@ -627,12 +627,12 @@ const ProjectPage = () => {
 
   return (
     <div className="animate-fade-in space-y-5">
-      <div className="page-header">
+      <div className="page-header flex-col sm:flex-row gap-3">
         <div>
-          <h1 className="heading-page">Project Management</h1>
+          <h1 className="heading-page text-lg sm:text-xl">Project Management</h1>
           <p className="text-xs text-[var(--text-muted)] mt-0.5">Track all EPC projects · milestones · progress · delivery</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="view-toggle-pill">
             <button onClick={() => setView('kanban')}
               className={`view-toggle-btn ${view === 'kanban' ? 'active' : ''}`}><LayoutGrid size={14} /></button>
@@ -640,12 +640,12 @@ const ProjectPage = () => {
               className={`view-toggle-btn ${view === 'table' ? 'active' : ''}`}><List size={14} /></button>
           </div>
           <CanCreate module="project">
-            <Button onClick={() => { if (guardCreate()) setShowAdd(true); }}><Plus size={13} /> New Project</Button>
+            <Button size="sm" onClick={() => { if (guardCreate()) setShowAdd(true); }}><Plus size={13} /> <span className="hidden sm:inline">New Project</span></Button>
           </CanCreate>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         <KPICard label="Total Projects" value={projects.length} sub="All projects" icon={Layers} accentColor="#6366f1" />
         <KPICard label="Active Projects" value={active} sub="Currently executing" icon={FolderOpen} accentColor="#3b82f6" />
         <KPICard label="Total Capacity" value={`${totalKW} kW`} sub="Pipeline capacity" icon={Zap} accentColor="#f59e0b" />
@@ -766,18 +766,18 @@ const ProjectPage = () => {
             <Plus size={13} /> Create Project
           </Button>
         </div>}>
-        <div className="space-y-3 max-h-[70vh] overflow-y-auto">
+        <div className="space-y-3 max-h-[60vh] sm:max-h-[70vh] overflow-y-auto">
           <FormField label="Customer Name"><Input placeholder="Customer name" value={form.customerName} onChange={e => setForm(f => ({ ...f, customerName: e.target.value }))} /></FormField>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="Email"><Input type="email" placeholder="customer@email.com" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} /></FormField>
             <FormField label="Mobile Number"><Input type="tel" placeholder="+91 98765 43210" value={form.mobileNumber} onChange={e => setForm(f => ({ ...f, mobileNumber: e.target.value }))} /></FormField>
           </div>
           <FormField label="Site Address"><Input placeholder="Installation site" value={form.site} onChange={e => setForm(f => ({ ...f, site: e.target.value }))} /></FormField>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="System Size (kW)"><Input type="number" placeholder="50" value={form.systemSize} onChange={e => setForm(f => ({ ...f, systemSize: e.target.value }))} /></FormField>
             <FormField label="Project Value (₹)"><Input type="number" placeholder="280000" value={form.value} onChange={e => setForm(f => ({ ...f, value: e.target.value }))} /></FormField>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="Project Manager">
               <Select value={form.pm} onChange={e => setForm(f => ({ ...f, pm: e.target.value }))}>
                 <option value="">{usersLoading ? 'Loading...' : 'Assign PM'}</option>
@@ -801,7 +801,7 @@ const ProjectPage = () => {
                     <Trash2 size={12} />
                   </Button>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <FormField label="Item">
                     <Select value={material.itemId} onChange={e => updateMaterial(index, 'itemId', e.target.value)}>
                       <option value="">{itemsLoading ? 'Loading...' : 'Select Item'}</option>
@@ -816,7 +816,7 @@ const ProjectPage = () => {
                     <Input type="number" placeholder="50" value={material.quantity} onChange={e => updateMaterial(index, 'quantity', e.target.value)} />
                   </FormField>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <FormField label="Issue Date"><Input type="date" value={material.issuedDate} onChange={e => updateMaterial(index, 'issuedDate', e.target.value)} /></FormField>
                   <FormField label="Remarks"><Input placeholder="Notes..." value={material.remarks} onChange={e => updateMaterial(index, 'remarks', e.target.value)} /></FormField>
                 </div>

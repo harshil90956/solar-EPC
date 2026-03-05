@@ -1,6 +1,6 @@
-// Universal DataTable — fully schema-driven, server-side pagination, column toggle, 3-dot menu, bulk actions
+// Universal DataTable — fully schema-driven, server-side pagination, column toggle, 3-dot menu, bulk actions, mobile responsive
 import React, { useState, useMemo, useRef, useCallback } from 'react';
-import { Search, ChevronDown, ChevronUp, MoreHorizontal, ChevronLeft, ChevronRight, Eye, EyeOff, Check, Clock, Activity } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, MoreHorizontal, ChevronLeft, ChevronRight, Eye, EyeOff, Check, Clock, Activity, Menu, X } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Button } from './Button';
 import { Input } from './Input';
@@ -66,6 +66,8 @@ const DataTable = ({
     const buttonRefs = useRef({});
     const [colToggleOpen, setColToggleOpen] = useState(false);
     const [jumpPage, setJumpPage] = useState('');
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [mobileView, setMobileView] = useState(false);
 
     const [internalSelected, setInternalSelected] = useState(new Set());
     const selectedRows = controlledSelected != null ? controlledSelected : internalSelected;
@@ -150,6 +152,14 @@ const DataTable = ({
         setOpenMenuIndex(null);
     }, []);
 
+    // Check for mobile viewport
+    React.useEffect(() => {
+        const checkMobile = () => setMobileView(window.innerWidth < 768);
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
+
     const SortIcon = ({ col }) => {
         if (sort.key !== col.key) return <ChevronDown size={11} className="text-[var(--text-faint)] opacity-50" />;
         return sort.dir === 'asc'
@@ -159,8 +169,31 @@ const DataTable = ({
 
     return (
         <div className={cn('flex flex-col gap-3', className)}>
+            {/* ── Mobile Filter Toggle ── */}
+            {mobileView && (
+                <div className="flex items-center gap-2">
+                    <Button 
+                        size="sm" 
+                        variant="secondary" 
+                        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                        className="flex-1"
+                    >
+                        {isMobileMenuOpen ? <X size={14} /> : <Menu size={14} />}
+                        <span className="ml-1">{isMobileMenuOpen ? 'Close' : 'Filters & Actions'}</span>
+                    </Button>
+                    {selectedRows.size > 0 && (
+                        <span className="text-xs text-[var(--text-muted)]">
+                            {selectedRows.size} selected
+                        </span>
+                    )}
+                </div>
+            )}
+
             {/* ── Toolbar ── */}
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className={cn(
+                "flex items-center gap-2 flex-wrap",
+                mobileView && !isMobileMenuOpen && "hidden"
+            )}>
                 {onSearch !== undefined && (
                     <div className="relative min-w-[200px] flex-1 max-w-xs">
                         <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" />
@@ -180,11 +213,11 @@ const DataTable = ({
                     </Button>
                 ))}
 
-                <div className="ml-auto flex items-center gap-2">
+                <div className="ml-auto flex items-center gap-2 flex-wrap">
                     {toolbar}
 
                     {/* Column visibility toggle */}
-                    {!hideColumnToggle && (
+                    {!hideColumnToggle && !mobileView && (
                         <div className="relative">
                             <Button size="sm" variant="secondary" onClick={() => setColToggleOpen(p => !p)}>
                                 <Eye size={12} /> Columns
@@ -219,70 +252,141 @@ const DataTable = ({
                 </div>
             </div>
 
-            {/* ── Table ── */}
-            <div className="rounded-xl border border-[var(--border-base)] overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full border-collapse">
-                        <thead>
-                            <tr className="border-b border-[var(--border-base)] bg-[var(--bg-raised)]">
+            {/* ── Mobile Card View ── */}
+            {mobileView ? (
+                <div className="space-y-3">
+                    {loading ? (
+                        Array.from({ length: 3 }).map((_, i) => (
+                            <div key={i} className="glass-card p-4 space-y-2">
+                                <div className="h-4 rounded animate-shimmer w-3/4" />
+                                <div className="h-3 rounded animate-shimmer w-1/2" />
+                                <div className="h-3 rounded animate-shimmer w-2/3" />
+                            </div>
+                        ))
+                    ) : data.length === 0 ? (
+                        <div className="text-center py-8 text-[var(--text-faint)] text-sm">
+                            {emptyText}
+                        </div>
+                    ) : (
+                        data.map((row, index) => (
+                            <div 
+                                key={row[rowKey] || index} 
+                                className="glass-card p-3 space-y-2"
+                                onClick={() => onRowClick?.(row)}
+                            >
                                 {bulkActions.length > 0 && (
-                                    <th className="w-10 px-3 py-3 sticky left-0 z-10 bg-[var(--bg-raised)]">
+                                    <div className="flex items-center justify-between pb-2 border-b border-[var(--border-base)]">
                                         <input
                                             type="checkbox"
-                                            checked={data.length > 0 && selectedRows.size === data.length}
-                                            onChange={toggleAll}
-                                            className="w-3.5 h-3.5 accent-[var(--primary)] cursor-pointer"
+                                            checked={selectedRows.has(row[rowKey])}
+                                            onChange={(e) => {
+                                                e.stopPropagation();
+                                                toggleRow(row[rowKey]);
+                                            }}
+                                            className="w-4 h-4 accent-[var(--primary)] cursor-pointer"
                                         />
-                                    </th>
-                                )}
-                                {visibleColumns.map(col => (
-                                    <th
-                                        key={col.key}
-                                        className={cn(
-                                            'px-3 py-2.5 text-left text-[11px] font-semibold text-[var(--text-muted)] whitespace-nowrap',
-                                            col.sortable && 'cursor-pointer select-none hover:text-[var(--text-primary)]'
+                                        {allRowActions.length > 0 && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleMenuOpen(e, index);
+                                                }}
+                                                className="w-8 h-8 rounded flex items-center justify-center text-[var(--text-faint)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+                                            >
+                                                <MoreHorizontal size={16} />
+                                            </button>
                                         )}
-                                        style={col.width ? { width: col.width } : undefined}
-                                        onClick={() => col.sortable && handleSort(col.key)}
-                                    >
-                                        <span className="inline-flex items-center gap-1">
-                                            {col.header}
-                                            {col.sortable && <SortIcon col={col} />}
-                                        </span>
-                                    </th>
-                                ))}
-                                {allRowActions.length > 0 && (
-                                    <th className="w-10 px-2 py-2.5 sticky right-0 z-10 bg-[var(--bg-raised)] border-l border-[var(--border-base)]" />
+                                    </div>
                                 )}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {loading ? (
-                                Array.from({ length: 5 }).map((_, i) => (
-                                    <tr key={i} className="border-b border-[var(--border-base)]">
-                                        {visibleColumns.map(col => (
-                                            <td key={`${i}-${col.key}`} className="px-4 py-3.5">
-                                                <div className="h-3 rounded animate-shimmer" style={{ width: `${40 + Math.random() * 40}%` }} />
-                                            </td>
-                                        ))}
-                                    </tr>
-                                ))
-                            ) : data.length === 0 ? (
-                                <tr>
-                                    <td colSpan={visibleColumns.length + (bulkActions.length ? 1 : 0) + (allRowActions.length ? 1 : 0)}
-                                        className="text-center py-16 text-[var(--text-faint)] text-sm">
-                                        {emptyText}
-                                    </td>
-                                </tr>
-                            ) : (
-                                data.map((row, index) => {
-                                    const uniqueKey = row[rowKey] || index;
-                                    return (
-                                        <tr 
-                                            key={uniqueKey} 
-                                            className="table-row border-b border-[var(--border-base)] last:border-0 group cursor-pointer"
-                                            onClick={() => onRowClick?.(row)}
+                                {visibleColumns.slice(0, 4).map(col => (
+                                    <div key={col.key} className="flex items-start justify-between gap-2">
+                                        <span className="text-[11px] text-[var(--text-muted)]">{col.header}</span>
+                                        <span className="text-[12px] text-[var(--text-primary)] text-right">
+                                            {col.render ? col.render(row[col.key], row) : row[col.key] ?? '—'}
+                                        </span>
+                                    </div>
+                                ))}
+                                {visibleColumns.length > 4 && (
+                                    <div className="text-[10px] text-[var(--text-faint)] pt-1 border-t border-[var(--border-base)]">
+                                        +{visibleColumns.length - 4} more fields
+                                    </div>
+                                )}
+                                {bulkActions.length === 0 && allRowActions.length > 0 && (
+                                    <div className="flex justify-end pt-2 border-t border-[var(--border-base)]">
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleMenuOpen(e, index);
+                                            }}
+                                            className="w-8 h-8 rounded flex items-center justify-center text-[var(--text-faint)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
                                         >
+                                            <MoreHorizontal size={16} />
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        ))
+                    )}
+                </div>
+            ) : (
+                /* ── Table (Desktop) ── */
+                <div className="rounded-xl border border-[var(--border-base)] overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full border-collapse">
+                            <thead>
+                                <tr className="border-b border-[var(--border-base)] bg-[var(--bg-raised)]">
+                                    {bulkActions.length > 0 && (
+                                        <th className="w-10 px-3 py-3 sticky left-0 z-10 bg-[var(--bg-raised)]">
+                                            <input
+                                                type="checkbox"
+                                                checked={data.length > 0 && selectedRows.size === data.length}
+                                                onChange={toggleAll}
+                                                className="w-3.5 h-3.5 accent-[var(--primary)] cursor-pointer"
+                                            />
+                                        </th>
+                                    )}
+                                    {visibleColumns.map(col => (
+                                        <th
+                                            key={col.key}
+                                            className={cn(
+                                                'px-3 py-2.5 text-left text-[11px] font-semibold text-[var(--text-muted)] whitespace-nowrap',
+                                                col.sortable && 'cursor-pointer select-none hover:text-[var(--text-primary)]'
+                                            )}
+                                            style={col.width ? { width: col.width } : undefined}
+                                            onClick={() => col.sortable && handleSort(col.key)}
+                                        >
+                                            <span className="inline-flex items-center gap-1">
+                                                {col.header}
+                                                {col.sortable && <SortIcon col={col} />}
+                                            </span>
+                                        </th>
+                                    ))}
+                                    {allRowActions.length > 0 && (
+                                        <th className="w-10 px-2 py-2.5 sticky right-0 z-10 bg-[var(--bg-raised)] border-l border-[var(--border-base)]" />
+                                    )}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {loading ? (
+                                    Array.from({ length: 5 }).map((_, i) => (
+                                        <tr key={i} className="border-b border-[var(--border-base)]">
+                                            {visibleColumns.map(col => (
+                                                <td key={`${i}-${col.key}`} className="px-4 py-3.5">
+                                                    <div className="h-3 rounded animate-shimmer" style={{ width: `${40 + Math.random() * 40}%` }} />
+                                                </td>
+                                            ))}
+                                        </tr>
+                                    ))
+                                ) : data.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={visibleColumns.length + (bulkActions.length ? 1 : 0) + (allRowActions.length ? 1 : 0)}
+                                            className="text-center py-16 text-[var(--text-faint)] text-sm">
+                                            {emptyText}
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    data.map((row, index) => (
+                                        <tr key={row[rowKey] || index} className="table-row border-b border-[var(--border-base)] last:border-0 group" onClick={() => onRowClick?.(row)}>
                                             {bulkActions.length > 0 && (
                                                 <td className="px-3 py-3.5 sticky left-0 z-10 bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] transition-colors">
                                                     <input
@@ -295,7 +399,7 @@ const DataTable = ({
                                             )}
                                             {visibleColumns.map(col => (
                                                 <td key={col.key} className="px-3 py-2 text-[12px] text-[var(--text-primary)]">
-                                                    {col.render ? col.render(row[col.key], row) : (row[col.key] != null ? row[col.key] : '—')}
+                                                    {col.render ? col.render(row[col.key], row) : row[col.key] ?? '—'}
                                                 </td>
                                             ))}
                                             {allRowActions.length > 0 && (
@@ -303,16 +407,22 @@ const DataTable = ({
                                                     className="px-2 py-2 sticky right-0 z-10 bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] transition-colors border-l border-[var(--border-base)]"
                                                     onClick={e => e.stopPropagation()}
                                                 >
-                                                    <MoreHorizontal size={14} />
-                                                </button>
-                                            </td>
-                                        )}
-                                    </tr>
-                                )))}
-                        </tbody>
-                    </table>
+                                                    <button
+                                                        ref={el => buttonRefs.current[index] = el}
+                                                        onClick={e => handleMenuOpen(e, index)}
+                                                        className="w-6 h-6 rounded flex items-center justify-center text-[var(--text-faint)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+                                                    >
+                                                        <MoreHorizontal size={14} />
+                                                    </button>
+                                                </td>
+                                            )}
+                                        </tr>
+                                    )))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* ── Floating Menu ── */}
             {openMenuIndex !== null && data[openMenuIndex] && (
@@ -320,29 +430,43 @@ const DataTable = ({
                     <div className="fixed inset-0 z-40" onClick={handleMenuClose} />
                     <div 
                         ref={menuRef}
-                        className="fixed z-50 w-44 glass-card shadow-2xl shadow-black/50 py-1.5 animate-slide-up"
-                        style={{ 
+                        className={cn(
+                            "fixed z-50 glass-card shadow-2xl shadow-black/50 py-1.5 animate-slide-up",
+                            mobileView ? "bottom-0 left-0 right-0 rounded-t-xl w-full" : "w-44"
+                        )}
+                        style={mobileView ? {} : { 
                             top: `${menuPosition.top}px`,
                             left: `${menuPosition.left}px`,
                         }}
                     >
-                        {allRowActions.map((a, actionIdx) => (
-                            <button
-                                key={`menu-${openMenuIndex}-${a.label}-${actionIdx}`}
-                                onClick={() => { 
-                                    a.onClick(data[openMenuIndex]); 
-                                    handleMenuClose(); 
-                                }}
-                                className={cn(
-                                    'flex items-center gap-2 w-full px-3 py-2 text-xs transition-colors',
-                                    a.danger
-                                        ? 'text-red-400 hover:bg-red-500/10'
-                                        : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
-                                )}
-                            >
-                                {a.icon && <a.icon size={12} />} {a.label}
-                            </button>
-                        ))}
+                        {mobileView && (
+                            <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border-base)]">
+                                <span className="text-xs font-semibold text-[var(--text-muted)]">Actions</span>
+                                <button onClick={handleMenuClose} className="p-1">
+                                    <X size={16} className="text-[var(--text-muted)]" />
+                                </button>
+                            </div>
+                        )}
+                        <div className={cn("py-1", mobileView && "grid grid-cols-2 gap-1 px-2")}>
+                            {allRowActions.map((a, actionIdx) => (
+                                <button
+                                    key={`menu-${openMenuIndex}-${a.label}-${actionIdx}`}
+                                    onClick={() => { 
+                                        a.onClick(data[openMenuIndex]); 
+                                        handleMenuClose(); 
+                                    }}
+                                    className={cn(
+                                        'flex items-center gap-2 transition-colors',
+                                        mobileView ? 'justify-center px-3 py-3 rounded-lg text-sm' : 'w-full px-3 py-2 text-xs',
+                                        a.danger
+                                            ? 'text-red-400 hover:bg-red-500/10'
+                                            : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                                    )}
+                                >
+                                    {a.icon && <a.icon size={mobileView ? 16 : 12} />} {a.label}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </>
             )}
