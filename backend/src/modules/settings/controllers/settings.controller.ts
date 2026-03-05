@@ -60,7 +60,7 @@ import {
 } from '../dto/project-type.dto';
 
 @Controller('settings')
-// @UseGuards(JwtAuthGuard, TenantGuard) // Temporarily disabled for testing
+@UseGuards(JwtAuthGuard, TenantGuard)
 export class SettingsController {
   constructor(
     private readonly settingsService: SettingsService,
@@ -78,21 +78,76 @@ export class SettingsController {
   // ── Full Settings ─────────────────────────────────────────────────────────
   @Get()
   async getFullSettings(@Request() req: any) {
-    const tenantId = req.tenant?.id;
-    const flags = await this.featureFlagService.getAllFlags(tenantId);
-    const rbac = await this.rbacService.getFullRBAC(tenantId);
-    
-    // Get legacy data from SettingsService for Phase 1 compatibility
-    const legacy = await this.settingsService.getFullSettings(tenantId);
+    try {
+      const tenantId = req.tenant?.id;
+      
+      const flags = await this.featureFlagService.getAllFlags(tenantId);
+      const rbac = await this.rbacService.getFullRBAC(tenantId);
+      
+      // Get custom roles from new service
+      const customRolesData = await this.customRoleService.getCustomRoles(tenantId);
+      
+      // Transform custom roles to frontend format
+      const customRoles: Record<string, any> = {};
+      customRolesData.forEach((r: any) => {
+        const rawPerms = (r as any).permissions;
+        const permsObj: Record<string, any> = {};
+        if (rawPerms && typeof rawPerms === 'object') {
+          if (typeof rawPerms.entries === 'function') {
+            for (const [moduleId, modulePerms] of rawPerms.entries()) {
+              if (modulePerms && typeof (modulePerms as any).entries === 'function') {
+                permsObj[moduleId] = Object.fromEntries((modulePerms as any).entries());
+              } else if (modulePerms && typeof modulePerms === 'object') {
+                permsObj[moduleId] = modulePerms;
+              } else {
+                permsObj[moduleId] = {};
+              }
+            }
+          } else {
+            for (const [moduleId, modulePerms] of Object.entries(rawPerms)) {
+              if (modulePerms && typeof (modulePerms as any).entries === 'function') {
+                permsObj[moduleId] = Object.fromEntries((modulePerms as any).entries());
+              } else if (modulePerms && typeof modulePerms === 'object') {
+                permsObj[moduleId] = modulePerms;
+              } else {
+                permsObj[moduleId] = {};
+              }
+            }
+          }
+        }
+        customRoles[r.roleId] = {
+          id: r.roleId,
+          roleId: r.roleId,
+          label: r.label,
+          description: r.description,
+          baseRole: r.baseRole,
+          color: r.color,
+          bg: r.bg,
+          isCustom: r.isCustom,
+          permissions: permsObj,
+          createdAt: (r as any).createdAt,
+          updatedAt: (r as any).updatedAt,
+        };
+      });
 
-    return {
-      flags,
-      rbac,
-      workflows: legacy.workflows,
-      auditLogs: legacy.auditLogs,
-      customRoles: legacy.customRoles,
-      projectTypeConfigs: legacy.projectTypeConfigs,
-    };
+      // Get legacy data from SettingsService for remaining items
+      const legacy = await this.settingsService.getFullSettings(tenantId);
+
+      return {
+        flags,
+        rbac,
+        workflows: legacy.workflows,
+        auditLogs: legacy.auditLogs,
+        customRoles, // Now from customRoleService
+        projectTypeConfigs: legacy.projectTypeConfigs,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error?.message || 'Unknown error',
+        stack: error?.stack,
+      };
+    }
   }
 
   // ═════════════════════════════════════════════════════════════════════════
@@ -611,6 +666,31 @@ export class SettingsController {
     // Transform to { [roleId]: role }
     const result: Record<string, any> = {};
     roles.forEach((r: any) => {
+      const rawPerms = (r as any).permissions;
+      const permsObj: Record<string, any> = {};
+      if (rawPerms && typeof rawPerms === 'object') {
+        if (typeof rawPerms.entries === 'function') {
+          for (const [moduleId, modulePerms] of rawPerms.entries()) {
+            if (modulePerms && typeof (modulePerms as any).entries === 'function') {
+              permsObj[moduleId] = Object.fromEntries((modulePerms as any).entries());
+            } else if (modulePerms && typeof modulePerms === 'object') {
+              permsObj[moduleId] = modulePerms;
+            } else {
+              permsObj[moduleId] = {};
+            }
+          }
+        } else {
+          for (const [moduleId, modulePerms] of Object.entries(rawPerms)) {
+            if (modulePerms && typeof (modulePerms as any).entries === 'function') {
+              permsObj[moduleId] = Object.fromEntries((modulePerms as any).entries());
+            } else if (modulePerms && typeof modulePerms === 'object') {
+              permsObj[moduleId] = modulePerms;
+            } else {
+              permsObj[moduleId] = {};
+            }
+          }
+        }
+      }
       result[r.roleId] = {
         id: r.roleId,
         label: r.label,
@@ -619,9 +699,7 @@ export class SettingsController {
         color: r.color,
         bg: r.bg,
         isCustom: r.isCustom,
-        permissions: Object.fromEntries(
-          Array.from((r as any).permissions?.entries() || []).map((entry: any) => [entry[0], Object.fromEntries(entry[1] || new Map())])
-        ),
+        permissions: permsObj,
         createdAt: (r as any).createdAt,
         updatedAt: (r as any).updatedAt,
       };

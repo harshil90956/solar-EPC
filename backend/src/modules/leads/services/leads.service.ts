@@ -325,22 +325,45 @@ export class LeadsService {
       filter.tenantId = new Types.ObjectId(tenantId);
     }
 
-    const existingLead = await this.leadModel.findOne(filter).exec();
+    // Check if lead exists first
+    const existingLead = await this.leadModel.findOne(filter).lean().exec();
     if (!existingLead) {
       throw new NotFoundException('Lead not found');
     }
 
-    await this.assertValidStatusKey(updateLeadDto.statusKey, tenantId);
+    // Build update data - exclude undefined values
+    const updateData: any = {};
+    const allowedFields = [
+      'name', 'company', 'email', 'phone', 'source', 'statusKey', 'city', 'state',
+      'value', 'kw', 'roofArea', 'monthlyBill', 'roofType', 'budget', 'category',
+      'tags', 'notes', 'assignedTo', 'score', 'archived', 'nextFollowUp', 'slaHours'
+    ];
+    
+    const dtoAny = updateLeadDto as any;
+    for (const field of allowedFields) {
+      if (dtoAny[field] !== undefined) {
+        updateData[field] = dtoAny[field];
+      }
+    }
 
-    if (updateLeadDto.statusKey && updateLeadDto.statusKey !== (existingLead as any).statusKey) {
+    // Only validate statusKey if it's being updated
+    if (updateData.statusKey !== undefined) {
+      await this.assertValidStatusKey(updateData.statusKey, tenantId);
+    }
+
+    // Handle stage change activity
+    if (updateData.statusKey && updateData.statusKey !== existingLead.statusKey) {
       const now = new Date();
-      existingLead.activities.push({
+      const activity = {
         type: 'stage_change',
         ts: this.formatTimestamp(now),
-        note: `Stage changed from ${(existingLead as any).statusKey} to ${updateLeadDto.statusKey}`,
+        note: `Stage changed from ${existingLead.statusKey} to ${updateData.statusKey}`,
         by: 'System',
         timestamp: now,
-      });
+      };
+      
+      // Push new activity to existing array
+      updateData.$push = { activities: activity };
     }
 
     Object.assign(existingLead, updateLeadDto);
@@ -352,7 +375,18 @@ export class LeadsService {
     existingLead.slaBreached = this.checkSlaBreached(existingLead);
     existingLead.activeAutomation = this.applyAutomation(existingLead);
 
-    return existingLead.save();
+    // Use atomic update
+    const updatedLead = await this.leadModel.findOneAndUpdate(
+      filter,
+      updateData,
+      { new: true, runValidators: true }
+    ).exec();
+
+    if (!updatedLead) {
+      throw new NotFoundException('Lead not found after update');
+    }
+
+    return updatedLead;
   }
 
   async remove(id: string, tenantId?: string): Promise<void> {
@@ -421,13 +455,19 @@ export class LeadsService {
     }
 
     const now = new Date();
-    lead.activities.push({
+    const activity = {
       type: activityDto.type,
       ts: this.formatTimestamp(now),
       note: activityDto.note,
       by: activityDto.by || 'System',
       timestamp: now,
-    });
+    };
+    
+    // Ensure activities array exists
+    if (!lead.activities) {
+      lead.activities = [];
+    }
+    lead.activities.push(activity as any);
 
     lead.lastContact = now;
     lead.slaBreached = this.checkSlaBreached(lead);
@@ -596,6 +636,171 @@ export class LeadsService {
     }
 
     return { updated };
+  }
+
+  // ============================================
+  // LEAD TRACKER / STATUS PROGRESS
+  // ============================================
+
+  async getTracker(id: string, tenantId?: string): Promise<{ stages: any[]; currentStage: string; progress: number }> {
+    const lead = await this.findOne(id, tenantId);
+    
+    // Get all available status options ordered
+    const tid = this.toObjectId(tenantId);
+    const statusOptions = await this.leadStatusModel
+      .find({ tenantId: tid, entity: 'lead', isActive: true })
+      .sort({ order: 1 })
+      .lean()
+      .exec();
+
+    // If no status options configured, use default pipeline
+    const defaultStages = [
+      { key: 'new', label: 'New', color: '#64748b', order: 0, type: 'start' },
+      { key: 'contacted', label: 'Contacted', color: '#3b82f6', order: 1, type: 'normal' },
+      { key: 'qualified', label: 'Qualified', color: '#8b5cf6', order: 2, type: 'normal' },
+      { key: 'site_survey', label: 'Site Survey', color: '#f59e0b', order: 3, type: 'normal' },
+      { key: 'proposal_sent', label: 'Proposal Sent', color: '#06b6d4', order: 4, type: 'normal' },
+      { key: 'negotiation', label: 'Negotiation', color: '#ec4899', order: 5, type: 'normal' },
+      { key: 'won', label: 'Won', color: '#22c55e', order: 6, type: 'success' },
+      { key: 'lost', label: 'Lost', color: '#ef4444', order: 7, type: 'failure' },
+    ];
+
+    const allStages = statusOptions.length > 0 ? statusOptions.map(s => ({
+      key: (s as any).key,
+      label: (s as any).label,
+      color: (s as any).color,
+      order: (s as any).order,
+      type: (s as any).type || 'normal',
+    })) : defaultStages;
+
+    // Get lead's progress from leadStages array
+    const leadStages = lead.leadStages || [];
+    
+    // Build tracker stages with completion status
+    const trackerStages = allStages.map((stage, index) => {
+      const leadStage = leadStages.find(ls => ls.stage === stage.key);
+      const isCompleted = leadStage?.completed || false;
+      const isCurrent = lead.statusKey === stage.key;
+      
+      // Determine if this stage should be marked as completed
+      // All stages before current stage are considered completed
+      const currentStageIndex = allStages.findIndex(s => s.key === lead.statusKey);
+      const shouldBeCompleted = index < currentStageIndex || isCompleted || isCurrent;
+      
+      return {
+        stage: stage.key,
+        label: stage.label,
+        color: stage.color,
+        order: stage.order,
+        type: stage.type,
+        completed: shouldBeCompleted,
+        completedAt: leadStage?.completedAt || (shouldBeCompleted && !isCurrent ? new Date() : null),
+        isCurrent,
+      };
+    });
+
+    // Calculate progress
+    const completedCount = trackerStages.filter(s => s.completed).length;
+    const currentStageIndex = trackerStages.findIndex(s => s.isCurrent);
+    const progress = allStages.length > 0 
+      ? Math.round(((currentStageIndex + 1) / allStages.length) * 100)
+      : 0;
+
+    return {
+      stages: trackerStages,
+      currentStage: lead.statusKey,
+      progress: Math.min(progress, 100),
+    };
+  }
+
+  async updateStage(id: string, stage: string, user: string = 'System', tenantId?: string): Promise<{ lead: Lead; tracker: any }> {
+    // Validate stage
+    await this.assertValidStatusKey(stage, tenantId);
+    
+    const lead = await this.findOne(id, tenantId);
+    const oldStage = lead.statusKey;
+    
+    if (oldStage === stage) {
+      throw new BadRequestException(`Lead is already in stage '${stage}'`);
+    }
+
+    const now = new Date();
+    
+    // Build update data
+    const updateData: any = {
+      statusKey: stage,
+      lastContact: now,
+    };
+
+    // Add stage change activity
+    const activity = {
+      type: 'stage_change',
+      ts: this.formatTimestamp(now),
+      note: `Stage changed from ${oldStage} to ${stage}`,
+      by: user,
+      timestamp: now,
+    };
+    updateData.$push = { activities: activity };
+
+    // Update leadStages - mark new stage as completed
+    const existingStageIndex = lead.leadStages?.findIndex(ls => ls.stage === stage);
+    if (existingStageIndex >= 0) {
+      // Update existing stage
+      updateData.$set = {
+        [`leadStages.${existingStageIndex}.completed`]: true,
+        [`leadStages.${existingStageIndex}.completedAt`]: now,
+      };
+    } else {
+      // Add new stage entry
+      updateData.$push.leadStages = {
+        stage,
+        completed: true,
+        completedAt: now,
+        createdAt: now,
+      };
+    }
+
+    // Also mark old stage as completed if not already
+    const oldStageIndex = lead.leadStages?.findIndex(ls => ls.stage === oldStage);
+    if (oldStageIndex >= 0 && !lead.leadStages[oldStageIndex].completed) {
+      if (!updateData.$set) updateData.$set = {};
+      updateData.$set[`leadStages.${oldStageIndex}.completed`] = true;
+      updateData.$set[`leadStages.${oldStageIndex}.completedAt`] = now;
+    }
+
+    // Recalculate score and SLA
+    const mergedData = { ...lead, ...updateData, statusKey: stage };
+    updateData.score = this.calculateScore(mergedData);
+    updateData.slaBreached = this.checkSlaBreached(mergedData);
+    updateData.activeAutomation = this.applyAutomation(mergedData);
+
+    // Update lead
+    const filter: any = { 
+      $or: [
+        { _id: Types.ObjectId.isValid(id) ? new Types.ObjectId(id) : undefined },
+        { leadId: id }
+      ].filter(Boolean),
+      isDeleted: { $ne: true } 
+    };
+    
+    if (tenantId) {
+      filter.tenantId = new Types.ObjectId(tenantId);
+    }
+
+    const updatedLead = await this.leadModel.findOneAndUpdate(
+      filter,
+      updateData,
+      { new: true, runValidators: true }
+    ).exec();
+
+    if (!updatedLead) {
+      throw new NotFoundException('Lead not found after update');
+    }
+
+    // Get updated tracker
+    const tracker = await this.getTracker(id, tenantId);
+
+    return { lead: updatedLead, tracker };
   }
 
   private formatTimestamp(date: Date): string {

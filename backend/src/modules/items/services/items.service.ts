@@ -2,13 +2,25 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Item } from '../schemas/item.schema';
+import { InventoryReservation } from '../../inventory/schemas/inventory-reservation.schema';
+import { Tenant } from '../../../core/tenant/schemas/tenant.schema';
 import { CreateItemDto, UpdateItemDto } from '../dto/item.dto';
 
 @Injectable()
 export class ItemsService {
   constructor(
     @InjectModel(Item.name) private readonly itemModel: Model<Item>,
+    @InjectModel(InventoryReservation.name) private readonly reservationModel: Model<InventoryReservation>,
+    @InjectModel(Tenant.name) private readonly tenantModel: Model<Tenant>,
   ) {}
+
+  private async getTenantId(tenantCode: string): Promise<Types.ObjectId> {
+    const tenant = await this.tenantModel.findOne({ code: tenantCode });
+    if (!tenant) {
+      throw new NotFoundException(`Tenant ${tenantCode} not found`);
+    }
+    return tenant._id as Types.ObjectId;
+  }
 
   async findAll(tenantId: string, search?: string, itemGroupId?: string) {
     const query: any = { tenantId, isDeleted: false };

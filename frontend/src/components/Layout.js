@@ -14,6 +14,9 @@ import { cn } from '../lib/utils';
 import ThemeCustomizer from './ThemeCustomizer';
 import ReminderSidebar from './Reminder/ReminderSidebar';
 
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
+const TENANT_ID = 'solarcorp';
+
 const Layout = ({ currentPage, onNavigate, children }) => {
   const { user, logout } = useAuth();
   const { theme, setTheme, themes, currentLabel, customization } = useTheme();
@@ -27,12 +30,54 @@ const Layout = ({ currentPage, onNavigate, children }) => {
   const [reminderSidebarOpen, setReminderSidebarOpen] = useState(false);
   const [searchVal, setSearchVal] = useState('');
   const [notifTab, setNotifTab] = useState('alerts');
+  const [badgeCounts, setBadgeCounts] = useState({
+    inventory: 0,
+    project: 0,
+    crm: 0,
+    quotation: 0,
+    service: 0,
+  });
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1280);
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Fetch dynamic badge counts
+  useEffect(() => {
+    const fetchBadgeCounts = async () => {
+      try {
+        // Fetch inventory stats
+        const inventoryRes = await fetch(`${API_BASE_URL}/inventory/stats?tenantId=${TENANT_ID}`);
+        const inventoryData = inventoryRes.ok ? await inventoryRes.json() : null;
+        
+        // Fetch projects
+        const projectsRes = await fetch(`${API_BASE_URL}/projects?tenantId=${TENANT_ID}`);
+        const projectsData = projectsRes.ok ? await projectsRes.json() : null;
+        const projects = projectsData?.data || projectsData || [];
+        
+        // Calculate counts
+        const lowStockCount = inventoryData?.data?.lowStock || 0;
+        const activeProjects = projects.filter(p => p.status !== 'Commissioned').length;
+        
+        setBadgeCounts({
+          inventory: lowStockCount,
+          project: activeProjects,
+          crm: 0, // Can be fetched from leads API
+          quotation: 0, // Can be fetched from quotations API
+          service: 0, // Can be fetched from tickets API
+        });
+      } catch (err) {
+        console.error('Error fetching badge counts:', err);
+      }
+    };
+
+    fetchBadgeCounts();
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchBadgeCounts, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const close = useCallback(() => setSidebarOpen(false), []);
@@ -600,13 +645,13 @@ const Layout = ({ currentPage, onNavigate, children }) => {
                         )}
                       />
                       {showLabels && <span className="truncate">{item.label}</span>}
-                      {showLabels && item.badge && (
+                      {showLabels && badgeCounts[item.id] > 0 && (
                         <span className={cn(
                           'ml-auto text-[9px] rounded-full px-1.5 py-0.5 font-bold',
                           item.badgeVariant === 'red' ? 'bg-red-500 text-white' :
                             item.badgeVariant === 'amber' ? 'bg-amber-500 text-black' :
                               'bg-[var(--primary)] text-white'
-                        )}>{item.badge}</span>
+                        )}>{badgeCounts[item.id]}</span>
                       )}
                     </button>
                   );
