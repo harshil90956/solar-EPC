@@ -185,7 +185,6 @@ export class FeatureFlagService {
       };
     }
 
-    this.setCache(cacheKey, result);
     return result;
   }
 

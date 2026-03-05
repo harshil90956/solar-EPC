@@ -166,7 +166,7 @@ export const settingsApi = {
 
   // ── Custom Roles ─────────────────────────────────────────────────────────
   async getCustomRoles() {
-    const response = await fetch(`${API_BASE_URL}/settings/roles`, {
+    const response = await fetch(`${API_BASE_URL}/settings/custom-roles`, {
       headers: getAuthHeaders(),
     });
     if (!response.ok) throw new Error('Failed to fetch custom roles');
@@ -174,17 +174,21 @@ export const settingsApi = {
   },
 
   async createCustomRole(role) {
-    const response = await fetch(`${API_BASE_URL}/settings/roles`, {
+    const response = await fetch(`${API_BASE_URL}/settings/custom-roles`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(role),
     });
-    if (!response.ok) throw new Error('Failed to create custom role');
-    return response.json();
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to create custom role: ${errorText}`);
+    }
+    const data = await response.json();
+    return data;
   },
 
   async updateCustomRole(roleId, updates) {
-    const response = await fetch(`${API_BASE_URL}/settings/roles/${roleId}`, {
+    const response = await fetch(`${API_BASE_URL}/settings/custom-roles/${roleId}`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(updates),
@@ -194,11 +198,31 @@ export const settingsApi = {
   },
 
   async deleteCustomRole(roleId) {
-    const response = await fetch(`${API_BASE_URL}/settings/roles/${roleId}`, {
+    const response = await fetch(`${API_BASE_URL}/settings/custom-roles/${roleId}`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
     });
     if (!response.ok) throw new Error('Failed to delete custom role');
+    return response.json();
+  },
+
+  async updateCustomRolePermissions(roleId, moduleId, permissions) {
+    const response = await fetch(`${API_BASE_URL}/settings/custom-roles/${roleId}/permissions`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ moduleId, permissions }),
+    });
+    if (!response.ok) throw new Error('Failed to update custom role permissions');
+    return response.json();
+  },
+
+  async cloneCustomRole(roleId, label) {
+    const response = await fetch(`${API_BASE_URL}/settings/custom-roles/${roleId}/clone`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ label }),
+    });
+    if (!response.ok) throw new Error('Failed to clone custom role');
     return response.json();
   },
 

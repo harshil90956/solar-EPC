@@ -493,40 +493,53 @@ const ModulesPanel = () => {
 
 // ─── PANEL B: RBAC MATRIX ────────────────────────────────────────────────────
 const RBACPanel = () => {
-    const { rbac, toggleRBAC, setRolePreset, resetRBAC } = useSettings();
+    const { customRoles, toggleCustomRolePermission, setCustomRolePreset } = useSettings();
     const { user } = useAuth();
-    const [selectedRole, setSelectedRole] = useState(ROLE_DEFS[0].id);
+    const [selectedRole, setSelectedRole] = useState('');
     const [modFilter, setModFilter] = useState('');
 
-    const roleDef = ROLE_DEFS.find(r => r.id === selectedRole);
+    const roleList = useMemo(() => Object.values(customRoles || {}), [customRoles]);
+
+    // Set initial role when roleList loads
+    useEffect(() => {
+        if (roleList?.length > 0 && !selectedRole) {
+            setSelectedRole(roleList[0].id);
+        }
+    }, [roleList, selectedRole]);
+
+    const roleDef = roleList?.find(r => r.id === selectedRole);
     const filteredMods = MODULE_DEFS.filter(m =>
         !modFilter || m.label.toLowerCase().includes(modFilter.toLowerCase())
     );
 
     const roleStats = useMemo(() => {
-        const row = rbac[selectedRole] || {};
         let total = 0, granted = 0;
         MODULE_DEFS.forEach(mod => {
             ACTION_DEFS.forEach(act => {
                 total++;
-                if (row[mod.id]?.[act.id]) granted++;
+                if (roleDef?.permissions?.[mod.id]?.[act.id]) granted++;
             });
         });
         return { total, granted, pct: total > 0 ? ((granted / total) * 100).toFixed(0) : 0 };
-    }, [rbac, selectedRole]);
+    }, [roleDef]);
 
     return (
         <div>
             <SectionHeader icon={Shield} title="Role & Permissions Matrix" subtitle="Configure what each role can do per module.">
-                <button onClick={() => resetRBAC(user?.name)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-semibold border border-[var(--border-base)] text-[var(--text-faint)] hover:text-[var(--accent)] hover:border-[var(--accent)] transition-colors">
-                    <RotateCcw size={10} /> Reset
-                </button>
             </SectionHeader>
+
+            {roleList.length === 0 && (
+                <div className="p-4 rounded-xl border-2 border-dashed border-[var(--border-base)] text-center">
+                    <p className="text-[11px] text-[var(--text-faint)]">No custom roles found in DB. Create one in Role Builder.</p>
+                </div>
+            )}
+
+            {roleList.length > 0 && (
+                <>
 
             {/* Role selector tabs */}
             <div className="flex flex-wrap gap-2 mb-5">
-                {ROLE_DEFS.map(role => (
+                {roleList?.map(role => (
                     <button key={role.id} onClick={() => setSelectedRole(role.id)}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${selectedRole === role.id ? 'text-white border-transparent' : 'border-[var(--border-base)] text-[var(--text-faint)] hover:text-[var(--text-primary)]'}`}
                         style={selectedRole === role.id ? { background: role.color, borderColor: role.color } : {}}>
@@ -556,7 +569,7 @@ const RBACPanel = () => {
                     {/* Preset buttons */}
                     <div className="flex flex-col gap-1">
                         {[['full', 'Full Access'], ['view_only', 'View Only'], ['none', 'No Access']].map(([preset, label]) => (
-                            <button key={preset} onClick={() => setRolePreset(selectedRole, preset, user?.name)}
+                            <button key={preset} onClick={() => setCustomRolePreset(selectedRole, preset, user?.name)}
                                 className="px-2 py-1 rounded text-[9px] font-bold border border-[var(--border-base)] text-[var(--text-faint)] hover:text-[var(--accent)] hover:border-[var(--accent)] transition-colors whitespace-nowrap">
                                 {label}
                             </button>
@@ -588,7 +601,7 @@ const RBACPanel = () => {
                     </thead>
                     <tbody>
                         {filteredMods.map((mod, i) => {
-                            const row = rbac[selectedRole]?.[mod.id] || {};
+                            const row = roleDef?.permissions?.[mod.id] || {};
                             const accessCount = ACTION_DEFS.filter(a => row[a.id]).length;
                             return (
                                 <tr key={mod.id} className={`border-b border-[var(--border-base)] transition-colors hover:bg-[var(--bg-hover)] ${i % 2 === 0 ? '' : 'bg-[var(--bg-elevated)]/40'}`}>
@@ -602,7 +615,7 @@ const RBACPanel = () => {
                                         const granted = row[act.id] ?? false;
                                         return (
                                             <td key={act.id} className="px-3 py-3 text-center">
-                                                <button onClick={() => toggleRBAC(selectedRole, mod.id, act.id, user?.name)}
+                                                <button onClick={() => toggleCustomRolePermission(selectedRole, mod.id, act.id, user?.name)}
                                                     title={`${granted ? 'Revoke' : 'Grant'} ${act.label} on ${mod.label}`}
                                                     className={`w-6 h-6 rounded-md mx-auto flex items-center justify-center border transition-all ${granted ? 'border-[var(--accent)]/40 bg-[var(--accent)]/15 text-[var(--accent)]' : 'border-[var(--border-base)] text-[var(--text-faint)] hover:border-[var(--accent)]/40'}`}>
                                                     {granted ? <Check size={10} strokeWidth={3} /> : <X size={9} strokeWidth={2} />}
@@ -624,6 +637,8 @@ const RBACPanel = () => {
                     </tbody>
                 </table>
             </div>
+                </>
+            )}
         </div>
     );
 };
@@ -1182,7 +1197,7 @@ const ROLE_COLORS = [
 const RoleBuilderPanel = () => {
     const { customRoles, allRoles, createCustomRole, cloneRole,
         updateCustomRole, toggleCustomRolePermission,
-        setCustomRolePreset, deleteCustomRole } = useSettings();
+        setCustomRolePreset, deleteCustomRole, roleDefs } = useSettings();
     const { user } = useAuth();
 
     const [selectedId, setSelectedId] = useState(null);
@@ -1230,7 +1245,7 @@ const RoleBuilderPanel = () => {
                 subtitle="Create custom roles, clone existing ones, and configure per-module permissions."
                 badge={`${customRoleList.length} custom roles`}>
                 <div className="flex gap-2">
-                    <button onClick={() => { setCloneSourceId(ROLE_DEFS[0].id); setCloneOpen(true); }}
+                    <button onClick={() => { setCloneSourceId(roleDefs?.[0]?.id); setCloneOpen(true); }}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-semibold border border-[var(--border-base)] text-[var(--text-faint)] hover:text-[var(--accent)] hover:border-[var(--accent)] transition-colors">
                         <Copy size={10} /> Clone Role
                     </button>
@@ -1245,7 +1260,7 @@ const RoleBuilderPanel = () => {
                 {/* Left: role list */}
                 <div className="w-52 shrink-0 space-y-2">
                     <p className="text-[9px] font-bold text-[var(--text-faint)] uppercase tracking-wider mb-2">Base Roles (read-only)</p>
-                    {ROLE_DEFS.map(r => (
+                    {roleDefs?.map(r => (
                         <div key={r.id}
                             className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border-base)] text-[11px] opacity-60 cursor-default"
                             style={{ background: r.bg }}>
@@ -1398,7 +1413,7 @@ const RoleBuilderPanel = () => {
                         <select value={newRole.baseRole} onChange={e => setNewRole(p => ({ ...p, baseRole: e.target.value }))}
                             className="w-full px-3 py-2 rounded-lg border border-[var(--border-base)] bg-[var(--bg-elevated)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]">
                             <option value="">Start from scratch</option>
-                            {ROLE_DEFS.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+                            {roleDefs?.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
                         </select>
                     </div>
                     <div>
