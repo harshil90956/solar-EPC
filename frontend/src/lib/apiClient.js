@@ -10,11 +10,22 @@ const apiClient = axios.create({
     headers: { 'Content-Type': 'application/json' },
 });
 
+const getTenantId = () => {
+    try {
+        const user = JSON.parse(localStorage.getItem('solar_user') || '{}');
+        return user?.tenantId || user?.tenant?.id || user?.id || null;
+    } catch {
+        return null;
+    }
+};
+
 // ── Request Interceptor: attach auth token ──
 apiClient.interceptors.request.use(
     (config) => {
         const token = localStorage.getItem('solar_token');
         if (token) config.headers.Authorization = `Bearer ${token}`;
+        const tenantId = getTenantId();
+        if (tenantId) config.headers['x-tenant-id'] = tenantId;
         return config;
     },
     (error) => Promise.reject(error)
