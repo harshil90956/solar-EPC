@@ -597,7 +597,6 @@ const DataTable = ({
                 </div>
 
             </div>
-            )}
 
 
 

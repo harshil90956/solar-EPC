@@ -663,7 +663,7 @@ export const SettingsProvider = ({ children }) => {
     const isFeatureEnabled = useCallback((moduleId, featureId) =>
         (flags[moduleId]?.enabled ?? true) && (flags[moduleId]?.features?.[featureId] ?? true), [flags]);
     const isActionEnabled = useCallback((moduleId, actionId) =>
-        (flags[moduleId]?.enabled ?? true) && (flags[moduleId]?.actions?.[actionId] ?? false), [flags]);
+        (flags[moduleId]?.enabled ?? true) && (flags[moduleId]?.actions?.[actionId] ?? true), [flags]);
     const canRoleDo = useCallback((role, moduleId, actionId) =>
         rbac[role]?.[moduleId]?.[actionId] ?? false, [rbac]);
 
