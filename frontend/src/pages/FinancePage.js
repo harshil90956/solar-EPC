@@ -4,6 +4,7 @@ import {
   DollarSign, TrendingUp, TrendingDown,
   CheckCircle, Clock, Zap, FileText, Plus, IndianRupee,
   LayoutGrid, List, Calendar, AlertCircle, Loader2,
+  X, Edit, RefreshCw, Download, Trash2,
 } from 'lucide-react';
 import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { financeApi } from '../lib/financeApi';
@@ -15,6 +16,7 @@ import { KPICard } from '../components/ui/KPICard';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/Tabs';
 import DataTable from '../components/ui/DataTable';
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
+import { useSettings } from '../context/SettingsContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { useAuditLog } from '../hooks/useAuditLog';
 import CanAccess, { CanCreate } from '../components/CanAccess';
@@ -153,7 +155,8 @@ const INV_STATUS_FILTERS = ['All', 'Draft', 'Pending', 'Partial', 'Paid', 'Overd
    PAGE
 ══════════════════════════════════════════════════════════════════════════════ */
 const FinancePage = () => {
-  const { can, guardCreate, guardApprove } = usePermissions();
+  const { isActionEnabled } = useSettings();
+
   const [view, setView] = useState('kanban');
   const [invSearch, setInvSearch] = useState('');
   const [invStatus, setInvStatus] = useState('All');
@@ -174,6 +177,43 @@ const FinancePage = () => {
   const [allowedPaymentTerms, setAllowedPaymentTerms] = useState([]);
   const [canCreateInvoice, setCanCreateInvoice] = useState(true);
   const [projectStatus, setProjectStatus] = useState('');
+  const latestProjectIdRef = useRef('');
+
+  // Reminder modal state
+  const [showReminderModal, setShowReminderModal] = useState(false);
+  const [selectedReminderInvoice, setSelectedReminderInvoice] = useState(null);
+  const [reminderForm, setReminderForm] = useState({
+    reminderType: 'Gentle',
+    customerEmail: '',
+    messageBody: '',
+  });
+  const [sendingReminder, setSendingReminder] = useState(false);
+  const [reminderSuccess, setReminderSuccess] = useState(false);
+
+  // Timeline drawer state
+  const [showTimeline, setShowTimeline] = useState(false);
+  const [timelineInvoice, setTimelineInvoice] = useState(null);
+  const [timelineData, setTimelineData] = useState([]);
+  const [loadingTimeline, setLoadingTimeline] = useState(false);
+
+  // Edit invoice modal state
+  const [showEditInvoice, setShowEditInvoice] = useState(false);
+  const [editInvoiceTarget, setEditInvoiceTarget] = useState(null);
+  const [editInvoice, setEditInvoice] = useState({
+    invoiceNumber: '',
+    customerName: '',
+    amount: '',
+    invoiceDate: '',
+    dueDate: '',
+    paymentTerms: '',
+    description: '',
+  });
+  const [savingEditInvoice, setSavingEditInvoice] = useState(false);
+
+  // Delete confirmation modal state
+  const [showDeleteInvoice, setShowDeleteInvoice] = useState(false);
+  const [deleteInvoiceTarget, setDeleteInvoiceTarget] = useState(null);
+  const [deletingInvoice, setDeletingInvoice] = useState(false);
 
   // Form state for new invoice
   const [newInvoice, setNewInvoice] = useState({
@@ -189,10 +229,20 @@ const FinancePage = () => {
 
   // Fetch data on mount
   useEffect(() => {
+    if (!isActionEnabled('finance', 'view')) {
+      setLoading(false);
+      setError('This action is disabled from module settings.');
+      return;
+    }
     fetchData();
   }, []);
 
   const fetchData = async () => {
+    if (!isActionEnabled('finance', 'view')) {
+      setLoading(false);
+      setError('This action is disabled from module settings.');
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
@@ -215,6 +265,146 @@ const FinancePage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const canFinance = (actionId) => isActionEnabled('finance', actionId);
+
+  const canEditInvoice = (inv) => canFinance('edit') && inv?.status !== 'Paid';
+  const canDeleteInvoice = (inv) => canFinance('delete') && inv?.status !== 'Paid';
+
+  const toDateInputValue = (d) => {
+    if (!d) return '';
+    const dt = new Date(d);
+    if (Number.isNaN(dt.getTime())) return '';
+    return dt.toISOString().slice(0, 10);
+  };
+
+  const openEditInvoice = (row) => {
+    if (!canEditInvoice(row)) return;
+    setEditInvoiceTarget(row);
+    setEditInvoice({
+      invoiceNumber: row?.invoiceNumber || '',
+      customerName: row?.customerName || '',
+      amount: String(row?.amount ?? ''),
+      invoiceDate: toDateInputValue(row?.invoiceDate),
+      dueDate: toDateInputValue(row?.dueDate),
+      paymentTerms: row?.paymentTerms || '',
+      description: row?.description || '',
+    });
+    setError(null);
+    setShowEditInvoice(true);
+  };
+
+  const handleSaveEditInvoice = async () => {
+    if (!editInvoiceTarget) return;
+    if (!editInvoice.invoiceNumber.trim()) {
+      setError('Invoice Number is required');
+      return;
+    }
+    if (!editInvoice.customerName.trim()) {
+      setError('Customer Name is required');
+      return;
+    }
+    if (!editInvoice.amount || parseFloat(editInvoice.amount) <= 0) {
+      setError('Valid Invoice Amount is required');
+      return;
+    }
+    if (!editInvoice.invoiceDate) {
+      setError('Invoice Date is required');
+      return;
+    }
+    if (!editInvoice.dueDate) {
+      setError('Due Date is required');
+      return;
+    }
+
+    const invoiceId = editInvoiceTarget?._id || editInvoiceTarget?.id;
+    if (!invoiceId) return;
+
+    try {
+      setSavingEditInvoice(true);
+      setError(null);
+
+      const dto = {
+        invoiceNumber: editInvoice.invoiceNumber.trim(),
+        customerName: editInvoice.customerName.trim(),
+        amount: parseFloat(editInvoice.amount),
+        invoiceDate: editInvoice.invoiceDate,
+        dueDate: editInvoice.dueDate,
+        ...(editInvoice.paymentTerms ? { paymentTerms: editInvoice.paymentTerms } : {}),
+        ...(editInvoice.description ? { description: editInvoice.description } : {}),
+      };
+
+      await financeApi.updateInvoice(invoiceId, dto);
+      setShowEditInvoice(false);
+      setEditInvoiceTarget(null);
+      await fetchData();
+    } catch (err) {
+      setError(err.message || 'Failed to update invoice');
+    } finally {
+      setSavingEditInvoice(false);
+    }
+  };
+
+  const openDeleteInvoice = (row) => {
+    if (!canDeleteInvoice(row)) return;
+    setDeleteInvoiceTarget(row);
+    setError(null);
+    setShowDeleteInvoice(true);
+  };
+
+  const handleConfirmDeleteInvoice = async () => {
+    if (!deleteInvoiceTarget) return;
+    const invoiceId = deleteInvoiceTarget?._id || deleteInvoiceTarget?.id;
+    if (!invoiceId) return;
+
+    try {
+      setDeletingInvoice(true);
+      setError(null);
+      await financeApi.deleteInvoice(invoiceId);
+      setShowDeleteInvoice(false);
+      setDeleteInvoiceTarget(null);
+      await fetchData();
+    } catch (err) {
+      setError(err.message || 'Failed to delete invoice');
+    } finally {
+      setDeletingInvoice(false);
+    }
+  };
+
+  const exportInvoiceCsv = (row) => {
+    if (!canFinance('export')) return;
+    const safe = (v) => {
+      const s = v == null ? '' : String(v);
+      const needsQuotes = /[\n\r,\"]/g.test(s);
+      const escaped = s.replace(/\"/g, '""');
+      return needsQuotes ? `"${escaped}"` : escaped;
+    };
+
+    const lines = [
+      ['Invoice #', row?.invoiceNumber || row?.id || ''],
+      ['Customer', row?.customerName || ''],
+      ['Amount', row?.amount ?? ''],
+      ['Paid', row?.paid ?? ''],
+      ['Balance', row?.balance ?? ''],
+      ['Status', row?.status || ''],
+      ['Invoice Date', row?.invoiceDate ? new Date(row.invoiceDate).toLocaleDateString() : ''],
+      ['Due Date', row?.dueDate ? new Date(row.dueDate).toLocaleDateString() : ''],
+      ['Paid On', row?.paidDate ? new Date(row.paidDate).toLocaleDateString() : ''],
+    ].map(([k, v]) => `${safe(k)},${safe(v)}`);
+
+    const csv = lines.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    const invNo = (row?.invoiceNumber || 'invoice').replace(/[^a-z0-9-_]/gi, '_');
+    a.download = `${invNo}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   };
 
   useEffect(() => {
@@ -270,15 +460,31 @@ const FinancePage = () => {
       return;
     }
 
+    // Reset state immediately to avoid showing stale terms/status from previous project
+    latestProjectIdRef.current = newInvoice.projectId;
+    setProjectStatus('');
+    setAllowedPaymentTerms([]);
+    setCanCreateInvoice(false);
+    setNewInvoice((prev) => ({ ...prev, paymentTerms: '' }));
+
     let mounted = true;
     (async () => {
       try {
-        // Fetch project details from main projects endpoint
-        const projectRes = await financeApi.getProject(newInvoice.projectId);
-        if (!mounted) return;
+        const requestedProjectId = newInvoice.projectId;
 
-        const projectStatus = projectRes?.status || projectRes?.data?.status || '';
-        const customerName = projectRes?.customerName || projectRes?.data?.customerName || '';
+        // Fetch project details from main projects endpoint
+        const projectRes = await financeApi.getProject(requestedProjectId);
+        if (!mounted) return;
+        if (latestProjectIdRef.current !== requestedProjectId) return;
+
+        const projectStatus = projectRes?.status || projectRes?.data?.status || projectRes?.project?.status || '';
+        const customerName = projectRes?.customerName || projectRes?.data?.customerName || projectRes?.project?.customerName || '';
+        console.log('Project API response:', projectRes);
+        console.log('Extracted project status:', projectStatus);
+        console.log('Extracted customer name:', customerName);
+        if (!projectStatus) {
+          console.error('Project status is empty/undefined. Full response:', projectRes);
+        }
         setProjectStatus(projectStatus);
         setNewInvoice(prev => ({ ...prev, customerName }));
 
@@ -290,20 +496,16 @@ const FinancePage = () => {
           return;
         }
 
-        // Define allowed payment terms based on project status
-        const paymentTermsByStatus = {
-          'Survey': [],
-          'Design': ['Net 30', 'Net 60'],
-          'Quotation': [],
-          'Procurement': ['30% Advance'],
-          'Installation': ['50% on Delivery'],
-          'Commission': ['Net 30', 'Net 60'],
-          'On Hold': [],
-        };
+        // Fetch allowed payment terms from backend API
+        console.log('Fetching allowed terms for status:', projectStatus);
+        const termsRes = await financeApi.getAllowedPaymentTerms(projectStatus);
+        console.log('Allowed terms response:', termsRes);
+        if (!mounted) return;
+        if (latestProjectIdRef.current !== requestedProjectId) return;
 
-        const allowedTerms = paymentTermsByStatus[projectStatus] || [];
+        const allowedTerms = termsRes?.allowedTerms || [];
         setAllowedPaymentTerms(allowedTerms);
-        setCanCreateInvoice(allowedTerms.length > 0);
+        setCanCreateInvoice(termsRes?.canCreateInvoice || allowedTerms.length > 0);
 
         // Clear payment term if not in allowed list
         if (!allowedTerms.includes(newInvoice.paymentTerms)) {
@@ -398,6 +600,54 @@ const FinancePage = () => {
     }
   };
 
+  const handleSendReminder = async () => {
+    if (!selectedReminderInvoice) return;
+
+    // Validation
+    if (!reminderForm.customerEmail.trim()) {
+      setError('Customer email is required');
+      return;
+    }
+
+    try {
+      setSendingReminder(true);
+      setError(null);
+
+      await financeApi.sendInvoiceReminder(selectedReminderInvoice._id || selectedReminderInvoice.id, {
+        reminderType: reminderForm.reminderType,
+        customerEmail: reminderForm.customerEmail.trim(),
+        messageBody: reminderForm.messageBody,
+      });
+
+      setReminderSuccess(true);
+      
+      // Close modal after 2 seconds
+      setTimeout(() => {
+        setShowReminderModal(false);
+        setSelectedReminderInvoice(null);
+        setReminderForm({ reminderType: 'Gentle', customerEmail: '', messageBody: '' });
+        setReminderSuccess(false);
+      }, 2000);
+    } catch (err) {
+      setError(err.message || 'Failed to send reminder');
+    } finally {
+      setSendingReminder(false);
+    }
+  };
+
+  const fetchTimeline = async (invoiceId) => {
+    try {
+      setLoadingTimeline(true);
+      const data = await financeApi.getInvoiceTimeline(invoiceId);
+      setTimelineData(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Failed to fetch timeline:', err);
+      setTimelineData([]);
+    } finally {
+      setLoadingTimeline(false);
+    }
+  };
+
   const filteredInvoices = useMemo(() =>
     invoices.filter(inv =>
       (invStatus === 'All' || inv.status === invStatus) &&
@@ -410,9 +660,16 @@ const FinancePage = () => {
   const totalCollected = invoices.reduce((a, i) => a + (i.paid || 0), 0);
   const totalBalance = invoices.reduce((a, i) => a + (i.balance || 0), 0);
 
+  const canShowSendReminder = (inv) => {
+    const status = inv?.status;
+    const outstanding =
+      Number(inv?.balance ?? inv?.balanceDue ?? (Number(inv?.amount || 0) - Number(inv?.paid || 0)));
+    return ['Pending', 'Partial', 'Overdue'].includes(status) && outstanding > 0;
+  };
+
   const INV_ACTIONS = [
     { label: 'View Invoice', icon: FileText, onClick: row => setSelected(row) },
-    { label: 'Record Payment', icon: CheckCircle, onClick: (row) => { if (guardApprove()) console.log('Record Payment', row); } },
+    { label: 'Record Payment', icon: CheckCircle, onClick: (row) => console.log('Record Payment', row) },
     { label: 'Send Reminder', icon: Clock, onClick: () => { } },
   ];
 
@@ -454,7 +711,7 @@ const FinancePage = () => {
           <p className="text-xs text-[var(--text-muted)] mt-0.5">Revenue · receivables · payables · cash flow · invoices</p>
         </div>
         <CanCreate module="finance">
-          <Button onClick={() => { if (guardCreate()) setShowInvoice(true); }}><Plus size={13} /> New Invoice</Button>
+          <Button onClick={() => setShowInvoice(true)}><Plus size={13} /> New Invoice</Button>
         </CanCreate>
       </div>
 
@@ -600,6 +857,7 @@ const FinancePage = () => {
                 onPageChange={setPage}
                 onPageSizeChange={s => { setPageSize(s); setPage(1); }}
                 rowActions={INV_ACTIONS}
+                rowKey="_id"
                 emptyText="No invoices found."
               />
             )}
@@ -640,7 +898,7 @@ const FinancePage = () => {
             </Button>
           </div>
         }>
-        <div className="space-y-3">
+        <div className="space-y-3 pb-20">
           {error && (
             <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
               {error}
@@ -721,7 +979,7 @@ const FinancePage = () => {
             <div className="flex gap-2 justify-end">
               <Button variant="ghost" onClick={() => setSelected(null)}>Close</Button>
           <CanAccess module="finance" action="approve">
-            <Button onClick={() => { if (guardApprove()) console.log('Record Payment'); }}><CheckCircle size={13} /> Record Payment</Button>
+            <Button onClick={() => console.log('Record Payment')}><CheckCircle size={13} /> Record Payment</Button>
           </CanAccess>
             </div>
           }>
@@ -744,6 +1002,366 @@ const FinancePage = () => {
             ))}
           </div>
         </Modal>
+      )}
+
+      {/* Edit Invoice Modal */}
+      {showEditInvoice && editInvoiceTarget && (
+        <Modal
+          open={showEditInvoice}
+          onClose={() => {
+            if (savingEditInvoice) return;
+            setShowEditInvoice(false);
+            setEditInvoiceTarget(null);
+            setError(null);
+          }}
+          title={`Edit Invoice — ${editInvoiceTarget.invoiceNumber || editInvoiceTarget.id}`}
+          footer={
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  if (savingEditInvoice) return;
+                  setShowEditInvoice(false);
+                  setEditInvoiceTarget(null);
+                  setError(null);
+                }}
+                disabled={savingEditInvoice}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleSaveEditInvoice} disabled={savingEditInvoice}>
+                {savingEditInvoice ? <Loader2 size={13} className="animate-spin" /> : <Edit size={13} />}
+                {savingEditInvoice ? ' Saving...' : ' Save Changes'}
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-3 pb-20">
+            {error && (
+              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+                {error}
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Invoice Number">
+                <Input
+                  value={editInvoice.invoiceNumber}
+                  onChange={e => setEditInvoice({ ...editInvoice, invoiceNumber: e.target.value })}
+                  placeholder="INV-001"
+                  disabled={savingEditInvoice}
+                />
+              </FormField>
+              <FormField label="Customer Name">
+                <Input
+                  value={editInvoice.customerName}
+                  onChange={e => setEditInvoice({ ...editInvoice, customerName: e.target.value })}
+                  placeholder="Customer"
+                  disabled={savingEditInvoice}
+                />
+              </FormField>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Invoice Amount (₹)">
+                <Input
+                  type="number"
+                  value={editInvoice.amount}
+                  onChange={e => setEditInvoice({ ...editInvoice, amount: e.target.value })}
+                  placeholder="280000"
+                  disabled={savingEditInvoice}
+                />
+              </FormField>
+              <FormField label="Invoice Date">
+                <Input
+                  type="date"
+                  value={editInvoice.invoiceDate}
+                  onChange={e => setEditInvoice({ ...editInvoice, invoiceDate: e.target.value })}
+                  disabled={savingEditInvoice}
+                />
+              </FormField>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Due Date">
+                <Input
+                  type="date"
+                  value={editInvoice.dueDate}
+                  onChange={e => setEditInvoice({ ...editInvoice, dueDate: e.target.value })}
+                  disabled={savingEditInvoice}
+                />
+              </FormField>
+              <FormField label="Payment Terms">
+                <Input
+                  value={editInvoice.paymentTerms}
+                  onChange={e => setEditInvoice({ ...editInvoice, paymentTerms: e.target.value })}
+                  placeholder="Net 30"
+                  disabled={savingEditInvoice}
+                />
+              </FormField>
+            </div>
+
+            <FormField label="Description (Optional)">
+              <Input
+                value={editInvoice.description}
+                onChange={e => setEditInvoice({ ...editInvoice, description: e.target.value })}
+                placeholder="Description"
+                disabled={savingEditInvoice}
+              />
+            </FormField>
+          </div>
+        </Modal>
+      )}
+
+      {/* Delete Invoice Confirmation Modal */}
+      {showDeleteInvoice && deleteInvoiceTarget && (
+        <Modal
+          open={showDeleteInvoice}
+          onClose={() => {
+            if (deletingInvoice) return;
+            setShowDeleteInvoice(false);
+            setDeleteInvoiceTarget(null);
+            setError(null);
+          }}
+          title="Delete Invoice"
+          footer={
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  if (deletingInvoice) return;
+                  setShowDeleteInvoice(false);
+                  setDeleteInvoiceTarget(null);
+                  setError(null);
+                }}
+                disabled={deletingInvoice}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleConfirmDeleteInvoice} disabled={deletingInvoice}>
+                {deletingInvoice ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                {deletingInvoice ? ' Deleting...' : ' Delete'}
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-3">
+            {error && (
+              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+                {error}
+              </div>
+            )}
+            <div className="glass-card p-3">
+              <p className="text-sm text-[var(--text-primary)] font-semibold">Are you sure you want to delete this invoice?</p>
+              <p className="text-xs text-[var(--text-muted)] mt-1">{deleteInvoiceTarget.invoiceNumber || deleteInvoiceTarget.id} • {deleteInvoiceTarget.customerName}</p>
+              <p className="text-xs text-[var(--text-muted)] mt-2">This cannot be undone.</p>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Send Reminder Modal */}
+      {showReminderModal && selectedReminderInvoice && (
+        <Modal 
+          open={showReminderModal} 
+          onClose={() => { 
+            setShowReminderModal(false); 
+            setSelectedReminderInvoice(null);
+            setReminderForm({ reminderType: 'Gentle', customerEmail: '', messageBody: '' });
+            setReminderSuccess(false);
+            setError(null);
+          }} 
+          title={`Send Reminder — ${selectedReminderInvoice.invoiceNumber || selectedReminderInvoice.id}`}
+          footer={
+            <div className="flex gap-2 justify-end">
+              <Button 
+                variant="ghost" 
+                onClick={() => { 
+                  setShowReminderModal(false); 
+                  setSelectedReminderInvoice(null);
+                  setReminderForm({ reminderType: 'Gentle', customerEmail: '', messageBody: '' });
+                  setReminderSuccess(false);
+                  setError(null);
+                }} 
+                disabled={sendingReminder}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSendReminder} 
+                disabled={sendingReminder || reminderSuccess}
+              >
+                {sendingReminder ? <Loader2 size={13} className="animate-spin" /> : <Clock size={13} />}
+                {sendingReminder ? ' Sending...' : reminderSuccess ? ' Sent!' : ' Send Reminder'}
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            {error && (
+              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+                {error}
+              </div>
+            )}
+            {reminderSuccess && (
+              <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm">
+                Reminder sent successfully.
+              </div>
+            )}
+            
+            {/* Invoice Info */}
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="glass-card p-2">
+                <div className="text-[var(--text-muted)] mb-0.5">Invoice #</div>
+                <div className="font-semibold text-[var(--text-primary)]">{selectedReminderInvoice.invoiceNumber || selectedReminderInvoice.id}</div>
+              </div>
+              <div className="glass-card p-2">
+                <div className="text-[var(--text-muted)] mb-0.5">Customer</div>
+                <div className="font-semibold text-[var(--text-primary)]">{selectedReminderInvoice.customerName}</div>
+              </div>
+              <div className="glass-card p-2">
+                <div className="text-[var(--text-muted)] mb-0.5">Due Amount</div>
+                <div className="font-semibold text-red-400">{fmt(selectedReminderInvoice.balance || 0)}</div>
+              </div>
+              <div className="glass-card p-2">
+                <div className="text-[var(--text-muted)] mb-0.5">Due Date</div>
+                <div className="font-semibold text-[var(--text-primary)]">{selectedReminderInvoice.dueDate ? new Date(selectedReminderInvoice.dueDate).toLocaleDateString() : '—'}</div>
+              </div>
+            </div>
+
+            {/* Reminder Type */}
+            <FormField label="Reminder Type">
+              <Select 
+                value={reminderForm.reminderType}
+                onChange={e => setReminderForm({...reminderForm, reminderType: e.target.value})}
+                disabled={sendingReminder || reminderSuccess}
+              >
+                <option value="Gentle">Gentle Reminder</option>
+                <option value="Due Today">Due Today</option>
+                <option value="Overdue">Overdue</option>
+              </Select>
+            </FormField>
+
+            {/* Customer Email */}
+            <FormField label="Customer Email">
+              <Input 
+                type="email"
+                value={reminderForm.customerEmail}
+                onChange={e => setReminderForm({...reminderForm, customerEmail: e.target.value})}
+                placeholder="customer@example.com"
+                disabled={sendingReminder || reminderSuccess}
+              />
+            </FormField>
+
+            {/* Message Body */}
+            <FormField label="Message (Optional)">
+              <textarea
+                value={reminderForm.messageBody}
+                onChange={e => setReminderForm({...reminderForm, messageBody: e.target.value})}
+                placeholder="Enter custom message or leave blank for default template..."
+                disabled={sendingReminder || reminderSuccess}
+                className="w-full h-32 rounded-lg border border-[var(--border-base)] bg-[var(--bg-elevated)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] focus:border-[var(--border-active)] transition-all duration-150 text-xs px-3 py-2 resize-none"
+              />
+            </FormField>
+          </div>
+        </Modal>
+      )}
+
+      {/* Timeline Drawer */}
+      {showTimeline && timelineInvoice && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div 
+            className="absolute inset-0 bg-black/50" 
+            onClick={() => { setShowTimeline(false); setTimelineInvoice(null); setTimelineData([]); }}
+          />
+          <div className="relative w-full max-w-md bg-[var(--bg-surface)] border-l border-[var(--border-base)] h-full overflow-y-auto animate-slide-in-right">
+            <div className="p-4 border-b border-[var(--border-base)] flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Invoice Timeline</h3>
+                <p className="text-xs text-[var(--text-muted)]">{timelineInvoice.invoiceNumber || timelineInvoice.id}</p>
+              </div>
+              <button 
+                onClick={() => { setShowTimeline(false); setTimelineInvoice(null); setTimelineData([]); }}
+                className="p-2 hover:bg-[var(--bg-elevated)] rounded-lg transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {loadingTimeline ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-[var(--accent)]" />
+                </div>
+              ) : timelineData.length === 0 ? (
+                <div className="text-center py-8">
+                  <Clock className="w-12 h-12 text-[var(--text-faint)] mx-auto mb-3" />
+                  <p className="text-sm text-[var(--text-muted)]">No timeline activity found.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {timelineData.map((activity, index) => (
+                    <div key={activity.id} className="flex gap-3">
+                      <div className="flex flex-col items-center">
+                        <div className="w-8 h-8 rounded-full bg-[var(--bg-elevated)] border border-[var(--border-base)] flex items-center justify-center">
+                          {activity.action === 'INVOICE_CREATED' && <FileText size={14} className="text-blue-400" />}
+                          {activity.action === 'INVOICE_UPDATED' && <Edit size={14} className="text-amber-400" />}
+                          {activity.action === 'STATUS_CHANGED' && <RefreshCw size={14} className="text-purple-400" />}
+                          {activity.action === 'PAYMENT_ADDED' && <CheckCircle size={14} className="text-emerald-400" />}
+                          {activity.action === 'REMINDER_SENT' && <Clock size={14} className="text-orange-400" />}
+                        </div>
+                        {index < timelineData.length - 1 && (
+                          <div className="w-px flex-1 bg-[var(--border-base)] my-2" />
+                        )}
+                      </div>
+                      <div className="flex-1 pb-4">
+                        <div className="glass-card p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-semibold text-[var(--text-primary)]">
+                              {activity.action.replace(/_/g, ' ')}
+                            </span>
+                            <span className="text-[10px] text-[var(--text-muted)]">
+                              {new Date(activity.createdAt).toLocaleDateString('en-IN', { 
+                                day: '2-digit', 
+                                month: 'short', 
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                          </div>
+                          
+                          {activity.metadata && (
+                            <div className="space-y-1 text-xs text-[var(--text-muted)]">
+                              {activity.action === 'PAYMENT_ADDED' && (
+                                <p>{fmt(activity.metadata.paymentAmount || 0)} received via {activity.metadata.paymentMethod}</p>
+                              )}
+                              {activity.action === 'STATUS_CHANGED' && (
+                                <p>{activity.metadata.previousStatus} → {activity.metadata.newStatus}</p>
+                              )}
+                              {activity.action === 'REMINDER_SENT' && (
+                                <p>Reminder sent to {activity.metadata.sentTo}</p>
+                              )}
+                              {activity.action === 'INVOICE_CREATED' && (
+                                <p>Amount: {fmt(activity.metadata.amount || 0)} for {activity.metadata.customerName}</p>
+                              )}
+                            </div>
+                          )}
+                          
+                          {activity.performedBy && (
+                            <p className="text-[10px] text-[var(--text-faint)] mt-2">
+                              By: {activity.performedBy.name || 'Unknown'}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

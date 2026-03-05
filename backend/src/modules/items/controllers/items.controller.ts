@@ -55,4 +55,29 @@ export class ItemsController {
   ) {
     return this.itemsService.bulkDelete(tenantId, ids);
   }
+
+  @Post(':id/stock-in')
+  stockIn(
+    @Query('tenantId') tenantId: string,
+    @Param('id') id: string,
+    @Body('quantity') quantity: number,
+    @Body('poReference') poReference?: string,
+    @Body('receivedDate') receivedDate?: string,
+    @Body('remarks') remarks?: string,
+  ) {
+    return this.itemsService.stockIn(tenantId, id, quantity, poReference, receivedDate, remarks);
+  }
+
+  @Post(':id/stock-out')
+  stockOut(
+    @Query('tenantId') tenantId: string,
+    @Param('id') id: string,
+    @Body('quantity') quantity: number,
+    @Body('projectId') projectId?: string,
+    @Body('issuedDate') issuedDate?: string,
+    @Body('remarks') remarks?: string,
+    @Body('projectName') projectName?: string,
+  ) {
+    return this.itemsService.stockOut(tenantId, id, quantity, projectId, issuedDate, remarks, projectName);
+  }
 }

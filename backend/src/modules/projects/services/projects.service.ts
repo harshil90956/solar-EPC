@@ -1,8 +1,10 @@
-import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Project } from '../schemas/project.schema';
 import { Tenant, TenantSchema } from '../../../core/tenant/schemas/tenant.schema';
+import { Item } from '../../items/schemas/item.schema';
+import { Inventory } from '../../inventory/schemas/inventory.schema';
 import { CreateProjectDto, UpdateProjectDto, UpdateProjectStatusDto } from '../dto/project.dto';
 
 @Injectable()
@@ -10,6 +12,8 @@ export class ProjectsService {
   constructor(
     @InjectModel(Project.name) private readonly projectModel: Model<Project>,
     @InjectModel(Tenant.name) private readonly tenantModel: Model<Tenant>,
+    @InjectModel(Item.name) private readonly itemModel: Model<Item>,
+    @InjectModel(Inventory.name) private readonly inventoryModel: Model<Inventory>,
   ) {}
 
   private async getTenantId(tenantCode: string): Promise<Types.ObjectId> {
@@ -52,11 +56,106 @@ export class ProjectsService {
 
   async create(tenantCode: string, createProjectDto: CreateProjectDto) {
     const tenantId = await this.getTenantId(tenantCode);
-    const project = new this.projectModel({
-      ...createProjectDto,
-      tenantId,
-    });
-    return project.save();
+
+    // Start session for transaction
+    const session = await this.projectModel.db.startSession();
+    let project;
+
+    try {
+      await session.withTransaction(async () => {
+        // Create project
+        project = new this.projectModel({
+          ...createProjectDto,
+          tenantId,
+        });
+        await project.save({ session });
+
+        // Process materials if provided
+        if (createProjectDto.materials && createProjectDto.materials.length > 0) {
+          for (const material of createProjectDto.materials) {
+            // Find item by ID (use tenantCode string for items)
+            const item = await this.itemModel.findOne({
+              $or: [
+                { _id: new Types.ObjectId(material.itemId) },
+                { id: material.itemId },
+                { itemId: material.itemId }
+              ],
+              tenantId: tenantCode,  // Use tenantCode (string) not ObjectId
+              isDeleted: false,
+            }).session(session);
+
+            if (!item) {
+              throw new NotFoundException(`Item ${material.itemId} not found`);
+            }
+
+            // Check stock availability
+            if ((item.stock || 0) < material.quantity) {
+              throw new BadRequestException(
+                `Insufficient stock for item ${item.description || 'Unknown'}. Available: ${item.stock || 0}, Required: ${material.quantity}`
+              );
+            }
+
+            // Deduct stock from item
+            await this.itemModel.findOneAndUpdate(
+              { _id: item._id, tenantId: tenantCode },  // Use tenantCode
+              {
+                $inc: { stock: -material.quantity, reserved: material.quantity },
+              },
+              { session }
+            );
+
+            // Also update inventory if item exists there
+            const inventoryItem = await this.inventoryModel.findOne({
+              tenantId,
+              $or: [
+                { itemId: item._id.toString() },
+                { itemId: material.itemId },
+                { name: item.description || 'Unknown' }
+              ]
+            }).session(session);
+
+            if (inventoryItem) {
+              const newStock = inventoryItem.stock - material.quantity;
+              const newAvailable = newStock - inventoryItem.reserved;
+
+              await this.inventoryModel.findOneAndUpdate(
+                { _id: inventoryItem._id, tenantId },
+                {
+                  $set: {
+                    stock: newStock,
+                    available: newAvailable,
+                    lastUpdated: new Date().toISOString().split('T')[0],
+                  }
+                },
+                { session }
+              );
+            }
+
+            // Create reservation record
+            await this.inventoryModel.db.collection('reservations').insertOne({
+              reservationId: `RES-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              itemId: material.itemId,
+              itemName: material.itemName || item.description || 'Unknown',
+              projectId: createProjectDto.projectId,
+              projectName: createProjectDto.customerName,
+              quantity: material.quantity,
+              status: 'active',
+              notes: material.remarks || `Reserved for project ${createProjectDto.projectId}`,
+              issuedDate: material.issuedDate || new Date().toISOString().split('T')[0],
+              tenantId: tenantCode,  // Use tenantCode for consistency
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            }, { session });
+          }
+        }
+      });
+
+      return project;
+    } catch (error) {
+      throw error;
+    } finally {
+      await session.endSession();
+    }
   }
 
   async update(tenantCode: string, projectId: string, updateProjectDto: UpdateProjectDto) {

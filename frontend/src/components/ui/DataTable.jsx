@@ -17,7 +17,7 @@ import { Input } from './Input';
  *  onSort          — ({ key, dir }) => void
  *  search          — string
  *  onSearch        — (val) => void
- *  rowActions      — [{ label, icon, onClick(row), danger? }]
+ *  rowActions      — [{ label, icon, onClick(row), danger?, show?: (row) => boolean }]
  *  bulkActions     — [{ label, icon, onClick(selectedRows) }]
  *  loading         — bool
  *  emptyText       — string
@@ -44,6 +44,9 @@ const DataTable = ({
     className,
     sort: controlledSort,
     onRowClick,
+    hiddenCols: controlledHiddenCols,
+    onHiddenColsChange,
+    hideColumnToggle = false,
 }) => {
     // Support both flat props and pagination object for backward compatibility
     const total = pagination?.total != null ? pagination.total : propTotal;
@@ -52,7 +55,11 @@ const DataTable = ({
     const onPageChange = pagination?.onChange != null ? pagination.onChange : propOnPageChange;
     const onPageSizeChange = pagination?.onPageSizeChange != null ? pagination.onPageSizeChange : propOnPageSizeChange;
     const [internalSort, setInternalSort] = useState({ key: null, dir: 'asc' });
-    const [hiddenCols, setHiddenCols] = useState(new Set());
+    const [internalHiddenCols, setInternalHiddenCols] = useState(new Set());
+    const isControlledHiddenCols = controlledHiddenCols !== undefined;
+    const hiddenCols = isControlledHiddenCols ? controlledHiddenCols : internalHiddenCols;
+    const setHiddenCols = isControlledHiddenCols ? onHiddenColsChange : setInternalHiddenCols;
+    
     const [openMenuIndex, setOpenMenuIndex] = useState(null);
     const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
     const menuRef = useRef(null);
@@ -177,30 +184,38 @@ const DataTable = ({
                     {toolbar}
 
                     {/* Column visibility toggle */}
-                    <div className="relative">
-                        <Button size="sm" variant="secondary" onClick={() => setColToggleOpen(p => !p)}>
-                            <Eye size={12} /> Columns
-                        </Button>
-                        {colToggleOpen && (
-                            <>
-                                <div className="fixed inset-0 z-30" onClick={() => setColToggleOpen(false)} />
-                                <div className="absolute right-0 top-9 z-40 w-44 glass-card shadow-2xl shadow-black/40 py-1.5 animate-slide-up">
-                                    {columns.map(col => (
-                                        <button
-                                            key={col.key}
-                                            onClick={() => toggleCol(col.key)}
-                                            className="flex items-center justify-between w-full px-3 py-2 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
-                                        >
-                                            {col.header}
-                                            {!hiddenCols.has(col.key)
-                                                ? <Check size={11} className="text-[var(--primary)]" />
-                                                : <EyeOff size={11} className="text-[var(--text-faint)]" />}
-                                        </button>
-                                    ))}
-                                </div>
-                            </>
-                        )}
-                    </div>
+                    {!hideColumnToggle && (
+                        <div className="relative">
+                            <Button size="sm" variant="secondary" onClick={() => setColToggleOpen(p => !p)}>
+                                <Eye size={12} /> Columns
+                            </Button>
+                            {colToggleOpen && (
+                                <>
+                                    <div className="fixed inset-0 z-30" onClick={() => setColToggleOpen(false)} />
+                                    <div className="absolute right-0 top-9 z-40 w-44 glass-card shadow-2xl shadow-black/40 py-1.5 animate-slide-up">
+                                        {columns.map(col => (
+                                            <button
+                                                key={col.key}
+                                                onClick={() => {
+                                                    setHiddenCols(prev => {
+                                                        const next = new Set(prev);
+                                                        next.has(col.key) ? next.delete(col.key) : next.add(col.key);
+                                                        return next;
+                                                    });
+                                                }}
+                                                className="flex items-center justify-between w-full px-3 py-2 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+                                            >
+                                                {col.header}
+                                                {!hiddenCols.has(col.key)
+                                                    ? <Check size={11} className="text-[var(--primary)]" />
+                                                    : <EyeOff size={11} className="text-[var(--text-faint)]" />}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -288,19 +303,12 @@ const DataTable = ({
                                                     className="px-2 py-2 sticky right-0 z-10 bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] transition-colors border-l border-[var(--border-base)]"
                                                     onClick={e => e.stopPropagation()}
                                                 >
-                                                    <button
-                                                        ref={el => { buttonRefs.current[index] = el; }}
-                                                        onClick={e => handleMenuOpen(e, index)}
-                                                        className="w-6 h-6 rounded flex items-center justify-center text-[var(--text-faint)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
-                                                    >
-                                                        <MoreHorizontal size={14} />
-                                                    </button>
-                                                </td>
-                                            )}
-                                        </tr>
-                                    );
-                                })
-                            )}
+                                                    <MoreHorizontal size={14} />
+                                                </button>
+                                            </td>
+                                        )}
+                                    </tr>
+                                )))}
                         </tbody>
                     </table>
                 </div>
