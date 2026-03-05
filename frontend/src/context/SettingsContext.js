@@ -42,70 +42,106 @@ export const SettingsProvider = ({ children }) => {
         const loadSettings = async () => {
             try {
                 setIsLoading(true);
-                const settings = await settingsApi.getFullSettings();
+                const response = await settingsApi.getFullSettings();
+                
+                // Handle wrapped response format {success: true, data: {...}}
+                const settings = response.data || response;
 
-                // Transform flags from API format
-                if (settings.flags) {
+                // Transform flags from API format (object with moduleId keys)
+                if (settings?.flags) {
                     const flagsObj = {};
-                    settings.flags.forEach(f => {
-                        flagsObj[f.moduleId] = {
-                            enabled: f.enabled,
-                            features: f.features || {},
-                            actions: f.actions || {},
-                        };
+                    // Handle both object and array formats
+                    const flagsArray = Array.isArray(settings.flags) 
+                        ? settings.flags 
+                        : Object.entries(settings.flags).map(([moduleId, data]) => ({ moduleId, ...data }));
+                    flagsArray.forEach(f => {
+                        const moduleId = f.moduleId || f.id;
+                        if (moduleId) {
+                            flagsObj[moduleId] = {
+                                enabled: f.enabled,
+                                features: f.features || {},
+                                actions: f.actions || {},
+                            };
+                        }
                     });
                     setFlagsState(flagsObj);
+                } else {
+                    setFlagsState({});
                 }
 
-                // Transform RBAC from API format
-                if (settings.rbac) {
-                    const rbacObj = {};
-                    settings.rbac.forEach(c => {
-                        if (!rbacObj[c.roleId]) rbacObj[c.roleId] = {};
-                        rbacObj[c.roleId][c.moduleId] = c.permissions || {};
-                    });
-                    setRBACState(rbacObj);
+                // Transform RBAC from API format (object format from backend)
+                if (settings?.rbac) {
+                    // Backend returns object directly, use as-is
+                    setRBACState(settings.rbac);
+                } else {
+                    setRBACState({});
                 }
 
                 // Set workflows
-                if (settings.workflows) {
+                if (settings?.workflows) {
                     setWorkflowsState(settings.workflows);
+                } else {
+                    setWorkflowsState([]);
                 }
 
                 // Set audit logs
-                if (settings.auditLogs) {
+                if (settings?.auditLogs) {
                     setAuditLogsState(settings.auditLogs);
+                } else {
+                    setAuditLogsState([]);
                 }
 
                 // Transform custom roles
-                if (settings.customRoles) {
+                if (settings?.customRoles) {
                     const rolesObj = {};
-                    settings.customRoles.forEach(r => {
-                        rolesObj[r.roleId] = {
-                            id: r.roleId,
-                            label: r.label,
-                            description: r.description,
-                            baseRole: r.baseRole,
-                            color: r.color,
-                            bg: r.bg,
-                            isCustom: r.isCustom,
-                            permissions: r.permissions || {},
-                        };
+                    // Handle both array and object formats from backend
+                    const rolesArray = Array.isArray(settings.customRoles) 
+                        ? settings.customRoles 
+                        : Object.values(settings.customRoles);
+                    rolesArray.forEach(r => {
+                        const roleId = r.roleId || r.id;
+                        if (roleId) {
+                            rolesObj[roleId] = {
+                                id: roleId,
+                                label: r.label,
+                                description: r.description,
+                                baseRole: r.baseRole,
+                                color: r.color,
+                                bg: r.bg,
+                                isCustom: r.isCustom,
+                                permissions: r.permissions || {},
+                            };
+                        }
                     });
                     setCustomRoles(rolesObj);
+                } else {
+                    setCustomRoles({});
                 }
 
                 // Transform project type configs
-                if (settings.projectTypeConfigs) {
+                if (settings?.projectTypeConfigs) {
                     const configsObj = {};
-                    settings.projectTypeConfigs.forEach(c => {
-                        configsObj[c.typeId] = c.config;
+                    const configsArray = Array.isArray(settings.projectTypeConfigs)
+                        ? settings.projectTypeConfigs
+                        : Object.entries(settings.projectTypeConfigs).map(([typeId, config]) => ({ typeId, config }));
+                    configsArray.forEach(c => {
+                        if (c.typeId) {
+                            configsObj[c.typeId] = c.config || c;
+                        }
                     });
                     setProjectTypeConfig(configsObj);
+                } else {
+                    setProjectTypeConfig({});
                 }
             } catch (error) {
                 console.error('Failed to load settings from API:', error);
                 // Fall back to defaults on API failure
+                setFlagsState({});
+                setRBACState({});
+                setWorkflowsState([]);
+                setAuditLogsState([]);
+                setCustomRoles({});
+                setProjectTypeConfig({});
             } finally {
                 setIsLoading(false);
             }
@@ -227,6 +263,16 @@ export const SettingsProvider = ({ children }) => {
     }, [rbac, addAudit]);
 
     const setRolePreset = useCallback(async (roleId, preset, user) => {
+        const isCustomRole = roleId.startsWith('custom_');
+        
+        // Update local state
+        if (isCustomRole) {
+            // For custom roles, update via setCustomRolePreset
+            await setCustomRolePreset(roleId, preset, user);
+            return;
+        }
+        
+        // For base roles, update RBAC
         const updated = { ...rbac, [roleId]: {} };
         MODULE_DEFS.forEach(mod => {
             if (preset === 'full') updated[roleId][mod.id] = fullPerms();
@@ -257,61 +303,164 @@ export const SettingsProvider = ({ children }) => {
 
     // ── Custom Role APIs ──────────────────────────────────────────────────────
 
-    const createCustomRole = useCallback((roleData, user) => {
-        const id = `custom_${Date.now()}`;
-        const newRole = {
-            id,
-            label: roleData.label || 'New Role',
-            description: roleData.description || '',
-            baseRole: roleData.baseRole || null,
-            color: roleData.color || '#8b5cf6',
-            bg: 'rgba(139,92,246,0.12)',
-            isCustom: true,
-            permissions: Object.fromEntries(MODULE_DEFS.map(mod => [mod.id, emptyPerms()])),
-        };
-        setCustomRoles(prev => ({ ...prev, [id]: newRole }));
-        addAudit('CUSTOM_ROLE_CREATED', newRole.label, 'null', 'created', user);
-        return id;
-    }, [addAudit]);
+    // Function to refresh custom roles from backend
+    const refreshCustomRoles = useCallback(async () => {
+        try {
+            const response = await settingsApi.getCustomRoles();
+            
+            // Handle wrapped response format {success: true, data: {...}}
+            const rolesData = response.data || response;
+            
+            // Transform roles data (handle both object and array formats)
+            const rolesObj = {};
+            const rolesArray = Array.isArray(rolesData) ? rolesData : Object.values(rolesData);
+            rolesArray.forEach(r => {
+                const roleId = r.roleId || r.id;
+                if (roleId) {
+                    rolesObj[roleId] = {
+                        id: roleId,
+                        label: r.label,
+                        description: r.description,
+                        baseRole: r.baseRole,
+                        color: r.color,
+                        bg: r.bg,
+                        isCustom: true,
+                        permissions: r.permissions || {},
+                    };
+                }
+            });
+            setCustomRoles(rolesObj);
+        } catch (error) {
+            // Silent fail
+        }
+    }, []);
 
-    const cloneRole = useCallback((sourceRoleId, newLabel, user) => {
-        const id = `custom_${Date.now()}`;
-        // Pull source perms: custom role first, then base RBAC
-        const srcPermsMap = customRoles[sourceRoleId]?.permissions
-            ?? Object.fromEntries(MODULE_DEFS.map(mod => [
-                mod.id,
-                { ...(rbac[sourceRoleId]?.[mod.id] ?? emptyPerms()) },
-            ]));
-        const clonedLabel = newLabel || `Clone of ${sourceRoleId}`;
-        const srcDef = ROLE_DEFS.find(r => r.id === sourceRoleId) || customRoles[sourceRoleId];
-        const newRole = {
-            id,
-            label: clonedLabel,
-            description: `Cloned from ${sourceRoleId}`,
-            baseRole: sourceRoleId,
-            color: srcDef?.color || '#06b6d4',
-            bg: srcDef?.bg || 'rgba(6,182,212,0.12)',
-            isCustom: true,
-            permissions: JSON.parse(JSON.stringify(srcPermsMap)),
-        };
-        setCustomRoles(prev => ({ ...prev, [id]: newRole }));
-        addAudit('CUSTOM_ROLE_CLONED', `${sourceRoleId} → ${clonedLabel}`, sourceRoleId, id, user);
-        return id;
-    }, [customRoles, rbac, addAudit]);
+    const createCustomRole = useCallback(async (roleData, user) => {
+        try {
+            // Persist to backend first
+            const response = await settingsApi.createCustomRole({
+                label: roleData.label,
+                description: roleData.description || '',
+                baseRole: roleData.baseRole || null,
+                color: roleData.color || '#8b5cf6',
+                bg: 'rgba(139,92,246,0.12)',
+            });
 
-    const updateCustomRole = useCallback((roleId, updates, user) => {
+            const savedRole = response;
+            const id = savedRole.id || savedRole.roleId;
+
+            // Update local state with backend response
+            const newRole = {
+                id,
+                label: savedRole.label || roleData.label,
+                description: savedRole.description || '',
+                baseRole: savedRole.baseRole || null,
+                color: savedRole.color || '#8b5cf6',
+                bg: savedRole.bg || 'rgba(139,92,246,0.12)',
+                isCustom: true,
+                permissions: savedRole.permissions || Object.fromEntries(MODULE_DEFS.map(mod => [mod.id, emptyPerms()])),
+            };
+            setCustomRoles(prev => ({ ...prev, [id]: newRole }));
+            addAudit('CUSTOM_ROLE_CREATED', newRole.label, 'null', 'created', user);
+            
+            // Refresh all custom roles from backend to ensure sync
+            await refreshCustomRoles();
+            
+            return id;
+        } catch (error) {
+            // Fallback: create locally only
+            const id = `custom_${Date.now()}`;
+            const newRole = {
+                id,
+                label: roleData.label || 'New Role',
+                description: roleData.description || '',
+                baseRole: roleData.baseRole || null,
+                color: roleData.color || '#8b5cf6',
+                bg: 'rgba(139,92,246,0.12)',
+                isCustom: true,
+                permissions: Object.fromEntries(MODULE_DEFS.map(mod => [mod.id, emptyPerms()])),
+            };
+            setCustomRoles(prev => ({ ...prev, [id]: newRole }));
+            addAudit('CUSTOM_ROLE_CREATED', newRole.label, 'null', 'created', user);
+            return id;
+        }
+    }, [addAudit, refreshCustomRoles]);
+
+    const cloneRole = useCallback(async (sourceRoleId, newLabel, user) => {
+        try {
+            // Call backend to clone
+            const response = await settingsApi.cloneCustomRole(sourceRoleId, newLabel);
+            const cloned = response;
+            const id = cloned.id || cloned.roleId;
+
+            // Update local state
+            const clonedRole = {
+                id,
+                label: cloned.label || newLabel,
+                description: cloned.description || `Cloned from ${sourceRoleId}`,
+                baseRole: sourceRoleId,
+                color: cloned.color || '#06b6d4',
+                bg: cloned.bg || 'rgba(6,182,212,0.12)',
+                isCustom: true,
+                permissions: cloned.permissions || {},
+            };
+            setCustomRoles(prev => ({ ...prev, [id]: clonedRole }));
+            addAudit('CUSTOM_ROLE_CLONED', `${sourceRoleId} → ${cloned.label}`, sourceRoleId, id, user);
+            
+            // Refresh from backend
+            await refreshCustomRoles();
+            
+            return id;
+        } catch (error) {
+            console.error('Failed to clone role:', error);
+            // Fallback: clone locally
+            const id = `custom_${Date.now()}`;
+            const srcPermsMap = customRoles[sourceRoleId]?.permissions
+                ?? Object.fromEntries(MODULE_DEFS.map(mod => [
+                    mod.id,
+                    { ...(rbac[sourceRoleId]?.[mod.id] ?? emptyPerms()) },
+                ]));
+            const clonedLabel = newLabel || `Clone of ${sourceRoleId}`;
+            const srcDef = ROLE_DEFS.find(r => r.id === sourceRoleId) || customRoles[sourceRoleId];
+            const newRole = {
+                id,
+                label: clonedLabel,
+                description: `Cloned from ${sourceRoleId}`,
+                baseRole: sourceRoleId,
+                color: srcDef?.color || '#06b6d4',
+                bg: srcDef?.bg || 'rgba(6,182,212,0.12)',
+                isCustom: true,
+                permissions: JSON.parse(JSON.stringify(srcPermsMap)),
+            };
+            setCustomRoles(prev => ({ ...prev, [id]: newRole }));
+            addAudit('CUSTOM_ROLE_CLONED', `${sourceRoleId} → ${clonedLabel}`, sourceRoleId, id, user);
+            return id;
+        }
+    }, [customRoles, rbac, addAudit, refreshCustomRoles]);
+
+    const updateCustomRole = useCallback(async (roleId, updates, user) => {
+        // Update local state
         setCustomRoles(prev => {
             if (!prev[roleId]) return prev;
-            addAudit('CUSTOM_ROLE_UPDATED', roleId, 'old', JSON.stringify(updates), user);
             return { ...prev, [roleId]: { ...prev[roleId], ...updates } };
         });
+        addAudit('CUSTOM_ROLE_UPDATED', roleId, 'old', JSON.stringify(updates), user);
+
+        // Persist to backend
+        try {
+            await settingsApi.updateCustomRole(roleId, updates);
+        } catch (e) {
+            console.error('Failed to update custom role:', e);
+        }
     }, [addAudit]);
 
-    const toggleCustomRolePermission = useCallback((roleId, moduleId, actionId, user) => {
+    const toggleCustomRolePermission = useCallback(async (roleId, moduleId, actionId, user) => {
+        const cur = customRoles[roleId]?.permissions?.[moduleId]?.[actionId] ?? false;
+        const newEnabled = !cur;
+
+        // Update local state optimistically
         setCustomRoles(prev => {
             if (!prev[roleId]) return prev;
-            const cur = prev[roleId].permissions?.[moduleId]?.[actionId] ?? false;
-            addAudit('CUSTOM_ROLE_PERM', `${roleId} → ${moduleId}.${actionId}`, cur, !cur, user);
             return {
                 ...prev,
                 [roleId]: {
@@ -320,13 +469,23 @@ export const SettingsProvider = ({ children }) => {
                         ...prev[roleId].permissions,
                         [moduleId]: {
                             ...prev[roleId].permissions?.[moduleId],
-                            [actionId]: !cur,
+                            [actionId]: newEnabled,
                         },
                     },
                 },
             };
         });
-    }, [addAudit]);
+
+        addAudit('CUSTOM_ROLE_PERM', `${roleId} → ${moduleId}.${actionId}`, cur, newEnabled, user);
+
+        // Persist to backend
+        try {
+            const permissions = { [actionId]: newEnabled };
+            await settingsApi.updateCustomRolePermissions(roleId, moduleId, permissions);
+        } catch (e) {
+            console.error('Failed to toggle custom role permission:', e);
+        }
+    }, [customRoles, addAudit]);
 
     const setCustomRolePreset = useCallback((roleId, preset, user) => {
         setCustomRoles(prev => {
@@ -342,7 +501,8 @@ export const SettingsProvider = ({ children }) => {
         });
     }, [addAudit]);
 
-    const deleteCustomRole = useCallback((roleId, user) => {
+    const deleteCustomRole = useCallback(async (roleId, user) => {
+        // Update local state
         setCustomRoles(prev => {
             const { [roleId]: _removed, ...rest } = prev;
             addAudit('CUSTOM_ROLE_DELETED', roleId, 'exists', 'deleted', user);
@@ -356,7 +516,16 @@ export const SettingsProvider = ({ children }) => {
             });
             return updated;
         });
-    }, [addAudit]);
+
+        // Persist to backend
+        try {
+            await settingsApi.deleteCustomRole(roleId);
+            // Refresh from backend
+            await refreshCustomRoles();
+        } catch (e) {
+            console.error('Failed to delete custom role:', e);
+        }
+    }, [addAudit, refreshCustomRoles]);
 
     // ── User Override APIs ────────────────────────────────────────────────────
 
@@ -523,7 +692,7 @@ export const SettingsProvider = ({ children }) => {
     // ── Derived lists ─────────────────────────────────────────────────────────
     const allRoles = useMemo(() => [
         ...ROLE_DEFS,
-        ...Object.values(customRoles),
+        ...Object.values(customRoles || {}),
     ], [customRoles]);
 
     // Note: enrichedUsers now expects users to be passed from AuthContext or fetched separately
@@ -544,6 +713,7 @@ export const SettingsProvider = ({ children }) => {
         // Raw state
         flags, rbac, workflows, auditLogs,
         customRoles, userOverrides, viewAsUserId,
+        roleDefs: ROLE_DEFS,
         allRoles,
         isLoading,
         // Project type config (admin-overridable)
@@ -555,6 +725,7 @@ export const SettingsProvider = ({ children }) => {
         // Custom role APIs
         createCustomRole, cloneRole, updateCustomRole,
         toggleCustomRolePermission, setCustomRolePreset, deleteCustomRole,
+        refreshCustomRoles,
         // User override APIs
         assignCustomRoleToUser, setUserPermissionOverride, clearUserOverrides,
         // View As
@@ -580,6 +751,7 @@ export const SettingsProvider = ({ children }) => {
         toggleRBAC, setRolePreset, resetRBAC,
         createCustomRole, cloneRole, updateCustomRole,
         toggleCustomRolePermission, setCustomRolePreset, deleteCustomRole,
+        refreshCustomRoles,
         assignCustomRoleToUser, setUserPermissionOverride, clearUserOverrides,
         setViewAs, clearViewAs,
         toggleWorkflow, addWorkflow, deleteWorkflow,

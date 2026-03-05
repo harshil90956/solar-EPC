@@ -29,6 +29,7 @@ import { Input, Select, Textarea, FormField } from '../components/ui/Input';
 import DataTable from '../components/ui/DataTable';
 import FilterSystem from '../components/ui/FilterSystem';
 import ImportExport from '../components/ui/ImportExport';
+import LeadTracker from '../components/LeadTracker';
 import { useAuditLog } from '../hooks/useAuditLog';
 import { usePermissions } from '../hooks/usePermissions';
 import { CURRENCY } from '../config/app.config';
@@ -521,6 +522,8 @@ const CRMPage = () => {
   const [editingLead, setEditingLead] = useState(null);
   const [showTimelineModal, setShowTimelineModal] = useState(false);
   const [showActivityModal, setShowActivityModal] = useState(false);
+  const [showTrackerDrawer, setShowTrackerDrawer] = useState(false);
+  const [trackerLeadId, setTrackerLeadId] = useState(null);
   const [timelineData, setTimelineData] = useState([]);
   const [activityData, setActivityData] = useState([]);
   const [actionLoading, setActionLoading] = useState(false);
@@ -637,6 +640,11 @@ const CRMPage = () => {
     setSelectedLead(lead);
   };
 
+  const handleViewTracker = (lead) => {
+    setTrackerLeadId(lead._id);
+    setShowTrackerDrawer(true);
+  };
+
   const handleEditLead = (lead) => {
     setEditingLead(lead);
     setShowEditModal(true);
@@ -670,7 +678,7 @@ const CRMPage = () => {
       }
     } catch (err) {
       console.error('Failed to update lead:', err);
-      alert('Failed to update lead: ' + err.message);
+      // Alert removed as per user request - no alerts on lead pages
     } finally {
       setActionLoading(false);
     }
@@ -682,10 +690,8 @@ const CRMPage = () => {
       const duplicated = await leadsApi.duplicate(lead._id);
       logCreate(duplicated.data || duplicated);
       fetchLeads(); // Refresh list
-      alert(`Lead "${lead.name}" duplicated successfully!`);
     } catch (err) {
       console.error('Failed to duplicate lead:', err);
-      alert('Failed to duplicate lead: ' + err.message);
     } finally {
       setActionLoading(false);
     }
@@ -700,10 +706,8 @@ const CRMPage = () => {
       if (selectedLead && selectedLead._id === lead._id) {
         setSelectedLead(null); // Close detail modal
       }
-      alert(`Lead "${lead.name}" archived!`);
     } catch (err) {
       console.error('Failed to archive lead:', err);
-      alert('Failed to archive lead: ' + err.message);
     } finally {
       setActionLoading(false);
     }
@@ -719,10 +723,8 @@ const CRMPage = () => {
       if (selectedLead && selectedLead._id === lead._id) {
         setSelectedLead(null); // Close detail modal
       }
-      alert(`Lead "${lead.name}" deleted!`);
     } catch (err) {
       console.error('Failed to delete lead:', err);
-      alert('Failed to delete lead: ' + err.message);
     } finally {
       setActionLoading(false);
     }
@@ -772,7 +774,6 @@ const CRMPage = () => {
       setShowTimelineModal(true);
     } catch (err) {
       console.error('Failed to fetch timeline:', err);
-      alert('Failed to fetch timeline: ' + err.message);
     } finally {
       setActionLoading(false);
     }
@@ -781,13 +782,33 @@ const CRMPage = () => {
   const handleViewActivity = async (lead) => {
     try {
       setActionLoading(true);
-      // Activity is same as timeline for now
+      setActivityLeadId(lead._id);
       const result = await leadsApi.getTimeline(lead._id);
       setActivityData(result.data || result || []);
       setShowActivityModal(true);
     } catch (err) {
       console.error('Failed to fetch activity:', err);
-      alert('Failed to fetch activity: ' + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Handle save new activity
+  const handleSaveActivity = async () => {
+    if (!newActivityNote.trim() || !activityLeadId) return;
+    try {
+      setActionLoading(true);
+      await leadsApi.addActivity(activityLeadId, {
+        type: 'note',
+        note: newActivityNote.trim(),
+        by: 'User'
+      });
+      setNewActivityNote('');
+      // Refresh activity data
+      const result = await leadsApi.getTimeline(activityLeadId);
+      setActivityData(result.data || result || []);
+    } catch (err) {
+      console.error('Failed to add activity:', err);
     } finally {
       setActionLoading(false);
     }
@@ -820,7 +841,6 @@ const CRMPage = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    alert(`Exported ${leadsToExport.length} leads to CSV!`);
   };
 
   const handleBulkDelete = async (selectedIds) => {
@@ -831,10 +851,8 @@ const CRMPage = () => {
       logDelete({ ids: selectedIds });
       fetchLeads();
       setSelected(new Set());
-      alert(`${selectedIds.length} leads deleted!`);
     } catch (err) {
       console.error('Failed to bulk delete:', err);
-      alert('Failed to delete leads: ' + err.message);
     } finally {
       setActionLoading(false);
     }
@@ -872,21 +890,40 @@ const CRMPage = () => {
       setShowAddModal(false);
       setNewLead({ firstName: '', lastName: '', company: '', email: '', phone: '', source: '', city: '', notes: '', statusKey: 'new' });
       fetchLeads(); // Refresh list
-      alert('Lead created successfully!');
+      // Toast removed as per user request - no alerts on lead pages
     } catch (err) {
       console.error('Failed to create lead:', err);
-      alert('Failed to create lead: ' + err.message);
+      // Alert removed as per user request - no alerts on lead pages
     } finally {
       setActionLoading(false);
     }
   };
 
-  // Handle call lead
+  // Helper function to format time as "X HRS AGO" or "JUST NOW"
+  const formatTimeAgo = (timestamp) => {
+    if (!timestamp) return '';
+    const now = new Date();
+    const date = new Date(timestamp);
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffMins < 1) return 'JUST NOW';
+    if (diffMins < 60) return `${diffMins} MINS AGO`;
+    if (diffHours < 24) return `${diffHours} HRS AGO`;
+    if (diffDays < 7) return `${diffDays} DAYS AGO`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  // State for new activity input
+  const [newActivityNote, setNewActivityNote] = useState('');
+  const [activityLeadId, setActivityLeadId] = useState(null);
   const handleCallLead = (lead) => {
     if (lead.phone) {
       window.location.href = `tel:${lead.phone}`;
     } else {
-      alert('No phone number available for this lead');
+      // Alert removed as per user request - no alerts on lead pages
     }
   };
 
@@ -1202,15 +1239,15 @@ const CRMPage = () => {
       
       // Show result
       if (errorCount === 0) {
-        alert(`Successfully imported ${successCount} leads!`);
+        // Alert removed as per user request - no alerts on lead pages
       } else {
-        alert(`Import completed: ${successCount} leads created, ${errorCount} errors.\n\nFirst 5 errors:\n${errors.slice(0, 5).join('\n')}`);
+        // Alert removed as per user request - no alerts on lead pages
       }
       
       fetchLeads(); // Refresh list
     } catch (err) {
       console.error('Import failed:', err);
-      alert('Import failed: ' + err.message);
+      // Alert removed as per user request - no alerts on lead pages
     } finally {
       setActionLoading(false);
     }
@@ -1242,7 +1279,7 @@ const CRMPage = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    alert(`Exported ${dataToExport.length} leads to CSV!`);
+    // Alert removed as per user request - no alerts on lead pages
   };
 
   const toggleColumn = (colKey) => {
@@ -1619,7 +1656,7 @@ const CRMPage = () => {
                           draggable
                           onDragStart={(e) => { e.dataTransfer.setData('leadId', lead._id || lead.id); }}
                           className="glass-card p-3 cursor-grab active:cursor-grabbing hover:border-[var(--primary)]/40 transition-all"
-                          onClick={() => setSelectedLead(lead)}
+                          onClick={() => { setTrackerLeadId(lead._id || lead.id); setShowTrackerDrawer(true); }}
                         >
                           {/* Lead Header */}
                           <div className="flex items-start justify-between mb-2">
@@ -1834,7 +1871,7 @@ const CRMPage = () => {
             onPageChange={setPage}
             onPageSizeChange={setPageSize}
             onSort={handleSort}
-            onRowClick={(row) => setSelectedLead(row)}
+            onRowClick={(row) => { setTrackerLeadId(row._id); setShowTrackerDrawer(true); }}
             sort={sort}
             search={search}
             onSearch={setSearch}
@@ -1883,7 +1920,8 @@ const CRMPage = () => {
               { label: 'Edit', icon: Edit2, onClick: handleEditLead },
               { label: 'Score', icon: Brain, onClick: handleRecalculateScore },
               { label: 'Delete', icon: Trash2, onClick: handleDeleteLead, danger: true },
-              { label: 'Activity Log', icon: Clock, onClick: handleViewTimeline },
+              { label: 'Activity Log', icon: Clock, onClick: handleViewActivity },
+              { label: 'Tracker', icon: GitCommit, onClick: (lead) => { setTrackerLeadId(lead._id); setShowTrackerDrawer(true); } },
             ]}
           />
         </div>
@@ -2079,6 +2117,7 @@ const CRMPage = () => {
                           {act.type === 'email' && <Mail size={10} className="text-blue-400" />}
                           {act.type === 'whatsapp' && <MessageSquare size={10} className="text-emerald-400" />}
                           {act.type === 'note' && <Activity size={10} className="text-amber-400" />}
+                          {act.type === 'stage_change' && <GitCommit size={10} className="text-purple-400" />}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-[var(--text-secondary)] leading-relaxed">{act.note}</p>
@@ -2219,39 +2258,82 @@ const CRMPage = () => {
         </Modal>
       )}
 
-      {/* ACTIVITY LOG MODAL */}
+      {/* ACTIVITY LOG SIDEBAR DRAWER */}
       {showActivityModal && (
-        <Modal
-          open={showActivityModal}
-          onClose={() => setShowActivityModal(false)}
-          title="Activity Log"
-          footer={
-            <div className="flex gap-2 justify-end">
-              <Button variant="ghost" onClick={() => setShowActivityModal(false)}>Close</Button>
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black/50 z-40 transition-opacity"
+            onClick={() => { setShowActivityModal(false); setNewActivityNote(''); setActivityLeadId(null); }}
+          />
+          {/* Sidebar Drawer */}
+          <div className="fixed right-0 top-[36.5px] bottom-0 w-[450px] bg-white border-l border-[var(--border-base)] z-50 shadow-2xl flex flex-col" style={{ transform: 'translateX(0)', transition: 'transform 0.3s ease-out' }}>
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-[var(--border-base)]">
+              <h3 className="text-lg font-bold text-[var(--text-primary)]">Activity Log</h3>
+              <button 
+                onClick={() => { setShowActivityModal(false); setNewActivityNote(''); setActivityLeadId(null); }}
+                className="p-2 hover:bg-[var(--bg-elevated)] rounded-lg transition-colors"
+              >
+                <X size={20} className="text-[var(--text-muted)]" />
+              </button>
             </div>
-          }
-        >
-          <div className="space-y-3 max-h-80 overflow-y-auto">
-            {activityData.length === 0 ? (
-              <p className="text-sm text-[var(--text-muted)]">No activities found.</p>
-            ) : (
-              activityData.map((act, idx) => (
-                <div key={idx} className="flex gap-3 text-sm p-2 rounded-lg bg-[var(--bg-elevated)]">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center shrink-0">
-                    {act.type === 'call' && <Phone size={14} className="text-white" />}
-                    {act.type === 'email' && <Mail size={14} className="text-white" />}
-                    {act.type === 'whatsapp' && <MessageSquare size={14} className="text-white" />}
-                    {act.type === 'note' && <FileText size={14} className="text-white" />}
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-[var(--text-primary)] font-medium">{act.note}</p>
-                    <p className="text-[10px] text-[var(--text-muted)]">{act.ts} · {act.by}</p>
-                  </div>
-                </div>
-              ))
-            )}
+            
+            {/* Activity Timeline */}
+            <div className="flex-1 overflow-y-auto p-4">
+              <div className="space-y-3">
+                {activityData.length === 0 ? (
+                  <p className="text-sm text-[var(--text-muted)] py-4">No activities found.</p>
+                ) : (
+                  activityData.map((event, idx) => (
+                    <div key={idx} className="flex gap-3 text-sm border-l-2 border-[var(--border-subtle)] pl-3 py-1">
+                      <div className="w-6 h-6 rounded-full bg-[var(--bg-elevated)] flex items-center justify-center shrink-0">
+                        {event.type === 'call' && <Phone size={12} className="text-emerald-400" />}
+                        {event.type === 'email' && <Mail size={12} className="text-blue-400" />}
+                        {event.type === 'stage_change' && <GitCommit size={12} className="text-purple-400" />}
+                        {event.type === 'created' && <UserPlus size={12} className="text-green-400" />}
+                        {event.type === 'note' && <FileText size={12} className="text-amber-400" />}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-[var(--text-primary)]">{event.note}</p>
+                        <p className="text-[10px] text-[var(--text-muted)]">{formatTimeAgo(event.timestamp)} · {event.by}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+            
+            {/* Add New Activity Input */}
+            <div className="border-t border-[var(--border-base)] p-4 bg-[var(--bg-elevated)]">
+              <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-3">Add Activity</p>
+              <div className="flex gap-2">
+                <textarea
+                  value={newActivityNote}
+                  onChange={(e) => setNewActivityNote(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSaveActivity();
+                    }
+                  }}
+                  placeholder="Enter Activity"
+                  rows={3}
+                  className="flex-1 px-3 py-2 text-sm bg-[var(--bg-base)] border border-[var(--border-base)] rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)]"
+                />
+              </div>
+              <div className="flex justify-end mt-3">
+                <Button 
+                  onClick={handleSaveActivity} 
+                  disabled={actionLoading || !newActivityNote.trim()}
+                  size="sm"
+                >
+                  {actionLoading ? 'Saving...' : 'Save'}
+                </Button>
+              </div>
+            </div>
           </div>
-        </Modal>
+        </>
       )}
 
       {/* SCORE EDIT MODAL */}
@@ -2300,8 +2382,43 @@ const CRMPage = () => {
         </Modal>
       )}
 
+      {/* LEAD TRACKER DRAWER */}
+      {showTrackerDrawer && trackerLeadId && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/50 z-40 transition-opacity"
+            onClick={() => { setShowTrackerDrawer(false); setTrackerLeadId(null); }}
+          />
+          {/* Sidebar Drawer */}
+          <div className="fixed right-0 top-[36.5px] bottom-0 w-[400px] bg-white border-l border-[var(--border-base)] z-50 shadow-2xl flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-[var(--border-base)]">
+              <h3 className="text-lg font-bold text-[var(--text-primary)]">Lead Progress</h3>
+              <button
+                onClick={() => { setShowTrackerDrawer(false); setTrackerLeadId(null); }}
+                className="p-2 hover:bg-[var(--bg-elevated)] rounded-lg transition-colors"
+              >
+                <X size={20} className="text-[var(--text-muted)]" />
+              </button>
+            </div>
+
+            {/* Tracker Content */}
+            <div className="flex-1 overflow-y-auto p-4">
+              <LeadTracker 
+                leadId={trackerLeadId}
+                statusOptions={statusOptions}
+                currentStage={activeLeads.find(l => l._id === trackerLeadId)?.statusKey}
+                onStageChange={fetchLeads}
+              />
+            </div>
+          </div>
+        </>
+      )}
+
     </div >
   );
 };
 
 export default CRMPage;
+
