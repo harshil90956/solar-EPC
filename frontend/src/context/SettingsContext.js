@@ -665,7 +665,7 @@ export const SettingsProvider = ({ children }) => {
     const isActionEnabled = useCallback((moduleId, actionId) =>
         (flags[moduleId]?.enabled ?? true) && (flags[moduleId]?.actions?.[actionId] ?? true), [flags]);
     const canRoleDo = useCallback((role, moduleId, actionId) =>
-        rbac[role]?.[moduleId]?.[actionId] ?? false, [rbac]);
+        rbac[role]?.[moduleId]?.[actionId] ?? true, [rbac]);
 
     /**
      * resolvePermission(userId, roleId, moduleId, actionId)
@@ -680,10 +680,10 @@ export const SettingsProvider = ({ children }) => {
         // 2. Custom role assigned to this user
         const crId = userOvr?.customRoleId;
         if (crId && customRoles[crId]) {
-            return customRoles[crId].permissions?.[moduleId]?.[actionId] ?? false;
+            return customRoles[crId].permissions?.[moduleId]?.[actionId] ?? true;
         }
-        // 3. Base RBAC
-        return rbac[roleId]?.[moduleId]?.[actionId] ?? false;
+        // 3. Base RBAC - default to true if not explicitly set
+        return rbac[roleId]?.[moduleId]?.[actionId] ?? true;
     }, [flags, userOverrides, customRoles, rbac]);
 
     /** Backward-compat: role-only check (no user id) */

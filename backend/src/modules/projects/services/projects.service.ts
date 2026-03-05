@@ -291,4 +291,14 @@ export class ProjectsService {
       },
     ]).exec();
   }
+
+  async getProjectManagers(tenantCode: string) {
+    const tenantId = await this.getTenantId(tenantCode);
+    const projects = await this.projectModel
+      .find({ tenantId, isDeleted: false })
+      .select('pm')
+      .distinct('pm')
+      .exec();
+    return { projectManagers: projects.filter(pm => pm && pm.trim() !== '') };
+  }
 }

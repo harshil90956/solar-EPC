@@ -175,7 +175,7 @@ const InventoryPage = () => {
   const [itemReservations, setItemReservations] = useState([]);
   const [loadingReservations, setLoadingReservations] = useState(false);
   const [form, setForm] = useState({ name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
-  const [stockInForm, setStockInForm] = useState({ itemId: '', quantity: '', poReference: '', receivedDate: '', remarks: '' });
+  const [stockInForm, setStockInForm] = useState({ itemId: '', quantity: '', poReference: '', receivedDate: '', remarks: '', projectId: '' });
   const [showEdit, setShowEdit] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [editForm, setEditForm] = useState({ name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
@@ -738,7 +738,12 @@ const InventoryPage = () => {
           </FormField>
           <div className="grid grid-cols-2 gap-3">
             <FormField label="Quantity Received"><Input type="number" placeholder="100" value={stockInForm.quantity} onChange={e => setStockInForm(f => ({ ...f, quantity: e.target.value }))} /></FormField>
-            <FormField label="PO Reference"><Input placeholder="PO001" value={stockInForm.poReference} onChange={e => setStockInForm(f => ({ ...f, poReference: e.target.value }))} /></FormField>
+            <FormField label="Project">
+              <Select value={stockInForm.projectId} onChange={e => setStockInForm(f => ({ ...f, projectId: e.target.value }))}>
+                <option value="">Select Project</option>
+                {projects.map(p => <option key={p._id || p.projectId} value={p.projectId}>{p.customerName || p.name} ({p.projectId})</option>)}
+              </Select>
+            </FormField>
           </div>
           <FormField label="Received Date"><Input type="date" value={stockInForm.receivedDate} onChange={e => setStockInForm(f => ({ ...f, receivedDate: e.target.value }))} /></FormField>
           <FormField label="Remarks"><Input placeholder="Any notes about the delivery…" value={stockInForm.remarks} onChange={e => setStockInForm(f => ({ ...f, remarks: e.target.value }))} /></FormField>
@@ -800,50 +805,6 @@ const InventoryPage = () => {
           </Button>
         </div>}>
         <div className="space-y-3 max-h-[60vh] sm:max-h-[70vh] overflow-y-auto">
-          <FormField label="Item Name"><Input placeholder="e.g. 400W Mono PERC Panel" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} /></FormField>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <FormField label="Category">
-              <Select value={editForm.category} onChange={e => setEditForm(f => ({ ...f, category: e.target.value }))}>
-                <option value="">Select Category</option>
-                {['Panel', 'Inverter', 'BOS', 'Structure', 'Cable', 'Other'].map(c => <option key={c}>{c}</option>)}
-              </Select>
-            </FormField>
-            <FormField label="Unit">
-              <Select value={editForm.unit} onChange={e => setEditForm(f => ({ ...f, unit: e.target.value }))}>
-                <option value="">Select Unit</option>
-                {['Nos', 'Mtr', 'Kg', 'Set', 'Pairs', 'Box'].map(u => <option key={u}>{u}</option>)}
-              </Select>
-            </FormField>
-            <FormField label="Min Stock Level"><Input type="number" placeholder="100" value={editForm.minStock} onChange={e => setEditForm(f => ({ ...f, minStock: e.target.value }))} /></FormField>
-            <FormField label="Unit Rate (₹)"><Input type="number" placeholder="14500" value={editForm.rate} onChange={e => setEditForm(f => ({ ...f, rate: e.target.value }))} /></FormField>
-            <FormField label="Status">
-              <Select value={editForm.status} onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))}>
-                <option value="">Auto (calculated from stock)</option>
-                <option value="In Stock">In Stock</option>
-                <option value="Partially Reserved">Partially Reserved</option>
-                <option value="Low Stock">Low Stock</option>
-                <option value="Out of Stock">Out of Stock</option>
-              </Select>
-            </FormField>
-            <FormField label="Warehouse">
-              <Select value={editForm.warehouse} onChange={e => setEditForm(f => ({ ...f, warehouse: e.target.value }))}>
-                <option value="">Select Warehouse</option>
-                <option>WH-Ahmedabad</option><option>WH-Surat</option><option>WH-Mumbai</option>
-              </Select>
-            </FormField>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Stock Out Modal */}
-      <Modal open={showStockOut} onClose={() => setShowStockOut(false)} title="Stock Out — Issue Materials"
-        footer={<div className="flex gap-2 justify-end">
-          <Button variant="ghost" onClick={() => setShowStockOut(false)}>Cancel</Button>
-          <Button onClick={handleStockOut} disabled={submitting || !stockOutForm.itemId || !stockOutForm.quantity}>
-            {submitting ? 'Processing...' : <><ArrowDown size={13} /> Confirm Issue</>}
-          </Button>
-        </div>}>
-        <div className="space-y-3 max-h-[60vh] sm:max-h-[70vh] overflow-y-auto">
           <FormField label="Item">
             <Select value={stockOutForm.itemId} onChange={e => setStockOutForm(f => ({ ...f, itemId: e.target.value }))}>
               <option value="">Select Item</option>
@@ -852,7 +813,12 @@ const InventoryPage = () => {
           </FormField>
           <div className="grid grid-cols-2 gap-3">
             <FormField label="Quantity to Issue"><Input type="number" placeholder="50" value={stockOutForm.quantity} onChange={e => setStockOutForm(f => ({ ...f, quantity: e.target.value }))} /></FormField>
-            <FormField label="Project ID"><Input placeholder="P001" value={stockOutForm.projectId} onChange={e => setStockOutForm(f => ({ ...f, projectId: e.target.value }))} /></FormField>
+            <FormField label="Project">
+              <Select value={stockOutForm.projectId} onChange={e => setStockOutForm(f => ({ ...f, projectId: e.target.value }))}>
+                <option value="">Select Project</option>
+                {projects.map(p => <option key={p._id || p.projectId} value={p.projectId}>{p.customerName || p.name} ({p.projectId})</option>)}
+              </Select>
+            </FormField>
           </div>
           <FormField label="Issue Date"><Input type="date" value={stockOutForm.issuedDate} onChange={e => setStockOutForm(f => ({ ...f, issuedDate: e.target.value }))} /></FormField>
           <FormField label="Remarks"><Input placeholder="Any notes about the issue…" value={stockOutForm.remarks} onChange={e => setStockOutForm(f => ({ ...f, remarks: e.target.value }))} /></FormField>
@@ -898,7 +864,7 @@ const InventoryPage = () => {
                           {res.status}
                         </span>
                         <span className="text-xs font-medium text-[var(--text-primary)]">
-                          {project ? `${project.name} (${res.projectId})` : `Project: ${res.projectId}`}
+                          {project ? `${project.customerName} (${res.projectId})` : `Project: ${res.projectId}`}
                         </span>
                       </div>
                       <span className="text-xs font-bold text-amber-400">

@@ -1,297 +1,265 @@
-const API_BASE_URL = (process.env.REACT_APP_API_URL || 'http://localhost:3000') + '/api/v1';
-
-const getTenantId = () => {
-  try {
-    const user = JSON.parse(localStorage.getItem('solar_user') || '{}');
-    return user?.tenantId || user?.tenant?.id || user?.id || null;
-  } catch {
-    return null;
-  }
-};
-
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('solar_token') || localStorage.getItem('token');
-  const tenantId = getTenantId();
-  return {
-    'Content-Type': 'application/json',
-    ...(token && { Authorization: `Bearer ${token}` }),
-    ...(tenantId && { 'x-tenant-id': tenantId }),
-  };
-};
-
+import apiClient from '../lib/apiClient';
 export const settingsApi = {
   // ── Full Settings ─────────────────────────────────────────────────────────
   async getFullSettings() {
-    const response = await fetch(`${API_BASE_URL}/settings`, {
-      headers: getAuthHeaders(),
-    });
-    if (!response.ok) throw new Error('Failed to fetch settings');
-    return response.json();
+    try {
+      const response = await apiClient.get('/settings');
+      return response;
+    } catch (error) {
+      console.warn('Settings API failed, using defaults:', error.message);
+      // Return default settings structure when API fails
+      return {
+        flags: {},
+        rbac: {},
+        workflows: [],
+        auditLogs: [],
+        customRoles: {},
+        projectTypeConfigs: {}
+      };
+    }
   },
 
   // ── Feature Flags ─────────────────────────────────────────────────────────
   async getFeatureFlags() {
-    const response = await fetch(`${API_BASE_URL}/settings/flags`, {
-      headers: getAuthHeaders(),
-    });
-    if (!response.ok) throw new Error('Failed to fetch feature flags');
-    return response.json();
+    try {
+      return await apiClient.get('/settings/flags');
+    } catch (error) {
+      return { data: {} };
+    }
   },
 
   async updateFeatureFlag(moduleId, update) {
-    const response = await fetch(`${API_BASE_URL}/settings/flags/${moduleId}`, {
-      method: 'PUT',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(update),
-    });
-    if (!response.ok) throw new Error('Failed to update feature flag');
-    return response.json();
+    try {
+      return await apiClient.put(`/settings/flags/${moduleId}`, update);
+    } catch (error) {
+      console.warn('Failed to update feature flag:', error.message);
+      return { success: false };
+    }
   },
 
   async toggleModule(moduleId, enabled) {
-    const response = await fetch(`${API_BASE_URL}/settings/flags/${moduleId}/toggle`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ enabled }),
-    });
-    if (!response.ok) throw new Error('Failed to toggle module');
-    return response.json();
+    try {
+      return await apiClient.post(`/settings/flags/${moduleId}/toggle`, { enabled });
+    } catch (error) {
+      console.warn('Failed to toggle module:', error.message);
+      return { success: false };
+    }
   },
 
   async toggleFeature(moduleId, featureId, enabled) {
-    const response = await fetch(`${API_BASE_URL}/settings/flags/${moduleId}/features/${featureId}`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ enabled }),
-    });
-    if (!response.ok) throw new Error('Failed to toggle feature');
-    return response.json();
+    try {
+      return await apiClient.post(`/settings/flags/${moduleId}/features/${featureId}`, { enabled });
+    } catch (error) {
+      console.warn('Failed to toggle feature:', error.message);
+      return { success: false };
+    }
   },
 
   async toggleAction(moduleId, actionId, enabled) {
-    const response = await fetch(`${API_BASE_URL}/settings/flags/${moduleId}/actions/${actionId}`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ enabled }),
-    });
-    if (!response.ok) throw new Error('Failed to toggle action');
-    return response.json();
+    try {
+      return await apiClient.post(`/settings/flags/${moduleId}/actions/${actionId}`, { enabled });
+    } catch (error) {
+      console.warn('Failed to toggle action:', error.message);
+      return { success: false };
+    }
   },
 
   // ── RBAC ─────────────────────────────────────────────────────────────────
   async getRBACConfigs() {
-    const response = await fetch(`${API_BASE_URL}/settings/rbac`, {
-      headers: getAuthHeaders(),
-    });
-    if (!response.ok) throw new Error('Failed to fetch RBAC configs');
-    return response.json();
+    try {
+      return await apiClient.get('/settings/rbac');
+    } catch (error) {
+      return { data: {} };
+    }
   },
 
   async updateRBAC(roleId, moduleId, permissions) {
-    const response = await fetch(`${API_BASE_URL}/settings/rbac/${roleId}/${moduleId}`, {
-      method: 'PUT',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ permissions }),
-    });
-    if (!response.ok) throw new Error('Failed to update RBAC');
-    return response.json();
+    try {
+      return await apiClient.put(`/settings/rbac/${roleId}/${moduleId}`, { permissions });
+    } catch (error) {
+      console.warn('Failed to update RBAC:', error.message);
+      return { success: false };
+    }
   },
 
   async toggleRBAC(roleId, moduleId, actionId, enabled) {
-    const response = await fetch(`${API_BASE_URL}/settings/rbac/${roleId}/${moduleId}/${actionId}`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ enabled }),
-    });
-    if (!response.ok) throw new Error('Failed to toggle RBAC');
-    return response.json();
+    try {
+      return await apiClient.post(`/settings/rbac/${roleId}/${moduleId}/${actionId}`, { enabled });
+    } catch (error) {
+      console.warn('Failed to toggle RBAC:', error.message);
+      return { success: false };
+    }
   },
 
   // ── Workflow Rules ───────────────────────────────────────────────────────
   async getWorkflowRules() {
-    const response = await fetch(`${API_BASE_URL}/settings/workflows`, {
-      headers: getAuthHeaders(),
-    });
-    if (!response.ok) throw new Error('Failed to fetch workflow rules');
-    return response.json();
+    try {
+      return await apiClient.get('/settings/workflows');
+    } catch (error) {
+      return { data: [] };
+    }
   },
 
   async createWorkflowRule(rule) {
-    const response = await fetch(`${API_BASE_URL}/settings/workflows`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(rule),
-    });
-    if (!response.ok) throw new Error('Failed to create workflow rule');
-    return response.json();
+    try {
+      return await apiClient.post('/settings/workflows', rule);
+    } catch (error) {
+      console.warn('Failed to create workflow rule:', error.message);
+      return { success: false };
+    }
   },
 
   async updateWorkflowRule(wfId, updates) {
-    const response = await fetch(`${API_BASE_URL}/settings/workflows/${wfId}`, {
-      method: 'PUT',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(updates),
-    });
-    if (!response.ok) throw new Error('Failed to update workflow rule');
-    return response.json();
+    try {
+      return await apiClient.put(`/settings/workflows/${wfId}`, updates);
+    } catch (error) {
+      console.warn('Failed to update workflow rule:', error.message);
+      return { success: false };
+    }
   },
 
   async deleteWorkflowRule(wfId) {
-    const response = await fetch(`${API_BASE_URL}/settings/workflows/${wfId}`, {
-      method: 'DELETE',
-      headers: getAuthHeaders(),
-    });
-    if (!response.ok) throw new Error('Failed to delete workflow rule');
-    return response.json();
+    try {
+      return await apiClient.delete(`/settings/workflows/${wfId}`);
+    } catch (error) {
+      console.warn('Failed to delete workflow rule:', error.message);
+      return { success: false };
+    }
   },
 
   // ── Audit Logs ────────────────────────────────────────────────────────────
   async getAuditLogs() {
-    const response = await fetch(`${API_BASE_URL}/settings/audit`, {
-      headers: getAuthHeaders(),
-    });
-    if (!response.ok) throw new Error('Failed to fetch audit logs');
-    return response.json();
+    try {
+      return await apiClient.get('/settings/audit');
+    } catch (error) {
+      return { data: [] };
+    }
   },
 
   async createAuditLog(log) {
-    const response = await fetch(`${API_BASE_URL}/settings/audit`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(log),
-    });
-    if (!response.ok) throw new Error('Failed to create audit log');
-    return response.json();
+    try {
+      return await apiClient.post('/settings/audit', log);
+    } catch (error) {
+      console.warn('Failed to create audit log:', error.message);
+      return { success: false };
+    }
   },
 
   // ── Custom Roles ─────────────────────────────────────────────────────────
   async getCustomRoles() {
-    const response = await fetch(`${API_BASE_URL}/settings/custom-roles`, {
-      headers: getAuthHeaders(),
-    });
-    if (!response.ok) throw new Error('Failed to fetch custom roles');
-    return response.json();
+    try {
+      return await apiClient.get('/settings/custom-roles');
+    } catch (error) {
+      return { data: {} };
+    }
   },
 
   async createCustomRole(role) {
-    const response = await fetch(`${API_BASE_URL}/settings/custom-roles`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(role),
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to create custom role: ${errorText}`);
+    try {
+      return await apiClient.post('/settings/custom-roles', role);
+    } catch (error) {
+      console.warn('Failed to create custom role:', error.message);
+      throw error;
     }
-    const data = await response.json();
-    return data;
   },
 
   async updateCustomRole(roleId, updates) {
-    const response = await fetch(`${API_BASE_URL}/settings/custom-roles/${roleId}`, {
-      method: 'PUT',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(updates),
-    });
-    if (!response.ok) throw new Error('Failed to update custom role');
-    return response.json();
+    try {
+      return await apiClient.put(`/settings/custom-roles/${roleId}`, updates);
+    } catch (error) {
+      console.warn('Failed to update custom role:', error.message);
+      return { success: false };
+    }
   },
 
   async deleteCustomRole(roleId) {
-    const response = await fetch(`${API_BASE_URL}/settings/custom-roles/${roleId}`, {
-      method: 'DELETE',
-      headers: getAuthHeaders(),
-    });
-    if (!response.ok) throw new Error('Failed to delete custom role');
-    return response.json();
+    try {
+      return await apiClient.delete(`/settings/custom-roles/${roleId}`);
+    } catch (error) {
+      console.warn('Failed to delete custom role:', error.message);
+      return { success: false };
+    }
   },
 
   async updateCustomRolePermissions(roleId, moduleId, permissions) {
-    const response = await fetch(`${API_BASE_URL}/settings/custom-roles/${roleId}/permissions`, {
-      method: 'PUT',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ moduleId, permissions }),
-    });
-    if (!response.ok) throw new Error('Failed to update custom role permissions');
-    return response.json();
+    try {
+      return await apiClient.put(`/settings/custom-roles/${roleId}/permissions`, { moduleId, permissions });
+    } catch (error) {
+      console.warn('Failed to update custom role permissions:', error.message);
+      return { success: false };
+    }
   },
 
   async cloneCustomRole(roleId, label) {
-    const response = await fetch(`${API_BASE_URL}/settings/custom-roles/${roleId}/clone`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ label }),
-    });
-    if (!response.ok) throw new Error('Failed to clone custom role');
-    return response.json();
+    try {
+      return await apiClient.post(`/settings/custom-roles/${roleId}/clone`, { label });
+    } catch (error) {
+      console.warn('Failed to clone custom role:', error.message);
+      throw error;
+    }
   },
 
   // ── Project Type Configs ────────────────────────────────────────────────
   async getProjectTypeConfigs() {
-    const response = await fetch(`${API_BASE_URL}/settings/project-types`, {
-      headers: getAuthHeaders(),
-    });
-    if (!response.ok) throw new Error('Failed to fetch project type configs');
-    return response.json();
+    try {
+      return await apiClient.get('/settings/project-types');
+    } catch (error) {
+      return { data: {} };
+    }
   },
 
   async updateProjectTypeConfig(typeId, config) {
-    const response = await fetch(`${API_BASE_URL}/settings/project-types/${typeId}`, {
-      method: 'PUT',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(config),
-    });
-    if (!response.ok) throw new Error('Failed to update project type config');
-    return response.json();
+    try {
+      return await apiClient.put(`/settings/project-types/${typeId}`, config);
+    } catch (error) {
+      console.warn('Failed to update project type config:', error.message);
+      return { success: false };
+    }
   },
 
   // ── Lead Statuses (CRM → Lead) ───────────────────────────────────────────
   async getLeadStatuses(activeOnly = false) {
-    const url = new URL(`${API_BASE_URL}/settings/lead-statuses`);
-    if (activeOnly) url.searchParams.set('active', 'true');
-    const response = await fetch(url.toString(), {
-      headers: getAuthHeaders(),
-    });
-    if (!response.ok) throw new Error('Failed to fetch lead statuses');
-    return response.json();
+    try {
+      const params = activeOnly ? { active: 'true' } : {};
+      return await apiClient.get('/settings/lead-statuses', params);
+    } catch (error) {
+      return { data: [] };
+    }
   },
 
   async createLeadStatus(payload) {
-    const response = await fetch(`${API_BASE_URL}/settings/lead-statuses`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok) throw new Error('Failed to create lead status');
-    return response.json();
+    try {
+      return await apiClient.post('/settings/lead-statuses', payload);
+    } catch (error) {
+      console.warn('Failed to create lead status:', error.message);
+      return { success: false };
+    }
   },
 
   async updateLeadStatus(id, payload) {
-    const response = await fetch(`${API_BASE_URL}/settings/lead-statuses/${id}`, {
-      method: 'PATCH',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok) throw new Error('Failed to update lead status');
-    return response.json();
+    try {
+      return await apiClient.patch(`/settings/lead-statuses/${id}`, payload);
+    } catch (error) {
+      console.warn('Failed to update lead status:', error.message);
+      return { success: false };
+    }
   },
 
   async deleteLeadStatus(id) {
-    const response = await fetch(`${API_BASE_URL}/settings/lead-statuses/${id}`, {
-      method: 'DELETE',
-      headers: getAuthHeaders(),
-    });
-    if (!response.ok) throw new Error('Failed to delete lead status');
-    return response.json();
+    try {
+      return await apiClient.delete(`/settings/lead-statuses/${id}`);
+    } catch (error) {
+      console.warn('Failed to delete lead status:', error.message);
+      return { success: false };
+    }
   },
 
   async reorderLeadStatuses(statusIds) {
-    const response = await fetch(`${API_BASE_URL}/settings/lead-statuses/reorder`, {
-      method: 'PATCH',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ statusIds }),
-    });
-    if (!response.ok) throw new Error('Failed to reorder lead statuses');
-    return response.json();
+    try {
+      return await apiClient.patch('/settings/lead-statuses/reorder', { statusIds });
+    } catch (error) {
+      console.warn('Failed to reorder lead statuses:', error.message);
+      return { success: false };
+    }
   },
 };

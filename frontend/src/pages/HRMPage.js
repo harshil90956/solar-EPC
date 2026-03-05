@@ -17,6 +17,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/Tabs'
 import DataTable from '../components/ui/DataTable';
 import { StatusBadge } from '../components/ui/Badge';
 import { employeeApi, attendanceApi, leaveApi, payrollApi, incrementApi, departmentApi } from '../services/hrmApi';
+import { api } from '../lib/apiClient';
 import { useSettings } from '../context/SettingsContext';
 import { toast } from '../components/ui/Toast';
 import { CURRENCY } from '../config/app.config';
@@ -54,6 +55,7 @@ const HRMPage = () => {
 
   // Employee State
   const [employees, setEmployees] = useState([]);
+  const [projectManagers, setProjectManagers] = useState([]);
   const { customRoles, allRoles } = useSettings();
   const [showEmployeeModal, setShowEmployeeModal] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
@@ -142,6 +144,7 @@ const HRMPage = () => {
   // ==================== FETCH DATA ====================
   useEffect(() => {
     fetchEmployees();
+    fetchProjectManagers();
   }, []);
 
   useEffect(() => {
@@ -214,6 +217,16 @@ const HRMPage = () => {
     }
   };
 
+  const fetchProjectManagers = async () => {
+    try {
+      const response = await api.get('/projects/project-managers', { tenantId: 'solarcorp' });
+      const pmData = response?.data?.projectManagers || [];
+      setProjectManagers(pmData);
+    } catch (error) {
+      setProjectManagers([]);
+    }
+  };
+
   const fetchDepartments = async () => {
     try {
       const response = await departmentApi.getAll();
@@ -239,6 +252,10 @@ const HRMPage = () => {
     }
     if (!employeeForm.employeeId || !employeeForm.firstName || !employeeForm.lastName || !employeeForm.email || !employeeForm.phone) {
       toast.error('Please fill in all required fields');
+      return;
+    }
+    if (!employeeForm.joiningDate) {
+      toast.error('Please select a joining date');
       return;
     }
 
@@ -609,7 +626,18 @@ const HRMPage = () => {
     {
       key: 'roleId',
       header: 'Role',
-      render: (val) => {
+      render: (val, row) => {
+        const fullName = `${row.firstName || ''} ${row.lastName || ''}`.trim();
+        const isProjectManager = projectManagers.some(pm => 
+          pm === fullName || pm === row.firstName || pm === row.lastName
+        );
+        if (isProjectManager) {
+          return (
+            <span className="px-2 py-1 rounded-full text-xs font-medium bg-orange-500/10 text-orange-500">
+              Project Manager
+            </span>
+          );
+        }
         const role = allRoles.find(r => (r._id || r.id) === val);
         return (
           <span className="px-2 py-1 rounded-full text-xs font-medium bg-[var(--primary)]/10 text-[var(--primary)]">
