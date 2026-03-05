@@ -14,6 +14,26 @@ export class MilestoneDto {
   date?: string | null;
 }
 
+export class MaterialDto {
+  @IsString()
+  itemId!: string;
+
+  @IsString()
+  itemName!: string;
+
+  @IsNumber()
+  @Min(1)
+  quantity!: number;
+
+  @IsOptional()
+  @IsString()
+  issuedDate?: string;
+
+  @IsOptional()
+  @IsString()
+  remarks?: string;
+}
+
 export class CreateProjectDto {
   @IsString()
   projectId!: string;
@@ -24,6 +44,14 @@ export class CreateProjectDto {
 
   @IsString()
   customerName!: string;
+
+  @IsOptional()
+  @IsString()
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  mobileNumber?: string;
 
   @IsString()
   site!: string;
@@ -59,6 +87,12 @@ export class CreateProjectDto {
   @ValidateNested({ each: true })
   @Type(() => MilestoneDto)
   milestones?: MilestoneDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MaterialDto)
+  materials?: MaterialDto[];
 }
 
 export class UpdateProjectDto extends PartialType(CreateProjectDto) {}
