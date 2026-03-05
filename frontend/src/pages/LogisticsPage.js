@@ -1,10 +1,12 @@
 // Solar OS – EPC Edition — LogisticsPage.js
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Truck, Plus, MapPin, Package, CheckCircle, Clock, Zap, Navigation, LayoutGrid, List } from 'lucide-react';
+import { Truck, Plus, MapPin, Package, CheckCircle, Clock, Zap, Navigation, LayoutGrid, List, Phone, Mail, Star } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input, FormField, Select } from '../components/ui/Input';
+import { PageHeader } from '../components/ui/PageHeader';
 import { KPICard } from '../components/ui/KPICard';
+import { Avatar } from '../components/ui/Avatar';
 import DataTable from '../components/ui/DataTable';
 import { APP_CONFIG } from '../config/app.config';
 import { api } from '../lib/apiClient';
@@ -49,6 +51,23 @@ const COLUMNS = [
   { key: 'dispatchDate', header: 'Dispatch Date', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
   { key: 'cost', header: 'Freight Cost', sortable: true, render: v => <span className="text-xs font-bold text-[var(--text-primary)]">₹{v.toLocaleString('en-IN')}</span> },
   { key: 'status', header: 'Status', render: v => <DispatchBadge value={v} /> },
+];
+
+const VENDOR_COLUMNS = [
+  { key: 'id', header: 'Vendor ID', render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span> },
+  {
+    key: 'name', header: 'Vendor Name', sortable: true, render: (v, row) => (
+      <div className="flex items-center gap-2">
+        <Avatar name={v} size="xs" />
+        <span className="text-xs font-semibold text-[var(--text-primary)]">{v}</span>
+      </div>
+    )
+  },
+  { key: 'category', header: 'Category', render: v => <span className="text-xs text-[var(--text-secondary)]">{v}</span> },
+  { key: 'contact', header: 'Contact', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
+  { key: 'phone', header: 'Phone', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
+  { key: 'city', header: 'City', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
+  { key: 'totalOrders', header: 'Total Orders', sortable: true, render: v => <span className="text-xs font-bold text-[var(--text-primary)]">{v}</span> },
 ];
 
 const STATUS_FILTERS = ['All', 'Scheduled', 'In Transit', 'Delivered', 'Cancelled'];
@@ -127,6 +146,7 @@ const DispatchKanbanBoard = ({ dispatches, onStageChange, onCardClick }) => {
 
 /* ── Main Page ── */
 const LogisticsPage = () => {
+  const [activeTab, setActiveTab] = useState('dispatches');
   const [view, setView] = useState('kanban');
   const [search, setSearch] = useState('');
   const [statusFilter, setFilter] = useState('All');
@@ -151,6 +171,16 @@ const LogisticsPage = () => {
     cost: '',
   });
 
+  const [vendors, setVendors] = useState([]);
+  const [selectedVendor, setSelectedVendor] = useState(null);
+  const [showVendorModal, setShowVendorModal] = useState(false);
+  const [newVendor, setNewVendor] = useState({ name: '', category: '', city: '', contact: '', phone: '', email: '' });
+
+  // Vendor delivery state
+  const [showVendorDeliveryModal, setShowVendorDeliveryModal] = useState(false);
+  const [vendorDeliveryData, setVendorDeliveryData] = useState({ itemName: '', quantity: '' });
+
+  // Project search state for dispatch modal
   const [projects, setProjects] = useState([]);
   const [projectSearch, setProjectSearch] = useState('');
 
@@ -205,7 +235,109 @@ const LogisticsPage = () => {
   useEffect(() => {
     fetchData();
     fetchProjects();
+    fetchVendors();
   }, []);
+
+  // Fetch vendors from backend
+  const fetchVendors = async () => {
+    try {
+      const response = await api.get('/logistics/vendors');
+      let vendorsData = [];
+      if (Array.isArray(response.data)) {
+        vendorsData = response.data;
+      } else if (response.data && typeof response.data === 'object') {
+        vendorsData = response.data.data || [];
+      }
+      setVendors(vendorsData);
+    } catch (err) {
+      console.error('Error fetching vendors:', err);
+    }
+  };
+
+  // Vendor action handlers
+  const handleCallVendor = (vendor) => {
+    if (vendor?.phone) {
+      window.open(`tel:${vendor.phone}`, '_self');
+    } else {
+      alert('No phone number available');
+    }
+  };
+
+  const handleEmailVendor = async (vendor) => {
+    if (vendor?.email) {
+      try {
+        const subject = 'Logistics Inquiry';
+        const text = `Dear ${vendor.name || vendor.contact || 'Vendor'},\n\nI hope this email finds you well. We are interested in discussing potential logistics services and would like to connect with you regarding our requirements.\n\nPlease let us know your availability for a brief discussion.\n\nBest regards,\nSolarOS Team`;
+        
+        const res = await api.post('/email/send', {
+          to: vendor.email,
+          subject,
+          text
+        });
+        
+        if (res.data?.success) {
+          alert(`Email sent to ${vendor.email}`);
+        } else {
+          alert(`Email queued: ${res.data?.message || 'Will be sent shortly'}`);
+        }
+      } catch (error) {
+        console.error('Error sending email:', error);
+        alert('Failed to send email. Please try again later.');
+      }
+    } else {
+      alert('No email address available');
+    }
+  };
+
+  const handleCreateVendor = async () => {
+    try {
+      // Validation
+      if (!newVendor.name || !newVendor.category || !newVendor.city || !newVendor.contact || !newVendor.phone || !newVendor.email) {
+        alert('Please fill in all required fields');
+        return;
+      }
+      console.log('Creating vendor with data:', newVendor);
+      const res = await api.post('/logistics/vendors', newVendor);
+      console.log('Vendor created:', res);
+      await fetchVendors();
+      setShowVendorModal(false);
+      setNewVendor({ name: '', category: '', city: '', contact: '', phone: '', email: '' });
+    } catch (error) {
+      console.error('Error creating vendor:', error);
+      alert('Failed to create vendor: ' + (error.message || 'Unknown error'));
+    }
+  };
+
+  const handleVendorDelivery = async () => {
+    try {
+      if (!selectedVendor?.id) {
+        alert('No vendor selected');
+        return;
+      }
+      if (!vendorDeliveryData.itemName || !vendorDeliveryData.quantity) {
+        alert('Please enter item name and quantity');
+        return;
+      }
+      const quantity = Number(vendorDeliveryData.quantity);
+      if (quantity <= 0) {
+        alert('Quantity must be greater than 0');
+        return;
+      }
+      console.log('Recording delivery from vendor:', selectedVendor.id, vendorDeliveryData);
+      const res = await api.post(`/logistics/vendors/${selectedVendor.id}/delivery`, {
+        itemName: vendorDeliveryData.itemName,
+        quantity: quantity
+      });
+      console.log('Vendor delivery recorded:', res);
+      alert(`Added ${quantity} units of ${vendorDeliveryData.itemName} to inventory`);
+      setShowVendorDeliveryModal(false);
+      setVendorDeliveryData({ itemName: '', quantity: '' });
+      setSelectedVendor(null);
+    } catch (error) {
+      console.error('Error recording vendor delivery:', error);
+      alert('Failed to record delivery: ' + (error.response?.data?.error?.message || error.message || 'Unknown error'));
+    }
+  };
 
   const handleStageChange = async (id, newStatus) => {
     try {
@@ -283,25 +415,32 @@ const LogisticsPage = () => {
     { label: 'Mark Delivered', icon: CheckCircle, onClick: (row) => handleMarkDelivered(row) },
   ];
 
+  const VENDOR_ACTIONS = [
+    { label: 'View Vendor', icon: Package, onClick: row => setSelectedVendor(row) },
+    { label: 'Record Delivery', icon: Plus, onClick: row => { setSelectedVendor(row); setShowVendorDeliveryModal(true); } },
+    { label: 'Call Vendor', icon: Phone, onClick: row => handleCallVendor(row) },
+    { label: 'Email Vendor', icon: Mail, onClick: row => handleEmailVendor(row) },
+  ];
+
   if (loading) {
     return <div className="animate-fade-in space-y-5"><p className="text-xs text-[var(--text-muted)]">Loading...</p></div>;
   }
 
   return (
     <div className="animate-fade-in space-y-5">
-      <div className="page-header">
-        <div>
-          <h1 className="heading-page">Logistics & Dispatch</h1>
-          <p className="text-xs text-[var(--text-muted)] mt-0.5">Material dispatch · delivery tracking · freight management</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="view-toggle-pill">
-            <button onClick={() => setView('kanban')} className={`view-toggle-btn ${view === 'kanban' ? 'active' : ''}`}><LayoutGrid size={14} /></button>
-            <button onClick={() => setView('table')} className={`view-toggle-btn ${view === 'table' ? 'active' : ''}`}><List size={14} /></button>
-          </div>
-          <Button onClick={() => setShowAdd(true)}><Plus size={13} /> Schedule Dispatch</Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Logistics & Dispatch"
+        subtitle="Material dispatch · delivery tracking · freight management"
+        tabs={[
+          { id: 'kanban', label: 'Kanban', icon: LayoutGrid },
+          { id: 'table', label: 'Table', icon: List }
+        ]}
+        activeTab={view}
+        onTabChange={setView}
+        actions={[
+          { type: 'button', label: 'Schedule Dispatch', icon: Plus, variant: 'primary', onClick: () => setShowAdd(true) }
+        ]}
+      />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KPICard title="In Transit" value={inTransit} icon={Truck} trend={inTransit} trendLabel="active shipments" color="cyan" />
@@ -314,67 +453,89 @@ const LogisticsPage = () => {
         <Zap size={14} className="text-[var(--accent-light)] mt-0.5 shrink-0" />
         <p className="text-xs text-[var(--text-secondary)]">
           <span className="text-[var(--accent-light)] font-semibold">AI Insight:</span>{' '}
-          {inTransit > 0 
-            ? `${inTransit} shipment(s) currently in transit. ${scheduled > 0 ? `${scheduled} pending dispatch(es) need vehicle assignment.` : 'All dispatches are on track.'}`
-            : scheduled > 0 
-              ? `${scheduled} dispatch(es) scheduled. Assign vehicles and drivers to proceed.`
-              : 'All dispatches completed. No active shipments.'}
+          {activeTab === 'dispatches' 
+            ? (inTransit > 0 
+                ? `${inTransit} shipment(s) currently in transit. ${scheduled > 0 ? `${scheduled} pending dispatch(es) need vehicle assignment.` : 'All dispatches are on track.'}`
+                : scheduled > 0 
+                  ? `${scheduled} dispatch(es) scheduled. Assign vehicles and drivers to proceed.`
+                  : 'All dispatches completed. No active shipments.')
+            : `${vendors.length} vendors available for logistics operations.`
+          }
         </p>
       </div>
 
-      {/* Active Shipments strip (kanban-only) */}
-      {view === 'kanban' && inTransit > 0 && (
-        <div className="glass-card p-4">
-          <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3 flex items-center gap-2">
-            <Truck size={14} className="text-cyan-400" /> Active Shipments ({inTransit})
-          </h3>
-          <div className="space-y-2">
-            {dispatches.filter(d => d.status === 'In Transit').map(d => (
-              <div key={d.id} className="flex items-center justify-between p-3 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-muted)]">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-cyan-500/20 flex items-center justify-center">
-                    <Truck size={14} className="text-cyan-400" />
+      {activeTab === 'dispatches' ? (
+        <>
+          {/* Active Shipments strip (kanban-only) */}
+          {view === 'kanban' && inTransit > 0 && (
+            <div className="glass-card p-4">
+              <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3 flex items-center gap-2">
+                <Truck size={14} className="text-cyan-400" /> Active Shipments ({inTransit})
+              </h3>
+              <div className="space-y-2">
+                {dispatches.filter(d => d.status === 'In Transit').map(d => (
+                  <div key={d.id} className="flex items-center justify-between p-3 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-muted)]">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-cyan-500/20 flex items-center justify-center">
+                        <Truck size={14} className="text-cyan-400" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-[var(--text-primary)]">{d.id} — {d.customer}</p>
+                        <p className="text-[11px] text-[var(--text-muted)]">{d.items}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-cyan-400 font-medium">{d.from} → {d.to}</p>
+                      <p className="text-[11px] text-[var(--text-muted)]">Driver: {d.driver} · {d.vehicle}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs font-semibold text-[var(--text-primary)]">{d.id} — {d.customer}</p>
-                    <p className="text-[11px] text-[var(--text-muted)]">{d.items}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-cyan-400 font-medium">{d.from} → {d.to}</p>
-                  <p className="text-[11px] text-[var(--text-muted)]">Driver: {d.driver} · {d.vehicle}</p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {view === 'kanban' ? (
+            <>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-[var(--text-muted)]">Drag dispatches between columns to update status</p>
+                <Input placeholder="Search dispatches…" value={search}
+                  onChange={e => setSearch(e.target.value)} className="h-8 text-xs w-52" />
+              </div>
+              <DispatchKanbanBoard dispatches={filtered} onStageChange={handleStageChange} onCardClick={setSelected} />
+            </>
+          ) : (
+            <>
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="text-xs text-[var(--text-muted)] mr-1">Filter:</span>
+                {STATUS_FILTERS.map(s => (
+                  <button key={s} onClick={() => { setFilter(s); setPage(1); }}
+                    className={`filter-chip ${statusFilter === s ? 'filter-chip-active' : ''}`}>{s}</button>
+                ))}
+                <div className="ml-auto">
+                  <Input placeholder="Search dispatches…" value={search}
+                    onChange={e => { setSearch(e.target.value); setPage(1); }} className="h-8 text-xs w-52" />
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {view === 'kanban' ? (
-        <>
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-[var(--text-muted)]">Drag dispatches between columns to update status</p>
-            <Input placeholder="Search dispatches…" value={search}
-              onChange={e => setSearch(e.target.value)} className="h-8 text-xs w-52" />
-          </div>
-          <DispatchKanbanBoard dispatches={filtered} onStageChange={handleStageChange} onCardClick={setSelected} />
+              <DataTable columns={COLUMNS} data={paginated} rowActions={ROW_ACTIONS}
+                pagination={{ page, pageSize, total: filtered.length, onChange: setPage, onPageSizeChange: setPageSize }}
+                emptyMessage="No dispatch records found." />
+            </>
+          )}
         </>
       ) : (
+        /* Vendors Tab */
         <>
-          <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-xs text-[var(--text-muted)] mr-1">Filter:</span>
-            {STATUS_FILTERS.map(s => (
-              <button key={s} onClick={() => { setFilter(s); setPage(1); }}
-                className={`filter-chip ${statusFilter === s ? 'filter-chip-active' : ''}`}>{s}</button>
-            ))}
-            <div className="ml-auto">
-              <Input placeholder="Search dispatches…" value={search}
-                onChange={e => { setSearch(e.target.value); setPage(1); }} className="h-8 text-xs w-52" />
-            </div>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs text-[var(--text-muted)]">Manage logistics vendors and suppliers</p>
+            <Input placeholder="Search vendors…" value={search}
+              onChange={e => setSearch(e.target.value)} className="h-8 text-xs w-52" />
           </div>
-          <DataTable columns={COLUMNS} data={paginated} rowActions={ROW_ACTIONS}
-            pagination={{ page, pageSize, total: filtered.length, onChange: setPage, onPageSizeChange: setPageSize }}
-            emptyMessage="No dispatch records found." />
+          <DataTable columns={VENDOR_COLUMNS} data={vendors.filter(v => 
+            !search || v.name?.toLowerCase().includes(search.toLowerCase()) || 
+            v.city?.toLowerCase().includes(search.toLowerCase()) ||
+            v.category?.toLowerCase().includes(search.toLowerCase())
+          )} rowActions={VENDOR_ACTIONS}
+            emptyMessage="No vendors found. Click Add Vendor to create one." />
         </>
       )}
 
@@ -499,6 +660,85 @@ const LogisticsPage = () => {
           </div>
         </Modal>
       )}
+      {/* Add Vendor Modal */}
+      <Modal open={showVendorModal} onClose={() => setShowVendorModal(false)} title="Add Vendor"
+        footer={<div className="flex gap-2 justify-end">
+          <Button variant="ghost" onClick={() => setShowVendorModal(false)}>Cancel</Button>
+          <Button onClick={handleCreateVendor}><Plus size={13} /> Add Vendor</Button>
+        </div>}>
+        <div className="space-y-3">
+          <FormField label="Vendor Name">
+            <Input value={newVendor.name} onChange={e => setNewVendor({...newVendor, name: e.target.value})} placeholder="e.g., ABC Logistics" />
+          </FormField>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Category">
+              <Select value={newVendor.category} onChange={e => setNewVendor({...newVendor, category: e.target.value})}>
+                <option value="">Select Category</option>
+                <option value="Transport">Transport</option>
+                <option value="Panel">Panel</option>
+                <option value="Inverter">Inverter</option>
+                <option value="BOS">BOS</option>
+                <option value="Structure">Structure</option>
+                <option value="Cable">Cable</option>
+                <option value="Other">Other</option>
+              </Select>
+            </FormField>
+            <FormField label="City">
+              <Input value={newVendor.city} onChange={e => setNewVendor({...newVendor, city: e.target.value})} placeholder="e.g., Ahmedabad" />
+            </FormField>
+          </div>
+          <FormField label="Contact Person">
+            <Input value={newVendor.contact} onChange={e => setNewVendor({...newVendor, contact: e.target.value})} placeholder="e.g., John Doe" />
+          </FormField>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Phone">
+              <Input value={newVendor.phone} onChange={e => setNewVendor({...newVendor, phone: e.target.value})} placeholder="e.g., +91 98765 43210" />
+            </FormField>
+            <FormField label="Email">
+              <Input type="email" value={newVendor.email} onChange={e => setNewVendor({...newVendor, email: e.target.value})} placeholder="e.g., vendor@example.com" />
+            </FormField>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Vendor Detail Modal */}
+      {selectedVendor && (
+        <Modal open={!!selectedVendor} onClose={() => setSelectedVendor(null)} title={`Vendor — ${selectedVendor.name}`}
+          footer={<div className="flex gap-2 justify-end">
+            <Button variant="ghost" onClick={() => setSelectedVendor(null)}>Close</Button>
+            <Button onClick={() => { setShowVendorDeliveryModal(true); }}><Plus size={13} /> Record Delivery</Button>
+            <Button onClick={() => handleCallVendor(selectedVendor)}><Phone size={13} /> Call</Button>
+            <Button onClick={() => handleEmailVendor(selectedVendor)}><Mail size={13} /> Email</Button>
+          </div>}>
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            {[['Vendor ID', selectedVendor.id], ['Name', selectedVendor.name], ['Category', selectedVendor.category], ['Contact', selectedVendor.contact], ['Phone', selectedVendor.phone], ['Email', selectedVendor.email], ['City', selectedVendor.city], ['Total Orders', selectedVendor.totalOrders], ['Rating', selectedVendor.rating + ' / 5']].map(([k, v]) => (
+              <div key={k} className="glass-card p-2">
+                <div className="text-[var(--text-muted)] mb-0.5">{k}</div>
+                <div className="font-semibold text-[var(--text-primary)]">{v}</div>
+              </div>
+            ))}
+          </div>
+        </Modal>
+      )}
+
+      {/* Vendor Delivery Modal */}
+      <Modal open={showVendorDeliveryModal} onClose={() => setShowVendorDeliveryModal(false)} title={`Record Delivery - ${selectedVendor?.name || 'Vendor'}`}
+        footer={<div className="flex gap-2 justify-end">
+          <Button variant="ghost" onClick={() => setShowVendorDeliveryModal(false)}>Cancel</Button>
+          <Button onClick={handleVendorDelivery}><Plus size={13} /> Add Stock</Button>
+        </div>}>
+        <div className="space-y-3">
+          <p className="text-xs text-[var(--text-muted)]">
+            Record stock delivery from vendor. This will add the quantity to inventory.
+          </p>
+          <FormField label="Item Name *">
+            <Input value={vendorDeliveryData.itemName} onChange={e => setVendorDeliveryData({...vendorDeliveryData, itemName: e.target.value})} placeholder="e.g., 400W Solar Panels" />
+          </FormField>
+          <FormField label="Quantity *">
+            <Input type="number" value={vendorDeliveryData.quantity} onChange={e => setVendorDeliveryData({...vendorDeliveryData, quantity: e.target.value})} placeholder="e.g., 100" />
+          </FormField>
+        </div>
+      </Modal>
     </div>
   );
 };

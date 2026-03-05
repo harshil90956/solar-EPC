@@ -26,9 +26,12 @@ import { leadsApi } from '../services/leadsApi';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input, Select, Textarea, FormField } from '../components/ui/Input';
+import { PageHeader } from '../components/ui/PageHeader';
 import DataTable from '../components/ui/DataTable';
+import { format, subMonths } from 'date-fns';
 import FilterSystem from '../components/ui/FilterSystem';
 import ImportExport from '../components/ui/ImportExport';
+import LeadTracker from '../components/LeadTracker';
 import { useAuditLog } from '../hooks/useAuditLog';
 import { usePermissions } from '../hooks/usePermissions';
 import { CURRENCY } from '../config/app.config';
@@ -521,13 +524,24 @@ const CRMPage = () => {
   const [editingLead, setEditingLead] = useState(null);
   const [showTimelineModal, setShowTimelineModal] = useState(false);
   const [showActivityModal, setShowActivityModal] = useState(false);
+  const [showTrackerDrawer, setShowTrackerDrawer] = useState(false);
+  const [trackerLeadId, setTrackerLeadId] = useState(null);
   const [timelineData, setTimelineData] = useState([]);
   const [activityData, setActivityData] = useState([]);
   const [actionLoading, setActionLoading] = useState(false);
+  const [showScoreEditModal, setShowScoreEditModal] = useState(false);
+  const [scoreEditingLead, setScoreEditingLead] = useState(null);
+  const [newScore, setNewScore] = useState('');
   const [sort, setSort] = useState({ key: null, dir: 'asc' });
   const [leadScoring, setLeadScoring] = useState(true);
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const [showColumnsDropdown, setShowColumnsDropdown] = useState(false);
+  const [dateRange, setDateRange] = useState({
+    start: format(subMonths(new Date(), 6), 'yyyy-MM-dd'),
+    end: format(new Date(), 'yyyy-MM-dd')
+  });
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const sortDropdownRef = useRef(null);
   const columnsDropdownRef = useRef(null);
   const [showFiltersPanel, setShowFiltersPanel] = useState(false);
@@ -634,6 +648,11 @@ const CRMPage = () => {
     setSelectedLead(lead);
   };
 
+  const handleViewTracker = (lead) => {
+    setTrackerLeadId(lead._id);
+    setShowTrackerDrawer(true);
+  };
+
   const handleEditLead = (lead) => {
     setEditingLead(lead);
     setShowEditModal(true);
@@ -643,7 +662,19 @@ const CRMPage = () => {
     if (!editingLead) return;
     try {
       setActionLoading(true);
-      await leadsApi.update(editingLead._id, editingLead);
+      // Only send allowed fields to API
+      const updateData = {
+        name: editingLead.name,
+        company: editingLead.company,
+        email: editingLead.email,
+        phone: editingLead.phone,
+        source: editingLead.source,
+        city: editingLead.city,
+        statusKey: editingLead.statusKey,
+        value: editingLead.value,
+        notes: editingLead.notes,
+      };
+      await leadsApi.update(editingLead._id, updateData);
       logUpdate(editingLead);
       setShowEditModal(false);
       setEditingLead(null);
@@ -655,7 +686,7 @@ const CRMPage = () => {
       }
     } catch (err) {
       console.error('Failed to update lead:', err);
-      alert('Failed to update lead: ' + err.message);
+      // Alert removed as per user request - no alerts on lead pages
     } finally {
       setActionLoading(false);
     }
@@ -667,10 +698,8 @@ const CRMPage = () => {
       const duplicated = await leadsApi.duplicate(lead._id);
       logCreate(duplicated.data || duplicated);
       fetchLeads(); // Refresh list
-      alert(`Lead "${lead.name}" duplicated successfully!`);
     } catch (err) {
       console.error('Failed to duplicate lead:', err);
-      alert('Failed to duplicate lead: ' + err.message);
     } finally {
       setActionLoading(false);
     }
@@ -685,10 +714,8 @@ const CRMPage = () => {
       if (selectedLead && selectedLead._id === lead._id) {
         setSelectedLead(null); // Close detail modal
       }
-      alert(`Lead "${lead.name}" archived!`);
     } catch (err) {
       console.error('Failed to archive lead:', err);
-      alert('Failed to archive lead: ' + err.message);
     } finally {
       setActionLoading(false);
     }
@@ -704,24 +731,44 @@ const CRMPage = () => {
       if (selectedLead && selectedLead._id === lead._id) {
         setSelectedLead(null); // Close detail modal
       }
-      alert(`Lead "${lead.name}" deleted!`);
     } catch (err) {
       console.error('Failed to delete lead:', err);
-      alert('Failed to delete lead: ' + err.message);
     } finally {
       setActionLoading(false);
     }
   };
 
   const handleRecalculateScore = async (lead) => {
+    setScoreEditingLead(lead);
+    setNewScore(String(lead.score || 0));
+    setShowScoreEditModal(true);
+  };
+
+  const handleSaveScore = async () => {
+    if (!scoreEditingLead) return;
     try {
       setActionLoading(true);
-      await leadsApi.recalculateScores();
-      fetchLeads(); // Refresh list
-      alert('Scores recalculated!');
+      const scoreValue = parseInt(newScore) || 0;
+      // Include all required fields for MongoDB validation
+      const response = await leadsApi.update(scoreEditingLead._id, { 
+        score: scoreValue,
+        name: scoreEditingLead.name,
+        leadId: scoreEditingLead.leadId,
+        phone: scoreEditingLead.phone || '',
+        email: scoreEditingLead.email || '',
+        source: scoreEditingLead.source || '',
+        statusKey: scoreEditingLead.statusKey || 'new'
+      });
+      console.log('[handleSaveScore] Update response:', response);
+      logUpdate({ ...scoreEditingLead, score: scoreValue });
+      setScoreEditingLead(null);
+      setShowScoreEditModal(false);
+      await fetchLeads(); // Refresh and wait
+      console.log('[handleSaveScore] Leads refreshed');
     } catch (err) {
-      console.error('Failed to recalculate scores:', err);
-      alert('Failed to recalculate scores: ' + err.message);
+      console.error('Failed to update score:', err);
+      setScoreEditingLead(null);
+      setShowScoreEditModal(false);
     } finally {
       setActionLoading(false);
     }
@@ -735,7 +782,6 @@ const CRMPage = () => {
       setShowTimelineModal(true);
     } catch (err) {
       console.error('Failed to fetch timeline:', err);
-      alert('Failed to fetch timeline: ' + err.message);
     } finally {
       setActionLoading(false);
     }
@@ -744,13 +790,33 @@ const CRMPage = () => {
   const handleViewActivity = async (lead) => {
     try {
       setActionLoading(true);
-      // Activity is same as timeline for now
+      setActivityLeadId(lead._id);
       const result = await leadsApi.getTimeline(lead._id);
       setActivityData(result.data || result || []);
       setShowActivityModal(true);
     } catch (err) {
       console.error('Failed to fetch activity:', err);
-      alert('Failed to fetch activity: ' + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Handle save new activity
+  const handleSaveActivity = async () => {
+    if (!newActivityNote.trim() || !activityLeadId) return;
+    try {
+      setActionLoading(true);
+      await leadsApi.addActivity(activityLeadId, {
+        type: 'note',
+        note: newActivityNote.trim(),
+        by: 'User'
+      });
+      setNewActivityNote('');
+      // Refresh activity data
+      const result = await leadsApi.getTimeline(activityLeadId);
+      setActivityData(result.data || result || []);
+    } catch (err) {
+      console.error('Failed to add activity:', err);
     } finally {
       setActionLoading(false);
     }
@@ -783,7 +849,6 @@ const CRMPage = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    alert(`Exported ${leadsToExport.length} leads to CSV!`);
   };
 
   const handleBulkDelete = async (selectedIds) => {
@@ -794,10 +859,8 @@ const CRMPage = () => {
       logDelete({ ids: selectedIds });
       fetchLeads();
       setSelected(new Set());
-      alert(`${selectedIds.length} leads deleted!`);
     } catch (err) {
       console.error('Failed to bulk delete:', err);
-      alert('Failed to delete leads: ' + err.message);
     } finally {
       setActionLoading(false);
     }
@@ -805,39 +868,70 @@ const CRMPage = () => {
 
   // Add Lead
   const [newLead, setNewLead] = useState({
-    name: '',
+    firstName: '',
+    lastName: '',
     company: '',
     email: '',
     phone: '',
     source: '',
     city: '',
     notes: '',
-    statusKey: ''
+    statusKey: 'new'
   });
 
   const handleCreateLead = async () => {
     try {
       setActionLoading(true);
-      const created = await leadsApi.create(newLead);
+      // Combine first and last name into name field
+      const leadData = {
+        name: `${newLead.firstName} ${newLead.lastName}`.trim(),
+        company: newLead.company,
+        email: newLead.email,
+        phone: newLead.phone,
+        source: newLead.source,
+        city: newLead.city,
+        notes: newLead.notes,
+        statusKey: newLead.statusKey
+      };
+      const created = await leadsApi.create(leadData);
       logCreate(created.data || created);
       setShowAddModal(false);
-      setNewLead({ name: '', company: '', email: '', phone: '', source: '', city: '', notes: '', statusKey: '' });
+      setNewLead({ firstName: '', lastName: '', company: '', email: '', phone: '', source: '', city: '', notes: '', statusKey: 'new' });
       fetchLeads(); // Refresh list
-      alert('Lead created successfully!');
+      // Toast removed as per user request - no alerts on lead pages
     } catch (err) {
       console.error('Failed to create lead:', err);
-      alert('Failed to create lead: ' + err.message);
+      // Alert removed as per user request - no alerts on lead pages
     } finally {
       setActionLoading(false);
     }
   };
 
-  // Handle call lead
+  // Helper function to format time as "X HRS AGO" or "JUST NOW"
+  const formatTimeAgo = (timestamp) => {
+    if (!timestamp) return '';
+    const now = new Date();
+    const date = new Date(timestamp);
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffMins < 1) return 'JUST NOW';
+    if (diffMins < 60) return `${diffMins} MINS AGO`;
+    if (diffHours < 24) return `${diffHours} HRS AGO`;
+    if (diffDays < 7) return `${diffDays} DAYS AGO`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  // State for new activity input
+  const [newActivityNote, setNewActivityNote] = useState('');
+  const [activityLeadId, setActivityLeadId] = useState(null);
   const handleCallLead = (lead) => {
     if (lead.phone) {
       window.location.href = `tel:${lead.phone}`;
     } else {
-      alert('No phone number available for this lead');
+      // Alert removed as per user request - no alerts on lead pages
     }
   };
 
@@ -934,7 +1028,8 @@ const CRMPage = () => {
   const enhancedLeads = useMemo(() => {
     return activeLeads.map(lead => ({
       ...lead,
-      score: calculateLeadScore(lead),
+      // Use backend score if available, otherwise calculate
+      score: lead.score !== undefined ? lead.score : calculateLeadScore(lead),
       automation: applyAutomationRules(lead),
       slaBreached: lead.activities?.[0] ?
         Math.floor((new Date() - new Date(lead.activities[0].timestamp)) / (1000 * 60 * 60 * 24)) > 3 : false
@@ -944,7 +1039,7 @@ const CRMPage = () => {
   // Apply filters to leads
   const filteredLeads = useMemo(() => {
     let result = enhancedLeads;
-    
+
     // Quick filter
     if (quickFilter) {
       switch (quickFilter) {
@@ -971,14 +1066,14 @@ const CRMPage = () => {
           break;
       }
     }
-    
+
     // Advanced filters
     if (activeFilters.length > 0) {
       result = result.filter(lead => {
         return activeFilters.every(filter => {
           const value = lead[filter.field];
           const filterValue = filter.value;
-          
+
           switch (filter.operator) {
             case 'equals':
             case 'eq':
@@ -999,11 +1094,11 @@ const CRMPage = () => {
         });
       });
     }
-    
+
     // Search filter
     if (search) {
       const searchLower = search.toLowerCase();
-      result = result.filter(lead => 
+      result = result.filter(lead =>
         lead.name?.toLowerCase().includes(searchLower) ||
         lead.email?.toLowerCase().includes(searchLower) ||
         lead.company?.toLowerCase().includes(searchLower) ||
@@ -1011,9 +1106,9 @@ const CRMPage = () => {
         lead.source?.toLowerCase().includes(searchLower)
       );
     }
-    
+
     return result;
-  }, [enhancedLeads, quickFilter, activeFilters, search]);
+  }, [enhancedLeads, quickFilter, activeFilters]);
 
   // Sort handler for DataTable
   const handleSort = useCallback(({ key, dir }) => {
@@ -1023,21 +1118,21 @@ const CRMPage = () => {
   // Apply sorting to filtered leads
   const sortedLeads = useMemo(() => {
     if (!sort.key) return filteredLeads;
-    
+
     return [...filteredLeads].sort((a, b) => {
       let aVal = a[sort.key];
       let bVal = b[sort.key];
-      
+
       // Handle null/undefined values
       if (aVal == null) aVal = '';
       if (bVal == null) bVal = '';
-      
+
       // String comparison
       if (typeof aVal === 'string') {
         aVal = aVal.toLowerCase();
         bVal = bVal.toLowerCase();
       }
-      
+
       if (aVal < bVal) return sort.dir === 'asc' ? -1 : 1;
       if (aVal > bVal) return sort.dir === 'asc' ? 1 : -1;
       return 0;
@@ -1063,11 +1158,13 @@ const CRMPage = () => {
       { key: 'email', header: 'Email', sortable: true, width: '180px' },
       {
         key: 'statusKey', header: 'Stage', sortable: true, width: '120px',
-        render: (val) => {
-          const stage = statusMap?.[val] || { label: val, color: '#94a3b8' };
+        render: (val, row) => {
+          // Handle legacy data that might have 'stage' instead of 'statusKey'
+          const statusValue = val || row.stage || 'new';
+          const stage = statusMap?.[statusValue] || { label: statusValue, color: '#94a3b8' };
           return (
             <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap" style={{ color: stage.color, background: `${stage.color}15`, border: `1px solid ${stage.color}25` }}>
-              {stage.label}
+              {stage.label || 'New'}
             </span>
           );
         }
@@ -1077,7 +1174,7 @@ const CRMPage = () => {
         render: (val) => (
           <span className={`text-[11px] font-bold ${val >= 75 ? 'text-emerald-500' :
             val >= 50 ? 'text-amber-500' : 'text-red-500'
-          }`}>{val || 0}pts</span>
+            }`}>{val || 0}pts</span>
         )
       },
       {
@@ -1099,10 +1196,78 @@ const CRMPage = () => {
     return allColumns.filter(col => visibleColumns[col.key] !== false);
   }, [visibleColumns, statusMap]);
 
-  const handleImport = ({ file, mapping }) => {
-    console.log('Importing from', file.name, 'with mapping', mapping);
-    logCreate({ id: 'import', name: `Import from ${file.name}` });
-    alert(`Import successful! ${file.name} is being processed.`);
+  const handleImport = async ({ file, mapping }) => {
+    try {
+      setActionLoading(true);
+      
+      // Parse CSV file
+      const Papa = await import('papaparse');
+      const text = await file.text();
+      
+      const { data } = Papa.parse(text, {
+        header: true,
+        skipEmptyLines: true,
+        dynamicTyping: true
+      });
+      
+      let successCount = 0;
+      let errorCount = 0;
+      const errors = [];
+      
+      // Process each row
+      for (let i = 0; i < data.length; i++) {
+        const row = data[i];
+        try {
+          // Combine first and last name from CSV
+          const firstName = row[mapping.firstName] || row.firstName || row.firstname || row['First Name'] || row.first_name || '';
+          const lastName = row[mapping.lastName] || row.lastName || row.lastname || row['Last Name'] || row.last_name || '';
+          const fullName = `${firstName} ${lastName}`.trim();
+          
+          // Map CSV columns to lead fields based on mapping
+          const leadData = {
+            name: fullName || row.name || row.Name || row.NAME || '',
+            company: row[mapping.company] || row.company || row.Company || row.COMPANY || '',
+            email: row[mapping.email] || row.email || row.Email || row.EMAIL || '',
+            phone: row[mapping.phone] || row.phone || row.Phone || row.PHONE || row.mobile || '',
+            source: row[mapping.source] || row.source || row.Source || row.SOURCE || 'Import',
+            city: row[mapping.city] || row.city || row.City || row.CITY || '',
+            statusKey: 'new',
+            value: parseInt(row[mapping.value] || row.value || row.Value || row.VALUE || 0),
+          };
+          
+          // Skip if name is missing
+          if (!leadData.name) {
+            errorCount++;
+            errors.push(`Row ${i + 1}: Missing name`);
+            continue;
+          }
+          
+          // Create lead via API
+          await leadsApi.create(leadData);
+          successCount++;
+        } catch (err) {
+          errorCount++;
+          errors.push(`Row ${i + 1}: ${err.message}`);
+        }
+      }
+      
+      // Log import activity
+      logCreate({ id: 'import', name: `Imported ${successCount} leads from ${file.name}` });
+      
+      // Show result
+      if (errorCount === 0) {
+        alert(`Successfully imported ${successCount} leads!`);
+      } else {
+        alert(`Import completed: ${successCount} leads created, ${errorCount} errors.\n\nFirst 5 errors:\n${errors.slice(0, 5).join('\n')}`);
+      }
+      
+      fetchLeads(); // Refresh list
+    } catch (err) {
+      console.error('Import failed:', err);
+      alert('Import failed: ' + err.message);
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handleExport = (format) => {
@@ -1131,7 +1296,7 @@ const CRMPage = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    alert(`Exported ${dataToExport.length} leads to CSV!`);
+    // Alert removed as per user request - no alerts on lead pages
   };
 
   const toggleColumn = (colKey) => {
@@ -1149,46 +1314,100 @@ const CRMPage = () => {
   return (
     <div className="animate-fade-in space-y-5">
       {/* ── Header ── */}
-      <div className="page-header">
-        <div>
-          <h1 className="heading-page">CRM Module</h1>
-          <p className="text-xs text-[var(--text-muted)] mt-0.5">Rulebook Compliant Lead Management</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="view-toggle-pill">
-            <button onClick={() => setView('dashboard')} className={`view-toggle-btn ${view === 'dashboard' ? 'active' : ''}`}>
-              <LayoutDashboard size={14} /> Dashboard
-            </button>
-            <button onClick={() => setView('leads')} className={`view-toggle-btn ${view === 'leads' ? 'active' : ''}`}>
-              <List size={14} /> Leads
-            </button>
-            <button onClick={() => setView('kanban')} className={`view-toggle-btn ${view === 'kanban' ? 'active' : ''}`}>
-              <LayoutDashboard size={14} /> Kanban
-            </button>
-            <button onClick={() => setView('reports')} className={`view-toggle-btn ${view === 'reports' ? 'active' : ''}`}>
-              <BarChart2 size={14} /> Reports
-            </button>
+      <PageHeader
+        title="CRM Module"
+        subtitle="Rulebook Compliant Lead Management"
+        tabs={[
+          { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+          { id: 'leads', label: 'Leads', icon: List },
+          { id: 'kanban', label: 'Kanban', icon: LayoutDashboard },
+          { id: 'reports', label: 'Reports', icon: BarChart2 }
+        ]}
+        activeTab={view}
+        onTabChange={setView}
+        actions={[
+          { type: 'toggle', label: 'Scoring', icon: Brain, value: leadScoring, onToggle: () => setLeadScoring(!leadScoring) },
+          { type: 'button', label: 'Add Lead', icon: Plus, variant: 'primary', onClick: () => setShowAddModal(true) }
+        ]}
+      />
+
+      {/* ── Date Filters ── */}
+      {(view === 'dashboard' || view === 'reports') && (
+        <div className="glass-card p-3">
+          <div className="flex flex-wrap gap-3 items-center">
+            <div className="flex items-center gap-2">
+              <Calendar size={14} className="text-[var(--text-muted)]" />
+              <span className="text-xs text-[var(--text-muted)]">Date Range:</span>
+              <Input
+                type="date"
+                value={dateRange.start}
+                onChange={e => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                className="h-7 text-xs w-32"
+              />
+              <span className="text-xs text-[var(--text-muted)]">to</span>
+              <Input
+                type="date"
+                value={dateRange.end}
+                onChange={e => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                className="h-7 text-xs w-32"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[var(--text-muted)]">Year:</span>
+              <Select
+                value={selectedYear}
+                onChange={e => setSelectedYear(Number(e.target.value))}
+                className="h-7 text-xs w-24"
+              >
+                {[2024, 2025, 2026].map(year => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[var(--text-muted)]">Month:</span>
+              <Select
+                value={selectedMonth}
+                onChange={e => setSelectedMonth(Number(e.target.value))}
+                className="h-7 text-xs w-28"
+              >
+                {[
+                  { value: 1, label: 'January' },
+                  { value: 2, label: 'February' },
+                  { value: 3, label: 'March' },
+                  { value: 4, label: 'April' },
+                  { value: 5, label: 'May' },
+                  { value: 6, label: 'June' },
+                  { value: 7, label: 'July' },
+                  { value: 8, label: 'August' },
+                  { value: 9, label: 'September' },
+                  { value: 10, label: 'October' },
+                  { value: 11, label: 'November' },
+                  { value: 12, label: 'December' },
+                ].map(m => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </Select>
+            </div>
+            <div className="ml-auto flex gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setDateRange({
+                    start: format(subMonths(new Date(), 6), 'yyyy-MM-dd'),
+                    end: format(new Date(), 'yyyy-MM-dd')
+                  });
+                  setSelectedYear(new Date().getFullYear());
+                  setSelectedMonth(new Date().getMonth() + 1);
+                }}
+              >
+                <RefreshCw size={12} /> Reset
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)]">
-            <Brain size={12} className="text-[var(--text-muted)]" />
-            <span className="text-[10px] text-[var(--text-muted)]">Scoring</span>
-            <button
-              onClick={() => setLeadScoring(!leadScoring)}
-              className={`w-8 h-4 rounded-full transition-colors ${leadScoring ? 'bg-emerald-500' : 'bg-gray-300'
-                }`}
-            >
-              <div className={`w-3 h-3 bg-white rounded-full transition-transform ${leadScoring ? 'translate-x-4' : 'translate-x-0.5'
-                }`} />
-            </button>
-          </div>
-          <CanAccess module="crm" action="export">
-            <ImportExport moduleName="Leads" fields={crmFields} onImport={handleImport} onExport={handleExport} />
-          </CanAccess>
-          <CanCreate module="crm">
-            <Button onClick={() => setShowAddModal(true)}><Plus size={14} /> Add Lead</Button>
-          </CanCreate>
         </div>
-      </div>
+      )}
 
       {/* ── Advanced Dashboard ── */}
       {view === 'dashboard' && (
@@ -1508,7 +1727,7 @@ const CRMPage = () => {
                           draggable
                           onDragStart={(e) => { e.dataTransfer.setData('leadId', lead._id || lead.id); }}
                           className="glass-card p-3 cursor-grab active:cursor-grabbing hover:border-[var(--primary)]/40 transition-all"
-                          onClick={() => setSelectedLead(lead)}
+                          onClick={() => { setTrackerLeadId(lead._id || lead.id); setShowTrackerDrawer(true); }}
                         >
                           {/* Lead Header */}
                           <div className="flex items-start justify-between mb-2">
@@ -1537,9 +1756,9 @@ const CRMPage = () => {
                               <span className="text-xs font-bold text-[var(--accent)]">{fmt(lead.value || 0)}</span>
                               <div className="flex items-center gap-1">
                                 <Brain size={8} className="text-[var(--text-muted)]" />
-                                <span className={`text-[9px] font-black ${lead.score >= 75 ? 'text-emerald-500' :
+                                <span className={`text-[9px] font-black ${lead.score >= 75 ? 'text-red-500' :
                                   lead.score >= 50 ? 'text-amber-500' :
-                                    'text-red-500'
+                                    'text-emerald-500'
                                   }`}>{lead.score || 0}pts</span>
                               </div>
                             </div>
@@ -1596,14 +1815,14 @@ const CRMPage = () => {
               <div className="flex-1 relative">
                 <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[var(--text-muted)]" />
                 <Input
-                  placeholder="Search leads by name, email, company, phone..."
+                  placeholder="Search anything - name, email, score, value, city, stage..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-10"
                 />
               </div>
               <div className="relative" ref={sortDropdownRef}>
-                <button 
+                <button
                   onClick={() => setShowSortDropdown(!showSortDropdown)}
                   className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors flex items-center gap-2 ${showSortDropdown ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : 'bg-[var(--bg-elevated)] border-[var(--border-base)] text-[var(--text-muted)] hover:bg-[var(--bg-hovered)]'}`}
                 >
@@ -1638,7 +1857,7 @@ const CRMPage = () => {
                 )}
               </div>
               <div className="relative" ref={columnsDropdownRef}>
-                <button 
+                <button
                   onClick={() => setShowColumnsDropdown(!showColumnsDropdown)}
                   className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors flex items-center gap-2 ${showColumnsDropdown ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : 'bg-[var(--bg-elevated)] border-[var(--border-base)] text-[var(--text-muted)] hover:bg-[var(--bg-hovered)]'}`}
                 >
@@ -1693,11 +1912,10 @@ const CRMPage = () => {
                 <button
                   key={filter.id}
                   onClick={() => setQuickFilter(quickFilter === filter.id ? null : filter.id)}
-                  className={`px-3 py-1 rounded-full text-[10px] font-medium border transition-all ${
-                    quickFilter === filter.id 
-                      ? `bg-${filter.color}-500 text-white border-${filter.color}-500` 
-                      : `border-${filter.color}-500/30 text-${filter.color}-600 bg-${filter.color}-50 hover:bg-${filter.color}-100`
-                  }`}
+                  className={`px-3 py-1 rounded-full text-[10px] font-medium border transition-all ${quickFilter === filter.id
+                    ? `bg-${filter.color}-500 text-white border-${filter.color}-500`
+                    : `border-${filter.color}-500/30 text-${filter.color}-600 bg-${filter.color}-50 hover:bg-${filter.color}-100`
+                    }`}
                 >
                   {filter.label}
                 </button>
@@ -1723,27 +1941,56 @@ const CRMPage = () => {
             onPageChange={setPage}
             onPageSizeChange={setPageSize}
             onSort={handleSort}
-            onRowClick={(row) => setSelectedLead(row)}
+            onRowClick={(row) => { setTrackerLeadId(row._id); setShowTrackerDrawer(true); }}
             sort={sort}
             search={search}
             onSearch={setSearch}
             selectedRows={selected}
             onSelectRows={setSelected}
             bulkActions={[
-              { label: 'Export', icon: Download, onClick: (rows) => { if (guardExport()) console.log('Exporting', rows); } },
-              { label: 'Assign', icon: Users, onClick: (rows) => { if (guardEdit()) console.log('Assigning', rows); } },
+              { label: 'Export', icon: Download, onClick: (selectedIds) => { 
+                if (guardExport()) {
+                  // Get actual row data from selected IDs (handle both string and ObjectId)
+                  const selectedIdSet = new Set(selectedIds.map(id => String(id)));
+                  const dataToExport = selectedIds.length > 0 
+                    ? sortedLeads.filter(lead => selectedIdSet.has(String(lead._id)))
+                    : sortedLeads;
+                  const headers = ['Name', 'Company', 'Email', 'Phone', 'Stage', 'Source', 'Value', 'Score', 'City'];
+                  const csvContent = [
+                    headers.join(','),
+                    ...dataToExport.map(lead => [
+                      `"${lead.name || ''}"`,
+                      `"${lead.company || ''}"`,
+                      `"${lead.email || ''}"`,
+                      `"${lead.phone || ''}"`,
+                      `"${statusMap?.[lead.statusKey]?.label || lead.statusKey || ''}"`,
+                      `"${lead.source || ''}"`,
+                      lead.value || 0,
+                      lead.score || 0,
+                      `"${lead.city || ''}"`
+                    ].join(','))
+                  ].join('\n');
+                  
+                  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                  const link = document.createElement('a');
+                  const url = URL.createObjectURL(blob);
+                  link.setAttribute('href', url);
+                  link.setAttribute('download', `leads_export_${new Date().toISOString().split('T')[0]}.csv`);
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  alert(`Exported ${dataToExport.length} leads to CSV!`);
+                }
+              }},
               { label: 'Score Boost', icon: Brain, onClick: (rows) => { if (guardEdit()) console.log('Boosting scores', rows); } },
               { label: 'Delete', icon: Trash2, onClick: (rows) => { if (guardDelete()) console.log('Soft Deleting', rows); }, danger: true },
             ]}
             rowActions={[
               { label: 'View', icon: Eye, onClick: handleViewLead },
               { label: 'Edit', icon: Edit2, onClick: handleEditLead },
-              { label: 'Duplicate', icon: RefreshCw, onClick: handleDuplicateLead },
               { label: 'Score', icon: Brain, onClick: handleRecalculateScore },
-              { label: 'Archive', icon: Building2, onClick: handleArchiveLead },
               { label: 'Delete', icon: Trash2, onClick: handleDeleteLead, danger: true },
-              { label: 'Timeline', icon: Clock, onClick: handleViewTimeline },
-              { label: 'Activity Log', icon: Activity, onClick: handleViewActivity },
+              { label: 'Activity Log', icon: Clock, onClick: handleViewTimeline },
             ]}
           />
         </div>
@@ -1758,49 +2005,49 @@ const CRMPage = () => {
           <div className="flex gap-2 justify-end">
             <Button variant="ghost" onClick={() => setShowAddModal(false)}>Cancel</Button>
             <Button onClick={handleCreateLead} disabled={actionLoading}>
-            {actionLoading ? 'Creating...' : <><Plus size={13} /> Create Lead</>}
-          </Button>
+              {actionLoading ? 'Creating...' : <><Plus size={13} /> Create Lead</>}
+            </Button>
           </div>
         }
       >
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <FormField label="First Name">
-              <Input 
-                placeholder="Enter first name" 
+              <Input
+                placeholder="Enter first name"
                 value={newLead.name}
-                onChange={(e) => setNewLead({...newLead, name: e.target.value})}
+                onChange={(e) => setNewLead({ ...newLead, name: e.target.value })}
               />
             </FormField>
             <FormField label="Last Name">
-              <Input 
+              <Input
                 placeholder="Enter last name"
                 value={newLead.company}
-                onChange={(e) => setNewLead({...newLead, company: e.target.value})}
+                onChange={(e) => setNewLead({ ...newLead, company: e.target.value })}
               />
             </FormField>
           </div>
           <FormField label="Company">
-            <Input 
+            <Input
               placeholder="Company name (optional)"
               value={newLead.company}
-              onChange={(e) => setNewLead({...newLead, company: e.target.value})}
+              onChange={(e) => setNewLead({ ...newLead, company: e.target.value })}
             />
           </FormField>
           <div className="grid grid-cols-2 gap-3">
             <FormField label="Email">
-              <Input 
-                type="email" 
+              <Input
+                type="email"
                 placeholder="email@example.com"
                 value={newLead.email}
-                onChange={(e) => setNewLead({...newLead, email: e.target.value})}
+                onChange={(e) => setNewLead({ ...newLead, email: e.target.value })}
               />
             </FormField>
             <FormField label="Phone">
-              <Input 
+              <Input
                 placeholder="+91 98765 43210"
                 value={newLead.phone}
-                onChange={(e) => setNewLead({...newLead, phone: e.target.value})}
+                onChange={(e) => setNewLead({ ...newLead, phone: e.target.value })}
               />
             </FormField>
           </div>
@@ -1808,7 +2055,7 @@ const CRMPage = () => {
             <FormField label="Source">
               <Select
                 value={newLead.source}
-                onChange={(e) => setNewLead({...newLead, source: e.target.value})}
+                onChange={(e) => setNewLead({ ...newLead, source: e.target.value })}
               >
                 <option value="">Select source</option>
                 {SOURCES.filter(s => s !== 'All').map(s => <option key={s}>{s}</option>)}
@@ -1817,7 +2064,7 @@ const CRMPage = () => {
             <FormField label="City">
               <Select
                 value={newLead.city}
-                onChange={(e) => setNewLead({...newLead, city: e.target.value})}
+                onChange={(e) => setNewLead({ ...newLead, city: e.target.value })}
               >
                 <option value="">Select city</option>
                 {CITIES.filter(c => c !== 'All').map(c => <option key={c}>{c}</option>)}
@@ -1825,11 +2072,11 @@ const CRMPage = () => {
             </FormField>
           </div>
           <FormField label="Notes">
-            <Textarea 
-              placeholder="Additional notes..." 
+            <Textarea
+              placeholder="Additional notes..."
               rows={3}
               value={newLead.notes}
-              onChange={(e) => setNewLead({...newLead, notes: e.target.value})}
+              onChange={(e) => setNewLead({ ...newLead, notes: e.target.value })}
             />
           </FormField>
           <FormField label="Status">
@@ -1939,6 +2186,7 @@ const CRMPage = () => {
                           {act.type === 'email' && <Mail size={10} className="text-blue-400" />}
                           {act.type === 'whatsapp' && <MessageSquare size={10} className="text-emerald-400" />}
                           {act.type === 'note' && <Activity size={10} className="text-amber-400" />}
+                          {act.type === 'stage_change' && <GitCommit size={10} className="text-purple-400" />}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-[var(--text-secondary)] leading-relaxed">{act.note}</p>
@@ -1972,38 +2220,38 @@ const CRMPage = () => {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <FormField label="Name">
-                <Input 
+                <Input
                   value={editingLead.name}
-                  onChange={(e) => setEditingLead({...editingLead, name: e.target.value})}
+                  onChange={(e) => setEditingLead({ ...editingLead, name: e.target.value })}
                 />
               </FormField>
               <FormField label="Company">
-                <Input 
+                <Input
                   value={editingLead.company || ''}
-                  onChange={(e) => setEditingLead({...editingLead, company: e.target.value})}
+                  onChange={(e) => setEditingLead({ ...editingLead, company: e.target.value })}
                 />
               </FormField>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <FormField label="Email">
-                <Input 
+                <Input
                   type="email"
                   value={editingLead.email || ''}
-                  onChange={(e) => setEditingLead({...editingLead, email: e.target.value})}
+                  onChange={(e) => setEditingLead({ ...editingLead, email: e.target.value })}
                 />
               </FormField>
               <FormField label="Phone">
-                <Input 
+                <Input
                   value={editingLead.phone || ''}
-                  onChange={(e) => setEditingLead({...editingLead, phone: e.target.value})}
+                  onChange={(e) => setEditingLead({ ...editingLead, phone: e.target.value })}
                 />
               </FormField>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <FormField label="Stage">
                 <Select
-                  value={editingLead.statusKey}
-                  onChange={(e) => setEditingLead({...editingLead, statusKey: e.target.value})}
+                  value={editingLead.stage}
+                  onChange={(e) => setEditingLead({ ...editingLead, stage: e.target.value })}
                 >
                   {(statusOptions || []).map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
                 </Select>
@@ -2011,7 +2259,7 @@ const CRMPage = () => {
               <FormField label="Source">
                 <Select
                   value={editingLead.source}
-                  onChange={(e) => setEditingLead({...editingLead, source: e.target.value})}
+                  onChange={(e) => setEditingLead({ ...editingLead, source: e.target.value })}
                 >
                   {SOURCES.filter(s => s !== 'All').map(s => <option key={s}>{s}</option>)}
                 </Select>
@@ -2019,24 +2267,24 @@ const CRMPage = () => {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <FormField label="Value (₹)">
-                <Input 
+                <Input
                   type="number"
                   value={editingLead.value || 0}
-                  onChange={(e) => setEditingLead({...editingLead, value: parseInt(e.target.value) || 0})}
+                  onChange={(e) => setEditingLead({ ...editingLead, value: parseInt(e.target.value) || 0 })}
                 />
               </FormField>
               <FormField label="City">
-                <Input 
+                <Input
                   value={editingLead.city || ''}
-                  onChange={(e) => setEditingLead({...editingLead, city: e.target.value})}
+                  onChange={(e) => setEditingLead({ ...editingLead, city: e.target.value })}
                 />
               </FormField>
             </div>
             <FormField label="Notes">
-              <Textarea 
+              <Textarea
                 rows={3}
                 value={editingLead.notes || ''}
-                onChange={(e) => setEditingLead({...editingLead, notes: e.target.value})}
+                onChange={(e) => setEditingLead({ ...editingLead, notes: e.target.value })}
               />
             </FormField>
           </div>
@@ -2048,7 +2296,7 @@ const CRMPage = () => {
         <Modal
           open={showTimelineModal}
           onClose={() => setShowTimelineModal(false)}
-          title="Lead Timeline"
+          title="Activity Log"
           footer={
             <div className="flex gap-2 justify-end">
               <Button variant="ghost" onClick={() => setShowTimelineModal(false)}>Close</Button>
@@ -2079,43 +2327,183 @@ const CRMPage = () => {
         </Modal>
       )}
 
-      {/* ACTIVITY LOG MODAL */}
+      {/* ACTIVITY LOG SIDEBAR DRAWER */}
       {showActivityModal && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black/50 z-40 transition-opacity"
+            onClick={() => { setShowActivityModal(false); setNewActivityNote(''); setActivityLeadId(null); }}
+          />
+          {/* Sidebar Drawer */}
+          <div className="fixed right-0 top-[36.5px] bottom-0 w-[450px] bg-white border-l border-[var(--border-base)] z-50 shadow-2xl flex flex-col" style={{ transform: 'translateX(0)', transition: 'transform 0.3s ease-out' }}>
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-[var(--border-base)]">
+              <h3 className="text-lg font-bold text-[var(--text-primary)]">Activity Log</h3>
+              <button 
+                onClick={() => { setShowActivityModal(false); setNewActivityNote(''); setActivityLeadId(null); }}
+                className="p-2 hover:bg-[var(--bg-elevated)] rounded-lg transition-colors"
+              >
+                <X size={20} className="text-[var(--text-muted)]" />
+              </button>
+            </div>
+            
+            {/* Activity Timeline */}
+            <div className="flex-1 overflow-y-auto p-4">
+              <div className="space-y-3">
+                {activityData.length === 0 ? (
+                  <p className="text-sm text-[var(--text-muted)] py-4">No activities found.</p>
+                ) : (
+                  activityData.map((event, idx) => (
+                    <div key={idx} className="flex gap-3 text-sm border-l-2 border-[var(--border-subtle)] pl-3 py-1">
+                      <div className="w-6 h-6 rounded-full bg-[var(--bg-elevated)] flex items-center justify-center shrink-0">
+                        {event.type === 'call' && <Phone size={12} className="text-emerald-400" />}
+                        {event.type === 'email' && <Mail size={12} className="text-blue-400" />}
+                        {event.type === 'stage_change' && <GitCommit size={12} className="text-purple-400" />}
+                        {event.type === 'created' && <UserPlus size={12} className="text-green-400" />}
+                        {event.type === 'note' && <FileText size={12} className="text-amber-400" />}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-[var(--text-primary)]">{event.note}</p>
+                        <p className="text-[10px] text-[var(--text-muted)]">{formatTimeAgo(event.timestamp)} · {event.by}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+            
+            {/* Add New Activity Input */}
+            <div className="border-t border-[var(--border-base)] p-4 bg-[var(--bg-elevated)]">
+              <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-3">Add Activity</p>
+              <div className="flex gap-2">
+                <textarea
+                  value={newActivityNote}
+                  onChange={(e) => setNewActivityNote(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSaveActivity();
+                    }
+                  }}
+                  placeholder="Enter Activity"
+                  rows={3}
+                  className="flex-1 px-3 py-2 text-sm bg-[var(--bg-base)] border border-[var(--border-base)] rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)]"
+                />
+              </div>
+              <div className="flex justify-end mt-3">
+                <Button 
+                  onClick={handleSaveActivity} 
+                  disabled={actionLoading || !newActivityNote.trim()}
+                  size="sm"
+                >
+                  {actionLoading ? 'Saving...' : 'Save'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* SCORE EDIT MODAL */}
+      {showScoreEditModal && scoreEditingLead && (
         <Modal
-          open={showActivityModal}
-          onClose={() => setShowActivityModal(false)}
-          title="Activity Log"
+          open={showScoreEditModal}
+          onClose={() => { setShowScoreEditModal(false); setScoreEditingLead(null); }}
+          title={`Edit Score — ${scoreEditingLead.name}`}
           footer={
             <div className="flex gap-2 justify-end">
-              <Button variant="ghost" onClick={() => setShowActivityModal(false)}>Close</Button>
+              <Button variant="ghost" onClick={() => { setShowScoreEditModal(false); setScoreEditingLead(null); }}>Cancel</Button>
+              <Button onClick={handleSaveScore} disabled={actionLoading}>
+                {actionLoading ? 'Saving...' : 'Update Score'}
+              </Button>
             </div>
           }
         >
-          <div className="space-y-3 max-h-80 overflow-y-auto">
-            {activityData.length === 0 ? (
-              <p className="text-sm text-[var(--text-muted)]">No activities found.</p>
-            ) : (
-              activityData.map((act, idx) => (
-                <div key={idx} className="flex gap-3 text-sm p-2 rounded-lg bg-[var(--bg-elevated)]">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center shrink-0">
-                    {act.type === 'call' && <Phone size={14} className="text-white" />}
-                    {act.type === 'email' && <Mail size={14} className="text-white" />}
-                    {act.type === 'whatsapp' && <MessageSquare size={14} className="text-white" />}
-                    {act.type === 'note' && <FileText size={14} className="text-white" />}
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-[var(--text-primary)] font-medium">{act.note}</p>
-                    <p className="text-[10px] text-[var(--text-muted)]">{act.ts} · {act.by}</p>
-                  </div>
-                </div>
-              ))
-            )}
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-4 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)]">
+              <div className="w-12 h-12 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center font-bold text-lg">
+                {scoreEditingLead.name[0]}
+              </div>
+              <div>
+                <p className="font-semibold text-[var(--text-primary)]">{scoreEditingLead.name}</p>
+                <p className="text-xs text-[var(--text-muted)]">{scoreEditingLead.company || 'Individual'}</p>
+              </div>
+            </div>
+            <FormField label="Score (0-100)">
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                value={newScore}
+                onChange={(e) => setNewScore(e.target.value)}
+                placeholder="Enter score between 0 and 100"
+              />
+            </FormField>
+            <div className="flex gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setNewScore('0')}>0</Button>
+              <Button variant="secondary" size="sm" onClick={() => setNewScore('25')}>25</Button>
+              <Button variant="secondary" size="sm" onClick={() => setNewScore('50')}>50</Button>
+              <Button variant="secondary" size="sm" onClick={() => setNewScore('75')}>75</Button>
+              <Button variant="secondary" size="sm" onClick={() => setNewScore('100')}>100</Button>
+            </div>
           </div>
         </Modal>
       )}
+
+      {/* SCORE EDIT MODAL */}
+      {showScoreEditModal && scoreEditingLead && (
+        <Modal
+          open={showScoreEditModal}
+          onClose={() => { setShowScoreEditModal(false); setScoreEditingLead(null); }}
+          title={`Edit Score — ${scoreEditingLead.name}`}
+          footer={
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" onClick={() => { setShowScoreEditModal(false); setScoreEditingLead(null); }}>Cancel</Button>
+              <Button onClick={handleSaveScore} disabled={actionLoading}>
+                {actionLoading ? 'Saving...' : 'Update Score'}
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-4 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)]">
+              <div className="w-12 h-12 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center font-bold text-lg">
+                {scoreEditingLead.name[0]}
+              </div>
+              <div>
+                <p className="font-semibold text-[var(--text-primary)]">{scoreEditingLead.name}</p>
+                <p className="text-xs text-[var(--text-muted)]">{scoreEditingLead.company || 'Individual'}</p>
+              </div>
+            </div>
+            <FormField label="Score (0-100)">
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                value={newScore}
+                onChange={(e) => setNewScore(e.target.value)}
+                placeholder="Enter score between 0 and 100"
+              />
+            </FormField>
+            <div className="flex gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setNewScore('0')}>0</Button>
+              <Button variant="secondary" size="sm" onClick={() => setNewScore('25')}>25</Button>
+              <Button variant="secondary" size="sm" onClick={() => setNewScore('50')}>50</Button>
+              <Button variant="secondary" size="sm" onClick={() => setNewScore('75')}>75</Button>
+              <Button variant="secondary" size="sm" onClick={() => setNewScore('100')}>100</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+
 
     </div >
   );
 };
 
+
+
 export default CRMPage;
+

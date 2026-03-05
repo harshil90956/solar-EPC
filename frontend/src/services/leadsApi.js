@@ -1,4 +1,4 @@
-const API_BASE_URL = (process.env.REACT_APP_API_URL || 'http://localhost:3000') + '/api/v1';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000/api/v1';
 
 const getTenantId = () => {
   try {
@@ -66,7 +66,11 @@ export const leadsApi = {
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
     });
-    if (!response.ok) throw new Error('Failed to update lead');
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[leadsApi] Update failed:', response.status, errorText);
+      throw new Error(`Failed to update lead: ${errorText}`);
+    }
     return response.json();
   },
 
@@ -136,6 +140,29 @@ export const leadsApi = {
       headers: getAuthHeaders(),
     });
     if (!response.ok) throw new Error('Failed to fetch timeline');
+    return response.json();
+  },
+
+  // Get lead tracker / status progress
+  async getTracker(id) {
+    const response = await fetch(`${API_BASE_URL}/leads/${id}/tracker`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to fetch tracker');
+    return response.json();
+  },
+
+  // Update lead stage (with tracker update)
+  async updateStage(id, stage) {
+    const response = await fetch(`${API_BASE_URL}/leads/${id}/stage`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ stage }),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to update stage: ${errorText}`);
+    }
     return response.json();
   },
 

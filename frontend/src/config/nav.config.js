@@ -2,7 +2,8 @@
 import {
     LayoutDashboard, Users, MapPin, Pencil, FileText, FolderOpen,
     Package, ShoppingCart, Truck, Wrench, CheckCircle, DollarSign,
-    Headphones, FileCheck, Settings, Brain, Bell, Shield, List,
+    Headphones, FileCheck, Settings, Brain, Bell, Shield,
+    Briefcase, UserCircle, Calendar, Wallet, TrendingUp,
 } from 'lucide-react';
 import { INVENTORY, TICKETS, LEADS, PROJECTS, QUOTATIONS } from '../data/mockData';
 
@@ -19,6 +20,7 @@ export const NAV_CONFIG = [
         items: [
             { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, badge: null },
             { id: 'admin', label: 'Admin', icon: Shield, badge: null, badgeVariant: 'red' },
+            { id: 'hrm', label: 'HRM', icon: Briefcase, badge: null, badgeVariant: 'accent' },
             { id: 'intelligence', label: 'AI Intelligence', icon: Brain, badge: null, badgeVariant: 'accent' },
         ],
     },

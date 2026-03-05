@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   List, Plus, Search, Download, Trash2, Package,
-  ChevronDown, X, Check, MoreHorizontal, Edit2, Copy
+  ChevronDown, X, Check, MoreHorizontal, Edit2, Copy, Eye
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
@@ -87,17 +87,24 @@ const ItemsPage = () => {
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   const [showBulkActionsModal, setShowBulkActionsModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+  const [selectedItem, setSelectedItem] = useState(null);
   
   // Form state
   const [newItem, setNewItem] = useState({
+    itemId: '',
     description: '',
     longDescription: '',
+    category: '',
+    warehouse: '',
+    unit: 'PCS',
+    stock: 0,
+    minStock: 0,
     rate: '',
     tax1: 0,
     tax2: 0,
-    unit: 'PCS',
     itemGroupId: '',
     itemGroupName: ''
   });
@@ -188,12 +195,17 @@ const ItemsPage = () => {
       await fetchItems();
       setShowAddModal(false);
       setNewItem({
+        itemId: '',
         description: '',
         longDescription: '',
+        category: '',
+        warehouse: '',
+        unit: 'PCS',
+        stock: 0,
+        minStock: 0,
         rate: '',
         tax1: 0,
         tax2: 0,
-        unit: 'PCS',
         itemGroupId: '',
         itemGroupName: ''
       });
@@ -207,12 +219,17 @@ const ItemsPage = () => {
   const handleEditClick = (item) => {
     setEditingItem(item);
     setNewItem({
+      itemId: item.itemId || '',
       description: item.description || '',
       longDescription: item.longDescription || '',
+      category: item.category || '',
+      warehouse: item.warehouse || '',
+      unit: item.unit || 'PCS',
+      stock: item.stock || 0,
+      minStock: item.minStock || 0,
       rate: item.rate?.toString() || '',
       tax1: item.tax1 || 0,
       tax2: item.tax2 || 0,
-      unit: item.unit || 'PCS',
       itemGroupId: item.itemGroupId || '',
       itemGroupName: item.itemGroupName || ''
     });
@@ -220,7 +237,10 @@ const ItemsPage = () => {
   };
 
   const handleUpdateItem = async () => {
-    if (!editingItem) return;
+    if (!editingItem || !editingItem._id) {
+      toast.error('No item selected for update');
+      return;
+    }
     
     try {
       const payload = {
@@ -230,25 +250,39 @@ const ItemsPage = () => {
         tax2: Number(newItem.tax2) || 0,
       };
       
+      console.log('Updating item:', editingItem._id, payload);
+      
       const response = await fetch(`${API_BASE_URL}/items/${editingItem._id}?tenantId=${TENANT_ID}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
       
-      if (!response.ok) throw new Error('Failed to update item');
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Update failed:', response.status, errorText);
+        throw new Error(`Failed to update item: ${response.status}`);
+      }
       
       const updated = await response.json();
+      console.log('Updated item:', updated);
+      
       setItems(prev => prev.map(item => 
         item._id === editingItem._id ? (updated.data || updated) : item
       ));
       setShowEditModal(false);
+      setShowAddModal(false);
       setEditingItem(null);
       toast.success('Item updated successfully');
     } catch (err) {
       console.error('Error updating item:', err);
       toast.error(err.message || 'Failed to update item');
     }
+  };
+
+  const handleViewClick = (item) => {
+    setSelectedItem(item);
+    setShowDetailModal(true);
   };
 
   const handleDeleteItem = async (item) => {
@@ -337,15 +371,21 @@ const ItemsPage = () => {
   };
 
   const ROW_ACTIONS = [
+    { label: 'View', icon: Eye, onClick: handleViewClick },
     { label: 'Edit', icon: Edit2, onClick: handleEditClick },
     { label: 'Duplicate', icon: Copy, onClick: (item) => {
       setNewItem({
+        itemId: item.itemId ? item.itemId + '-COPY' : '',
         description: item.description + ' (Copy)',
         longDescription: item.longDescription || '',
+        category: item.category || '',
+        warehouse: item.warehouse || '',
+        unit: item.unit || 'PCS',
+        stock: item.stock || 0,
+        minStock: item.minStock || 0,
         rate: item.rate?.toString() || '',
         tax1: item.tax1 || 0,
         tax2: item.tax2 || 0,
-        unit: item.unit || 'PCS',
         itemGroupId: item.itemGroupId || '',
         itemGroupName: item.itemGroupName || ''
       });
@@ -564,6 +604,14 @@ const ItemsPage = () => {
         }
       >
         <div className="space-y-4">
+          <FormField label="Item ID" required>
+            <Input
+              placeholder="Enter unique item ID (e.g., INV001)"
+              value={newItem.itemId}
+              onChange={(e) => setNewItem({ ...newItem, itemId: e.target.value })}
+            />
+          </FormField>
+
           <FormField label="Description" required>
             <Input
               placeholder="Enter item description"
@@ -580,6 +628,90 @@ const ItemsPage = () => {
               onChange={(e) => setNewItem({ ...newItem, longDescription: e.target.value })}
             />
           </FormField>
+
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Category">
+              <Select
+                value={newItem.category}
+                onChange={(e) => setNewItem({ ...newItem, category: e.target.value })}
+              >
+                <option value="">Select Category</option>
+                <option value="Panel">Panel</option>
+                <option value="Inverter">Inverter</option>
+                <option value="BOS">BOS</option>
+                <option value="Battery">Battery</option>
+                <option value="Mounting">Mounting</option>
+                <option value="Electrical">Electrical</option>
+                <option value="Services">Services</option>
+                <option value="Labor">Labor</option>
+              </Select>
+            </FormField>
+
+            <FormField label="Warehouse">
+              <Select
+                value={newItem.warehouse}
+                onChange={(e) => setNewItem({ ...newItem, warehouse: e.target.value })}
+              >
+                <option value="">Select Warehouse</option>
+                <option value="WH-Mumbai">WH-Mumbai</option>
+                <option value="WH-Delhi">WH-Delhi</option>
+                <option value="WH-Bangalore">WH-Bangalore</option>
+                <option value="WH-Surat">WH-Surat</option>
+              </Select>
+            </FormField>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Unit">
+              <Select
+                value={newItem.unit}
+                onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })}
+              >
+                {UNIT_OPTIONS.map(unit => (
+                  <option key={unit} value={unit}>{unit}</option>
+                ))}
+              </Select>
+            </FormField>
+
+            <FormField label="Item Group">
+              <Select
+                value={newItem.itemGroupId}
+                onChange={(e) => {
+                  const group = ITEM_GROUPS.find(g => g.id === e.target.value);
+                  setNewItem({ 
+                    ...newItem, 
+                    itemGroupId: e.target.value,
+                    itemGroupName: group?.name || ''
+                  });
+                }}
+              >
+                <option value="">Nothing selected</option>
+                {ITEM_GROUPS.map(group => (
+                  <option key={group.id} value={group.id}>{group.name}</option>
+                ))}
+              </Select>
+            </FormField>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Stock Quantity">
+              <Input
+                type="number"
+                placeholder="0"
+                value={newItem.stock}
+                onChange={(e) => setNewItem({ ...newItem, stock: Number(e.target.value) || 0 })}
+              />
+            </FormField>
+
+            <FormField label="Min Stock Level">
+              <Input
+                type="number"
+                placeholder="0"
+                value={newItem.minStock}
+                onChange={(e) => setNewItem({ ...newItem, minStock: Number(e.target.value) || 0 })}
+              />
+            </FormField>
+          </div>
 
           <FormField label="Rate - INR (Base Currency)" required>
             <Input
@@ -613,36 +745,6 @@ const ItemsPage = () => {
               </Select>
             </FormField>
           </div>
-
-          <FormField label="Unit">
-            <Select
-              value={newItem.unit}
-              onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })}
-            >
-              {UNIT_OPTIONS.map(unit => (
-                <option key={unit} value={unit}>{unit}</option>
-              ))}
-            </Select>
-          </FormField>
-
-          <FormField label="Item Group">
-            <Select
-              value={newItem.itemGroupId}
-              onChange={(e) => {
-                const group = ITEM_GROUPS.find(g => g.id === e.target.value);
-                setNewItem({ 
-                  ...newItem, 
-                  itemGroupId: e.target.value,
-                  itemGroupName: group?.name || ''
-                });
-              }}
-            >
-              <option value="">Nothing selected</option>
-              {ITEM_GROUPS.map(group => (
-                <option key={group.id} value={group.id}>{group.name}</option>
-              ))}
-            </Select>
-          </FormField>
         </div>
       </Modal>
 
@@ -664,6 +766,14 @@ const ItemsPage = () => {
         }
       >
         <div className="space-y-4">
+          <FormField label="Item ID" required>
+            <Input
+              placeholder="Enter unique item ID (e.g., INV001)"
+              value={newItem.itemId}
+              onChange={(e) => setNewItem({ ...newItem, itemId: e.target.value })}
+            />
+          </FormField>
+
           <FormField label="Description" required>
             <Input
               placeholder="Enter item description"
@@ -680,6 +790,90 @@ const ItemsPage = () => {
               onChange={(e) => setNewItem({ ...newItem, longDescription: e.target.value })}
             />
           </FormField>
+
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Category">
+              <Select
+                value={newItem.category}
+                onChange={(e) => setNewItem({ ...newItem, category: e.target.value })}
+              >
+                <option value="">Select Category</option>
+                <option value="Panel">Panel</option>
+                <option value="Inverter">Inverter</option>
+                <option value="BOS">BOS</option>
+                <option value="Battery">Battery</option>
+                <option value="Mounting">Mounting</option>
+                <option value="Electrical">Electrical</option>
+                <option value="Services">Services</option>
+                <option value="Labor">Labor</option>
+              </Select>
+            </FormField>
+
+            <FormField label="Warehouse">
+              <Select
+                value={newItem.warehouse}
+                onChange={(e) => setNewItem({ ...newItem, warehouse: e.target.value })}
+              >
+                <option value="">Select Warehouse</option>
+                <option value="WH-Mumbai">WH-Mumbai</option>
+                <option value="WH-Delhi">WH-Delhi</option>
+                <option value="WH-Bangalore">WH-Bangalore</option>
+                <option value="WH-Surat">WH-Surat</option>
+              </Select>
+            </FormField>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Unit">
+              <Select
+                value={newItem.unit}
+                onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })}
+              >
+                {UNIT_OPTIONS.map(unit => (
+                  <option key={unit} value={unit}>{unit}</option>
+                ))}
+              </Select>
+            </FormField>
+
+            <FormField label="Item Group">
+              <Select
+                value={newItem.itemGroupId}
+                onChange={(e) => {
+                  const group = ITEM_GROUPS.find(g => g.id === e.target.value);
+                  setNewItem({ 
+                    ...newItem, 
+                    itemGroupId: e.target.value,
+                    itemGroupName: group?.name || ''
+                  });
+                }}
+              >
+                <option value="">Nothing selected</option>
+                {ITEM_GROUPS.map(group => (
+                  <option key={group.id} value={group.id}>{group.name}</option>
+                ))}
+              </Select>
+            </FormField>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Stock Quantity">
+              <Input
+                type="number"
+                placeholder="0"
+                value={newItem.stock}
+                onChange={(e) => setNewItem({ ...newItem, stock: Number(e.target.value) || 0 })}
+              />
+            </FormField>
+
+            <FormField label="Min Stock Level">
+              <Input
+                type="number"
+                placeholder="0"
+                value={newItem.minStock}
+                onChange={(e) => setNewItem({ ...newItem, minStock: Number(e.target.value) || 0 })}
+              />
+            </FormField>
+          </div>
 
           <FormField label="Rate - INR (Base Currency)" required>
             <Input
@@ -713,70 +907,144 @@ const ItemsPage = () => {
               </Select>
             </FormField>
           </div>
-
-          <FormField label="Unit">
-            <Select
-              value={newItem.unit}
-              onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })}
-            >
-              {UNIT_OPTIONS.map(unit => (
-                <option key={unit} value={unit}>{unit}</option>
-              ))}
-            </Select>
-          </FormField>
-
-          <FormField label="Item Group">
-            <Select
-              value={newItem.itemGroupId}
-              onChange={(e) => {
-                const group = ITEM_GROUPS.find(g => g.id === e.target.value);
-                setNewItem({ 
-                  ...newItem, 
-                  itemGroupId: e.target.value,
-                  itemGroupName: group?.name || ''
-                });
-              }}
-            >
-              <option value="">Nothing selected</option>
-              {ITEM_GROUPS.map(group => (
-                <option key={group.id} value={group.id}>{group.name}</option>
-              ))}
-            </Select>
-          </FormField>
         </div>
       </Modal>
 
-      {/* Bulk Actions Modal */}
+      {/* Detail Modal - Inventory like UI */}
       <Modal
-        open={showBulkActionsModal}
-        onClose={() => setShowBulkActionsModal(false)}
-        title="Bulk Actions"
+        open={showDetailModal}
+        onClose={() => { setShowDetailModal(false); setSelectedItem(null); }}
+        title={selectedItem?.description || 'Item Details'}
+        size="lg"
         footer={
           <div className="flex gap-2 justify-end">
-            <Button variant="ghost" onClick={() => setShowBulkActionsModal(false)}>
+            <Button variant="ghost" onClick={() => { setShowDetailModal(false); setSelectedItem(null); }}>
               Close
             </Button>
-            <Button variant="danger" onClick={handleBulkDelete}>
-              <Trash2 size={14} /> Mass Delete
+            <Button onClick={() => { setShowDetailModal(false); handleEditClick(selectedItem); }}>
+              <Edit2 size={14} /> Edit
             </Button>
           </div>
         }
       >
-        <div className="space-y-3">
-          <div className="flex items-center gap-3 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-            <input
-              type="checkbox"
-              id="massDelete"
-              className="w-4 h-4 accent-red-500"
-            />
-            <label htmlFor="massDelete" className="text-sm text-red-400 font-medium">
-              Mass Delete ({selectedRows.size} items selected)
-            </label>
+        {selectedItem && (
+          <div className="space-y-6">
+            {/* Info Cards Grid */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 bg-[var(--bg-elevated)] border border-[var(--border-base)] rounded-xl">
+                <p className="text-xs text-[var(--text-muted)] mb-1">Item ID</p>
+                <p className="text-sm font-semibold text-[var(--text-primary)]">{selectedItem.itemId || '—'}</p>
+              </div>
+              <div className="p-3 bg-[var(--bg-elevated)] border border-[var(--border-base)] rounded-xl">
+                <p className="text-xs text-[var(--text-muted)] mb-1">Category</p>
+                <p className="text-sm font-semibold text-[var(--text-primary)]">{selectedItem.category || selectedItem.itemGroupName || '—'}</p>
+              </div>
+              <div className="p-3 bg-[var(--bg-elevated)] border border-[var(--border-base)] rounded-xl">
+                <p className="text-xs text-[var(--text-muted)] mb-1">Warehouse</p>
+                <p className="text-sm font-semibold text-[var(--text-primary)]">{selectedItem.warehouse || '—'}</p>
+              </div>
+              <div className="p-3 bg-[var(--bg-elevated)] border border-[var(--border-base)] rounded-xl">
+                <p className="text-xs text-[var(--text-muted)] mb-1">Unit</p>
+                <p className="text-sm font-semibold text-[var(--text-primary)]">{selectedItem.unit || '—'}</p>
+              </div>
+            </div>
+
+            {/* Stock Info */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 bg-[var(--bg-elevated)] border border-[var(--border-base)] rounded-xl">
+                <p className="text-xs text-[var(--text-muted)] mb-1">Total Stock</p>
+                <p className="text-sm font-semibold text-[var(--text-primary)]">{selectedItem.stock || 0} {selectedItem.unit || ''}</p>
+              </div>
+              <div className="p-3 bg-[var(--bg-elevated)] border border-[var(--border-base)] rounded-xl">
+                <p className="text-xs text-[var(--text-muted)] mb-1">Reserved</p>
+                <p className="text-sm font-semibold text-[var(--text-primary)]">{selectedItem.reserved || 0} {selectedItem.unit || ''}</p>
+              </div>
+              <div className="p-3 bg-[var(--bg-elevated)] border border-[var(--border-base)] rounded-xl">
+                <p className="text-xs text-[var(--text-muted)] mb-1">Available</p>
+                <p className="text-sm font-semibold text-[var(--text-primary)]">{(selectedItem.stock || 0) - (selectedItem.reserved || 0)} {selectedItem.unit || ''}</p>
+              </div>
+              <div className="p-3 bg-[var(--bg-elevated)] border border-[var(--border-base)] rounded-xl">
+                <p className="text-xs text-[var(--text-muted)] mb-1">Min Stock</p>
+                <p className="text-sm font-semibold text-[var(--text-primary)]">{selectedItem.minStock || 0} {selectedItem.unit || ''}</p>
+              </div>
+            </div>
+
+            {/* Pricing Info */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 bg-[var(--bg-elevated)] border border-[var(--border-base)] rounded-xl">
+                <p className="text-xs text-[var(--text-muted)] mb-1">Unit Rate</p>
+                <p className="text-sm font-semibold text-[var(--text-primary)]">{fmt(selectedItem.rate || 0)}</p>
+              </div>
+              <div className="p-3 bg-[var(--bg-elevated)] border border-[var(--border-base)] rounded-xl">
+                <p className="text-xs text-[var(--text-muted)] mb-1">Total Value</p>
+                <p className="text-sm font-semibold text-[var(--text-primary)]">{fmt((selectedItem.rate || 0) * (selectedItem.stock || 0))}</p>
+              </div>
+            </div>
+
+            {/* Status & Dates */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 bg-[var(--bg-elevated)] border border-[var(--border-base)] rounded-xl">
+                <p className="text-xs text-[var(--text-muted)] mb-1">Status</p>
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${
+                    (selectedItem.stock || 0) === 0 ? 'bg-red-500' :
+                    ((selectedItem.stock || 0) - (selectedItem.reserved || 0)) <= (selectedItem.minStock || 0) ? 'bg-amber-500' :
+                    (selectedItem.reserved || 0) > 0 ? 'bg-cyan-500' : 'bg-emerald-500'
+                  }`} />
+                  <span className="text-sm font-semibold text-[var(--text-primary)]">
+                    {(selectedItem.stock || 0) === 0 ? 'Out of Stock' :
+                     ((selectedItem.stock || 0) - (selectedItem.reserved || 0)) <= (selectedItem.minStock || 0) ? 'Low Stock' :
+                     (selectedItem.reserved || 0) > 0 ? 'Partially Reserved' : 'In Stock'}
+                  </span>
+                </div>
+              </div>
+              <div className="p-3 bg-[var(--bg-elevated)] border border-[var(--border-base)] rounded-xl">
+                <p className="text-xs text-[var(--text-muted)] mb-1">Last Updated</p>
+                <p className="text-sm font-semibold text-[var(--text-primary)]">
+                  {selectedItem.updatedAt ? new Date(selectedItem.updatedAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}
+                </p>
+              </div>
+            </div>
+
+            {/* Tax Info */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 bg-[var(--bg-elevated)] border border-[var(--border-base)] rounded-xl">
+                <p className="text-xs text-[var(--text-muted)] mb-1">Tax 1</p>
+                <p className="text-sm font-semibold text-[var(--text-primary)]">{selectedItem.tax1 || 0}%</p>
+              </div>
+              <div className="p-3 bg-[var(--bg-elevated)] border border-[var(--border-base)] rounded-xl">
+                <p className="text-xs text-[var(--text-muted)] mb-1">Tax 2</p>
+                <p className="text-sm font-semibold text-[var(--text-primary)]">{selectedItem.tax2 || 0}%</p>
+              </div>
+            </div>
+
+            {/* Long Description */}
+            {selectedItem.longDescription && (
+              <div className="p-3 bg-[var(--bg-elevated)] border border-[var(--border-base)] rounded-xl">
+                <p className="text-xs text-[var(--text-muted)] mb-1">Long Description</p>
+                <p className="text-sm text-[var(--text-primary)]">{selectedItem.longDescription}</p>
+              </div>
+            )}
+
+            {/* Reserved for Projects Section */}
+            <div className="border-t border-[var(--border-base)] pt-4">
+              <h4 className="text-sm font-semibold text-[var(--text-primary)] mb-3">Reserved for Projects</h4>
+              {selectedItem.reserved && selectedItem.reserved > 0 ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-amber-500" />
+                      <span className="text-sm font-medium text-amber-400">Active Reservation</span>
+                    </div>
+                    <span className="text-sm font-bold text-amber-400">{selectedItem.reserved} {selectedItem.unit || ''}</span>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-[var(--text-muted)]">No active reservations</p>
+              )}
+            </div>
           </div>
-          <p className="text-xs text-[var(--text-muted)]">
-            This action will permanently delete the selected items. This cannot be undone.
-          </p>
-        </div>
+        )}
       </Modal>
     </div>
   );

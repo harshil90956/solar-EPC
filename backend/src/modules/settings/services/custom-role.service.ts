@@ -119,8 +119,6 @@ export class CustomRoleService {
 
     const saved = await newRole.save();
     this.invalidateCache(tenantId, 'all');
-    
-    this.logger.log(`Custom role created: ${roleId} by user ${userId}`);
     return saved;
   }
 
@@ -145,7 +143,6 @@ export class CustomRoleService {
     if (doc) {
       this.invalidateCache(tenantId, `role:${roleId}`);
       this.invalidateCache(tenantId, 'all');
-      this.logger.log(`Custom role updated: ${roleId} by user ${userId}`);
     }
 
     return doc;
@@ -179,8 +176,6 @@ export class CustomRoleService {
     
     this.invalidateCache(tenantId, `role:${roleId}`);
     this.invalidateCache(tenantId, `perm:${roleId}:${moduleId}:*`);
-    
-    this.logger.log(`Custom role permissions updated: ${roleId}, module=${moduleId} by user ${userId}`);
     return saved;
   }
 
@@ -197,7 +192,6 @@ export class CustomRoleService {
     if (doc) {
       this.invalidateCache(tenantId, `role:${roleId}`);
       this.invalidateCache(tenantId, 'all');
-      this.logger.log(`Custom role deleted: ${roleId} by user ${userId}`);
     }
 
     return doc;
@@ -221,7 +215,6 @@ export class CustomRoleService {
       permissions: new Map(source.permissions),
     }, userId);
 
-    this.logger.log(`Custom role cloned: ${sourceRoleId} -> ${cloned.roleId} by user ${userId}`);
     return cloned;
   }
 }

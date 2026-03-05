@@ -14,6 +14,9 @@ import { cn } from '../lib/utils';
 import ThemeCustomizer from './ThemeCustomizer';
 import ReminderSidebar from './Reminder/ReminderSidebar';
 
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
+const TENANT_ID = 'solarcorp';
+
 const Layout = ({ currentPage, onNavigate, children }) => {
   const { user, logout } = useAuth();
   const { theme, setTheme, themes, currentLabel, customization } = useTheme();
@@ -27,12 +30,54 @@ const Layout = ({ currentPage, onNavigate, children }) => {
   const [reminderSidebarOpen, setReminderSidebarOpen] = useState(false);
   const [searchVal, setSearchVal] = useState('');
   const [notifTab, setNotifTab] = useState('alerts');
+  const [badgeCounts, setBadgeCounts] = useState({
+    inventory: 0,
+    project: 0,
+    crm: 0,
+    quotation: 0,
+    service: 0,
+  });
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1280);
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Fetch dynamic badge counts
+  useEffect(() => {
+    const fetchBadgeCounts = async () => {
+      try {
+        // Fetch inventory stats
+        const inventoryRes = await fetch(`${API_BASE_URL}/inventory/stats?tenantId=${TENANT_ID}`);
+        const inventoryData = inventoryRes.ok ? await inventoryRes.json() : null;
+        
+        // Fetch projects
+        const projectsRes = await fetch(`${API_BASE_URL}/projects?tenantId=${TENANT_ID}`);
+        const projectsData = projectsRes.ok ? await projectsRes.json() : null;
+        const projects = projectsData?.data || projectsData || [];
+        
+        // Calculate counts
+        const lowStockCount = inventoryData?.data?.lowStock || 0;
+        const activeProjects = projects.filter(p => p.status !== 'Commissioned').length;
+        
+        setBadgeCounts({
+          inventory: lowStockCount,
+          project: activeProjects,
+          crm: 0, // Can be fetched from leads API
+          quotation: 0, // Can be fetched from quotations API
+          service: 0, // Can be fetched from tickets API
+        });
+      } catch (err) {
+        console.error('Error fetching badge counts:', err);
+      }
+    };
+
+    fetchBadgeCounts();
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchBadgeCounts, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const close = useCallback(() => setSidebarOpen(false), []);
@@ -43,7 +88,7 @@ const Layout = ({ currentPage, onNavigate, children }) => {
   // Filter nav based on role permissions AND module enabled flags
   const visibleSections = NAV_CONFIG.map(section => ({
     ...section,
-    items: section.items.filter(item => 
+    items: section.items.filter(item =>
       canAccess(user?.role, item.id) && isModuleEnabled(item.id)
     ),
   })).filter(s => s.items.length > 0);
@@ -484,62 +529,53 @@ const Layout = ({ currentPage, onNavigate, children }) => {
 
           {/* ════════════════ SIDEBAR LOGO ════════════════ */}
           <div className={cn(
-            'flex items-center border-b border-[var(--border-base)] transition-all duration-300',
-            showLabels ? 'px-4 py-4 gap-3' : 'px-2 py-3 justify-center'
+            'relative z-50 flex items-center border-b border-[var(--border-base)] bg-[var(--bg-sidebar)] shrink-0',
+            showLabels ? 'px-4 h-20 gap-3' : 'justify-center h-20'
           )}>
             {/* Solar Logo Icon */}
             <div className={cn(
-              'relative shrink-0 rounded-xl bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600 flex items-center justify-center shadow-lg transition-all duration-300',
-              showLabels ? 'w-10 h-10' : 'w-9 h-9'
+              'relative z-10 shrink-0 rounded-xl flex items-center justify-center',
+              'w-12 h-12'
             )}
               style={{
-                boxShadow: '0 8px 24px rgba(245, 158, 11, 0.4), 0 0 20px rgba(251, 191, 36, 0.3)',
-                animation: 'pulse-glow 3s ease-in-out infinite'
+                background: 'linear-gradient(135deg, #f59e0b 0%, #f97316 100%)',
+                boxShadow: '0 4px 20px rgba(245, 158, 11, 0.5)',
               }}
             >
-              {/* Sun rays animation */}
-              <div className="absolute inset-0 rounded-xl"
-                style={{
-                  background: 'radial-gradient(circle at center, rgba(251, 191, 36, 0.3) 0%, transparent 70%)',
-                  animation: 'rotate-slow 20s linear infinite'
-                }}
-              />
-
-              {/* Main sun icon */}
               <Sun
-                size={showLabels ? 20 : 18}
-                className="relative z-10 text-white drop-shadow-lg"
-                strokeWidth={2.5}
-                style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' }}
+                size={24}
+                className="relative z-10 text-white"
+                strokeWidth={2}
               />
 
-              {/* Solar panel detail */}
-              <div className="absolute bottom-1 right-1 w-2 h-2 rounded-sm opacity-80"
+              {/* Solar panel badge */}
+              <div className="absolute -bottom-1.5 -right-1.5 z-20 w-5 h-5 rounded-lg flex items-center justify-center"
                 style={{
-                  boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.3)',
-                  background: `linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%)`
+                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  border: '2px solid var(--bg-sidebar)'
                 }}
-              />
+              >
+                <div className="w-2.5 h-2.5 grid grid-cols-2 gap-px">
+                  <div className="bg-white/90 rounded-sm" />
+                  <div className="bg-white/90 rounded-sm" />
+                  <div className="bg-white/90 rounded-sm" />
+                  <div className="bg-white/90 rounded-sm" />
+                </div>
+              </div>
             </div>
 
             {/* Logo Text */}
             {showLabels && (
-              <div className="flex flex-col leading-tight">
-                <div className="flex items-baseline gap-1.5">
+              <div className="relative z-10 flex flex-col justify-center">
+                <div className="flex items-baseline gap-1">
                   <span className={cn(
-                    'font-extrabold text-base tracking-tight',
-                    sidebarHasCustomColor
-                      ? 'text-white'
-                      : 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 bg-clip-text text-transparent'
-                  )}
-                    style={{
-                      textShadow: sidebarHasCustomColor ? '0 2px 8px rgba(255,255,255,0.15)' : 'none'
-                    }}
-                  >
+                    'font-bold text-lg leading-none',
+                    sidebarHasCustomColor ? 'text-white' : 'text-amber-500'
+                  )}>
                     {APP_CONFIG.name.split(' ')[0]}
                   </span>
                   <span className={cn(
-                    'font-bold text-base tracking-tight',
+                    'font-semibold text-lg leading-none',
                     sidebarHasCustomColor ? 'text-white/90' : 'text-[var(--text-primary)]'
                   )}>
                     {APP_CONFIG.name.split(' ')[1]}
@@ -547,15 +583,14 @@ const Layout = ({ currentPage, onNavigate, children }) => {
                 </div>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <span className={cn(
-                    'text-[9px] font-bold uppercase tracking-[0.1em]',
-                    sidebarHasCustomColor ? 'text-white/50' : 'text-[var(--text-faint)]'
+                    'text-[8px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded',
+                    sidebarHasCustomColor
+                      ? 'bg-white/10 text-white/60'
+                      : 'bg-amber-500/10 text-amber-600'
                   )}>
                     {APP_CONFIG.edition}
                   </span>
-                  <div className="flex items-center gap-0.5">
-                    <span className="w-1 h-1 rounded-full bg-green-500 animate-pulse-dot" />
-                    <span className="text-[8px] font-semibold text-green-500">Active</span>
-                  </div>
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
                 </div>
               </div>
             )}
@@ -566,8 +601,8 @@ const Layout = ({ currentPage, onNavigate, children }) => {
               <div key={section.section} className="mb-3">
                 {showLabels && (
                   <p className={cn(
-                    'px-3 pb-1.5 pt-2 text-[9px] font-bold uppercase tracking-[0.15em]',
-                    sidebarHasCustomColor ? 'text-white/40' : 'text-[var(--text-faint)]'
+                    'px-3 pb-1 pt-1.5 text-[8px] font-bold uppercase tracking-[0.15em]',
+                    sidebarHasCustomColor ? 'text-white/30' : 'text-[var(--text-faint)]'
                   )}>
                     {section.section}
                   </p>
@@ -591,22 +626,22 @@ const Layout = ({ currentPage, onNavigate, children }) => {
                       )}
                     >
                       <Icon
-                        size={showLabels ? 14 : 18}
+                        size={showLabels ? 13 : 16}
                         className={cn(
                           'shrink-0',
                           active
                             ? (sidebarHasCustomColor ? 'text-white' : 'text-[var(--primary-light)]')
-                            : (sidebarHasCustomColor ? 'text-white/50' : 'text-[var(--text-faint)]')
+                            : (sidebarHasCustomColor ? 'text-white/40' : 'text-[var(--text-faint)]')
                         )}
                       />
-                      {showLabels && <span className="truncate">{item.label}</span>}
+                      {showLabels && <span className="truncate text-[11px]">{item.label}</span>}
                       {showLabels && item.badge && (
                         <span className={cn(
-                          'ml-auto text-[9px] rounded-full px-1.5 py-0.5 font-bold',
+                          'ml-auto text-[8px] rounded-full px-1.5 py-0.5 font-bold',
                           item.badgeVariant === 'red' ? 'bg-red-500 text-white' :
                             item.badgeVariant === 'amber' ? 'bg-amber-500 text-black' :
                               'bg-[var(--primary)] text-white'
-                        )}>{item.badge}</span>
+                        )}>{badgeCounts[item.id]}</span>
                       )}
                     </button>
                   );

@@ -1,13 +1,13 @@
 // Solar OS – EPC Edition — ProcurementPage.js
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
-  ShoppingCart, Plus, Truck, Star, Phone, Mail,
-  CheckCircle, Zap, Package, LayoutGrid, List, Calendar
+  ShoppingCart, Plus, Truck, Package, CheckCircle, LayoutGrid, List, Calendar, Zap, Phone, Mail, Star
 } from 'lucide-react';
 import { StatusBadge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input, FormField, Select, Textarea } from '../components/ui/Input';
+import { PageHeader } from '../components/ui/PageHeader';
 import { KPICard } from '../components/ui/KPICard';
 import { Avatar } from '../components/ui/Avatar';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/Tabs';
@@ -40,23 +40,6 @@ const PO_COLUMNS = [
   { key: 'orderedDate', header: 'Ordered', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
   { key: 'expectedDate', header: 'Expected', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
   { key: 'deliveredDate', header: 'Delivered', render: v => <span className="text-xs text-[var(--text-muted)]">{v ?? '—'}</span> },
-];
-
-const VENDOR_COLUMNS = [
-  { key: 'id', header: 'Vendor ID', render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span> },
-  {
-    key: 'name', header: 'Vendor Name', sortable: true, render: (v, row) => (
-      <div className="flex items-center gap-2">
-        <Avatar name={v} size="xs" />
-        <span className="text-xs font-semibold text-[var(--text-primary)]">{v}</span>
-      </div>
-    )
-  },
-  { key: 'category', header: 'Category', render: v => <span className="text-xs text-[var(--text-secondary)]">{v}</span> },
-  { key: 'contact', header: 'Contact', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
-  { key: 'phone', header: 'Phone', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
-  { key: 'city', header: 'City', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
-  { key: 'totalOrders', header: 'Total Orders', sortable: true, render: v => <span className="text-xs font-bold text-[var(--text-primary)]">{v}</span> },
 ];
 
 const PO_STATUS_FILTERS = ['All', 'Draft', 'Ordered', 'In Transit', 'Delivered', 'Cancelled'];
@@ -168,53 +151,92 @@ const ProcurementPage = () => {
   const [poStatus, setPoStatus] = useState('All');
   const [poPage, setPoPage] = useState(1);
   const [poPageSize, setPoPageSize] = useState(APP_CONFIG.defaultPageSize);
-  const [vPage, setVPage] = useState(1);
-  const [vPageSize, setVPageSize] = useState(APP_CONFIG.defaultPageSize);
   const [showPO, setShowPO] = useState(false);
-  const [showVendor, setShowVendor] = useState(false);
   const [selectedPO, setSelectedPO] = useState(null);
-  const [selectedVendor, setSelectedVendor] = useState(null);
   const [pos, setPos] = useState([]);
-  const [vendors, setVendors] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Form states
-  const [newVendor, setNewVendor] = useState({ name: '', category: '', city: '', contact: '', phone: '', email: '' });
   const [newPO, setNewPO] = useState({ vendorId: '', items: '', totalAmount: '', expectedDate: '', relatedProjectId: '' });
+
+  // Vendors list for dropdown
+  const [vendors, setVendors] = useState([]);
+
+  // Vendor detail modal state
+  const [selectedVendor, setSelectedVendor] = useState(null);
+
+  // Vendor action handlers
+  const handleCallVendor = (vendor) => {
+    if (vendor?.phone) {
+      window.open(`tel:${vendor.phone}`, '_self');
+    } else {
+      alert('No phone number available');
+    }
+  };
+
+  const handleEmailVendor = async (vendor) => {
+    if (vendor?.email) {
+      try {
+        const subject = 'Procurement Inquiry';
+        const text = `Dear ${vendor.name || vendor.contact || 'Vendor'},\n\nI hope this email finds you well. We are interested in discussing potential procurement services and would like to connect with you regarding our requirements.\n\nPlease let us know your availability for a brief discussion.\n\nBest regards,\nSolarOS Team`;
+        
+        const res = await api.post('/email/send', {
+          to: vendor.email,
+          subject,
+          text
+        });
+        
+        if (res.data?.success) {
+          alert(`Email sent to ${vendor.email}`);
+        } else {
+          alert(`Email queued: ${res.data?.message || 'Will be sent shortly'}`);
+        }
+      } catch (error) {
+        console.error('Error sending email:', error);
+        alert('Failed to send email. Please try again later.');
+      }
+    } else {
+      alert('No email address available');
+    }
+  };
 
   // Fetch data on mount
   useEffect(() => {
     fetchData();
+    fetchVendors();
   }, []);
 
-  // Reset vPage when vendors change to fix pagination showing empty table
-  useEffect(() => {
-    setVPage(1);
-  }, [vendors.length]);
+  const fetchVendors = async () => {
+    try {
+      const res = await api.get('/procurement/vendors');
+      console.log('Vendors API response:', res);
+      const vendorsData = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      console.log('Parsed vendors:', vendorsData);
+      setVendors(vendorsData);
+    } catch (error) {
+      console.error('Error fetching vendors:', error);
+    }
+  };
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [vendorsRes, posRes] = await Promise.all([
-        api.get('/procurement/vendors'),
-        api.get('/procurement/purchase-orders')
-      ]);
+      const posRes = await api.get('/procurement/purchase-orders');
       // Handle API response - could be direct array or wrapped object
-      let vendorsData = [];
       let posData = [];
-      
+
       if (Array.isArray(vendorsRes.data)) {
         vendorsData = vendorsRes.data;
       } else if (vendorsRes.data && typeof vendorsRes.data === 'object') {
         vendorsData = vendorsRes.data.data || [];
       }
-      
+
       if (Array.isArray(posRes.data)) {
         posData = posRes.data;
       } else if (posRes.data && typeof posRes.data === 'object') {
         posData = posRes.data.data || [];
       }
-      
+
       setVendors(vendorsData);
       setPos(posData);
     } catch (error) {
@@ -258,13 +280,13 @@ const ProcurementPage = () => {
       try {
         const subject = 'Purchase Order Inquiry';
         const text = `Dear ${vendor.name || vendor.contact || 'Vendor'},\n\nI hope this email finds you well. We are interested in discussing potential purchase orders and would like to connect with you regarding our requirements.\n\nPlease let us know your availability for a brief discussion.\n\nBest regards,\nSolarOS Team`;
-        
+
         const res = await api.post('/email/send', {
           to: vendor.email,
           subject,
           text
         });
-        
+
         if (res.data?.success) {
           alert(`Email sent to ${vendor.email}`);
         } else {
@@ -281,11 +303,18 @@ const ProcurementPage = () => {
 
   const handleCreatePO = async () => {
     try {
+      console.log('Creating PO with data:', newPO);
+      if (!newPO.vendorId) {
+        alert('Please select a vendor');
+        return;
+      }
       const payload = {
         ...newPO,
         totalAmount: Number(newPO.totalAmount),
       };
+      console.log('Payload:', payload);
       const res = await api.post('/procurement/purchase-orders', payload);
+      console.log('Create PO response:', res);
       // Refetch all data to ensure UI is in sync with backend
       await fetchData();
       setShowPO(false);
@@ -296,19 +325,12 @@ const ProcurementPage = () => {
   };
 
   const filteredPOs = useMemo(() =>
-    pos.filter(po => po && 
+    pos.filter(po => po &&
       (poStatus === 'All' || po?.status === poStatus) &&
       po?.vendorName?.toLowerCase().includes(poSearch.toLowerCase())
     ), [poSearch, poStatus, pos]);
 
   const paginatedPOs = filteredPOs.slice((poPage - 1) * poPageSize, poPage * poPageSize);
-  const paginatedVendors = vendors.filter(Boolean).slice((vPage - 1) * vPageSize, vPage * vPageSize);
-
-  // Debug logging for pagination issue
-  console.log('vendors:', vendors, 'length:', vendors.length);
-  console.log('vendors.filter(Boolean):', vendors.filter(Boolean));
-  console.log('paginatedVendors:', paginatedVendors);
-  console.log('vPage:', vPage, 'vPageSize:', vPageSize);
 
   const pendingPOs = pos.filter(p => p && p?.status !== 'Delivered' && p?.status !== 'Cancelled').length;
   const totalSpend = pos.reduce((a, p) => a + (p?.totalAmount || 0), 0);
@@ -320,11 +342,6 @@ const ProcurementPage = () => {
     { label: 'Mark Delivered', icon: CheckCircle, onClick: (row) => handlePOStageChange(row.id, 'Delivered') },
     { label: 'Track Shipment', icon: Truck, onClick: () => { } },
   ];
-  const VENDOR_ACTIONS = [
-    { label: 'View Vendor', icon: Package, onClick: row => setSelectedVendor(row) },
-    { label: 'Call Vendor', icon: Phone, onClick: row => handleCallVendor(row) },
-    { label: 'Email Vendor', icon: Mail, onClick: row => handleEmailVendor(row) },
-  ];
 
   if (loading) {
     return <div className="animate-fade-in space-y-5"><p className="text-xs text-[var(--text-muted)]">Loading...</p></div>;
@@ -332,27 +349,20 @@ const ProcurementPage = () => {
 
   return (
     <div className="animate-fade-in space-y-5">
-      <div className="page-header">
-        <div>
-          <h1 className="heading-page">Procurement</h1>
-          <p className="text-xs text-[var(--text-muted)] mt-0.5">Purchase orders · vendor management · delivery tracking</p>
-        </div>
-        <div className="flex gap-2">
-          <CanCreate module="procurement">
-            <Button variant="ghost" onClick={() => { if (guardCreate()) setShowVendor(true); }}><Plus size={13} /> Add Vendor</Button>
-          </CanCreate>
-          <CanCreate module="procurement">
-            <Button onClick={() => { if (guardCreate()) setShowPO(true); }}><Plus size={13} /> Create PO</Button>
-          </CanCreate>
-        </div>
-      </div>
+      <PageHeader
+        title="Procurement"
+        subtitle="Purchase orders · vendor management · delivery tracking"
+        actions={[
+          { type: 'button', label: 'Add Vendor', icon: Plus, onClick: () => { if (guardCreate()) setShowVendor(true); } },
+          { type: 'button', label: 'Create PO', icon: Plus, variant: 'primary', onClick: () => { if (guardCreate()) setShowPO(true); } }
+        ]}
+      />
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KPICard title="Active POs" value={pendingPOs} icon={ShoppingCart} color="accent" />
         <KPICard title="Delivered" value={delivered} icon={CheckCircle} color="emerald" />
         <KPICard title="In Transit" value={inTransit} icon={Truck} color="cyan" />
         <KPICard title="Total Spend" value={fmtFull(totalSpend)} icon={Package} color="solar" />
-        <KPICard title="Vendors" value={vendors.length} icon={Star} color="emerald" />
       </div>
 
       <div className="ai-banner">
@@ -366,7 +376,6 @@ const ProcurementPage = () => {
       <Tabs defaultValue="pos">
         <TabsList>
           <TabsTrigger value="pos">Purchase Orders ({pos.length})</TabsTrigger>
-          <TabsTrigger value="vendors">Vendors ({vendors.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="pos">
@@ -401,12 +410,6 @@ const ProcurementPage = () => {
             )}
           </div>
         </TabsContent>
-
-        <TabsContent value="vendors">
-          <DataTable columns={VENDOR_COLUMNS} data={paginatedVendors} rowActions={VENDOR_ACTIONS}
-            pagination={{ page: vPage, pageSize: vPageSize, total: vendors.length, onChange: setVPage, onPageSizeChange: setVPageSize }}
-            emptyMessage="No vendors found." />
-        </TabsContent>
       </Tabs>
 
       {/* Create PO Modal */}
@@ -416,11 +419,19 @@ const ProcurementPage = () => {
           <Button onClick={handleCreatePO}><Plus size={13} /> Create PO</Button>
         </div>}>
         <div className="space-y-3">
-          <FormField label="Vendor">
-            <Select value={newPO.vendorId} onChange={e => setNewPO({ ...newPO, vendorId: e.target.value })}>
-              <option value="">Select Vendor</option>
-              {vendors.filter(Boolean).map(v => <option key={v?.id || v?._id} value={v?.id}>{v?.name}</option>)}
+          <FormField label="Vendor *">
+            <Select value={newPO.vendorId} onChange={e => {
+              console.log('Selected vendor:', e.target.value);
+              setNewPO({ ...newPO, vendorId: e.target.value });
+            }}>
+              <option value="">{vendors.length === 0 ? 'No vendors available - Add vendors in Logistics tab' : 'Select a vendor'}</option>
+              {vendors.map(v => (
+                <option key={v.id} value={v.id}>{v.name} ({v.id})</option>
+              ))}
             </Select>
+            {vendors.length === 0 && (
+              <p className="text-xs text-red-400 mt-1">Please add vendors in Logistics → Vendors tab first</p>
+            )}
           </FormField>
           <FormField label="Items Description">
             <Textarea value={newPO.items} onChange={e => setNewPO({ ...newPO, items: e.target.value })} placeholder="e.g. 200 x 400W Mono PERC Panels" rows={2} />
@@ -440,41 +451,6 @@ const ProcurementPage = () => {
               <option value="P002">P002 – Suresh Bhatt</option>
               <option value="P004">P004 – Trivedi Foods</option>
             </Select>
-          </FormField>
-        </div>
-      </Modal>
-
-      {/* Add Vendor Modal */}
-      <Modal open={showVendor} onClose={() => setShowVendor(false)} title="Add Vendor"
-        footer={<div className="flex gap-2 justify-end">
-          <Button variant="ghost" onClick={() => setShowVendor(false)}>Cancel</Button>
-          <Button onClick={handleCreateVendor}><Plus size={13} /> Add Vendor</Button>
-        </div>}>
-        <div className="space-y-3">
-          <FormField label="Vendor Name">
-            <Input value={newVendor.name} onChange={e => setNewVendor({ ...newVendor, name: e.target.value })} placeholder="Company name" />
-          </FormField>
-          <div className="grid grid-cols-2 gap-3">
-            <FormField label="Category">
-              <Select value={newVendor.category} onChange={e => setNewVendor({ ...newVendor, category: e.target.value })}>
-                <option value="">Select Category</option>
-                {['Panel', 'Inverter', 'BOS', 'Structure', 'Cable', 'Other'].map(c => <option key={c}>{c}</option>)}
-              </Select>
-            </FormField>
-            <FormField label="City">
-              <Input value={newVendor.city} onChange={e => setNewVendor({ ...newVendor, city: e.target.value })} placeholder="City" />
-            </FormField>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <FormField label="Contact Person">
-              <Input value={newVendor.contact} onChange={e => setNewVendor({ ...newVendor, contact: e.target.value })} placeholder="Name" />
-            </FormField>
-            <FormField label="Phone">
-              <Input value={newVendor.phone} onChange={e => setNewVendor({ ...newVendor, phone: e.target.value })} placeholder="9876543210" />
-            </FormField>
-          </div>
-          <FormField label="Email">
-            <Input type="email" value={newVendor.email} onChange={e => setNewVendor({ ...newVendor, email: e.target.value })} placeholder="vendor@company.com" />
           </FormField>
         </div>
       </Modal>
@@ -513,7 +489,7 @@ const ProcurementPage = () => {
               <TabsTrigger value="timeline">Timeline ({pos.filter(p => p && (p?.vendorId?._id === selectedVendor?._id || p?.vendorName === selectedVendor?.name)).length})</TabsTrigger>
               <TabsTrigger value="activity">Activity Log</TabsTrigger>
             </TabsList>
-            
+
             <TabsContent value="details">
               <div className="grid grid-cols-2 gap-3 text-xs mt-3">
                 {[
@@ -537,7 +513,7 @@ const ProcurementPage = () => {
                 </div>
               </div>
             </TabsContent>
-            
+
             <TabsContent value="timeline">
               <div className="space-y-2 mt-3">
                 {pos.filter(p => p && (p?.vendorId?._id === selectedVendor?._id || p?.vendorName === selectedVendor?.name))
@@ -557,7 +533,7 @@ const ProcurementPage = () => {
                 )}
               </div>
             </TabsContent>
-            
+
             <TabsContent value="activity">
               <div className="space-y-2 mt-3">
                 <div className="glass-card p-3">
@@ -595,5 +571,6 @@ const ProcurementPage = () => {
     </div>
   );
 };
+
 
 export default ProcurementPage;

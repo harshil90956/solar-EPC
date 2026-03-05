@@ -119,6 +119,8 @@ const DataTable = ({
     const [colToggleOpen, setColToggleOpen] = useState(false);
 
     const [jumpPage, setJumpPage] = useState('');
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [mobileView, setMobileView] = useState(false);
 
 
 
@@ -595,6 +597,7 @@ const DataTable = ({
                 </div>
 
             </div>
+            )}
 
 
 
