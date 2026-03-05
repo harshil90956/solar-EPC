@@ -1,10 +1,21 @@
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000/api/v1';
 
+const getTenantId = () => {
+  try {
+    const user = JSON.parse(localStorage.getItem('solar_user') || '{}');
+    return user?.tenantId || user?.tenant?.id || user?.id || null;
+  } catch {
+    return null;
+  }
+};
+
 const getAuthHeaders = () => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('solar_token') || localStorage.getItem('token');
+  const tenantId = getTenantId();
   return {
     'Content-Type': 'application/json',
     ...(token && { Authorization: `Bearer ${token}` }),
+    ...(tenantId && { 'x-tenant-id': tenantId }),
   };
 };
 
@@ -16,6 +27,15 @@ export const leadsApi = {
       headers: getAuthHeaders(),
     });
     if (!response.ok) throw new Error('Failed to fetch leads');
+    return response.json();
+  },
+
+  // Get ordered active lead status options
+  async getStatusOptions() {
+    const response = await fetch(`${API_BASE_URL}/leads/status-options`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to fetch lead status options');
     return response.json();
   },
 
@@ -46,7 +66,11 @@ export const leadsApi = {
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
     });
-    if (!response.ok) throw new Error('Failed to update lead');
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[leadsApi] Update failed:', response.status, errorText);
+      throw new Error(`Failed to update lead: ${errorText}`);
+    }
     return response.json();
   },
 
@@ -116,6 +140,29 @@ export const leadsApi = {
       headers: getAuthHeaders(),
     });
     if (!response.ok) throw new Error('Failed to fetch timeline');
+    return response.json();
+  },
+
+  // Get lead tracker / status progress
+  async getTracker(id) {
+    const response = await fetch(`${API_BASE_URL}/leads/${id}/tracker`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to fetch tracker');
+    return response.json();
+  },
+
+  // Update lead stage (with tracker update)
+  async updateStage(id, stage) {
+    const response = await fetch(`${API_BASE_URL}/leads/${id}/stage`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ stage }),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to update stage: ${errorText}`);
+    }
     return response.json();
   },
 

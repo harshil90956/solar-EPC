@@ -21,16 +21,16 @@ export const KPICard = ({
     accentColor = 'var(--primary)',
     className,
 }) => (
-    <div className={cn('glass-card p-5 flex flex-col gap-3 group cursor-default', className)}>
+    <div className={cn('glass-card p-4 flex flex-col gap-2 group cursor-default', className)}>
         <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
-                <p className="label-muted mb-2">{label}</p>
+                <p className="label-muted mb-1">{label}</p>
                 <p className="text-2xl font-extrabold text-[var(--text-primary)] tabular-nums leading-none tracking-tight">
                     {value}
                 </p>
-                {sub && <p className="text-[11px] text-[var(--text-muted)] mt-1.5">{sub}</p>}
+                {sub && <p className="text-[11px] text-[var(--text-muted)] mt-1">{sub}</p>}
                 {trend && (
-                    <div className="flex items-center gap-1 mt-2">
+                    <div className="flex items-center gap-1 mt-1">
                         {trendUp
                             ? <ArrowUpRight size={12} className="text-emerald-400" />
                             : <ArrowDownRight size={12} className="text-red-400" />}

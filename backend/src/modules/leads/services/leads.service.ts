@@ -1,14 +1,39 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Lead, LeadDocument } from '../schemas/lead.schema';
 import { CreateLeadDto, UpdateLeadDto, QueryLeadDto, AddActivityDto } from '../dto/lead.dto';
+import { LeadStatus, LeadStatusDocument } from '../../settings/schemas/lead-status.schema';
 
 @Injectable()
 export class LeadsService {
   constructor(
     @InjectModel(Lead.name) private leadModel: Model<LeadDocument>,
+    @InjectModel(LeadStatus.name) private leadStatusModel: Model<LeadStatusDocument>,
   ) {}
+
+  private toObjectId(id: string | undefined): Types.ObjectId | undefined {
+    if (!id) return undefined;
+    try {
+      return new Types.ObjectId(id);
+    } catch {
+      return undefined;
+    }
+  }
+
+  private async assertValidStatusKey(statusKey: string | undefined, tenantId?: string): Promise<void> {
+    if (!statusKey || statusKey === '') return;
+    const tid = this.toObjectId(tenantId);
+
+    const status = await this.leadStatusModel
+      .findOne({ tenantId: tid, entity: 'lead', key: statusKey, isActive: true })
+      .lean()
+      .exec();
+
+    if (!status) {
+      throw new BadRequestException(`Invalid lead statusKey '${statusKey}'`);
+    }
+  }
 
   // ============================================
   // LEAD SCORING ALGORITHM (matches frontend)
@@ -109,6 +134,8 @@ export class LeadsService {
   async create(createLeadDto: CreateLeadDto, tenantId?: string): Promise<Lead> {
     const now = new Date();
     const leadId = `LEAD-${Date.now()}`;
+
+    await this.assertValidStatusKey(createLeadDto.statusKey, tenantId);
     
     const activities = [{
       type: 'created',
@@ -121,6 +148,7 @@ export class LeadsService {
     const leadData: any = {
       ...createLeadDto,
       leadId,
+      statusKey: createLeadDto.statusKey || 'new',
       activities,
       created: now,
       lastContact: now,
@@ -147,7 +175,7 @@ export class LeadsService {
       sortOrder = 'desc',
       search,
       source,
-      stage,
+      statusKey,
       city,
       minScore,
       maxScore,
@@ -189,7 +217,7 @@ export class LeadsService {
     }
 
     if (source) filter.source = source;
-    if (stage) filter.stage = stage;
+    if (statusKey) filter.statusKey = statusKey;
     if (city) filter.city = { $regex: city, $options: 'i' };
 
     if (minScore !== undefined || maxScore !== undefined) {
@@ -211,13 +239,35 @@ export class LeadsService {
     }
 
     if (search) {
-      filter.$or = [
+      const searchNum = Number(search);
+      const isNumeric = !isNaN(searchNum) && search.trim() !== '';
+      
+      // Build search conditions
+      const orConditions: any[] = [];
+      
+      // Text fields - always search with regex
+      orConditions.push(
         { name: { $regex: search, $options: 'i' } },
         { email: { $regex: search, $options: 'i' } },
         { company: { $regex: search, $options: 'i' } },
         { phone: { $regex: search, $options: 'i' } },
         { source: { $regex: search, $options: 'i' } },
-      ];
+        { city: { $regex: search, $options: 'i' } },
+        { statusKey: { $regex: search, $options: 'i' } }
+      );
+      
+      // For numeric search, also match score and value
+      if (isNumeric) {
+        // Exact score match
+        orConditions.push({ score: searchNum });
+        // Value search - match if value divided by 1000/100000 contains the number
+        // This handles both 50K (50000) and 1.5L (150000) formats
+        orConditions.push({ value: { $gte: searchNum * 1000, $lt: (searchNum + 1) * 1000 } }); // For thousands (K)
+        orConditions.push({ value: { $gte: searchNum * 100000, $lt: (searchNum + 1) * 100000 } }); // For lakhs (L)
+        orConditions.push({ value: { $gte: searchNum, $lt: searchNum + 1 } }); // For exact match
+      }
+      
+      filter.$or = orConditions;
     }
 
     const sort: any = {};
@@ -275,29 +325,68 @@ export class LeadsService {
       filter.tenantId = new Types.ObjectId(tenantId);
     }
 
-    const existingLead = await this.leadModel.findOne(filter).exec();
+    // Check if lead exists first
+    const existingLead = await this.leadModel.findOne(filter).lean().exec();
     if (!existingLead) {
       throw new NotFoundException('Lead not found');
     }
 
-    if (updateLeadDto.stage && updateLeadDto.stage !== existingLead.stage) {
+    // Build update data - exclude undefined values
+    const updateData: any = {};
+    const allowedFields = [
+      'name', 'company', 'email', 'phone', 'source', 'statusKey', 'city', 'state',
+      'value', 'kw', 'roofArea', 'monthlyBill', 'roofType', 'budget', 'category',
+      'tags', 'notes', 'assignedTo', 'score', 'archived', 'nextFollowUp', 'slaHours'
+    ];
+    
+    const dtoAny = updateLeadDto as any;
+    for (const field of allowedFields) {
+      if (dtoAny[field] !== undefined) {
+        updateData[field] = dtoAny[field];
+      }
+    }
+
+    // Only validate statusKey if it's being updated
+    if (updateData.statusKey !== undefined) {
+      await this.assertValidStatusKey(updateData.statusKey, tenantId);
+    }
+
+    // Handle stage change activity
+    if (updateData.statusKey && updateData.statusKey !== existingLead.statusKey) {
       const now = new Date();
-      existingLead.activities.push({
+      const activity = {
         type: 'stage_change',
         ts: this.formatTimestamp(now),
-        note: `Stage changed from ${existingLead.stage} to ${updateLeadDto.stage}`,
+        note: `Stage changed from ${existingLead.statusKey} to ${updateData.statusKey}`,
         by: 'System',
         timestamp: now,
-      });
+      };
+      
+      // Push new activity to existing array
+      updateData.$push = { activities: activity };
     }
 
     Object.assign(existingLead, updateLeadDto);
     existingLead.lastContact = new Date();
-    existingLead.score = this.calculateScore(existingLead);
+    // Only recalculate score if not manually provided
+    if (updateLeadDto.score === undefined) {
+      existingLead.score = this.calculateScore(existingLead);
+    }
     existingLead.slaBreached = this.checkSlaBreached(existingLead);
     existingLead.activeAutomation = this.applyAutomation(existingLead);
 
-    return existingLead.save();
+    // Use atomic update
+    const updatedLead = await this.leadModel.findOneAndUpdate(
+      filter,
+      updateData,
+      { new: true, runValidators: true }
+    ).exec();
+
+    if (!updatedLead) {
+      throw new NotFoundException('Lead not found after update');
+    }
+
+    return updatedLead;
   }
 
   async remove(id: string, tenantId?: string): Promise<void> {
@@ -335,7 +424,7 @@ export class LeadsService {
       city: originalLead.city,
       state: originalLead.state,
       source: originalLead.source,
-      stage: 'new',
+      statusKey: 'new',
       value: originalLead.value,
       kw: originalLead.kw ? parseFloat(originalLead.kw as any) : 0,
       roofArea: originalLead.roofArea,
@@ -366,13 +455,19 @@ export class LeadsService {
     }
 
     const now = new Date();
-    lead.activities.push({
+    const activity = {
       type: activityDto.type,
       ts: this.formatTimestamp(now),
       note: activityDto.note,
       by: activityDto.by || 'System',
       timestamp: now,
-    });
+    };
+    
+    // Ensure activities array exists
+    if (!lead.activities) {
+      lead.activities = [];
+    }
+    lead.activities.push(activity as any);
 
     lead.lastContact = now;
     lead.slaBreached = this.checkSlaBreached(lead);
@@ -430,6 +525,7 @@ export class LeadsService {
   }
 
   async bulkUpdateStage(ids: string[], stage: string, tenantId?: string): Promise<{ modified: number }> {
+    await this.assertValidStatusKey(stage, tenantId);
     const objectIds = ids.filter(id => Types.ObjectId.isValid(id)).map(id => new Types.ObjectId(id));
     const filter: any = { 
       $or: [
@@ -445,7 +541,7 @@ export class LeadsService {
 
     const result = await this.leadModel.updateMany(
       filter,
-      { $set: { stage, lastContact: new Date() } },
+      { $set: { statusKey: stage, lastContact: new Date() } },
     );
     return { modified: result.modifiedCount };
   }
@@ -476,7 +572,7 @@ export class LeadsService {
       ]),
       this.leadModel.aggregate([
         { $match: filter },
-        { $group: { _id: '$stage', count: { $sum: 1 } } },
+        { $group: { _id: '$statusKey', count: { $sum: 1 } } },
       ]),
       this.leadModel.aggregate([
         { $match: filter },
@@ -492,6 +588,26 @@ export class LeadsService {
       totalPipelineValue: totalPipelineValue[0]?.total || 0,
       stageDistribution: stageCounts.reduce((acc: any, curr: any) => ({ ...acc, [curr._id]: curr.count }), {}),
       sourceDistribution: sourceCounts.reduce((acc: any, curr: any) => ({ ...acc, [curr._id]: curr.count }), {}),
+    };
+  }
+
+  async getStatusOptions(tenantId?: string): Promise<{ data: Array<{ key: string; label: string; color: string; order: number; type: string }> }> {
+    const tid = this.toObjectId(tenantId);
+
+    const statuses = await this.leadStatusModel
+      .find({ tenantId: tid, entity: 'lead', isActive: true })
+      .sort({ order: 1 })
+      .lean()
+      .exec();
+
+    return {
+      data: statuses.map(s => ({
+        key: (s as any).key,
+        label: (s as any).label,
+        color: (s as any).color,
+        order: (s as any).order,
+        type: (s as any).type,
+      })),
     };
   }
 
@@ -520,6 +636,171 @@ export class LeadsService {
     }
 
     return { updated };
+  }
+
+  // ============================================
+  // LEAD TRACKER / STATUS PROGRESS
+  // ============================================
+
+  async getTracker(id: string, tenantId?: string): Promise<{ stages: any[]; currentStage: string; progress: number }> {
+    const lead = await this.findOne(id, tenantId);
+    
+    // Get all available status options ordered
+    const tid = this.toObjectId(tenantId);
+    const statusOptions = await this.leadStatusModel
+      .find({ tenantId: tid, entity: 'lead', isActive: true })
+      .sort({ order: 1 })
+      .lean()
+      .exec();
+
+    // If no status options configured, use default pipeline
+    const defaultStages = [
+      { key: 'new', label: 'New', color: '#64748b', order: 0, type: 'start' },
+      { key: 'contacted', label: 'Contacted', color: '#3b82f6', order: 1, type: 'normal' },
+      { key: 'qualified', label: 'Qualified', color: '#8b5cf6', order: 2, type: 'normal' },
+      { key: 'site_survey', label: 'Site Survey', color: '#f59e0b', order: 3, type: 'normal' },
+      { key: 'proposal_sent', label: 'Proposal Sent', color: '#06b6d4', order: 4, type: 'normal' },
+      { key: 'negotiation', label: 'Negotiation', color: '#ec4899', order: 5, type: 'normal' },
+      { key: 'won', label: 'Won', color: '#22c55e', order: 6, type: 'success' },
+      { key: 'lost', label: 'Lost', color: '#ef4444', order: 7, type: 'failure' },
+    ];
+
+    const allStages = statusOptions.length > 0 ? statusOptions.map(s => ({
+      key: (s as any).key,
+      label: (s as any).label,
+      color: (s as any).color,
+      order: (s as any).order,
+      type: (s as any).type || 'normal',
+    })) : defaultStages;
+
+    // Get lead's progress from leadStages array
+    const leadStages = lead.leadStages || [];
+    
+    // Build tracker stages with completion status
+    const trackerStages = allStages.map((stage, index) => {
+      const leadStage = leadStages.find(ls => ls.stage === stage.key);
+      const isCompleted = leadStage?.completed || false;
+      const isCurrent = lead.statusKey === stage.key;
+      
+      // Determine if this stage should be marked as completed
+      // All stages before current stage are considered completed
+      const currentStageIndex = allStages.findIndex(s => s.key === lead.statusKey);
+      const shouldBeCompleted = index < currentStageIndex || isCompleted || isCurrent;
+      
+      return {
+        stage: stage.key,
+        label: stage.label,
+        color: stage.color,
+        order: stage.order,
+        type: stage.type,
+        completed: shouldBeCompleted,
+        completedAt: leadStage?.completedAt || (shouldBeCompleted && !isCurrent ? new Date() : null),
+        isCurrent,
+      };
+    });
+
+    // Calculate progress
+    const completedCount = trackerStages.filter(s => s.completed).length;
+    const currentStageIndex = trackerStages.findIndex(s => s.isCurrent);
+    const progress = allStages.length > 0 
+      ? Math.round(((currentStageIndex + 1) / allStages.length) * 100)
+      : 0;
+
+    return {
+      stages: trackerStages,
+      currentStage: lead.statusKey,
+      progress: Math.min(progress, 100),
+    };
+  }
+
+  async updateStage(id: string, stage: string, user: string = 'System', tenantId?: string): Promise<{ lead: Lead; tracker: any }> {
+    // Validate stage
+    await this.assertValidStatusKey(stage, tenantId);
+    
+    const lead = await this.findOne(id, tenantId);
+    const oldStage = lead.statusKey;
+    
+    if (oldStage === stage) {
+      throw new BadRequestException(`Lead is already in stage '${stage}'`);
+    }
+
+    const now = new Date();
+    
+    // Build update data
+    const updateData: any = {
+      statusKey: stage,
+      lastContact: now,
+    };
+
+    // Add stage change activity
+    const activity = {
+      type: 'stage_change',
+      ts: this.formatTimestamp(now),
+      note: `Stage changed from ${oldStage} to ${stage}`,
+      by: user,
+      timestamp: now,
+    };
+    updateData.$push = { activities: activity };
+
+    // Update leadStages - mark new stage as completed
+    const existingStageIndex = lead.leadStages?.findIndex(ls => ls.stage === stage);
+    if (existingStageIndex >= 0) {
+      // Update existing stage
+      updateData.$set = {
+        [`leadStages.${existingStageIndex}.completed`]: true,
+        [`leadStages.${existingStageIndex}.completedAt`]: now,
+      };
+    } else {
+      // Add new stage entry
+      updateData.$push.leadStages = {
+        stage,
+        completed: true,
+        completedAt: now,
+        createdAt: now,
+      };
+    }
+
+    // Also mark old stage as completed if not already
+    const oldStageIndex = lead.leadStages?.findIndex(ls => ls.stage === oldStage);
+    if (oldStageIndex >= 0 && !lead.leadStages[oldStageIndex].completed) {
+      if (!updateData.$set) updateData.$set = {};
+      updateData.$set[`leadStages.${oldStageIndex}.completed`] = true;
+      updateData.$set[`leadStages.${oldStageIndex}.completedAt`] = now;
+    }
+
+    // Recalculate score and SLA
+    const mergedData = { ...lead, ...updateData, statusKey: stage };
+    updateData.score = this.calculateScore(mergedData);
+    updateData.slaBreached = this.checkSlaBreached(mergedData);
+    updateData.activeAutomation = this.applyAutomation(mergedData);
+
+    // Update lead
+    const filter: any = { 
+      $or: [
+        { _id: Types.ObjectId.isValid(id) ? new Types.ObjectId(id) : undefined },
+        { leadId: id }
+      ].filter(Boolean),
+      isDeleted: { $ne: true } 
+    };
+    
+    if (tenantId) {
+      filter.tenantId = new Types.ObjectId(tenantId);
+    }
+
+    const updatedLead = await this.leadModel.findOneAndUpdate(
+      filter,
+      updateData,
+      { new: true, runValidators: true }
+    ).exec();
+
+    if (!updatedLead) {
+      throw new NotFoundException('Lead not found after update');
+    }
+
+    // Get updated tracker
+    const tracker = await this.getTracker(id, tenantId);
+
+    return { lead: updatedLead, tracker };
   }
 
   private formatTimestamp(date: Date): string {

@@ -1,6 +1,6 @@
 // Solar OS — Settings & Control Center (Enterprise Edition)
 // Feature Flags · RBAC Matrix · Role Builder · User Permissions · Workflow Rules · Audit Logs · AI Suggestions
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
     Settings, Shield, Flag, GitBranch, ScrollText, Zap,
     Search, RotateCcw, Download, ChevronDown, ChevronUp,
@@ -16,11 +16,14 @@ import {
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
 import { MODULE_DEFS, ROLE_DEFS, ACTION_DEFS } from '../config/features.config';
+import { settingsApi } from '../services/settingsApi';
 import {
     PROJECT_TYPE_LIST, PROJECT_TYPES, ADMIN_EDITABLE_FIELDS,
     PROJECT_TYPE_DEFAULTS,
 } from '../config/projectTypes.config';
 import { Modal } from '../components/ui/Modal';
+import { toast } from '../components/ui/Toast';
+import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd';
 
 // ─── Icon map ────────────────────────────────────────────────────────────────
 const ICON_MAP = {
@@ -48,6 +51,263 @@ const Toggle = ({ on, onChange, size = 'md', disabled = false }) => {
         </button>
     );
 };
+
+// ─── CRM: Lead Status Builder ────────────────────────────────────────────────
+function LeadStatusBuilder() {
+    const [loading, setLoading] = useState(true);
+    const [statuses, setStatuses] = useState([]);
+    const [modalOpen, setModalOpen] = useState(false);
+    const [editing, setEditing] = useState(null);
+    const [saving, setSaving] = useState(false);
+    const [form, setForm] = useState({
+        key: '',
+        label: '',
+        color: '#64748b',
+        type: 'normal',
+    });
+
+    const load = async () => {
+        try {
+            setLoading(true);
+            const res = await settingsApi.getLeadStatuses(false);
+            const list = Array.isArray(res?.data?.data) ? res.data.data : Array.isArray(res?.data) ? res.data : [];
+            setStatuses(list);
+        } catch (e) {
+            toast.error(e?.message || 'Failed to load lead statuses');
+            setStatuses([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        load();
+    }, []);
+
+    const openCreate = () => {
+        setEditing(null);
+        setForm({ key: '', label: '', color: '#64748b', type: 'normal' });
+        setModalOpen(true);
+    };
+
+    const openEdit = (s) => {
+        setEditing(s);
+        setForm({
+            key: s?.key || '',
+            label: s?.label || '',
+            color: s?.color || '#64748b',
+            type: s?.type || 'normal',
+        });
+        setModalOpen(true);
+    };
+
+    const save = async () => {
+        if (!form.label?.trim()) {
+            toast.error('Label is required');
+            return;
+        }
+        if (!editing && !form.key?.trim()) {
+            toast.error('Key is required');
+            return;
+        }
+
+        try {
+            setSaving(true);
+            if (editing) {
+                await settingsApi.updateLeadStatus(editing._id || editing.id, {
+                    label: form.label.trim(),
+                    color: form.color,
+                    type: form.type,
+                });
+                toast.success('Status updated');
+            } else {
+                await settingsApi.createLeadStatus({
+                    key: form.key.trim(),
+                    label: form.label.trim(),
+                    color: form.color,
+                    type: form.type,
+                });
+                toast.success('Status created');
+            }
+            setModalOpen(false);
+            await load();
+        } catch (e) {
+            toast.error(e?.message || 'Failed to save status');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const remove = async (s) => {
+        try {
+            await settingsApi.deleteLeadStatus(s._id || s.id);
+            toast.success('Status deleted');
+            await load();
+        } catch (e) {
+            toast.error(e?.message || 'Failed to delete status');
+        }
+    };
+
+    const onDragEnd = async (result) => {
+        if (!result?.destination) return;
+        const from = result.source.index;
+        const to = result.destination.index;
+        if (from === to) return;
+
+        const next = Array.from(statuses);
+        const [moved] = next.splice(from, 1);
+        next.splice(to, 0, moved);
+        setStatuses(next);
+
+        try {
+            await settingsApi.reorderLeadStatuses(next.map(s => s._id || s.id));
+            toast.success('Order updated');
+            await load();
+        } catch (e) {
+            toast.error(e?.message || 'Failed to reorder statuses');
+            await load();
+        }
+    };
+
+    return (
+        <div className="rounded-xl border border-[var(--border-base)] bg-[var(--bg-surface)] overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-base)]">
+                <div>
+                    <p className="text-xs font-extrabold text-[var(--text-primary)]">Lead Status Builder</p>
+                    <p className="text-[10px] text-[var(--text-faint)] mt-0.5">Configure tenant-scoped lead statuses (key + label + color + type) and reorder by drag & drop.</p>
+                </div>
+                <button onClick={openCreate}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-semibold bg-[var(--accent)] text-black hover:opacity-90 transition-opacity">
+                    <Plus size={10} /> Add Status
+                </button>
+            </div>
+
+            {loading ? (
+                <div className="p-4">
+                    <p className="text-xs text-[var(--text-faint)]">Loading…</p>
+                </div>
+            ) : (
+                <div className="p-3">
+                    <DragDropContext onDragEnd={onDragEnd}>
+                        <Droppable droppableId="lead-statuses">
+                            {(provided) => (
+                                <div ref={provided.innerRef} {...provided.droppableProps} className="space-y-2">
+                                    {statuses.map((s, index) => (
+                                        <Draggable key={s._id || s.id} draggableId={String(s._id || s.id)} index={index}>
+                                            {(drag) => (
+                                                <div ref={drag.innerRef} {...drag.draggableProps}
+                                                    className={`flex items-center gap-3 px-3 py-2 rounded-xl border border-[var(--border-base)] bg-[var(--bg-elevated)]`}
+                                                >
+                                                    <div {...drag.dragHandleProps} className="text-[var(--text-faint)] text-xs select-none w-5 text-center">≡</div>
+                                                    <div className="w-2.5 h-2.5 rounded-full" style={{ background: s.color }} />
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <span className="text-xs font-bold text-[var(--text-primary)] truncate">{s.label}</span>
+                                                            <code className="text-[9px] px-2 py-0.5 rounded bg-[var(--bg-overlay)] border border-[var(--border-base)] text-[var(--text-faint)]">{s.key}</code>
+                                                            <span className="text-[9px] px-2 py-0.5 rounded bg-[var(--bg-overlay)] border border-[var(--border-base)] text-[var(--text-faint)] uppercase">{s.type}</span>
+                                                            {!s.isActive && <span className="text-[9px] px-2 py-0.5 rounded bg-red-500/10 border border-red-500/20 text-red-400 font-bold">INACTIVE</span>}
+                                                            {s.isSystem && <span className="text-[9px] px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400 font-bold">SYSTEM</span>}
+                                                        </div>
+                                                    </div>
+                                                    <button onClick={() => openEdit(s)}
+                                                        className="w-7 h-7 rounded-lg flex items-center justify-center border border-[var(--border-base)] text-[var(--text-faint)] hover:text-[var(--accent)] hover:border-[var(--accent)]/40 transition-colors">
+                                                        <Edit2 size={12} />
+                                                    </button>
+                                                    {!s.isSystem && (
+                                                        <button onClick={() => remove(s)}
+                                                            className="w-7 h-7 rounded-lg flex items-center justify-center border border-[var(--border-base)] text-[var(--text-faint)] hover:text-red-400 hover:border-red-500/40 hover:bg-red-500/5 transition-colors">
+                                                            <Trash2 size={12} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </Draggable>
+                                    ))}
+                                    {provided.placeholder}
+                                    {statuses.length === 0 && (
+                                        <div className="p-8 text-center text-[var(--text-faint)] text-xs">
+                                            No statuses configured yet.
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </Droppable>
+                    </DragDropContext>
+                </div>
+            )}
+
+            <Modal
+                open={modalOpen}
+                onClose={() => setModalOpen(false)}
+                title={editing ? 'Edit Lead Status' : 'Add Lead Status'}
+                size="sm"
+                footer={
+                    <>
+                        <button onClick={() => setModalOpen(false)}
+                            className="px-4 py-2 rounded-lg text-xs font-semibold border border-[var(--border-base)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
+                            Cancel
+                        </button>
+                        <button onClick={save} disabled={saving}
+                            className={`px-4 py-2 rounded-lg text-xs font-bold bg-[var(--accent)] text-black hover:opacity-90 transition-opacity ${saving ? 'opacity-60 cursor-not-allowed' : ''}`}
+                        >
+                            {saving ? 'Saving…' : 'Save'}
+                        </button>
+                    </>
+                }
+            >
+                <div className="space-y-3">
+                    {!editing && (
+                        <div>
+                            <label className="text-[11px] font-semibold text-[var(--text-faint)] block mb-1">Key *</label>
+                            <input
+                                value={form.key}
+                                onChange={e => setForm(p => ({ ...p, key: e.target.value }))}
+                                placeholder="e.g. contacted"
+                                className="w-full px-3 py-2 rounded-lg border border-[var(--border-base)] bg-[var(--bg-elevated)] text-xs text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--accent)]"
+                            />
+                            <p className="text-[10px] text-[var(--text-faint)] mt-1">Stored on lead as <code>statusKey</code>. Do not use labels here.</p>
+                        </div>
+                    )}
+
+                    <div>
+                        <label className="text-[11px] font-semibold text-[var(--text-faint)] block mb-1">Label *</label>
+                        <input
+                            value={form.label}
+                            onChange={e => setForm(p => ({ ...p, label: e.target.value }))}
+                            placeholder="e.g. Contacted"
+                            className="w-full px-3 py-2 rounded-lg border border-[var(--border-base)] bg-[var(--bg-elevated)] text-xs text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--accent)]"
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="text-[11px] font-semibold text-[var(--text-faint)] block mb-1">Color</label>
+                            <input
+                                type="color"
+                                value={form.color}
+                                onChange={e => setForm(p => ({ ...p, color: e.target.value }))}
+                                className="w-full h-10 rounded-lg border border-[var(--border-base)] bg-[var(--bg-elevated)]"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[11px] font-semibold text-[var(--text-faint)] block mb-1">Type</label>
+                            <select
+                                value={form.type}
+                                onChange={e => setForm(p => ({ ...p, type: e.target.value }))}
+                                className="w-full px-3 py-2 rounded-lg border border-[var(--border-base)] bg-[var(--bg-elevated)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]"
+                            >
+                                <option value="start">start</option>
+                                <option value="normal">normal</option>
+                                <option value="success">success</option>
+                                <option value="failure">failure</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </Modal>
+        </div>
+    );
+}
 
 // ─── Section header ───────────────────────────────────────────────────────────
 const SectionHeader = ({ icon: Icon, title, subtitle, badge, children }) => (
@@ -207,6 +467,14 @@ const ModulesPanel = () => {
                                             })}
                                         </div>
                                     </div>
+
+                                    {/* CRM → Lead: Dynamic Status Builder */}
+                                    {mod.id === 'crm' && (
+                                        <div>
+                                            <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider mb-2">CRM · Lead</p>
+                                            <LeadStatusBuilder />
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -225,40 +493,53 @@ const ModulesPanel = () => {
 
 // ─── PANEL B: RBAC MATRIX ────────────────────────────────────────────────────
 const RBACPanel = () => {
-    const { rbac, toggleRBAC, setRolePreset, resetRBAC } = useSettings();
+    const { customRoles, toggleCustomRolePermission, setCustomRolePreset } = useSettings();
     const { user } = useAuth();
-    const [selectedRole, setSelectedRole] = useState(ROLE_DEFS[0].id);
+    const [selectedRole, setSelectedRole] = useState('');
     const [modFilter, setModFilter] = useState('');
 
-    const roleDef = ROLE_DEFS.find(r => r.id === selectedRole);
+    const roleList = useMemo(() => Object.values(customRoles || {}), [customRoles]);
+
+    // Set initial role when roleList loads
+    useEffect(() => {
+        if (roleList?.length > 0 && !selectedRole) {
+            setSelectedRole(roleList[0].id);
+        }
+    }, [roleList, selectedRole]);
+
+    const roleDef = roleList?.find(r => r.id === selectedRole);
     const filteredMods = MODULE_DEFS.filter(m =>
         !modFilter || m.label.toLowerCase().includes(modFilter.toLowerCase())
     );
 
     const roleStats = useMemo(() => {
-        const row = rbac[selectedRole] || {};
         let total = 0, granted = 0;
         MODULE_DEFS.forEach(mod => {
             ACTION_DEFS.forEach(act => {
                 total++;
-                if (row[mod.id]?.[act.id]) granted++;
+                if (roleDef?.permissions?.[mod.id]?.[act.id]) granted++;
             });
         });
         return { total, granted, pct: total > 0 ? ((granted / total) * 100).toFixed(0) : 0 };
-    }, [rbac, selectedRole]);
+    }, [roleDef]);
 
     return (
         <div>
             <SectionHeader icon={Shield} title="Role & Permissions Matrix" subtitle="Configure what each role can do per module.">
-                <button onClick={() => resetRBAC(user?.name)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-semibold border border-[var(--border-base)] text-[var(--text-faint)] hover:text-[var(--accent)] hover:border-[var(--accent)] transition-colors">
-                    <RotateCcw size={10} /> Reset
-                </button>
             </SectionHeader>
+
+            {roleList.length === 0 && (
+                <div className="p-4 rounded-xl border-2 border-dashed border-[var(--border-base)] text-center">
+                    <p className="text-[11px] text-[var(--text-faint)]">No custom roles found in DB. Create one in Role Builder.</p>
+                </div>
+            )}
+
+            {roleList.length > 0 && (
+                <>
 
             {/* Role selector tabs */}
             <div className="flex flex-wrap gap-2 mb-5">
-                {ROLE_DEFS.map(role => (
+                {roleList?.map(role => (
                     <button key={role.id} onClick={() => setSelectedRole(role.id)}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${selectedRole === role.id ? 'text-white border-transparent' : 'border-[var(--border-base)] text-[var(--text-faint)] hover:text-[var(--text-primary)]'}`}
                         style={selectedRole === role.id ? { background: role.color, borderColor: role.color } : {}}>
@@ -288,7 +569,7 @@ const RBACPanel = () => {
                     {/* Preset buttons */}
                     <div className="flex flex-col gap-1">
                         {[['full', 'Full Access'], ['view_only', 'View Only'], ['none', 'No Access']].map(([preset, label]) => (
-                            <button key={preset} onClick={() => setRolePreset(selectedRole, preset, user?.name)}
+                            <button key={preset} onClick={() => setCustomRolePreset(selectedRole, preset, user?.name)}
                                 className="px-2 py-1 rounded text-[9px] font-bold border border-[var(--border-base)] text-[var(--text-faint)] hover:text-[var(--accent)] hover:border-[var(--accent)] transition-colors whitespace-nowrap">
                                 {label}
                             </button>
@@ -320,7 +601,7 @@ const RBACPanel = () => {
                     </thead>
                     <tbody>
                         {filteredMods.map((mod, i) => {
-                            const row = rbac[selectedRole]?.[mod.id] || {};
+                            const row = roleDef?.permissions?.[mod.id] || {};
                             const accessCount = ACTION_DEFS.filter(a => row[a.id]).length;
                             return (
                                 <tr key={mod.id} className={`border-b border-[var(--border-base)] transition-colors hover:bg-[var(--bg-hover)] ${i % 2 === 0 ? '' : 'bg-[var(--bg-elevated)]/40'}`}>
@@ -334,7 +615,7 @@ const RBACPanel = () => {
                                         const granted = row[act.id] ?? false;
                                         return (
                                             <td key={act.id} className="px-3 py-3 text-center">
-                                                <button onClick={() => toggleRBAC(selectedRole, mod.id, act.id, user?.name)}
+                                                <button onClick={() => toggleCustomRolePermission(selectedRole, mod.id, act.id, user?.name)}
                                                     title={`${granted ? 'Revoke' : 'Grant'} ${act.label} on ${mod.label}`}
                                                     className={`w-6 h-6 rounded-md mx-auto flex items-center justify-center border transition-all ${granted ? 'border-[var(--accent)]/40 bg-[var(--accent)]/15 text-[var(--accent)]' : 'border-[var(--border-base)] text-[var(--text-faint)] hover:border-[var(--accent)]/40'}`}>
                                                     {granted ? <Check size={10} strokeWidth={3} /> : <X size={9} strokeWidth={2} />}
@@ -356,6 +637,8 @@ const RBACPanel = () => {
                     </tbody>
                 </table>
             </div>
+                </>
+            )}
         </div>
     );
 };
@@ -912,7 +1195,7 @@ const ROLE_COLORS = [
 ];
 
 const RoleBuilderPanel = () => {
-    const { customRoles, allRoles, createCustomRole, cloneRole,
+    const { customRoles, createCustomRole, cloneRole,
         updateCustomRole, toggleCustomRolePermission,
         setCustomRolePreset, deleteCustomRole } = useSettings();
     const { user } = useAuth();
@@ -922,7 +1205,7 @@ const RoleBuilderPanel = () => {
     const [cloneOpen, setCloneOpen] = useState(false);
     const [cloneSourceId, setCloneSourceId] = useState('');
     const [modFilter, setModFilter] = useState('');
-    const [newRole, setNewRole] = useState({ label: '', description: '', baseRole: '', color: '#8b5cf6' });
+    const [newRole, setNewRole] = useState({ label: '', description: '', color: '#8b5cf6' });
     const [cloneLabel, setCloneLabel] = useState('');
     const [editingLabel, setEditingLabel] = useState(false);
     const [labelDraft, setLabelDraft] = useState('');
@@ -935,7 +1218,7 @@ const RoleBuilderPanel = () => {
         const id = createCustomRole(newRole, user?.name);
         setSelectedId(id);
         setCreateOpen(false);
-        setNewRole({ label: '', description: '', baseRole: '', color: '#8b5cf6' });
+        setNewRole({ label: '', description: '', color: '#8b5cf6' });
     };
 
     const handleClone = () => {
@@ -962,7 +1245,7 @@ const RoleBuilderPanel = () => {
                 subtitle="Create custom roles, clone existing ones, and configure per-module permissions."
                 badge={`${customRoleList.length} custom roles`}>
                 <div className="flex gap-2">
-                    <button onClick={() => { setCloneSourceId(ROLE_DEFS[0].id); setCloneOpen(true); }}
+                    <button onClick={() => { setCloneSourceId(customRoleList?.[0]?.id || ''); setCloneOpen(true); }}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-semibold border border-[var(--border-base)] text-[var(--text-faint)] hover:text-[var(--accent)] hover:border-[var(--accent)] transition-colors">
                         <Copy size={10} /> Clone Role
                     </button>
@@ -976,20 +1259,9 @@ const RoleBuilderPanel = () => {
             <div className="flex gap-4">
                 {/* Left: role list */}
                 <div className="w-52 shrink-0 space-y-2">
-                    <p className="text-[9px] font-bold text-[var(--text-faint)] uppercase tracking-wider mb-2">Base Roles (read-only)</p>
-                    {ROLE_DEFS.map(r => (
-                        <div key={r.id}
-                            className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border-base)] text-[11px] opacity-60 cursor-default"
-                            style={{ background: r.bg }}>
-                            <div className="w-2 h-2 rounded-full shrink-0" style={{ background: r.color }} />
-                            <span className="text-[var(--text-secondary)] font-medium truncate">{r.label}</span>
-                            <span className="ml-auto text-[8px] text-[var(--text-faint)] bg-[var(--bg-overlay)] px-1 rounded">BASE</span>
-                        </div>
-                    ))}
-
                     {customRoleList.length > 0 && (
                         <>
-                            <p className="text-[9px] font-bold text-[var(--text-faint)] uppercase tracking-wider mt-4 mb-2">Custom Roles</p>
+                            <p className="text-[9px] font-bold text-[var(--text-faint)] uppercase tracking-wider mb-2">Custom Roles</p>
                             {customRoleList.map(r => (
                                 <button key={r.id} onClick={() => setSelectedId(r.id)}
                                     className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg border text-[11px] text-left transition-all ${selectedId === r.id ? 'border-[var(--accent)] bg-[var(--accent)]/8' : 'border-[var(--border-base)] hover:border-[var(--accent)]/40'}`}
@@ -1126,14 +1398,6 @@ const RoleBuilderPanel = () => {
                             className="w-full px-3 py-2 rounded-lg border border-[var(--border-base)] bg-[var(--bg-elevated)] text-xs text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--accent)] resize-none" />
                     </div>
                     <div>
-                        <label className="text-[11px] font-semibold text-[var(--text-faint)] block mb-1">Base On (optional)</label>
-                        <select value={newRole.baseRole} onChange={e => setNewRole(p => ({ ...p, baseRole: e.target.value }))}
-                            className="w-full px-3 py-2 rounded-lg border border-[var(--border-base)] bg-[var(--bg-elevated)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]">
-                            <option value="">Start from scratch</option>
-                            {ROLE_DEFS.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
-                        </select>
-                    </div>
-                    <div>
                         <label className="text-[11px] font-semibold text-[var(--text-faint)] block mb-2">Role Colour</label>
                         <div className="flex gap-2 flex-wrap">
                             {ROLE_COLORS.map(c => (
@@ -1161,7 +1425,7 @@ const RoleBuilderPanel = () => {
                         <select value={cloneSourceId} onChange={e => setCloneSourceId(e.target.value)}
                             className="w-full px-3 py-2 rounded-lg border border-[var(--border-base)] bg-[var(--bg-elevated)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]">
                             <option value="">Select source role…</option>
-                            {allRoles.map(r => <option key={r.id} value={r.id}>{r.label}{r.isCustom ? ' (custom)' : ''}</option>)}
+                            {customRoleList.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
                         </select>
                     </div>
                     <div>

@@ -81,7 +81,7 @@ export const ROLE_PERMISSIONS = {
         canApprove: true,
     },
     [ROLES.STORE_MANAGER]: {
-        modules: [MODULES.DASHBOARD, MODULES.REMINDERS, MODULES.INVENTORY, MODULES.PROCUREMENT, MODULES.LOGISTICS],
+        modules: [MODULES.DASHBOARD, MODULES.REMINDERS, MODULES.INVENTORY, MODULES.PROCUREMENT, MODULES.LOGISTICS, MODULES.ITEMS],
         canCreate: true,
         canEdit: true,
         canDelete: false,
@@ -89,7 +89,7 @@ export const ROLE_PERMISSIONS = {
         canApprove: false,
     },
     [ROLES.PROCUREMENT_OFFICER]: {
-        modules: [MODULES.DASHBOARD, MODULES.REMINDERS, MODULES.PROCUREMENT, MODULES.INVENTORY, MODULES.LOGISTICS],
+        modules: [MODULES.DASHBOARD, MODULES.REMINDERS, MODULES.PROCUREMENT, MODULES.INVENTORY, MODULES.LOGISTICS, MODULES.ITEMS],
         canCreate: true,
         canEdit: true,
         canDelete: false,

@@ -25,6 +25,7 @@ import AdminPage from './pages/AdminPage';
 import HRMPage from './pages/HRMPage';
 import IntelligenceDashboardPage from './pages/IntelligenceDashboardPage';
 import RemindersPage from './pages/RemindersPage';
+import ItemsPage from './pages/ItemsPage';
 import NotificationSystem from './components/NotificationSystem';
 import { canAccess } from './config/roles.config';
 
@@ -49,6 +50,7 @@ const PAGE_MAP = {
   compliance: { component: CompliancePage, title: 'Compliance' },
   settings: { component: SettingsPage, title: 'Settings' },
   intelligence: { component: IntelligenceDashboardPage, title: 'AI Intelligence' },
+  items: { component: ItemsPage, title: 'Items' },
 };
 
 const APP_NAME = 'Solar OS';

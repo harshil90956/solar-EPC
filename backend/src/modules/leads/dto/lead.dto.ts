@@ -62,7 +62,7 @@ export class CreateLeadDto {
 
   @IsOptional()
   @IsString()
-  stage?: string;
+  statusKey?: string;
 
   @IsOptional()
   @IsNumber()
@@ -148,7 +148,7 @@ export class UpdateLeadDto extends CreateLeadDto {}
 export class QueryLeadDto {
   @IsOptional()
   @IsString()
-  stage?: string;
+  statusKey?: string;
 
   @IsOptional()
   @IsString()

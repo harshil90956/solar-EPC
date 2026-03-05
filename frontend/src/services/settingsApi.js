@@ -1,10 +1,21 @@
 const API_BASE_URL = (process.env.REACT_APP_API_URL || 'http://localhost:5000') + '/api/v1';
 
+const getTenantId = () => {
+  try {
+    const user = JSON.parse(localStorage.getItem('solar_user') || '{}');
+    return user?.tenantId || user?.tenant?.id || user?.id || null;
+  } catch {
+    return null;
+  }
+};
+
 const getAuthHeaders = () => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('solar_token') || localStorage.getItem('token');
+  const tenantId = getTenantId();
   return {
     'Content-Type': 'application/json',
     ...(token && { Authorization: `Bearer ${token}` }),
+    ...(tenantId && { 'x-tenant-id': tenantId }),
   };
 };
 
@@ -155,7 +166,7 @@ export const settingsApi = {
 
   // ── Custom Roles ─────────────────────────────────────────────────────────
   async getCustomRoles() {
-    const response = await fetch(`${API_BASE_URL}/settings/roles`, {
+    const response = await fetch(`${API_BASE_URL}/settings/custom-roles`, {
       headers: getAuthHeaders(),
     });
     if (!response.ok) throw new Error('Failed to fetch custom roles');
@@ -163,17 +174,21 @@ export const settingsApi = {
   },
 
   async createCustomRole(role) {
-    const response = await fetch(`${API_BASE_URL}/settings/roles`, {
+    const response = await fetch(`${API_BASE_URL}/settings/custom-roles`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(role),
     });
-    if (!response.ok) throw new Error('Failed to create custom role');
-    return response.json();
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to create custom role: ${errorText}`);
+    }
+    const data = await response.json();
+    return data;
   },
 
   async updateCustomRole(roleId, updates) {
-    const response = await fetch(`${API_BASE_URL}/settings/roles/${roleId}`, {
+    const response = await fetch(`${API_BASE_URL}/settings/custom-roles/${roleId}`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(updates),
@@ -183,11 +198,31 @@ export const settingsApi = {
   },
 
   async deleteCustomRole(roleId) {
-    const response = await fetch(`${API_BASE_URL}/settings/roles/${roleId}`, {
+    const response = await fetch(`${API_BASE_URL}/settings/custom-roles/${roleId}`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
     });
     if (!response.ok) throw new Error('Failed to delete custom role');
+    return response.json();
+  },
+
+  async updateCustomRolePermissions(roleId, moduleId, permissions) {
+    const response = await fetch(`${API_BASE_URL}/settings/custom-roles/${roleId}/permissions`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ moduleId, permissions }),
+    });
+    if (!response.ok) throw new Error('Failed to update custom role permissions');
+    return response.json();
+  },
+
+  async cloneCustomRole(roleId, label) {
+    const response = await fetch(`${API_BASE_URL}/settings/custom-roles/${roleId}/clone`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ label }),
+    });
+    if (!response.ok) throw new Error('Failed to clone custom role');
     return response.json();
   },
 
@@ -207,6 +242,56 @@ export const settingsApi = {
       body: JSON.stringify(config),
     });
     if (!response.ok) throw new Error('Failed to update project type config');
+    return response.json();
+  },
+
+  // ── Lead Statuses (CRM → Lead) ───────────────────────────────────────────
+  async getLeadStatuses(activeOnly = false) {
+    const url = new URL(`${API_BASE_URL}/settings/lead-statuses`);
+    if (activeOnly) url.searchParams.set('active', 'true');
+    const response = await fetch(url.toString(), {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to fetch lead statuses');
+    return response.json();
+  },
+
+  async createLeadStatus(payload) {
+    const response = await fetch(`${API_BASE_URL}/settings/lead-statuses`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error('Failed to create lead status');
+    return response.json();
+  },
+
+  async updateLeadStatus(id, payload) {
+    const response = await fetch(`${API_BASE_URL}/settings/lead-statuses/${id}`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error('Failed to update lead status');
+    return response.json();
+  },
+
+  async deleteLeadStatus(id) {
+    const response = await fetch(`${API_BASE_URL}/settings/lead-statuses/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to delete lead status');
+    return response.json();
+  },
+
+  async reorderLeadStatuses(statusIds) {
+    const response = await fetch(`${API_BASE_URL}/settings/lead-statuses/reorder`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ statusIds }),
+    });
+    if (!response.ok) throw new Error('Failed to reorder lead statuses');
     return response.json();
   },
 };

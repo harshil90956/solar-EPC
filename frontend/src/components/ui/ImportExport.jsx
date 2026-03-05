@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Download, Upload, Check, AlertCircle, ChevronRight, FileText, Table } from 'lucide-react';
+import { Download, Upload, Check, AlertCircle, ChevronRight, FileText } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Button } from './Button';
 import { Modal } from './Modal';
@@ -9,16 +9,26 @@ const ImportExport = ({ moduleName, fields = [], onImport, onExport, className }
     const [step, setStep] = useState(1); // 1: Select/Download, 2: Mapping, 3: Preview/Validate
     const [file, setFile] = useState(null);
     const [mapping, setMapping] = useState({});
-    const [errors, setErrors] = useState([]);
 
     const reset = () => {
         setStep(1);
         setFile(null);
         setMapping({});
-        setErrors([]);
+    };
+
+    const handleOpen = () => {
+        console.log('[ImportExport] Opening modal');
+        setIsOpen(true);
+    };
+
+    const handleClose = () => {
+        console.log('[ImportExport] Closing modal');
+        setIsOpen(false);
+        reset();
     };
 
     const handleFileSelect = (e) => {
+        console.log('[ImportExport] File selected:', e.target.files);
         const f = e.target.files[0];
         if (f) {
             setFile(f);
@@ -30,10 +40,47 @@ const ImportExport = ({ moduleName, fields = [], onImport, onExport, className }
         }
     };
 
-    const handleImport = () => {
-        onImport?.({ file, mapping });
-        setIsOpen(false);
-        reset();
+    const handleDownloadTemplate = () => {
+        console.log('[ImportExport] Downloading template');
+        // Generate CSV template based on fields
+        const headers = fields.map(f => f.label).join(',');
+        const sampleRow = fields.map(f => {
+            if (f.id === 'firstName') return 'John';
+            if (f.id === 'lastName') return 'Doe';
+            if (f.id === 'email') return 'john@example.com';
+            if (f.id === 'phone') return '9876543210';
+            if (f.id === 'company') return 'ABC Corp';
+            if (f.id === 'source') return 'Website';
+            if (f.id === 'city') return 'Mumbai';
+            if (f.id === 'value') return '500000';
+            if (f.id === 'statusKey') return 'new';
+            return '';
+        }).join(',');
+        
+        const csvContent = [headers, sampleRow].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', `${moduleName.toLowerCase()}_template.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const handleImportClick = () => {
+        console.log('[ImportExport] Import button clicked', { file, mapping });
+        if (!file) {
+            alert('Please select a file first');
+            return;
+        }
+        if (onImport) {
+            onImport({ file, mapping });
+        } else {
+            console.error('[ImportExport] onImport prop is not defined');
+            alert('Import function not available');
+        }
+        handleClose();
     };
 
     return (
@@ -41,13 +88,18 @@ const ImportExport = ({ moduleName, fields = [], onImport, onExport, className }
             <Button variant="outline" size="sm" onClick={() => onExport?.('csv')}>
                 <Download size={14} /> Export CSV
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setIsOpen(true)}>
+            <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleOpen}
+                type="button"
+            >
                 <Upload size={14} /> Import
             </Button>
 
             <Modal
-                isOpen={isOpen}
-                onClose={() => { setIsOpen(false); reset(); }}
+                open={isOpen}
+                onClose={handleClose}
                 title={`Import ${moduleName} Data`}
                 size="lg"
             >
@@ -79,7 +131,7 @@ const ImportExport = ({ moduleName, fields = [], onImport, onExport, className }
                                     <p className="text-xs text-[var(--text-muted)] mt-1">Accepts CSV or JSON files (Max 5MB)</p>
                                 </div>
                             </div>
-                            <Button variant="ghost" size="sm" className="text-[var(--primary)]">
+                            <Button variant="ghost" size="sm" className="text-[var(--primary)]" onClick={handleDownloadTemplate}>
                                 <Download size={14} /> Download {moduleName} Template
                             </Button>
                         </div>
@@ -157,7 +209,7 @@ const ImportExport = ({ moduleName, fields = [], onImport, onExport, className }
 
                             <div className="flex justify-end gap-3 pt-4">
                                 <Button variant="secondary" onClick={() => setStep(2)}>Back</Button>
-                                <Button onClick={handleImport}>Import 120 Valid Rows</Button>
+                                <Button onClick={handleImportClick} type="button">Import 120 Valid Rows</Button>
                             </div>
                         </div>
                     )}
