@@ -289,33 +289,6 @@ const DataTable = ({
                                                 >
                                                     <MoreHorizontal size={14} />
                                                 </button>
-<<<<<<< HEAD
-=======
-                                                {openActionRow === row[rowKey] && (
-                                                    <>
-                                                        <div className="fixed inset-0 z-30" onClick={() => setOpenActionRow(null)} />
-                                                        <div className="absolute right-8 top-0 z-40 w-44 glass-card shadow-2xl shadow-black/50 py-1.5 animate-slide-up">
-                                                            {allRowActions
-                                                                .filter(a => (typeof a.show === 'function' ? a.show(row) : true))
-                                                                .map(a => (
-                                                                <button
-                                                                    key={a.label}
-                                                                    onClick={() => { a.onClick(row); setOpenActionRow(null); }}
-                                                                    className={cn(
-                                                                        'flex items-center gap-2 w-full px-3 py-2 text-xs text-left transition-colors',
-                                                                        a.danger
-                                                                            ? 'text-red-400 hover:bg-red-500/10'
-                                                                            : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
-                                                                    )}
-                                                                >
-                                                                    {a.icon && <a.icon size={12} />}
-                                                                    {a.label}
-                                                                </button>
-                                                            ))}
-                                                        </div>
-                                                    </>
-                                                )}
->>>>>>> f005dbd (Finance module enhancement)
                                             </td>
                                         )}
                                     </tr>

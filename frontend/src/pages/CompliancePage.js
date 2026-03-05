@@ -1,8 +1,9 @@
-// Solar OS – EPC Edition — CompliancePage.js
-import React, { useState, useRef } from 'react';
+// Solar OS – EPC Edition — CompliancePage.js (API Integrated)
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
     FileText, CheckCircle, AlertTriangle, Zap, Upload,
     Plus, Download, Building2, ShieldCheck, IndianRupee, LayoutGrid, List,
+    Edit2, Trash2,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
@@ -11,7 +12,10 @@ import { KPICard } from '../components/ui/KPICard';
 import { Progress } from '../components/ui/Progress';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/Tabs';
 import DataTable from '../components/ui/DataTable';
-import { APP_CONFIG } from '../config/app.config';
+import { generateCompliancePDF } from '../utils/compliancePdfGenerator';
+
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
+const TENANT_ID = 'solarcorp';
 
 /* ─── Config-driven Status Maps ─── */
 const NEUTRAL = 'bg-[var(--bg-elevated)] text-[var(--text-muted)] border-[var(--border-muted)]';
@@ -83,7 +87,7 @@ const DOCUMENTS = [
 
 /* ─── Column Schemas ─── */
 const NM_COLUMNS = [
-    { key: 'id', header: 'App ID', render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span> },
+    { key: 'applicationId', header: 'App ID', render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span> },
     { key: 'customer', header: 'Customer', sortable: true, render: v => <span className="text-xs font-semibold text-[var(--text-primary)]">{v}</span> },
     { key: 'systemSize', header: 'Size', render: v => <span className="text-xs font-bold text-[var(--solar)]">{v}</span> },
     { key: 'discom', header: 'DISCOM', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
@@ -95,7 +99,7 @@ const NM_COLUMNS = [
 ];
 
 const SUB_COLUMNS = [
-    { key: 'id', header: 'Sub ID', render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span> },
+    { key: 'subsidyId', header: 'Sub ID', render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span> },
     { key: 'customer', header: 'Customer', sortable: true, render: v => <span className="text-xs font-semibold text-[var(--text-primary)]">{v}</span> },
     { key: 'scheme', header: 'Scheme', render: v => <span className="text-xs text-[var(--text-secondary)]">{v}</span> },
     { key: 'systemSize', header: 'Size', render: v => <span className="text-xs font-bold text-[var(--solar)]">{v}</span> },
@@ -107,7 +111,7 @@ const SUB_COLUMNS = [
 ];
 
 const INS_COLUMNS = [
-    { key: 'id', header: 'Inspection ID', render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span> },
+    { key: 'inspectionId', header: 'Inspection ID', render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span> },
     { key: 'customer', header: 'Customer', sortable: true, render: v => <span className="text-xs font-semibold text-[var(--text-primary)]">{v}</span> },
     { key: 'type', header: 'Type', render: v => <span className="text-xs text-[var(--text-secondary)]">{v}</span> },
     { key: 'inspector', header: 'Inspector', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
@@ -118,7 +122,7 @@ const INS_COLUMNS = [
 ];
 
 const DOC_COLUMNS = [
-    { key: 'id', header: 'Doc ID', render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span> },
+    { key: 'documentId', header: 'Doc ID', render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span> },
     { key: 'name', header: 'Document Name', sortable: true, render: v => <span className="text-xs font-semibold text-[var(--text-primary)]">{v}</span> },
     { key: 'category', header: 'Authority', render: v => <span className="text-xs text-[var(--text-secondary)]">{v}</span> },
     { key: 'project', header: 'Project', render: v => <span className="text-xs font-mono text-[var(--text-muted)]">{v}</span> },
@@ -148,12 +152,12 @@ const NMCard = ({ item, onDragStart, onClick }) => {
     return (
         <div
             draggable
-            onDragStart={() => onDragStart(item.id)}
+            onDragStart={() => onDragStart(item.applicationId)}
             onClick={() => onClick({ type: 'nm', data: item })}
             className="glass-card p-3 cursor-grab active:cursor-grabbing hover:scale-[1.01] transition-all space-y-2"
         >
             <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] font-mono text-[var(--accent-light)]">{item.id}</span>
+                <span className="text-[10px] font-mono text-[var(--accent-light)]">{item.applicationId}</span>
                 <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full border text-[9px] font-medium ${meta.color}`}>{meta.label}</span>
             </div>
             <p className="text-xs font-semibold text-[var(--text-primary)] truncate">{item.customer}</p>
@@ -187,12 +191,12 @@ const SubCard = ({ item, onDragStart, onClick }) => {
     return (
         <div
             draggable
-            onDragStart={() => onDragStart(item.id)}
+            onDragStart={() => onDragStart(item.subsidyId)}
             onClick={() => onClick({ type: 'sub', data: item })}
             className="glass-card p-3 cursor-grab active:cursor-grabbing hover:scale-[1.01] transition-all space-y-2"
         >
             <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] font-mono text-[var(--accent-light)]">{item.id}</span>
+                <span className="text-[10px] font-mono text-[var(--accent-light)]">{item.subsidyId}</span>
                 <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full border text-[9px] font-medium ${meta.color}`}>{meta.label}</span>
             </div>
             <p className="text-xs font-semibold text-[var(--text-primary)] truncate">{item.customer}</p>
@@ -239,8 +243,8 @@ const ComplianceKanbanBoard = ({ stages, items, CardComponent, onStageChange, on
                                     style={{ background: stage.bg, color: stage.color }}>{cards.length}</span>
                             </div>
                             <div className="flex flex-col gap-2 p-2 flex-1 min-h-[100px]">
-                                {cards.map(item => (
-                                    <CardComponent key={item.id} item={item}
+                                {cards.map((item, index) => (
+                                    <CardComponent key={item._id || item.id || item.applicationId || item.subsidyId || item.inspectionId || item.documentId || index} item={item}
                                         onDragStart={id => { draggingId.current = id; }}
                                         onClick={onCardClick}
                                     />
@@ -259,40 +263,449 @@ const ComplianceKanbanBoard = ({ stages, items, CardComponent, onStageChange, on
     );
 };
 
-/* ─── Main Page ─── */
 const CompliancePage = () => {
-    const [nmItems, setNmItems] = useState(NET_METERING);
-    const [subItems, setSubItems] = useState(SUBSIDIES);
+    const [nmItems, setNmItems] = useState([]);
+    const [subItems, setSubItems] = useState([]);
+    const [inspections, setInspections] = useState([]);
+    const [documents, setDocuments] = useState([]);
+    const [stats, setStats] = useState({
+        netMetering: { total: 0 },
+        subsidies: { total: 0, totalAmount: 0, disbursed: 0, disbursedAmount: 0 },
+        inspections: { total: 0 },
+        documents: { total: 0, uploaded: 0, pending: 0, complianceScore: 0 },
+    });
+    const [projects, setProjects] = useState([]);
     const [nmView, setNmView] = useState('kanban');
     const [subView, setSubView] = useState('kanban');
     const [nmPage, setNmPage] = useState(1);
     const [subPage, setSubPage] = useState(1);
     const [insPage, setInsPage] = useState(1);
     const [docPage, setDocPage] = useState(1);
-    const [pageSize] = useState(APP_CONFIG.defaultPageSize);
+    const [pageSize] = useState(10);
     const [showAddNM, setShowAddNM] = useState(false);
     const [showAddSub, setShowAddSub] = useState(false);
+    const [showAddIns, setShowAddIns] = useState(false);
     const [showUpload, setShowUpload] = useState(false);
     const [selected, setSelected] = useState(null);
+    // Form states
+    const [nmForm, setNmForm] = useState({ projectId: '', discom: '', applicationDate: '', contactOfficer: '', contactPhone: '' });
+    const [subForm, setSubForm] = useState({ projectId: '', scheme: '', claimAmount: '', applicationDate: '', referenceNo: '' });
+    const [insForm, setInsForm] = useState({ projectId: '', type: '', scheduledDate: '', inspector: '', notes: '' });
+    const [docForm, setDocForm] = useState({ projectId: '', documentType: '', issuingAuthority: '', documentDate: '' });
+    const [docFile, setDocFile] = useState(null);
+    const fileInputRef = useRef(null);
 
-    const handleNMStage = (id, s) => setNmItems(prev => prev.map(i => i.id === id ? { ...i, status: s } : i));
-    const handleSubStage = (id, s) => setSubItems(prev => prev.map(i => i.id === id ? { ...i, status: s } : i));
+    useEffect(() => {
+        const fetchComplianceData = async () => {
+            try {
+                const [nmRes, subRes, insRes, docRes, statsRes, projectsRes] = await Promise.all([
+                    fetch(`${API_BASE_URL}/compliance/net-metering?tenantId=${TENANT_ID}`),
+                    fetch(`${API_BASE_URL}/compliance/subsidies?tenantId=${TENANT_ID}`),
+                    fetch(`${API_BASE_URL}/compliance/inspections?tenantId=${TENANT_ID}`),
+                    fetch(`${API_BASE_URL}/compliance/documents?tenantId=${TENANT_ID}`),
+                    fetch(`${API_BASE_URL}/compliance/stats?tenantId=${TENANT_ID}`),
+                    fetch(`${API_BASE_URL}/projects?tenantId=${TENANT_ID}`),
+                ]);
+                if (nmRes.ok) { const data = await nmRes.json(); setNmItems(Array.isArray(data) ? data : (data.data || [])); }
+                if (subRes.ok) { const data = await subRes.json(); setSubItems(Array.isArray(data) ? data : (data.data || [])); }
+                if (insRes.ok) { const data = await insRes.json(); setInspections(Array.isArray(data) ? data : (data.data || [])); }
+                if (docRes.ok) { const data = await docRes.json(); setDocuments(Array.isArray(data) ? data : (data.data || [])); }
+                if (statsRes.ok) { const data = await statsRes.json(); setStats(data); }
+                if (projectsRes.ok) { const data = await projectsRes.json(); setProjects(Array.isArray(data) ? data : (data.data || [])); }
+            } catch (err) { console.error('Error fetching compliance data:', err); }
+        };
+        fetchComplianceData();
+    }, []);
+
+    const handleNMStage = async (id, newStatus) => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/compliance/net-metering/${id}?tenantId=${TENANT_ID}`, {
+                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: newStatus }),
+            });
+            if (response.ok) {
+                const updated = await response.json();
+                const itemData = updated.data || updated;
+                setNmItems(prev => prev.map(i => i.applicationId === id ? { ...i, ...itemData } : i));
+            }
+        } catch (err) { console.error('Error updating NM status:', err); }
+    };
+
+    const handleSubStage = async (id, newStatus) => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/compliance/subsidies/${id}?tenantId=${TENANT_ID}`, {
+                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: newStatus }),
+            });
+            if (response.ok) {
+                const updated = await response.json();
+                const itemData = updated.data || updated;
+                setSubItems(prev => prev.map(i => i.subsidyId === id ? { ...i, ...itemData } : i));
+            }
+        } catch (err) { console.error('Error updating subsidy status:', err); }
+    };
+
+    const handleSubmitNM = async () => {
+        if (!nmForm.projectId) { alert('Please select a project'); return; }
+        
+        // Find selected project to get customer, site, systemSize
+        const selectedProject = projects.find(p => (p.projectId || p._id) === nmForm.projectId);
+        if (!selectedProject) { alert('Project not found'); return; }
+        
+        try {
+            const payload = {
+                applicationId: `NM${Date.now().toString().slice(-6)}`,
+                projectId: nmForm.projectId,
+                customer: selectedProject.customerName || 'Unknown',
+                site: selectedProject.site || selectedProject.location || 'Unknown',
+                systemSize: selectedProject.systemSize ? `${selectedProject.systemSize} kW` : '0 kW',
+                discom: nmForm.discom,
+                appliedDate: nmForm.applicationDate,
+                discomOfficer: nmForm.contactOfficer,
+                discomPhone: nmForm.contactPhone,
+                status: 'Draft',
+            };
+            
+            const response = await fetch(`${API_BASE_URL}/compliance/net-metering?tenantId=${TENANT_ID}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const newItem = data.data || data;
+                setNmItems(prev => [newItem, ...prev]);
+                setShowAddNM(false);
+                setNmForm({ projectId: '', discom: '', applicationDate: '', contactOfficer: '', contactPhone: '' });
+                alert('Net Metering application submitted successfully!');
+            } else {
+                const error = await response.text();
+                alert(`Failed to submit: ${error}`);
+            }
+        } catch (err) { console.error('Error submitting NM:', err); alert('Failed to submit application'); }
+    };
+
+    const handleSubmitSub = async () => {
+        if (!subForm.projectId) { alert('Please select a project'); return; }
+        
+        const selectedProject = projects.find(p => (p.projectId || p._id) === subForm.projectId);
+        if (!selectedProject) { alert('Project not found'); return; }
+        
+        try {
+            const payload = {
+                subsidyId: `SUB${Date.now().toString().slice(-6)}`,
+                projectId: subForm.projectId,
+                customer: selectedProject.customerName || 'Unknown',
+                systemSize: selectedProject.systemSize ? `${selectedProject.systemSize} kW` : '0 kW',
+                scheme: subForm.scheme,
+                claimAmount: Number(subForm.claimAmount) || 0,
+                appliedDate: subForm.applicationDate,
+                applicationRef: subForm.referenceNo,
+                status: 'Applied',
+            };
+            
+            const response = await fetch(`${API_BASE_URL}/compliance/subsidies?tenantId=${TENANT_ID}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const newItem = data.data || data;
+                setSubItems(prev => [newItem, ...prev]);
+                setShowAddSub(false);
+                setSubForm({ projectId: '', scheme: '', claimAmount: '', applicationDate: '', referenceNo: '' });
+                alert('Subsidy application submitted successfully!');
+            } else {
+                const error = await response.text();
+                alert(`Failed to submit: ${error}`);
+            }
+        } catch (err) { console.error('Error submitting Subsidy:', err); alert('Failed to submit application'); }
+    };
+
+    const handleSubmitIns = async () => {
+        if (!insForm.projectId) { alert('Please select a project'); return; }
+        
+        const selectedProject = projects.find(p => (p.projectId || p._id) === insForm.projectId);
+        if (!selectedProject) { alert('Project not found'); return; }
+        
+        try {
+            const payload = {
+                inspectionId: `INS${Date.now().toString().slice(-6)}`,
+                projectId: insForm.projectId,
+                customer: selectedProject.customerName || 'Unknown',
+                type: insForm.type,
+                remarks: insForm.notes,
+                scheduledDate: insForm.scheduledDate,
+                inspector: insForm.inspector,
+                status: 'Scheduled',
+            };
+            
+            const response = await fetch(`${API_BASE_URL}/compliance/inspections?tenantId=${TENANT_ID}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const newItem = data.data || data;
+                setInspections(prev => [newItem, ...prev]);
+                setShowAddIns(false);
+                setInsForm({ projectId: '', type: '', scheduledDate: '', inspector: '', notes: '' });
+                alert('Inspection scheduled successfully!');
+            } else {
+                const error = await response.text();
+                alert(`Failed to submit: ${error}`);
+            }
+        } catch (err) { console.error('Error submitting Inspection:', err); alert('Failed to schedule inspection'); }
+    };
+
+    const handleSubmitDoc = async () => {
+        if (!docForm.projectId) { alert('Please select a project'); return; }
+        if (!docForm.documentType) { alert('Please select document type'); return; }
+        
+        const selectedProject = projects.find(p => (p.projectId || p._id) === docForm.projectId);
+        
+        try {
+            const payload = {
+                documentId: `DOC${Date.now().toString().slice(-6)}`,
+                projectId: docForm.projectId,
+                projectName: selectedProject?.customerName || 'Unknown',
+                name: docForm.documentType,
+                category: docForm.documentType,
+                issuingAuthority: docForm.issuingAuthority,
+                documentDate: docForm.documentDate,
+                status: 'Uploaded',
+                fileName: docFile?.name || null,
+                fileSize: docFile?.size || null,
+                mimeType: docFile?.type || null,
+            };
+            
+            const response = await fetch(`${API_BASE_URL}/compliance/documents?tenantId=${TENANT_ID}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const newItem = data.data || data;
+                setDocuments(prev => [newItem, ...prev]);
+                setShowUpload(false);
+                setDocForm({ projectId: '', documentType: '', issuingAuthority: '', documentDate: '' });
+                setDocFile(null);
+                alert('Document uploaded successfully!');
+            } else {
+                const error = await response.text();
+                alert(`Failed to upload: ${error}`);
+            }
+        } catch (err) { console.error('Error uploading document:', err); alert('Failed to upload document'); }
+    };
+
+    // Edit states
+    const [editingNM, setEditingNM] = useState(null);
+    const [editingSub, setEditingSub] = useState(null);
+    const [editingIns, setEditingIns] = useState(null);
+    const [editingDoc, setEditingDoc] = useState(null);
+
+    // Update handlers
+    const handleUpdateNM = async () => {
+        try {
+            const payload = {
+                discom: nmForm.discom,
+                status: nmForm.status,
+                appliedDate: nmForm.applicationDate,
+                discomOfficer: nmForm.contactOfficer,
+                discomPhone: nmForm.contactPhone,
+            };
+            const response = await fetch(`${API_BASE_URL}/compliance/net-metering/${editingNM}?tenantId=${TENANT_ID}`, {
+                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const updatedItem = data.data || data;
+                setNmItems(prev => prev.map(i => i.applicationId === editingNM ? { ...i, ...updatedItem } : i));
+                setEditingNM(null);
+                setNmForm({ projectId: '', discom: '', status: '', applicationDate: '', contactOfficer: '', contactPhone: '' });
+                alert('Net Metering application updated successfully!');
+            } else {
+                const error = await response.text();
+                alert(`Failed to update: ${error}`);
+            }
+        } catch (err) { console.error('Error updating NM:', err); alert('Failed to update application'); }
+    };
+
+    const handleUpdateSub = async () => {
+        try {
+            const payload = {
+                scheme: subForm.scheme,
+                status: subForm.status,
+                claimAmount: Number(subForm.claimAmount) || 0,
+                appliedDate: subForm.applicationDate,
+                applicationRef: subForm.referenceNo,
+            };
+            const response = await fetch(`${API_BASE_URL}/compliance/subsidies/${editingSub}?tenantId=${TENANT_ID}`, {
+                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const updatedItem = data.data || data;
+                setSubItems(prev => prev.map(i => i.subsidyId === editingSub ? { ...i, ...updatedItem } : i));
+                setEditingSub(null);
+                setSubForm({ projectId: '', scheme: '', status: '', claimAmount: '', applicationDate: '', referenceNo: '' });
+                alert('Subsidy application updated successfully!');
+            } else {
+                const error = await response.text();
+                alert(`Failed to update: ${error}`);
+            }
+        } catch (err) { console.error('Error updating Subsidy:', err); alert('Failed to update subsidy'); }
+    };
+
+    const handleUpdateIns = async () => {
+        try {
+            const payload = {
+                type: insForm.type,
+                status: insForm.status,
+                remarks: insForm.notes,
+                scheduledDate: insForm.scheduledDate,
+                inspector: insForm.inspector,
+            };
+            const response = await fetch(`${API_BASE_URL}/compliance/inspections/${editingIns}?tenantId=${TENANT_ID}`, {
+                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const updatedItem = data.data || data;
+                setInspections(prev => prev.map(i => i.inspectionId === editingIns ? { ...i, ...updatedItem } : i));
+                setEditingIns(null);
+                setInsForm({ projectId: '', type: '', status: '', scheduledDate: '', inspector: '', notes: '' });
+                alert('Inspection updated successfully!');
+            } else {
+                const error = await response.text();
+                alert(`Failed to update: ${error}`);
+            }
+        } catch (err) { console.error('Error updating Inspection:', err); alert('Failed to update inspection'); }
+    };
+
+    const handleUpdateDoc = async () => {
+        if (!docForm.documentType) { alert('Please select document type'); return; }
+        try {
+            const payload = {
+                name: docForm.documentType,
+                category: docForm.documentType,
+                status: docForm.status,
+                issuingAuthority: docForm.issuingAuthority,
+                documentDate: docForm.documentDate,
+            };
+            const response = await fetch(`${API_BASE_URL}/compliance/documents/${editingDoc}?tenantId=${TENANT_ID}`, {
+                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const updatedItem = data.data || data;
+                setDocuments(prev => prev.map(i => i.documentId === editingDoc ? { ...i, ...updatedItem } : i));
+                setEditingDoc(null);
+                setDocForm({ projectId: '', documentType: '', status: '', issuingAuthority: '', documentDate: '' });
+                alert('Document updated successfully!');
+            } else {
+                const error = await response.text();
+                alert(`Failed to update: ${error}`);
+            }
+        } catch (err) { console.error('Error updating Document:', err); alert('Failed to update document'); }
+    };
+
+    // Delete handlers
+    const handleDeleteNM = async (id) => {
+        if (!window.confirm('Are you sure you want to delete this application?')) return;
+        try {
+            const response = await fetch(`${API_BASE_URL}/compliance/net-metering/${id}?tenantId=${TENANT_ID}`, { method: 'DELETE' });
+            if (response.ok) {
+                setNmItems(prev => prev.filter(i => i.applicationId !== id));
+                alert('Net Metering application deleted successfully!');
+            } else {
+                const error = await response.text();
+                alert(`Failed to delete: ${error}`);
+            }
+        } catch (err) { console.error('Error deleting NM:', err); alert('Failed to delete application'); }
+    };
+
+    const handleDeleteSub = async (id) => {
+        if (!window.confirm('Are you sure you want to delete this subsidy?')) return;
+        try {
+            const response = await fetch(`${API_BASE_URL}/compliance/subsidies/${id}?tenantId=${TENANT_ID}`, { method: 'DELETE' });
+            if (response.ok) {
+                setSubItems(prev => prev.filter(i => i.subsidyId !== id));
+                alert('Subsidy deleted successfully!');
+            } else {
+                const error = await response.text();
+                alert(`Failed to delete: ${error}`);
+            }
+        } catch (err) { console.error('Error deleting Subsidy:', err); alert('Failed to delete subsidy'); }
+    };
+
+    const handleDeleteIns = async (id) => {
+        if (!window.confirm('Are you sure you want to delete this inspection?')) return;
+        try {
+            const response = await fetch(`${API_BASE_URL}/compliance/inspections/${id}?tenantId=${TENANT_ID}`, { method: 'DELETE' });
+            if (response.ok) {
+                setInspections(prev => prev.filter(i => i.inspectionId !== id));
+                alert('Inspection deleted successfully!');
+            } else {
+                const error = await response.text();
+                alert(`Failed to delete: ${error}`);
+            }
+        } catch (err) { console.error('Error deleting Inspection:', err); alert('Failed to delete inspection'); }
+    };
+
+    const handleDeleteDoc = async (id) => {
+        if (!window.confirm('Are you sure you want to delete this document?')) return;
+        try {
+            const response = await fetch(`${API_BASE_URL}/compliance/documents/${id}?tenantId=${TENANT_ID}`, { method: 'DELETE' });
+            if (response.ok) {
+                setDocuments(prev => prev.filter(i => i.documentId !== id));
+                alert('Document deleted successfully!');
+            } else {
+                const error = await response.text();
+                alert(`Failed to delete: ${error}`);
+            }
+        } catch (err) { console.error('Error deleting Document:', err); alert('Failed to delete document'); }
+    };
 
     const paginatedNM = nmItems.slice((nmPage - 1) * pageSize, nmPage * pageSize);
     const paginatedSub = subItems.slice((subPage - 1) * pageSize, subPage * pageSize);
-    const paginatedIns = INSPECTIONS.slice((insPage - 1) * pageSize, insPage * pageSize);
-    const paginatedDoc = DOCUMENTS.slice((docPage - 1) * pageSize, docPage * pageSize);
+    const paginatedIns = inspections.slice((insPage - 1) * pageSize, insPage * pageSize);
+    const paginatedDoc = documents.slice((docPage - 1) * pageSize, docPage * pageSize);
 
-    const totalSubsidy = subItems.reduce((a, s) => a + s.claimAmount, 0);
-    const disbursed = subItems.filter(s => s.status === 'Disbursed').reduce((a, s) => a + s.claimAmount, 0);
-    const uploadedDocs = DOCUMENTS.filter(d => d.status === 'Uploaded').length;
-    const pendingDocs = DOCUMENTS.filter(d => d.status === 'Pending').length;
-    const docProgress = Math.round((uploadedDocs / DOCUMENTS.length) * 100);
+    const totalSubsidy = subItems.reduce((a, s) => a + (s.claimAmount || 0), 0);
+    const disbursed = subItems.filter(s => s.status === 'Disbursed').reduce((a, s) => a + (s.disbursedAmount || s.claimAmount || 0), 0);
+    const uploadedDocs = documents.filter(d => d.status === 'Uploaded').length;
+    const pendingDocs = documents.filter(d => d.status === 'Pending').length;
+    const docProgress = stats.documents?.complianceScore || (documents.length > 0 ? Math.round((uploadedDocs / documents.length) * 100) : 0);
 
-    const NM_ACTIONS = [{ label: 'View Application', icon: FileText, onClick: r => setSelected({ type: 'nm', data: r }) }];
-    const SUB_ACTIONS = [{ label: 'View Application', icon: FileText, onClick: r => setSelected({ type: 'sub', data: r }) }, { label: 'Download Form', icon: Download, onClick: () => { } }];
-    const INS_ACTIONS = [{ label: 'View Inspection', icon: FileText, onClick: r => setSelected({ type: 'ins', data: r }) }];
-    const DOC_ACTIONS = [{ label: 'View Document', icon: FileText, onClick: () => { } }, { label: 'Upload New Version', icon: Upload, onClick: () => setShowUpload(true) }];
+    const NM_ACTIONS = [
+        { label: 'View', icon: FileText, onClick: r => setSelected({ type: 'nm', data: r }) },
+        { label: 'Download', icon: Download, onClick: r => generateCompliancePDF('nm', r) },
+        { label: 'Edit', icon: Edit2, onClick: r => { setNmForm({ projectId: r.projectId, discom: r.discom, status: r.status || '', applicationDate: r.appliedDate || '', contactOfficer: r.discomOfficer || '', contactPhone: r.discomPhone || '' }); setEditingNM(r.applicationId); setShowAddNM(true); } },
+        { label: 'Delete', icon: Trash2, onClick: r => handleDeleteNM(r.applicationId), danger: true }
+    ];
+    const SUB_ACTIONS = [
+        { label: 'View', icon: FileText, onClick: r => setSelected({ type: 'sub', data: r }) },
+        { label: 'Download', icon: Download, onClick: r => generateCompliancePDF('sub', r) },
+        { label: 'Edit', icon: Edit2, onClick: r => { setSubForm({ projectId: r.projectId, scheme: r.scheme, status: r.status || '', claimAmount: r.claimAmount || '', applicationDate: r.appliedDate || '', referenceNo: r.applicationRef || '' }); setEditingSub(r.subsidyId); setShowAddSub(true); } },
+        { label: 'Delete', icon: Trash2, onClick: r => handleDeleteSub(r.subsidyId), danger: true }
+    ];
+    const INS_ACTIONS = [
+        { label: 'View', icon: FileText, onClick: r => setSelected({ type: 'ins', data: r }) },
+        { label: 'Download', icon: Download, onClick: r => generateCompliancePDF('ins', r) },
+        { label: 'Edit', icon: Edit2, onClick: r => { setInsForm({ projectId: r.projectId, type: r.type, status: r.status || '', scheduledDate: r.scheduledDate || '', inspector: r.inspector || '', notes: r.remarks || '' }); setEditingIns(r.inspectionId); setShowAddIns(true); } },
+        { label: 'Delete', icon: Trash2, onClick: r => handleDeleteIns(r.inspectionId), danger: true }
+    ];
+    const DOC_ACTIONS = [
+        { label: 'View', icon: FileText, onClick: r => setSelected({ type: 'doc', data: r }) },
+        { label: 'Download', icon: Download, onClick: r => generateCompliancePDF('doc', r) },
+        { label: 'Edit', icon: Edit2, onClick: r => { setDocForm({ projectId: r.projectId, documentType: r.name || r.category, status: r.status || '', issuingAuthority: r.issuingAuthority || '', documentDate: r.documentDate || '' }); setEditingDoc(r.documentId); setShowUpload(true); } },
+        { label: 'Delete', icon: Trash2, onClick: r => handleDeleteDoc(r.documentId), danger: true }
+    ];
 
     return (
         <div className="animate-fade-in space-y-5">
@@ -309,10 +722,10 @@ const CompliancePage = () => {
 
             {/* KPIs */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <KPICard title="Net Metering Apps" value={nmItems.length} icon={Building2} trend={+1} trendLabel="applied this month" color="accent" />
-                <KPICard title="Subsidy Claimed" value={`₹${(totalSubsidy / 100000).toFixed(1)}L`} icon={IndianRupee} trend={+2} trendLabel="total claims filed" color="solar" />
-                <KPICard title="Subsidy Disbursed" value={`₹${(disbursed / 100000).toFixed(1)}L`} icon={CheckCircle} trend={+1} trendLabel="received this quarter" color="emerald" />
-                <KPICard title="Docs Pending" value={pendingDocs} icon={AlertTriangle} trend={-2} trendLabel="need upload" color="amber" />
+                <KPICard title="Net Metering Apps" value={stats.netMetering?.total || 0} icon={Building2} color="accent" />
+                <KPICard title="Subsidy Claimed" value={`₹${(totalSubsidy / 100000).toFixed(1)}L`} icon={IndianRupee} color="solar" />
+                <KPICard title="Subsidy Disbursed" value={`₹${(disbursed / 100000).toFixed(1)}L`} icon={CheckCircle} color="emerald" />
+                <KPICard title="Docs Pending" value={stats.documents?.pending || 0} icon={AlertTriangle} color="amber" />
             </div>
 
             {/* AI Banner */}
@@ -336,7 +749,7 @@ const CompliancePage = () => {
                 <div className="flex gap-4 text-xs text-[var(--text-muted)]">
                     <span className="text-emerald-400 font-semibold">{uploadedDocs} Uploaded</span>
                     <span className="text-amber-400 font-semibold">{pendingDocs} Pending</span>
-                    <span>{DOCUMENTS.length} Total Required</span>
+                    <span>{documents.length} Total Required</span>
                 </div>
             </div>
 
@@ -345,8 +758,8 @@ const CompliancePage = () => {
                 <TabsList>
                     <TabsTrigger value="netmetering">Net Metering ({nmItems.length})</TabsTrigger>
                     <TabsTrigger value="subsidies">Subsidies ({subItems.length})</TabsTrigger>
-                    <TabsTrigger value="inspections">Inspections ({INSPECTIONS.length})</TabsTrigger>
-                    <TabsTrigger value="documents">Documents ({DOCUMENTS.length})</TabsTrigger>
+                    <TabsTrigger value="inspections">Inspections ({inspections.length})</TabsTrigger>
+                    <TabsTrigger value="documents">Documents ({documents.length})</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="netmetering">
@@ -416,141 +829,276 @@ const CompliancePage = () => {
                 </TabsContent>
 
                 <TabsContent value="inspections">
-                    <DataTable columns={INS_COLUMNS} data={paginatedIns} rowActions={INS_ACTIONS}
-                        pagination={{ page: insPage, pageSize, total: INSPECTIONS.length, onChange: setInsPage }}
-                        emptyMessage="No inspections found." />
+                    <div className="space-y-3">
+                        <div className="flex justify-end">
+                            <Button size="sm" onClick={() => setShowAddIns(true)}><Plus size={12} /> Schedule Inspection</Button>
+                        </div>
+                        <DataTable columns={INS_COLUMNS} data={paginatedIns} rowActions={INS_ACTIONS}
+                            pagination={{ page: insPage, pageSize, total: inspections.length, onChange: setInsPage }}
+                            emptyMessage="No inspections found." />
+                    </div>
                 </TabsContent>
 
                 <TabsContent value="documents">
                     <div className="space-y-3">
                         <div className="flex justify-end">
-                            <Button size="sm" onClick={() => setShowUpload(true)}><Upload size={12} /> Upload Document</Button>
+                            <Button size="sm" onClick={() => setShowUpload(true)}><Upload size={12} /> Add Document</Button>
                         </div>
                         <DataTable columns={DOC_COLUMNS} data={paginatedDoc} rowActions={DOC_ACTIONS}
-                            pagination={{ page: docPage, pageSize, total: DOCUMENTS.length, onChange: setDocPage }}
+                            pagination={{ page: docPage, pageSize, total: documents.length, onChange: setDocPage }}
                             emptyMessage="No documents found." />
                     </div>
                 </TabsContent>
             </Tabs>
 
             {/* Net Metering Modal */}
-            <Modal open={showAddNM} onClose={() => setShowAddNM(false)} title="Apply for Net Metering"
+            <Modal open={showAddNM} onClose={() => { setShowAddNM(false); setEditingNM(null); }} title={editingNM ? "Edit Net Metering Application" : "Apply for Net Metering"}
                 footer={
                     <div className="flex gap-2 justify-end">
-                        <Button variant="ghost" onClick={() => setShowAddNM(false)}>Cancel</Button>
-                        <Button onClick={() => setShowAddNM(false)}><Plus size={13} /> Submit Application</Button>
+                        <Button variant="ghost" onClick={() => { setShowAddNM(false); setEditingNM(null); }}>Cancel</Button>
+                        <Button onClick={editingNM ? handleUpdateNM : handleSubmitNM}><Plus size={13} /> {editingNM ? 'Update' : 'Submit'} Application</Button>
                     </div>
                 }>
                 <div className="space-y-3">
                     <FormField label="Project">
-                        <Select><option value="">Select Project</option>
-                            <option>P001 – Joshi Industries 50kW</option>
-                            <option>P002 – Suresh Bhatt 150kW</option>
+                        <Select value={nmForm.projectId} onChange={e => setNmForm(f => ({ ...f, projectId: e.target.value }))}>
+                            <option value="">Select Project</option>
+                            {projects.map(p => (
+                                <option key={p._id || p.projectId} value={p.projectId || p._id}>
+                                    {p.projectId || p._id} – {p.customerName || 'Unknown'} {p.systemSize ? `(${p.systemSize} kW)` : ''}
+                                </option>
+                            ))}
                         </Select>
                     </FormField>
                     <div className="grid grid-cols-2 gap-3">
                         <FormField label="DISCOM">
-                            <Select><option value="">Select DISCOM</option>
-                                {['DGVCL', 'MGVCL', 'PGVCL', 'UGVCL', 'MSEDCL', 'BESCOM'].map(d => <option key={d}>{d}</option>)}
+                            <Select value={nmForm.discom} onChange={e => setNmForm(f => ({ ...f, discom: e.target.value }))}>
+                                <option value="">Select DISCOM</option>
+                                {['DGVCL', 'MGVCL', 'PGVCL', 'UGVCL', 'MSEDCL', 'BESCOM'].map(d => <option key={d} value={d}>{d}</option>)}
                             </Select>
                         </FormField>
+                        <FormField label="Status">
+                            <Select value={nmForm.status || ''} onChange={e => setNmForm(f => ({ ...f, status: e.target.value }))}>
+                                <option value="">Select Status</option>
+                                {['Draft', 'Applied', 'Approved', 'Rejected', 'Connected'].map(s => <option key={s} value={s}>{s}</option>)}
+                            </Select>
+                        </FormField>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
                         <FormField label="Application Date">
-                            <Input type="date" />
+                            <Input type="date" value={nmForm.applicationDate} onChange={e => setNmForm(f => ({ ...f, applicationDate: e.target.value }))} />
                         </FormField>
                     </div>
                     <FormField label="DISCOM Contact Officer">
-                        <Input placeholder="Officer name" />
+                        <Input placeholder="Officer name" value={nmForm.contactOfficer} onChange={e => setNmForm(f => ({ ...f, contactOfficer: e.target.value }))} />
                     </FormField>
                     <FormField label="DISCOM Contact Phone">
-                        <Input placeholder="9876543210" />
+                        <Input placeholder="9876543210" value={nmForm.contactPhone} onChange={e => setNmForm(f => ({ ...f, contactPhone: e.target.value }))} />
                     </FormField>
                 </div>
             </Modal>
 
             {/* Subsidy Modal */}
-            <Modal open={showAddSub} onClose={() => setShowAddSub(false)} title="File Subsidy Application"
+            <Modal open={showAddSub} onClose={() => { setShowAddSub(false); setEditingSub(null); }} title={editingSub ? "Edit Subsidy Application" : "File Subsidy Application"}
                 footer={
                     <div className="flex gap-2 justify-end">
-                        <Button variant="ghost" onClick={() => setShowAddSub(false)}>Cancel</Button>
-                        <Button onClick={() => setShowAddSub(false)}><Plus size={13} /> Submit Application</Button>
+                        <Button variant="ghost" onClick={() => { setShowAddSub(false); setEditingSub(null); }}>Cancel</Button>
+                        <Button onClick={editingSub ? handleUpdateSub : handleSubmitSub}><Plus size={13} /> {editingSub ? 'Update' : 'Submit'} Application</Button>
                     </div>
                 }>
                 <div className="space-y-3">
                     <FormField label="Project">
-                        <Select><option value="">Select Project</option>
-                            <option>P001 – Joshi Industries</option>
-                        </Select>
-                    </FormField>
-                    <FormField label="Subsidy Scheme">
-                        <Select><option value="">Select Scheme</option>
-                            {['PM Surya Ghar', 'GEDA Rooftop', 'MNRE CAPEX', 'State CAPEX'].map(s => <option key={s}>{s}</option>)}
+                        <Select value={subForm.projectId} onChange={e => setSubForm(f => ({ ...f, projectId: e.target.value }))}>
+                            <option value="">Select Project</option>
+                            {projects.map(p => (
+                                <option key={p._id || p.projectId} value={p.projectId || p._id}>
+                                    {p.projectId || p._id} – {p.customerName || 'Unknown'} {p.systemSize ? `(${p.systemSize} kW)` : ''}
+                                </option>
+                            ))}
                         </Select>
                     </FormField>
                     <div className="grid grid-cols-2 gap-3">
+                        <FormField label="Subsidy Scheme">
+                            <Select value={subForm.scheme} onChange={e => setSubForm(f => ({ ...f, scheme: e.target.value }))}>
+                                <option value="">Select Scheme</option>
+                                {['PM Surya Ghar', 'GEDA Rooftop', 'MNRE CAPEX', 'State CAPEX'].map(s => <option key={s} value={s}>{s}</option>)}
+                            </Select>
+                        </FormField>
+                        <FormField label="Status">
+                            <Select value={subForm.status || ''} onChange={e => setSubForm(f => ({ ...f, status: e.target.value }))}>
+                                <option value="">Select Status</option>
+                                {['Applied', 'Sanctioned', 'Disbursed', 'Rejected'].map(s => <option key={s} value={s}>{s}</option>)}
+                            </Select>
+                        </FormField>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
                         <FormField label="Claim Amount (₹)">
-                            <Input type="number" placeholder="94500" />
+                            <Input type="number" placeholder="94500" value={subForm.claimAmount} onChange={e => setSubForm(f => ({ ...f, claimAmount: e.target.value }))} />
                         </FormField>
                         <FormField label="Application Date">
-                            <Input type="date" />
+                            <Input type="date" value={subForm.applicationDate} onChange={e => setSubForm(f => ({ ...f, applicationDate: e.target.value }))} />
                         </FormField>
                     </div>
                     <FormField label="Application Reference No.">
-                        <Input placeholder="PMSG/GJ/2026/..." />
+                        <Input placeholder="PMSG/GJ/2026/..." value={subForm.referenceNo} onChange={e => setSubForm(f => ({ ...f, referenceNo: e.target.value }))} />
                     </FormField>
                 </div>
             </Modal>
 
             {/* Upload Document Modal */}
-            <Modal open={showUpload} onClose={() => setShowUpload(false)} title="Upload Compliance Document"
+            <Modal open={showUpload} onClose={() => { setShowUpload(false); setEditingDoc(null); }} title={editingDoc ? "Edit Document" : "Upload Compliance Document"}
                 footer={
                     <div className="flex gap-2 justify-end">
-                        <Button variant="ghost" onClick={() => setShowUpload(false)}>Cancel</Button>
-                        <Button onClick={() => setShowUpload(false)}><Upload size={13} /> Upload</Button>
+                        <Button variant="ghost" onClick={() => { setShowUpload(false); setEditingDoc(null); }}>Cancel</Button>
+                        <Button onClick={editingDoc ? handleUpdateDoc : handleSubmitDoc}><Upload size={13} /> {editingDoc ? 'Update' : 'Upload'}</Button>
                     </div>
                 }>
                 <div className="space-y-3">
                     <FormField label="Project">
-                        <Select><option value="">Select Project</option>
-                            <option>P001 – Joshi Industries</option>
-                            <option>P003 – Prakash Agarwal</option>
+                        <Select value={docForm.projectId} onChange={e => setDocForm(f => ({ ...f, projectId: e.target.value }))}>
+                            <option value="">Select Project</option>
+                            {projects.map(p => (
+                                <option key={p._id || p.projectId} value={p.projectId || p._id}>
+                                    {p.projectId || p._id} – {p.customerName || 'Unknown'} {p.systemSize ? `(${p.systemSize} kW)` : ''}
+                                </option>
+                            ))}
                         </Select>
                     </FormField>
-                    <FormField label="Document Type">
-                        <Select><option value="">Select Document</option>
-                            {DOCUMENTS.filter(d => d.status === 'Pending').map(d => <option key={d.id}>{d.name}</option>)}
-                        </Select>
-                    </FormField>
+                    <div className="grid grid-cols-2 gap-3">
+                        <FormField label="Document Type">
+                            <Select value={docForm.documentType} onChange={e => setDocForm(f => ({ ...f, documentType: e.target.value }))}>
+                                <option value="">Select Document Type</option>
+                                <option value="Net Metering Application Form">Net Metering Application Form</option>
+                                <option value="Single Line Diagram (SLD)">Single Line Diagram (SLD)</option>
+                                <option value="Structural Load Certificate">Structural Load Certificate</option>
+                                <option value="Electrical Completion Certificate">Electrical Completion Certificate</option>
+                                <option value="Bidirectional Meter Installation Report">Bidirectional Meter Installation Report</option>
+                                <option value="Net Metering Agreement">Net Metering Agreement</option>
+                                <option value="Subsidy Application">Subsidy Application</option>
+                                <option value="Commissioning Certificate">Commissioning Certificate</option>
+                                <option value="Generation Meter Calibration">Generation Meter Calibration</option>
+                            </Select>
+                        </FormField>
+                        <FormField label="Status">
+                            <Select value={docForm.status || ''} onChange={e => setDocForm(f => ({ ...f, status: e.target.value }))}>
+                                <option value="">Select Status</option>
+                                {['Uploaded', 'Pending', 'Rejected'].map(s => <option key={s} value={s}>{s}</option>)}
+                            </Select>
+                        </FormField>
+                    </div>
                     <FormField label="Issuing Authority">
-                        <Select><option value="">Select Authority</option>
-                            {['DISCOM', 'CEA', 'MNRE', 'GEDA', 'Internal', 'Structural Engineer'].map(a => <option key={a}>{a}</option>)}
+                        <Select value={docForm.issuingAuthority} onChange={e => setDocForm(f => ({ ...f, issuingAuthority: e.target.value }))}>
+                            <option value="">Select Authority</option>
+                            {['DISCOM', 'CEA', 'MNRE', 'GEDA', 'Internal', 'Structural Engineer'].map(a => <option key={a} value={a}>{a}</option>)}
                         </Select>
                     </FormField>
                     <FormField label="Document Date">
-                        <Input type="date" />
+                        <Input type="date" value={docForm.documentDate} onChange={e => setDocForm(f => ({ ...f, documentDate: e.target.value }))} />
                     </FormField>
-                    <div className="border-2 border-dashed border-[var(--border-base)] rounded-lg p-6 text-center">
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={e => setDocFile(e.target.files[0])}
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        style={{ display: 'none' }}
+                    />
+                    <div 
+                        className="border-2 border-dashed border-[var(--border-base)] rounded-lg p-6 text-center cursor-pointer hover:bg-[var(--bg-hover)] transition-colors"
+                        onClick={() => fileInputRef.current?.click()}
+                    >
                         <Upload size={24} className="mx-auto text-[var(--text-muted)] mb-2" />
-                        <p className="text-xs text-[var(--text-muted)]">Click to select file or drag & drop</p>
+                        <p className="text-xs text-[var(--text-muted)]">
+                            {docFile ? `Selected: ${docFile.name}` : 'Click to select file or drag & drop'}
+                        </p>
                         <p className="text-[11px] text-[var(--text-muted)] mt-1">PDF, JPG, PNG — max 10MB</p>
                     </div>
+                </div>
+            </Modal>
+
+            {/* Inspection Schedule Modal */}
+            <Modal open={showAddIns} onClose={() => { setShowAddIns(false); setEditingIns(null); }} title={editingIns ? "Edit Inspection" : "Schedule Inspection"}
+                footer={
+                    <div className="flex gap-2 justify-end">
+                        <Button variant="ghost" onClick={() => { setShowAddIns(false); setEditingIns(null); }}>Cancel</Button>
+                        <Button onClick={editingIns ? handleUpdateIns : handleSubmitIns}><Plus size={13} /> {editingIns ? 'Update' : 'Schedule'} Inspection</Button>
+                    </div>
+                }>
+                <div className="space-y-3">
+                    <FormField label="Project">
+                        <Select value={insForm.projectId} onChange={e => setInsForm(f => ({ ...f, projectId: e.target.value }))}>
+                            <option value="">Select Project</option>
+                            {projects.map(p => (
+                                <option key={p._id || p.projectId} value={p.projectId || p._id}>
+                                    {p.projectId || p._id} – {p.customerName || 'Unknown'} {p.systemSize ? `(${p.systemSize} kW)` : ''}
+                                </option>
+                            ))}
+                        </Select>
+                    </FormField>
+                    <div className="grid grid-cols-2 gap-3">
+                        <FormField label="Inspection Type">
+                            <Select value={insForm.type} onChange={e => setInsForm(f => ({ ...f, type: e.target.value }))}>
+                                <option value="">Select Type</option>
+                                {['DISCOM Inspection', 'CEA Inspection', 'MNRE Inspection', 'Structural', 'Electrical', 'Fire Safety'].map(t => <option key={t} value={t}>{t}</option>)}
+                            </Select>
+                        </FormField>
+                        <FormField label="Status">
+                            <Select value={insForm.status || ''} onChange={e => setInsForm(f => ({ ...f, status: e.target.value }))}>
+                                <option value="">Select Status</option>
+                                {['Pending', 'Scheduled', 'Passed', 'Failed'].map(s => <option key={s} value={s}>{s}</option>)}
+                            </Select>
+                        </FormField>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                        <FormField label="Scheduled Date">
+                            <Input type="date" value={insForm.scheduledDate} onChange={e => setInsForm(f => ({ ...f, scheduledDate: e.target.value }))} />
+                        </FormField>
+                        <FormField label="Inspector Name">
+                            <Input placeholder="Inspector name" value={insForm.inspector} onChange={e => setInsForm(f => ({ ...f, inspector: e.target.value }))} />
+                        </FormField>
+                    </div>
+                    <FormField label="Notes">
+                        <Input placeholder="Additional notes..." value={insForm.notes} onChange={e => setInsForm(f => ({ ...f, notes: e.target.value }))} />
+                    </FormField>
                 </div>
             </Modal>
 
             {/* Detail Modal */}
             {selected && (
                 <Modal open={!!selected} onClose={() => setSelected(null)}
-                    title={selected.type === 'nm' ? `Net Metering — ${selected.data.id}` :
-                        selected.type === 'sub' ? `Subsidy — ${selected.data.id}` :
-                            `Inspection — ${selected.data.id}`}
+                    title={selected.type === 'nm' ? `Net Metering — ${selected.data.id || selected.data.applicationId || selected.data._id}` :
+                        selected.type === 'sub' ? `Subsidy — ${selected.data.id || selected.data.subsidyId || selected.data._id}` :
+                            selected.type === 'ins' ? `Inspection — ${selected.data.id || selected.data.inspectionId || selected.data._id}` :
+                                `Document — ${selected.data.id || selected.data.documentId || selected.data._id}`}
                     footer={
                         <div className="flex gap-2 justify-end">
                             <Button variant="ghost" onClick={() => setSelected(null)}>Close</Button>
-                            <Button><Download size={13} /> Download</Button>
+                            <Button variant="ghost" onClick={() => {
+                                const r = selected.data;
+                                if (selected.type === 'nm') {
+                                    setNmForm({ projectId: r.projectId, discom: r.discom, status: r.status || '', applicationDate: r.appliedDate || r.applicationDate || '', contactOfficer: r.discomOfficer || '', contactPhone: r.discomPhone || '' });
+                                    setEditingNM(r.applicationId || r._id);
+                                    setShowAddNM(true);
+                                } else if (selected.type === 'sub') {
+                                    setSubForm({ projectId: r.projectId, scheme: r.scheme, status: r.status || '', claimAmount: r.claimAmount || '', applicationDate: r.appliedDate || r.applicationDate || '', referenceNo: r.applicationRef || '' });
+                                    setEditingSub(r.subsidyId || r._id);
+                                    setShowAddSub(true);
+                                } else if (selected.type === 'ins') {
+                                    setInsForm({ projectId: r.projectId, type: r.type, status: r.status || '', scheduledDate: r.scheduledDate || '', inspector: r.inspector || '', notes: r.remarks || '' });
+                                    setEditingIns(r.inspectionId || r._id);
+                                    setShowAddIns(true);
+                                } else if (selected.type === 'doc') {
+                                    setDocForm({ projectId: r.projectId, documentType: r.name || r.category, status: r.status || '', issuingAuthority: r.issuingAuthority || '', documentDate: r.documentDate || '' });
+                                    setEditingDoc(r.documentId || r._id);
+                                    setShowUpload(true);
+                                }
+                                setSelected(null);
+                            }}><Edit2 size={13} /> Edit</Button>
+                            <Button onClick={() => generateCompliancePDF(selected.type, selected.data)}><Download size={13} /> Download</Button>
                         </div>
                     }>
                     <div className="grid grid-cols-2 gap-3 text-xs">
                         {Object.entries(selected.data)
-                            .filter(([k]) => !['id'].includes(k))
+                            .filter(([k]) => !['_id', '__v', 'tenantId', 'isDeleted'].includes(k))
                             .map(([k, v]) => (
                                 <div key={k} className="glass-card p-2">
                                     <div className="text-[var(--text-muted)] mb-0.5 capitalize">{k.replace(/([A-Z])/g, ' $1')}</div>
