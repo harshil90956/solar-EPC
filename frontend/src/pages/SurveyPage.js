@@ -699,13 +699,6 @@ const SurveyPage = () => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
 
-  const filteredSurveyData = useMemo(() => {
-    return enhancedSurveys.filter(survey => {
-      const surveyDate = new Date(survey.surveyDate || survey.scheduledDate);
-      return surveyDate >= new Date(dateRange.start) && surveyDate <= new Date(dateRange.end);
-    });
-  }, [enhancedSurveys, dateRange]);
-
   return (
     <div className="animate-fade-in space-y-6">
       {/* ── Advanced Header ── */}

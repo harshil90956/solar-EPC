@@ -24,6 +24,7 @@ export const MODULES = {
     QUOTATION: 'quotation',
     PROJECT: 'project',
     INVENTORY: 'inventory',
+    ITEMS: 'items',
     PROCUREMENT: 'procurement',
     LOGISTICS: 'logistics',
     INSTALLATION: 'installation',

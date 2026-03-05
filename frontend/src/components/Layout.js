@@ -13,6 +13,7 @@ import { Badge } from './ui/Badge';
 import { cn } from '../lib/utils';
 import ThemeCustomizer from './ThemeCustomizer';
 import ReminderSidebar from './Reminder/ReminderSidebar';
+import { api } from '../lib/apiClient';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
 const TENANT_ID = 'solarcorp';
@@ -50,12 +51,10 @@ const Layout = ({ currentPage, onNavigate, children }) => {
     const fetchBadgeCounts = async () => {
       try {
         // Fetch inventory stats
-        const inventoryRes = await fetch(`${API_BASE_URL}/inventory/stats?tenantId=${TENANT_ID}`);
-        const inventoryData = inventoryRes.ok ? await inventoryRes.json() : null;
+        const inventoryData = await api.get('/inventory/stats').catch(() => null);
         
         // Fetch projects
-        const projectsRes = await fetch(`${API_BASE_URL}/projects?tenantId=${TENANT_ID}`);
-        const projectsData = projectsRes.ok ? await projectsRes.json() : null;
+        const projectsData = await api.get('/projects').catch(() => null);
         const projects = projectsData?.data || projectsData || [];
         
         // Calculate counts
@@ -65,12 +64,20 @@ const Layout = ({ currentPage, onNavigate, children }) => {
         setBadgeCounts({
           inventory: lowStockCount,
           project: activeProjects,
-          crm: 0, // Can be fetched from leads API
-          quotation: 0, // Can be fetched from quotations API
-          service: 0, // Can be fetched from tickets API
+          crm: 0,
+          quotation: 0,
+          service: 0,
         });
       } catch (err) {
         console.error('Error fetching badge counts:', err);
+        // Set default values on error
+        setBadgeCounts({
+          inventory: 0,
+          project: 0,
+          crm: 0,
+          quotation: 0,
+          service: 0,
+        });
       }
     };
 

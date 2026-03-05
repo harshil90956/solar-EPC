@@ -9,6 +9,7 @@ import { TicketsService } from './services/tickets.service';
 import { AmcContractsService } from './services/amc-contracts.service';
 import { VisitsService } from './services/visits.service';
 import { ServiceAmcController } from './controllers/service-amc.controller';
+import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { ServiceAmcController } from './controllers/service-amc.controller';
       { name: User.name, schema: UserSchema },
       { name: Project.name, schema: ProjectSchema },
     ]),
+    EmailModule,
   ],
   controllers: [ServiceAmcController],
   providers: [TicketsService, AmcContractsService, VisitsService],

@@ -314,30 +314,36 @@ export const SettingsProvider = ({ children }) => {
 
     // ── Custom Role APIs ──────────────────────────────────────────────────────
 
-    const createCustomRole = useCallback(async (roleData, user) => {
-        const id = `custom_${Date.now()}`;
-        const newRole = {
-            id,
-            label: roleData.label || 'New Role',
-            description: roleData.description || '',
-            baseRole: roleData.baseRole || null,
-            color: roleData.color || '#8b5cf6',
-            bg: 'rgba(139,92,246,0.12)',
-            isCustom: true,
-            permissions: Object.fromEntries(MODULE_DEFS.map(mod => [mod.id, emptyPerms()])),
-        };
-        setCustomRoles(prev => ({ ...prev, [id]: newRole }));
-        addAudit('CUSTOM_ROLE_CREATED', newRole.label, 'null', 'created', user);
-
-        // Persist to backend
+    const refreshCustomRoles = useCallback(async () => {
         try {
-            await settingsApi.createCustomRole(newRole);
-        } catch (e) {
-            console.error('Failed to create custom role:', e);
-        }
+            const response = await settingsApi.getCustomRoles();
 
-        return id;
-    }, [addAudit]);
+            // Handle wrapped response format {success: true, data: {...}}
+            const rolesData = response?.data || response;
+
+            const rolesObj = {};
+            const rolesArray = Array.isArray(rolesData) ? rolesData : Object.values(rolesData || {});
+            rolesArray.forEach(r => {
+                const roleId = r?.roleId || r?.id;
+                if (!roleId) return;
+                rolesObj[roleId] = {
+                    id: roleId,
+                    label: r.label,
+                    description: r.description,
+                    baseRole: r.baseRole,
+                    color: r.color,
+                    bg: r.bg,
+                    isCustom: true,
+                    permissions: r.permissions || {},
+                    createdAt: r.createdAt,
+                    updatedAt: r.updatedAt,
+                };
+            });
+            setCustomRoles(rolesObj);
+        } catch (e) {
+            // silent fail
+        }
+    }, []);
 
     const createCustomRole = useCallback(async (roleData, user) => {
         try {
@@ -657,7 +663,7 @@ export const SettingsProvider = ({ children }) => {
     const isFeatureEnabled = useCallback((moduleId, featureId) =>
         (flags[moduleId]?.enabled ?? true) && (flags[moduleId]?.features?.[featureId] ?? true), [flags]);
     const isActionEnabled = useCallback((moduleId, actionId) =>
-        (flags[moduleId]?.enabled ?? true) && (flags[moduleId]?.actions?.[actionId] ?? false), [flags]);
+        (flags[moduleId]?.enabled ?? true) && (flags[moduleId]?.actions?.[actionId] ?? true), [flags]);
     const canRoleDo = useCallback((role, moduleId, actionId) =>
         rbac[role]?.[moduleId]?.[actionId] ?? false, [rbac]);
 
