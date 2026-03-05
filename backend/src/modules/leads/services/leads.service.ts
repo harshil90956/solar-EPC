@@ -22,7 +22,7 @@ export class LeadsService {
   }
 
   private async assertValidStatusKey(statusKey: string | undefined, tenantId?: string): Promise<void> {
-    if (!statusKey) return;
+    if (!statusKey || statusKey === '') return;
     const tid = this.toObjectId(tenantId);
 
     const status = await this.leadStatusModel
@@ -148,6 +148,7 @@ export class LeadsService {
     const leadData: any = {
       ...createLeadDto,
       leadId,
+      statusKey: createLeadDto.statusKey || 'new',
       activities,
       created: now,
       lastContact: now,
@@ -238,13 +239,35 @@ export class LeadsService {
     }
 
     if (search) {
-      filter.$or = [
+      const searchNum = Number(search);
+      const isNumeric = !isNaN(searchNum) && search.trim() !== '';
+      
+      // Build search conditions
+      const orConditions: any[] = [];
+      
+      // Text fields - always search with regex
+      orConditions.push(
         { name: { $regex: search, $options: 'i' } },
         { email: { $regex: search, $options: 'i' } },
         { company: { $regex: search, $options: 'i' } },
         { phone: { $regex: search, $options: 'i' } },
         { source: { $regex: search, $options: 'i' } },
-      ];
+        { city: { $regex: search, $options: 'i' } },
+        { statusKey: { $regex: search, $options: 'i' } }
+      );
+      
+      // For numeric search, also match score and value
+      if (isNumeric) {
+        // Exact score match
+        orConditions.push({ score: searchNum });
+        // Value search - match if value divided by 1000/100000 contains the number
+        // This handles both 50K (50000) and 1.5L (150000) formats
+        orConditions.push({ value: { $gte: searchNum * 1000, $lt: (searchNum + 1) * 1000 } }); // For thousands (K)
+        orConditions.push({ value: { $gte: searchNum * 100000, $lt: (searchNum + 1) * 100000 } }); // For lakhs (L)
+        orConditions.push({ value: { $gte: searchNum, $lt: searchNum + 1 } }); // For exact match
+      }
+      
+      filter.$or = orConditions;
     }
 
     const sort: any = {};
@@ -322,7 +345,10 @@ export class LeadsService {
 
     Object.assign(existingLead, updateLeadDto);
     existingLead.lastContact = new Date();
-    existingLead.score = this.calculateScore(existingLead);
+    // Only recalculate score if not manually provided
+    if (updateLeadDto.score === undefined) {
+      existingLead.score = this.calculateScore(existingLead);
+    }
     existingLead.slaBreached = this.checkSlaBreached(existingLead);
     existingLead.activeAutomation = this.applyAutomation(existingLead);
 

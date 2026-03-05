@@ -524,6 +524,9 @@ const CRMPage = () => {
   const [timelineData, setTimelineData] = useState([]);
   const [activityData, setActivityData] = useState([]);
   const [actionLoading, setActionLoading] = useState(false);
+  const [showScoreEditModal, setShowScoreEditModal] = useState(false);
+  const [scoreEditingLead, setScoreEditingLead] = useState(null);
+  const [newScore, setNewScore] = useState('');
   const [sort, setSort] = useState({ key: null, dir: 'asc' });
   const [leadScoring, setLeadScoring] = useState(true);
   const [showSortDropdown, setShowSortDropdown] = useState(false);
@@ -643,7 +646,19 @@ const CRMPage = () => {
     if (!editingLead) return;
     try {
       setActionLoading(true);
-      await leadsApi.update(editingLead._id, editingLead);
+      // Only send allowed fields to API
+      const updateData = {
+        name: editingLead.name,
+        company: editingLead.company,
+        email: editingLead.email,
+        phone: editingLead.phone,
+        source: editingLead.source,
+        city: editingLead.city,
+        statusKey: editingLead.statusKey,
+        value: editingLead.value,
+        notes: editingLead.notes,
+      };
+      await leadsApi.update(editingLead._id, updateData);
       logUpdate(editingLead);
       setShowEditModal(false);
       setEditingLead(null);
@@ -714,14 +729,36 @@ const CRMPage = () => {
   };
 
   const handleRecalculateScore = async (lead) => {
+    setScoreEditingLead(lead);
+    setNewScore(String(lead.score || 0));
+    setShowScoreEditModal(true);
+  };
+
+  const handleSaveScore = async () => {
+    if (!scoreEditingLead) return;
     try {
       setActionLoading(true);
-      await leadsApi.recalculateScores();
-      fetchLeads(); // Refresh list
-      alert('Scores recalculated!');
+      const scoreValue = parseInt(newScore) || 0;
+      // Include all required fields for MongoDB validation
+      const response = await leadsApi.update(scoreEditingLead._id, { 
+        score: scoreValue,
+        name: scoreEditingLead.name,
+        leadId: scoreEditingLead.leadId,
+        phone: scoreEditingLead.phone || '',
+        email: scoreEditingLead.email || '',
+        source: scoreEditingLead.source || '',
+        statusKey: scoreEditingLead.statusKey || 'new'
+      });
+      console.log('[handleSaveScore] Update response:', response);
+      logUpdate({ ...scoreEditingLead, score: scoreValue });
+      setScoreEditingLead(null);
+      setShowScoreEditModal(false);
+      await fetchLeads(); // Refresh and wait
+      console.log('[handleSaveScore] Leads refreshed');
     } catch (err) {
-      console.error('Failed to recalculate scores:', err);
-      alert('Failed to recalculate scores: ' + err.message);
+      console.error('Failed to update score:', err);
+      setScoreEditingLead(null);
+      setShowScoreEditModal(false);
     } finally {
       setActionLoading(false);
     }
@@ -805,23 +842,35 @@ const CRMPage = () => {
 
   // Add Lead
   const [newLead, setNewLead] = useState({
-    name: '',
+    firstName: '',
+    lastName: '',
     company: '',
     email: '',
     phone: '',
     source: '',
     city: '',
     notes: '',
-    statusKey: ''
+    statusKey: 'new'
   });
 
   const handleCreateLead = async () => {
     try {
       setActionLoading(true);
-      const created = await leadsApi.create(newLead);
+      // Combine first and last name into name field
+      const leadData = {
+        name: `${newLead.firstName} ${newLead.lastName}`.trim(),
+        company: newLead.company,
+        email: newLead.email,
+        phone: newLead.phone,
+        source: newLead.source,
+        city: newLead.city,
+        notes: newLead.notes,
+        statusKey: newLead.statusKey
+      };
+      const created = await leadsApi.create(leadData);
       logCreate(created.data || created);
       setShowAddModal(false);
-      setNewLead({ name: '', company: '', email: '', phone: '', source: '', city: '', notes: '', statusKey: '' });
+      setNewLead({ firstName: '', lastName: '', company: '', email: '', phone: '', source: '', city: '', notes: '', statusKey: 'new' });
       fetchLeads(); // Refresh list
       alert('Lead created successfully!');
     } catch (err) {
@@ -934,7 +983,8 @@ const CRMPage = () => {
   const enhancedLeads = useMemo(() => {
     return activeLeads.map(lead => ({
       ...lead,
-      score: calculateLeadScore(lead),
+      // Use backend score if available, otherwise calculate
+      score: lead.score !== undefined ? lead.score : calculateLeadScore(lead),
       automation: applyAutomationRules(lead),
       slaBreached: lead.activities?.[0] ?
         Math.floor((new Date() - new Date(lead.activities[0].timestamp)) / (1000 * 60 * 60 * 24)) > 3 : false
@@ -972,7 +1022,7 @@ const CRMPage = () => {
       }
     }
     
-    // Advanced filters
+    // Advanced filters - only apply filters not sent to backend
     if (activeFilters.length > 0) {
       result = result.filter(lead => {
         return activeFilters.every(filter => {
@@ -1000,20 +1050,11 @@ const CRMPage = () => {
       });
     }
     
-    // Search filter
-    if (search) {
-      const searchLower = search.toLowerCase();
-      result = result.filter(lead => 
-        lead.name?.toLowerCase().includes(searchLower) ||
-        lead.email?.toLowerCase().includes(searchLower) ||
-        lead.company?.toLowerCase().includes(searchLower) ||
-        lead.phone?.includes(search) ||
-        lead.source?.toLowerCase().includes(searchLower)
-      );
-    }
+    // Note: Search is handled by backend API - no client-side search filtering needed
+    // This prevents double-filtering issues
     
     return result;
-  }, [enhancedLeads, quickFilter, activeFilters, search]);
+  }, [enhancedLeads, quickFilter, activeFilters]);
 
   // Sort handler for DataTable
   const handleSort = useCallback(({ key, dir }) => {
@@ -1063,11 +1104,13 @@ const CRMPage = () => {
       { key: 'email', header: 'Email', sortable: true, width: '180px' },
       {
         key: 'statusKey', header: 'Stage', sortable: true, width: '120px',
-        render: (val) => {
-          const stage = statusMap?.[val] || { label: val, color: '#94a3b8' };
+        render: (val, row) => {
+          // Handle legacy data that might have 'stage' instead of 'statusKey'
+          const statusValue = val || row.stage || 'new';
+          const stage = statusMap?.[statusValue] || { label: statusValue, color: '#94a3b8' };
           return (
             <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap" style={{ color: stage.color, background: `${stage.color}15`, border: `1px solid ${stage.color}25` }}>
-              {stage.label}
+              {stage.label || 'New'}
             </span>
           );
         }
@@ -1075,8 +1118,8 @@ const CRMPage = () => {
       {
         key: 'score', header: 'Score', sortable: true, width: '80px',
         render: (val) => (
-          <span className={`text-[11px] font-bold ${val >= 75 ? 'text-emerald-500' :
-            val >= 50 ? 'text-amber-500' : 'text-red-500'
+          <span className={`text-[11px] font-bold ${val >= 75 ? 'text-red-500' :
+            val >= 50 ? 'text-amber-500' : 'text-emerald-500'
           }`}>{val || 0}pts</span>
         )
       },
@@ -1099,10 +1142,78 @@ const CRMPage = () => {
     return allColumns.filter(col => visibleColumns[col.key] !== false);
   }, [visibleColumns, statusMap]);
 
-  const handleImport = ({ file, mapping }) => {
-    console.log('Importing from', file.name, 'with mapping', mapping);
-    logCreate({ id: 'import', name: `Import from ${file.name}` });
-    alert(`Import successful! ${file.name} is being processed.`);
+  const handleImport = async ({ file, mapping }) => {
+    try {
+      setActionLoading(true);
+      
+      // Parse CSV file
+      const Papa = await import('papaparse');
+      const text = await file.text();
+      
+      const { data } = Papa.parse(text, {
+        header: true,
+        skipEmptyLines: true,
+        dynamicTyping: true
+      });
+      
+      let successCount = 0;
+      let errorCount = 0;
+      const errors = [];
+      
+      // Process each row
+      for (let i = 0; i < data.length; i++) {
+        const row = data[i];
+        try {
+          // Combine first and last name from CSV
+          const firstName = row[mapping.firstName] || row.firstName || row.firstname || row['First Name'] || row.first_name || '';
+          const lastName = row[mapping.lastName] || row.lastName || row.lastname || row['Last Name'] || row.last_name || '';
+          const fullName = `${firstName} ${lastName}`.trim();
+          
+          // Map CSV columns to lead fields based on mapping
+          const leadData = {
+            name: fullName || row.name || row.Name || row.NAME || '',
+            company: row[mapping.company] || row.company || row.Company || row.COMPANY || '',
+            email: row[mapping.email] || row.email || row.Email || row.EMAIL || '',
+            phone: row[mapping.phone] || row.phone || row.Phone || row.PHONE || row.mobile || '',
+            source: row[mapping.source] || row.source || row.Source || row.SOURCE || 'Import',
+            city: row[mapping.city] || row.city || row.City || row.CITY || '',
+            statusKey: 'new',
+            value: parseInt(row[mapping.value] || row.value || row.Value || row.VALUE || 0),
+          };
+          
+          // Skip if name is missing
+          if (!leadData.name) {
+            errorCount++;
+            errors.push(`Row ${i + 1}: Missing name`);
+            continue;
+          }
+          
+          // Create lead via API
+          await leadsApi.create(leadData);
+          successCount++;
+        } catch (err) {
+          errorCount++;
+          errors.push(`Row ${i + 1}: ${err.message}`);
+        }
+      }
+      
+      // Log import activity
+      logCreate({ id: 'import', name: `Imported ${successCount} leads from ${file.name}` });
+      
+      // Show result
+      if (errorCount === 0) {
+        alert(`Successfully imported ${successCount} leads!`);
+      } else {
+        alert(`Import completed: ${successCount} leads created, ${errorCount} errors.\n\nFirst 5 errors:\n${errors.slice(0, 5).join('\n')}`);
+      }
+      
+      fetchLeads(); // Refresh list
+    } catch (err) {
+      console.error('Import failed:', err);
+      alert('Import failed: ' + err.message);
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handleExport = (format) => {
@@ -1537,9 +1648,9 @@ const CRMPage = () => {
                               <span className="text-xs font-bold text-[var(--accent)]">{fmt(lead.value || 0)}</span>
                               <div className="flex items-center gap-1">
                                 <Brain size={8} className="text-[var(--text-muted)]" />
-                                <span className={`text-[9px] font-black ${lead.score >= 75 ? 'text-emerald-500' :
+                                <span className={`text-[9px] font-black ${lead.score >= 75 ? 'text-red-500' :
                                   lead.score >= 50 ? 'text-amber-500' :
-                                    'text-red-500'
+                                    'text-emerald-500'
                                   }`}>{lead.score || 0}pts</span>
                               </div>
                             </div>
@@ -1596,7 +1707,7 @@ const CRMPage = () => {
               <div className="flex-1 relative">
                 <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[var(--text-muted)]" />
                 <Input
-                  placeholder="Search leads by name, email, company, phone..."
+                  placeholder="Search anything - name, email, score, value, city, stage..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-10"
@@ -1730,20 +1841,49 @@ const CRMPage = () => {
             selectedRows={selected}
             onSelectRows={setSelected}
             bulkActions={[
-              { label: 'Export', icon: Download, onClick: (rows) => { if (guardExport()) console.log('Exporting', rows); } },
-              { label: 'Assign', icon: Users, onClick: (rows) => { if (guardEdit()) console.log('Assigning', rows); } },
+              { label: 'Export', icon: Download, onClick: (selectedIds) => { 
+                if (guardExport()) {
+                  // Get actual row data from selected IDs (handle both string and ObjectId)
+                  const selectedIdSet = new Set(selectedIds.map(id => String(id)));
+                  const dataToExport = selectedIds.length > 0 
+                    ? sortedLeads.filter(lead => selectedIdSet.has(String(lead._id)))
+                    : sortedLeads;
+                  const headers = ['Name', 'Company', 'Email', 'Phone', 'Stage', 'Source', 'Value', 'Score', 'City'];
+                  const csvContent = [
+                    headers.join(','),
+                    ...dataToExport.map(lead => [
+                      `"${lead.name || ''}"`,
+                      `"${lead.company || ''}"`,
+                      `"${lead.email || ''}"`,
+                      `"${lead.phone || ''}"`,
+                      `"${statusMap?.[lead.statusKey]?.label || lead.statusKey || ''}"`,
+                      `"${lead.source || ''}"`,
+                      lead.value || 0,
+                      lead.score || 0,
+                      `"${lead.city || ''}"`
+                    ].join(','))
+                  ].join('\n');
+                  
+                  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                  const link = document.createElement('a');
+                  const url = URL.createObjectURL(blob);
+                  link.setAttribute('href', url);
+                  link.setAttribute('download', `leads_export_${new Date().toISOString().split('T')[0]}.csv`);
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  alert(`Exported ${dataToExport.length} leads to CSV!`);
+                }
+              }},
               { label: 'Score Boost', icon: Brain, onClick: (rows) => { if (guardEdit()) console.log('Boosting scores', rows); } },
               { label: 'Delete', icon: Trash2, onClick: (rows) => { if (guardDelete()) console.log('Soft Deleting', rows); }, danger: true },
             ]}
             rowActions={[
               { label: 'View', icon: Eye, onClick: handleViewLead },
               { label: 'Edit', icon: Edit2, onClick: handleEditLead },
-              { label: 'Duplicate', icon: RefreshCw, onClick: handleDuplicateLead },
               { label: 'Score', icon: Brain, onClick: handleRecalculateScore },
-              { label: 'Archive', icon: Building2, onClick: handleArchiveLead },
               { label: 'Delete', icon: Trash2, onClick: handleDeleteLead, danger: true },
-              { label: 'Timeline', icon: Clock, onClick: handleViewTimeline },
-              { label: 'Activity Log', icon: Activity, onClick: handleViewActivity },
+              { label: 'Activity Log', icon: Clock, onClick: handleViewTimeline },
             ]}
           />
         </div>
@@ -1768,15 +1908,15 @@ const CRMPage = () => {
             <FormField label="First Name">
               <Input 
                 placeholder="Enter first name" 
-                value={newLead.name}
-                onChange={(e) => setNewLead({...newLead, name: e.target.value})}
+                value={newLead.firstName}
+                onChange={(e) => setNewLead({...newLead, firstName: e.target.value})}
               />
             </FormField>
             <FormField label="Last Name">
               <Input 
                 placeholder="Enter last name"
-                value={newLead.company}
-                onChange={(e) => setNewLead({...newLead, company: e.target.value})}
+                value={newLead.lastName}
+                onChange={(e) => setNewLead({...newLead, lastName: e.target.value})}
               />
             </FormField>
           </div>
@@ -2048,7 +2188,7 @@ const CRMPage = () => {
         <Modal
           open={showTimelineModal}
           onClose={() => setShowTimelineModal(false)}
-          title="Lead Timeline"
+          title="Activity Log"
           footer={
             <div className="flex gap-2 justify-end">
               <Button variant="ghost" onClick={() => setShowTimelineModal(false)}>Close</Button>
@@ -2110,6 +2250,52 @@ const CRMPage = () => {
                 </div>
               ))
             )}
+          </div>
+        </Modal>
+      )}
+
+      {/* SCORE EDIT MODAL */}
+      {showScoreEditModal && scoreEditingLead && (
+        <Modal
+          open={showScoreEditModal}
+          onClose={() => { setShowScoreEditModal(false); setScoreEditingLead(null); }}
+          title={`Edit Score — ${scoreEditingLead.name}`}
+          footer={
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" onClick={() => { setShowScoreEditModal(false); setScoreEditingLead(null); }}>Cancel</Button>
+              <Button onClick={handleSaveScore} disabled={actionLoading}>
+                {actionLoading ? 'Saving...' : 'Update Score'}
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-4 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)]">
+              <div className="w-12 h-12 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center font-bold text-lg">
+                {scoreEditingLead.name[0]}
+              </div>
+              <div>
+                <p className="font-semibold text-[var(--text-primary)]">{scoreEditingLead.name}</p>
+                <p className="text-xs text-[var(--text-muted)]">{scoreEditingLead.company || 'Individual'}</p>
+              </div>
+            </div>
+            <FormField label="Score (0-100)">
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                value={newScore}
+                onChange={(e) => setNewScore(e.target.value)}
+                placeholder="Enter score between 0 and 100"
+              />
+            </FormField>
+            <div className="flex gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setNewScore('0')}>0</Button>
+              <Button variant="secondary" size="sm" onClick={() => setNewScore('25')}>25</Button>
+              <Button variant="secondary" size="sm" onClick={() => setNewScore('50')}>50</Button>
+              <Button variant="secondary" size="sm" onClick={() => setNewScore('75')}>75</Button>
+              <Button variant="secondary" size="sm" onClick={() => setNewScore('100')}>100</Button>
+            </div>
           </div>
         </Modal>
       )}
