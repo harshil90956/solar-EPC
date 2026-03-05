@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Headers } from '@nestjs/common';
 import { ItemsService } from '../services/items.service';
 import { CreateItemDto, UpdateItemDto } from '../dto/item.dto';
 
@@ -8,75 +8,91 @@ export class ItemsController {
 
   @Get()
   findAll(
-    @Query('tenantId') tenantId: string,
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
     @Query('search') search?: string,
     @Query('itemGroupId') itemGroupId?: string,
   ) {
+    const tenantId = headerTenantId || queryTenantId;
     return this.itemsService.findAll(tenantId, search, itemGroupId);
   }
 
   @Get(':id')
   findOne(
-    @Query('tenantId') tenantId: string,
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
     @Param('id') id: string,
   ) {
+    const tenantId = headerTenantId || queryTenantId;
     return this.itemsService.findOne(tenantId, id);
   }
 
   @Post()
   create(
-    @Query('tenantId') tenantId: string,
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
     @Body() createItemDto: CreateItemDto,
   ) {
+    const tenantId = headerTenantId || queryTenantId;
     return this.itemsService.create(tenantId, createItemDto);
   }
 
   @Patch(':id')
   update(
-    @Query('tenantId') tenantId: string,
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
     @Param('id') id: string,
     @Body() updateItemDto: UpdateItemDto,
   ) {
+    const tenantId = headerTenantId || queryTenantId;
     return this.itemsService.update(tenantId, id, updateItemDto);
   }
 
   @Delete(':id')
   remove(
-    @Query('tenantId') tenantId: string,
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
     @Param('id') id: string,
   ) {
+    const tenantId = headerTenantId || queryTenantId;
     return this.itemsService.remove(tenantId, id);
   }
 
   @Delete('bulk/delete')
   bulkDelete(
-    @Query('tenantId') tenantId: string,
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
     @Body('ids') ids: string[],
   ) {
+    const tenantId = headerTenantId || queryTenantId;
     return this.itemsService.bulkDelete(tenantId, ids);
   }
 
   @Post(':id/stock-in')
   stockIn(
-    @Query('tenantId') tenantId: string,
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
     @Param('id') id: string,
     @Body('quantity') quantity: number,
     @Body('poReference') poReference?: string,
     @Body('receivedDate') receivedDate?: string,
     @Body('remarks') remarks?: string,
   ) {
+    const tenantId = headerTenantId || queryTenantId;
     return this.itemsService.stockIn(tenantId, id, quantity, poReference, receivedDate, remarks);
   }
 
   @Post(':id/stock-out')
   stockOut(
-    @Query('tenantId') tenantId: string,
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
     @Param('id') id: string,
     @Body('quantity') quantity: number,
     @Body('projectId') projectId?: string,
     @Body('issuedDate') issuedDate?: string,
     @Body('remarks') remarks?: string,
   ) {
+    const tenantId = headerTenantId || queryTenantId;
     return this.itemsService.stockOut(tenantId, id, quantity, projectId, issuedDate, remarks);
   }
 }
