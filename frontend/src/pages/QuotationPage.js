@@ -10,6 +10,7 @@ import { StatusBadge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input, FormField, Select, Textarea } from '../components/ui/Input';
+import { PageHeader } from '../components/ui/PageHeader';
 import { KPICard } from '../components/ui/KPICard';
 import { Progress } from '../components/ui/Progress';
 import DataTable from '../components/ui/DataTable';
@@ -279,15 +280,19 @@ const QuotationPage = () => {
     <div className="animate-fade-in space-y-5">
 
       {/* ── Header ── */}
-      <div className="page-header">
-        <div>
-          <h1 className="heading-page">Quotation Management</h1>
-          <p className="text-xs text-[var(--text-muted)] mt-0.5">
-            Proposals · margin engine · discount approval · subsidy / EMI · PDF send · conversion tracking
-          </p>
-        </div>
-        <Button onClick={() => setShowAdd(true)}><Plus size={13} /> New Quote</Button>
-      </div>
+      <PageHeader
+        title="Quotation Management"
+        subtitle="Proposals · margin engine · discount approval · subsidy / EMI · PDF send · conversion tracking"
+        tabs={[
+          { id: 'kanban', label: 'Kanban', icon: LayoutGrid },
+          { id: 'table', label: 'Table', icon: List }
+        ]}
+        activeTab={view}
+        onTabChange={setView}
+        actions={[
+          { type: 'button', label: 'New Quote', icon: Plus, variant: 'primary', onClick: () => setShowAdd(true) }
+        ]}
+      />
 
       {/* ── Primary KPIs ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -409,10 +414,6 @@ const QuotationPage = () => {
           <Input placeholder="Search quotes..." value={search}
             onChange={e => { setSearch(e.target.value); setPage(1); }}
             className="h-8 text-xs w-44" />
-          <div className="view-toggle-pill">
-            <button onClick={() => setView('kanban')} className={`view-toggle-btn ${view === 'kanban' ? 'active' : ''}`} title="Kanban view"><LayoutGrid size={13} /></button>
-            <button onClick={() => setView('table')} className={`view-toggle-btn ${view === 'table' ? 'active' : ''}`} title="Table view"><List size={13} /></button>
-          </div>
         </div>
       </div>
 

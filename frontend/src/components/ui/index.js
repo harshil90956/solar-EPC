@@ -10,3 +10,4 @@ export { Tabs, TabsList, TabsTrigger, TabsContent } from './Tabs';
 export { default as DataTable } from './DataTable';
 export { KPICard } from './KPICard';
 export { Stepper } from './Stepper';
+export { PageHeader } from './PageHeader';

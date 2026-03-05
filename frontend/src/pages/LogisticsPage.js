@@ -4,6 +4,7 @@ import { Truck, Plus, MapPin, Package, CheckCircle, Clock, Zap, Navigation, Layo
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input, FormField, Select } from '../components/ui/Input';
+import { PageHeader } from '../components/ui/PageHeader';
 import { KPICard } from '../components/ui/KPICard';
 import { Avatar } from '../components/ui/Avatar';
 import DataTable from '../components/ui/DataTable';
@@ -427,48 +428,19 @@ const LogisticsPage = () => {
 
   return (
     <div className="animate-fade-in space-y-5">
-      <div className="page-header">
-        <div>
-          <h1 className="heading-page">Logistics & Dispatch</h1>
-          <p className="text-xs text-[var(--text-muted)] mt-0.5">Material dispatch · delivery tracking · freight management</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* Tabs */}
-          <div className="flex items-center gap-1 bg-[var(--bg-elevated)] rounded-lg p-1">
-            <button
-              onClick={() => setActiveTab('dispatches')}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                activeTab === 'dispatches'
-                  ? 'bg-[var(--accent)] text-white'
-                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-              }`}
-            >
-              <Truck size={14} className="inline mr-1" /> Dispatches
-            </button>
-            <button
-              onClick={() => setActiveTab('vendors')}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                activeTab === 'vendors'
-                  ? 'bg-[var(--accent)] text-white'
-                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-              }`}
-            >
-              <Star size={14} className="inline mr-1" /> Vendors
-            </button>
-          </div>
-          {activeTab === 'dispatches' ? (
-            <>
-              <div className="view-toggle-pill">
-                <button onClick={() => setView('kanban')} className={`view-toggle-btn ${view === 'kanban' ? 'active' : ''}`}><LayoutGrid size={14} /></button>
-                <button onClick={() => setView('table')} className={`view-toggle-btn ${view === 'table' ? 'active' : ''}`}><List size={14} /></button>
-              </div>
-              <Button onClick={() => setShowAdd(true)}><Plus size={13} /> Schedule Dispatch</Button>
-            </>
-          ) : (
-            <Button onClick={() => setShowVendorModal(true)}><Plus size={13} /> Add Vendor</Button>
-          )}
-        </div>
-      </div>
+      <PageHeader
+        title="Logistics & Dispatch"
+        subtitle="Material dispatch · delivery tracking · freight management"
+        tabs={[
+          { id: 'kanban', label: 'Kanban', icon: LayoutGrid },
+          { id: 'table', label: 'Table', icon: List }
+        ]}
+        activeTab={view}
+        onTabChange={setView}
+        actions={[
+          { type: 'button', label: 'Schedule Dispatch', icon: Plus, variant: 'primary', onClick: () => setShowAdd(true) }
+        ]}
+      />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KPICard title="In Transit" value={inTransit} icon={Truck} trend={inTransit} trendLabel="active shipments" color="cyan" />

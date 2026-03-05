@@ -303,37 +303,30 @@ export const SettingsProvider = ({ children }) => {
 
     // ── Custom Role APIs ──────────────────────────────────────────────────────
 
-    // Function to refresh custom roles from backend
-    const refreshCustomRoles = useCallback(async () => {
+    const createCustomRole = useCallback(async (roleData, user) => {
+        const id = `custom_${Date.now()}`;
+        const newRole = {
+            id,
+            label: roleData.label || 'New Role',
+            description: roleData.description || '',
+            baseRole: roleData.baseRole || null,
+            color: roleData.color || '#8b5cf6',
+            bg: 'rgba(139,92,246,0.12)',
+            isCustom: true,
+            permissions: Object.fromEntries(MODULE_DEFS.map(mod => [mod.id, emptyPerms()])),
+        };
+        setCustomRoles(prev => ({ ...prev, [id]: newRole }));
+        addAudit('CUSTOM_ROLE_CREATED', newRole.label, 'null', 'created', user);
+
+        // Persist to backend
         try {
-            const response = await settingsApi.getCustomRoles();
-            
-            // Handle wrapped response format {success: true, data: {...}}
-            const rolesData = response.data || response;
-            
-            // Transform roles data (handle both object and array formats)
-            const rolesObj = {};
-            const rolesArray = Array.isArray(rolesData) ? rolesData : Object.values(rolesData);
-            rolesArray.forEach(r => {
-                const roleId = r.roleId || r.id;
-                if (roleId) {
-                    rolesObj[roleId] = {
-                        id: roleId,
-                        label: r.label,
-                        description: r.description,
-                        baseRole: r.baseRole,
-                        color: r.color,
-                        bg: r.bg,
-                        isCustom: true,
-                        permissions: r.permissions || {},
-                    };
-                }
-            });
-            setCustomRoles(rolesObj);
-        } catch (error) {
-            // Silent fail
+            await settingsApi.createCustomRole(newRole);
+        } catch (e) {
+            console.error('Failed to create custom role:', e);
         }
-    }, []);
+
+        return id;
+    }, [addAudit]);
 
     const createCustomRole = useCallback(async (roleData, user) => {
         try {
@@ -439,12 +432,10 @@ export const SettingsProvider = ({ children }) => {
     }, [customRoles, rbac, addAudit, refreshCustomRoles]);
 
     const updateCustomRole = useCallback(async (roleId, updates, user) => {
-        // Update local state
         setCustomRoles(prev => {
             if (!prev[roleId]) return prev;
             return { ...prev, [roleId]: { ...prev[roleId], ...updates } };
         });
-        addAudit('CUSTOM_ROLE_UPDATED', roleId, 'old', JSON.stringify(updates), user);
 
         // Persist to backend
         try {
@@ -502,7 +493,6 @@ export const SettingsProvider = ({ children }) => {
     }, [addAudit]);
 
     const deleteCustomRole = useCallback(async (roleId, user) => {
-        // Update local state
         setCustomRoles(prev => {
             const { [roleId]: _removed, ...rest } = prev;
             addAudit('CUSTOM_ROLE_DELETED', roleId, 'exists', 'deleted', user);
@@ -520,12 +510,10 @@ export const SettingsProvider = ({ children }) => {
         // Persist to backend
         try {
             await settingsApi.deleteCustomRole(roleId);
-            // Refresh from backend
-            await refreshCustomRoles();
         } catch (e) {
             console.error('Failed to delete custom role:', e);
         }
-    }, [addAudit, refreshCustomRoles]);
+    }, [addAudit]);
 
     // ── User Override APIs ────────────────────────────────────────────────────
 

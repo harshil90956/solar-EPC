@@ -8,6 +8,7 @@ import {
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input, FormField, Select } from '../components/ui/Input';
+import { PageHeader } from '../components/ui/PageHeader';
 import { KPICard } from '../components/ui/KPICard';
 import { Progress } from '../components/ui/Progress';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/Tabs';
@@ -709,16 +710,14 @@ const CompliancePage = () => {
 
     return (
         <div className="animate-fade-in space-y-5">
-            <div className="page-header">
-                <div>
-                    <h1 className="heading-page">Compliance & Regulatory</h1>
-                    <p className="text-xs text-[var(--text-muted)] mt-0.5">Net metering · subsidies · DISCOM inspections · document checklist</p>
-                </div>
-                <div className="flex gap-2">
-                    <Button variant="ghost" onClick={() => setShowUpload(true)}><Upload size={13} /> Upload Doc</Button>
-                    <Button onClick={() => setShowAddNM(true)}><Plus size={13} /> Apply Net Metering</Button>
-                </div>
-            </div>
+            <PageHeader
+                title="Compliance & Regulatory"
+                subtitle="Net metering · subsidies · DISCOM inspections · document checklist"
+                actions={[
+                    { type: 'button', label: 'Upload Doc', icon: Upload, onClick: () => setShowUpload(true) },
+                    { type: 'button', label: 'Apply Net Metering', icon: Plus, variant: 'primary', onClick: () => setShowAddNM(true) }
+                ]}
+            />
 
             {/* KPIs */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

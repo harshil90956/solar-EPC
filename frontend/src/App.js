@@ -22,6 +22,7 @@ import ServicePage from './pages/ServicePage';
 import CompliancePage from './pages/CompliancePage';
 import SettingsPage from './pages/SettingsPage';
 import AdminPage from './pages/AdminPage';
+import HRMPage from './pages/HRMPage';
 import IntelligenceDashboardPage from './pages/IntelligenceDashboardPage';
 import RemindersPage from './pages/RemindersPage';
 import ItemsPage from './pages/ItemsPage';
@@ -32,6 +33,7 @@ import { canAccess } from './config/roles.config';
 const PAGE_MAP = {
   dashboard: { component: Dashboard, title: 'Dashboard' },
   admin: { component: AdminPage, title: 'Admin Dashboard' },
+  hrm: { component: HRMPage, title: 'Human Resource Management' },
   reminders: { component: RemindersPage, title: 'Reminder Center' },
   crm: { component: CRMPage, title: 'CRM & Sales' },
   survey: { component: SurveyPage, title: 'Survey Management' },
