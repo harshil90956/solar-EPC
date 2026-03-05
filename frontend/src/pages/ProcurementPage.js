@@ -152,6 +152,7 @@ const ProcurementPage = () => {
   const [poPage, setPoPage] = useState(1);
   const [poPageSize, setPoPageSize] = useState(APP_CONFIG.defaultPageSize);
   const [showPO, setShowPO] = useState(false);
+  const [showVendor, setShowVendor] = useState(false);
   const [selectedPO, setSelectedPO] = useState(null);
   const [pos, setPos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -161,6 +162,9 @@ const ProcurementPage = () => {
 
   // Vendors list for dropdown
   const [vendors, setVendors] = useState([]);
+
+  // Create vendor form
+  const [newVendor, setNewVendor] = useState({ name: '', category: '', city: '', contact: '', phone: '', email: '' });
 
   // Vendor detail modal state
   const [selectedVendor, setSelectedVendor] = useState(null);
@@ -221,15 +225,16 @@ const ProcurementPage = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const posRes = await api.get('/procurement/purchase-orders');
+      const [posRes, vendorsRes] = await Promise.all([
+        api.get('/procurement/purchase-orders'),
+        api.get('/procurement/vendors'),
+      ]);
       // Handle API response - could be direct array or wrapped object
       let posData = [];
 
-      if (Array.isArray(vendorsRes.data)) {
-        vendorsData = vendorsRes.data;
-      } else if (vendorsRes.data && typeof vendorsRes.data === 'object') {
-        vendorsData = vendorsRes.data.data || [];
-      }
+      const vendorsData = Array.isArray(vendorsRes.data)
+        ? vendorsRes.data
+        : (vendorsRes.data?.data || []);
 
       if (Array.isArray(posRes.data)) {
         posData = posRes.data;
@@ -264,40 +269,6 @@ const ProcurementPage = () => {
       setNewVendor({ name: '', category: '', city: '', contact: '', phone: '', email: '' });
     } catch (error) {
       console.error('Error creating vendor:', error);
-    }
-  };
-
-  const handleCallVendor = (vendor) => {
-    if (vendor?.phone) {
-      window.open(`tel:${vendor.phone}`, '_self');
-    } else {
-      alert('No phone number available');
-    }
-  };
-
-  const handleEmailVendor = async (vendor) => {
-    if (vendor?.email) {
-      try {
-        const subject = 'Purchase Order Inquiry';
-        const text = `Dear ${vendor.name || vendor.contact || 'Vendor'},\n\nI hope this email finds you well. We are interested in discussing potential purchase orders and would like to connect with you regarding our requirements.\n\nPlease let us know your availability for a brief discussion.\n\nBest regards,\nSolarOS Team`;
-
-        const res = await api.post('/email/send', {
-          to: vendor.email,
-          subject,
-          text
-        });
-
-        if (res.data?.success) {
-          alert(`Email sent to ${vendor.email}`);
-        } else {
-          alert(`Email queued: ${res.data?.message || 'Will be sent shortly'}`);
-        }
-      } catch (error) {
-        console.error('Error sending email:', error);
-        alert('Failed to send email. Please try again later.');
-      }
-    } else {
-      alert('No email address available');
     }
   };
 

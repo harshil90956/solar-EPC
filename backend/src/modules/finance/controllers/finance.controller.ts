@@ -68,11 +68,14 @@ interface RequestWithUser extends FastifyRequest {
 
 function getTenantId(req: RequestWithUser): string {
 
-  const tenantId = req.user?.tenantId;
+  const tenantId =
+    req.user?.tenantId ||
+    (req.headers as any)?.['x-tenant-id'] ||
+    (req.headers as any)?.['tenant-id'];
 
-  if (!tenantId) {
+  if (!tenantId || typeof tenantId !== 'string') {
 
-    throw new Error('Tenant ID not found');
+    throw new BadRequestException('Tenant ID not found');
 
   }
 

@@ -7,11 +7,8 @@ import {
   DollarSign, TrendingUp, TrendingDown,
 
   CheckCircle, Clock, Zap, FileText, Plus, IndianRupee,
-
-  LayoutGrid, List, Calendar, AlertCircle, Loader2,
-
-  X, Edit, RefreshCw, Download, Trash2,
-
+  LayoutGrid, List, Calendar, AlertCircle, RefreshCw,
+  Edit, Download, Trash2, Loader2, X,
 } from 'lucide-react';
 
 import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
@@ -39,6 +36,10 @@ import DataTable from '../components/ui/DataTable';
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
 
 import { useSettings } from '../context/SettingsContext';
+
+import { usePermissions } from '../hooks/usePermissions';
+
+import { format, subMonths } from 'date-fns';
 
 
 
@@ -308,30 +309,8 @@ const INV_STATUS_FILTERS = ['All', 'Draft', 'Pending', 'Partial', 'Paid', 'Overd
 ══════════════════════════════════════════════════════════════════════════════ */
 
 const FinancePage = () => {
-
-  const { flags } = useSettings();
-
-  const financeState = flags?.finance || { enabled: true, actions: {} };
-
-  const storedPermissions = (() => {
-
-    try {
-
-      return JSON.parse(localStorage.getItem('modulePermissions') || '{}');
-
-    } catch {
-
-      return {};
-
-    }
-
-  })();
-
-  const financePermissions = storedPermissions?.finance || financeState?.actions || {};
-
-  const canFinance = (actionId) => (financeState.enabled ?? true) && (financePermissions?.[actionId] ?? false);
-
-  const canViewFinance = canFinance('view');
+  const { isActionEnabled } = useSettings();
+  const { can } = usePermissions();
 
   const [view, setView] = useState('kanban');
 
@@ -342,7 +321,12 @@ const FinancePage = () => {
   const [page, setPage] = useState(1);
 
   const [pageSize, setPageSize] = useState(APP_CONFIG.defaultPageSize);
-
+  const [dateRange, setDateRange] = useState({
+    start: format(subMonths(new Date(), 6), 'yyyy-MM-dd'),
+    end: format(new Date(), 'yyyy-MM-dd')
+  });
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [showInvoice, setShowInvoice] = useState(false);
 
   const [selected, setSelected] = useState(null);
@@ -755,7 +739,32 @@ const FinancePage = () => {
 
   };
 
+  const guardCreate = () => {
+    if (!can('finance', 'create')) {
+      toast.error('Permission denied: Cannot create invoices');
+      return false;
+    }
+    return true;
+  };
 
+  const guardApprove = () => {
+    if (!can('finance', 'approve')) {
+      toast.error('Permission denied: Cannot approve/record payments');
+      return false;
+    }
+    return true;
+  };
+
+  const canFinance = (actionId) => isActionEnabled('finance', actionId);
+
+  const canViewFinance = canFinance('view');
+
+  const financePermissions = {
+    edit: canFinance('edit'),
+    delete: canFinance('delete'),
+    export: canFinance('export'),
+    assign: canFinance('assign'),
+  };
 
   const canEditInvoice = (inv) => canFinance('edit') && inv?.status !== 'Paid';
 
@@ -1003,74 +1012,18 @@ const FinancePage = () => {
 
   };
 
-
-
-  const exportInvoiceCsv = (row) => {
-
-    if (!canFinance('export')) return;
-
-    const safe = (v) => {
-
-      const s = v == null ? '' : String(v);
-
-      const needsQuotes = /[\n\r,\"]/g.test(s);
-
-      const escaped = s.replace(/\"/g, '""');
-
-      return needsQuotes ? `"${escaped}"` : escaped;
-
-    };
-
-
-
-    const lines = [
-
-      ['Invoice #', row?.invoiceNumber || row?.id || ''],
-
-      ['Customer', row?.customerName || ''],
-
-      ['Amount', row?.amount ?? ''],
-
-      ['Paid', row?.paid ?? ''],
-
-      ['Balance', row?.balance ?? ''],
-
-      ['Status', row?.status || ''],
-
-      ['Invoice Date', row?.invoiceDate ? new Date(row.invoiceDate).toLocaleDateString() : ''],
-
-      ['Due Date', row?.dueDate ? new Date(row.dueDate).toLocaleDateString() : ''],
-
-      ['Paid On', row?.paidDate ? new Date(row.paidDate).toLocaleDateString() : ''],
-
-    ].map(([k, v]) => `${safe(k)},${safe(v)}`);
-
-
-
-    const csv = lines.join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-
-    const url = URL.createObjectURL(blob);
-
-
-
-    const a = document.createElement('a');
-
-    a.href = url;
-
-    const invNo = (row?.invoiceNumber || 'invoice').replace(/[^a-z0-9-_]/gi, '_');
-
-    a.download = `${invNo}.csv`;
-
-    document.body.appendChild(a);
-
-    a.click();
-
-    a.remove();
-
-    URL.revokeObjectURL(url);
-
+  // Generate next invoice number based on existing invoices
+  const getNextInvoiceNumber = () => {
+    const prefix = 'INV-';
+    const numbers = invoices
+      .map(inv => inv.invoiceNumber)
+      .filter(num => num && num.startsWith(prefix))
+      .map(num => {
+        const match = num.match(/INV-(\d+)/);
+        return match ? parseInt(match[1], 10) : 0;
+      });
+    const maxNum = numbers.length > 0 ? Math.max(...numbers) : 0;
+    return `${prefix}${String(maxNum + 1).padStart(3, '0')}`;
   };
 
 
@@ -1222,34 +1175,6 @@ const FinancePage = () => {
     };
 
   }, [showInvoice]);
-
-
-
-  // Generate next invoice number based on existing invoices
-
-  const getNextInvoiceNumber = () => {
-
-    const prefix = 'INV-';
-
-    const numbers = invoices
-
-      .map(inv => inv.invoiceNumber)
-
-      .filter(num => num && num.startsWith(prefix))
-
-      .map(num => {
-
-        const match = num.match(/INV-(\d+)/);
-
-        return match ? parseInt(match[1], 10) : 0;
-
-      });
-
-    const maxNum = numbers.length > 0 ? Math.max(...numbers) : 0;
-
-    return `${prefix}${String(maxNum + 1).padStart(3, '0')}`;
-
-  };
 
 
 
@@ -1834,46 +1759,45 @@ const FinancePage = () => {
     return Number.isNaN(dt.getTime()) ? null : dt;
   };
 
-  const isInCurrentMonth = (dt) => {
-    if (!dt) return false;
-    const now = new Date();
-    return dt.getFullYear() === now.getFullYear() && dt.getMonth() === now.getMonth();
+  // Filter data based on date range
+  const filteredRevenueData = useMemo(() => {
+    return (monthlyRevenue || []).filter(item => {
+      const itemDate = new Date(item.month + ' 01, ' + selectedYear);
+      return itemDate >= new Date(dateRange.start) && itemDate <= new Date(dateRange.end);
+    });
+  }, [dateRange, selectedYear]);
+
+  const filteredCashFlowData = useMemo(() => {
+    return (cashFlow || []).filter(item => {
+      const itemDate = new Date(item.month + ' 01, ' + selectedYear);
+      return itemDate >= new Date(dateRange.start) && itemDate <= new Date(dateRange.end);
+    });
+  }, [dateRange, selectedYear]);
+
+  const exportInvoiceCsv = (row) => {
+    const r = row || {};
+    const headers = ['Invoice Number', 'Customer', 'Status', 'Amount', 'Paid', 'Balance', 'Invoice Date', 'Due Date'];
+    const values = [
+      r.invoiceNumber || r.id || '',
+      r.customerName || '',
+      r.status || '',
+      r.amount ?? '',
+      r.paid ?? '',
+      r.balance ?? '',
+      r.invoiceDate || '',
+      r.dueDate || '',
+    ];
+    const csv = `${headers.join(',')}\n${values.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')}\n`;
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `invoice_${r.invoiceNumber || r.id || 'export'}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   };
-
-  const currentMonthInvoiced = (invoices || []).reduce((sum, inv) => {
-    const dt = safeDateForSummary(inv?.invoiceDate) || safeDateForSummary(inv?.createdAt);
-    if (!isInCurrentMonth(dt)) return sum;
-    return sum + Number(inv?.amount || inv?.invoiceAmount || 0);
-  }, 0);
-
-  const currentMonthCollected = (payments || []).reduce((sum, p) => {
-    const dt = safeDateForSummary(p?.paymentDate) || safeDateForSummary(p?.createdAt);
-    if (!isInCurrentMonth(dt)) return sum;
-    return sum + Number(p?.amount || p?.amountPaid || 0);
-  }, 0);
-
-  const currentMonthOutstanding = Math.max(0, currentMonthInvoiced - currentMonthCollected);
-
-  const currentMonthCollectionRate = currentMonthInvoiced > 0
-    ? Math.round((currentMonthCollected / currentMonthInvoiced) * 100)
-    : 0;
-
-
-
-  const canShowSendReminder = (inv) => {
-
-    const status = inv?.status;
-
-    const outstanding =
-
-      Number(inv?.balance ?? inv?.balanceDue ?? (Number(inv?.amount || 0) - Number(inv?.paid || 0)));
-
-    return ['Pending', 'Partial', 'Overdue'].includes(status) && outstanding > 0;
-
-  };
-
-
-
   const INV_ACTIONS = [
 
     { label: 'View Invoice', icon: FileText, onClick: row => setSelected(row) },
@@ -1988,6 +1912,36 @@ const FinancePage = () => {
 
   const payablesTotal = payables.reduce((sum, p) => sum + (p.outstandingAmount || 0), 0);
 
+  const isInCurrentMonth = (dt) => {
+    if (!dt) return false;
+    const now = new Date();
+    return dt.getFullYear() === now.getFullYear() && dt.getMonth() === now.getMonth();
+  };
+
+  const safeDate = (d) => {
+    if (!d) return null;
+    const dt = new Date(d);
+    return Number.isNaN(dt.getTime()) ? null : dt;
+  };
+
+  const currentMonthInvoiced = (invoices || []).reduce((sum, inv) => {
+    const dt = safeDate(inv?.invoiceDate) || safeDate(inv?.createdAt);
+    if (!isInCurrentMonth(dt)) return sum;
+    return sum + Number(inv?.amount || inv?.invoiceAmount || 0);
+  }, 0);
+
+  const currentMonthCollected = (payments || []).reduce((sum, p) => {
+    const dt = safeDate(p?.paymentDate) || safeDate(p?.createdAt);
+    if (!isInCurrentMonth(dt)) return sum;
+    return sum + Number(p?.amount || p?.amountPaid || 0);
+  }, 0);
+
+  const currentMonthOutstanding = Math.max(0, currentMonthInvoiced - currentMonthCollected);
+
+  const currentMonthCollectionRate = currentMonthInvoiced > 0
+    ? Math.round((currentMonthCollected / currentMonthInvoiced) * 100)
+    : 0;
+
 
 
   if (!canViewFinance) {
@@ -2093,79 +2047,10 @@ const FinancePage = () => {
 
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-
-        <KPICard 
-
-          label="Total Revenue" 
-
-          value={fmt(revenueCurrent)} 
-
-          sub="Total Invoiced" 
-
-          icon={TrendingUp} 
-
-          accentColor="#22c55e" 
-
-          trend={`${invoices.length} invoices`} 
-
-          trendUp 
-
-        />
-
-        <KPICard 
-
-          label="Cash Position" 
-
-          value={fmt(cashPosition)} 
-
-          sub="Collected - Payables" 
-
-          icon={IndianRupee} 
-
-          accentColor="#3b82f6" 
-
-          trend={`${Math.round((dashboardStats?.collectionRate || 0))}% collection rate`} 
-
-          trendUp 
-
-        />
-
-        <KPICard 
-
-          label="Receivables" 
-
-          value={fmt(receivables)} 
-
-          sub="Outstanding" 
-
-          icon={Clock} 
-
-          accentColor="#f59e0b" 
-
-          trend={`${dashboardStats?.overdueCount || 0} overdue`} 
-
-          trendUp={false} 
-
-        />
-
-        <KPICard 
-
-          label="Payables" 
-
-          value={fmt(payablesTotal)} 
-
-          sub="Due to vendors" 
-
-          icon={TrendingDown} 
-
-          accentColor="#ef4444" 
-
-          trend={`${payables.length} items`} 
-
-          trendUp={false} 
-
-        />
-
+        <KPICard label="Total Revenue" value={fmt(revenueCurrent)} sub="From invoices" icon={TrendingUp} accentColor="#22c55e" />
+        <KPICard label="Cash Position" value={fmt(cashPosition)} sub="Collected - Payables" icon={IndianRupee} accentColor="#3b82f6" />
+        <KPICard label="Receivables" value={fmt(receivables)} sub="Outstanding" icon={Clock} accentColor="#f59e0b" />
+        <KPICard label="Payables" value={fmt(payablesTotal)} sub="Due" icon={TrendingDown} accentColor="#ef4444" />
       </div>
 
 
