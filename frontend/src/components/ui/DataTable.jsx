@@ -90,6 +90,8 @@ const DataTable = ({
 
     onRowClick,
 
+    hideColumnToggle = false,
+
 }) => {
 
     // Support both flat props and pagination object for backward compatibility
@@ -356,7 +358,7 @@ const DataTable = ({
 
 
                     {/* Column visibility toggle */}
-
+                    {!hideColumnToggle && (
                     <div className="relative">
 
                         <Button size="sm" variant="secondary" onClick={() => setColToggleOpen(p => !p)}>
@@ -404,6 +406,7 @@ const DataTable = ({
                         )}
 
                     </div>
+                    )}
 
                 </div>
 

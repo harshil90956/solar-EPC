@@ -34,6 +34,11 @@ export class ProjectsController {
     return this.projectsService.getProjectsByStage(tenantId);
   }
 
+  @Get('project-managers')
+  async getProjectManagers(@Query('tenantId') tenantId: string) {
+    return this.projectsService.getProjectManagers(tenantId);
+  }
+
   @Get(':projectId')
   async findOne(
     @Query('tenantId') tenantId: string,

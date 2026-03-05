@@ -213,24 +213,38 @@ const ProjectPage = () => {
     fetchProjects();
   }, []);
 
-  // Fetch users for PM dropdown
+  // Fetch project managers from HRM for PM dropdown
   useEffect(() => {
-    const fetchUsers = async () => {
+    const fetchProjectManagers = async () => {
       setUsersLoading(true);
       try {
-        const response = await fetch(`${API_BASE_URL}/auth/users?tenantId=${TENANT_ID}&role=Project Manager`);
+        // Fetch all employees from HRM
+        const response = await fetch(`${API_BASE_URL}/hrm/employees?tenantId=${TENANT_ID}`);
         if (response.ok) {
           const result = await response.json();
-          const usersArray = Array.isArray(result) ? result : (result.data || []);
-          setUsers(usersArray);
+          const employees = result.data || result || [];
+          // Filter to get project managers - employees with roleId containing 'manager' or designation 'Project Manager'
+          const projectManagers = employees.filter(e => 
+            e.roleId?.toLowerCase().includes('manager') || 
+            e.designation?.toLowerCase().includes('project manager') ||
+            e.department?.toLowerCase().includes('project')
+          );
+          // Map to format needed for dropdown
+          const pmList = projectManagers.map(e => ({
+            id: e._id || e.id,
+            name: `${e.firstName} ${e.lastName}`.trim(),
+            email: e.email,
+            department: e.department
+          }));
+          setUsers(pmList);
         }
       } catch (err) {
-        console.error('Error fetching users:', err);
+        console.error('Error fetching project managers from HRM:', err);
       } finally {
         setUsersLoading(false);
       }
     };
-    fetchUsers();
+    fetchProjectManagers();
   }, []);
 
   // Fetch items for material selection
@@ -252,6 +266,32 @@ const ProjectPage = () => {
     };
     fetchItems();
   }, []);
+
+  // Fetch project reservations from inventory when project is selected
+  useEffect(() => {
+    const fetchProjectReservations = async () => {
+      if (!selected?.projectId) {
+        setProjectReservations([]);
+        return;
+      }
+      setLoadingProjectReservations(true);
+      try {
+        const response = await fetch(`${API_BASE_URL}/inventory/reservations/by-project/${selected.projectId}?tenantId=${TENANT_ID}`);
+        if (response.ok) {
+          const data = await response.json();
+          setProjectReservations(data.data || data || []);
+        } else {
+          setProjectReservations([]);
+        }
+      } catch (err) {
+        console.error('Error fetching project reservations:', err);
+        setProjectReservations([]);
+      } finally {
+        setLoadingProjectReservations(false);
+      }
+    };
+    fetchProjectReservations();
+  }, [selected?.projectId]);
 
   const handleStageChange = async (id, newStage) => {
     // Get current user role from localStorage
@@ -663,43 +703,43 @@ const ProjectPage = () => {
                 className={`filter-chip ${statusFilter === s ? 'filter-chip-active' : ''}`}>{s}</button>
             ))}
           </div>
-          <div className="flex flex-wrap gap-2 items-center mb-2">
-            <Input placeholder="Search projects…" value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} className="h-8 text-xs w-52" />
-            <span className="text-xs text-[var(--text-muted)] mr-1 ml-2">Progress:</span>
-            {PROGRESS_FILTERS.map(p => (
-              <button key={p.label} onClick={() => { setProgressFilter(p.value); setPage(1); }}
-                className={`filter-chip ${progressFilter === p.value ? 'filter-chip-active' : ''}`}>{p.label}</button>
-            ))}
-            <div className="relative ml-auto">
-              <Button size="sm" variant="secondary" onClick={() => setColToggleOpen(p => !p)}>
-                <Eye size={12} /> Columns
-              </Button>
-              {colToggleOpen && (
-                <>
-                  <div className="fixed inset-0 z-30" onClick={() => setColToggleOpen(false)} />
-                  <div className="absolute right-0 top-9 z-40 w-44 glass-card shadow-2xl shadow-black/40 py-1.5 animate-slide-up">
-                    {COLUMNS.map(col => (
-                      <button
-                        key={col.key}
-                        onClick={() => {
-                          setHiddenCols(prev => {
-                            const next = new Set(prev);
-                            next.has(col.key) ? next.delete(col.key) : next.add(col.key);
-                            return next;
-                          });
-                        }}
-                        className="flex items-center justify-between w-full px-3 py-2 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
-                      >
-                        {col.header}
-                        {!hiddenCols.has(col.key)
-                          ? <Check size={11} className="text-[var(--primary)]" />
-                          : <EyeOff size={11} className="text-[var(--text-faint)]" />}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
+          <div className="flex flex-wrap gap-2 items-center mb-2 justify-between">
+            <div className="flex flex-wrap gap-2 items-center">
+              <Input placeholder="Search projects…" value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} className="h-8 text-xs w-52" />
+              <span className="text-xs text-[var(--text-muted)] mr-1 ml-2">Progress:</span>
+              {PROGRESS_FILTERS.map(p => (
+                <button key={p.label} onClick={() => { setProgressFilter(p.value); setPage(1); }}
+                  className={`filter-chip ${progressFilter === p.value ? 'filter-chip-active' : ''}`}>{p.label}</button>
+              ))}
             </div>
+            <Button size="sm" variant="secondary" onClick={() => setColToggleOpen(p => !p)}>
+              <Eye size={12} /> Columns
+            </Button>
+            {colToggleOpen && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setColToggleOpen(false)} />
+                <div className="absolute right-0 top-9 z-40 w-44 glass-card shadow-2xl shadow-black/40 py-1.5 animate-slide-up">
+                  {COLUMNS.map(col => (
+                    <button
+                      key={col.key}
+                      onClick={() => {
+                        setHiddenCols(prev => {
+                          const next = new Set(prev);
+                          next.has(col.key) ? next.delete(col.key) : next.add(col.key);
+                          return next;
+                        });
+                      }}
+                      className="flex items-center justify-between w-full px-3 py-2 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+                    >
+                      {col.header}
+                      {!hiddenCols.has(col.key)
+                        ? <Check size={11} className="text-[var(--primary)]" />
+                        : <EyeOff size={11} className="text-[var(--text-faint)]" />}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
           <DataTable columns={COLUMNS} data={paginated} total={filtered.length}
             page={page} pageSize={pageSize} onPageChange={setPage}
