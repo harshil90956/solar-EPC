@@ -22,7 +22,7 @@ export class LeadsService {
   }
 
   private async assertValidStatusKey(statusKey: string | undefined, tenantId?: string): Promise<void> {
-    if (!statusKey) return;
+    if (!statusKey || statusKey === '') return;
     const tid = this.toObjectId(tenantId);
 
     const status = await this.leadStatusModel
@@ -148,6 +148,7 @@ export class LeadsService {
     const leadData: any = {
       ...createLeadDto,
       leadId,
+      statusKey: createLeadDto.statusKey || 'new',
       activities,
       created: now,
       lastContact: now,
@@ -322,7 +323,10 @@ export class LeadsService {
 
     Object.assign(existingLead, updateLeadDto);
     existingLead.lastContact = new Date();
-    existingLead.score = this.calculateScore(existingLead);
+    // Only recalculate score if not manually provided
+    if (updateLeadDto.score === undefined) {
+      existingLead.score = this.calculateScore(existingLead);
+    }
     existingLead.slaBreached = this.checkSlaBreached(existingLead);
     existingLead.activeAutomation = this.applyAutomation(existingLead);
 
