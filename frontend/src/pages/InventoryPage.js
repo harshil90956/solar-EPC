@@ -590,20 +590,22 @@ const InventoryPage = () => {
 
   return (
     <div className="animate-fade-in space-y-5">
-      <PageHeader
-        title="Inventory Management"
-        subtitle="Stock levels · reservations · low-stock alerts · warehouses"
-        tabs={[
-          { id: 'kanban', label: 'Kanban', icon: LayoutGrid },
-          { id: 'table', label: 'Table', icon: List }
-        ]}
-        activeTab={view}
-        onTabChange={setView}
-        actions={[
-          { type: 'button', label: 'Stock In', icon: ArrowUp, onClick: () => { if (guardEdit()) setStockIn(true); } },
-          { type: 'button', label: 'Add Item', icon: Plus, variant: 'primary', onClick: () => { if (guardCreate()) setShowAdd(true); } }
-        ]}
-      />
+      <div className="page-header flex-col sm:flex-row gap-3">
+        <div>
+          <h1 className="heading-page text-lg sm:text-xl">Inventory Management</h1>
+          <p className="text-xs text-[var(--text-muted)] mt-0.5">Stock levels · reservations · low-stock alerts · warehouses</p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="view-toggle-pill">
+            <button onClick={() => setView('kanban')}
+              className={`view-toggle-btn ${view === 'kanban' ? 'active' : ''}`}><LayoutGrid size={14} /></button>
+            <button onClick={() => setView('table')}
+              className={`view-toggle-btn ${view === 'table' ? 'active' : ''}`}><List size={14} /></button>
+          </div>
+          <Button variant="ghost" onClick={() => setStockIn(true)}><ArrowUp size={13} /> Stock In</Button>
+          <Button variant="ghost" onClick={() => setShowStockOut(true)}><ArrowDown size={13} /> Stock Out</Button>
+        </div>
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KPICard label="Total Items" value={inventory.length} sub="SKUs tracked" icon={Package} accentColor="#3b82f6" />

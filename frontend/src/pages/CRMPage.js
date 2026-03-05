@@ -1990,7 +1990,7 @@ const CRMPage = () => {
               { label: 'Edit', icon: Edit2, onClick: handleEditLead },
               { label: 'Score', icon: Brain, onClick: handleRecalculateScore },
               { label: 'Delete', icon: Trash2, onClick: handleDeleteLead, danger: true },
-              { label: 'Activity Log', icon: Clock, onClick: handleViewTimeline },
+              { label: 'Activity Log', icon: Clock, onClick: handleViewActivity },
             ]}
           />
         </div>
@@ -2291,42 +2291,6 @@ const CRMPage = () => {
         </Modal>
       )}
 
-      {/* TIMELINE MODAL */}
-      {showTimelineModal && (
-        <Modal
-          open={showTimelineModal}
-          onClose={() => setShowTimelineModal(false)}
-          title="Activity Log"
-          footer={
-            <div className="flex gap-2 justify-end">
-              <Button variant="ghost" onClick={() => setShowTimelineModal(false)}>Close</Button>
-            </div>
-          }
-        >
-          <div className="space-y-3 max-h-80 overflow-y-auto">
-            {timelineData.length === 0 ? (
-              <p className="text-sm text-[var(--text-muted)]">No timeline events found.</p>
-            ) : (
-              timelineData.map((event, idx) => (
-                <div key={idx} className="flex gap-3 text-sm border-l-2 border-[var(--border-subtle)] pl-3 py-1">
-                  <div className="w-6 h-6 rounded-full bg-[var(--bg-elevated)] flex items-center justify-center shrink-0">
-                    {event.type === 'call' && <Phone size={12} className="text-emerald-400" />}
-                    {event.type === 'email' && <Mail size={12} className="text-blue-400" />}
-                    {event.type === 'stage_change' && <GitCommit size={12} className="text-purple-400" />}
-                    {event.type === 'created' && <UserPlus size={12} className="text-green-400" />}
-                    {event.type === 'note' && <FileText size={12} className="text-amber-400" />}
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-[var(--text-primary)]">{event.note}</p>
-                    <p className="text-[10px] text-[var(--text-muted)]">{event.ts} · {event.by}</p>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </Modal>
-      )}
-
       {/* ACTIVITY LOG SIDEBAR DRAWER */}
       {showActivityModal && (
         <>
@@ -2400,6 +2364,39 @@ const CRMPage = () => {
                   {actionLoading ? 'Saving...' : 'Save'}
                 </Button>
               </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* LEAD TRACKER SIDEBAR DRAWER */}
+      {showTrackerDrawer && trackerLeadId && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black/50 z-40 transition-opacity"
+            onClick={() => { setShowTrackerDrawer(false); setTrackerLeadId(null); }}
+          />
+          {/* Sidebar Drawer */}
+          <div className="fixed right-0 top-[36.5px] bottom-0 w-[450px] bg-white border-l border-[var(--border-base)] z-50 shadow-2xl flex flex-col" style={{ transform: 'translateX(0)', transition: 'transform 0.3s ease-out' }}>
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-[var(--border-base)]">
+              <h3 className="text-lg font-bold text-[var(--text-primary)]">Lead Tracker</h3>
+              <button 
+                onClick={() => { setShowTrackerDrawer(false); setTrackerLeadId(null); }}
+                className="p-2 hover:bg-[var(--bg-elevated)] rounded-lg transition-colors"
+              >
+                <X size={20} className="text-[var(--text-muted)]" />
+              </button>
+            </div>
+            
+            {/* Lead Tracker Content */}
+            <div className="flex-1 overflow-y-auto p-4">
+              <LeadTracker 
+                leadId={trackerLeadId} 
+                statusOptions={statusOptions}
+                onStageChange={fetchLeads}
+              />
             </div>
           </div>
         </>
