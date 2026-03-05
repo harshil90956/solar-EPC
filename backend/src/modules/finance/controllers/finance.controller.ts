@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -59,6 +60,22 @@ export class FinanceController {
     return this.invoiceService.getAllProjects(tenantId);
   }
 
+  @Get('projects/:id')
+  async getProject(@Req() req: RequestWithUser, @Param('id') id: string) {
+    const tenantId = getTenantId(req);
+    return this.invoiceService.getProjectById(tenantId, id);
+  }
+
+  @Get('allowed-payment-terms')
+  async getAllowedPaymentTerms(@Query('projectStatus') projectStatus: string) {
+    const allowedTerms = this.invoiceService.getAllowedPaymentTerms(projectStatus);
+    return {
+      projectStatus,
+      allowedTerms,
+      canCreateInvoice: allowedTerms.length > 0,
+    };
+  }
+
   // Invoice endpoints
   @Get('invoices')
   async getInvoices(@Req() req: RequestWithUser, @Query('status') status?: string) {
@@ -105,6 +122,24 @@ export class FinanceController {
   async recordPayment(@Req() req: RequestWithUser, @Body() dto: RecordPaymentDto) {
     const tenantId = getTenantId(req);
     return this.invoiceService.recordPayment(tenantId, dto);
+  }
+
+  @Post('invoices/:id/send-reminder')
+  async sendInvoiceReminder(
+    @Req() req: RequestWithUser,
+    @Param('id') id: string,
+    @Body('reminderType') reminderType: 'Gentle' | 'Due Today' | 'Overdue',
+    @Body('customerEmail') customerEmail: string,
+    @Body('messageBody') messageBody?: string,
+  ) {
+    const tenantId = getTenantId(req);
+    return this.invoiceService.sendReminder(tenantId, id, reminderType, customerEmail, messageBody || '');
+  }
+
+  @Get('invoices/:id/timeline')
+  async getInvoiceTimeline(@Req() req: RequestWithUser, @Param('id') id: string) {
+    const tenantId = getTenantId(req);
+    return this.invoiceService.getTimeline(tenantId, id);
   }
 
   // Payment endpoints
