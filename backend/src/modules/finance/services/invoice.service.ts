@@ -85,7 +85,7 @@ export class InvoiceService {
     return this.projectModel.find({
       tenantId: new Types.ObjectId(tenantId),
       ...this.notDeletedMatch(),
-    }).select('_id name customerName status').sort({ name: 1 }).lean();
+    }).select('_id name customerName status value').sort({ name: 1 }).lean();
   }
 
   async getProjectById(tenantId: string, id: string): Promise<Project> {
@@ -93,7 +93,7 @@ export class InvoiceService {
       _id: new Types.ObjectId(id),
       tenantId: new Types.ObjectId(tenantId),
       ...this.notDeletedMatch(),
-    }).select('_id name customerName status').lean();
+    }).select('_id name customerName status value').lean();
 
     if (!project) {
       throw new NotFoundException('Project not found');
@@ -140,7 +140,7 @@ export class InvoiceService {
       tenantId: new Types.ObjectId(tenantId),
       paid: dto.paid || 0,
       balance: dto.amount - (dto.paid || 0),
-      status: this.calculateStatus(dto.amount, dto.paid || 0, dto.status),
+      status: this.calculateStatus(dto.amount, dto.paid || 0, dto.status ?? 'Draft'),
       invoiceDate: new Date(dto.invoiceDate),
       dueDate: new Date(dto.dueDate),
       paidDate: dto.paidDate ? new Date(dto.paidDate) : undefined,
@@ -231,6 +231,38 @@ export class InvoiceService {
   async updateStatus(tenantId: string, id: string, status: InvoiceStatus, userId?: string): Promise<Invoice> {
     const existing = await this.findById(tenantId, id);
     const previousStatus = existing.status;
+
+    if (previousStatus === status) {
+      return existing;
+    }
+
+    const order: Record<InvoiceStatus, number> = {
+      Draft: 0,
+      Pending: 1,
+      Partial: 2,
+      Paid: 3,
+      Overdue: 4,
+    };
+
+    const isBackward = order[status] < order[previousStatus];
+
+    const allowedTransitions = new Set<string>([
+      'Draft->Pending',
+      'Pending->Partial',
+      'Partial->Paid',
+      'Pending->Overdue',
+      'Partial->Overdue',
+    ]);
+
+    const transitionKey = `${previousStatus}->${status}`;
+
+    if (isBackward) {
+      throw new BadRequestException('Invoice status cannot be moved backward.');
+    }
+
+    if (!allowedTransitions.has(transitionKey)) {
+      throw new BadRequestException('Invalid invoice status transition');
+    }
 
     const updated = await this.invoiceModel.findOneAndUpdate(
       {
