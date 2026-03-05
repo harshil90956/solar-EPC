@@ -520,11 +520,9 @@ const DataTable = ({
                                     </td>
 
                                 </tr>
-
-                            ) : (
-
-                                data.map((row, index) => (
-
+                            </thead>
+                            <tbody>
+                                {data.map((row, index) => (
                                     <tr key={row[rowKey] || index} className="table-row border-b border-[var(--border-base)] last:border-0 group">
 
                                         {bulkActions.length > 0 && (
@@ -585,15 +583,10 @@ const DataTable = ({
                                         )}
 
                                     </tr>
-
-                                ))
-
-                            )}
-
-                        </tbody>
-
-                    </table>
-
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
 
             </div>

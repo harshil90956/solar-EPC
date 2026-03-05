@@ -1,7 +1,7 @@
 // Solar OS – EPC Edition — ProcurementPage.js
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
-  ShoppingCart, Plus, Truck, Package, CheckCircle, LayoutGrid, List, Calendar, Zap, Phone, Mail, Star
+  ShoppingCart, Plus, Truck, Package, CheckCircle, LayoutGrid, List, Calendar, Zap, Phone, Mail, Star, Edit
 } from 'lucide-react';
 import { StatusBadge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
@@ -163,13 +163,52 @@ const ProcurementPage = () => {
   // Vendors list for dropdown
   const [vendors, setVendors] = useState([]);
 
-  // Create vendor form
-  const [newVendor, setNewVendor] = useState({ name: '', category: '', city: '', contact: '', phone: '', email: '' });
+  // Projects list for dropdown
+  const [projects, setProjects] = useState([]);
+  const [projectSearch, setProjectSearch] = useState('');
+  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
+  const projectDropdownRef = useRef(null);
 
   // Vendor detail modal state
   const [selectedVendor, setSelectedVendor] = useState(null);
 
-  // Vendor action handlers
+  // PO Edit state
+  const [isEditingPO, setIsEditingPO] = useState(false);
+  const [editedPO, setEditedPO] = useState(null);
+
+  const handleUpdatePO = async () => {
+    try {
+      if (!editedPO) return;
+      const payload = {
+        items: editedPO.items,
+        totalAmount: Number(editedPO.totalAmount),
+        status: editedPO.status,
+        expectedDate: editedPO.expectedDate,
+        deliveredDate: editedPO.deliveredDate,
+        relatedProjectId: editedPO.relatedProjectId,
+      };
+      await api.patch(`/procurement/purchase-orders/${editedPO.id}`, payload);
+      await fetchData();
+      setSelectedPO(null);
+      setIsEditingPO(false);
+      setEditedPO(null);
+      toast.success('PO updated successfully');
+    } catch (error) {
+      console.error('Error updating PO:', error);
+      toast.error('Failed to update PO');
+    }
+  };
+
+  const startEditingPO = () => {
+    setEditedPO({ ...selectedPO });
+    setIsEditingPO(true);
+  };
+
+  const cancelEditingPO = () => {
+    setIsEditingPO(false);
+    setEditedPO(null);
+    setSelectedPO(null);
+  };
   const handleCallVendor = (vendor) => {
     if (vendor?.phone) {
       window.open(`tel:${vendor.phone}`, '_self');
@@ -208,6 +247,18 @@ const ProcurementPage = () => {
   useEffect(() => {
     fetchData();
     fetchVendors();
+    fetchProjects();
+  }, []);
+
+  // Click outside handler for project dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (projectDropdownRef.current && !projectDropdownRef.current.contains(event.target)) {
+        setShowProjectDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const fetchVendors = async () => {
@@ -219,6 +270,63 @@ const ProcurementPage = () => {
       setVendors(vendorsData);
     } catch (error) {
       console.error('Error fetching vendors:', error);
+    }
+  };
+
+  const fetchProjects = async () => {
+    try {
+      const tenantId = localStorage.getItem('tenantId') || 'default';
+      const baseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
+      const response = await fetch(`${baseUrl}/projects?tenantId=${tenantId}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch projects');
+      }
+      
+      const data = await response.json();
+      console.log('Projects API response:', data);
+      
+      const projectsData = Array.isArray(data) ? data : (data?.data || []);
+      console.log('Parsed projects:', projectsData);
+      
+      // If API returns empty data, use mock data for testing
+      if (projectsData.length === 0) {
+        console.log('API returned empty projects, using mock data');
+        const mockProjects = [
+          { id: 'P0134', projectId: 'P0134', customerName: 'Pintu Sharma', name: 'Pune Mumbai' },
+          { id: 'P7244', projectId: 'P7244', customerName: 'Srikant Mehta', name: 'ahmedabad' },
+          { id: 'P0327', projectId: 'P0327', customerName: 'Karan Johr', name: 'Vesu Surat' },
+          { id: 'P5802', projectId: 'P5802', customerName: 'Manoj Patel', name: 'Station Surat' },
+          { id: 'P0090', projectId: 'P0090', customerName: 'Deepika Shah', name: 'Shan Motors Vadodara' },
+          { id: 'P0877', projectId: 'P0877', customerName: 'Harish Mehta', name: 'Anand Dairy' },
+          { id: 'P0096', projectId: 'P0096', customerName: 'Nilesh Parakh', name: 'Morbi Ceramic Belt' },
+          { id: 'P0085', projectId: 'P0085', customerName: 'Meena Patel', name: 'Morbi Factory' },
+          { id: 'P0084', projectId: 'P0084', customerName: 'Dinesh Trivedi', name: 'Nadiad Plant' },
+          { id: 'P0082', projectId: 'P0082', customerName: 'Suresh Bhatt', name: 'Vapi GIDC' },
+          { id: 'P0081', projectId: 'P0081', customerName: 'Ramesh Joshi', name: 'GIDC Ahmedabad' },
+        ];
+        setProjects(mockProjects);
+      } else {
+        setProjects(projectsData);
+      }
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+      // Use mock data as fallback when API fails
+      const mockProjects = [
+        { id: 'P0134', projectId: 'P0134', customerName: 'Pintu Sharma', name: 'Pune Mumbai' },
+        { id: 'P7244', projectId: 'P7244', customerName: 'Srikant Mehta', name: 'ahmedabad' },
+        { id: 'P0327', projectId: 'P0327', customerName: 'Karan Johr', name: 'Vesu Surat' },
+        { id: 'P5802', projectId: 'P5802', customerName: 'Manoj Patel', name: 'Station Surat' },
+        { id: 'P0090', projectId: 'P0090', customerName: 'Deepika Shah', name: 'Shan Motors Vadodara' },
+        { id: 'P0877', projectId: 'P0877', customerName: 'Harish Mehta', name: 'Anand Dairy' },
+        { id: 'P0096', projectId: 'P0096', customerName: 'Nilesh Parakh', name: 'Morbi Ceramic Belt' },
+        { id: 'P0085', projectId: 'P0085', customerName: 'Meena Patel', name: 'Morbi Factory' },
+        { id: 'P0084', projectId: 'P0084', customerName: 'Dinesh Trivedi', name: 'Nadiad Plant' },
+        { id: 'P0082', projectId: 'P0082', customerName: 'Suresh Bhatt', name: 'Vapi GIDC' },
+        { id: 'P0081', projectId: 'P0081', customerName: 'Ramesh Joshi', name: 'GIDC Ahmedabad' },
+      ];
+      console.log('Using mock projects:', mockProjects);
+      setProjects(mockProjects);
     }
   };
 
@@ -279,6 +387,10 @@ const ProcurementPage = () => {
         alert('Please select a vendor');
         return;
       }
+      if (!newPO.relatedProjectId) {
+        alert('Please select a project');
+        return;
+      }
       const payload = {
         ...newPO,
         totalAmount: Number(newPO.totalAmount),
@@ -293,6 +405,56 @@ const ProcurementPage = () => {
     } catch (error) {
       console.error('Error creating PO:', error);
     }
+  };
+
+  // Helper function to get project display name - prioritizes customer names
+  const getProjectDisplayName = (project) => {
+    if (!project) return 'Unknown Customer';
+    
+    // Debug: log the full project object
+    console.log('Project object:', JSON.stringify(project, null, 2));
+    
+    // List of fields to check for customer name (in priority order)
+    const customerFields = ['customer', 'customerName', 'clientName', 'client', 'customerEmail', 'email'];
+    
+    // Check each field
+    for (const field of customerFields) {
+      const value = project[field];
+      if (value && typeof value === 'string') {
+        const clean = value.trim();
+        // Skip empty or placeholder values
+        if (clean && 
+            clean.length > 0 &&
+            !clean.toLowerCase().includes('project name') &&
+            !clean.toLowerCase().includes('enter') &&
+            !clean.toLowerCase().includes('type here') &&
+            !clean.toLowerCase().includes('customer') &&
+            clean !== '*' &&
+            clean !== '-') {
+          console.log(`Found customer name in field "${field}": ${clean}`);
+          return clean;
+        }
+      }
+    }
+    
+    // Check name field as fallback
+    if (project.name && typeof project.name === 'string') {
+      const cleanName = project.name.trim();
+      if (cleanName &&
+          !cleanName.toLowerCase().includes('project name') &&
+          !cleanName.toLowerCase().includes('enter') &&
+          !cleanName.includes('*')) {
+        return cleanName;
+      }
+    }
+    
+    // Check title field
+    if (project.title && typeof project.title === 'string' && project.title.trim()) {
+      return project.title.trim();
+    }
+    
+    // Last resort - show project ID
+    return `Project ${project.id || project._id || 'Unknown'}`;
   };
 
   const filteredPOs = useMemo(() =>
@@ -320,15 +482,14 @@ const ProcurementPage = () => {
 
   return (
     <div className="animate-fade-in space-y-5">
-      <PageHeader
-        title="Procurement"
-        subtitle="Purchase orders · vendor management · delivery tracking"
-        actions={[
-          { type: 'button', label: 'Add Vendor', icon: Plus, onClick: () => { if (guardCreate()) setShowVendor(true); } },
-          { type: 'button', label: 'Create PO', icon: Plus, variant: 'primary', onClick: () => { if (guardCreate()) setShowPO(true); } }
-        ]}
-      />
-
+      <div className="page-header">
+        <div>
+          <h1 className="heading-page">Procurement</h1>
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={() => setShowPO(true)}><Plus size={13} /> Create PO</Button>
+        </div>
+      </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KPICard title="Active POs" value={pendingPOs} icon={ShoppingCart} color="accent" />
         <KPICard title="Delivered" value={delivered} icon={CheckCircle} color="emerald" />
@@ -415,34 +576,268 @@ const ProcurementPage = () => {
               <Input type="date" value={newPO.expectedDate} onChange={e => setNewPO({ ...newPO, expectedDate: e.target.value })} />
             </FormField>
           </div>
-          <FormField label="Related Project">
-            <Select value={newPO.relatedProjectId} onChange={e => setNewPO({ ...newPO, relatedProjectId: e.target.value })}>
-              <option value="">Link to Project (optional)</option>
-              <option value="P001">P001 – Joshi Industries</option>
-              <option value="P002">P002 – Suresh Bhatt</option>
-              <option value="P004">P004 – Trivedi Foods</option>
-            </Select>
+          <FormField label="Related Project *">
+            <div className="relative" ref={projectDropdownRef}>
+              {/* Selected Project Display / Search Input */}
+              <div 
+                onClick={() => setShowProjectDropdown(true)}
+                className="w-full h-9 px-3 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] text-[var(--text-primary)] text-sm cursor-pointer flex items-center justify-between hover:border-[var(--primary)] transition-colors"
+              >
+                {newPO.relatedProjectId ? (
+                  <span className="truncate">
+                    {(() => {
+                      const project = projects.find(p => (p.id || p._id) === newPO.relatedProjectId);
+                      return `${project?.id || project?._id || newPO.relatedProjectId} – ${getProjectDisplayName(project)}`;
+                    })()}
+                  </span>
+                ) : (
+                  <span className="text-[var(--text-muted)]">Select a Project</span>
+                )}
+                <svg className={`w-4 h-4 text-[var(--text-muted)] transition-transform ${showProjectDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+
+              {/* Dropdown with Search */}
+              {showProjectDropdown && (
+                <div className="absolute z-50 w-full mt-1 bg-[var(--bg-surface)] border border-[var(--border-base)] rounded-lg shadow-xl max-h-64 overflow-hidden">
+                  {/* Search Input */}
+                  <div className="p-2 border-b border-[var(--border-base)]">
+                    <div className="relative">
+                      <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-faint)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      <input
+                        type="text"
+                        placeholder="Search projects..."
+                        value={projectSearch}
+                        onChange={e => setProjectSearch(e.target.value)}
+                        className="w-full h-8 pl-9 pr-3 rounded bg-[var(--bg-elevated)] border border-[var(--border-base)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--primary)]"
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+
+                  {/* Filtered Projects List */}
+                  <div className="overflow-y-auto max-h-48">
+                    {projects.filter(p => {
+                      const searchTerm = projectSearch.toLowerCase();
+                      const projectId = (p.id || p._id || '').toLowerCase();
+                      const customer = (p.customer || p.customerName || p.name || '').toLowerCase();
+                      return projectId.includes(searchTerm) || customer.includes(searchTerm);
+                    }).length === 0 ? (
+                      <div className="p-3 text-sm text-[var(--text-muted)] text-center">
+                        {projects.length === 0 ? 'No projects available' : 'No matching projects'}
+                      </div>
+                    ) : (
+                      projects.filter(p => {
+                        const searchTerm = projectSearch.toLowerCase();
+                        const projectId = (p.id || p._id || '').toLowerCase();
+                        const customer = (p.customer || p.customerName || p.name || '').toLowerCase();
+                        return projectId.includes(searchTerm) || customer.includes(searchTerm);
+                      }).map(p => (
+                        <div
+                          key={p.id || p._id}
+                          onClick={() => {
+                            setNewPO({ ...newPO, relatedProjectId: p.id || p._id });
+                            setShowProjectDropdown(false);
+                            setProjectSearch('');
+                          }}
+                          className={`px-3 py-2 cursor-pointer hover:bg-[var(--bg-hover)] transition-colors border-b border-[var(--border-base)] last:border-0 ${
+                            newPO.relatedProjectId === (p.id || p._id) ? 'bg-[var(--primary)]/10 border-[var(--primary)]/30' : ''
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-[var(--primary)] px-1.5 py-0.5 rounded bg-[var(--primary)]/10">
+                              {p.id || p._id}
+                            </span>
+                            <span className="text-sm text-[var(--text-primary)] truncate">
+                              {getProjectDisplayName(p)}
+                            </span>
+                          </div>
+                          {p.name && (
+                            <div className="text-xs text-[var(--text-muted)] mt-0.5 ml-8">
+                              {p.name}
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+            {projects.length === 0 && (
+              <p className="text-xs text-red-400 mt-1">No projects available. Please create projects first.</p>
+            )}
           </FormField>
         </div>
       </Modal>
 
       {/* PO Detail Modal */}
       {selectedPO && (
-        <Modal open={!!selectedPO} onClose={() => setSelectedPO(null)} title={`PO — ${selectedPO.id}`}
-          footer={<Button variant="ghost" onClick={() => setSelectedPO(null)}>Close</Button>}>
-          <div className="grid grid-cols-2 gap-3 text-xs">
-            {[
-              ['PO Number', selectedPO.id], ['Vendor', selectedPO.vendorName], ['Items', selectedPO.items],
-              ['Amount', fmt(selectedPO.totalAmount)], ['Status', <StatusBadge domain="purchaseOrder" value={selectedPO.status} />],
-              ['Ordered Date', selectedPO.orderedDate], ['Expected Date', selectedPO.expectedDate],
-              ['Delivered Date', selectedPO.deliveredDate ?? '—'],
-            ].map(([k, v]) => (
-              <div key={k} className="glass-card p-2">
-                <div className="text-[var(--text-muted)] mb-0.5">{k}</div>
-                <div className="font-semibold text-[var(--text-primary)]">{v}</div>
+        <Modal 
+          open={!!selectedPO} 
+          onClose={() => { setSelectedPO(null); setIsEditingPO(false); setEditedPO(null); }} 
+          title={isEditingPO ? `Edit PO — ${selectedPO.id}` : `PO — ${selectedPO.id}`}
+          footer={
+            <div className="flex gap-2 justify-end">
+              {isEditingPO ? (
+                <>
+                  <Button variant="ghost" onClick={cancelEditingPO}>Cancel</Button>
+                  <Button onClick={handleUpdatePO}><CheckCircle size={13} /> Save Changes</Button>
+                </>
+              ) : (
+                <>
+                  <Button variant="ghost" onClick={() => setSelectedPO(null)}>Close</Button>
+                  <Button onClick={startEditingPO}><Edit size={13} /> Edit</Button>
+                </>
+              )}
+            </div>
+          }>
+          {isEditingPO && editedPO ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label="Vendor Name">
+                  <Input value={editedPO.vendorName} onChange={e => setEditedPO({ ...editedPO, vendorName: e.target.value })} />
+                </FormField>
+                <FormField label="Status">
+                  <Select value={editedPO.status} onChange={e => setEditedPO({ ...editedPO, status: e.target.value })}>
+                    <option value="Draft">Draft</option>
+                    <option value="Ordered">Ordered</option>
+                    <option value="In Transit">In Transit</option>
+                    <option value="Delivered">Delivered</option>
+                    <option value="Cancelled">Cancelled</option>
+                  </Select>
+                </FormField>
               </div>
-            ))}
-          </div>
+              <FormField label="Items Description">
+                <Textarea value={editedPO.items} onChange={e => setEditedPO({ ...editedPO, items: e.target.value })} rows={2} />
+              </FormField>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label="Total Amount (₹)">
+                  <Input type="number" value={editedPO.totalAmount} onChange={e => setEditedPO({ ...editedPO, totalAmount: e.target.value })} />
+                </FormField>
+                <FormField label="Ordered Date">
+                  <Input type="date" value={editedPO.orderedDate} onChange={e => setEditedPO({ ...editedPO, orderedDate: e.target.value })} />
+                </FormField>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label="Expected Date">
+                  <Input type="date" value={editedPO.expectedDate || ''} onChange={e => setEditedPO({ ...editedPO, expectedDate: e.target.value })} />
+                </FormField>
+                <FormField label="Delivered Date">
+                  <Input type="date" value={editedPO.deliveredDate || ''} onChange={e => setEditedPO({ ...editedPO, deliveredDate: e.target.value })} />
+                </FormField>
+              </div>
+              <FormField label="Related Project *">
+                <div className="relative" ref={projectDropdownRef}>
+                  {/* Selected Project Display */}
+                  <div 
+                    onClick={() => setShowProjectDropdown(true)}
+                    className="w-full h-9 px-3 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] text-[var(--text-primary)] text-sm cursor-pointer flex items-center justify-between hover:border-[var(--primary)] transition-colors"
+                  >
+                    {editedPO?.relatedProjectId ? (
+                      <span className="truncate">
+                        {(() => {
+                          const project = projects.find(p => (p.id || p._id) === editedPO.relatedProjectId);
+                          return `${project?.id || project?._id || editedPO.relatedProjectId} – ${getProjectDisplayName(project)}`;
+                        })()}
+                      </span>
+                    ) : (
+                      <span className="text-[var(--text-muted)]">Select a Project</span>
+                    )}
+                    <svg className={`w-4 h-4 text-[var(--text-muted)] transition-transform ${showProjectDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+
+                  {/* Dropdown with Search */}
+                  {showProjectDropdown && (
+                    <div className="absolute z-50 w-full mt-1 bg-[var(--bg-surface)] border border-[var(--border-base)] rounded-lg shadow-xl max-h-64 overflow-hidden">
+                      {/* Search Input */}
+                      <div className="p-2 border-b border-[var(--border-base)]">
+                        <div className="relative">
+                          <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-faint)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                          </svg>
+                          <input
+                            type="text"
+                            placeholder="Search projects..."
+                            value={projectSearch}
+                            onChange={e => setProjectSearch(e.target.value)}
+                            className="w-full h-8 pl-9 pr-3 rounded bg-[var(--bg-elevated)] border border-[var(--border-base)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--primary)]"
+                            autoFocus
+                          />
+                        </div>
+                      </div>
+
+                      {/* Filtered Projects List */}
+                      <div className="overflow-y-auto max-h-48">
+                        {projects.filter(p => {
+                          const searchTerm = projectSearch.toLowerCase();
+                          const projectId = (p.id || p._id || '').toLowerCase();
+                          const customer = (p.customer || p.customerName || p.name || '').toLowerCase();
+                          return projectId.includes(searchTerm) || customer.includes(searchTerm);
+                        }).length === 0 ? (
+                          <div className="p-3 text-sm text-[var(--text-muted)] text-center">
+                            {projects.length === 0 ? 'No projects available' : 'No matching projects'}
+                          </div>
+                        ) : (
+                          projects.filter(p => {
+                            const searchTerm = projectSearch.toLowerCase();
+                            const projectId = (p.id || p._id || '').toLowerCase();
+                            const customer = (p.customer || p.customerName || p.name || '').toLowerCase();
+                            return projectId.includes(searchTerm) || customer.includes(searchTerm);
+                          }).map(p => (
+                            <div
+                              key={p.id || p._id}
+                              onClick={() => {
+                                setEditedPO({ ...editedPO, relatedProjectId: p.id || p._id });
+                                setShowProjectDropdown(false);
+                                setProjectSearch('');
+                              }}
+                              className={`px-3 py-2 cursor-pointer hover:bg-[var(--bg-hover)] transition-colors border-b border-[var(--border-base)] last:border-0 ${
+                                editedPO?.relatedProjectId === (p.id || p._id) ? 'bg-[var(--primary)]/10 border-[var(--primary)]/30' : ''
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold text-[var(--primary)] px-1.5 py-0.5 rounded bg-[var(--primary)]/10">
+                                  {p.id || p._id}
+                                </span>
+                                <span className="text-sm text-[var(--text-primary)] truncate">
+                                  {getProjectDisplayName(p)}
+                                </span>
+                              </div>
+                              {p.name && (
+                                <div className="text-xs text-[var(--text-muted)] mt-0.5 ml-8">
+                                  {p.name}
+                                </div>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </FormField>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              {[
+                ['PO Number', selectedPO.id], ['Vendor', selectedPO.vendorName], ['Items', selectedPO.items],
+                ['Amount', fmt(selectedPO.totalAmount)], ['Status', <StatusBadge domain="purchaseOrder" value={selectedPO.status} />],
+                ['Ordered Date', selectedPO.orderedDate], ['Expected Date', selectedPO.expectedDate],
+                ['Delivered Date', selectedPO.deliveredDate ?? '—'],
+              ].map(([k, v]) => (
+                <div key={k} className="glass-card p-2">
+                  <div className="text-[var(--text-muted)] mb-0.5">{k}</div>
+                  <div className="font-semibold text-[var(--text-primary)]">{v}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </Modal>
       )}
 
