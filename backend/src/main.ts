@@ -5,6 +5,7 @@ import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './shared/filters/global-exception.filter';
 import { SuccessResponseInterceptor } from './shared/interceptors/success-response.interceptor';
 import { LogisticsService } from './modules/logistics/services/logistics.service';
+import { ProcurementService } from './modules/procurement/services/procurement.service';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -52,6 +53,27 @@ async function bootstrap() {
     }
   } catch (err: any) {
     console.log('Logistics seed skipped:', err.message);
+  }
+
+  // Seed procurement vendors
+  try {
+    const procurementService = app.get(ProcurementService);
+    const vendors = await procurementService.findAllVendors('default');
+    if (vendors.length === 0) {
+      const sampleVendors = [
+        { name: 'Tata Power Solar', category: 'Panel', contact: 'Rajesh Kumar', phone: '+91 98765 43210', email: 'sales@tatapowersolar.com', city: 'Mumbai', rating: 5 },
+        { name: 'Waaree Energies', category: 'Panel', contact: 'Sunil Patel', phone: '+91 98765 43211', email: 'contact@waaree.com', city: 'Surat', rating: 4 },
+        { name: 'Sungrow India', category: 'Inverter', contact: 'Priya Sharma', phone: '+91 98765 43212', email: 'india@sungrow.com', city: 'Bangalore', rating: 5 },
+        { name: 'ABB India', category: 'Inverter', contact: 'Vikram Mehta', phone: '+91 98765 43213', email: 'contact@abb.com', city: 'Ahmedabad', rating: 4 },
+        { name: 'Sterling Wilson', category: 'Structure', contact: 'Anil Gupta', phone: '+91 98765 43214', email: 'info@sterlingwilson.com', city: 'Pune', rating: 4 },
+      ];
+      for (const vendor of sampleVendors) {
+        await procurementService.createVendor(vendor, 'default');
+      }
+      console.log('✓ Seeded 5 procurement vendors');
+    }
+  } catch (err: any) {
+    console.log('Vendor seed skipped:', err.message);
   }
 }
 

@@ -139,7 +139,7 @@ export class ProjectsService {
               projectId: createProjectDto.projectId,
               projectName: createProjectDto.customerName,
               quantity: material.quantity,
-              status: 'active',
+              status: 'Reserved',
               notes: material.remarks || `Reserved for project ${createProjectDto.projectId}`,
               issuedDate: material.issuedDate || new Date().toISOString().split('T')[0],
               tenantId: tenantCode,  // Use tenantCode for consistency

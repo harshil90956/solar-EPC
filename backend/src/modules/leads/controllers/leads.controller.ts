@@ -100,21 +100,13 @@ export class LeadsController {
   @Put(':id')
   async update(@Param('id') id: string, @Body() updateLeadDto: UpdateLeadDto, @Request() req: any) {
     try {
-      this.logger.log(`[Update Lead] ID: ${id}`);
-      this.logger.log(`[Update Lead] Payload: ${JSON.stringify(updateLeadDto)}`);
-      this.logger.log(`[Update Lead] Tenant: ${req.tenant?.id}`);
-      
+      this.logger.log(`Updating lead ${id} with data: ${JSON.stringify(updateLeadDto)}`);
       const tenantId = req.tenant?.id;
       const result = await this.leadsService.update(id, updateLeadDto, tenantId);
       return { success: true, data: result };
     } catch (error: any) {
-      this.logger.error(`[Update Lead] Error for ID ${id}: ${error?.message || 'Unknown error'}`, error?.stack);
-      // Return proper error response instead of throwing
-      return { 
-        success: false, 
-        error: error?.message || 'Internal server error',
-        statusCode: error?.status || 500
-      };
+      this.logger.error(`Update lead ${id} failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
     }
   }
 
@@ -190,38 +182,6 @@ export class LeadsController {
       return await this.leadsService.getTimeline(id, tenantId);
     } catch (error: any) {
       this.logger.error(`Get timeline for lead ${id} failed: ${error?.message || 'Unknown error'}`, error?.stack);
-      throw error;
-    }
-  }
-
-  // Lead Tracker Endpoints
-  @Get(':id/tracker')
-  @HttpCode(HttpStatus.OK)
-  async getTracker(@Param('id') id: string, @Request() req: any) {
-    try {
-      const tenantId = req.tenant?.id;
-      const tracker = await this.leadsService.getTracker(id, tenantId);
-      return { success: true, data: tracker };
-    } catch (error: any) {
-      this.logger.error(`Get tracker for lead ${id} failed: ${error?.message || 'Unknown error'}`, error?.stack);
-      throw error;
-    }
-  }
-
-  @Patch(':id/stage')
-  @HttpCode(HttpStatus.OK)
-  async updateStage(
-    @Param('id') id: string, 
-    @Body() body: { stage: string },
-    @Request() req: any
-  ) {
-    try {
-      const tenantId = req.tenant?.id;
-      const user = req.user?.name || req.user?.email || 'System';
-      const result = await this.leadsService.updateStage(id, body.stage, user, tenantId);
-      return { success: true, data: result };
-    } catch (error: any) {
-      this.logger.error(`Update stage for lead ${id} failed: ${error?.message || 'Unknown error'}`, error?.stack);
       throw error;
     }
   }
