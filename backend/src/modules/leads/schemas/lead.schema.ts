@@ -24,6 +24,23 @@ export class Activity {
 const ActivitySchema = SchemaFactory.createForClass(Activity);
 
 @Schema({ timestamps: true })
+export class LeadStage {
+  @Prop({ required: true })
+  stage!: string;
+
+  @Prop({ type: Boolean, default: false })
+  completed!: boolean;
+
+  @Prop({ type: Date, default: null })
+  completedAt?: Date | null;
+
+  @Prop({ type: Date, default: Date.now })
+  createdAt!: Date;
+}
+
+const LeadStageSchema = SchemaFactory.createForClass(LeadStage);
+
+@Schema({ timestamps: true })
 export class Lead {
   @Prop({ required: true, unique: true })
   leadId!: string;
@@ -99,6 +116,9 @@ export class Lead {
 
   @Prop({ type: [ActivitySchema], default: [] })
   activities!: Activity[];
+
+  @Prop({ type: [LeadStageSchema], default: [] })
+  leadStages!: LeadStage[];
 
   @Prop({ default: '' })
   nextFollowUp!: string;
