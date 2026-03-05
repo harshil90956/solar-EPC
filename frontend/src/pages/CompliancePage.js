@@ -12,6 +12,7 @@ import { KPICard } from '../components/ui/KPICard';
 import { Progress } from '../components/ui/Progress';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/Tabs';
 import DataTable from '../components/ui/DataTable';
+import { generateCompliancePDF } from '../utils/compliancePdfGenerator';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
 const TENANT_ID = 'solarcorp';
@@ -86,7 +87,7 @@ const DOCUMENTS = [
 
 /* ─── Column Schemas ─── */
 const NM_COLUMNS = [
-    { key: 'id', header: 'App ID', render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span> },
+    { key: 'applicationId', header: 'App ID', render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span> },
     { key: 'customer', header: 'Customer', sortable: true, render: v => <span className="text-xs font-semibold text-[var(--text-primary)]">{v}</span> },
     { key: 'systemSize', header: 'Size', render: v => <span className="text-xs font-bold text-[var(--solar)]">{v}</span> },
     { key: 'discom', header: 'DISCOM', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
@@ -98,7 +99,7 @@ const NM_COLUMNS = [
 ];
 
 const SUB_COLUMNS = [
-    { key: 'id', header: 'Sub ID', render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span> },
+    { key: 'subsidyId', header: 'Sub ID', render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span> },
     { key: 'customer', header: 'Customer', sortable: true, render: v => <span className="text-xs font-semibold text-[var(--text-primary)]">{v}</span> },
     { key: 'scheme', header: 'Scheme', render: v => <span className="text-xs text-[var(--text-secondary)]">{v}</span> },
     { key: 'systemSize', header: 'Size', render: v => <span className="text-xs font-bold text-[var(--solar)]">{v}</span> },
@@ -110,7 +111,7 @@ const SUB_COLUMNS = [
 ];
 
 const INS_COLUMNS = [
-    { key: 'id', header: 'Inspection ID', render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span> },
+    { key: 'inspectionId', header: 'Inspection ID', render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span> },
     { key: 'customer', header: 'Customer', sortable: true, render: v => <span className="text-xs font-semibold text-[var(--text-primary)]">{v}</span> },
     { key: 'type', header: 'Type', render: v => <span className="text-xs text-[var(--text-secondary)]">{v}</span> },
     { key: 'inspector', header: 'Inspector', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
@@ -121,7 +122,7 @@ const INS_COLUMNS = [
 ];
 
 const DOC_COLUMNS = [
-    { key: 'id', header: 'Doc ID', render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span> },
+    { key: 'documentId', header: 'Doc ID', render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span> },
     { key: 'name', header: 'Document Name', sortable: true, render: v => <span className="text-xs font-semibold text-[var(--text-primary)]">{v}</span> },
     { key: 'category', header: 'Authority', render: v => <span className="text-xs text-[var(--text-secondary)]">{v}</span> },
     { key: 'project', header: 'Project', render: v => <span className="text-xs font-mono text-[var(--text-muted)]">{v}</span> },
@@ -151,12 +152,12 @@ const NMCard = ({ item, onDragStart, onClick }) => {
     return (
         <div
             draggable
-            onDragStart={() => onDragStart(item.id)}
+            onDragStart={() => onDragStart(item.applicationId)}
             onClick={() => onClick({ type: 'nm', data: item })}
             className="glass-card p-3 cursor-grab active:cursor-grabbing hover:scale-[1.01] transition-all space-y-2"
         >
             <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] font-mono text-[var(--accent-light)]">{item.id}</span>
+                <span className="text-[10px] font-mono text-[var(--accent-light)]">{item.applicationId}</span>
                 <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full border text-[9px] font-medium ${meta.color}`}>{meta.label}</span>
             </div>
             <p className="text-xs font-semibold text-[var(--text-primary)] truncate">{item.customer}</p>
@@ -190,12 +191,12 @@ const SubCard = ({ item, onDragStart, onClick }) => {
     return (
         <div
             draggable
-            onDragStart={() => onDragStart(item.id)}
+            onDragStart={() => onDragStart(item.subsidyId)}
             onClick={() => onClick({ type: 'sub', data: item })}
             className="glass-card p-3 cursor-grab active:cursor-grabbing hover:scale-[1.01] transition-all space-y-2"
         >
             <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] font-mono text-[var(--accent-light)]">{item.id}</span>
+                <span className="text-[10px] font-mono text-[var(--accent-light)]">{item.subsidyId}</span>
                 <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full border text-[9px] font-medium ${meta.color}`}>{meta.label}</span>
             </div>
             <p className="text-xs font-semibold text-[var(--text-primary)] truncate">{item.customer}</p>
@@ -292,6 +293,7 @@ const CompliancePage = () => {
     const [insForm, setInsForm] = useState({ projectId: '', type: '', scheduledDate: '', inspector: '', notes: '' });
     const [docForm, setDocForm] = useState({ projectId: '', documentType: '', issuingAuthority: '', documentDate: '' });
     const [docFile, setDocFile] = useState(null);
+    const fileInputRef = useRef(null);
 
     useEffect(() => {
         const fetchComplianceData = async () => {
@@ -462,22 +464,24 @@ const CompliancePage = () => {
         const selectedProject = projects.find(p => (p.projectId || p._id) === docForm.projectId);
         
         try {
-            const formData = new FormData();
-            formData.append('documentId', `DOC${Date.now().toString().slice(-6)}`);
-            formData.append('projectId', docForm.projectId);
-            formData.append('projectName', selectedProject?.customerName || 'Unknown');
-            formData.append('name', docForm.documentType);
-            formData.append('category', docForm.documentType);
-            formData.append('issuingAuthority', docForm.issuingAuthority);
-            formData.append('documentDate', docForm.documentDate);
-            formData.append('status', 'Uploaded');
-            if (docFile) {
-                formData.append('file', docFile);
-            }
+            const payload = {
+                documentId: `DOC${Date.now().toString().slice(-6)}`,
+                projectId: docForm.projectId,
+                projectName: selectedProject?.customerName || 'Unknown',
+                name: docForm.documentType,
+                category: docForm.documentType,
+                issuingAuthority: docForm.issuingAuthority,
+                documentDate: docForm.documentDate,
+                status: 'Uploaded',
+                fileName: docFile?.name || null,
+                fileSize: docFile?.size || null,
+                mimeType: docFile?.type || null,
+            };
             
-            const response = await fetch(`${API_BASE_URL}/compliance/documents/upload?tenantId=${TENANT_ID}`, {
+            const response = await fetch(`${API_BASE_URL}/compliance/documents?tenantId=${TENANT_ID}`, {
                 method: 'POST',
-                body: formData,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
             });
             if (response.ok) {
                 const data = await response.json();
@@ -502,13 +506,10 @@ const CompliancePage = () => {
 
     // Update handlers
     const handleUpdateNM = async () => {
-        if (!nmForm.projectId) { alert('Please select a project'); return; }
-        const selectedProject = projects.find(p => (p.projectId || p._id) === nmForm.projectId);
         try {
             const payload = {
-                projectId: nmForm.projectId,
-                customer: selectedProject?.customerName || 'Unknown',
                 discom: nmForm.discom,
+                status: nmForm.status,
                 appliedDate: nmForm.applicationDate,
                 discomOfficer: nmForm.contactOfficer,
                 discomPhone: nmForm.contactPhone,
@@ -522,7 +523,7 @@ const CompliancePage = () => {
                 const updatedItem = data.data || data;
                 setNmItems(prev => prev.map(i => i.applicationId === editingNM ? { ...i, ...updatedItem } : i));
                 setEditingNM(null);
-                setNmForm({ projectId: '', discom: '', applicationDate: '', contactOfficer: '', contactPhone: '' });
+                setNmForm({ projectId: '', discom: '', status: '', applicationDate: '', contactOfficer: '', contactPhone: '' });
                 alert('Net Metering application updated successfully!');
             } else {
                 const error = await response.text();
@@ -532,13 +533,10 @@ const CompliancePage = () => {
     };
 
     const handleUpdateSub = async () => {
-        if (!subForm.projectId) { alert('Please select a project'); return; }
-        const selectedProject = projects.find(p => (p.projectId || p._id) === subForm.projectId);
         try {
             const payload = {
-                projectId: subForm.projectId,
-                customer: selectedProject?.customerName || 'Unknown',
                 scheme: subForm.scheme,
+                status: subForm.status,
                 claimAmount: Number(subForm.claimAmount) || 0,
                 appliedDate: subForm.applicationDate,
                 applicationRef: subForm.referenceNo,
@@ -552,7 +550,7 @@ const CompliancePage = () => {
                 const updatedItem = data.data || data;
                 setSubItems(prev => prev.map(i => i.subsidyId === editingSub ? { ...i, ...updatedItem } : i));
                 setEditingSub(null);
-                setSubForm({ projectId: '', scheme: '', claimAmount: '', applicationDate: '', referenceNo: '' });
+                setSubForm({ projectId: '', scheme: '', status: '', claimAmount: '', applicationDate: '', referenceNo: '' });
                 alert('Subsidy application updated successfully!');
             } else {
                 const error = await response.text();
@@ -562,13 +560,10 @@ const CompliancePage = () => {
     };
 
     const handleUpdateIns = async () => {
-        if (!insForm.projectId) { alert('Please select a project'); return; }
-        const selectedProject = projects.find(p => (p.projectId || p._id) === insForm.projectId);
         try {
             const payload = {
-                projectId: insForm.projectId,
-                customer: selectedProject?.customerName || 'Unknown',
                 type: insForm.type,
+                status: insForm.status,
                 remarks: insForm.notes,
                 scheduledDate: insForm.scheduledDate,
                 inspector: insForm.inspector,
@@ -582,7 +577,7 @@ const CompliancePage = () => {
                 const updatedItem = data.data || data;
                 setInspections(prev => prev.map(i => i.inspectionId === editingIns ? { ...i, ...updatedItem } : i));
                 setEditingIns(null);
-                setInsForm({ projectId: '', type: '', scheduledDate: '', inspector: '', notes: '' });
+                setInsForm({ projectId: '', type: '', status: '', scheduledDate: '', inspector: '', notes: '' });
                 alert('Inspection updated successfully!');
             } else {
                 const error = await response.text();
@@ -592,15 +587,12 @@ const CompliancePage = () => {
     };
 
     const handleUpdateDoc = async () => {
-        if (!docForm.projectId) { alert('Please select a project'); return; }
         if (!docForm.documentType) { alert('Please select document type'); return; }
-        const selectedProject = projects.find(p => (p.projectId || p._id) === docForm.projectId);
         try {
             const payload = {
-                projectId: docForm.projectId,
-                projectName: selectedProject?.customerName || 'Unknown',
                 name: docForm.documentType,
                 category: docForm.documentType,
+                status: docForm.status,
                 issuingAuthority: docForm.issuingAuthority,
                 documentDate: docForm.documentDate,
             };
@@ -613,7 +605,7 @@ const CompliancePage = () => {
                 const updatedItem = data.data || data;
                 setDocuments(prev => prev.map(i => i.documentId === editingDoc ? { ...i, ...updatedItem } : i));
                 setEditingDoc(null);
-                setDocForm({ projectId: '', documentType: '', issuingAuthority: '', documentDate: '' });
+                setDocForm({ projectId: '', documentType: '', status: '', issuingAuthority: '', documentDate: '' });
                 alert('Document updated successfully!');
             } else {
                 const error = await response.text();
@@ -692,22 +684,26 @@ const CompliancePage = () => {
 
     const NM_ACTIONS = [
         { label: 'View', icon: FileText, onClick: r => setSelected({ type: 'nm', data: r }) },
-        { label: 'Edit', icon: Edit2, onClick: r => { setNmForm({ projectId: r.projectId, discom: r.discom, applicationDate: r.appliedDate || '', contactOfficer: r.discomOfficer || '', contactPhone: r.discomPhone || '' }); setEditingNM(r.applicationId); setShowAddNM(true); } },
+        { label: 'Download', icon: Download, onClick: r => generateCompliancePDF('nm', r) },
+        { label: 'Edit', icon: Edit2, onClick: r => { setNmForm({ projectId: r.projectId, discom: r.discom, status: r.status || '', applicationDate: r.appliedDate || '', contactOfficer: r.discomOfficer || '', contactPhone: r.discomPhone || '' }); setEditingNM(r.applicationId); setShowAddNM(true); } },
         { label: 'Delete', icon: Trash2, onClick: r => handleDeleteNM(r.applicationId), danger: true }
     ];
     const SUB_ACTIONS = [
         { label: 'View', icon: FileText, onClick: r => setSelected({ type: 'sub', data: r }) },
-        { label: 'Edit', icon: Edit2, onClick: r => { setSubForm({ projectId: r.projectId, scheme: r.scheme, claimAmount: r.claimAmount || '', applicationDate: r.appliedDate || '', referenceNo: r.applicationRef || '' }); setEditingSub(r.subsidyId); setShowAddSub(true); } },
+        { label: 'Download', icon: Download, onClick: r => generateCompliancePDF('sub', r) },
+        { label: 'Edit', icon: Edit2, onClick: r => { setSubForm({ projectId: r.projectId, scheme: r.scheme, status: r.status || '', claimAmount: r.claimAmount || '', applicationDate: r.appliedDate || '', referenceNo: r.applicationRef || '' }); setEditingSub(r.subsidyId); setShowAddSub(true); } },
         { label: 'Delete', icon: Trash2, onClick: r => handleDeleteSub(r.subsidyId), danger: true }
     ];
     const INS_ACTIONS = [
         { label: 'View', icon: FileText, onClick: r => setSelected({ type: 'ins', data: r }) },
-        { label: 'Edit', icon: Edit2, onClick: r => { setInsForm({ projectId: r.projectId, type: r.type, scheduledDate: r.scheduledDate || '', inspector: r.inspector || '', notes: r.remarks || '' }); setEditingIns(r.inspectionId); setShowAddIns(true); } },
+        { label: 'Download', icon: Download, onClick: r => generateCompliancePDF('ins', r) },
+        { label: 'Edit', icon: Edit2, onClick: r => { setInsForm({ projectId: r.projectId, type: r.type, status: r.status || '', scheduledDate: r.scheduledDate || '', inspector: r.inspector || '', notes: r.remarks || '' }); setEditingIns(r.inspectionId); setShowAddIns(true); } },
         { label: 'Delete', icon: Trash2, onClick: r => handleDeleteIns(r.inspectionId), danger: true }
     ];
     const DOC_ACTIONS = [
         { label: 'View', icon: FileText, onClick: r => setSelected({ type: 'doc', data: r }) },
-        { label: 'Edit', icon: Edit2, onClick: r => { setDocForm({ projectId: r.projectId, documentType: r.name || r.category, issuingAuthority: r.issuingAuthority || '', documentDate: r.documentDate || '' }); setEditingDoc(r.documentId); setShowUpload(true); } },
+        { label: 'Download', icon: Download, onClick: r => generateCompliancePDF('doc', r) },
+        { label: 'Edit', icon: Edit2, onClick: r => { setDocForm({ projectId: r.projectId, documentType: r.name || r.category, status: r.status || '', issuingAuthority: r.issuingAuthority || '', documentDate: r.documentDate || '' }); setEditingDoc(r.documentId); setShowUpload(true); } },
         { label: 'Delete', icon: Trash2, onClick: r => handleDeleteDoc(r.documentId), danger: true }
     ];
 
@@ -881,6 +877,14 @@ const CompliancePage = () => {
                                 {['DGVCL', 'MGVCL', 'PGVCL', 'UGVCL', 'MSEDCL', 'BESCOM'].map(d => <option key={d} value={d}>{d}</option>)}
                             </Select>
                         </FormField>
+                        <FormField label="Status">
+                            <Select value={nmForm.status || ''} onChange={e => setNmForm(f => ({ ...f, status: e.target.value }))}>
+                                <option value="">Select Status</option>
+                                {['Draft', 'Applied', 'Approved', 'Rejected', 'Connected'].map(s => <option key={s} value={s}>{s}</option>)}
+                            </Select>
+                        </FormField>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
                         <FormField label="Application Date">
                             <Input type="date" value={nmForm.applicationDate} onChange={e => setNmForm(f => ({ ...f, applicationDate: e.target.value }))} />
                         </FormField>
@@ -913,12 +917,20 @@ const CompliancePage = () => {
                             ))}
                         </Select>
                     </FormField>
-                    <FormField label="Subsidy Scheme">
-                        <Select value={subForm.scheme} onChange={e => setSubForm(f => ({ ...f, scheme: e.target.value }))}>
-                            <option value="">Select Scheme</option>
-                            {['PM Surya Ghar', 'GEDA Rooftop', 'MNRE CAPEX', 'State CAPEX'].map(s => <option key={s} value={s}>{s}</option>)}
-                        </Select>
-                    </FormField>
+                    <div className="grid grid-cols-2 gap-3">
+                        <FormField label="Subsidy Scheme">
+                            <Select value={subForm.scheme} onChange={e => setSubForm(f => ({ ...f, scheme: e.target.value }))}>
+                                <option value="">Select Scheme</option>
+                                {['PM Surya Ghar', 'GEDA Rooftop', 'MNRE CAPEX', 'State CAPEX'].map(s => <option key={s} value={s}>{s}</option>)}
+                            </Select>
+                        </FormField>
+                        <FormField label="Status">
+                            <Select value={subForm.status || ''} onChange={e => setSubForm(f => ({ ...f, status: e.target.value }))}>
+                                <option value="">Select Status</option>
+                                {['Applied', 'Sanctioned', 'Disbursed', 'Rejected'].map(s => <option key={s} value={s}>{s}</option>)}
+                            </Select>
+                        </FormField>
+                    </div>
                     <div className="grid grid-cols-2 gap-3">
                         <FormField label="Claim Amount (₹)">
                             <Input type="number" placeholder="94500" value={subForm.claimAmount} onChange={e => setSubForm(f => ({ ...f, claimAmount: e.target.value }))} />
@@ -952,20 +964,28 @@ const CompliancePage = () => {
                             ))}
                         </Select>
                     </FormField>
-                    <FormField label="Document Type">
-                        <Select value={docForm.documentType} onChange={e => setDocForm(f => ({ ...f, documentType: e.target.value }))}>
-                            <option value="">Select Document Type</option>
-                            <option value="Net Metering Application Form">Net Metering Application Form</option>
-                            <option value="Single Line Diagram (SLD)">Single Line Diagram (SLD)</option>
-                            <option value="Structural Load Certificate">Structural Load Certificate</option>
-                            <option value="Electrical Completion Certificate">Electrical Completion Certificate</option>
-                            <option value="Bidirectional Meter Installation Report">Bidirectional Meter Installation Report</option>
-                            <option value="Net Metering Agreement">Net Metering Agreement</option>
-                            <option value="Subsidy Application">Subsidy Application</option>
-                            <option value="Commissioning Certificate">Commissioning Certificate</option>
-                            <option value="Generation Meter Calibration">Generation Meter Calibration</option>
-                        </Select>
-                    </FormField>
+                    <div className="grid grid-cols-2 gap-3">
+                        <FormField label="Document Type">
+                            <Select value={docForm.documentType} onChange={e => setDocForm(f => ({ ...f, documentType: e.target.value }))}>
+                                <option value="">Select Document Type</option>
+                                <option value="Net Metering Application Form">Net Metering Application Form</option>
+                                <option value="Single Line Diagram (SLD)">Single Line Diagram (SLD)</option>
+                                <option value="Structural Load Certificate">Structural Load Certificate</option>
+                                <option value="Electrical Completion Certificate">Electrical Completion Certificate</option>
+                                <option value="Bidirectional Meter Installation Report">Bidirectional Meter Installation Report</option>
+                                <option value="Net Metering Agreement">Net Metering Agreement</option>
+                                <option value="Subsidy Application">Subsidy Application</option>
+                                <option value="Commissioning Certificate">Commissioning Certificate</option>
+                                <option value="Generation Meter Calibration">Generation Meter Calibration</option>
+                            </Select>
+                        </FormField>
+                        <FormField label="Status">
+                            <Select value={docForm.status || ''} onChange={e => setDocForm(f => ({ ...f, status: e.target.value }))}>
+                                <option value="">Select Status</option>
+                                {['Uploaded', 'Pending', 'Rejected'].map(s => <option key={s} value={s}>{s}</option>)}
+                            </Select>
+                        </FormField>
+                    </div>
                     <FormField label="Issuing Authority">
                         <Select value={docForm.issuingAuthority} onChange={e => setDocForm(f => ({ ...f, issuingAuthority: e.target.value }))}>
                             <option value="">Select Authority</option>
@@ -1014,12 +1034,20 @@ const CompliancePage = () => {
                             ))}
                         </Select>
                     </FormField>
-                    <FormField label="Inspection Type">
-                        <Select value={insForm.type} onChange={e => setInsForm(f => ({ ...f, type: e.target.value }))}>
-                            <option value="">Select Type</option>
-                            {['DISCOM Inspection', 'CEA Inspection', 'MNRE Inspection', 'Structural', 'Electrical', 'Fire Safety'].map(t => <option key={t} value={t}>{t}</option>)}
-                        </Select>
-                    </FormField>
+                    <div className="grid grid-cols-2 gap-3">
+                        <FormField label="Inspection Type">
+                            <Select value={insForm.type} onChange={e => setInsForm(f => ({ ...f, type: e.target.value }))}>
+                                <option value="">Select Type</option>
+                                {['DISCOM Inspection', 'CEA Inspection', 'MNRE Inspection', 'Structural', 'Electrical', 'Fire Safety'].map(t => <option key={t} value={t}>{t}</option>)}
+                            </Select>
+                        </FormField>
+                        <FormField label="Status">
+                            <Select value={insForm.status || ''} onChange={e => setInsForm(f => ({ ...f, status: e.target.value }))}>
+                                <option value="">Select Status</option>
+                                {['Pending', 'Scheduled', 'Passed', 'Failed'].map(s => <option key={s} value={s}>{s}</option>)}
+                            </Select>
+                        </FormField>
+                    </div>
                     <div className="grid grid-cols-2 gap-3">
                         <FormField label="Scheduled Date">
                             <Input type="date" value={insForm.scheduledDate} onChange={e => setInsForm(f => ({ ...f, scheduledDate: e.target.value }))} />
@@ -1037,18 +1065,40 @@ const CompliancePage = () => {
             {/* Detail Modal */}
             {selected && (
                 <Modal open={!!selected} onClose={() => setSelected(null)}
-                    title={selected.type === 'nm' ? `Net Metering — ${selected.data.id}` :
-                        selected.type === 'sub' ? `Subsidy — ${selected.data.id}` :
-                            `Inspection — ${selected.data.id}`}
+                    title={selected.type === 'nm' ? `Net Metering — ${selected.data.id || selected.data.applicationId || selected.data._id}` :
+                        selected.type === 'sub' ? `Subsidy — ${selected.data.id || selected.data.subsidyId || selected.data._id}` :
+                            selected.type === 'ins' ? `Inspection — ${selected.data.id || selected.data.inspectionId || selected.data._id}` :
+                                `Document — ${selected.data.id || selected.data.documentId || selected.data._id}`}
                     footer={
                         <div className="flex gap-2 justify-end">
                             <Button variant="ghost" onClick={() => setSelected(null)}>Close</Button>
-                            <Button><Download size={13} /> Download</Button>
+                            <Button variant="ghost" onClick={() => {
+                                const r = selected.data;
+                                if (selected.type === 'nm') {
+                                    setNmForm({ projectId: r.projectId, discom: r.discom, status: r.status || '', applicationDate: r.appliedDate || r.applicationDate || '', contactOfficer: r.discomOfficer || '', contactPhone: r.discomPhone || '' });
+                                    setEditingNM(r.applicationId || r._id);
+                                    setShowAddNM(true);
+                                } else if (selected.type === 'sub') {
+                                    setSubForm({ projectId: r.projectId, scheme: r.scheme, status: r.status || '', claimAmount: r.claimAmount || '', applicationDate: r.appliedDate || r.applicationDate || '', referenceNo: r.applicationRef || '' });
+                                    setEditingSub(r.subsidyId || r._id);
+                                    setShowAddSub(true);
+                                } else if (selected.type === 'ins') {
+                                    setInsForm({ projectId: r.projectId, type: r.type, status: r.status || '', scheduledDate: r.scheduledDate || '', inspector: r.inspector || '', notes: r.remarks || '' });
+                                    setEditingIns(r.inspectionId || r._id);
+                                    setShowAddIns(true);
+                                } else if (selected.type === 'doc') {
+                                    setDocForm({ projectId: r.projectId, documentType: r.name || r.category, status: r.status || '', issuingAuthority: r.issuingAuthority || '', documentDate: r.documentDate || '' });
+                                    setEditingDoc(r.documentId || r._id);
+                                    setShowUpload(true);
+                                }
+                                setSelected(null);
+                            }}><Edit2 size={13} /> Edit</Button>
+                            <Button onClick={() => generateCompliancePDF(selected.type, selected.data)}><Download size={13} /> Download</Button>
                         </div>
                     }>
                     <div className="grid grid-cols-2 gap-3 text-xs">
                         {Object.entries(selected.data)
-                            .filter(([k]) => !['id'].includes(k))
+                            .filter(([k]) => !['_id', '__v', 'tenantId', 'isDeleted'].includes(k))
                             .map(([k, v]) => (
                                 <div key={k} className="glass-card p-2">
                                     <div className="text-[var(--text-muted)] mb-0.5 capitalize">{k.replace(/([A-Z])/g, ' $1')}</div>
