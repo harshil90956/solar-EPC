@@ -66,7 +66,11 @@ export const leadsApi = {
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
     });
-    if (!response.ok) throw new Error('Failed to update lead');
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[leadsApi] Update failed:', response.status, errorText);
+      throw new Error(`Failed to update lead: ${errorText}`);
+    }
     return response.json();
   },
 
