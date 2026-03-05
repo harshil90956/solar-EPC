@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useRef, useCallback } from 'react';
 
-import { Search, ChevronDown, ChevronUp, MoreHorizontal, ChevronLeft, ChevronRight, Eye, EyeOff, Check, Clock, Activity } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, MoreHorizontal, ChevronLeft, ChevronRight, Eye, EyeOff, Check } from 'lucide-react';
 
 import { cn } from '../../lib/utils';
 
@@ -493,6 +493,16 @@ const DataTable = ({
 
                                     <tr key={i} className="border-b border-[var(--border-base)]">
 
+                                        {bulkActions.length > 0 && (
+
+                                            <td className="px-3 py-3.5">
+
+                                                <div className="h-3 rounded animate-shimmer" />
+
+                                            </td>
+
+                                        )}
+
                                         {visibleColumns.map(col => (
 
                                             <td key={`${i}-${col.key}`} className="px-4 py-3.5">
@@ -520,9 +530,8 @@ const DataTable = ({
                                     </td>
 
                                 </tr>
-                            </thead>
-                            <tbody>
-                                {data.map((row, index) => (
+                            ) : (
+                                data.map((row, index) => (
                                     <tr key={row[rowKey] || index} className="table-row border-b border-[var(--border-base)] last:border-0 group">
 
                                         {bulkActions.length > 0 && (
@@ -547,7 +556,7 @@ const DataTable = ({
 
                                         {visibleColumns.map(col => (
 
-                                            <td key={col.key} className="px-3 py-2 text-[12px] text-[var(--text-primary)]">
+                                            <td key={`${row[rowKey]}-${col.key}`} className="px-3 py-2 text-[12px] text-[var(--text-primary)]">
 
                                                 {col.render ? col.render(row[col.key], row) : row[col.key] ?? '—'}
 
@@ -583,201 +592,198 @@ const DataTable = ({
                                         )}
 
                                     </tr>
-                                ))}
+                                )))}
                             </tbody>
                         </table>
                     </div>
                 </div>
 
-            </div>
+                {/* ── Floating Menu ── */}
 
+                {openMenuIndex !== null && data[openMenuIndex] && (
 
+                    <>
 
-            {/* ── Floating Menu ── */}
+                        <div className="fixed inset-0 z-40" onClick={handleMenuClose} />
 
-            {openMenuIndex !== null && data[openMenuIndex] && (
+                        <div 
 
-                <>
+                            ref={menuRef}
 
-                    <div className="fixed inset-0 z-40" onClick={handleMenuClose} />
+                            className="fixed z-50 w-44 glass-card shadow-2xl shadow-black/50 py-1.5 animate-slide-up"
 
-                    <div 
+                            style={{ 
 
-                        ref={menuRef}
+                                top: `${menuPosition.top}px`,
 
-                        className="fixed z-50 w-44 glass-card shadow-2xl shadow-black/50 py-1.5 animate-slide-up"
+                                left: `${menuPosition.left}px`,
 
-                        style={{ 
-
-                            top: `${menuPosition.top}px`,
-
-                            left: `${menuPosition.left}px`,
-
-                        }}
-
-                    >
-
-                        {allRowActions
-
-                            .filter((a) => (typeof a.show === 'function' ? a.show(data[openMenuIndex]) : true))
-
-                            .map((a, actionIdx) => (
-
-                            <button
-
-                                key={`menu-${openMenuIndex}-${a.label}-${actionIdx}`}
-
-                                onClick={() => { 
-
-                                    a.onClick(data[openMenuIndex]); 
-
-                                    handleMenuClose(); 
-
-                                }}
-
-                                className={cn(
-
-                                    'flex items-center gap-2 w-full px-3 py-2 text-xs transition-colors',
-
-                                    a.danger
-
-                                        ? 'text-red-400 hover:bg-red-500/10'
-
-                                        : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
-
-                                )}
-
-                            >
-
-                                {a.icon && <a.icon size={12} />} {a.label}
-
-                            </button>
-
-                        ))}
-
-                    </div>
-
-                </>
-
-            )}
-
-
-
-            {/* ── Pagination ── */}
-
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-
-                <div className="flex items-center gap-4 text-[11px] text-[var(--text-faint)]">
-
-                    <div className="flex items-center gap-2">
-
-                        <span>Rows per page:</span>
-
-                        <select
-
-                            value={pageSize}
-
-                            onChange={e => onPageSizeChange?.(Number(e.target.value))}
-
-                            className="h-7 px-2 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] text-[var(--text-secondary)] text-[11px] cursor-pointer focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                            }}
 
                         >
 
-                            {PAGE_SIZE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                            {allRowActions
 
-                        </select>
+                                .filter((a) => (typeof a.show === 'function' ? a.show(data[openMenuIndex]) : true))
 
-                    </div>
+                                .map((a, actionIdx) => (
+
+                                <button
+
+                                    key={`menu-${openMenuIndex}-${a.label}-${actionIdx}`}
+
+                                    onClick={() => { 
+
+                                        a.onClick(data[openMenuIndex]); 
+
+                                        handleMenuClose(); 
+
+                                    }}
+
+                                    className={cn(
+
+                                        'flex items-center gap-2 w-full px-3 py-2 text-xs transition-colors',
+
+                                        a.danger
+
+                                            ? 'text-red-400 hover:bg-red-500/10'
+
+                                            : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+
+                                    )}
+
+                                >
+
+                                    {a.icon && <a.icon size={12} />} {a.label}
+
+                                </button>
+
+                            ))}
+
+                        </div>
+
+                    </>
+
+                )}
 
 
 
-                    <div className="flex items-center gap-2">
+                {/* ── Pagination ── */}
 
-                        <span>Jump to:</span>
+                <div className="flex items-center justify-between gap-3 flex-wrap">
 
-                        <input
+                    <div className="flex items-center gap-4 text-[11px] text-[var(--text-faint)]">
 
-                            type="number"
+                        <div className="flex items-center gap-2">
 
-                            value={jumpPage}
+                            <span>Rows per page:</span>
 
-                            onChange={e => setJumpPage(e.target.value)}
+                            <select
 
-                            onKeyDown={handleJump}
+                                value={pageSize}
 
-                            placeholder="Page…"
+                                onChange={e => onPageSizeChange?.(Number(e.target.value))}
 
-                            className="w-12 h-7 px-2 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] text-[var(--text-secondary)] text-[11px] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] transition-all"
-
-                        />
-
-                    </div>
-
-
-
-                    <span>
-
-                        {total === 0 ? '0' : `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)}`} of {total}
-
-                    </span>
-
-                </div>
-
-
-
-                <div className="flex items-center gap-1">
-
-                    <Button size="xs" variant="secondary" disabled={page <= 1} onClick={() => onPageChange?.(page - 1)}>
-
-                        <ChevronLeft size={12} />
-
-                    </Button>
-
-                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-
-                        let p;
-
-                        if (totalPages <= 5) {
-
-                            p = i + 1;
-
-                        } else {
-
-                            p = Math.max(1, Math.min(totalPages - 4, page - 2)) + i;
-
-                        }
-
-                        return (
-
-                            <Button
-
-                                key={p} size="xs"
-
-                                variant={p === page ? 'primary' : 'secondary'}
-
-                                onClick={() => onPageChange?.(p)}
+                                className="h-7 px-2 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] text-[var(--text-secondary)] text-[11px] cursor-pointer focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
 
                             >
 
-                                {p}
+                                {PAGE_SIZE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
 
-                            </Button>
+                            </select>
 
-                        );
+                        </div>
 
-                    })}
 
-                    <Button size="xs" variant="secondary" disabled={page >= totalPages} onClick={() => onPageChange?.(page + 1)}>
 
-                        <ChevronRight size={12} />
+                        <div className="flex items-center gap-2">
 
-                    </Button>
+                            <span>Jump to:</span>
+
+                            <input
+
+                                type="number"
+
+                                value={jumpPage}
+
+                                onChange={e => setJumpPage(e.target.value)}
+
+                                onKeyDown={handleJump}
+
+                                placeholder="Page…"
+
+                                className="w-12 h-7 px-2 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] text-[var(--text-secondary)] text-[11px] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] transition-all"
+
+                            />
+
+                        </div>
+
+
+
+                        <span>
+
+                            {total === 0 ? '0' : `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)}`} of {total}
+
+                        </span>
+
+                    </div>
+
+
+
+                    <div className="flex items-center gap-1">
+
+                        <Button size="xs" variant="secondary" disabled={page <= 1} onClick={() => onPageChange?.(page - 1)}>
+
+                            <ChevronLeft size={12} />
+
+                        </Button>
+
+                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+
+                            let p;
+
+                            if (totalPages <= 5) {
+
+                                p = i + 1;
+
+                            } else {
+
+                                p = Math.max(1, Math.min(totalPages - 4, page - 2)) + i;
+
+                            }
+
+                            return (
+
+                                <Button
+
+                                    key={p} size="xs"
+
+                                    variant={p === page ? 'primary' : 'secondary'}
+
+                                    onClick={() => onPageChange?.(p)}
+
+                                >
+
+                                    {p}
+
+                                </Button>
+
+                            );
+
+                        })}
+
+                        <Button size="xs" variant="secondary" disabled={page >= totalPages} onClick={() => onPageChange?.(page + 1)}>
+
+                            <ChevronRight size={12} />
+
+                        </Button>
+
+                    </div>
 
                 </div>
 
             </div>
 
-        </div>
 
     );
 
@@ -786,4 +792,3 @@ const DataTable = ({
 
 
 export default DataTable;
-
