@@ -55,7 +55,7 @@ export const financeApi = {
   updateInvoice: (id, data) => api.patch(`/finance/invoices/${id}`, data).then(extractData).catch(handleError),
   deleteInvoice: (id) => api.delete(`/finance/invoices/${id}`).then(extractData).catch(handleError),
   updateInvoiceStatus: (id, status) => api.patch(`/finance/invoices/${id}/status`, { status }).then(extractData).catch(handleError),
-  recordPayment: (data) => api.post('/finance/invoices/record-payment', data).then(extractData).catch(handleError),
+  recordInvoicePayment: (data) => api.post('/finance/invoices/record-payment', data).then(extractData).catch(handleError),
   sendInvoiceReminder: (invoiceId, data) => api.post(`/finance/invoices/${invoiceId}/send-reminder`, {
     reminderType: data.reminderType,
     customerEmail: data.customerEmail,
@@ -69,6 +69,10 @@ export const financeApi = {
   createPayment: (data) => api.post('/finance/payments', data).then(extractData).catch(handleError),
   updatePayment: (id, data) => api.patch(`/finance/payments/${id}`, data).then(extractData).catch(handleError),
   deletePayment: (id) => api.delete(`/finance/payments/${id}`).then(extractData).catch(handleError),
+  // Independent Payment Recording (Customer & Vendor) - lifecycle
+  initiateFinancePayment: (data) => api.post('/finance/payments/initiate', data).then(extractData).catch(handleError),
+  verifyFinancePayment: (id, data) => api.post(`/finance/payments/${id}/verify`, data).then(extractData).catch(handleError),
+  completeFinancePayment: (id, data) => api.post(`/finance/payments/${id}/complete`, data).then(extractData).catch(handleError),
 
   // Expenses
   getExpenses: (status, category) => api.get('/finance/expenses', { status, category }).then(extractData).catch(handleError),

@@ -198,6 +198,21 @@ export const MODULE_DEFS = [
         actions: { view: true, create: true, edit: true, delete: false, export: true, approve: true, assign: false },
     },
     {
+        id: 'hrm',
+        label: 'HRM',
+        icon: 'Briefcase',
+        description: 'Human Resource Management - Employees, Attendance, Leave, Payroll.',
+        group: 'OVERVIEW',
+        features: {
+            employee_management: { label: 'Employee Management', description: 'Employee profiles and records.' },
+            attendance_system: { label: 'Attendance System', description: 'Check-in/out and attendance tracking.' },
+            leave_management: { label: 'Leave Management', description: 'Leave requests and approvals.' },
+            payroll_system: { label: 'Payroll System', description: 'Salary generation and payslips.' },
+            salary_increments: { label: 'Salary Increments', description: 'Increment history and management.' },
+        },
+        actions: { view: true, create: true, edit: true, delete: true, export: true, approve: true, assign: true },
+    },
+    {
         id: 'settings',
         label: 'Settings',
         icon: 'Settings',

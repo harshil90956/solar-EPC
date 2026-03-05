@@ -8,7 +8,8 @@ import {
   Filter, MoreVertical, Bell, Settings, Activity, Target,
   Award, PieChart as PieChartIcon, Clock, Star, Brain,
   Gauge, Wind, Cloud, FileText, MessageSquare, Phone,
-  Mail, Send, ChevronLeft, ArrowRight, ArrowUpRight, ArrowDownRight
+  Mail, Send, ChevronLeft, ArrowRight, ArrowUpRight, ArrowDownRight,
+  RefreshCw
 } from 'lucide-react';
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
@@ -24,7 +25,9 @@ import { Button } from '../components/ui/Button';
 import { Avatar } from '../components/ui/Avatar';
 import { Modal } from '../components/ui/Modal';
 import { Input, FormField, Textarea, Select } from '../components/ui/Input';
+import { PageHeader } from '../components/ui/PageHeader';
 import { KPICard } from '../components/ui/KPICard';
+import { format, subMonths } from 'date-fns';
 import { Progress } from '../components/ui/Progress';
 import DataTable from '../components/ui/DataTable';
 import FilterSystem from '../components/ui/FilterSystem';
@@ -689,61 +692,118 @@ const SurveyPage = () => {
     automationActive: enhancedSurveys.filter(s => s.automation && s.automation.length > 0).length
   }), [enhancedSurveys]);
 
-  const selAnalysis = selectedSurvey ? (SITE_ANALYSIS[selectedSurvey.id] ?? null) : null; // eslint-disable-line no-unused-vars
+  const [dateRange, setDateRange] = useState({
+    start: format(subMonths(new Date(), 6), 'yyyy-MM-dd'),
+    end: format(new Date(), 'yyyy-MM-dd')
+  });
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
 
   return (
     <div className="animate-fade-in space-y-6">
       {/* ── Advanced Header ── */}
-      <div className="page-header">
-        <div>
-          <h1 className="heading-page">Survey Management</h1>
-          <p className="text-xs text-[var(--text-muted)] mt-0.5">Advanced site assessments · AI feasibility · Automation · Performance tracking</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="view-toggle-pill">
-            <button onClick={() => setView('dashboard')} className={`view-toggle-btn ${view === 'dashboard' ? 'active' : ''}`}>
-              <LayoutDashboard size={14} /> Dashboard
-            </button>
-            <button onClick={() => setKanbanView(!kanbanView)} className={`view-toggle-btn ${kanbanView ? 'active' : ''}`}>
-              <LayoutGrid size={14} /> Kanban
-            </button>
-            <button onClick={() => setView('table')} className={`view-toggle-btn ${view === 'table' ? 'active' : ''}`}>
-              <List size={14} /> Surveys
-            </button>
-            <button onClick={() => setReportsView(!reportsView)} className={`view-toggle-btn ${reportsView ? 'active' : ''}`}>
-              <BarChart2 size={14} /> Reports
-            </button>
+      <PageHeader
+        title="Survey Management"
+        subtitle="Advanced site assessments · AI feasibility · Automation · Performance tracking"
+        tabs={[
+          { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+          { id: 'kanban', label: 'Kanban', icon: LayoutGrid },
+          { id: 'table', label: 'Surveys', icon: List },
+          { id: 'reports', label: 'Reports', icon: BarChart2 }
+        ]}
+        activeTab={view}
+        onTabChange={(v) => {
+          if (v === 'kanban') setKanbanView(true);
+          else if (v === 'reports') setReportsView(true);
+          else {
+            setKanbanView(false);
+            setReportsView(false);
+            setView(v);
+          }
+        }}
+        actions={[
+          { type: 'toggle', label: 'Automation', icon: Brain, value: automationRules.some(r => r.enabled), onToggle: () => setAutomationRules(prev => prev.map(rule => ({ ...rule, enabled: !rule.enabled }))) },
+          { type: 'button', label: 'Schedule Survey', icon: Plus, variant: 'primary', onClick: () => setShowAdd(true) }
+        ]}
+      />
+
+      {/* ── Date Filters ── */}
+      {view === 'dashboard' && (
+        <div className="glass-card p-3">
+          <div className="flex flex-wrap gap-3 items-center">
+            <div className="flex items-center gap-2">
+              <Calendar size={14} className="text-[var(--text-muted)]" />
+              <span className="text-xs text-[var(--text-muted)]">Date Range:</span>
+              <Input
+                type="date"
+                value={dateRange.start}
+                onChange={e => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                className="h-7 text-xs w-32"
+              />
+              <span className="text-xs text-[var(--text-muted)]">to</span>
+              <Input
+                type="date"
+                value={dateRange.end}
+                onChange={e => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                className="h-7 text-xs w-32"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[var(--text-muted)]">Year:</span>
+              <Select
+                value={selectedYear}
+                onChange={e => setSelectedYear(Number(e.target.value))}
+                className="h-7 text-xs w-24"
+              >
+                {[2024, 2025, 2026].map(year => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[var(--text-muted)]">Month:</span>
+              <Select
+                value={selectedMonth}
+                onChange={e => setSelectedMonth(Number(e.target.value))}
+                className="h-7 text-xs w-28"
+              >
+                {[
+                  { value: 1, label: 'January' },
+                  { value: 2, label: 'February' },
+                  { value: 3, label: 'March' },
+                  { value: 4, label: 'April' },
+                  { value: 5, label: 'May' },
+                  { value: 6, label: 'June' },
+                  { value: 7, label: 'July' },
+                  { value: 8, label: 'August' },
+                  { value: 9, label: 'September' },
+                  { value: 10, label: 'October' },
+                  { value: 11, label: 'November' },
+                  { value: 12, label: 'December' },
+                ].map(m => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </Select>
+            </div>
+            <div className="ml-auto flex gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setDateRange({
+                    start: format(subMonths(new Date(), 6), 'yyyy-MM-dd'),
+                    end: format(new Date(), 'yyyy-MM-dd')
+                  });
+                  setSelectedYear(new Date().getFullYear());
+                  setSelectedMonth(new Date().getMonth() + 1);
+                }}
+              >
+                <RefreshCw size={12} /> Reset
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)]">
-            <Brain size={12} className="text-[var(--text-muted)]" />
-            <span className="text-[10px] text-[var(--text-muted)]">Automation</span>
-            <button
-              onClick={() => setAutomationRules(prev => prev.map(rule => ({ ...rule, enabled: !rule.enabled })))}
-              className={`w-8 h-4 rounded-full transition-colors ${automationRules.some(r => r.enabled) ? 'bg-emerald-500' : 'bg-gray-300'
-                }`}
-            >
-              <div className={`w-3 h-3 bg-white rounded-full transition-transform ${automationRules.some(r => r.enabled) ? 'translate-x-4' : 'translate-x-0.5'
-                }`} />
-            </button>
-          </div>
-          <CanAccess module="survey" action="export">
-            <ImportExport
-              onImport={(data) => {
-                if (!guardCreate()) return;
-                setSurveys(prev => [...prev, ...data]);
-                logCreate({ id: 'batch', name: `Import batch of ${data.length} surveys` });
-              }}
-              onExport={() => { if (guardExport()) console.log('Exporting surveys...'); }}
-              templateFields={SURVEY_FIELDS}
-            />
-          </CanAccess>
-          <CanCreate module="survey">
-            <Button onClick={() => setShowAdd(true)} className="shadow-lg shadow-[var(--primary)]/20">
-              <Plus size={14} /> Schedule Survey
-            </Button>
-          </CanCreate>
         </div>
-      </div>
+      )}
 
       {/* ── Search & Filter Bar ── */}
       {view !== 'dashboard' && (

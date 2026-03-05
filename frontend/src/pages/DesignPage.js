@@ -14,6 +14,7 @@ import { StatusBadge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input, FormField, Select, Textarea } from '../components/ui/Input';
+import { PageHeader } from '../components/ui/PageHeader';
 import { KPICard } from '../components/ui/KPICard';
 import DataTable from '../components/ui/DataTable';
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
@@ -490,25 +491,14 @@ const DesignPage = () => {
     <div className="animate-fade-in space-y-5">
 
       {/* ── Header ── */}
-      <div className="page-header">
-        <div>
-          <h1 className="heading-page">Design & BOQ</h1>
-          <p className="text-xs text-[var(--text-muted)] mt-0.5">
-            Adaptive design studio — panel layout · BOQ · financial engine · AI optimisation
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => setStudioDesign({ projectName: 'New Project', designName: 'Design 1' })}
-          >
-            <Box size={13} /> Open 3D Design Studio
-          </Button>
-          <CanCreate module="design">
-            <Button onClick={() => { if (guardCreate()) setShowAdd(true); }}><Plus size={13} /> New Design</Button>
-          </CanCreate>
-        </div>
-      </div>
+      <PageHeader
+        title="Design & BOQ"
+        subtitle="Adaptive design studio — panel layout · BOQ · financial engine · AI optimisation"
+        actions={[
+          { type: 'button', label: '3D Studio', icon: Box, onClick: () => setStudioDesign({ projectName: 'New Project', designName: 'Design 1' }) },
+          { type: 'button', label: 'New Design', icon: Plus, variant: 'primary', onClick: () => { if (guardCreate()) setShowAdd(true); } }
+        ]}
+      />
 
       {/* ── Project Type Selector Bar ── */}
       <div className="glass-card px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">

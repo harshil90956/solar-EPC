@@ -17,12 +17,14 @@ export const ROLES = {
 export const MODULES = {
     DASHBOARD: 'dashboard',
     REMINDERS: 'reminders',
+    HRM: 'hrm',
     CRM: 'crm',
     SURVEY: 'survey',
     DESIGN: 'design',
     QUOTATION: 'quotation',
     PROJECT: 'project',
     INVENTORY: 'inventory',
+    ITEMS: 'items',
     PROCUREMENT: 'procurement',
     LOGISTICS: 'logistics',
     INSTALLATION: 'installation',
@@ -32,7 +34,7 @@ export const MODULES = {
     COMPLIANCE: 'compliance',
     SETTINGS: 'settings',
     INTELLIGENCE: 'intelligence',
-    ITEMS: 'items',
+    HRM: 'hrm',
 };
 
 const ALL_MODULES = Object.values(MODULES);

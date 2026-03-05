@@ -11,6 +11,7 @@ import { StatusBadge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input, FormField, Select } from '../components/ui/Input';
+import { PageHeader } from '../components/ui/PageHeader';
 import { KPICard } from '../components/ui/KPICard';
 import { Progress } from '../components/ui/Progress';
 import { Stepper } from '../components/ui/Stepper';
@@ -23,7 +24,7 @@ import { toast } from '../components/ui/Toast';
 
 const fmt = CURRENCY.format;
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000/api/v1';
 const TENANT_ID = 'solarcorp'; // Default tenant for seed data
 
 const KANBAN_STAGES = [
@@ -174,6 +175,8 @@ const ProjectPage = () => {
   const [form, setForm] = useState({ customerName: '', site: '', systemSize: '', pm: '', value: '', estEndDate: '', email: '', mobileNumber: '', materials: [] });
   const [items, setItems] = useState([]); // Items for material selection
   const [itemsLoading, setItemsLoading] = useState(false);
+  const [projectReservations, setProjectReservations] = useState([]);
+  const [loadingProjectReservations, setLoadingProjectReservations] = useState(false);
   const [editForm, setEditForm] = useState({ customerName: '', site: '', systemSize: '', pm: '', value: '', estEndDate: '', email: '', mobileNumber: '' });
   const [submitting, setSubmitting] = useState(false);
   const [users, setUsers] = useState([]);
@@ -254,18 +257,18 @@ const ProjectPage = () => {
     // Get current user role from localStorage
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const userRole = user?.role;
-    
+
     // Check if trying to cancel without proper role
     if (newStage === 'Cancelled' && !['Admin', 'Project Manager'].includes(userRole)) {
       alert('Only Admin or Project Manager can cancel a project');
       return;
     }
-    
+
     // Optimistic update
     const project = projects.find(p => p.id === id);
     setProjects(prev => prev.map(p => p.id === id ? { ...p, status: newStage } : p));
     logStatusChange(project, project.status, newStage);
-    
+
     // API call to update status
     try {
       const response = await fetch(`${API_BASE_URL}/projects/${id}/status?tenantId=${TENANT_ID}`, {
@@ -286,8 +289,8 @@ const ProjectPage = () => {
   };
 
   // Filter out cancelled projects from calculations and kanban view
-  const activeProjects = useMemo(() => 
-    projects.filter(p => p.status !== 'Cancelled'), 
+  const activeProjects = useMemo(() =>
+    projects.filter(p => p.status !== 'Cancelled'),
     [projects]
   );
 
@@ -309,8 +312,8 @@ const ProjectPage = () => {
   const totalKW = activeProjects.reduce((a, p) => a + p.systemSize, 0);
   const active = activeProjects.filter(p => p.status !== 'Commissioned').length;
   const commissioned = activeProjects.filter(p => p.status === 'Commissioned').length;
-  const avgProgress = activeProjects.length > 0 
-    ? Math.round(activeProjects.reduce((a, p) => a + p.progress, 0) / activeProjects.length) 
+  const avgProgress = activeProjects.length > 0
+    ? Math.round(activeProjects.reduce((a, p) => a + p.progress, 0) / activeProjects.length)
     : 0;
 
   const ROW_ACTIONS = [
@@ -332,11 +335,11 @@ const ProjectPage = () => {
     if (!selected || !canMarkComplete) return;
 
     const milestoneName = STEPPER_STEPS[firstPendingIndex].name;
-    
+
     try {
       // Update the milestone status in backend
-      const updatedMilestones = selected.milestones.map((m, idx) => 
-        idx === firstPendingIndex 
+      const updatedMilestones = selected.milestones.map((m, idx) =>
+        idx === firstPendingIndex
           ? { ...m, status: 'Done', date: new Date().toISOString().split('T')[0] }
           : m
       );
@@ -354,8 +357,8 @@ const ProjectPage = () => {
       const response = await fetch(`${API_BASE_URL}/projects/${selected.id}/status?tenantId=${TENANT_ID}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          status: newStatus, 
+        body: JSON.stringify({
+          status: newStatus,
           progress: newProgress,
           milestones: updatedMilestones.map(m => ({ name: m.name, status: m.status, date: m.date })),
           userRole: JSON.parse(localStorage.getItem('user') || '{}')?.role
@@ -371,16 +374,16 @@ const ProjectPage = () => {
       }
 
       // Update local state
-      const updatedProject = { 
-        ...selected, 
-        status: newStatus, 
+      const updatedProject = {
+        ...selected,
+        status: newStatus,
         progress: newProgress,
-        milestones: updatedMilestones 
+        milestones: updatedMilestones
       };
-      
+
       setProjects(prev => prev.map(p => p.id === selected.id ? updatedProject : p));
       setSelected(updatedProject);
-      
+
       // Show success message or close modal
       // setSelected(null); // Optional: close modal after update
     } catch (err) {
@@ -391,16 +394,16 @@ const ProjectPage = () => {
 
   const handleDeleteProject = async (id) => {
     if (!window.confirm('Are you sure you want to delete this project?')) return;
-    
+
     try {
       const response = await fetch(`${API_BASE_URL}/projects/${id}?tenantId=${TENANT_ID}`, {
         method: 'DELETE',
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to delete project');
       }
-      
+
       setProjects(prev => prev.filter(p => p.id !== id));
     } catch (err) {
       console.error('Error deleting project:', err);
@@ -439,18 +442,18 @@ const ProjectPage = () => {
           remarks: m.remarks
         }))
       };
-      
+
       const response = await fetch(`${API_BASE_URL}/projects?tenantId=${TENANT_ID}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newProject),
       });
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Failed to create project: ${errorText}`);
       }
-      
+
       const createdProject = await response.json();
       const projectData = createdProject.data || createdProject;
       setProjects(prev => [...prev, { ...projectData, id: projectData.projectId }]);
@@ -538,7 +541,7 @@ const ProjectPage = () => {
 
   const handleUpdateProject = async () => {
     if (!editingProject) return;
-    
+
     setSubmitting(true);
     try {
       const updateData = {
@@ -551,21 +554,21 @@ const ProjectPage = () => {
         email: editForm.email,
         mobileNumber: editForm.mobileNumber
       };
-      
+
       const response = await fetch(`${API_BASE_URL}/projects/${editingProject.id}?tenantId=${TENANT_ID}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updateData),
       });
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Failed to update project: ${errorText}`);
       }
-      
+
       const updatedProject = await response.json();
       const projectData = updatedProject.data || updatedProject;
-      
+
       setProjects(prev => prev.map(p => p.id === editingProject.id ? { ...p, ...projectData } : p));
       setShowEdit(false);
       setEditingProject(null);
@@ -581,23 +584,19 @@ const ProjectPage = () => {
 
   return (
     <div className="animate-fade-in space-y-5">
-      <div className="page-header flex-col sm:flex-row gap-3">
-        <div>
-          <h1 className="heading-page text-lg sm:text-xl">Project Management</h1>
-          <p className="text-xs text-[var(--text-muted)] mt-0.5">Track all EPC projects · milestones · progress · delivery</p>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="view-toggle-pill">
-            <button onClick={() => setView('kanban')}
-              className={`view-toggle-btn ${view === 'kanban' ? 'active' : ''}`}><LayoutGrid size={14} /></button>
-            <button onClick={() => setView('table')}
-              className={`view-toggle-btn ${view === 'table' ? 'active' : ''}`}><List size={14} /></button>
-          </div>
-          <CanCreate module="project">
-            <Button size="sm" onClick={() => { if (guardCreate()) setShowAdd(true); }}><Plus size={13} /> <span className="hidden sm:inline">New Project</span></Button>
-          </CanCreate>
-        </div>
-      </div>
+      <PageHeader
+        title="Project Management"
+        subtitle="Track all EPC projects · milestones · progress · delivery"
+        tabs={[
+          { id: 'kanban', label: 'Kanban', icon: LayoutGrid },
+          { id: 'table', label: 'Table', icon: List }
+        ]}
+        activeTab={view}
+        onTabChange={setView}
+        actions={[
+          { type: 'button', label: 'New Project', icon: Plus, variant: 'primary', onClick: () => { if (guardCreate()) setShowAdd(true); } }
+        ]}
+      />
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <KPICard label="Total Projects" value={projects.length} sub="All projects" icon={Layers} accentColor="#6366f1" />
@@ -877,7 +876,7 @@ const ProjectPage = () => {
             <div className="grid grid-cols-2 gap-3 text-xs">
               {[['Customer', selected.customerName], ['Email', selected.email || '—'], ['Mobile', selected.mobileNumber || '—'], ['Site', selected.site], ['System Size', `${selected.systemSize} kW`], ['Project Manager', selected.pm],
               ['Status', <StatusBadge domain="project" value={selected.status} />], ['Value', fmt(selected.value)],
-              // ...
+                // ...
               ].map(([k, v]) => (
                 <div key={k} className="glass-card p-2">
                   <div className="text-[var(--text-muted)] mb-0.5">{k}</div>
@@ -1006,20 +1005,18 @@ const ProjectPage = () => {
                 { label: 'Estimated Completion', date: timelineProject.estEndDate, status: timelineProject.status === 'Commissioned' ? 'Done' : 'Pending', icon: Calendar }
               ].map((item, idx) => (
                 <div key={idx} className="relative flex items-start gap-3">
-                  <div className={`absolute -left-[21px] w-3 h-3 rounded-full border-2 ${
-                    item.status === 'Done' ? 'bg-green-500 border-green-500' : 
-                    item.status === 'In Progress' ? 'bg-blue-500 border-blue-500' : 
-                    'bg-[var(--bg-surface)] border-[var(--border-base)]'
-                  }`} />
+                  <div className={`absolute -left-[21px] w-3 h-3 rounded-full border-2 ${item.status === 'Done' ? 'bg-green-500 border-green-500' :
+                    item.status === 'In Progress' ? 'bg-blue-500 border-blue-500' :
+                      'bg-[var(--bg-surface)] border-[var(--border-base)]'
+                    }`} />
                   <div className="flex-1">
                     <div className="text-xs font-semibold text-[var(--text-primary)]">{item.label}</div>
                     <div className="text-[10px] text-[var(--text-muted)]">{item.date || '—'}</div>
-                    <div className={`text-[10px] font-medium ${
-                      item.status === 'Done' ? 'text-green-500' :
+                    <div className={`text-[10px] font-medium ${item.status === 'Done' ? 'text-green-500' :
                       item.status === 'In Progress' ? 'text-blue-500' :
-                      item.status === 'Pending' ? 'text-amber-500' :
-                      'text-[var(--text-muted)]'
-                    }`}>{item.status}</div>
+                        item.status === 'Pending' ? 'text-amber-500' :
+                          'text-[var(--text-muted)]'
+                      }`}>{item.status}</div>
                   </div>
                 </div>
               ))}
@@ -1057,21 +1054,20 @@ const ProjectPage = () => {
               {[
                 { action: 'Project created', date: activityProject.startDate, user: activityProject.pm || 'System', type: 'create' },
                 { action: `Status updated to ${activityProject.status}`, date: new Date().toISOString().split('T')[0], user: 'Admin', type: 'update' },
-                ...(activityProject.milestones || []).filter(m => m.date).map(m => ({ 
-                  action: `Milestone completed: ${m.name}`, 
-                  date: m.date, 
-                  user: activityProject.pm || 'PM', 
-                  type: 'milestone' 
+                ...(activityProject.milestones || []).filter(m => m.date).map(m => ({
+                  action: `Milestone completed: ${m.name}`,
+                  date: m.date,
+                  user: activityProject.pm || 'PM',
+                  type: 'milestone'
                 })),
                 { action: 'Last modified', date: new Date().toISOString().split('T')[0], user: 'System', type: 'system' }
               ].map((log, idx) => (
                 <div key={idx} className="flex items-start gap-3 p-2 rounded-lg bg-[var(--bg-tertiary)]">
-                  <div className={`w-2 h-2 rounded-full mt-1 ${
-                    log.type === 'create' ? 'bg-green-500' :
+                  <div className={`w-2 h-2 rounded-full mt-1 ${log.type === 'create' ? 'bg-green-500' :
                     log.type === 'update' ? 'bg-blue-500' :
-                    log.type === 'milestone' ? 'bg-purple-500' :
-                    'bg-gray-500'
-                  }`} />
+                      log.type === 'milestone' ? 'bg-purple-500' :
+                        'bg-gray-500'
+                    }`} />
                   <div className="flex-1">
                     <div className="text-xs font-medium text-[var(--text-primary)]">{log.action}</div>
                     <div className="flex items-center gap-2 mt-1">

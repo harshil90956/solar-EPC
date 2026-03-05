@@ -1,6 +1,8 @@
 // Solar OS – EPC Edition
 // CONFIG LAYER: All app-level constants driven from env — NO hardcoding
 
+export const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000/api/v1';
+
 export const APP_CONFIG = {
     name: process.env.REACT_APP_APP_NAME || 'Solar OS',
     edition: process.env.REACT_APP_APP_EDITION || 'EPC Edition',

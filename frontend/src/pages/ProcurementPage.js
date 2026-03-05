@@ -7,6 +7,7 @@ import { StatusBadge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input, FormField, Select, Textarea } from '../components/ui/Input';
+import { PageHeader } from '../components/ui/PageHeader';
 import { KPICard } from '../components/ui/KPICard';
 import { Avatar } from '../components/ui/Avatar';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/Tabs';
@@ -151,6 +152,7 @@ const ProcurementPage = () => {
   const [poPage, setPoPage] = useState(1);
   const [poPageSize, setPoPageSize] = useState(APP_CONFIG.defaultPageSize);
   const [showPO, setShowPO] = useState(false);
+  const [showVendor, setShowVendor] = useState(false);
   const [selectedPO, setSelectedPO] = useState(null);
   const [pos, setPos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -331,16 +333,24 @@ const ProcurementPage = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const posRes = await api.get('/procurement/purchase-orders');
+      const [posRes, vendorsRes] = await Promise.all([
+        api.get('/procurement/purchase-orders'),
+        api.get('/procurement/vendors'),
+      ]);
       // Handle API response - could be direct array or wrapped object
       let posData = [];
-      
+
+      const vendorsData = Array.isArray(vendorsRes.data)
+        ? vendorsRes.data
+        : (vendorsRes.data?.data || []);
+
       if (Array.isArray(posRes.data)) {
         posData = posRes.data;
       } else if (posRes.data && typeof posRes.data === 'object') {
         posData = posRes.data.data || [];
       }
-      
+
+      setVendors(vendorsData);
       setPos(posData);
     } catch (error) {
       console.error('Error fetching procurement data:', error);
@@ -355,6 +365,18 @@ const ProcurementPage = () => {
       setPos(prev => prev.map(p => p.id === id ? { ...p, status: newStatus } : p));
     } catch (error) {
       console.error('Error updating PO status:', error);
+    }
+  };
+
+  const handleCreateVendor = async () => {
+    try {
+      const res = await api.post('/procurement/vendors', newVendor);
+      // Refetch all data to ensure UI is in sync with backend
+      await fetchData();
+      setShowVendor(false);
+      setNewVendor({ name: '', category: '', city: '', contact: '', phone: '', email: '' });
+    } catch (error) {
+      console.error('Error creating vendor:', error);
     }
   };
 
@@ -436,7 +458,7 @@ const ProcurementPage = () => {
   };
 
   const filteredPOs = useMemo(() =>
-    pos.filter(po => po && 
+    pos.filter(po => po &&
       (poStatus === 'All' || po?.status === poStatus) &&
       po?.vendorName?.toLowerCase().includes(poSearch.toLowerCase())
     ), [poSearch, poStatus, pos]);
@@ -833,7 +855,7 @@ const ProcurementPage = () => {
               <TabsTrigger value="timeline">Timeline ({pos.filter(p => p && (p?.vendorId?._id === selectedVendor?._id || p?.vendorName === selectedVendor?.name)).length})</TabsTrigger>
               <TabsTrigger value="activity">Activity Log</TabsTrigger>
             </TabsList>
-            
+
             <TabsContent value="details">
               <div className="grid grid-cols-2 gap-3 text-xs mt-3">
                 {[
@@ -857,7 +879,7 @@ const ProcurementPage = () => {
                 </div>
               </div>
             </TabsContent>
-            
+
             <TabsContent value="timeline">
               <div className="space-y-2 mt-3">
                 {pos.filter(p => p && (p?.vendorId?._id === selectedVendor?._id || p?.vendorName === selectedVendor?.name))
@@ -877,7 +899,7 @@ const ProcurementPage = () => {
                 )}
               </div>
             </TabsContent>
-            
+
             <TabsContent value="activity">
               <div className="space-y-2 mt-3">
                 <div className="glass-card p-3">
