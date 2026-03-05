@@ -1022,7 +1022,7 @@ const CRMPage = () => {
       }
     }
     
-    // Advanced filters
+    // Advanced filters - only apply filters not sent to backend
     if (activeFilters.length > 0) {
       result = result.filter(lead => {
         return activeFilters.every(filter => {
@@ -1050,39 +1050,11 @@ const CRMPage = () => {
       });
     }
     
-    // Search filter - Universal search on all fields
-    if (search) {
-      const searchLower = search.toLowerCase();
-      result = result.filter(lead => {
-        // Get stage display label
-        const stageKey = lead.statusKey || lead.stage || 'new';
-        const stageLabel = statusMap?.[stageKey]?.label || stageKey;
-        
-        // Format value for search (e.g., 10.1L)
-        const formattedValue = fmt(lead.value || 0);
-        
-        // Convert all fields to string and check if any contains the search term
-        const fields = [
-          lead.name,
-          lead.email,
-          lead.company,
-          lead.phone,
-          lead.source,
-          lead.city,
-          stageKey,
-          stageLabel,
-          String(lead.score || ''),
-          String(lead.value || ''),
-          formattedValue
-        ];
-        return fields.some(field => 
-          field && String(field).toLowerCase().includes(searchLower)
-        );
-      });
-    }
+    // Note: Search is handled by backend API - no client-side search filtering needed
+    // This prevents double-filtering issues
     
     return result;
-  }, [enhancedLeads, quickFilter, activeFilters, search]);
+  }, [enhancedLeads, quickFilter, activeFilters]);
 
   // Sort handler for DataTable
   const handleSort = useCallback(({ key, dir }) => {
