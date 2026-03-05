@@ -43,6 +43,7 @@
     "leaflet-draw": "^1.0.4",
     "leva": "^0.10.1",
     "lucide-react": "^0.575.0",
+    "papaparse": "^5.5.3",
     "react": "^19.2.4",
     "react-apexcharts": "^2.0.1",
     "react-chartjs-2": "^5.3.1",

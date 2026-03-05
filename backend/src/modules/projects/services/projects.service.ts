@@ -17,6 +17,11 @@ export class ProjectsService {
   ) {}
 
   private async getTenantId(tenantCode: string): Promise<Types.ObjectId> {
+    // If it looks like an ObjectId (24 hex chars), use it directly
+    if (/^[0-9a-fA-F]{24}$/.test(tenantCode)) {
+      return new Types.ObjectId(tenantCode);
+    }
+    // Otherwise, look up by code
     const tenant = await this.tenantModel.findOne({ code: tenantCode });
     if (!tenant) {
       throw new NotFoundException(`Tenant ${tenantCode} not found`);

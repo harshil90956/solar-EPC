@@ -7,6 +7,7 @@ import {
   Body,
   Param,
   Query,
+  Headers,
 } from '@nestjs/common';
 import { ProjectsService } from '../services/projects.service';
 import { CreateProjectDto, UpdateProjectDto, UpdateProjectStatusDto } from '../dto/project.dto';
@@ -17,59 +18,81 @@ export class ProjectsController {
 
   @Get()
   async findAll(
-    @Query('tenantId') tenantId: string,
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
     @Query('status') status?: string,
     @Query('search') search?: string,
   ) {
+    const tenantId = headerTenantId || queryTenantId;
     return this.projectsService.findAll(tenantId, status, search);
   }
 
   @Get('stats')
-  async getStats(@Query('tenantId') tenantId: string) {
+  async getStats(
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
+  ) {
+    const tenantId = headerTenantId || queryTenantId;
     return this.projectsService.getStats(tenantId);
   }
 
   @Get('by-stage')
-  async getProjectsByStage(@Query('tenantId') tenantId: string) {
+  async getProjectsByStage(
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
+  ) {
+    const tenantId = headerTenantId || queryTenantId;
     return this.projectsService.getProjectsByStage(tenantId);
   }
 
   @Get('project-managers')
-  async getProjectManagers(@Query('tenantId') tenantId: string) {
+  async getProjectManagers(
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
+  ) {
+    const tenantId = headerTenantId || queryTenantId;
     return this.projectsService.getProjectManagers(tenantId);
   }
 
   @Get(':projectId')
   async findOne(
-    @Query('tenantId') tenantId: string,
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
     @Param('projectId') projectId: string,
   ) {
+    const tenantId = headerTenantId || queryTenantId;
     return this.projectsService.findOne(tenantId, projectId);
   }
 
   @Post()
   async create(
-    @Query('tenantId') tenantId: string,
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
     @Body() createProjectDto: CreateProjectDto,
   ) {
+    const tenantId = headerTenantId || queryTenantId;
     return this.projectsService.create(tenantId, createProjectDto);
   }
 
   @Patch(':projectId')
   async update(
-    @Query('tenantId') tenantId: string,
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
     @Param('projectId') projectId: string,
     @Body() updateProjectDto: UpdateProjectDto,
   ) {
+    const tenantId = headerTenantId || queryTenantId;
     return this.projectsService.update(tenantId, projectId, updateProjectDto);
   }
 
   @Patch(':projectId/status')
   async updateStatus(
-    @Query('tenantId') tenantId: string,
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
     @Param('projectId') projectId: string,
     @Body() updateStatusDto: UpdateProjectStatusDto,
   ) {
+    const tenantId = headerTenantId || queryTenantId;
     return this.projectsService.updateStatus(
       tenantId, 
       projectId, 
@@ -80,9 +103,11 @@ export class ProjectsController {
 
   @Delete(':projectId')
   async remove(
-    @Query('tenantId') tenantId: string,
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
     @Param('projectId') projectId: string,
   ) {
+    const tenantId = headerTenantId || queryTenantId;
     return this.projectsService.remove(tenantId, projectId);
   }
 }
