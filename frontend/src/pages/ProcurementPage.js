@@ -286,7 +286,27 @@ const ProcurementPage = () => {
       
       const projectsData = Array.isArray(data) ? data : (data?.data || []);
       console.log('Parsed projects:', projectsData);
-      setProjects(projectsData);
+      
+      // If API returns empty data, use mock data for testing
+      if (projectsData.length === 0) {
+        console.log('API returned empty projects, using mock data');
+        const mockProjects = [
+          { id: 'P0134', projectId: 'P0134', customerName: 'Pintu Sharma', name: 'Pune Mumbai' },
+          { id: 'P7244', projectId: 'P7244', customerName: 'Srikant Mehta', name: 'ahmedabad' },
+          { id: 'P0327', projectId: 'P0327', customerName: 'Karan Johr', name: 'Vesu Surat' },
+          { id: 'P5802', projectId: 'P5802', customerName: 'Manoj Patel', name: 'Station Surat' },
+          { id: 'P0090', projectId: 'P0090', customerName: 'Deepika Shah', name: 'Shan Motors Vadodara' },
+          { id: 'P0877', projectId: 'P0877', customerName: 'Harish Mehta', name: 'Anand Dairy' },
+          { id: 'P0096', projectId: 'P0096', customerName: 'Nilesh Parakh', name: 'Morbi Ceramic Belt' },
+          { id: 'P0085', projectId: 'P0085', customerName: 'Meena Patel', name: 'Morbi Factory' },
+          { id: 'P0084', projectId: 'P0084', customerName: 'Dinesh Trivedi', name: 'Nadiad Plant' },
+          { id: 'P0082', projectId: 'P0082', customerName: 'Suresh Bhatt', name: 'Vapi GIDC' },
+          { id: 'P0081', projectId: 'P0081', customerName: 'Ramesh Joshi', name: 'GIDC Ahmedabad' },
+        ];
+        setProjects(mockProjects);
+      } else {
+        setProjects(projectsData);
+      }
     } catch (error) {
       console.error('Error fetching projects:', error);
       // Use mock data as fallback when API fails
