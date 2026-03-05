@@ -366,20 +366,14 @@ export class LeadsService {
       updateData.$push = { activities: activity };
     }
 
-    // Always update lastContact
-    updateData.lastContact = new Date();
-
-    // Recalculate score if not manually provided
+    Object.assign(existingLead, updateLeadDto);
+    existingLead.lastContact = new Date();
+    // Only recalculate score if not manually provided
     if (updateLeadDto.score === undefined) {
-      // Calculate new score based on updated data merged with existing
-      const mergedData = { ...existingLead, ...updateData };
-      updateData.score = this.calculateScore(mergedData);
+      existingLead.score = this.calculateScore(existingLead);
     }
-    
-    // Recalculate SLA and automation
-    const mergedData = { ...existingLead, ...updateData };
-    updateData.slaBreached = this.checkSlaBreached(mergedData);
-    updateData.activeAutomation = this.applyAutomation(mergedData);
+    existingLead.slaBreached = this.checkSlaBreached(existingLead);
+    existingLead.activeAutomation = this.applyAutomation(existingLead);
 
     // Use atomic update
     const updatedLead = await this.leadModel.findOneAndUpdate(

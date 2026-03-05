@@ -217,7 +217,7 @@ const DataTable = ({
                     {toolbar}
 
                     {/* Column visibility toggle */}
-                    {!hideColumnToggle && !mobileView && (
+                    {!hideColumnToggle && (
                         <div className="relative">
                             <Button size="sm" variant="secondary" onClick={() => setColToggleOpen(p => !p)}>
                                 <Eye size={12} /> Columns
@@ -365,62 +365,42 @@ const DataTable = ({
                                         <th className="w-10 px-2 py-2.5 sticky right-0 z-10 bg-[var(--bg-raised)] border-l border-[var(--border-base)]" />
                                     )}
                                 </tr>
-                            </thead>
-                            <tbody>
-                                {loading ? (
-                                    Array.from({ length: 5 }).map((_, i) => (
-                                        <tr key={i} className="border-b border-[var(--border-base)]">
-                                            {visibleColumns.map(col => (
-                                                <td key={`${i}-${col.key}`} className="px-4 py-3.5">
-                                                    <div className="h-3 rounded animate-shimmer" style={{ width: `${40 + Math.random() * 40}%` }} />
-                                                </td>
-                                            ))}
-                                        </tr>
-                                    ))
-                                ) : data.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={visibleColumns.length + (bulkActions.length ? 1 : 0) + (allRowActions.length ? 1 : 0)}
-                                            className="text-center py-16 text-[var(--text-faint)] text-sm">
-                                            {emptyText}
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    data.map((row, index) => (
-                                        <tr key={row[rowKey] || index} className="table-row border-b border-[var(--border-base)] last:border-0 group" onClick={() => onRowClick?.(row)}>
-                                            {bulkActions.length > 0 && (
-                                                <td className="px-3 py-3.5 sticky left-0 z-10 bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] transition-colors">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={selectedRows.has(row[rowKey])}
-                                                        onChange={() => toggleRow(row[rowKey])}
-                                                        className="w-3.5 h-3.5 accent-[var(--primary)] cursor-pointer"
-                                                    />
-                                                </td>
-                                            )}
-                                            {visibleColumns.map(col => (
-                                                <td key={col.key} className="px-3 py-2 text-[12px] text-[var(--text-primary)]">
-                                                    {col.render ? col.render(row[col.key], row) : row[col.key] ?? '—'}
-                                                </td>
-                                            ))}
-                                            {allRowActions.length > 0 && (
-                                                <td 
-                                                    className="px-2 py-2 sticky right-0 z-10 bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] transition-colors border-l border-[var(--border-base)]"
-                                                    onClick={e => e.stopPropagation()}
+                            ) : (
+                                data.map((row, index) => (
+                                    <tr key={row[rowKey] || index} className="table-row border-b border-[var(--border-base)] last:border-0 group">
+                                        {bulkActions.length > 0 && (
+                                            <td className="px-3 py-3.5 sticky left-0 z-10 bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] transition-colors">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedRows.has(row[rowKey])}
+                                                    onChange={() => toggleRow(row[rowKey])}
+                                                    className="w-3.5 h-3.5 accent-[var(--primary)] cursor-pointer"
+                                                />
+                                            </td>
+                                        )}
+                                        {visibleColumns.map(col => (
+                                            <td key={col.key} className="px-3 py-2 text-[12px] text-[var(--text-primary)]">
+                                                {col.render ? col.render(row[col.key], row) : row[col.key] ?? '—'}
+                                            </td>
+                                        ))}
+                                        {allRowActions.length > 0 && (
+                                            <td 
+                                                className="px-2 py-2 sticky right-0 z-10 bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] transition-colors border-l border-[var(--border-base)]"
+                                                onClick={e => e.stopPropagation()}
+                                            >
+                                                <button
+                                                    ref={el => buttonRefs.current[index] = el}
+                                                    onClick={e => handleMenuOpen(e, index)}
+                                                    className="w-6 h-6 rounded flex items-center justify-center text-[var(--text-faint)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
                                                 >
-                                                    <button
-                                                        ref={el => buttonRefs.current[index] = el}
-                                                        onClick={e => handleMenuOpen(e, index)}
-                                                        className="w-6 h-6 rounded flex items-center justify-center text-[var(--text-faint)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
-                                                    >
-                                                        <MoreHorizontal size={14} />
-                                                    </button>
-                                                </td>
-                                            )}
-                                        </tr>
-                                    )))}
-                            </tbody>
-                        </table>
-                    </div>
+                                                    <MoreHorizontal size={14} />
+                                                </button>
+                                            </td>
+                                        )}
+                                    </tr>
+                                )))}
+                        </tbody>
+                    </table>
                 </div>
             )}
 

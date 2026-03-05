@@ -29,13 +29,22 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         ? rawResponse
         : (rawResponse as { message?: unknown }).message ?? 'Internal server error';
 
+    // Log full error for debugging
+    console.error('Error:', {
+      path: request.url,
+      status,
+      message,
+      exception: exception instanceof Error ? exception.message : exception,
+      stack: exception instanceof Error ? exception.stack : undefined,
+    });
+
     reply.status(status).send({
       success: false,
       path: request.url,
       timestamp: new Date().toISOString(),
       error: {
         statusCode: status,
-        message,
+        message: exception instanceof Error ? exception.message : message,
       },
     });
   }

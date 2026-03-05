@@ -1239,15 +1239,15 @@ const CRMPage = () => {
       
       // Show result
       if (errorCount === 0) {
-        // Alert removed as per user request - no alerts on lead pages
+        alert(`Successfully imported ${successCount} leads!`);
       } else {
-        // Alert removed as per user request - no alerts on lead pages
+        alert(`Import completed: ${successCount} leads created, ${errorCount} errors.\n\nFirst 5 errors:\n${errors.slice(0, 5).join('\n')}`);
       }
       
       fetchLeads(); // Refresh list
     } catch (err) {
       console.error('Import failed:', err);
-      // Alert removed as per user request - no alerts on lead pages
+      alert('Import failed: ' + err.message);
     } finally {
       setActionLoading(false);
     }
@@ -1920,8 +1920,7 @@ const CRMPage = () => {
               { label: 'Edit', icon: Edit2, onClick: handleEditLead },
               { label: 'Score', icon: Brain, onClick: handleRecalculateScore },
               { label: 'Delete', icon: Trash2, onClick: handleDeleteLead, danger: true },
-              { label: 'Activity Log', icon: Clock, onClick: handleViewActivity },
-              { label: 'Tracker', icon: GitCommit, onClick: (lead) => { setTrackerLeadId(lead._id); setShowTrackerDrawer(true); } },
+              { label: 'Activity Log', icon: Clock, onClick: handleViewTimeline },
             ]}
           />
         </div>
@@ -2382,45 +2381,58 @@ const CRMPage = () => {
         </Modal>
       )}
 
-      {/* LEAD TRACKER DRAWER */}
-      {showTrackerDrawer && trackerLeadId && (
-        <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 bg-black/50 z-40 transition-opacity"
-            onClick={() => { setShowTrackerDrawer(false); setTrackerLeadId(null); }}
-          />
-          {/* Sidebar Drawer */}
-          <div className="fixed right-0 top-[36.5px] bottom-0 w-[400px] bg-white border-l border-[var(--border-base)] z-50 shadow-2xl flex flex-col">
-            {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-[var(--border-base)]">
-              <h3 className="text-lg font-bold text-[var(--text-primary)]">Lead Progress</h3>
-              <button
-                onClick={() => { setShowTrackerDrawer(false); setTrackerLeadId(null); }}
-                className="p-2 hover:bg-[var(--bg-elevated)] rounded-lg transition-colors"
-              >
-                <X size={20} className="text-[var(--text-muted)]" />
-              </button>
+      {/* SCORE EDIT MODAL */}
+      {showScoreEditModal && scoreEditingLead && (
+        <Modal
+          open={showScoreEditModal}
+          onClose={() => { setShowScoreEditModal(false); setScoreEditingLead(null); }}
+          title={`Edit Score — ${scoreEditingLead.name}`}
+          footer={
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" onClick={() => { setShowScoreEditModal(false); setScoreEditingLead(null); }}>Cancel</Button>
+              <Button onClick={handleSaveScore} disabled={actionLoading}>
+                {actionLoading ? 'Saving...' : 'Update Score'}
+              </Button>
             </div>
-
-            {/* Tracker Content */}
-            <div className="flex-1 overflow-y-auto p-4">
-              <LeadTracker 
-                leadId={trackerLeadId}
-                statusOptions={statusOptions}
-                currentStage={activeLeads.find(l => l._id === trackerLeadId)?.statusKey}
-                onStageChange={fetchLeads}
+          }
+        >
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-4 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)]">
+              <div className="w-12 h-12 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center font-bold text-lg">
+                {scoreEditingLead.name[0]}
+              </div>
+              <div>
+                <p className="font-semibold text-[var(--text-primary)]">{scoreEditingLead.name}</p>
+                <p className="text-xs text-[var(--text-muted)]">{scoreEditingLead.company || 'Individual'}</p>
+              </div>
+            </div>
+            <FormField label="Score (0-100)">
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                value={newScore}
+                onChange={(e) => setNewScore(e.target.value)}
+                placeholder="Enter score between 0 and 100"
               />
+            </FormField>
+            <div className="flex gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setNewScore('0')}>0</Button>
+              <Button variant="secondary" size="sm" onClick={() => setNewScore('25')}>25</Button>
+              <Button variant="secondary" size="sm" onClick={() => setNewScore('50')}>50</Button>
+              <Button variant="secondary" size="sm" onClick={() => setNewScore('75')}>75</Button>
+              <Button variant="secondary" size="sm" onClick={() => setNewScore('100')}>100</Button>
             </div>
           </div>
-        </>
+        </Modal>
       )}
 
-      
+
 
     </div >
   );
 };
+
 
 
 export default CRMPage;

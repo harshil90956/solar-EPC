@@ -18,7 +18,7 @@ import DataTable from '../components/ui/DataTable';
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
 import { usePermissions } from '../hooks/usePermissions';
 import { useAuditLog } from '../hooks/useAuditLog';
-import CanAccess, { CanCreate, CanEdit, CanDelete } from '../components/CanAccess';
+import CanAccess, { CanCreate } from '../components/CanAccess';
 import { toast } from '../components/ui/Toast';
 
 const fmt = CURRENCY.format;
@@ -140,28 +140,12 @@ const KanbanBoard = ({ projects, onStageChange, onCardClick }) => {
 /* ── Main Page ── */
 const ProjectPage = () => {
   const { can } = usePermissions();
-  const { logCreate, logUpdate, logDelete, logStatusChange } = useAuditLog('project');
+  const { logStatusChange } = useAuditLog('project');
 
-  // Permission guard helpers
+  // Permission guard helper
   const guardCreate = () => {
     if (!can('project', 'create')) {
       toast.error('Permission denied: Cannot create projects');
-      return false;
-    }
-    return true;
-  };
-
-  const guardEdit = () => {
-    if (!can('project', 'edit')) {
-      toast.error('Permission denied: Cannot edit projects');
-      return false;
-    }
-    return true;
-  };
-
-  const guardDelete = () => {
-    if (!can('project', 'delete')) {
-      toast.error('Permission denied: Cannot delete projects');
       return false;
     }
     return true;
@@ -196,8 +180,6 @@ const ProjectPage = () => {
   const [usersLoading, setUsersLoading] = useState(false);
   const [hiddenCols, setHiddenCols] = useState(new Set());
   const [colToggleOpen, setColToggleOpen] = useState(false);
-  const [projectReservations, setProjectReservations] = useState([]);
-  const [loadingProjectReservations, setLoadingProjectReservations] = useState(false);
 
   // Fetch projects from backend
   useEffect(() => {
@@ -267,34 +249,6 @@ const ProjectPage = () => {
     };
     fetchItems();
   }, []);
-
-  // Fetch reservations when project is selected
-  useEffect(() => {
-    if (selected?.id) {
-      fetchProjectReservations(selected.id);
-    } else {
-      setProjectReservations([]);
-    }
-  }, [selected?.id]);
-
-  const fetchProjectReservations = async (projectId) => {
-    setLoadingProjectReservations(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/inventory/reservations/by-project/${projectId}?tenantId=${TENANT_ID}`);
-      if (response.ok) {
-        const data = await response.json();
-        setProjectReservations(data.data || data || []);
-      } else {
-        console.error('Reservation API error:', response.status);
-        setProjectReservations([]);
-      }
-    } catch (err) {
-      console.error('Error fetching project reservations:', err);
-      setProjectReservations([]);
-    } finally {
-      setLoadingProjectReservations(false);
-    }
-  };
 
   const handleStageChange = async (id, newStage) => {
     // Get current user role from localStorage
@@ -645,7 +599,7 @@ const ProjectPage = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <KPICard label="Total Projects" value={projects.length} sub="All projects" icon={Layers} accentColor="#6366f1" />
         <KPICard label="Active Projects" value={active} sub="Currently executing" icon={FolderOpen} accentColor="#3b82f6" />
         <KPICard label="Total Capacity" value={`${totalKW} kW`} sub="Pipeline capacity" icon={Zap} accentColor="#f59e0b" />
@@ -766,9 +720,9 @@ const ProjectPage = () => {
             <Plus size={13} /> Create Project
           </Button>
         </div>}>
-        <div className="space-y-3 max-h-[60vh] sm:max-h-[70vh] overflow-y-auto">
+        <div className="space-y-3 max-h-[70vh] overflow-y-auto">
           <FormField label="Customer Name"><Input placeholder="Customer name" value={form.customerName} onChange={e => setForm(f => ({ ...f, customerName: e.target.value }))} /></FormField>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <FormField label="Email"><Input type="email" placeholder="customer@email.com" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} /></FormField>
             <FormField label="Mobile Number"><Input type="tel" placeholder="+91 98765 43210" value={form.mobileNumber} onChange={e => setForm(f => ({ ...f, mobileNumber: e.target.value }))} /></FormField>
           </div>
@@ -801,7 +755,7 @@ const ProjectPage = () => {
                     <Trash2 size={12} />
                   </Button>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <FormField label="Item">
                     <Select value={material.itemId} onChange={e => updateMaterial(index, 'itemId', e.target.value)}>
                       <option value="">{itemsLoading ? 'Loading...' : 'Select Item'}</option>
@@ -816,7 +770,7 @@ const ProjectPage = () => {
                     <Input type="number" placeholder="50" value={material.quantity} onChange={e => updateMaterial(index, 'quantity', e.target.value)} />
                   </FormField>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <FormField label="Issue Date"><Input type="date" value={material.issuedDate} onChange={e => updateMaterial(index, 'issuedDate', e.target.value)} /></FormField>
                   <FormField label="Remarks"><Input placeholder="Notes..." value={material.remarks} onChange={e => updateMaterial(index, 'remarks', e.target.value)} /></FormField>
                 </div>
@@ -993,6 +947,26 @@ const ProjectPage = () => {
                     })}
                   </div>
                 )}
+              </div>
+            )}
+            {selected.materials && selected.materials.length > 0 && (
+              <div>
+                <div className="text-xs font-semibold text-[var(--text-primary)] mb-3">Reserved Materials</div>
+                <div className="space-y-2">
+                  {selected.materials.map((m, idx) => (
+                    <div key={idx} className="glass-card p-2 flex items-center justify-between">
+                      <div>
+                        <div className="text-xs font-medium text-[var(--text-primary)]">{m.itemName}</div>
+                        <div className="text-[10px] text-[var(--text-muted)]">Qty: {m.quantity} | Issued: {m.issuedDate || '—'}</div>
+                      </div>
+                      {m.remarks && (
+                        <div className="text-[10px] text-[var(--text-faint)] max-w-[150px] truncate" title={m.remarks}>
+                          {m.remarks}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>

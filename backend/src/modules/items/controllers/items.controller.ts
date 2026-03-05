@@ -76,8 +76,7 @@ export class ItemsController {
     @Body('projectId') projectId?: string,
     @Body('issuedDate') issuedDate?: string,
     @Body('remarks') remarks?: string,
-    @Body('projectName') projectName?: string,
   ) {
-    return this.itemsService.stockOut(tenantId, id, quantity, projectId, issuedDate, remarks, projectName);
+    return this.itemsService.stockOut(tenantId, id, quantity, projectId, issuedDate, remarks);
   }
 }

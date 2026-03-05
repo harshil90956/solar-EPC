@@ -109,7 +109,7 @@ export class ItemsService {
     return { data: item, message: `Stock in successful. Added ${quantity} units.` };
   }
 
-  async stockOut(tenantId: string, id: string, quantity: number, projectId?: string, issuedDate?: string, remarks?: string, projectName?: string) {
+  async stockOut(tenantId: string, id: string, quantity: number, projectId?: string, issuedDate?: string, remarks?: string) {
     const item = await this.itemModel.findOne({
       tenantId,
       _id: new Types.ObjectId(id),
@@ -131,30 +131,6 @@ export class ItemsService {
       },
       { new: true },
     ).exec();
-
-    // Create reservation record if projectId is provided
-    if (projectId && updated) {
-      try {
-        const realTenantId = await this.getTenantId(tenantId);
-        const reservationId = `RES${Date.now().toString(36).toUpperCase()}`;
-        const reservation = new this.reservationModel({
-          reservationId,
-          itemId: item.itemId || id,
-          projectId,
-          projectName: projectName || '',
-          quantity,
-          status: 'active',
-          reservedDate: issuedDate || new Date().toISOString().split('T')[0],
-          notes: remarks || `Stock issued for project ${projectId}`,
-          tenantId: realTenantId,
-          isDeleted: false,
-        });
-        await reservation.save();
-      } catch (err) {
-        console.error('Error creating reservation record:', err);
-        // Don't fail the stock-out if reservation creation fails
-      }
-    }
 
     return { data: updated, message: `Stock out successful. Issued ${quantity} units to project ${projectId || 'N/A'}.` };
   }
