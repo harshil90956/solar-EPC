@@ -196,6 +196,8 @@ const ProjectPage = () => {
   const [usersLoading, setUsersLoading] = useState(false);
   const [hiddenCols, setHiddenCols] = useState(new Set());
   const [colToggleOpen, setColToggleOpen] = useState(false);
+  const [projectReservations, setProjectReservations] = useState([]);
+  const [loadingProjectReservations, setLoadingProjectReservations] = useState(false);
 
   // Fetch projects from backend
   useEffect(() => {
@@ -265,6 +267,34 @@ const ProjectPage = () => {
     };
     fetchItems();
   }, []);
+
+  // Fetch reservations when project is selected
+  useEffect(() => {
+    if (selected?.id) {
+      fetchProjectReservations(selected.id);
+    } else {
+      setProjectReservations([]);
+    }
+  }, [selected?.id]);
+
+  const fetchProjectReservations = async (projectId) => {
+    setLoadingProjectReservations(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/inventory/reservations/by-project/${projectId}?tenantId=${TENANT_ID}`);
+      if (response.ok) {
+        const data = await response.json();
+        setProjectReservations(data.data || data || []);
+      } else {
+        console.error('Reservation API error:', response.status);
+        setProjectReservations([]);
+      }
+    } catch (err) {
+      console.error('Error fetching project reservations:', err);
+      setProjectReservations([]);
+    } finally {
+      setLoadingProjectReservations(false);
+    }
+  };
 
   const handleStageChange = async (id, newStage) => {
     // Get current user role from localStorage
@@ -908,30 +938,61 @@ const ProjectPage = () => {
               </div>
               <Progress value={selected.progress} className="h-2" />
             </div>
-            {STEPPER_STEPS.length > 0 && (
-              <div>
-                <div className="text-xs font-semibold text-[var(--text-primary)] mb-3">Milestone Tracker</div>
-                <Stepper steps={STEPPER_STEPS} />
-              </div>
-            )}
-            {selected.materials && selected.materials.length > 0 && (
+            {/* Milestone Tracker - Always show with defaults if none exist */}
+            <div>
+              <div className="text-xs font-semibold text-[var(--text-primary)] mb-3">Milestone Tracker</div>
+              <Stepper steps={STEPPER_STEPS.length > 0 ? STEPPER_STEPS : [
+                { name: 'Material Ready', status: 'Pending', date: null },
+                { name: 'Installation', status: 'Pending', date: null },
+                { name: 'Commission', status: 'Pending', date: null },
+                { name: 'Billing', status: 'Pending', date: null },
+                { name: 'Closure', status: 'Pending', date: null }
+              ]} />
+            </div>
+            {(selected.materials?.length > 0 || projectReservations.length > 0) && (
               <div>
                 <div className="text-xs font-semibold text-[var(--text-primary)] mb-3">Reserved Materials</div>
-                <div className="space-y-2">
-                  {selected.materials.map((m, idx) => (
-                    <div key={idx} className="glass-card p-2 flex items-center justify-between">
-                      <div>
-                        <div className="text-xs font-medium text-[var(--text-primary)]">{m.itemName}</div>
-                        <div className="text-[10px] text-[var(--text-muted)]">Qty: {m.quantity} | Issued: {m.issuedDate || '—'}</div>
-                      </div>
-                      {m.remarks && (
-                        <div className="text-[10px] text-[var(--text-faint)] max-w-[150px] truncate" title={m.remarks}>
-                          {m.remarks}
+                {loadingProjectReservations ? (
+                  <p className="text-xs text-[var(--text-muted)]">Loading reservations...</p>
+                ) : (
+                  <div className="space-y-2">
+                    {/* Project materials from project schema */}
+                    {selected.materials?.map((m, idx) => (
+                      <div key={`mat-${idx}`} className="glass-card p-2 flex items-center justify-between">
+                        <div>
+                          <div className="text-xs font-medium text-[var(--text-primary)]">{m.itemName}</div>
+                          <div className="text-[10px] text-[var(--text-muted)]">Qty: {m.quantity} | Issued: {m.issuedDate || '—'}</div>
                         </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                        {m.remarks && (
+                          <div className="text-[10px] text-[var(--text-faint)] max-w-[150px] truncate" title={m.remarks}>
+                            {m.remarks}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {/* Reservations from inventory-reservation collection */}
+                    {projectReservations.map((res, idx) => {
+                      const item = items.find(i => i.itemId === res.itemId || i._id === res.itemId);
+                      const itemName = item?.description || item?.name || res.itemId;
+                      return (
+                        <div key={`res-${idx}`} className="glass-card p-2 flex items-center justify-between border-l-2 border-amber-400">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-400/20 text-amber-400">{res.status}</span>
+                              <span className="text-xs font-medium text-[var(--text-primary)]">{itemName}</span>
+                            </div>
+                            <div className="text-[10px] text-[var(--text-muted)]">Qty: {res.quantity} | Reserved: {res.reservedDate || '—'}</div>
+                          </div>
+                          {res.notes && (
+                            <div className="text-[10px] text-[var(--text-faint)] max-w-[150px] truncate" title={res.notes}>
+                              {res.notes}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>

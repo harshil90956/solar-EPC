@@ -480,6 +480,10 @@ const InventoryPage = () => {
   const handleStockOut = async () => {
     if (!stockOutForm.itemId || !stockOutForm.quantity) return;
     
+    // Find project name from projects array
+    const selectedProject = projects.find(p => (p.projectId || p.pid || p._id) === stockOutForm.projectId);
+    const projectName = selectedProject?.name || selectedProject?.customerName || selectedProject?.customer || '';
+    
     setSubmitting(true);
     try {
       const response = await fetch(`${API_BASE_URL}/items/${stockOutForm.itemId}/stock-out?tenantId=${TENANT_ID}`, {
@@ -488,6 +492,7 @@ const InventoryPage = () => {
         body: JSON.stringify({
           quantity: parseInt(stockOutForm.quantity),
           projectId: stockOutForm.projectId,
+          projectName: projectName,
           issuedDate: stockOutForm.issuedDate,
           remarks: stockOutForm.remarks,
         }),
@@ -501,32 +506,10 @@ const InventoryPage = () => {
       const updatedItem = await response.json();
       const itemData = updatedItem.data || updatedItem;
       
-      // Create reservation record for the project
-      if (stockOutForm.projectId) {
-        try {
-          // Find the item to get its itemId (not _id)
-          const item = inventory.find(i => i._id === stockOutForm.itemId);
-          await fetch(`${API_BASE_URL}/inventory/reservations?tenantId=${TENANT_ID}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              reservationId: `RES-${Date.now()}`,
-              itemId: item?.itemId || stockOutForm.itemId,
-              projectId: stockOutForm.projectId,
-              quantity: parseInt(stockOutForm.quantity),
-              notes: stockOutForm.remarks || `Stock issued on ${stockOutForm.issuedDate || new Date().toISOString().split('T')[0]}`,
-            }),
-          });
-        } catch (resErr) {
-          console.error('Error creating reservation record:', resErr);
-          // Don't fail the whole operation if reservation creation fails
-        }
-      }
-      
       setInventory(prev => prev.map(i => i._id === stockOutForm.itemId ? itemData : i));
       setShowStockOut(false);
       setStockOutForm({ itemId: '', quantity: '', projectId: '', issuedDate: '', remarks: '' });
-      alert('Stock issued successfully! Project reservation recorded.');
+      alert('Stock issued successfully!');
     } catch (err) {
       console.error('Error issuing stock:', err);
       alert(err.message || 'Failed to issue stock. Please try again.');
@@ -810,7 +793,20 @@ const InventoryPage = () => {
           </FormField>
           <div className="grid grid-cols-2 gap-3">
             <FormField label="Quantity to Issue"><Input type="number" placeholder="50" value={stockOutForm.quantity} onChange={e => setStockOutForm(f => ({ ...f, quantity: e.target.value }))} /></FormField>
-            <FormField label="Project ID"><Input placeholder="P001" value={stockOutForm.projectId} onChange={e => setStockOutForm(f => ({ ...f, projectId: e.target.value }))} /></FormField>
+            <FormField label="Project">
+              <Select value={stockOutForm.projectId} onChange={e => setStockOutForm(f => ({ ...f, projectId: e.target.value }))}>
+                <option value="">Select Project</option>
+                {projects.map(p => {
+                  const pid = p.projectId || p.pid || p._id;
+                  const pname = p.name || p.customerName || p.customer || '';
+                  return (
+                    <option key={pid} value={pid}>
+                      {pid}{pname ? ` — ${pname}` : ''}
+                    </option>
+                  );
+                })}
+              </Select>
+            </FormField>
           </div>
           <FormField label="Issue Date"><Input type="date" value={stockOutForm.issuedDate} onChange={e => setStockOutForm(f => ({ ...f, issuedDate: e.target.value }))} /></FormField>
           <FormField label="Remarks"><Input placeholder="Any notes about the issue…" value={stockOutForm.remarks} onChange={e => setStockOutForm(f => ({ ...f, remarks: e.target.value }))} /></FormField>
@@ -848,7 +844,8 @@ const InventoryPage = () => {
             ) : (
               <div className="space-y-1">
                 {itemReservations.map(res => {
-                  const project = projects.find(p => p.projectId === res.projectId || p._id === res.projectId);
+                  const project = projects.find(p => p.projectId === res.projectId || p._id === res.projectId || p.id === res.projectId);
+                  const projectName = project?.customerName || project?.name || res.projectName || 'Unknown';
                   return (
                     <div key={res.reservationId} className="flex items-center justify-between glass-card p-2">
                       <div className="flex items-center gap-2">
@@ -856,7 +853,7 @@ const InventoryPage = () => {
                           {res.status}
                         </span>
                         <span className="text-xs font-medium text-[var(--text-primary)]">
-                          {project ? `${project.name} (${res.projectId})` : `Project: ${res.projectId}`}
+                          {projectName} ({res.projectId})
                         </span>
                       </div>
                       <span className="text-xs font-bold text-amber-400">

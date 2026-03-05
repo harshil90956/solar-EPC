@@ -15,6 +15,9 @@ export class InventoryReservation extends Document {
   @Prop({ required: true })
   projectId!: string;
 
+  @Prop({ required: false })
+  projectName?: string;
+
   @Prop({ required: true, min: 1 })
   quantity!: number;
 
