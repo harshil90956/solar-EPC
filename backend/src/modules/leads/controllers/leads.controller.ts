@@ -186,6 +186,32 @@ export class LeadsController {
     }
   }
 
+  @Get(':id/tracker')
+  @HttpCode(HttpStatus.OK)
+  async getTracker(@Param('id') id: string, @Request() req: any) {
+    try {
+      const tenantId = req.tenant?.id;
+      const result = await this.leadsService.getTracker(id, tenantId);
+      return { success: true, data: result };
+    } catch (error: any) {
+      this.logger.error(`Get tracker for lead ${id} failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
+  @Patch(':id/stage')
+  @HttpCode(HttpStatus.OK)
+  async updateStage(@Param('id') id: string, @Body('stage') stage: string, @Request() req: any) {
+    try {
+      const tenantId = req.tenant?.id;
+      const result = await this.leadsService.updateStage(id, stage, tenantId);
+      return { success: true, data: result };
+    } catch (error: any) {
+      this.logger.error(`Update stage for lead ${id} failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
   // Bulk actions
   @Post('bulk/archive')
   @HttpCode(HttpStatus.OK)
