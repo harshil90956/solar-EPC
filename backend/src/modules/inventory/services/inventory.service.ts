@@ -65,14 +65,12 @@ export class InventoryService {
     const minStock = createDto.minStock || 0;
     
     let status: string;
-    if (stock === 0) {
-      status = 'Out of Stock';
-    } else if (available === 0) {
+    if (available === 0) {
       status = 'Out of Stock';
     } else if (available <= minStock) {
       status = 'Low Stock';
     } else if (createDto.reserved && createDto.reserved > 0) {
-      status = 'Partially Reserved';
+      status = 'Reserved';
     } else {
       status = 'In Stock';
     }
@@ -155,11 +153,22 @@ export class InventoryService {
   }
 
   async getReservationsByItem(tenantCode: string, itemId: string) {
-    const tenantId = await this.getTenantId(tenantCode);
-    return this.reservationModel
-      .find({ tenantId, itemId, status: { $in: ['active', 'fulfilled'] } })
+    // Use native MongoDB driver to bypass mongoose schema casting
+    const collection = this.reservationModel.db.collection('reservations');
+    
+    return collection
+      .find({
+        $and: [
+          { itemId },
+          { $or: [
+            { tenantId: tenantCode },  // String format (old)
+            { tenantId: { $type: 'objectId' } }  // Will match if converted
+          ]},
+          { status: { $in: ['active', 'fulfilled', 'Reserved'] } }
+        ]
+      })
       .sort({ reservedDate: -1 })
-      .exec();
+      .toArray();
   }
 
   async updateReservation(

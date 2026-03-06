@@ -24,7 +24,7 @@ import { toast } from '../components/ui/Toast';
 
 const fmt = CURRENCY.format;
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000/api/v1';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
 const TENANT_ID = 'solarcorp'; // Default tenant for seed data
 
 const KANBAN_STAGES = [
@@ -177,7 +177,7 @@ const ProjectPage = () => {
   const [itemsLoading, setItemsLoading] = useState(false);
   const [projectReservations, setProjectReservations] = useState([]);
   const [loadingProjectReservations, setLoadingProjectReservations] = useState(false);
-  const [editForm, setEditForm] = useState({ customerName: '', site: '', systemSize: '', pm: '', value: '', estEndDate: '', email: '', mobileNumber: '' });
+  const [editForm, setEditForm] = useState({ customerName: '', site: '', systemSize: '', pm: '', value: '', estEndDate: '', email: '', mobileNumber: '', materials: [] });
   const [submitting, setSubmitting] = useState(false);
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
@@ -584,6 +584,38 @@ const ProjectPage = () => {
     setShowActivity(true);
   };
 
+  // Helper functions for managing edit materials
+  const addEditMaterial = () => {
+    setEditForm(f => ({
+      ...f,
+      materials: [...(f.materials || []), { itemId: '', itemName: '', quantity: '', issuedDate: '', remarks: '' }]
+    }));
+  };
+
+  const removeEditMaterial = (index) => {
+    setEditForm(f => ({
+      ...f,
+      materials: (f.materials || []).filter((_, i) => i !== index)
+    }));
+  };
+
+  const updateEditMaterial = (index, field, value) => {
+    setEditForm(f => {
+      const updatedMaterials = [...(f.materials || [])];
+      if (field === 'itemId') {
+        const selectedItem = items.find(i => i._id === value || i.id === value);
+        updatedMaterials[index] = {
+          ...updatedMaterials[index],
+          itemId: value,
+          itemName: selectedItem?.description || selectedItem?.name || ''
+        };
+      } else {
+        updatedMaterials[index] = { ...updatedMaterials[index], [field]: value };
+      }
+      return { ...f, materials: updatedMaterials };
+    });
+  };
+
   const handleEditClick = (project) => {
     setEditingProject(project);
     setEditForm({
@@ -594,7 +626,8 @@ const ProjectPage = () => {
       value: project.value || '',
       estEndDate: project.estEndDate || '',
       email: project.email || '',
-      mobileNumber: project.mobileNumber || ''
+      mobileNumber: project.mobileNumber || '',
+      materials: project.materials || []
     });
     setShowEdit(true);
   };
@@ -626,7 +659,14 @@ const ProjectPage = () => {
         pm: editForm.pm,
         estEndDate: editForm.estEndDate,
         email: editForm.email,
-        mobileNumber: editForm.mobileNumber
+        mobileNumber: editForm.mobileNumber,
+        materials: (editForm.materials || []).map(m => ({
+          itemId: m.itemId,
+          itemName: m.itemName,
+          quantity: parseInt(m.quantity) || 0,
+          issuedDate: m.issuedDate,
+          remarks: m.remarks
+        }))
       };
 
       const response = await fetch(`${API_BASE_URL}/projects/${editingProject.id}?tenantId=${TENANT_ID}`, {
@@ -646,7 +686,7 @@ const ProjectPage = () => {
       setProjects(prev => prev.map(p => p.id === editingProject.id ? { ...p, ...projectData } : p));
       setShowEdit(false);
       setEditingProject(null);
-      setEditForm({ customerName: '', site: '', systemSize: '', pm: '', value: '', estEndDate: '', email: '', mobileNumber: '' });
+      setEditForm({ customerName: '', site: '', systemSize: '', pm: '', value: '', estEndDate: '', email: '', mobileNumber: '', materials: [] });
       alert('Project updated successfully!');
     } catch (err) {
       console.error('Error updating project:', err);
@@ -1022,6 +1062,46 @@ const ProjectPage = () => {
               </Select>
             </FormField>
             <FormField label="Estimated End Date"><Input type="date" value={editForm.estEndDate} onChange={e => setEditForm(f => ({ ...f, estEndDate: e.target.value }))} /></FormField>
+          </div>
+
+          {/* Materials Section */}
+          <div className="border-t border-[var(--border-base)] pt-3 mt-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-xs font-semibold text-[var(--text-primary)]">Required Materials</div>
+              <Button variant="ghost" size="sm" onClick={addEditMaterial}><Plus size={13} /> Add Item</Button>
+            </div>
+            {(editForm.materials || []).map((material, index) => (
+              <div key={index} className="space-y-2 mb-3 p-3 bg-[var(--bg-tertiary)] rounded-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-[var(--text-muted)]">Item #{index + 1}</span>
+                  <Button variant="ghost" size="sm" className="text-red-500" onClick={() => removeEditMaterial(index)}>
+                    <Trash2 size={12} />
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <FormField label="Item">
+                    <Select value={material.itemId} onChange={e => updateEditMaterial(index, 'itemId', e.target.value)}>
+                      <option value="">{itemsLoading ? 'Loading...' : 'Select Item'}</option>
+                      {items.map(item => (
+                        <option key={item._id || item.id} value={item._id || item.id}>
+                          {item.description || item.name} (Stock: {item.stock || 0})
+                        </option>
+                      ))}
+                    </Select>
+                  </FormField>
+                  <FormField label="Quantity">
+                    <Input type="number" placeholder="50" value={material.quantity} onChange={e => updateEditMaterial(index, 'quantity', e.target.value)} />
+                  </FormField>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <FormField label="Issue Date"><Input type="date" value={material.issuedDate} onChange={e => updateEditMaterial(index, 'issuedDate', e.target.value)} /></FormField>
+                  <FormField label="Remarks"><Input placeholder="Notes..." value={material.remarks} onChange={e => updateEditMaterial(index, 'remarks', e.target.value)} /></FormField>
+                </div>
+              </div>
+            ))}
+            {(!editForm.materials || editForm.materials.length === 0) && (
+              <p className="text-xs text-[var(--text-muted)] text-center py-4">No materials added. Click "Add Item" to select materials for this project.</p>
+            )}
           </div>
         </div>
       </Modal>

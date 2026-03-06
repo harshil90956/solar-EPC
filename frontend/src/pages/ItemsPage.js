@@ -993,7 +993,7 @@ const ItemsPage = () => {
                   <span className="text-sm font-semibold text-[var(--text-primary)]">
                     {(selectedItem.stock || 0) === 0 ? 'Out of Stock' :
                       ((selectedItem.stock || 0) - (selectedItem.reserved || 0)) <= (selectedItem.minStock || 0) ? 'Low Stock' :
-                        (selectedItem.reserved || 0) > 0 ? 'Partially Reserved' : 'In Stock'}
+                        (selectedItem.reserved || 0) > 0 ? 'Reserved' : 'In Stock'}
                   </span>
                 </div>
               </div>

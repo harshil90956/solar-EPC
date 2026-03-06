@@ -2,7 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 import { BaseSchemaDefinition, BaseSchemaOptions } from '../../../shared/database/base.schema';
 
-export type StockStatus = 'In Stock' | 'Partially Reserved' | 'Low Stock' | 'Out of Stock';
+export type StockStatus = 'In Stock' | 'Reserved' | 'Low Stock' | 'Out of Stock';
 
 @Schema(BaseSchemaOptions)
 export class Inventory extends Document {
@@ -47,7 +47,7 @@ export class Inventory extends Document {
 
   @Prop({
     required: true,
-    enum: ['In Stock', 'Partially Reserved', 'Low Stock', 'Out of Stock'],
+    enum: ['In Stock', 'Reserved', 'Low Stock', 'Out of Stock'],
   })
   status!: string;
 
