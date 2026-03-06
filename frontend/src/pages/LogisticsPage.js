@@ -1,6 +1,6 @@
 // Solar OS – EPC Edition — LogisticsPage.js
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Truck, Plus, MapPin, Package, CheckCircle, Clock, Zap, Navigation, LayoutGrid, List, Phone, Mail, Star } from 'lucide-react';
+import { Truck, Plus, MapPin, Package, CheckCircle, Clock, Zap, Navigation, LayoutGrid, List, Phone, Mail, Star, Edit, Building2 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input, FormField, Select } from '../components/ui/Input';
@@ -180,6 +180,10 @@ const LogisticsPage = () => {
   const [showVendorDeliveryModal, setShowVendorDeliveryModal] = useState(false);
   const [vendorDeliveryData, setVendorDeliveryData] = useState({ itemName: '', quantity: '' });
 
+  // Vendor edit state
+  const [isEditingVendor, setIsEditingVendor] = useState(false);
+  const [editedVendor, setEditedVendor] = useState(null);
+
   // Project search state for dispatch modal
   const [projects, setProjects] = useState([]);
   const [projectSearch, setProjectSearch] = useState('');
@@ -242,12 +246,14 @@ const LogisticsPage = () => {
   const fetchVendors = async () => {
     try {
       const response = await api.get('/logistics/vendors');
+      console.log('fetchVendors response:', response.data);
       let vendorsData = [];
       if (Array.isArray(response.data)) {
         vendorsData = response.data;
       } else if (response.data && typeof response.data === 'object') {
         vendorsData = response.data.data || [];
       }
+      console.log('Setting vendors:', vendorsData.length, 'records');
       setVendors(vendorsData);
     } catch (err) {
       console.error('Error fetching vendors:', err);
@@ -302,9 +308,47 @@ const LogisticsPage = () => {
       await fetchVendors();
       setShowVendorModal(false);
       setNewVendor({ name: '', category: '', city: '', contact: '', phone: '', email: '' });
+      setSearch(''); // Clear search to show new vendor
     } catch (error) {
       console.error('Error creating vendor:', error);
-      alert('Failed to create vendor: ' + (error.message || 'Unknown error'));
+      console.error('Error response:', error.response?.data);
+      alert('Failed to create vendor: ' + (error.response?.data?.message || error.response?.data?.error || error.message || 'Unknown error'));
+    }
+  };
+
+  const startEditingVendor = () => {
+    setEditedVendor({ ...selectedVendor });
+    setIsEditingVendor(true);
+  };
+
+  const cancelEditingVendor = () => {
+    setIsEditingVendor(false);
+    setEditedVendor(null);
+  };
+
+  const handleUpdateVendor = async () => {
+    try {
+      if (!editedVendor) return;
+      // Only send editable fields
+      const payload = {
+        name: editedVendor.name,
+        category: editedVendor.category,
+        city: editedVendor.city,
+        contact: editedVendor.contact,
+        phone: editedVendor.phone,
+        email: editedVendor.email,
+      };
+      console.log('Updating vendor payload:', payload);
+      const res = await api.patch(`/logistics/vendors/${editedVendor.id}`, payload);
+      console.log('Vendor updated:', res);
+      await fetchVendors();
+      setSelectedVendor(null);
+      setIsEditingVendor(false);
+      setEditedVendor(null);
+      alert('Vendor updated successfully!');
+    } catch (error) {
+      console.error('Error updating vendor:', error);
+      alert('Failed to update vendor: ' + (error.response?.data?.error?.message || error.message || 'Unknown error'));
     }
   };
 
@@ -416,7 +460,8 @@ const LogisticsPage = () => {
   ];
 
   const VENDOR_ACTIONS = [
-    { label: 'View Vendor', icon: Package, onClick: row => setSelectedVendor(row) },
+    { label: 'View Vendor', icon: Package, onClick: row => { setSelectedVendor(row); setIsEditingVendor(false); } },
+    { label: 'Edit Vendor', icon: Edit, onClick: row => { setSelectedVendor(row); setEditedVendor({ ...row }); setIsEditingVendor(true); } },
     { label: 'Record Delivery', icon: Plus, onClick: row => { setSelectedVendor(row); setShowVendorDeliveryModal(true); } },
     { label: 'Call Vendor', icon: Phone, onClick: row => handleCallVendor(row) },
     { label: 'Email Vendor', icon: Mail, onClick: row => handleEmailVendor(row) },
@@ -432,13 +477,13 @@ const LogisticsPage = () => {
         title="Logistics & Dispatch"
         subtitle="Material dispatch · delivery tracking · freight management"
         tabs={[
-          { id: 'kanban', label: 'Kanban', icon: LayoutGrid },
-          { id: 'table', label: 'Table', icon: List }
+          { id: 'dispatches', label: 'Dispatches', icon: Truck },
+          { id: 'vendors', label: 'Vendors', icon: Building2 }
         ]}
-        activeTab={view}
-        onTabChange={setView}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
         actions={[
-          { type: 'button', label: 'Schedule Dispatch', icon: Plus, variant: 'primary', onClick: () => setShowAdd(true) }
+          { type: 'button', label: activeTab === 'dispatches' ? 'Schedule Dispatch' : 'Add Vendor', icon: Plus, variant: 'primary', onClick: () => activeTab === 'dispatches' ? setShowAdd(true) : setShowVendorModal(true) }
         ]}
       />
 
@@ -498,8 +543,22 @@ const LogisticsPage = () => {
             <>
               <div className="flex items-center justify-between">
                 <p className="text-xs text-[var(--text-muted)]">Drag dispatches between columns to update status</p>
-                <Input placeholder="Search dispatches…" value={search}
-                  onChange={e => setSearch(e.target.value)} className="h-8 text-xs w-52" />
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setView('kanban')}
+                    className={`px-3 py-1.5 text-xs rounded-md transition-colors ${view === 'kanban' ? 'bg-[var(--primary)] text-white' : 'bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
+                  >
+                    <LayoutGrid size={12} className="inline mr-1" /> Kanban
+                  </button>
+                  <button
+                    onClick={() => setView('table')}
+                    className={`px-3 py-1.5 text-xs rounded-md transition-colors ${view === 'table' ? 'bg-[var(--primary)] text-white' : 'bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
+                  >
+                    <List size={12} className="inline mr-1" /> Table
+                  </button>
+                  <Input placeholder="Search dispatches…" value={search}
+                    onChange={e => setSearch(e.target.value)} className="h-8 text-xs w-52" />
+                </div>
               </div>
               <DispatchKanbanBoard dispatches={filtered} onStageChange={handleStageChange} onCardClick={setSelected} />
             </>
@@ -511,7 +570,19 @@ const LogisticsPage = () => {
                   <button key={s} onClick={() => { setFilter(s); setPage(1); }}
                     className={`filter-chip ${statusFilter === s ? 'filter-chip-active' : ''}`}>{s}</button>
                 ))}
-                <div className="ml-auto">
+                <div className="ml-auto flex items-center gap-2">
+                  <button
+                    onClick={() => setView('kanban')}
+                    className={`px-3 py-1.5 text-xs rounded-md transition-colors ${view === 'kanban' ? 'bg-[var(--primary)] text-white' : 'bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
+                  >
+                    <LayoutGrid size={12} className="inline mr-1" /> Kanban
+                  </button>
+                  <button
+                    onClick={() => setView('table')}
+                    className={`px-3 py-1.5 text-xs rounded-md transition-colors ${view === 'table' ? 'bg-[var(--primary)] text-white' : 'bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
+                  >
+                    <List size={12} className="inline mr-1" /> Table
+                  </button>
                   <Input placeholder="Search dispatches…" value={search}
                     onChange={e => { setSearch(e.target.value); setPage(1); }} className="h-8 text-xs w-52" />
                 </div>
@@ -702,21 +773,72 @@ const LogisticsPage = () => {
 
       {/* Vendor Detail Modal */}
       {selectedVendor && (
-        <Modal open={!!selectedVendor} onClose={() => setSelectedVendor(null)} title={`Vendor — ${selectedVendor.name}`}
-          footer={<div className="flex gap-2 justify-end">
-            <Button variant="ghost" onClick={() => setSelectedVendor(null)}>Close</Button>
-            <Button onClick={() => { setShowVendorDeliveryModal(true); }}><Plus size={13} /> Record Delivery</Button>
-            <Button onClick={() => handleCallVendor(selectedVendor)}><Phone size={13} /> Call</Button>
-            <Button onClick={() => handleEmailVendor(selectedVendor)}><Mail size={13} /> Email</Button>
-          </div>}>
-          <div className="grid grid-cols-2 gap-3 text-xs">
-            {[['Vendor ID', selectedVendor.id], ['Name', selectedVendor.name], ['Category', selectedVendor.category], ['Contact', selectedVendor.contact], ['Phone', selectedVendor.phone], ['Email', selectedVendor.email], ['City', selectedVendor.city], ['Total Orders', selectedVendor.totalOrders], ['Rating', selectedVendor.rating + ' / 5']].map(([k, v]) => (
-              <div key={k} className="glass-card p-2">
-                <div className="text-[var(--text-muted)] mb-0.5">{k}</div>
-                <div className="font-semibold text-[var(--text-primary)]">{v}</div>
+        <Modal 
+          open={!!selectedVendor} 
+          onClose={() => { setSelectedVendor(null); setIsEditingVendor(false); setEditedVendor(null); }} 
+          title={isEditingVendor ? `Edit Vendor — ${selectedVendor.name}` : `Vendor — ${selectedVendor.name}`}
+          footer={
+            <div className="flex gap-2 justify-end">
+              {isEditingVendor ? (
+                <>
+                  <Button variant="ghost" onClick={cancelEditingVendor}>Cancel</Button>
+                  <Button onClick={handleUpdateVendor}><CheckCircle size={13} /> Save Changes</Button>
+                </>
+              ) : (
+                <>
+                  <Button variant="ghost" onClick={() => setSelectedVendor(null)}>Close</Button>
+                  <Button onClick={startEditingVendor}><Edit size={13} /> Edit</Button>
+                  <Button onClick={() => { setShowVendorDeliveryModal(true); }}><Plus size={13} /> Record Delivery</Button>
+                  <Button onClick={() => handleCallVendor(selectedVendor)}><Phone size={13} /> Call</Button>
+                  <Button onClick={() => handleEmailVendor(selectedVendor)}><Mail size={13} /> Email</Button>
+                </>
+              )}
+            </div>
+          }>
+          {isEditingVendor && editedVendor ? (
+            <div className="space-y-3">
+              <FormField label="Vendor Name *">
+                <Input value={editedVendor.name} onChange={e => setEditedVendor({...editedVendor, name: e.target.value})} placeholder="e.g., ABC Logistics" />
+              </FormField>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label="Category *">
+                  <Select value={editedVendor.category} onChange={e => setEditedVendor({...editedVendor, category: e.target.value})}>
+                    <option value="">Select Category</option>
+                    <option value="Transport">Transport</option>
+                    <option value="Panel">Panel</option>
+                    <option value="Inverter">Inverter</option>
+                    <option value="BOS">BOS</option>
+                    <option value="Structure">Structure</option>
+                    <option value="Cable">Cable</option>
+                    <option value="Other">Other</option>
+                  </Select>
+                </FormField>
+                <FormField label="City *">
+                  <Input value={editedVendor.city} onChange={e => setEditedVendor({...editedVendor, city: e.target.value})} placeholder="e.g., Ahmedabad" />
+                </FormField>
               </div>
-            ))}
-          </div>
+              <FormField label="Contact Person *">
+                <Input value={editedVendor.contact} onChange={e => setEditedVendor({...editedVendor, contact: e.target.value})} placeholder="e.g., John Doe" />
+              </FormField>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label="Phone *">
+                  <Input value={editedVendor.phone} onChange={e => setEditedVendor({...editedVendor, phone: e.target.value})} placeholder="e.g., +91 98765 43210" />
+                </FormField>
+                <FormField label="Email *">
+                  <Input type="email" value={editedVendor.email} onChange={e => setEditedVendor({...editedVendor, email: e.target.value})} placeholder="e.g., vendor@example.com" />
+                </FormField>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              {[['Vendor ID', selectedVendor.id], ['Name', selectedVendor.name], ['Category', selectedVendor.category], ['Contact', selectedVendor.contact], ['Phone', selectedVendor.phone], ['Email', selectedVendor.email], ['City', selectedVendor.city], ['Total Orders', selectedVendor.totalOrders], ['Rating', selectedVendor.rating + ' / 5']].map(([k, v]) => (
+                <div key={k} className="glass-card p-2">
+                  <div className="text-[var(--text-muted)] mb-0.5">{k}</div>
+                  <div className="font-semibold text-[var(--text-primary)]">{v}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </Modal>
       )}
 
