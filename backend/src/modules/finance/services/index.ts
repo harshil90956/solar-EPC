@@ -3,3 +3,4 @@ export { PaymentService } from './payment.service';
 export { FinancePaymentService } from './finance-payment.service';
 export { ExpenseService } from './expense.service';
 export { TransactionService } from './transaction.service';
+export { ManualAdjustmentService } from './manual-adjustment.service';
