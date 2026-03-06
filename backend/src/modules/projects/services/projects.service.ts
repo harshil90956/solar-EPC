@@ -17,6 +17,10 @@ export class ProjectsService {
   ) {}
 
   private async getTenantId(tenantCode: string): Promise<Types.ObjectId> {
+    // If no tenant code provided, use 'default'
+    if (!tenantCode || tenantCode === 'undefined') {
+      tenantCode = 'default';
+    }
     // If it looks like an ObjectId (24 hex chars), use it directly
     if (/^[0-9a-fA-F]{24}$/.test(tenantCode)) {
       return new Types.ObjectId(tenantCode);

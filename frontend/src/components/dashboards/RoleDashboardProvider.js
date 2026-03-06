@@ -274,16 +274,18 @@ export const RoleDashboardProvider = ({ children, overrideRole }) => {
         if (!activeRole) return;
         setLoading(true);
         let data = {};
-        switch (activeRole) {
-            case 'Sales': data = generateSalesData(); break;
-            case 'Survey Engineer': data = generateSurveyData(); break;
-            case 'Design Engineer': data = generateDesignData(); break;
-            case 'Project Manager': data = generateProjectData(); break;
-            case 'Store Manager': data = generateStoreData(); break;
-            case 'Procurement Officer': data = generateProcurementData(); break;
-            case 'Finance': data = generateFinanceData(); break;
-            case 'Technician': data = generateTechnicianData(); break;
-            case 'Service Manager': data = generateServiceData(); break;
+        const role = activeRole.toLowerCase();
+        switch (role) {
+            case 'sales': data = generateSalesData(); break;
+            case 'survey engineer': data = generateSurveyData(); break;
+            case 'design engineer': data = generateDesignData(); break;
+            case 'project manager': data = generateProjectData(); break;
+            case 'store manager': data = generateStoreData(); break;
+            case 'procurement officer': data = generateProcurementData(); break;
+            case 'finance': data = generateFinanceData(); break;
+            case 'technician': data = generateTechnicianData(); break;
+            case 'service manager': data = generateServiceData(); break;
+            case 'admin': data = generateSalesData(); break;
             default: data = generateSalesData();
         }
         setDashboardData(data);

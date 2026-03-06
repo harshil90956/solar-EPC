@@ -15,29 +15,29 @@ import {
 } from '../components/dashboards';
 import AdminDashboard from '../components/dashboards/AdminDashboard';
 
-// Role-based dashboard component selector
+// Role-based dashboard component selector (case-insensitive)
 const getRoleDashboard = (userRole) => {
-  switch (userRole) {
-    case ROLES.SALES:
+  const role = userRole?.toLowerCase();
+  switch (role) {
+    case ROLES.SALES.toLowerCase():
       return SalesDashboard;
-    case ROLES.SURVEY_ENGINEER:
+    case ROLES.SURVEY_ENGINEER.toLowerCase():
       return SurveyEngineerDashboard;
-    case ROLES.DESIGN_ENGINEER:
+    case ROLES.DESIGN_ENGINEER.toLowerCase():
       return DesignEngineerDashboard;
-    case ROLES.PROJECT_MANAGER:
+    case ROLES.PROJECT_MANAGER.toLowerCase():
       return ProjectManagerDashboard;
-    case ROLES.STORE_MANAGER:
+    case ROLES.STORE_MANAGER.toLowerCase():
       return StoreManagerDashboard;
-    case ROLES.PROCUREMENT_OFFICER:
+    case ROLES.PROCUREMENT_OFFICER.toLowerCase():
       return ProcurementOfficerDashboard;
-    case ROLES.FINANCE:
+    case ROLES.FINANCE.toLowerCase():
       return FinanceDashboard;
-    case ROLES.TECHNICIAN:
+    case ROLES.TECHNICIAN.toLowerCase():
       return TechnicianDashboard;
-    case ROLES.SERVICE_MANAGER:
+    case ROLES.SERVICE_MANAGER.toLowerCase():
       return ServiceManagerDashboard;
-    case ROLES.ADMIN:
-      // Admin gets a special dashboard with role switching capability
+    case ROLES.ADMIN.toLowerCase():
       return AdminDashboard;
     default:
       return SalesDashboard;

@@ -545,50 +545,6 @@ export const SettingsProvider = ({ children }) => {
         }
     }, [addAudit]);
 
-    const createCustomRole = useCallback(async (role, user) => {
-        try {
-            const response = await settingsApi.createCustomRole(role);
-            const newRole = response?.data || response;
-            const id = newRole?.id || newRole?.roleId || `custom_${Date.now()}`;
-            
-            setCustomRoles(prev => ({
-                ...prev,
-                [id]: {
-                    id,
-                    label: newRole?.label || role?.label || 'Custom Role',
-                    description: newRole?.description || role?.description || '',
-                    baseRole: newRole?.baseRole || role?.baseRole || null,
-                    color: newRole?.color || role?.color || '#06b6d4',
-                    bg: newRole?.bg || role?.bg || 'rgba(6,182,212,0.12)',
-                    isCustom: true,
-                    permissions: newRole?.permissions || role?.permissions || {},
-                }
-            }));
-            
-            addAudit('CUSTOM_ROLE_CREATED', id, 'null', 'created', user);
-            return id;
-        } catch (error) {
-            console.error('Failed to create custom role:', error);
-            // Fallback: create locally
-            const id = `custom_${Date.now()}`;
-            setCustomRoles(prev => ({
-                ...prev,
-                [id]: {
-                    id,
-                    label: role?.label || 'Custom Role',
-                    description: role?.description || '',
-                    baseRole: role?.baseRole || null,
-                    color: role?.color || '#06b6d4',
-                    bg: role?.bg || 'rgba(6,182,212,0.12)',
-                    isCustom: true,
-                    permissions: role?.permissions || {},
-                }
-            }));
-            addAudit('CUSTOM_ROLE_CREATED', id, 'null', 'created', user);
-            return id;
-        }
-    }, [addAudit]);
-
     // ── User Override APIs ────────────────────────────────────────────────────
 
     const assignCustomRoleToUser = useCallback((userId, customRoleId, user) => {
