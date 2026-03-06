@@ -10,8 +10,20 @@ export class TransactionService {
     @InjectModel(Transaction.name) private readonly transactionModel: Model<TransactionDocument>,
   ) {}
 
+  private toObjectId(id: string | undefined): Types.ObjectId | undefined {
+    if (!id) return undefined;
+    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(id);
+    if (!isValidObjectId) return undefined;
+    try {
+      return new Types.ObjectId(id);
+    } catch {
+      return undefined;
+    }
+  }
+
   async findAll(tenantId: string, type?: string): Promise<Transaction[]> {
-    const query: any = { tenantId: new Types.ObjectId(tenantId) };
+    const tid = this.toObjectId(tenantId);
+    const query: any = tid ? { tenantId: tid } : {};
     if (type && type !== 'All') {
       query.type = type;
     }
@@ -19,9 +31,10 @@ export class TransactionService {
   }
 
   async findById(tenantId: string, id: string): Promise<Transaction> {
+    const tid = this.toObjectId(tenantId);
     const transaction = await this.transactionModel.findOne({
       _id: new Types.ObjectId(id),
-      tenantId: new Types.ObjectId(tenantId),
+      ...(tid ? { tenantId: tid } : {}),
     }).lean();
 
     if (!transaction) {
@@ -34,7 +47,7 @@ export class TransactionService {
   async create(tenantId: string, dto: CreateTransactionDto): Promise<Transaction> {
     const transaction = new this.transactionModel({
       ...dto,
-      tenantId: new Types.ObjectId(tenantId),
+      tenantId: this.toObjectId(tenantId),
       invoiceId: dto.invoiceId ? new Types.ObjectId(dto.invoiceId) : undefined,
       expenseId: dto.expenseId ? new Types.ObjectId(dto.expenseId) : undefined,
       transactionDate: new Date(dto.transactionDate),
@@ -48,7 +61,7 @@ export class TransactionService {
     const existing = await this.findById(tenantId, id);
 
     const updated = await this.transactionModel.findOneAndUpdate(
-      { _id: new Types.ObjectId(id), tenantId: new Types.ObjectId(tenantId) },
+      { _id: new Types.ObjectId(id), tenantId: this.toObjectId(tenantId) },
       {
         ...dto,
         invoiceId: dto.invoiceId ? new Types.ObjectId(dto.invoiceId) : existing.invoiceId,
