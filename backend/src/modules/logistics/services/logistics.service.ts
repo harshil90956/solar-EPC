@@ -79,7 +79,7 @@ export class LogisticsService {
 
   // Vendor methods
   async findAllVendors(): Promise<Vendor[]> {
-    return this.vendorModel.find({ isActive: true }).exec();
+    return this.vendorModel.find({ $or: [{ isActive: { $ne: false } }, { isActive: { $exists: false } }] }).exec();
   }
 
   async findVendorById(id: string): Promise<Vendor | null> {
@@ -88,11 +88,17 @@ export class LogisticsService {
 
   async createVendor(data: Partial<Vendor>): Promise<Vendor> {
     try {
-      const lastVendor = await this.vendorModel.findOne().sort({ _id: -1 }).exec();
-      const nextId = lastVendor ? this.generateNextVendorId(lastVendor.id) : 'V001';
-      
+      // Find the vendor with highest ID number
+      const allVendors = await this.vendorModel.find().exec();
+      let maxNum = 0;
+      allVendors.forEach(v => {
+        const num = parseInt(v.id?.replace('V', '') || '0');
+        if (num > maxNum) maxNum = num;
+      });
+      const nextId = `V${(maxNum + 1).toString().padStart(3, '0')}`;
+
       console.log('Creating vendor with ID:', nextId, 'Data:', data);
-      
+
       const newVendor = new this.vendorModel({
         ...data,
         id: nextId,
@@ -100,7 +106,7 @@ export class LogisticsService {
         totalOrders: 0,
         rating: data.rating || 5,
       });
-      
+
       const saved = await newVendor.save();
       console.log('Vendor created successfully:', saved.id);
       return saved;

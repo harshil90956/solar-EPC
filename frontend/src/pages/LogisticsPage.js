@@ -246,12 +246,14 @@ const LogisticsPage = () => {
   const fetchVendors = async () => {
     try {
       const response = await api.get('/logistics/vendors');
+      console.log('fetchVendors response:', response.data);
       let vendorsData = [];
       if (Array.isArray(response.data)) {
         vendorsData = response.data;
       } else if (response.data && typeof response.data === 'object') {
         vendorsData = response.data.data || [];
       }
+      console.log('Setting vendors:', vendorsData.length, 'records');
       setVendors(vendorsData);
     } catch (err) {
       console.error('Error fetching vendors:', err);
@@ -306,9 +308,11 @@ const LogisticsPage = () => {
       await fetchVendors();
       setShowVendorModal(false);
       setNewVendor({ name: '', category: '', city: '', contact: '', phone: '', email: '' });
+      setSearch(''); // Clear search to show new vendor
     } catch (error) {
       console.error('Error creating vendor:', error);
-      alert('Failed to create vendor: ' + (error.message || 'Unknown error'));
+      console.error('Error response:', error.response?.data);
+      alert('Failed to create vendor: ' + (error.response?.data?.message || error.response?.data?.error || error.message || 'Unknown error'));
     }
   };
 

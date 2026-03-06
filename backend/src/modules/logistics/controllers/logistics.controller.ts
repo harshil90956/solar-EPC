@@ -66,14 +66,26 @@ export class LogisticsController {
 
   @Post('vendors')
   async createVendor(@Body() createDto: CreateLogisticsVendorDto) {
-    const data = await this.logisticsService.createVendor(createDto);
-    return { success: true, data, message: 'Vendor created successfully' };
+    try {
+      const data = await this.logisticsService.createVendor(createDto);
+      return { success: true, data, message: 'Vendor created successfully' };
+    } catch (error: any) {
+      console.error('Error creating vendor:', error);
+      console.error('Error response:', error.response?.data || error.message);
+      return { success: false, error: error.response?.data?.error || error.response?.data?.message || error.message || 'Unknown error', code: error.code };
+    }
   }
 
   @Patch('vendors/:id')
   async updateVendor(@Param('id') id: string, @Body() updateDto: UpdateLogisticsVendorDto) {
-    const data = await this.logisticsService.updateVendor(id, updateDto);
-    return { success: true, data, message: 'Vendor updated successfully' };
+    try {
+      const data = await this.logisticsService.updateVendor(id, updateDto);
+      return { success: true, data, message: 'Vendor updated successfully' };
+    } catch (error: any) {
+      console.error('Error updating vendor:', error);
+      console.error('Error response:', error.response?.data || error.message);
+      return { success: false, error: error.response?.data?.error || error.response?.data?.message || error.message || 'Unknown error', code: error.code };
+    }
   }
 
   @Delete('vendors/:id')
