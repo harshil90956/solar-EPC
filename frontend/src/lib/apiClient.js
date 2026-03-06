@@ -12,10 +12,15 @@ const apiClient = axios.create({
 
 const getTenantId = () => {
     try {
+        // First try to get from user object
         const user = JSON.parse(localStorage.getItem('solar_user') || '{}');
-        return user?.tenantId || user?.tenant?.id || user?.id || null;
+        if (user?.tenantId || user?.tenant?.id) {
+            return user?.tenantId || user?.tenant?.id;
+        }
+        // Fallback to tenantId stored separately (for pre-login requests)
+        return localStorage.getItem('tenantId') || null;
     } catch {
-        return null;
+        return localStorage.getItem('tenantId') || null;
     }
 };
 
@@ -43,7 +48,10 @@ apiClient.interceptors.response.use(
 
         if (status === 401) {
             localStorage.removeItem('solar_token');
-            window.location.href = '/login';
+            // Only redirect if not already on login page to avoid loops
+            if (window.location.pathname !== '/login') {
+                window.location.href = '/login';
+            }
         }
 
         return Promise.reject({ status, message, raw: error });

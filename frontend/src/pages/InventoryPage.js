@@ -336,18 +336,18 @@ const InventoryPage = () => {
     try {
       const newItem = {
         itemId: `INV${Date.now().toString().slice(-4)}`,
-        name: form.name,
+        description: form.name,  // items module uses 'description' not 'name'
         category: form.category,
         unit: form.unit,
         stock: 0,
         reserved: 0,
-        available: 0,
         minStock: parseInt(form.minStock) || 0,
         rate: parseFloat(form.rate) || 0,
         warehouse: form.warehouse,
+        status: 'In Stock',
       };
 
-      const response = await fetch(`${API_BASE_URL}/inventory?tenantId=${TENANT_ID}`, {
+      const response = await fetch(`${API_BASE_URL}/items?tenantId=${TENANT_ID}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newItem),
@@ -360,7 +360,12 @@ const InventoryPage = () => {
 
       const createdItem = await response.json();
       const itemData = createdItem.data || createdItem;
-      setInventory(prev => [...prev, itemData]);
+      // Map to inventory format
+      setInventory(prev => [...prev, {
+        ...itemData,
+        name: itemData.description,
+        available: (itemData.stock || 0) - (itemData.reserved || 0)
+      }]);
       setShowAdd(false);
       setForm({ name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
       alert('Item added successfully!');
@@ -601,7 +606,7 @@ const InventoryPage = () => {
       const updatedItem = await response.json();
       const itemData = updatedItem.data || updatedItem;
       setInventory(prev => prev.map(i => (i._id || i.itemId) === (itemData._id || itemData.itemId) ? { ...i, status: newStatus } : i));
-
+      
       // Refresh stats
       const statsResponse = await fetch(`${API_BASE_URL}/inventory/stats?tenantId=${TENANT_ID}`);
       if (statsResponse.ok) {
@@ -896,17 +901,42 @@ const InventoryPage = () => {
             ) : itemReservations.length === 0 ? (
               <p className="text-xs text-[var(--text-muted)]">No active reservations</p>
             ) : (
-              <div className="space-y-1">
+              <div className="space-y-2">
                 {itemReservations.map(res => {
-                  const project = projects.find(p => p.projectId === res.projectId || p._id === res.projectId);
+                  // First check if reservation has project details
+                  const projectFromRes = res.project;
+                  // Then try to find in projects array
+                  const projectFromList = projects.find(p => 
+                    p.projectId === res.projectId || 
+                    p._id === res.projectId || 
+                    p.id === res.projectId
+                  );
+                  
+                  // Determine project name and status
+                  let projectName = 'Unknown Project';
+                  let isDeleted = false;
+                  
+                  if (projectFromRes?.customerName || projectFromRes?.name) {
+                    projectName = projectFromRes.customerName || projectFromRes.name;
+                    isDeleted = projectFromRes.deleted || projectFromRes.isDeleted;
+                  } else if (projectFromList?.customerName || projectFromList?.name) {
+                    projectName = projectFromList.customerName || projectFromList.name;
+                    isDeleted = projectFromList.deleted || projectFromList.isDeleted;
+                  }
+                  
+                  const projectId = res.projectId || res.projectID || 'N/A';
+                  
                   return (
-                    <div key={res.reservationId} className="flex items-center justify-between glass-card p-2">
+                    <div key={res.reservationId || res._id} className="flex items-center justify-between glass-card p-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--primary)]/20 text-[var(--primary-light)]">
-                          {res.status}
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--primary)]/20 text-[var(--primary-light)] font-medium">
+                          {res.status || 'active'}
                         </span>
                         <span className="text-xs font-medium text-[var(--text-primary)]">
-                          {project ? `${project.customerName} (${res.projectId})` : `Project: ${res.projectId}`}
+                          {projectName}{' '}
+                          <span className="text-[var(--text-muted)]">
+                            ({isDeleted ? 'deleted' : projectId})
+                          </span>
                         </span>
                       </div>
                       <span className="text-xs font-bold text-amber-400">
