@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   List, Plus, Search, Download, Trash2, Package,
-  ChevronDown, X, Check, MoreHorizontal, Edit2, Copy, Eye
+  Edit2, Copy, Eye
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
@@ -505,8 +505,10 @@ const ItemsPage = () => {
               </tr>
             ) : (
               paginatedItems.map((item, index) => (
-                <tr key={item._id || index} className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)]">
-                  <td className="px-4 py-3">
+                <tr key={item._id || index} 
+                    className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)] cursor-pointer"
+                    onClick={() => setSelectedItem(item)}>
+                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
                       checked={selectedRows.has(item._id)}
@@ -522,7 +524,7 @@ const ItemsPage = () => {
                       }
                     </td>
                   ))}
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1">
                       {ROW_ACTIONS.map((action, idx) => (
                         <button

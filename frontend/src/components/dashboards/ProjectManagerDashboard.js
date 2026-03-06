@@ -7,37 +7,33 @@ import {
 } from 'recharts';
 import {
     Briefcase, CheckCircle, Clock, AlertTriangle, Users, Calendar,
-    TrendingUp, Target, Award, Flag, Activity, Zap, Settings, RefreshCw,
+    TrendingUp, Target, Star, Activity, Zap, RefreshCw,
     Download, ArrowUpRight, MapPin, Wrench
 } from 'lucide-react';
 import { useRoleDashboard } from './RoleDashboardProvider';
 import ReminderWidget from '../Reminder/ReminderWidget';
 import {
-    StatCard, ChartCard, SectionHeader, ActivityItem, ProgressRow,
-    DashTable, Grid4, Grid2, Grid3,
+    StatCard, ChartCard, Grid2, Grid3,
     DashboardLoading, DashTooltip,
-    fmtPct, fmtCurrency, CHART_COLORS, chartAxisStyle, ROLE_COLORS
+    fmtPct, chartAxisStyle, ROLE_COLORS
 } from './DashboardShell';
+
+const COLORS = {
+    primary: '#6366f1',
+    success: '#10b981',
+    warning: '#f59e0b',
+    danger: '#ef4444',
+};
 
 const ProjectManagerDashboard = ({ onNavigate }) => {
     const [selectedTimeRange, setSelectedTimeRange] = useState('6M');
     const [refreshing, setRefreshing] = useState(false);
-
-    // Simulated real-time updates
-    useEffect(() => {
-        const interval = setInterval(() => {
-            setRefreshing(true);
-            setTimeout(() => setRefreshing(false), 500);
-        }, 30000);
-        return () => clearInterval(interval);
-    }, []);
 
     const { data, loading } = useRoleDashboard();
     if (loading) return <DashboardLoading />;
 
     const C = ROLE_COLORS.pm;
 
-    // Enhanced Project Management Data
     const PROJECT_OVERVIEW = {
         activeProjects: 35,
         completedProjects: 186,
@@ -45,8 +41,8 @@ const ProjectManagerDashboard = ({ onNavigate }) => {
         onTimeDelivery: 94.2,
         projectSuccessRate: 96.3,
         teamUtilization: 87.5,
-        avgProjectDuration: 45, // days
-        budgetVariance: -2.1, // negative is good
+        avgProjectDuration: 45,
+        budgetVariance: -2.1,
         qualityScore: 4.8,
         customerSatisfaction: 4.7,
         milestonesCompleted: 342,
@@ -55,7 +51,6 @@ const ProjectManagerDashboard = ({ onNavigate }) => {
         teamMembers: 24
     };
 
-    // Executive Project KPIs
     const projectKPIs = [
         {
             label: 'Active Projects',
@@ -95,10 +90,8 @@ const ProjectManagerDashboard = ({ onNavigate }) => {
         },
     ];
 
-    // Enhanced project data
     const { projects = {}, milestones = {}, installation = {}, commissioning = {}, timeline = [] } = data || {};
 
-    // Project status data
     const projectStatusPie = [
         { name: 'Active', value: PROJECT_OVERVIEW.activeProjects, color: C.primary },
         { name: 'Completed', value: PROJECT_OVERVIEW.completedProjects, color: '#10b981' },
@@ -106,7 +99,6 @@ const ProjectManagerDashboard = ({ onNavigate }) => {
         { name: 'On Hold', value: 4, color: '#ef4444' },
     ];
 
-    // Milestone completion data
     const milestoneData = [
         { phase: 'Design Approval', completed: 89, total: 95, pct: 93.7 },
         { phase: 'Material Procurement', completed: 76, total: 85, pct: 89.4 },
@@ -115,7 +107,6 @@ const ProjectManagerDashboard = ({ onNavigate }) => {
         { phase: 'Handover', completed: 42, total: 48, pct: 87.5 },
     ];
 
-    // Project timeline data
     const projectTimelineData = [
         { month: 'Jan', planned: 28, actual: 26, efficiency: 92.9 },
         { month: 'Feb', planned: 32, actual: 30, efficiency: 93.8 },
@@ -125,8 +116,50 @@ const ProjectManagerDashboard = ({ onNavigate }) => {
         { month: 'Jun', planned: 45, actual: 44, efficiency: 97.8 },
     ];
 
+
+    // Recent Projects
+    const recentProjects = [
+        { name: 'P7767 - Lavji Badshah', customer: 'Gopin Surat', site: 'Surat', progress: 20, status: 'Survey', daysLeft: 45, priority: 'Normal' },
+        { name: 'P9134 - Pintu Sharma', customer: 'Pune Mumbai', site: 'Mumbai', progress: 60, status: 'Quotation', daysLeft: 30, priority: 'High' },
+        { name: 'P7244 - Srikant Mehta', customer: 'Ahmedabad', site: 'Ahmedabad', progress: 0, status: 'Installation', daysLeft: 60, priority: 'Normal' },
+        { name: 'P0327 - Karan Johr', customer: 'Vesu Surat', site: 'Surat', progress: 20, status: 'Procurement', daysLeft: 90, priority: 'Low' },
+    ];
+
+    // Team Members
+    const teamMembers = [
+        { name: 'Neha Gupta', role: 'Project Manager', tasks: 12, avatar: 'NG', status: 'online' },
+        { name: 'Jethalal Gada', role: 'Site Engineer', tasks: 8, avatar: 'JG', status: 'busy' },
+        { name: 'Harish Mehta', role: 'Technical Lead', tasks: 15, avatar: 'HM', status: 'online' },
+        { name: 'Dinesh Trivedi', role: 'Installer', tasks: 6, avatar: 'DT', status: 'away' },
+    ];
+
+    // Charts Data
+    const statusData = [
+        { name: 'Active', value: 35, color: COLORS.primary },
+        { name: 'Completed', value: 186, color: COLORS.success },
+        { name: 'Planning', value: 12, color: COLORS.warning },
+        { name: 'On Hold', value: 4, color: COLORS.danger },
+    ];
+
+    const performanceData = [
+        { subject: 'Design', A: 93, fullMark: 100 },
+        { subject: 'Procurement', A: 89, fullMark: 100 },
+        { subject: 'Installation', A: 89, fullMark: 100 },
+        { subject: 'Commissioning', A: 90, fullMark: 100 },
+        { subject: 'Handover', A: 88, fullMark: 100 },
+    ];
+
+    const timelineData = [
+        { month: 'Jan', planned: 28, actual: 26, efficiency: 92.9 },
+        { month: 'Feb', planned: 32, actual: 30, efficiency: 93.8 },
+        { month: 'Mar', planned: 35, actual: 35, efficiency: 100.0 },
+        { month: 'Apr', planned: 38, actual: 36, efficiency: 94.7 },
+        { month: 'May', planned: 42, actual: 39, efficiency: 92.9 },
+        { month: 'Jun', planned: 45, actual: 44, efficiency: 97.8 },
+    ];
+
     return (
-        <div className="space-y-6 p-6 bg-gradient-to-br from-[var(--bg-base)] via-[var(--bg-subtle)] to-[var(--bg-muted)] min-h-screen">
+        <div className="min-h-screen bg-gradient-to-br from-[var(--bg-base)] via-[var(--bg-subtle)] to-[var(--bg-muted)] p-6">
             {/* Professional Header */}
             <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[var(--primary)] via-[var(--primary-hover)] to-[var(--primary-active)] p-6 text-white shadow-xl">
                 <div className="absolute inset-0 bg-gradient-to-r from-black/20 to-transparent" />
