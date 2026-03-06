@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Headphones, Plus, Clock, CheckCircle, AlertTriangle,
   Shield, Zap, Wrench, LayoutGrid, List, Tag, Loader2, Calendar, XCircle,
-  FolderOpen, TrendingUp, CheckCircle2,
+  FolderOpen, TrendingUp, CheckCircle2, BarChart3, PieChart, Activity, Trash2, Pencil,
 } from 'lucide-react';
 import { StatusBadge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
@@ -32,6 +32,8 @@ import {
   autoGenerateAmcContracts,
   createVisit,
   getCustomers,
+  getVisits,
+  getVisitStats,
 } from '../modules/service-amc/services/serviceAmcApi';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api/v1';
@@ -263,7 +265,43 @@ const ServicePage = () => {
   const [amcProjectData, setAmcProjectData] = useState(null);
   const [loadingAmcProject, setLoadingAmcProject] = useState(false);
 
-  // Schedule Visit modal state
+  // Edit Ticket modal state
+  const [editModal, setEditModal] = useState({ open: false, ticket: null });
+  const [editForm, setEditForm] = useState({
+    customerName: '',
+    type: '',
+    priority: 'Low',
+    status: 'Open',
+    description: '',
+    assignedTo: '',
+  });
+  const [updating, setUpdating] = useState(false);
+
+  // Service Ticket from AMC modal state
+  const [serviceTicketModal, setServiceTicketModal] = useState({ open: false, contract: null });
+  const [serviceTicketForm, setServiceTicketForm] = useState({
+    customerName: '',
+    type: 'AMC',
+    priority: 'Low',
+    status: 'Open',
+    description: '',
+    assignedTo: '',
+  });
+  const [creatingServiceTicket, setCreatingServiceTicket] = useState(false);
+
+  // AMC Contract Edit modal state
+  const [amcEditModal, setAmcEditModal] = useState({ open: false, contract: null });
+  const [amcEditForm, setAmcEditForm] = useState({
+    customer: '',
+    site: '',
+    systemSize: 0,
+    startDate: '',
+    endDate: '',
+    status: 'Active',
+    amount: 0,
+    nextVisit: '',
+  });
+  const [updatingAmc, setUpdatingAmc] = useState(false);
   const [scheduleVisitModal, setScheduleVisitModal] = useState({ open: false, contract: null });
   const [scheduleVisitProjectData, setScheduleVisitProjectData] = useState(null);
   const [loadingScheduleVisitProject, setLoadingScheduleVisitProject] = useState(false);
@@ -278,12 +316,6 @@ const ServicePage = () => {
   const [schedulingVisit, setSchedulingVisit] = useState(false);
   const [scheduledVisitsCount, setScheduledVisitsCount] = useState(0);
 
-  // Loading states
-  const [loadingTickets, setLoadingTickets] = useState(false);
-  const [loadingAmc, setLoadingAmc] = useState(false);
-  const [loadingStats, setLoadingStats] = useState(false);
-  const [error, setError] = useState(null);
-
   // Form state for new ticket
   const [newTicket, setNewTicket] = useState({
     customerId: '',
@@ -294,6 +326,23 @@ const ServicePage = () => {
     description: '',
     assignedTo: '',
   });
+
+  // Loading states
+  const [loadingTickets, setLoadingTickets] = useState(false);
+  const [loadingAmc, setLoadingAmc] = useState(false);
+  const [loadingStats, setLoadingStats] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Dashboard state
+  const [showDashboard, setShowDashboard] = useState(false);
+  const [visits, setVisits] = useState([]);
+  const [visitStats, setVisitStats] = useState({
+    totalVisits: 0,
+    scheduled: 0,
+    completed: 0,
+    cancelled: 0,
+  });
+  const [loadingVisits, setLoadingVisits] = useState(false);
 
   // Fetch tickets
   const fetchTickets = async () => {
@@ -332,8 +381,13 @@ const ServicePage = () => {
   const fetchAmcContracts = async () => {
     setLoadingAmc(true);
     try {
-      const response = await getAmcContracts({ page: aPage, limit: aPageSize });
-      // Handle various response formats
+      // Fetch both AMC contracts and projects to check for deleted projects
+      const [response, projectsResponse] = await Promise.all([
+        getAmcContracts({ page: aPage, limit: aPageSize }),
+        fetch(`${API_BASE_URL}/projects?tenantId=${TENANT_ID}`)
+      ]);
+
+      // Handle various response formats for contracts
       let contractsData = [];
       if (Array.isArray(response)) {
         contractsData = response;
@@ -342,10 +396,35 @@ const ServicePage = () => {
       } else if (response?.data?.data && Array.isArray(response.data.data)) {
         contractsData = response.data.data;
       }
+
+      // Parse projects response
+      let projectsData = [];
+      if (projectsResponse.ok) {
+        const projectsJson = await projectsResponse.json();
+        projectsData = Array.isArray(projectsJson) ? projectsJson : (projectsJson?.data || []);
+      }
+
       // Filter out rutvik and prakash agraval permanently
-      const filteredContracts = contractsData.filter(
-        c => !['rutvik', 'prakash agraval', 'prakashagrawal', 'prakash agarwal'].includes(c.customer?.toLowerCase())
-      );
+      // Also filter out contracts where matching project with 100% progress was deleted
+      const filteredContracts = contractsData.filter(c => {
+        // Filter out specific customers
+        if (['rutvik', 'prakash agraval', 'prakashagrawal', 'prakash agarwal'].includes(c.customer?.toLowerCase())) {
+          return false;
+        }
+
+        // Find matching project by customer and site
+        const matchingProject = projectsData.find(
+          p => p.customerName === c.customer && p.site === c.site
+        );
+
+        // If no matching project exists (project was deleted with 100% progress), filter out this contract
+        if (!matchingProject) {
+          return false;
+        }
+
+        return true;
+      });
+
       setAmcContracts(filteredContracts);
     } catch (err) {
       setAmcContracts([]);
@@ -387,6 +466,8 @@ const ServicePage = () => {
     fetchAmcContracts();
     fetchStats();
     fetchAiInsight();
+    fetchVisits();
+    fetchVisitStats();
   }, []);
 
   // Fetch engineers when new ticket modal opens
@@ -404,23 +485,17 @@ const ServicePage = () => {
     fetchAmcContracts();
   }, [aPage, aPageSize]);
 
-  // Auto-generate AMC from commissioned projects when AMC tab is viewed
+  // Auto-refresh data every 30 seconds for real-time updates
   useEffect(() => {
-    if (activeTab === 'amc') {
-      autoGenerateAmcContracts().then((result) => {
-        // Log sync results
-        const created = result?.data?.created || 0;
-        const removed = result?.data?.removed || 0;
-        if (created > 0 || removed > 0) {
-          console.log(`AMC Sync: ${created} created, ${removed} removed`);
-        }
-        // Refresh AMC contracts after auto-generation
-        fetchAmcContracts();
-      }).catch(() => {
-        // Silent fail - contracts will still load normally
-      });
-    }
-  }, [activeTab]);
+    const interval = setInterval(() => {
+      fetchTickets();
+      fetchAmcContracts();
+      fetchStats();
+      fetchVisits();
+      fetchVisitStats();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Handle stage change (drag and drop)
   const handleStageChange = async (id, newStage) => {
@@ -450,6 +525,38 @@ const ServicePage = () => {
       setCustomers(customersData);
     } catch (err) {
       setCustomers([]);
+    }
+  };
+
+  // Fetch visits
+  const fetchVisits = async () => {
+    setLoadingVisits(true);
+    try {
+      const response = await getVisits();
+      let visitsData = [];
+      if (Array.isArray(response)) {
+        visitsData = response;
+      } else if (response?.data && Array.isArray(response.data)) {
+        visitsData = response.data;
+      } else if (response?.data?.data && Array.isArray(response.data.data)) {
+        visitsData = response.data.data;
+      }
+      setVisits(visitsData);
+    } catch (err) {
+      console.error('Visits fetch error:', err);
+      setVisits([]);
+    } finally {
+      setLoadingVisits(false);
+    }
+  };
+
+  // Fetch visit stats
+  const fetchVisitStats = async () => {
+    try {
+      const response = await getVisitStats();
+      setVisitStats(response || { totalVisits: 0, scheduled: 0, completed: 0, cancelled: 0 });
+    } catch (err) {
+      setVisitStats({ totalVisits: 0, scheduled: 0, completed: 0, cancelled: 0 });
     }
   };
 
@@ -508,7 +615,20 @@ const ServicePage = () => {
     }
   };
 
-  // Handle delete ticket
+  // Handle delete AMC contract
+  const handleDeleteAmcContract = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this AMC contract?')) {
+      return;
+    }
+    try {
+      await deleteAmcContract(id);
+      fetchAmcContracts();
+      fetchStats();
+      showToast('AMC contract deleted successfully', 'success');
+    } catch (err) {
+      showToast('Failed to delete AMC contract: ' + (err.message || 'Unknown error'), 'error');
+    }
+  };
   const handleDeleteTicket = async (id) => {
     try {
       await deleteTicket(id);
@@ -545,11 +665,156 @@ const ServicePage = () => {
   const paginatedTickets = filteredTickets;
   const paginatedAMC = amcContracts;
 
+  const openEditModal = (ticket) => {
+    setEditModal({ open: true, ticket });
+    setEditForm({
+      customerName: ticket.customerName || '',
+      type: ticket.type || '',
+      priority: ticket.priority || 'Low',
+      status: ticket.status || 'Open',
+      description: ticket.description || '',
+      assignedTo: ticket.assignedTo || '',
+    });
+    fetchEngineers();
+    fetchCustomers();
+  };
+
+  const closeEditModal = () => {
+    setEditModal({ open: false, ticket: null });
+    setEditForm({
+      customerName: '',
+      type: '',
+      priority: 'Low',
+      status: 'Open',
+      description: '',
+      assignedTo: '',
+    });
+    setUpdating(false);
+  };
+
+  const handleUpdateTicket = async () => {
+    if (!editModal.ticket) return;
+    
+    setUpdating(true);
+    try {
+      await updateTicket(editModal.ticket.id, editForm);
+      setTickets(prev => prev.map(t => t.id === editModal.ticket.id ? { ...t, ...editForm } : t));
+      closeEditModal();
+      showToast('Ticket updated successfully', 'success');
+    } catch (err) {
+      showToast('Failed to update ticket: ' + (err.message || 'Unknown error'), 'error');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  // Service Ticket from AMC functions
+  const openServiceTicketModal = (contract) => {
+    setServiceTicketModal({ open: true, contract });
+    setServiceTicketForm({
+      customerName: contract.customer || '',
+      type: 'AMC',
+      priority: 'Low',
+      status: 'Open',
+      description: `Service ticket created from AMC Contract ${contract.id} for ${contract.customer} at ${contract.site}`,
+      assignedTo: '',
+    });
+    fetchEngineers();
+    fetchCustomers();
+  };
+
+  const closeServiceTicketModal = () => {
+    setServiceTicketModal({ open: false, contract: null });
+    setServiceTicketForm({
+      customerName: '',
+      type: 'AMC',
+      priority: 'Low',
+      status: 'Open',
+      description: '',
+      assignedTo: '',
+    });
+    setCreatingServiceTicket(false);
+  };
+
+  const handleCreateServiceTicket = async () => {
+    if (!serviceTicketModal.contract) return;
+    
+    setCreatingServiceTicket(true);
+    try {
+      const ticketData = {
+        customerId: serviceTicketForm.customerName,
+        customerName: serviceTicketForm.customerName,
+        type: serviceTicketForm.type,
+        priority: serviceTicketForm.priority,
+        status: serviceTicketForm.status,
+        description: serviceTicketForm.description,
+        assignedTo: serviceTicketForm.assignedTo,
+      };
+      await createTicket(ticketData);
+      closeServiceTicketModal();
+      fetchTickets();
+      fetchStats();
+      showToast('Service ticket created successfully', 'success');
+    } catch (err) {
+      showToast('Failed to create service ticket: ' + (err.message || 'Unknown error'), 'error');
+    } finally {
+      setCreatingServiceTicket(false);
+    }
+  };
+
+  // AMC Contract Edit functions
+  const openAmcEditModal = (contract) => {
+    setAmcEditModal({ open: true, contract });
+    setAmcEditForm({
+      customer: contract.customer || '',
+      site: contract.site || '',
+      systemSize: contract.systemSize || 0,
+      startDate: contract.startDate || '',
+      endDate: contract.endDate || '',
+      status: contract.status || 'Active',
+      amount: contract.amount || 0,
+      nextVisit: contract.nextVisit || '',
+    });
+  };
+
+  const closeAmcEditModal = () => {
+    setAmcEditModal({ open: false, contract: null });
+    setAmcEditForm({
+      customer: '',
+      site: '',
+      systemSize: 0,
+      startDate: '',
+      endDate: '',
+      status: 'Active',
+      amount: 0,
+      nextVisit: '',
+    });
+    setUpdatingAmc(false);
+  };
+
+  const handleUpdateAmcContract = async () => {
+    if (!amcEditModal.contract) return;
+    
+    setUpdatingAmc(true);
+    try {
+      await updateAmcContract(amcEditModal.contract.id, amcEditForm);
+      setAmcContracts(prev => prev.map(c => c.id === amcEditModal.contract.id ? { ...c, ...amcEditForm } : c));
+      closeAmcEditModal();
+      fetchStats();
+      showToast('AMC contract updated successfully', 'success');
+    } catch (err) {
+      showToast('Failed to update AMC contract: ' + (err.message || 'Unknown error'), 'error');
+    } finally {
+      setUpdatingAmc(false);
+    }
+  };
+
   const TICKET_ACTIONS = [
     { label: 'View Ticket', icon: Headphones, onClick: row => setSelected(row) },
+    { label: 'Edit', icon: Pencil, onClick: row => openEditModal(row) },
     { label: 'Assign Engineer', icon: Wrench, onClick: row => openAssignModal(row) },
     { label: 'Mark Resolved', icon: CheckCircle, onClick: (row) => handleStageChange(row.id, 'Resolved') },
-    { label: 'Delete', icon: AlertTriangle, onClick: (row) => handleDeleteTicket(row.id) },
+    { label: 'Delete', icon: Trash2, danger: true, onClick: (row) => handleDeleteTicket(row.id) },
   ];
 
   const AMC_ACTIONS = [
@@ -561,6 +826,11 @@ const ServicePage = () => {
         setAmcProjectView(row);
         fetchProjectForAmc(row.customer, row.site);
       },
+    },
+    {
+      label: 'Service Ticket',
+      icon: Headphones,
+      onClick: (row) => openServiceTicketModal(row),
     },
     {
       label: 'Schedule Visit',
@@ -732,6 +1002,7 @@ const ServicePage = () => {
         title="Service & AMC"
         subtitle="Support tickets · maintenance · AMC contracts · warranty claims"
         actions={[
+          { type: 'button', label: 'Dashboard', icon: BarChart3, variant: 'secondary', onClick: () => setShowDashboard(true) },
           { type: 'button', label: 'New Ticket', icon: Plus, variant: 'primary', onClick: () => setShowAdd(true) }
         ]}
       />
@@ -839,6 +1110,7 @@ const ServicePage = () => {
                 rowActions={TICKET_ACTIONS}
                 pagination={{ page: tPage, pageSize: tPageSize, total: filteredTickets.length, onChange: setTPage, onPageSizeChange: setTPageSize }}
                 emptyMessage="No tickets found."
+                onRowClick={row => setSelected(row)}
               />
             )}
           </div>
@@ -975,6 +1247,286 @@ const ServicePage = () => {
               <div className="text-[11px] text-[var(--text-muted)] mb-1">Description</div>
               <p className="text-xs text-[var(--text-secondary)]">{selected.description}</p>
             </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Edit Ticket Modal */}
+      {editModal.open && editModal.ticket && (
+        <Modal
+          open={editModal.open}
+          onClose={closeEditModal}
+          title={`Edit Ticket — ${editModal.ticket.id}`}
+          footer={
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" onClick={closeEditModal}>Cancel</Button>
+              <Button onClick={handleUpdateTicket} disabled={updating}>
+                {updating ? <Loader2 size={13} className="animate-spin" /> : <Pencil size={13} />}
+                {updating ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-3">
+            <FormField label="Customer">
+              <Select
+                value={editForm.customerName}
+                onChange={e => setEditForm(prev => ({ ...prev, customerName: e.target.value }))}
+              >
+                <option value="">Select Customer</option>
+                {customers.map(customer => (
+                  <option key={customer} value={customer}>{customer}</option>
+                ))}
+              </Select>
+              {customers.length === 0 && (
+                <p className="text-xs text-[var(--text-muted)] mt-1">Loading customers...</p>
+              )}
+            </FormField>
+            <div className="grid grid-cols-3 gap-3">
+              <FormField label="Ticket Type">
+                <Select
+                  value={editForm.type}
+                  onChange={e => setEditForm(prev => ({ ...prev, type: e.target.value }))}
+                >
+                  <option value="">Select Type</option>
+                  {['Maintenance', 'AMC', 'Warranty', 'Breakdown', 'Inspection'].map(t => <option key={t} value={t}>{t}</option>)}
+                </Select>
+              </FormField>
+              <FormField label="Priority">
+                <Select
+                  value={editForm.priority}
+                  onChange={e => setEditForm(prev => ({ ...prev, priority: e.target.value }))}
+                >
+                  <option value="Low">Low</option>
+                  <option value="Medium">Medium</option>
+                  <option value="High">High</option>
+                </Select>
+              </FormField>
+              <FormField label="Status">
+                <Select
+                  value={editForm.status}
+                  onChange={e => setEditForm(prev => ({ ...prev, status: e.target.value }))}
+                >
+                  <option value="Open">Open</option>
+                  <option value="Scheduled">Scheduled</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="Resolved">Resolved</option>
+                  <option value="Closed">Closed</option>
+                </Select>
+              </FormField>
+            </div>
+            <FormField label="Description">
+              <Textarea
+                placeholder="Describe the issue in detail..."
+                rows={3}
+                value={editForm.description}
+                onChange={e => setEditForm(prev => ({ ...prev, description: e.target.value }))}
+              />
+            </FormField>
+            <FormField label="Assigned To">
+              <Select
+                value={editForm.assignedTo}
+                onChange={e => setEditForm(prev => ({ ...prev, assignedTo: e.target.value }))}
+              >
+                <option value="">Select User</option>
+                {engineers.map(engineer => (
+                  <option key={engineer.id} value={engineer.name}>
+                    {engineer.name} {engineer.email ? `(${engineer.email})` : ''}
+                  </option>
+                ))}
+              </Select>
+              {engineers.length === 0 && (
+                <p className="text-xs text-[var(--text-muted)] mt-1">Loading users...</p>
+              )}
+            </FormField>
+          </div>
+        </Modal>
+      )}
+
+      {/* Service Ticket from AMC Modal */}
+      {serviceTicketModal.open && serviceTicketModal.contract && (
+        <Modal
+          open={serviceTicketModal.open}
+          onClose={closeServiceTicketModal}
+          title={`Create Service Ticket — ${serviceTicketModal.contract.id}`}
+          footer={
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" onClick={closeServiceTicketModal}>Cancel</Button>
+              <Button onClick={handleCreateServiceTicket} disabled={creatingServiceTicket}>
+                {creatingServiceTicket ? <Loader2 size={13} className="animate-spin" /> : <Headphones size={13} />}
+                {creatingServiceTicket ? 'Creating...' : 'Create Ticket'}
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-3">
+            <div className="text-xs text-[var(--text-muted)] mb-2">
+              AMC Contract: <span className="font-mono text-[var(--accent-light)]">{serviceTicketModal.contract.id}</span>
+              <br />Customer: <span className="font-semibold">{serviceTicketModal.contract.customer}</span>
+              <br />Site: <span className="font-semibold">{serviceTicketModal.contract.site}</span>
+            </div>
+            <FormField label="Customer">
+              <Select
+                value={serviceTicketForm.customerName}
+                onChange={e => setServiceTicketForm(prev => ({ ...prev, customerName: e.target.value }))}
+              >
+                <option value="">Select Customer</option>
+                {customers.map(customer => (
+                  <option key={customer} value={customer}>{customer}</option>
+                ))}
+              </Select>
+              {customers.length === 0 && (
+                <p className="text-xs text-[var(--text-muted)] mt-1">Loading customers...</p>
+              )}
+            </FormField>
+            <div className="grid grid-cols-3 gap-3">
+              <FormField label="Ticket Type">
+                <Select
+                  value={serviceTicketForm.type}
+                  onChange={e => setServiceTicketForm(prev => ({ ...prev, type: e.target.value }))}
+                >
+                  <option value="">Select Type</option>
+                  {['Maintenance', 'AMC', 'Warranty', 'Breakdown', 'Inspection'].map(t => <option key={t} value={t}>{t}</option>)}
+                </Select>
+              </FormField>
+              <FormField label="Priority">
+                <Select
+                  value={serviceTicketForm.priority}
+                  onChange={e => setServiceTicketForm(prev => ({ ...prev, priority: e.target.value }))}
+                >
+                  <option value="Low">Low</option>
+                  <option value="Medium">Medium</option>
+                  <option value="High">High</option>
+                </Select>
+              </FormField>
+              <FormField label="Status">
+                <Select
+                  value={serviceTicketForm.status}
+                  onChange={e => setServiceTicketForm(prev => ({ ...prev, status: e.target.value }))}
+                >
+                  <option value="Open">Open</option>
+                  <option value="Scheduled">Scheduled</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="Resolved">Resolved</option>
+                  <option value="Closed">Closed</option>
+                </Select>
+              </FormField>
+            </div>
+            <FormField label="Description">
+              <Textarea
+                placeholder="Describe the issue in detail..."
+                rows={3}
+                value={serviceTicketForm.description}
+                onChange={e => setServiceTicketForm(prev => ({ ...prev, description: e.target.value }))}
+              />
+            </FormField>
+            <FormField label="Assigned To">
+              <Select
+                value={serviceTicketForm.assignedTo}
+                onChange={e => setServiceTicketForm(prev => ({ ...prev, assignedTo: e.target.value }))}
+              >
+                <option value="">Select User</option>
+                {engineers.map(engineer => (
+                  <option key={engineer.id} value={engineer.name}>
+                    {engineer.name} {engineer.email ? `(${engineer.email})` : ''}
+                  </option>
+                ))}
+              </Select>
+              {engineers.length === 0 && (
+                <p className="text-xs text-[var(--text-muted)] mt-1">Loading users...</p>
+              )}
+            </FormField>
+          </div>
+        </Modal>
+      )}
+
+      {/* AMC Contract Edit Modal */}
+      {amcEditModal.open && amcEditModal.contract && (
+        <Modal
+          open={amcEditModal.open}
+          onClose={closeAmcEditModal}
+          title={`Edit AMC Contract — ${amcEditModal.contract.id}`}
+          footer={
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" onClick={closeAmcEditModal}>Cancel</Button>
+              <Button onClick={handleUpdateAmcContract} disabled={updatingAmc}>
+                {updatingAmc ? <Loader2 size={13} className="animate-spin" /> : <Pencil size={13} />}
+                {updatingAmc ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Customer">
+                <Input
+                  value={amcEditForm.customer}
+                  onChange={e => setAmcEditForm(prev => ({ ...prev, customer: e.target.value }))}
+                  className="h-8 text-xs"
+                />
+              </FormField>
+              <FormField label="Site">
+                <Input
+                  value={amcEditForm.site}
+                  onChange={e => setAmcEditForm(prev => ({ ...prev, site: e.target.value }))}
+                  className="h-8 text-xs"
+                />
+              </FormField>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <FormField label="System Size (kW)">
+                <Input
+                  type="number"
+                  value={amcEditForm.systemSize}
+                  onChange={e => setAmcEditForm(prev => ({ ...prev, systemSize: Number(e.target.value) }))}
+                  className="h-8 text-xs"
+                />
+              </FormField>
+              <FormField label="Status">
+                <Select
+                  value={amcEditForm.status}
+                  onChange={e => setAmcEditForm(prev => ({ ...prev, status: e.target.value }))}
+                >
+                  <option value="Active">Active</option>
+                  <option value="Expired">Expired</option>
+                  <option value="Expiring">Expiring</option>
+                </Select>
+              </FormField>
+              <FormField label="Amount (₹)">
+                <Input
+                  type="number"
+                  value={amcEditForm.amount}
+                  onChange={e => setAmcEditForm(prev => ({ ...prev, amount: Number(e.target.value) }))}
+                  className="h-8 text-xs"
+                />
+              </FormField>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Start Date">
+                <Input
+                  type="date"
+                  value={amcEditForm.startDate}
+                  onChange={e => setAmcEditForm(prev => ({ ...prev, startDate: e.target.value }))}
+                  className="h-8 text-xs"
+                />
+              </FormField>
+              <FormField label="End Date">
+                <Input
+                  type="date"
+                  value={amcEditForm.endDate}
+                  onChange={e => setAmcEditForm(prev => ({ ...prev, endDate: e.target.value }))}
+                  className="h-8 text-xs"
+                />
+              </FormField>
+            </div>
+            <FormField label="Next Visit">
+              <Input
+                type="date"
+                value={amcEditForm.nextVisit}
+                onChange={e => setAmcEditForm(prev => ({ ...prev, nextVisit: e.target.value }))}
+                className="h-8 text-xs"
+              />
+            </FormField>
           </div>
         </Modal>
       )}
@@ -1229,6 +1781,263 @@ const ServicePage = () => {
                   onChange={e => setVisitForm(prev => ({ ...prev, notes: e.target.value }))}
                 />
               </FormField>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Dashboard Modal */}
+      {showDashboard && (
+        <Modal
+          open={showDashboard}
+          onClose={() => setShowDashboard(false)}
+          title="Service & AMC Dashboard"
+          size="xl"
+          footer={
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" onClick={() => setShowDashboard(false)}>Close</Button>
+              <Button onClick={() => { fetchTickets(); fetchAmcContracts(); fetchStats(); fetchVisits(); fetchVisitStats(); }}>
+                <TrendingUp size={13} /> Refresh Data
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-6 max-h-[80vh] overflow-y-auto">
+            {/* Overview Stats Row */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="glass-card p-3 bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
+                <div className="flex items-center gap-2 mb-2">
+                  <Headphones size={16} className="text-blue-400" />
+                  <span className="text-xs text-[var(--text-muted)]">Total Tickets</span>
+                </div>
+                <div className="text-2xl font-bold text-[var(--text-primary)]">{tickets.length}</div>
+                <div className="text-[10px] text-blue-400 mt-1">All time tickets</div>
+              </div>
+              <div className="glass-card p-3 bg-gradient-to-br from-amber-500/10 to-amber-600/5 border-amber-500/20">
+                <div className="flex items-center gap-2 mb-2">
+                  <Clock size={16} className="text-amber-400" />
+                  <span className="text-xs text-[var(--text-muted)]">Visits Scheduled</span>
+                </div>
+                <div className="text-2xl font-bold text-[var(--text-primary)]">{visitStats.scheduled}</div>
+                <div className="text-[10px] text-amber-400 mt-1">Upcoming visits</div>
+              </div>
+              <div className="glass-card p-3 bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border-emerald-500/20">
+                <div className="flex items-center gap-2 mb-2">
+                  <Shield size={16} className="text-emerald-400" />
+                  <span className="text-xs text-[var(--text-muted)]">AMC Contracts</span>
+                </div>
+                <div className="text-2xl font-bold text-[var(--text-primary)]">{dynamicAmcStats.activeContracts}</div>
+                <div className="text-[10px] text-emerald-400 mt-1">Active contracts</div>
+              </div>
+              <div className="glass-card p-3 bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-500/20">
+                <div className="flex items-center gap-2 mb-2">
+                  <CheckCircle size={16} className="text-purple-400" />
+                  <span className="text-xs text-[var(--text-muted)]">Visits Completed</span>
+                </div>
+                <div className="text-2xl font-bold text-[var(--text-primary)]">{visitStats.completed}</div>
+                <div className="text-[10px] text-purple-400 mt-1">Total completed</div>
+              </div>
+            </div>
+
+            {/* Tickets Status Breakdown */}
+            <div className="glass-card p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                  <PieChart size={16} className="text-[var(--accent-light)]" />
+                  Tickets Status Breakdown
+                </h3>
+                <span className="text-xs text-[var(--text-muted)]">Total: {tickets.length}</span>
+              </div>
+              <div className="grid grid-cols-5 gap-2">
+                {[
+                  { label: 'Open', count: dynamicTicketStats.openTickets, color: 'bg-red-500', text: 'text-red-400' },
+                  { label: 'Scheduled', count: dynamicTicketStats.scheduled, color: 'bg-blue-500', text: 'text-blue-400' },
+                  { label: 'In Progress', count: dynamicTicketStats.inProgress, color: 'bg-amber-500', text: 'text-amber-400' },
+                  { label: 'Resolved', count: dynamicTicketStats.resolved, color: 'bg-emerald-500', text: 'text-emerald-400' },
+                  { label: 'Closed', count: dynamicTicketStats.closed, color: 'bg-slate-500', text: 'text-slate-400' },
+                ].map((item) => (
+                  <div key={item.label} className="text-center p-2 rounded-lg bg-[var(--bg-tertiary)]">
+                    <div className={`text-lg font-bold ${item.text}`}>{item.count}</div>
+                    <div className="text-[10px] text-[var(--text-muted)]">{item.label}</div>
+                    <div className={`h-1 rounded-full mt-2 ${item.color} opacity-50`} style={{ width: `${tickets.length > 0 ? (item.count / tickets.length) * 100 : 0}%`, margin: '8px auto 0' }} />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Visits Status */}
+            <div className="glass-card p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                  <Activity size={16} className="text-[var(--accent-light)]" />
+                  Visit Statistics
+                </h3>
+                <span className="text-xs text-[var(--text-muted)]">Total: {visitStats.totalVisits}</span>
+              </div>
+              <div className="grid grid-cols-4 gap-3">
+                <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                  <div className="text-lg font-bold text-blue-400">{visitStats.scheduled}</div>
+                  <div className="text-[10px] text-[var(--text-muted)]">Scheduled</div>
+                </div>
+                <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                  <div className="text-lg font-bold text-emerald-400">{visitStats.completed}</div>
+                  <div className="text-[10px] text-[var(--text-muted)]">Completed</div>
+                </div>
+                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                  <div className="text-lg font-bold text-red-400">{visitStats.cancelled}</div>
+                  <div className="text-[10px] text-[var(--text-muted)]">Cancelled</div>
+                </div>
+                <div className="p-3 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                  <div className="text-lg font-bold text-purple-400">{visits.length}</div>
+                  <div className="text-[10px] text-[var(--text-muted)]">Total Records</div>
+                </div>
+              </div>
+            </div>
+
+            {/* AMC Contracts Summary */}
+            <div className="glass-card p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                  <Shield size={16} className="text-[var(--accent-light)]" />
+                  AMC Contracts Overview
+                </h3>
+                <span className="text-xs text-[var(--text-muted)]">Total: {amcContracts.length}</span>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                  <div className="text-lg font-bold text-emerald-400">
+                    {amcContracts.filter(c => c.status === 'Active').length}
+                  </div>
+                  <div className="text-[10px] text-[var(--text-muted)]">Active</div>
+                </div>
+                <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                  <div className="text-lg font-bold text-amber-400">
+                    {amcContracts.filter(c => c.status === 'Expiring').length}
+                  </div>
+                  <div className="text-[10px] text-[var(--text-muted)]">Expiring Soon</div>
+                </div>
+                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                  <div className="text-lg font-bold text-red-400">
+                    {amcContracts.filter(c => c.status === 'Expired').length}
+                  </div>
+                  <div className="text-[10px] text-[var(--text-muted)]">Expired</div>
+                </div>
+              </div>
+              {/* Contract Value Summary */}
+              <div className="mt-4 p-3 rounded-lg bg-[var(--bg-tertiary)]">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-[var(--text-muted)]">Total AMC Value</span>
+                  <span className="text-sm font-bold text-[var(--accent-light)]">
+                    ₹{amcContracts.reduce((sum, c) => sum + (c.amount || 0), 0).toLocaleString('en-IN')}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Recent Activity */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* Recent Tickets */}
+              <div className="glass-card p-4">
+                <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3 flex items-center gap-2">
+                  <Headphones size={16} className="text-[var(--accent-light)]" />
+                  Recent Tickets ({Math.min(tickets.length, 5)})
+                </h3>
+                <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                  {tickets.slice(0, 5).map((ticket) => (
+                    <div key={ticket.id} className="p-2 rounded-lg bg-[var(--bg-tertiary)] text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono text-[var(--accent-light)]">{ticket.id}</span>
+                        <PriorityBadge value={ticket.priority} />
+                      </div>
+                      <div className="text-[var(--text-primary)] truncate">{ticket.customerName}</div>
+                      <div className="text-[10px] text-[var(--text-muted)]">{ticket.status} • {ticket.assignedTo || 'Unassigned'}</div>
+                    </div>
+                  ))}
+                  {tickets.length === 0 && (
+                    <p className="text-xs text-[var(--text-muted)] text-center py-4">No tickets found</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Recent Visits */}
+              <div className="glass-card p-4">
+                <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3 flex items-center gap-2">
+                  <Clock size={16} className="text-[var(--accent-light)]" />
+                  Recent Visits ({Math.min(visits.length, 5)})
+                </h3>
+                <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                  {visits.slice(0, 5).map((visit) => (
+                    <div key={visit.id || visit.visitId} className="p-2 rounded-lg bg-[var(--bg-tertiary)] text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono text-[var(--accent-light)]">{visit.visitId || visit.id}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                          visit.status === 'Completed' ? 'bg-emerald-500/20 text-emerald-400' :
+                          visit.status === 'Scheduled' ? 'bg-blue-500/20 text-blue-400' :
+                          'bg-red-500/20 text-red-400'
+                        }`}>{visit.status}</span>
+                      </div>
+                      <div className="text-[var(--text-primary)] truncate">{visit.customer}</div>
+                      <div className="text-[10px] text-[var(--text-muted)]">{visit.visitType} • {visit.scheduledDate}</div>
+                    </div>
+                  ))}
+                  {visits.length === 0 && (
+                    <p className="text-xs text-[var(--text-muted)] text-center py-4">No visits found</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* AMC Contracts List */}
+            <div className="glass-card p-4">
+              <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3 flex items-center gap-2">
+                <Shield size={16} className="text-[var(--accent-light)]" />
+                AMC Contracts ({Math.min(amcContracts.length, 5)})
+              </h3>
+              <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                {amcContracts.slice(0, 5).map((contract) => (
+                  <div key={contract.id} className="p-2 rounded-lg bg-[var(--bg-tertiary)] text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-[var(--accent-light)]">{contract.id}</span>
+                      <AmcBadge value={contract.status} />
+                    </div>
+                    <div className="text-[var(--text-primary)] truncate">{contract.customer}</div>
+                    <div className="flex items-center justify-between text-[10px] text-[var(--text-muted)]">
+                      <span>{contract.site}</span>
+                      <span className="text-[var(--accent-light)]">₹{(contract.amount || 0).toLocaleString('en-IN')}</span>
+                    </div>
+                  </div>
+                ))}
+                {amcContracts.length === 0 && (
+                  <p className="text-xs text-[var(--text-muted)] text-center py-4">No AMC contracts found</p>
+                )}
+              </div>
+            </div>
+
+            {/* Engineers Summary */}
+            <div className="glass-card p-4">
+              <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3 flex items-center gap-2">
+                <Wrench size={16} className="text-[var(--accent-light)]" />
+                Available Engineers ({engineers.length})
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {engineers.slice(0, 10).map((engineer) => (
+                  <div key={engineer.id} className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-[var(--bg-tertiary)] text-xs">
+                    <Avatar name={engineer.name} size="xs" />
+                    <span className="text-[var(--text-primary)]">{engineer.name}</span>
+                  </div>
+                ))}
+                {engineers.length === 0 && (
+                  <p className="text-xs text-[var(--text-muted)]">No engineers available</p>
+                )}
+              </div>
+            </div>
+
+            {/* Auto-refresh indicator */}
+            <div className="text-center text-[10px] text-[var(--text-muted)]">
+              <span className="flex items-center justify-center gap-1">
+                <Activity size={12} className="animate-pulse" />
+                Data auto-refreshes every 30 seconds for real-time updates
+              </span>
             </div>
           </div>
         </Modal>
