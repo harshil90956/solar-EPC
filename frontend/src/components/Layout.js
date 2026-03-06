@@ -15,7 +15,7 @@ import ThemeCustomizer from './ThemeCustomizer';
 import ReminderSidebar from './Reminder/ReminderSidebar';
 import { api } from '../lib/apiClient';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api/v1';
 const TENANT_ID = 'solarcorp';
 
 const Layout = ({ currentPage, onNavigate, children }) => {
@@ -51,16 +51,17 @@ const Layout = ({ currentPage, onNavigate, children }) => {
     const fetchBadgeCounts = async () => {
       try {
         // Fetch inventory stats
-        const inventoryData = await api.get('/inventory/stats').catch(() => null);
-        
+        const inventoryRes = await fetch(`${API_BASE_URL}/inventory/stats?tenantId=${TENANT_ID}`);
+        const inventoryData = inventoryRes.ok ? await inventoryRes.json() : null;
+
         // Fetch projects
         const projectsData = await api.get('/projects').catch(() => null);
         const projects = projectsData?.data || projectsData || [];
-        
+
         // Calculate counts
         const lowStockCount = inventoryData?.data?.lowStock || 0;
         const activeProjects = projects.filter(p => p.status !== 'Commissioned').length;
-        
+
         setBadgeCounts({
           inventory: lowStockCount,
           project: activeProjects,

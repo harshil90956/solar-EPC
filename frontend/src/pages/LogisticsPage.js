@@ -11,7 +11,7 @@ import DataTable from '../components/ui/DataTable';
 import { APP_CONFIG } from '../config/app.config';
 import { api } from '../lib/apiClient';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api/v1';
 const TENANT_ID = 'solarcorp';
 
 // Local status map only (no data)
@@ -192,11 +192,11 @@ const LogisticsPage = () => {
         api.get('/logistics/dispatches'),
         api.get('/logistics/stats'),
       ]);
-      
+
       // Handle API response
       let dispatchesData = [];
       let statsData = { delivered: 0, inTransit: 0, scheduled: 0, totalFreight: 0 };
-      
+
       if (Array.isArray(dispatchesRes.data)) {
         dispatchesData = dispatchesRes.data;
       } else if (dispatchesRes.data && typeof dispatchesRes.data === 'object') {
@@ -268,13 +268,13 @@ const LogisticsPage = () => {
       try {
         const subject = 'Logistics Inquiry';
         const text = `Dear ${vendor.name || vendor.contact || 'Vendor'},\n\nI hope this email finds you well. We are interested in discussing potential logistics services and would like to connect with you regarding our requirements.\n\nPlease let us know your availability for a brief discussion.\n\nBest regards,\nSolarOS Team`;
-        
+
         const res = await api.post('/email/send', {
           to: vendor.email,
           subject,
           text
         });
-        
+
         if (res.data?.success) {
           alert(`Email sent to ${vendor.email}`);
         } else {
@@ -389,7 +389,7 @@ const LogisticsPage = () => {
   // Filter projects based on search
   const filteredProjects = useMemo(() => {
     if (!projectSearch.trim()) return projects;
-    return projects.filter(p => 
+    return projects.filter(p =>
       p.projectId?.toLowerCase().includes(projectSearch.toLowerCase()) ||
       p.customerName?.toLowerCase().includes(projectSearch.toLowerCase()) ||
       p.site?.toLowerCase().includes(projectSearch.toLowerCase())
@@ -453,12 +453,12 @@ const LogisticsPage = () => {
         <Zap size={14} className="text-[var(--accent-light)] mt-0.5 shrink-0" />
         <p className="text-xs text-[var(--text-secondary)]">
           <span className="text-[var(--accent-light)] font-semibold">AI Insight:</span>{' '}
-          {activeTab === 'dispatches' 
-            ? (inTransit > 0 
-                ? `${inTransit} shipment(s) currently in transit. ${scheduled > 0 ? `${scheduled} pending dispatch(es) need vehicle assignment.` : 'All dispatches are on track.'}`
-                : scheduled > 0 
-                  ? `${scheduled} dispatch(es) scheduled. Assign vehicles and drivers to proceed.`
-                  : 'All dispatches completed. No active shipments.')
+          {activeTab === 'dispatches'
+            ? (inTransit > 0
+              ? `${inTransit} shipment(s) currently in transit. ${scheduled > 0 ? `${scheduled} pending dispatch(es) need vehicle assignment.` : 'All dispatches are on track.'}`
+              : scheduled > 0
+                ? `${scheduled} dispatch(es) scheduled. Assign vehicles and drivers to proceed.`
+                : 'All dispatches completed. No active shipments.')
             : `${vendors.length} vendors available for logistics operations.`
           }
         </p>
@@ -530,8 +530,8 @@ const LogisticsPage = () => {
             <Input placeholder="Search vendors…" value={search}
               onChange={e => setSearch(e.target.value)} className="h-8 text-xs w-52" />
           </div>
-          <DataTable columns={VENDOR_COLUMNS} data={vendors.filter(v => 
-            !search || v.name?.toLowerCase().includes(search.toLowerCase()) || 
+          <DataTable columns={VENDOR_COLUMNS} data={vendors.filter(v =>
+            !search || v.name?.toLowerCase().includes(search.toLowerCase()) ||
             v.city?.toLowerCase().includes(search.toLowerCase()) ||
             v.category?.toLowerCase().includes(search.toLowerCase())
           )} rowActions={VENDOR_ACTIONS}
@@ -549,15 +549,15 @@ const LogisticsPage = () => {
           <FormField label="Project">
             <div className="space-y-2">
               <div className="relative">
-                <Input 
-                  type="text" 
-                  placeholder="Search projects by ID, name or site..." 
+                <Input
+                  type="text"
+                  placeholder="Search projects by ID, name or site..."
                   value={projectSearch}
                   onChange={e => setProjectSearch(e.target.value)}
                   className="h-9 text-xs pr-8"
                 />
                 <div className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-muted)]">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
                 </div>
               </div>
               <div className="max-h-40 overflow-y-auto border border-[var(--border)] rounded-md bg-[var(--bg-elevated)]">
@@ -568,18 +568,17 @@ const LogisticsPage = () => {
                 ) : (
                   <div className="divide-y divide-[var(--border)]">
                     {filteredProjects.map(p => (
-                      <div 
-                        key={p.projectId} 
+                      <div
+                        key={p.projectId}
                         onClick={() => {
                           setNewDispatch({
-                            ...newDispatch, 
+                            ...newDispatch,
                             projectId: p.projectId,
                             customer: p.customerName || ''
                           });
                         }}
-                        className={`p-2 cursor-pointer hover:bg-[var(--accent)]/10 transition-colors ${
-                          newDispatch.projectId === p.projectId ? 'bg-[var(--accent)]/20 border-l-2 border-[var(--accent)]' : ''
-                        }`}
+                        className={`p-2 cursor-pointer hover:bg-[var(--accent)]/10 transition-colors ${newDispatch.projectId === p.projectId ? 'bg-[var(--accent)]/20 border-l-2 border-[var(--accent)]' : ''
+                          }`}
                       >
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-medium text-[var(--text-primary)]">{p.projectId}</span>
@@ -599,37 +598,37 @@ const LogisticsPage = () => {
             </div>
           </FormField>
           <FormField label="Customer">
-            <Input value={newDispatch.customer} onChange={e => setNewDispatch({...newDispatch, customer: e.target.value})} placeholder="Customer name" />
+            <Input value={newDispatch.customer} onChange={e => setNewDispatch({ ...newDispatch, customer: e.target.value })} placeholder="Customer name" />
           </FormField>
           <FormField label="Items to Dispatch">
-            <Input value={newDispatch.items} onChange={e => setNewDispatch({...newDispatch, items: e.target.value})} placeholder="e.g. 125 Panels, 1 Inverter" />
+            <Input value={newDispatch.items} onChange={e => setNewDispatch({ ...newDispatch, items: e.target.value })} placeholder="e.g. 125 Panels, 1 Inverter" />
           </FormField>
           <div className="grid grid-cols-2 gap-3">
             <FormField label="From Warehouse">
-              <Select value={newDispatch.from} onChange={e => setNewDispatch({...newDispatch, from: e.target.value})}>
+              <Select value={newDispatch.from} onChange={e => setNewDispatch({ ...newDispatch, from: e.target.value })}>
                 <option value="">Select Warehouse</option>
                 <option value="WH-Ahmedabad">WH-Ahmedabad</option>
                 <option value="WH-Surat">WH-Surat</option>
               </Select>
             </FormField>
             <FormField label="To Location">
-              <Input value={newDispatch.to} onChange={e => setNewDispatch({...newDispatch, to: e.target.value})} placeholder="Destination" />
+              <Input value={newDispatch.to} onChange={e => setNewDispatch({ ...newDispatch, to: e.target.value })} placeholder="Destination" />
             </FormField>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <FormField label="Dispatch Date">
-              <Input type="date" value={newDispatch.dispatchDate} onChange={e => setNewDispatch({...newDispatch, dispatchDate: e.target.value})} />
+              <Input type="date" value={newDispatch.dispatchDate} onChange={e => setNewDispatch({ ...newDispatch, dispatchDate: e.target.value })} />
             </FormField>
             <FormField label="Freight Cost (₹)">
-              <Input type="number" value={newDispatch.cost} onChange={e => setNewDispatch({...newDispatch, cost: e.target.value})} placeholder="8500" />
+              <Input type="number" value={newDispatch.cost} onChange={e => setNewDispatch({ ...newDispatch, cost: e.target.value })} placeholder="8500" />
             </FormField>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <FormField label="Driver Name">
-              <Input value={newDispatch.driver} onChange={e => setNewDispatch({...newDispatch, driver: e.target.value})} placeholder="Driver name" />
+              <Input value={newDispatch.driver} onChange={e => setNewDispatch({ ...newDispatch, driver: e.target.value })} placeholder="Driver name" />
             </FormField>
             <FormField label="Vehicle Number">
-              <Input value={newDispatch.vehicle} onChange={e => setNewDispatch({...newDispatch, vehicle: e.target.value})} placeholder="GJ-01-AB-1234" />
+              <Input value={newDispatch.vehicle} onChange={e => setNewDispatch({ ...newDispatch, vehicle: e.target.value })} placeholder="GJ-01-AB-1234" />
             </FormField>
           </div>
         </div>
@@ -668,11 +667,11 @@ const LogisticsPage = () => {
         </div>}>
         <div className="space-y-3">
           <FormField label="Vendor Name">
-            <Input value={newVendor.name} onChange={e => setNewVendor({...newVendor, name: e.target.value})} placeholder="e.g., ABC Logistics" />
+            <Input value={newVendor.name} onChange={e => setNewVendor({ ...newVendor, name: e.target.value })} placeholder="e.g., ABC Logistics" />
           </FormField>
           <div className="grid grid-cols-2 gap-3">
             <FormField label="Category">
-              <Select value={newVendor.category} onChange={e => setNewVendor({...newVendor, category: e.target.value})}>
+              <Select value={newVendor.category} onChange={e => setNewVendor({ ...newVendor, category: e.target.value })}>
                 <option value="">Select Category</option>
                 <option value="Transport">Transport</option>
                 <option value="Panel">Panel</option>
@@ -684,18 +683,18 @@ const LogisticsPage = () => {
               </Select>
             </FormField>
             <FormField label="City">
-              <Input value={newVendor.city} onChange={e => setNewVendor({...newVendor, city: e.target.value})} placeholder="e.g., Ahmedabad" />
+              <Input value={newVendor.city} onChange={e => setNewVendor({ ...newVendor, city: e.target.value })} placeholder="e.g., Ahmedabad" />
             </FormField>
           </div>
           <FormField label="Contact Person">
-            <Input value={newVendor.contact} onChange={e => setNewVendor({...newVendor, contact: e.target.value})} placeholder="e.g., John Doe" />
+            <Input value={newVendor.contact} onChange={e => setNewVendor({ ...newVendor, contact: e.target.value })} placeholder="e.g., John Doe" />
           </FormField>
           <div className="grid grid-cols-2 gap-3">
             <FormField label="Phone">
-              <Input value={newVendor.phone} onChange={e => setNewVendor({...newVendor, phone: e.target.value})} placeholder="e.g., +91 98765 43210" />
+              <Input value={newVendor.phone} onChange={e => setNewVendor({ ...newVendor, phone: e.target.value })} placeholder="e.g., +91 98765 43210" />
             </FormField>
             <FormField label="Email">
-              <Input type="email" value={newVendor.email} onChange={e => setNewVendor({...newVendor, email: e.target.value})} placeholder="e.g., vendor@example.com" />
+              <Input type="email" value={newVendor.email} onChange={e => setNewVendor({ ...newVendor, email: e.target.value })} placeholder="e.g., vendor@example.com" />
             </FormField>
           </div>
         </div>
@@ -732,10 +731,10 @@ const LogisticsPage = () => {
             Record stock delivery from vendor. This will add the quantity to inventory.
           </p>
           <FormField label="Item Name *">
-            <Input value={vendorDeliveryData.itemName} onChange={e => setVendorDeliveryData({...vendorDeliveryData, itemName: e.target.value})} placeholder="e.g., 400W Solar Panels" />
+            <Input value={vendorDeliveryData.itemName} onChange={e => setVendorDeliveryData({ ...vendorDeliveryData, itemName: e.target.value })} placeholder="e.g., 400W Solar Panels" />
           </FormField>
           <FormField label="Quantity *">
-            <Input type="number" value={vendorDeliveryData.quantity} onChange={e => setVendorDeliveryData({...vendorDeliveryData, quantity: e.target.value})} placeholder="e.g., 100" />
+            <Input type="number" value={vendorDeliveryData.quantity} onChange={e => setVendorDeliveryData({ ...vendorDeliveryData, quantity: e.target.value })} placeholder="e.g., 100" />
           </FormField>
         </div>
       </Modal>

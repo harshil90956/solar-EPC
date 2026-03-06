@@ -172,6 +172,7 @@ const ProcurementPage = () => {
 
   // Vendor detail modal state
   const [selectedVendor, setSelectedVendor] = useState(null);
+  const [showVendor, setShowVendor] = useState(false);
 
   // PO Edit state
   const [isEditingPO, setIsEditingPO] = useState(false);
@@ -223,13 +224,13 @@ const ProcurementPage = () => {
       try {
         const subject = 'Procurement Inquiry';
         const text = `Dear ${vendor.name || vendor.contact || 'Vendor'},\n\nI hope this email finds you well. We are interested in discussing potential procurement services and would like to connect with you regarding our requirements.\n\nPlease let us know your availability for a brief discussion.\n\nBest regards,\nSolarOS Team`;
-        
+
         const res = await api.post('/email/send', {
           to: vendor.email,
           subject,
           text
         });
-        
+
         if (res.data?.success) {
           alert(`Email sent to ${vendor.email}`);
         } else {
@@ -341,17 +342,19 @@ const ProcurementPage = () => {
       // Handle API response - could be direct array or wrapped object
       let posData = [];
 
+<<<<<<< Updated upstream
       const vendorsData = Array.isArray(vendorsRes.data)
         ? vendorsRes.data
         : (vendorsRes.data?.data || []);
 
+=======
+>>>>>>> Stashed changes
       if (Array.isArray(posRes.data)) {
         posData = posRes.data;
       } else if (posRes.data && typeof posRes.data === 'object') {
         posData = posRes.data.data || [];
       }
 
-      setVendors(vendorsData);
       setPos(posData);
     } catch (error) {
       console.error('Error fetching procurement data:', error);

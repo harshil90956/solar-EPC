@@ -65,6 +65,7 @@ const HRMPage = () => {
     firstName: '',
     lastName: '',
     email: '',
+    password: '',
     phone: '',
     address: '',
     joiningDate: '',
@@ -250,7 +251,7 @@ const HRMPage = () => {
       toast.error('Please select a role for the employee');
       return;
     }
-    if (!employeeForm.employeeId || !employeeForm.firstName || !employeeForm.lastName || !employeeForm.email || !employeeForm.phone) {
+    if (!employeeForm.employeeId || !employeeForm.firstName || !employeeForm.lastName || !employeeForm.email || !employeeForm.password || !employeeForm.phone) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -305,6 +306,7 @@ const HRMPage = () => {
       firstName: '',
       lastName: '',
       email: '',
+      password: '',
       phone: '',
       address: '',
       joiningDate: '',
@@ -1415,7 +1417,7 @@ const HRMPage = () => {
               </Button>
               <Button
                 onClick={selectedEmployee ? handleUpdateEmployee : handleCreateEmployee}
-                disabled={!employeeForm.employeeId || !employeeForm.firstName || !employeeForm.lastName || !employeeForm.email || !employeeForm.phone || !employeeForm.roleId}
+                disabled={!employeeForm.employeeId || !employeeForm.firstName || !employeeForm.lastName || !employeeForm.email || !employeeForm.password || !employeeForm.phone || !employeeForm.roleId}
               >
                 <Plus size={13} /> {selectedEmployee ? 'Update' : 'Create'}
               </Button>
@@ -1457,6 +1459,14 @@ const HRMPage = () => {
                 value={employeeForm.email}
                 onChange={(e) => setEmployeeForm({ ...employeeForm, email: e.target.value })}
                 placeholder="john@example.com"
+              />
+            </FormField>
+            <FormField label="Password *">
+              <Input
+                type="password"
+                value={employeeForm.password}
+                onChange={(e) => setEmployeeForm({ ...employeeForm, password: e.target.value })}
+                placeholder="Set password..."
               />
             </FormField>
             <FormField label="Phone">
