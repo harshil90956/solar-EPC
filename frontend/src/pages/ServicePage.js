@@ -34,7 +34,7 @@ import {
   getCustomers,
 } from '../modules/service-amc/services/serviceAmcApi';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api/v1';
 const TENANT_ID = 'solarcorp';
 
 /* ── Ticket stage defs ──────────────────────────────────────────────────────── */
@@ -160,7 +160,7 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
               <div className="flex flex-col gap-2 p-2 flex-1 min-h-[120px]">
                 {cards.map(t => (
                   <TicketCard key={t.id} ticket={t}
-                    onDragStart={() => {}}
+                    onDragStart={() => { }}
                     onDragEnd={handleDragEnd}
                     onClick={onCardClick}
                   />
@@ -470,7 +470,7 @@ const ServicePage = () => {
       console.log('Assign cancelled: no engineer or ticket selected');
       return;
     }
-    
+
     console.log('Assigning engineer:', selectedEngineer, 'to ticket:', assignModal.ticket.id);
     setAssigning(true);
     try {
@@ -609,7 +609,7 @@ const ServicePage = () => {
       notes: '',
     });
     fetchEngineers();
-    
+
     // Fetch project data to get email and mobile
     setLoadingScheduleVisitProject(true);
     try {
@@ -650,7 +650,7 @@ const ServicePage = () => {
     // Validate all required fields
     const contractId = scheduleVisitModal.contract?.id;
     const { visitType, scheduledDate, scheduledTime, engineerId } = visitForm;
-    
+
     if (!contractId || !visitType || !scheduledDate || !scheduledTime || !engineerId) {
       alert('Please fill all required fields');
       return;
@@ -1077,7 +1077,7 @@ const ServicePage = () => {
                   <div className="text-xs font-semibold text-[var(--text-primary)] mb-3">Reserved Materials</div>
                   <div className="space-y-2">
                     {amcProjectData.materials.map((m, idx) => (
-                      <div key={idx} className="glass-card p-2 flex items-center justify-between">
+                      <div key={`mat-${idx}`} className="glass-card p-2 flex items-center justify-between">
                         <div>
                           <div className="text-xs font-medium text-[var(--text-primary)]">{m.itemName}</div>
                           <div className="text-[10px] text-[var(--text-muted)]">Qty: {m.quantity} | Issued: {m.issuedDate || '—'}</div>
@@ -1236,9 +1236,8 @@ const ServicePage = () => {
 
       {/* Toast Notification */}
       {toast.show && (
-        <div className={`fixed bottom-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg transition-all duration-300 ${
-          toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
-        }`}>
+        <div className={`fixed bottom-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg transition-all duration-300 ${toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+          }`}>
           <div className="flex items-center gap-2">
             {toast.type === 'success' ? <CheckCircle size={16} /> : <AlertTriangle size={16} />}
             <span className="text-sm font-medium">{toast.message}</span>

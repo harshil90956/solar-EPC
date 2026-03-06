@@ -1,4 +1,5 @@
 import apiClient from '../lib/apiClient';
+
 export const settingsApi = {
   // ── Full Settings ─────────────────────────────────────────────────────────
   async getFullSettings() {

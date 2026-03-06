@@ -47,6 +47,11 @@ export class CreateInvoiceDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(100)
+  email?: string;
+
+  @IsOptional()
+  @IsString()
   paymentTerms?: string;
 
   @IsOptional()
@@ -102,6 +107,11 @@ export class UpdateInvoiceDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  email?: string;
 
   @IsOptional()
   @IsString()

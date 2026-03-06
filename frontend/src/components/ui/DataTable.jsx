@@ -535,18 +535,12 @@ const DataTable = ({
                                     </td>
 
                                 </tr>
-                            ) : (
-                                data.map((row, index) => (
-                                    <tr 
-                                        key={row[rowKey] || index} 
-                                        className="table-row border-b border-[var(--border-base)] last:border-0 group cursor-pointer"
-                                        onClick={() => onRowClick?.(row)}
-                                    >
 
-                                        {bulkActions.length > 0 && (
+                            ) : data.map((row, index) => (
+                                <tr key={row[rowKey] || index} className="table-row border-b border-[var(--border-base)] last:border-0 group">
 
-                                            <td className="px-3 py-3.5 sticky left-0 z-10 bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] transition-colors"
-                                                onClick={e => e.stopPropagation()}>
+                                    {bulkActions.length > 0 && (
+                                            <td className="px-3 py-3.5 sticky left-0 z-10 bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] transition-colors">
 
                                                 <input
 
@@ -602,7 +596,7 @@ const DataTable = ({
                                         )}
 
                                     </tr>
-                                )))}
+                                ))}
                             </tbody>
                         </table>
                     </div>

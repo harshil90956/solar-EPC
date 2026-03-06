@@ -5,7 +5,7 @@ import {
   LayoutGrid, List, User, Clock, Trash2, Edit2, Clock3, History,
   Eye, Check, EyeOff, Layers
 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, PieChart, Pie, Cell } from 'recharts';
 import { PROJECT_STAGE_TREND } from '../data/mockData';
 import { StatusBadge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
@@ -24,7 +24,7 @@ import { toast } from '../components/ui/Toast';
 
 const fmt = CURRENCY.format;
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000/api/v1';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
 const TENANT_ID = 'solarcorp'; // Default tenant for seed data
 
 const KANBAN_STAGES = [
@@ -152,7 +152,7 @@ const ProjectPage = () => {
     return true;
   };
 
-  const [view, setView] = useState('kanban');
+  const [view, setView] = useState('dashboard');
   const [search, setSearch] = useState('');
   const [statusFilter, setFilter] = useState('All');
   const [progressFilter, setProgressFilter] = useState('all');
@@ -177,7 +177,7 @@ const ProjectPage = () => {
   const [itemsLoading, setItemsLoading] = useState(false);
   const [projectReservations, setProjectReservations] = useState([]);
   const [loadingProjectReservations, setLoadingProjectReservations] = useState(false);
-  const [editForm, setEditForm] = useState({ customerName: '', site: '', systemSize: '', pm: '', value: '', estEndDate: '', email: '', mobileNumber: '' });
+  const [editForm, setEditForm] = useState({ customerName: '', site: '', systemSize: '', pm: '', value: '', estEndDate: '', email: '', mobileNumber: '', materials: [] });
   const [submitting, setSubmitting] = useState(false);
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
@@ -584,6 +584,38 @@ const ProjectPage = () => {
     setShowActivity(true);
   };
 
+  // Helper functions for managing edit materials
+  const addEditMaterial = () => {
+    setEditForm(f => ({
+      ...f,
+      materials: [...(f.materials || []), { itemId: '', itemName: '', quantity: '', issuedDate: '', remarks: '' }]
+    }));
+  };
+
+  const removeEditMaterial = (index) => {
+    setEditForm(f => ({
+      ...f,
+      materials: (f.materials || []).filter((_, i) => i !== index)
+    }));
+  };
+
+  const updateEditMaterial = (index, field, value) => {
+    setEditForm(f => {
+      const updatedMaterials = [...(f.materials || [])];
+      if (field === 'itemId') {
+        const selectedItem = items.find(i => i._id === value || i.id === value);
+        updatedMaterials[index] = {
+          ...updatedMaterials[index],
+          itemId: value,
+          itemName: selectedItem?.description || selectedItem?.name || ''
+        };
+      } else {
+        updatedMaterials[index] = { ...updatedMaterials[index], [field]: value };
+      }
+      return { ...f, materials: updatedMaterials };
+    });
+  };
+
   const handleEditClick = (project) => {
     setEditingProject(project);
     setEditForm({
@@ -594,7 +626,8 @@ const ProjectPage = () => {
       value: project.value || '',
       estEndDate: project.estEndDate || '',
       email: project.email || '',
-      mobileNumber: project.mobileNumber || ''
+      mobileNumber: project.mobileNumber || '',
+      materials: project.materials || []
     });
     setShowEdit(true);
   };
@@ -626,7 +659,14 @@ const ProjectPage = () => {
         pm: editForm.pm,
         estEndDate: editForm.estEndDate,
         email: editForm.email,
-        mobileNumber: editForm.mobileNumber
+        mobileNumber: editForm.mobileNumber,
+        materials: (editForm.materials || []).map(m => ({
+          itemId: m.itemId,
+          itemName: m.itemName,
+          quantity: parseInt(m.quantity) || 0,
+          issuedDate: m.issuedDate,
+          remarks: m.remarks
+        }))
       };
 
       const response = await fetch(`${API_BASE_URL}/projects/${editingProject.id}?tenantId=${TENANT_ID}`, {
@@ -646,7 +686,7 @@ const ProjectPage = () => {
       setProjects(prev => prev.map(p => p.id === editingProject.id ? { ...p, ...projectData } : p));
       setShowEdit(false);
       setEditingProject(null);
-      setEditForm({ customerName: '', site: '', systemSize: '', pm: '', value: '', estEndDate: '', email: '', mobileNumber: '' });
+      setEditForm({ customerName: '', site: '', systemSize: '', pm: '', value: '', estEndDate: '', email: '', mobileNumber: '', materials: [] });
       alert('Project updated successfully!');
     } catch (err) {
       console.error('Error updating project:', err);
@@ -662,6 +702,7 @@ const ProjectPage = () => {
         title="Project Management"
         subtitle="Track all EPC projects · milestones · progress · delivery"
         tabs={[
+          { id: 'dashboard', label: 'Dashboard', icon: BarChart2 },
           { id: 'kanban', label: 'Kanban', icon: LayoutGrid },
           { id: 'table', label: 'Table', icon: List }
         ]}
@@ -675,9 +716,9 @@ const ProjectPage = () => {
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <KPICard label="Total Projects" value={projectStats?.totalProjects ?? projects.length} sub="All projects" icon={Layers} accentColor="#6366f1" />
         <KPICard label="Active Projects" value={projectStats?.active ?? active} sub="Currently executing" icon={FolderOpen} accentColor="#3b82f6" />
+        <KPICard label="Completed" value={projectStats?.commissioned ?? commissioned} sub="Finished projects" icon={CheckCircle} accentColor="#06b6d4" />
         <KPICard label="Total Capacity" value={`${Math.round(projectStats?.totalCapacity ?? totalKW)} kW`} sub="Pipeline capacity" icon={Zap} accentColor="#f59e0b" />
         <KPICard label="Current Progress" value={`${Math.round(projectStats?.avgProgress ?? avgProgress)}%`} sub="Across all projects" icon={TrendingUp} accentColor="#22c55e" />
-        <KPICard label="Completed" value={projectStats?.commissioned ?? commissioned} sub="Finished projects" icon={CheckCircle} accentColor="#06b6d4" />
       </div>
 
       <div className="ai-banner">
@@ -688,51 +729,157 @@ const ProjectPage = () => {
         </p>
       </div>
 
-      {view === 'table' && (
-        <div className="glass-card p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <BarChart2 size={15} className="text-[var(--accent)]" />
-            <h3 className="text-sm font-semibold text-[var(--text-primary)]">Projects by Stage</h3>
+      {/* Dashboard View - Comprehensive Charts */}
+      {view === 'dashboard' && (
+        <div className="space-y-4">
+          {/* Row 1: Projects by Stage & Status Distribution */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Projects by Stage Bar Chart */}
+            <div className="glass-card p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <BarChart2 size={15} className="text-[var(--accent)]" />
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Projects by Stage</h3>
+              </div>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={projectsByStage.map(s => ({ stage: s._id, count: s.count, capacity: Math.round(s.capacity || 0) }))} barSize={20} barGap={3}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                  <XAxis dataKey="stage" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)', borderRadius: 8, fontSize: 12 }} />
+                  <Bar dataKey="count" fill="#8b5cf6" radius={[3, 3, 0, 0]} name="Projects" />
+                  <Bar dataKey="capacity" fill="#06b6d4" radius={[3, 3, 0, 0]} name="Capacity (kW)" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Status Distribution Pie Chart */}
+            <div className="glass-card p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <TrendingUp size={15} className="text-[var(--accent)]" />
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Status Distribution</h3>
+              </div>
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: 'Active', value: activeProjects.filter(p => p.status !== 'Commissioned' && p.status !== 'On Hold' && p.status !== 'Cancelled').length, color: '#3b82f6' },
+                      { name: 'Commissioned', value: activeProjects.filter(p => p.status === 'Commissioned').length, color: '#22c55e' },
+                      { name: 'On Hold', value: activeProjects.filter(p => p.status === 'On Hold').length, color: '#f59e0b' },
+                      { name: 'Cancelled', value: projects.filter(p => p.status === 'Cancelled').length, color: '#ef4444' },
+                    ].filter(d => d.value > 0)}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={80}
+                    paddingAngle={3}
+                    dataKey="value"
+                  >
+                    {[
+                      { name: 'Active', value: activeProjects.filter(p => p.status !== 'Commissioned' && p.status !== 'On Hold' && p.status !== 'Cancelled').length, color: '#3b82f6' },
+                      { name: 'Commissioned', value: activeProjects.filter(p => p.status === 'Commissioned').length, color: '#22c55e' },
+                      { name: 'On Hold', value: activeProjects.filter(p => p.status === 'On Hold').length, color: '#f59e0b' },
+                      { name: 'Cancelled', value: projects.filter(p => p.status === 'Cancelled').length, color: '#ef4444' },
+                    ].filter(d => d.value > 0).map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)', borderRadius: 8, fontSize: 12 }} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
           </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={projectsByStage.map(s => ({ stage: s._id, count: s.count, capacity: s.capacity }))} barSize={20} barGap={3}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-              <XAxis dataKey="stage" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)', borderRadius: 8, fontSize: 12 }} />
-              <Bar dataKey="count" fill="#8b5cf6" radius={[3, 3, 0, 0]} name="Projects" />
-              <Bar dataKey="capacity" fill="#06b6d4" radius={[3, 3, 0, 0]} name="Capacity (kW)" />
-            </BarChart>
-          </ResponsiveContainer>
+
+          {/* Row 2: Performance Overview */}
+          <div className="glass-card p-4">
+            <div className="flex items-center gap-2 mb-4">
+              <TrendingUp size={15} className="text-[var(--accent)]" />
+              <h3 className="text-sm font-semibold text-[var(--text-primary)]">Performance Overview</h3>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                { label: 'Completion Rate', value: Math.round((activeProjects.filter(p => p.progress === 100).length / (activeProjects.length || 1)) * 100), target: 85, color: '#22c55e' },
+                { label: 'Avg Progress', value: avgProgress, target: 75, color: '#3b82f6' },
+                { label: 'On Track', value: Math.round((activeProjects.filter(p => p.progress >= 50).length / (activeProjects.length || 1)) * 100), target: 80, color: '#8b5cf6' },
+                { label: 'Delayed Risk', value: Math.round((activeProjects.filter(p => p.progress < 25 && p.status !== 'Commissioned').length / (activeProjects.length || 1)) * 100), target: 15, color: '#f59e0b', reverse: true },
+              ].map((metric) => (
+                <div key={metric.label} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-[var(--text-secondary)]">{metric.label}</span>
+                    <span className="text-xs font-bold" style={{ color: metric.color }}>{metric.value}%</span>
+                  </div>
+                  <div className="h-2 bg-[var(--bg-tertiary)] rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{ width: `${Math.min(metric.value, 100)}%`, backgroundColor: metric.color }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] text-[var(--text-muted)]">
+                    <span>Target: {metric.target}%</span>
+                    <span className={metric.value >= metric.target ? 'text-green-500' : metric.reverse ? 'text-amber-500' : 'text-red-500'}>
+                      {metric.value >= metric.target ? '✓' : metric.reverse ? '⚠' : '↓'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Row 3: Project Manager Performance */}
+          <div className="glass-card p-4">
+            <div className="flex items-center gap-2 mb-4">
+              <User size={15} className="text-[var(--accent)]" />
+              <h3 className="text-sm font-semibold text-[var(--text-primary)]">Project Manager Performance</h3>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+              {Array.from(new Set(projects.map(p => p.pm))).filter(pm => pm).map(pm => {
+                const pmProjects = projects.filter(p => p.pm === pm);
+                const completed = pmProjects.filter(p => p.status === 'Commissioned').length;
+                const active = pmProjects.filter(p => p.status !== 'Commissioned' && p.status !== 'Cancelled').length;
+                const totalValue = pmProjects.reduce((a, p) => a + (p.value || 0), 0);
+                const avgProgress = pmProjects.length > 0 ? Math.round(pmProjects.reduce((a, p) => a + (p.progress || 0), 0) / pmProjects.length) : 0;
+                return (
+                  <div key={pm} className="p-3 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-base)]">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-8 h-8 rounded-full bg-[var(--primary)]/20 flex items-center justify-center text-xs font-bold text-[var(--primary)]">
+                        {pm.split(' ').map(n => n[0]).join('').toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-[var(--text-primary)] truncate">{pm}</p>
+                        <p className="text-[10px] text-[var(--text-muted)]">{pmProjects.length} Projects</p>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-[var(--text-muted)]">Active</span>
+                        <span className="text-[var(--accent-light)] font-semibold">{active}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-[var(--text-muted)]">Completed</span>
+                        <span className="text-green-500 font-semibold">{completed}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-[var(--text-muted)]">Avg Progress</span>
+                        <span className="text-[var(--text-primary)] font-semibold">{avgProgress}%</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-[var(--text-muted)]">Value</span>
+                        <span className="text-[var(--solar)] font-semibold">{fmt(totalValue)}</span>
+                      </div>
+                    </div>
+                    <div className="mt-2 h-1.5 bg-[var(--bg-surface)] rounded-full overflow-hidden">
+                      <div className="h-full bg-gradient-to-r from-[var(--primary)] to-[var(--accent)] rounded-full" style={{ width: `${avgProgress}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
 
-      {view === 'kanban' ? (
-        <>
-          <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-xs text-[var(--text-muted)] mr-1">Status:</span>
-            {STATUS_FILTERS.map(s => (
-              <button key={s} onClick={() => setFilter(s)}
-                className={`filter-chip ${statusFilter === s ? 'filter-chip-active' : ''}`}>{s}</button>
-            ))}
-            <div className="ml-auto">
-              <Input placeholder="Search projects…" value={search} onChange={e => setSearch(e.target.value)} className="h-8 text-xs w-52" />
-            </div>
-          </div>
-          {loading ? (
-            <div className="glass-card p-8 text-center">
-              <div className="animate-pulse text-[var(--text-muted)]">Loading projects...</div>
-            </div>
-          ) : error ? (
-            <div className="glass-card p-8 text-center text-red-500">
-              <p>Error loading projects: {error}</p>
-              <p className="text-xs mt-2 text-[var(--text-muted)]">Make sure the backend server is running on port 8000</p>
-            </div>
-          ) : (
-            <KanbanBoard projects={filtered} onStageChange={handleStageChange} onCardClick={setSelected} />
-          )}
-        </>
-      ) : (
+      {/* Table View */}
+      {view === 'table' && (
         <>
           <div className="flex flex-wrap gap-2 items-center mb-2">
             <span className="text-xs text-[var(--text-muted)] mr-1">Status:</span>
@@ -786,6 +933,34 @@ const ProjectPage = () => {
             onHiddenColsChange={setHiddenCols}
             hideColumnToggle={true}
             rowActions={ROW_ACTIONS} emptyText="No projects found." />
+        </>
+      )}
+
+      {/* Kanban View */}
+      {view === 'kanban' && (
+        <>
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-xs text-[var(--text-muted)] mr-1">Status:</span>
+            {STATUS_FILTERS.map(s => (
+              <button key={s} onClick={() => setFilter(s)}
+                className={`filter-chip ${statusFilter === s ? 'filter-chip-active' : ''}`}>{s}</button>
+            ))}
+            <div className="ml-auto">
+              <Input placeholder="Search projects…" value={search} onChange={e => setSearch(e.target.value)} className="h-8 text-xs w-52" />
+            </div>
+          </div>
+          {loading ? (
+            <div className="glass-card p-8 text-center">
+              <div className="animate-pulse text-[var(--text-muted)]">Loading projects...</div>
+            </div>
+          ) : error ? (
+            <div className="glass-card p-8 text-center text-red-500">
+              <p>Error loading projects: {error}</p>
+              <p className="text-xs mt-2 text-[var(--text-muted)]">Make sure the backend server is running on port 8000</p>
+            </div>
+          ) : (
+            <KanbanBoard projects={filtered} onStageChange={handleStageChange} onCardClick={setSelected} />
+          )}
         </>
       )}
 
@@ -887,6 +1062,46 @@ const ProjectPage = () => {
               </Select>
             </FormField>
             <FormField label="Estimated End Date"><Input type="date" value={editForm.estEndDate} onChange={e => setEditForm(f => ({ ...f, estEndDate: e.target.value }))} /></FormField>
+          </div>
+
+          {/* Materials Section */}
+          <div className="border-t border-[var(--border-base)] pt-3 mt-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-xs font-semibold text-[var(--text-primary)]">Required Materials</div>
+              <Button variant="ghost" size="sm" onClick={addEditMaterial}><Plus size={13} /> Add Item</Button>
+            </div>
+            {(editForm.materials || []).map((material, index) => (
+              <div key={index} className="space-y-2 mb-3 p-3 bg-[var(--bg-tertiary)] rounded-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-[var(--text-muted)]">Item #{index + 1}</span>
+                  <Button variant="ghost" size="sm" className="text-red-500" onClick={() => removeEditMaterial(index)}>
+                    <Trash2 size={12} />
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <FormField label="Item">
+                    <Select value={material.itemId} onChange={e => updateEditMaterial(index, 'itemId', e.target.value)}>
+                      <option value="">{itemsLoading ? 'Loading...' : 'Select Item'}</option>
+                      {items.map(item => (
+                        <option key={item._id || item.id} value={item._id || item.id}>
+                          {item.description || item.name} (Stock: {item.stock || 0})
+                        </option>
+                      ))}
+                    </Select>
+                  </FormField>
+                  <FormField label="Quantity">
+                    <Input type="number" placeholder="50" value={material.quantity} onChange={e => updateEditMaterial(index, 'quantity', e.target.value)} />
+                  </FormField>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <FormField label="Issue Date"><Input type="date" value={material.issuedDate} onChange={e => updateEditMaterial(index, 'issuedDate', e.target.value)} /></FormField>
+                  <FormField label="Remarks"><Input placeholder="Notes..." value={material.remarks} onChange={e => updateEditMaterial(index, 'remarks', e.target.value)} /></FormField>
+                </div>
+              </div>
+            ))}
+            {(!editForm.materials || editForm.materials.length === 0) && (
+              <p className="text-xs text-[var(--text-muted)] text-center py-4">No materials added. Click "Add Item" to select materials for this project.</p>
+            )}
           </div>
         </div>
       </Modal>
@@ -1024,26 +1239,6 @@ const ProjectPage = () => {
                     })}
                   </div>
                 )}
-              </div>
-            )}
-            {selected.materials && selected.materials.length > 0 && (
-              <div>
-                <div className="text-xs font-semibold text-[var(--text-primary)] mb-3">Reserved Materials</div>
-                <div className="space-y-2">
-                  {selected.materials.map((m, idx) => (
-                    <div key={idx} className="glass-card p-2 flex items-center justify-between">
-                      <div>
-                        <div className="text-xs font-medium text-[var(--text-primary)]">{m.itemName}</div>
-                        <div className="text-[10px] text-[var(--text-muted)]">Qty: {m.quantity} | Issued: {m.issuedDate || '—'}</div>
-                      </div>
-                      {m.remarks && (
-                        <div className="text-[10px] text-[var(--text-faint)] max-w-[150px] truncate" title={m.remarks}>
-                          {m.remarks}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
               </div>
             )}
           </div>

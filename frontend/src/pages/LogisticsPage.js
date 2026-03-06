@@ -1,6 +1,6 @@
 // Solar OS – EPC Edition — LogisticsPage.js
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Truck, Plus, MapPin, Package, CheckCircle, Clock, Zap, Navigation, LayoutGrid, List, Phone, Mail, Star } from 'lucide-react';
+import { Truck, Plus, MapPin, Package, CheckCircle, Clock, Zap, Navigation, LayoutGrid, List, Phone, Mail, Star, Edit, Building2 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input, FormField, Select } from '../components/ui/Input';
@@ -11,7 +11,7 @@ import DataTable from '../components/ui/DataTable';
 import { APP_CONFIG } from '../config/app.config';
 import { api } from '../lib/apiClient';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api/v1';
 const TENANT_ID = 'solarcorp';
 
 // Local status map only (no data)
@@ -180,6 +180,10 @@ const LogisticsPage = () => {
   const [showVendorDeliveryModal, setShowVendorDeliveryModal] = useState(false);
   const [vendorDeliveryData, setVendorDeliveryData] = useState({ itemName: '', quantity: '' });
 
+  // Vendor edit state
+  const [isEditingVendor, setIsEditingVendor] = useState(false);
+  const [editedVendor, setEditedVendor] = useState(null);
+
   // Project search state for dispatch modal
   const [projects, setProjects] = useState([]);
   const [projectSearch, setProjectSearch] = useState('');
@@ -192,11 +196,11 @@ const LogisticsPage = () => {
         api.get('/logistics/dispatches'),
         api.get('/logistics/stats'),
       ]);
-      
+
       // Handle API response
       let dispatchesData = [];
       let statsData = { delivered: 0, inTransit: 0, scheduled: 0, totalFreight: 0 };
-      
+
       if (Array.isArray(dispatchesRes.data)) {
         dispatchesData = dispatchesRes.data;
       } else if (dispatchesRes.data && typeof dispatchesRes.data === 'object') {
@@ -242,12 +246,14 @@ const LogisticsPage = () => {
   const fetchVendors = async () => {
     try {
       const response = await api.get('/logistics/vendors');
+      console.log('fetchVendors response:', response.data);
       let vendorsData = [];
       if (Array.isArray(response.data)) {
         vendorsData = response.data;
       } else if (response.data && typeof response.data === 'object') {
         vendorsData = response.data.data || [];
       }
+      console.log('Setting vendors:', vendorsData.length, 'records');
       setVendors(vendorsData);
     } catch (err) {
       console.error('Error fetching vendors:', err);
@@ -268,13 +274,13 @@ const LogisticsPage = () => {
       try {
         const subject = 'Logistics Inquiry';
         const text = `Dear ${vendor.name || vendor.contact || 'Vendor'},\n\nI hope this email finds you well. We are interested in discussing potential logistics services and would like to connect with you regarding our requirements.\n\nPlease let us know your availability for a brief discussion.\n\nBest regards,\nSolarOS Team`;
-        
+
         const res = await api.post('/email/send', {
           to: vendor.email,
           subject,
           text
         });
-        
+
         if (res.data?.success) {
           alert(`Email sent to ${vendor.email}`);
         } else {
@@ -302,9 +308,47 @@ const LogisticsPage = () => {
       await fetchVendors();
       setShowVendorModal(false);
       setNewVendor({ name: '', category: '', city: '', contact: '', phone: '', email: '' });
+      setSearch(''); // Clear search to show new vendor
     } catch (error) {
       console.error('Error creating vendor:', error);
-      alert('Failed to create vendor: ' + (error.message || 'Unknown error'));
+      console.error('Error response:', error.response?.data);
+      alert('Failed to create vendor: ' + (error.response?.data?.message || error.response?.data?.error || error.message || 'Unknown error'));
+    }
+  };
+
+  const startEditingVendor = () => {
+    setEditedVendor({ ...selectedVendor });
+    setIsEditingVendor(true);
+  };
+
+  const cancelEditingVendor = () => {
+    setIsEditingVendor(false);
+    setEditedVendor(null);
+  };
+
+  const handleUpdateVendor = async () => {
+    try {
+      if (!editedVendor) return;
+      // Only send editable fields
+      const payload = {
+        name: editedVendor.name,
+        category: editedVendor.category,
+        city: editedVendor.city,
+        contact: editedVendor.contact,
+        phone: editedVendor.phone,
+        email: editedVendor.email,
+      };
+      console.log('Updating vendor payload:', payload);
+      const res = await api.patch(`/logistics/vendors/${editedVendor.id}`, payload);
+      console.log('Vendor updated:', res);
+      await fetchVendors();
+      setSelectedVendor(null);
+      setIsEditingVendor(false);
+      setEditedVendor(null);
+      alert('Vendor updated successfully!');
+    } catch (error) {
+      console.error('Error updating vendor:', error);
+      alert('Failed to update vendor: ' + (error.response?.data?.error?.message || error.message || 'Unknown error'));
     }
   };
 
@@ -389,7 +433,7 @@ const LogisticsPage = () => {
   // Filter projects based on search
   const filteredProjects = useMemo(() => {
     if (!projectSearch.trim()) return projects;
-    return projects.filter(p => 
+    return projects.filter(p =>
       p.projectId?.toLowerCase().includes(projectSearch.toLowerCase()) ||
       p.customerName?.toLowerCase().includes(projectSearch.toLowerCase()) ||
       p.site?.toLowerCase().includes(projectSearch.toLowerCase())
@@ -416,7 +460,8 @@ const LogisticsPage = () => {
   ];
 
   const VENDOR_ACTIONS = [
-    { label: 'View Vendor', icon: Package, onClick: row => setSelectedVendor(row) },
+    { label: 'View Vendor', icon: Package, onClick: row => { setSelectedVendor(row); setIsEditingVendor(false); } },
+    { label: 'Edit Vendor', icon: Edit, onClick: row => { setSelectedVendor(row); setEditedVendor({ ...row }); setIsEditingVendor(true); } },
     { label: 'Record Delivery', icon: Plus, onClick: row => { setSelectedVendor(row); setShowVendorDeliveryModal(true); } },
     { label: 'Call Vendor', icon: Phone, onClick: row => handleCallVendor(row) },
     { label: 'Email Vendor', icon: Mail, onClick: row => handleEmailVendor(row) },
@@ -432,13 +477,13 @@ const LogisticsPage = () => {
         title="Logistics & Dispatch"
         subtitle="Material dispatch · delivery tracking · freight management"
         tabs={[
-          { id: 'kanban', label: 'Kanban', icon: LayoutGrid },
-          { id: 'table', label: 'Table', icon: List }
+          { id: 'dispatches', label: 'Dispatches', icon: Truck },
+          { id: 'vendors', label: 'Vendors', icon: Building2 }
         ]}
-        activeTab={view}
-        onTabChange={setView}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
         actions={[
-          { type: 'button', label: 'Schedule Dispatch', icon: Plus, variant: 'primary', onClick: () => setShowAdd(true) }
+          { type: 'button', label: activeTab === 'dispatches' ? 'Schedule Dispatch' : 'Add Vendor', icon: Plus, variant: 'primary', onClick: () => activeTab === 'dispatches' ? setShowAdd(true) : setShowVendorModal(true) }
         ]}
       />
 
@@ -453,12 +498,12 @@ const LogisticsPage = () => {
         <Zap size={14} className="text-[var(--accent-light)] mt-0.5 shrink-0" />
         <p className="text-xs text-[var(--text-secondary)]">
           <span className="text-[var(--accent-light)] font-semibold">AI Insight:</span>{' '}
-          {activeTab === 'dispatches' 
-            ? (inTransit > 0 
-                ? `${inTransit} shipment(s) currently in transit. ${scheduled > 0 ? `${scheduled} pending dispatch(es) need vehicle assignment.` : 'All dispatches are on track.'}`
-                : scheduled > 0 
-                  ? `${scheduled} dispatch(es) scheduled. Assign vehicles and drivers to proceed.`
-                  : 'All dispatches completed. No active shipments.')
+          {activeTab === 'dispatches'
+            ? (inTransit > 0
+              ? `${inTransit} shipment(s) currently in transit. ${scheduled > 0 ? `${scheduled} pending dispatch(es) need vehicle assignment.` : 'All dispatches are on track.'}`
+              : scheduled > 0
+                ? `${scheduled} dispatch(es) scheduled. Assign vehicles and drivers to proceed.`
+                : 'All dispatches completed. No active shipments.')
             : `${vendors.length} vendors available for logistics operations.`
           }
         </p>
@@ -498,8 +543,22 @@ const LogisticsPage = () => {
             <>
               <div className="flex items-center justify-between">
                 <p className="text-xs text-[var(--text-muted)]">Drag dispatches between columns to update status</p>
-                <Input placeholder="Search dispatches…" value={search}
-                  onChange={e => setSearch(e.target.value)} className="h-8 text-xs w-52" />
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setView('kanban')}
+                    className={`px-3 py-1.5 text-xs rounded-md transition-colors ${view === 'kanban' ? 'bg-[var(--primary)] text-white' : 'bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
+                  >
+                    <LayoutGrid size={12} className="inline mr-1" /> Kanban
+                  </button>
+                  <button
+                    onClick={() => setView('table')}
+                    className={`px-3 py-1.5 text-xs rounded-md transition-colors ${view === 'table' ? 'bg-[var(--primary)] text-white' : 'bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
+                  >
+                    <List size={12} className="inline mr-1" /> Table
+                  </button>
+                  <Input placeholder="Search dispatches…" value={search}
+                    onChange={e => setSearch(e.target.value)} className="h-8 text-xs w-52" />
+                </div>
               </div>
               <DispatchKanbanBoard dispatches={filtered} onStageChange={handleStageChange} onCardClick={setSelected} />
             </>
@@ -511,7 +570,19 @@ const LogisticsPage = () => {
                   <button key={s} onClick={() => { setFilter(s); setPage(1); }}
                     className={`filter-chip ${statusFilter === s ? 'filter-chip-active' : ''}`}>{s}</button>
                 ))}
-                <div className="ml-auto">
+                <div className="ml-auto flex items-center gap-2">
+                  <button
+                    onClick={() => setView('kanban')}
+                    className={`px-3 py-1.5 text-xs rounded-md transition-colors ${view === 'kanban' ? 'bg-[var(--primary)] text-white' : 'bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
+                  >
+                    <LayoutGrid size={12} className="inline mr-1" /> Kanban
+                  </button>
+                  <button
+                    onClick={() => setView('table')}
+                    className={`px-3 py-1.5 text-xs rounded-md transition-colors ${view === 'table' ? 'bg-[var(--primary)] text-white' : 'bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
+                  >
+                    <List size={12} className="inline mr-1" /> Table
+                  </button>
                   <Input placeholder="Search dispatches…" value={search}
                     onChange={e => { setSearch(e.target.value); setPage(1); }} className="h-8 text-xs w-52" />
                 </div>
@@ -530,8 +601,8 @@ const LogisticsPage = () => {
             <Input placeholder="Search vendors…" value={search}
               onChange={e => setSearch(e.target.value)} className="h-8 text-xs w-52" />
           </div>
-          <DataTable columns={VENDOR_COLUMNS} data={vendors.filter(v => 
-            !search || v.name?.toLowerCase().includes(search.toLowerCase()) || 
+          <DataTable columns={VENDOR_COLUMNS} data={vendors.filter(v =>
+            !search || v.name?.toLowerCase().includes(search.toLowerCase()) ||
             v.city?.toLowerCase().includes(search.toLowerCase()) ||
             v.category?.toLowerCase().includes(search.toLowerCase())
           )} rowActions={VENDOR_ACTIONS}
@@ -549,15 +620,15 @@ const LogisticsPage = () => {
           <FormField label="Project">
             <div className="space-y-2">
               <div className="relative">
-                <Input 
-                  type="text" 
-                  placeholder="Search projects by ID, name or site..." 
+                <Input
+                  type="text"
+                  placeholder="Search projects by ID, name or site..."
                   value={projectSearch}
                   onChange={e => setProjectSearch(e.target.value)}
                   className="h-9 text-xs pr-8"
                 />
                 <div className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-muted)]">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
                 </div>
               </div>
               <div className="max-h-40 overflow-y-auto border border-[var(--border)] rounded-md bg-[var(--bg-elevated)]">
@@ -568,18 +639,17 @@ const LogisticsPage = () => {
                 ) : (
                   <div className="divide-y divide-[var(--border)]">
                     {filteredProjects.map(p => (
-                      <div 
-                        key={p.projectId} 
+                      <div
+                        key={p.projectId}
                         onClick={() => {
                           setNewDispatch({
-                            ...newDispatch, 
+                            ...newDispatch,
                             projectId: p.projectId,
                             customer: p.customerName || ''
                           });
                         }}
-                        className={`p-2 cursor-pointer hover:bg-[var(--accent)]/10 transition-colors ${
-                          newDispatch.projectId === p.projectId ? 'bg-[var(--accent)]/20 border-l-2 border-[var(--accent)]' : ''
-                        }`}
+                        className={`p-2 cursor-pointer hover:bg-[var(--accent)]/10 transition-colors ${newDispatch.projectId === p.projectId ? 'bg-[var(--accent)]/20 border-l-2 border-[var(--accent)]' : ''
+                          }`}
                       >
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-medium text-[var(--text-primary)]">{p.projectId}</span>
@@ -599,37 +669,37 @@ const LogisticsPage = () => {
             </div>
           </FormField>
           <FormField label="Customer">
-            <Input value={newDispatch.customer} onChange={e => setNewDispatch({...newDispatch, customer: e.target.value})} placeholder="Customer name" />
+            <Input value={newDispatch.customer} onChange={e => setNewDispatch({ ...newDispatch, customer: e.target.value })} placeholder="Customer name" />
           </FormField>
           <FormField label="Items to Dispatch">
-            <Input value={newDispatch.items} onChange={e => setNewDispatch({...newDispatch, items: e.target.value})} placeholder="e.g. 125 Panels, 1 Inverter" />
+            <Input value={newDispatch.items} onChange={e => setNewDispatch({ ...newDispatch, items: e.target.value })} placeholder="e.g. 125 Panels, 1 Inverter" />
           </FormField>
           <div className="grid grid-cols-2 gap-3">
             <FormField label="From Warehouse">
-              <Select value={newDispatch.from} onChange={e => setNewDispatch({...newDispatch, from: e.target.value})}>
+              <Select value={newDispatch.from} onChange={e => setNewDispatch({ ...newDispatch, from: e.target.value })}>
                 <option value="">Select Warehouse</option>
                 <option value="WH-Ahmedabad">WH-Ahmedabad</option>
                 <option value="WH-Surat">WH-Surat</option>
               </Select>
             </FormField>
             <FormField label="To Location">
-              <Input value={newDispatch.to} onChange={e => setNewDispatch({...newDispatch, to: e.target.value})} placeholder="Destination" />
+              <Input value={newDispatch.to} onChange={e => setNewDispatch({ ...newDispatch, to: e.target.value })} placeholder="Destination" />
             </FormField>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <FormField label="Dispatch Date">
-              <Input type="date" value={newDispatch.dispatchDate} onChange={e => setNewDispatch({...newDispatch, dispatchDate: e.target.value})} />
+              <Input type="date" value={newDispatch.dispatchDate} onChange={e => setNewDispatch({ ...newDispatch, dispatchDate: e.target.value })} />
             </FormField>
             <FormField label="Freight Cost (₹)">
-              <Input type="number" value={newDispatch.cost} onChange={e => setNewDispatch({...newDispatch, cost: e.target.value})} placeholder="8500" />
+              <Input type="number" value={newDispatch.cost} onChange={e => setNewDispatch({ ...newDispatch, cost: e.target.value })} placeholder="8500" />
             </FormField>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <FormField label="Driver Name">
-              <Input value={newDispatch.driver} onChange={e => setNewDispatch({...newDispatch, driver: e.target.value})} placeholder="Driver name" />
+              <Input value={newDispatch.driver} onChange={e => setNewDispatch({ ...newDispatch, driver: e.target.value })} placeholder="Driver name" />
             </FormField>
             <FormField label="Vehicle Number">
-              <Input value={newDispatch.vehicle} onChange={e => setNewDispatch({...newDispatch, vehicle: e.target.value})} placeholder="GJ-01-AB-1234" />
+              <Input value={newDispatch.vehicle} onChange={e => setNewDispatch({ ...newDispatch, vehicle: e.target.value })} placeholder="GJ-01-AB-1234" />
             </FormField>
           </div>
         </div>
@@ -668,11 +738,11 @@ const LogisticsPage = () => {
         </div>}>
         <div className="space-y-3">
           <FormField label="Vendor Name">
-            <Input value={newVendor.name} onChange={e => setNewVendor({...newVendor, name: e.target.value})} placeholder="e.g., ABC Logistics" />
+            <Input value={newVendor.name} onChange={e => setNewVendor({ ...newVendor, name: e.target.value })} placeholder="e.g., ABC Logistics" />
           </FormField>
           <div className="grid grid-cols-2 gap-3">
             <FormField label="Category">
-              <Select value={newVendor.category} onChange={e => setNewVendor({...newVendor, category: e.target.value})}>
+              <Select value={newVendor.category} onChange={e => setNewVendor({ ...newVendor, category: e.target.value })}>
                 <option value="">Select Category</option>
                 <option value="Transport">Transport</option>
                 <option value="Panel">Panel</option>
@@ -684,18 +754,18 @@ const LogisticsPage = () => {
               </Select>
             </FormField>
             <FormField label="City">
-              <Input value={newVendor.city} onChange={e => setNewVendor({...newVendor, city: e.target.value})} placeholder="e.g., Ahmedabad" />
+              <Input value={newVendor.city} onChange={e => setNewVendor({ ...newVendor, city: e.target.value })} placeholder="e.g., Ahmedabad" />
             </FormField>
           </div>
           <FormField label="Contact Person">
-            <Input value={newVendor.contact} onChange={e => setNewVendor({...newVendor, contact: e.target.value})} placeholder="e.g., John Doe" />
+            <Input value={newVendor.contact} onChange={e => setNewVendor({ ...newVendor, contact: e.target.value })} placeholder="e.g., John Doe" />
           </FormField>
           <div className="grid grid-cols-2 gap-3">
             <FormField label="Phone">
-              <Input value={newVendor.phone} onChange={e => setNewVendor({...newVendor, phone: e.target.value})} placeholder="e.g., +91 98765 43210" />
+              <Input value={newVendor.phone} onChange={e => setNewVendor({ ...newVendor, phone: e.target.value })} placeholder="e.g., +91 98765 43210" />
             </FormField>
             <FormField label="Email">
-              <Input type="email" value={newVendor.email} onChange={e => setNewVendor({...newVendor, email: e.target.value})} placeholder="e.g., vendor@example.com" />
+              <Input type="email" value={newVendor.email} onChange={e => setNewVendor({ ...newVendor, email: e.target.value })} placeholder="e.g., vendor@example.com" />
             </FormField>
           </div>
         </div>
@@ -703,21 +773,72 @@ const LogisticsPage = () => {
 
       {/* Vendor Detail Modal */}
       {selectedVendor && (
-        <Modal open={!!selectedVendor} onClose={() => setSelectedVendor(null)} title={`Vendor — ${selectedVendor.name}`}
-          footer={<div className="flex gap-2 justify-end">
-            <Button variant="ghost" onClick={() => setSelectedVendor(null)}>Close</Button>
-            <Button onClick={() => { setShowVendorDeliveryModal(true); }}><Plus size={13} /> Record Delivery</Button>
-            <Button onClick={() => handleCallVendor(selectedVendor)}><Phone size={13} /> Call</Button>
-            <Button onClick={() => handleEmailVendor(selectedVendor)}><Mail size={13} /> Email</Button>
-          </div>}>
-          <div className="grid grid-cols-2 gap-3 text-xs">
-            {[['Vendor ID', selectedVendor.id], ['Name', selectedVendor.name], ['Category', selectedVendor.category], ['Contact', selectedVendor.contact], ['Phone', selectedVendor.phone], ['Email', selectedVendor.email], ['City', selectedVendor.city], ['Total Orders', selectedVendor.totalOrders], ['Rating', selectedVendor.rating + ' / 5']].map(([k, v]) => (
-              <div key={k} className="glass-card p-2">
-                <div className="text-[var(--text-muted)] mb-0.5">{k}</div>
-                <div className="font-semibold text-[var(--text-primary)]">{v}</div>
+        <Modal 
+          open={!!selectedVendor} 
+          onClose={() => { setSelectedVendor(null); setIsEditingVendor(false); setEditedVendor(null); }} 
+          title={isEditingVendor ? `Edit Vendor — ${selectedVendor.name}` : `Vendor — ${selectedVendor.name}`}
+          footer={
+            <div className="flex gap-2 justify-end">
+              {isEditingVendor ? (
+                <>
+                  <Button variant="ghost" onClick={cancelEditingVendor}>Cancel</Button>
+                  <Button onClick={handleUpdateVendor}><CheckCircle size={13} /> Save Changes</Button>
+                </>
+              ) : (
+                <>
+                  <Button variant="ghost" onClick={() => setSelectedVendor(null)}>Close</Button>
+                  <Button onClick={startEditingVendor}><Edit size={13} /> Edit</Button>
+                  <Button onClick={() => { setShowVendorDeliveryModal(true); }}><Plus size={13} /> Record Delivery</Button>
+                  <Button onClick={() => handleCallVendor(selectedVendor)}><Phone size={13} /> Call</Button>
+                  <Button onClick={() => handleEmailVendor(selectedVendor)}><Mail size={13} /> Email</Button>
+                </>
+              )}
+            </div>
+          }>
+          {isEditingVendor && editedVendor ? (
+            <div className="space-y-3">
+              <FormField label="Vendor Name *">
+                <Input value={editedVendor.name} onChange={e => setEditedVendor({...editedVendor, name: e.target.value})} placeholder="e.g., ABC Logistics" />
+              </FormField>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label="Category *">
+                  <Select value={editedVendor.category} onChange={e => setEditedVendor({...editedVendor, category: e.target.value})}>
+                    <option value="">Select Category</option>
+                    <option value="Transport">Transport</option>
+                    <option value="Panel">Panel</option>
+                    <option value="Inverter">Inverter</option>
+                    <option value="BOS">BOS</option>
+                    <option value="Structure">Structure</option>
+                    <option value="Cable">Cable</option>
+                    <option value="Other">Other</option>
+                  </Select>
+                </FormField>
+                <FormField label="City *">
+                  <Input value={editedVendor.city} onChange={e => setEditedVendor({...editedVendor, city: e.target.value})} placeholder="e.g., Ahmedabad" />
+                </FormField>
               </div>
-            ))}
-          </div>
+              <FormField label="Contact Person *">
+                <Input value={editedVendor.contact} onChange={e => setEditedVendor({...editedVendor, contact: e.target.value})} placeholder="e.g., John Doe" />
+              </FormField>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label="Phone *">
+                  <Input value={editedVendor.phone} onChange={e => setEditedVendor({...editedVendor, phone: e.target.value})} placeholder="e.g., +91 98765 43210" />
+                </FormField>
+                <FormField label="Email *">
+                  <Input type="email" value={editedVendor.email} onChange={e => setEditedVendor({...editedVendor, email: e.target.value})} placeholder="e.g., vendor@example.com" />
+                </FormField>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              {[['Vendor ID', selectedVendor.id], ['Name', selectedVendor.name], ['Category', selectedVendor.category], ['Contact', selectedVendor.contact], ['Phone', selectedVendor.phone], ['Email', selectedVendor.email], ['City', selectedVendor.city], ['Total Orders', selectedVendor.totalOrders], ['Rating', selectedVendor.rating + ' / 5']].map(([k, v]) => (
+                <div key={k} className="glass-card p-2">
+                  <div className="text-[var(--text-muted)] mb-0.5">{k}</div>
+                  <div className="font-semibold text-[var(--text-primary)]">{v}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </Modal>
       )}
 
@@ -732,10 +853,10 @@ const LogisticsPage = () => {
             Record stock delivery from vendor. This will add the quantity to inventory.
           </p>
           <FormField label="Item Name *">
-            <Input value={vendorDeliveryData.itemName} onChange={e => setVendorDeliveryData({...vendorDeliveryData, itemName: e.target.value})} placeholder="e.g., 400W Solar Panels" />
+            <Input value={vendorDeliveryData.itemName} onChange={e => setVendorDeliveryData({ ...vendorDeliveryData, itemName: e.target.value })} placeholder="e.g., 400W Solar Panels" />
           </FormField>
           <FormField label="Quantity *">
-            <Input type="number" value={vendorDeliveryData.quantity} onChange={e => setVendorDeliveryData({...vendorDeliveryData, quantity: e.target.value})} placeholder="e.g., 100" />
+            <Input type="number" value={vendorDeliveryData.quantity} onChange={e => setVendorDeliveryData({ ...vendorDeliveryData, quantity: e.target.value })} placeholder="e.g., 100" />
           </FormField>
         </div>
       </Modal>

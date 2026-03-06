@@ -12,6 +12,9 @@ export enum EmployeeStatus {
 
 @Schema({ timestamps: true })
 export class Employee {
+  @Prop({ type: MongooseSchema.Types.ObjectId, auto: true })
+  _id!: Types.ObjectId;
+
   @Prop({ required: true, unique: true })
   employeeId!: string;
 
@@ -23,6 +26,9 @@ export class Employee {
 
   @Prop({ required: true, unique: true, lowercase: true })
   email!: string;
+
+  @Prop({ required: true })
+  password!: string;
 
   @Prop({ required: true })
   phone!: string;

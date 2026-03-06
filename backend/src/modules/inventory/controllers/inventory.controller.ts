@@ -25,7 +25,7 @@ export class InventoryController {
     @Query('category') category?: string,
     @Query('search') search?: string,
   ) {
-    const tenantId = headerTenantId || queryTenantId;
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
     return this.inventoryService.findAll(tenantId, category, search);
   }
 
@@ -34,7 +34,7 @@ export class InventoryController {
     @Headers('x-tenant-id') headerTenantId: string,
     @Query('tenantId') queryTenantId: string,
   ) {
-    const tenantId = headerTenantId || queryTenantId;
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
     return this.inventoryService.getStats(tenantId);
   }
 
@@ -43,7 +43,7 @@ export class InventoryController {
     @Headers('x-tenant-id') headerTenantId: string,
     @Query('tenantId') queryTenantId: string,
   ) {
-    const tenantId = headerTenantId || queryTenantId;
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
     return this.inventoryService.getItemsByCategory(tenantId);
   }
 
@@ -53,7 +53,7 @@ export class InventoryController {
     @Query('tenantId') queryTenantId: string,
     @Param('itemId') itemId: string,
   ) {
-    const tenantId = headerTenantId || queryTenantId;
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
     return this.inventoryService.findOne(tenantId, itemId);
   }
 
@@ -64,7 +64,7 @@ export class InventoryController {
     @Query('tenantId') queryTenantId: string,
     @Body() createDto: CreateInventoryDto,
   ) {
-    const tenantId = headerTenantId || queryTenantId;
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
     return this.inventoryService.create(tenantId, createDto);
   }
 
@@ -75,7 +75,7 @@ export class InventoryController {
     @Param('itemId') itemId: string,
     @Body() updateDto: UpdateInventoryDto,
   ) {
-    const tenantId = headerTenantId || queryTenantId;
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
     return this.inventoryService.update(tenantId, itemId, updateDto);
   }
 
@@ -86,7 +86,7 @@ export class InventoryController {
     @Param('itemId') itemId: string,
     @Body() stockInDto: StockInDto,
   ) {
-    const tenantId = headerTenantId || queryTenantId;
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
     return this.inventoryService.stockIn(tenantId, itemId, stockInDto);
   }
 
@@ -97,7 +97,7 @@ export class InventoryController {
     @Param('itemId') itemId: string,
     @Body() stockOutDto: StockOutDto,
   ) {
-    const tenantId = headerTenantId || queryTenantId;
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
     return this.inventoryService.stockOut(tenantId, itemId, stockOutDto);
   }
 
@@ -107,7 +107,7 @@ export class InventoryController {
     @Query('tenantId') queryTenantId: string,
     @Param('itemId') itemId: string,
   ) {
-    const tenantId = headerTenantId || queryTenantId;
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
     return this.inventoryService.remove(tenantId, itemId);
   }
 
@@ -118,7 +118,7 @@ export class InventoryController {
     @Query('tenantId') queryTenantId: string,
     @Body() createDto: CreateReservationDto,
   ) {
-    const tenantId = headerTenantId || queryTenantId;
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
     return this.inventoryService.createReservation(tenantId, createDto);
   }
 
@@ -128,7 +128,7 @@ export class InventoryController {
     @Query('tenantId') queryTenantId: string,
     @Param('projectId') projectId: string,
   ) {
-    const tenantId = headerTenantId || queryTenantId;
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
     return this.inventoryService.getReservationsByProject(tenantId, projectId);
   }
 
@@ -138,7 +138,7 @@ export class InventoryController {
     @Query('tenantId') queryTenantId: string,
     @Param('itemId') itemId: string,
   ) {
-    const tenantId = headerTenantId || queryTenantId;
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
     return this.inventoryService.getReservationsByItem(tenantId, itemId);
   }
 
@@ -148,7 +148,7 @@ export class InventoryController {
     @Query('tenantId') queryTenantId: string,
     @Param('itemId') itemId: string,
   ) {
-    const tenantId = headerTenantId || queryTenantId;
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
     return this.inventoryService.findOneWithReservations(tenantId, itemId);
   }
 
@@ -159,7 +159,7 @@ export class InventoryController {
     @Param('reservationId') reservationId: string,
     @Body() updateDto: UpdateReservationDto,
   ) {
-    const tenantId = headerTenantId || queryTenantId;
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
     return this.inventoryService.updateReservation(tenantId, reservationId, updateDto);
   }
 
@@ -169,7 +169,7 @@ export class InventoryController {
     @Query('tenantId') queryTenantId: string,
     @Param('reservationId') reservationId: string,
   ) {
-    const tenantId = headerTenantId || queryTenantId;
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
     return this.inventoryService.cancelReservation(tenantId, reservationId);
   }
 
@@ -179,7 +179,7 @@ export class InventoryController {
     @Query('tenantId') queryTenantId: string,
     @Param('reservationId') reservationId: string,
   ) {
-    const tenantId = headerTenantId || queryTenantId;
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
     return this.inventoryService.fulfillReservation(tenantId, reservationId);
   }
 }

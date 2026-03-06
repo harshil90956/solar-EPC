@@ -37,13 +37,20 @@ export const SettingsProvider = ({ children }) => {
     const [projectTypeConfig, setProjectTypeConfig] = useState({});
     const [isLoading, setIsLoading] = useState(true);
 
-    // ── Load data from API on mount ─────────────────────────────────────────────
+    // ── Load data from API on mount (only if user is logged in) ─────────────────
     useEffect(() => {
+        // Check if user is logged in before making API calls
+        const token = localStorage.getItem('solar_token');
+        if (!token) {
+            setIsLoading(false);
+            return; // Don't load settings if not logged in
+        }
+        
         const loadSettings = async () => {
             try {
                 setIsLoading(true);
                 const response = await settingsApi.getFullSettings();
-                
+
                 // Handle wrapped response format {success: true, data: {...}}
                 const settings = response.data || response;
 
@@ -51,8 +58,8 @@ export const SettingsProvider = ({ children }) => {
                 if (settings?.flags) {
                     const flagsObj = {};
                     // Handle both object and array formats
-                    const flagsArray = Array.isArray(settings.flags) 
-                        ? settings.flags 
+                    const flagsArray = Array.isArray(settings.flags)
+                        ? settings.flags
                         : Object.entries(settings.flags).map(([moduleId, data]) => ({ moduleId, ...data }));
                     flagsArray.forEach(f => {
                         const moduleId = f.moduleId || f.id;
@@ -95,12 +102,26 @@ export const SettingsProvider = ({ children }) => {
                 if (settings?.customRoles) {
                     const rolesObj = {};
                     // Handle both array and object formats from backend
-                    const rolesArray = Array.isArray(settings.customRoles) 
-                        ? settings.customRoles 
+                    const rolesArray = Array.isArray(settings.customRoles)
+                        ? settings.customRoles
                         : Object.values(settings.customRoles);
                     rolesArray.forEach(r => {
                         const roleId = r.roleId || r.id;
                         if (roleId) {
+                            // Handle permissions that might be MongoDB Map or plain object
+                            let perms = r.permissions || {};
+                            if (typeof perms === 'object' && typeof perms.entries === 'function') {
+                                // It's a Map - convert to object
+                                const permsObj = {};
+                                for (const [moduleId, modulePerms] of perms.entries()) {
+                                    if (typeof modulePerms === 'object' && typeof modulePerms.entries === 'function') {
+                                        permsObj[moduleId] = Object.fromEntries(modulePerms.entries());
+                                    } else {
+                                        permsObj[moduleId] = modulePerms;
+                                    }
+                                }
+                                perms = permsObj;
+                            }
                             rolesObj[roleId] = {
                                 id: roleId,
                                 label: r.label,
@@ -109,7 +130,7 @@ export const SettingsProvider = ({ children }) => {
                                 color: r.color,
                                 bg: r.bg,
                                 isCustom: r.isCustom,
-                                permissions: r.permissions || {},
+                                permissions: perms,
                             };
                         }
                     });
@@ -148,6 +169,15 @@ export const SettingsProvider = ({ children }) => {
         };
 
         loadSettings();
+    }, []);
+
+    // Load custom roles from dedicated endpoint
+    useEffect(() => {
+        // Only load if user is logged in
+        const token = localStorage.getItem('solar_token');
+        if (token) {
+            refreshCustomRoles();
+        }
     }, []);
 
     useEffect(() => {
@@ -275,14 +305,14 @@ export const SettingsProvider = ({ children }) => {
 
     const setRolePreset = useCallback(async (roleId, preset, user) => {
         const isCustomRole = roleId.startsWith('custom_');
-        
+
         // Update local state
         if (isCustomRole) {
             // For custom roles, update via setCustomRolePreset
             await setCustomRolePreset(roleId, preset, user);
             return;
         }
-        
+
         // For base roles, update RBAC
         const updated = { ...rbac, [roleId]: {} };
         MODULE_DEFS.forEach(mod => {
@@ -345,57 +375,6 @@ export const SettingsProvider = ({ children }) => {
         }
     }, []);
 
-    const createCustomRole = useCallback(async (roleData, user) => {
-        try {
-            // Persist to backend first
-            const response = await settingsApi.createCustomRole({
-                label: roleData.label,
-                description: roleData.description || '',
-                baseRole: roleData.baseRole || null,
-                color: roleData.color || '#8b5cf6',
-                bg: 'rgba(139,92,246,0.12)',
-            });
-
-            const savedRole = response;
-            const id = savedRole.id || savedRole.roleId;
-
-            // Update local state with backend response
-            const newRole = {
-                id,
-                label: savedRole.label || roleData.label,
-                description: savedRole.description || '',
-                baseRole: savedRole.baseRole || null,
-                color: savedRole.color || '#8b5cf6',
-                bg: savedRole.bg || 'rgba(139,92,246,0.12)',
-                isCustom: true,
-                permissions: savedRole.permissions || Object.fromEntries(MODULE_DEFS.map(mod => [mod.id, emptyPerms()])),
-            };
-            setCustomRoles(prev => ({ ...prev, [id]: newRole }));
-            addAudit('CUSTOM_ROLE_CREATED', newRole.label, 'null', 'created', user);
-            
-            // Refresh all custom roles from backend to ensure sync
-            await refreshCustomRoles();
-            
-            return id;
-        } catch (error) {
-            // Fallback: create locally only
-            const id = `custom_${Date.now()}`;
-            const newRole = {
-                id,
-                label: roleData.label || 'New Role',
-                description: roleData.description || '',
-                baseRole: roleData.baseRole || null,
-                color: roleData.color || '#8b5cf6',
-                bg: 'rgba(139,92,246,0.12)',
-                isCustom: true,
-                permissions: Object.fromEntries(MODULE_DEFS.map(mod => [mod.id, emptyPerms()])),
-            };
-            setCustomRoles(prev => ({ ...prev, [id]: newRole }));
-            addAudit('CUSTOM_ROLE_CREATED', newRole.label, 'null', 'created', user);
-            return id;
-        }
-    }, [addAudit, refreshCustomRoles]);
-
     const cloneRole = useCallback(async (sourceRoleId, newLabel, user) => {
         try {
             // Call backend to clone
@@ -416,10 +395,10 @@ export const SettingsProvider = ({ children }) => {
             };
             setCustomRoles(prev => ({ ...prev, [id]: clonedRole }));
             addAudit('CUSTOM_ROLE_CLONED', `${sourceRoleId} → ${cloned.label}`, sourceRoleId, id, user);
-            
+
             // Refresh from backend
             await refreshCustomRoles();
-            
+
             return id;
         } catch (error) {
             console.error('Failed to clone role:', error);
@@ -444,6 +423,54 @@ export const SettingsProvider = ({ children }) => {
             };
             setCustomRoles(prev => ({ ...prev, [id]: newRole }));
             addAudit('CUSTOM_ROLE_CLONED', `${sourceRoleId} → ${clonedLabel}`, sourceRoleId, id, user);
+            return id;
+        }
+    }, [customRoles, rbac, addAudit, refreshCustomRoles]);
+
+    const createCustomRole = useCallback(async (label, description, baseRole, user) => {
+        try {
+            const id = `custom_${Date.now()}`;
+            const basePerms = baseRole
+                ? (customRoles[baseRole]?.permissions || rbac[baseRole] || {})
+                : {};
+            const newRole = {
+                id,
+                label,
+                description: description || '',
+                baseRole: baseRole || null,
+                color: '#8b5cf6',
+                bg: 'rgba(139,92,246,0.12)',
+                isCustom: true,
+                permissions: JSON.parse(JSON.stringify(basePerms)),
+            };
+
+            // Persist to backend
+            try {
+                await settingsApi.createCustomRole(newRole);
+            } catch (e) {
+                console.error('Failed to create custom role on backend:', e);
+            }
+
+            setCustomRoles(prev => ({ ...prev, [id]: newRole }));
+            addAudit('CUSTOM_ROLE_CREATED', label, 'null', id, user);
+            await refreshCustomRoles();
+            return id;
+        } catch (error) {
+            console.error('Failed to create custom role:', error);
+            // Fallback: create locally
+            const id = `custom_${Date.now()}`;
+            const newRole = {
+                id,
+                label,
+                description: description || '',
+                baseRole: baseRole || null,
+                color: '#8b5cf6',
+                bg: 'rgba(139,92,246,0.12)',
+                isCustom: true,
+                permissions: {},
+            };
+            setCustomRoles(prev => ({ ...prev, [id]: newRole }));
+            addAudit('CUSTOM_ROLE_CREATED', label, 'null', id, user);
             return id;
         }
     }, [customRoles, rbac, addAudit, refreshCustomRoles]);
@@ -495,18 +522,30 @@ export const SettingsProvider = ({ children }) => {
         }
     }, [customRoles, addAudit]);
 
-    const setCustomRolePreset = useCallback((roleId, preset, user) => {
+    const setCustomRolePreset = useCallback(async (roleId, preset, user) => {
+        // Build permissions object
+        const perms = {};
+        MODULE_DEFS.forEach(mod => {
+            if (preset === 'full') perms[mod.id] = fullPerms();
+            else if (preset === 'view_only') perms[mod.id] = { ...emptyPerms(), view: true };
+            else perms[mod.id] = emptyPerms();
+        });
+        
+        // Update local state
         setCustomRoles(prev => {
             if (!prev[roleId]) return prev;
-            const perms = {};
-            MODULE_DEFS.forEach(mod => {
-                if (preset === 'full') perms[mod.id] = fullPerms();
-                else if (preset === 'view_only') perms[mod.id] = { ...emptyPerms(), view: true };
-                else perms[mod.id] = emptyPerms();
-            });
             addAudit('CUSTOM_ROLE_PRESET', `${roleId} → ${preset}`, 'custom', preset, user);
             return { ...prev, [roleId]: { ...prev[roleId], permissions: perms } };
         });
+        
+        // Persist to backend - update each module's permissions
+        try {
+            for (const [moduleId, modulePerms] of Object.entries(perms)) {
+                await settingsApi.updateCustomRolePermissions(roleId, moduleId, modulePerms);
+            }
+        } catch (e) {
+            console.error('Failed to save preset permissions:', e);
+        }
     }, [addAudit]);
 
     const deleteCustomRole = useCallback(async (roleId, user) => {
@@ -696,7 +735,6 @@ export const SettingsProvider = ({ children }) => {
 
     // ── Derived lists ─────────────────────────────────────────────────────────
     const allRoles = useMemo(() => [
-        ...ROLE_DEFS,
         ...Object.values(customRoles || {}),
     ], [customRoles]);
 

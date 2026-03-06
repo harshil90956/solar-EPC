@@ -8,7 +8,7 @@ import {
 
   CheckCircle, Clock, Zap, FileText, Plus, IndianRupee,
   LayoutGrid, List, Calendar, AlertCircle, RefreshCw,
-  Edit, Download, Trash2, Loader2, X,
+  Edit, Download, Trash2, Loader2, X, BarChart3,
 } from 'lucide-react';
 
 import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
@@ -41,27 +41,17 @@ import { usePermissions } from '../hooks/usePermissions';
 
 import { format, subMonths } from 'date-fns';
 
-
-
-
 const fmt = CURRENCY.format;
-
-
 
 /* ── Invoice stage definitions ──────────────────────────────────────────────── */
 
 const INV_STAGES = [
-
   { id: 'Draft', label: 'Draft', color: '#64748b', bg: 'rgba(100,116,139,0.12)' },
-
-  { id: 'Pending', label: 'Sent', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
-
+  { id: 'Sent', label: 'Sent', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
+  { id: 'Pending', label: 'Pending', color: '#f97316', bg: 'rgba(249,115,22,0.12)' },
   { id: 'Partial', label: 'Partial', color: '#3b82f6', bg: 'rgba(59,130,246,0.12)' },
-
   { id: 'Paid', label: 'Paid', color: '#22c55e', bg: 'rgba(34,197,94,0.12)' },
-
   { id: 'Overdue', label: 'Overdue', color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
-
 ];
 
 
@@ -260,6 +250,8 @@ const INVOICE_COLUMNS = [
 
   { key: 'customerName', header: 'Customer', sortable: true, render: v => <span className="text-xs font-semibold text-[var(--text-primary)]">{v}</span> },
 
+  { key: 'email', header: 'Email', render: v => <span className="text-xs text-[var(--text-muted)]">{v || '—'}</span> },
+
   { key: 'amount', header: 'Invoice Amt', sortable: true, render: v => <span className="text-xs font-bold text-[var(--text-primary)]">{fmt(v)}</span> },
 
   { key: 'paid', header: 'Paid', render: v => <span className="text-xs text-emerald-400 font-bold">{fmt(v)}</span> },
@@ -273,6 +265,22 @@ const INVOICE_COLUMNS = [
   { key: 'dueDate', header: 'Due Date', render: v => <span className="text-xs text-[var(--text-muted)]">{v ? new Date(v).toLocaleDateString() : '—'}</span> },
 
   { key: 'paidDate', header: 'Paid On', render: v => <span className="text-xs text-[var(--text-muted)]">{v ? new Date(v).toLocaleDateString() : '—'}</span> },
+
+  { key: 'reminderCount', header: 'Reminders', render: (v, row) => (
+    <div className="flex items-center gap-1">
+      {v > 0 ? (
+        <>
+          <span className="text-xs font-bold text-orange-400">{v}</span>
+          {row.lastReminderSentAt && (
+            <span className="text-[10px] text-[var(--text-faint)]">
+              ({new Date(row.lastReminderSentAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })})</span>
+          )}
+        </>
+      ) : (
+        <span className="text-xs text-[var(--text-faint)]">—</span>
+      )}
+    </div>
+  )},
 
 ];
 
@@ -308,11 +316,11 @@ const INV_STATUS_FILTERS = ['All', 'Draft', 'Pending', 'Partial', 'Paid', 'Overd
 
 ══════════════════════════════════════════════════════════════════════════════ */
 
-const FinancePage = () => {
+const FinancePage = ({ onNavigate }) => {
   const { isActionEnabled } = useSettings();
   const { can } = usePermissions();
 
-  const [view, setView] = useState('kanban');
+  const [view, setView] = useState('table');
 
   const [invSearch, setInvSearch] = useState('');
 
@@ -421,11 +429,16 @@ const FinancePage = () => {
 
     description: '',
 
+    email: '',
+
+    status: '',
+
   });
 
   const [newInvoiceErrors, setNewInvoiceErrors] = useState({});
 
   const [savingEditInvoice, setSavingEditInvoice] = useState(false);
+  const [editModalError, setEditModalError] = useState(null);
 
 
 
@@ -469,6 +482,8 @@ const FinancePage = () => {
 
     description: '',
 
+    email: '',
+
   });
 
 
@@ -501,7 +516,20 @@ const FinancePage = () => {
 
   const [submittingPayment, setSubmittingPayment] = useState(false);
 
-
+  // Manual Adjustment state
+  const [showAdjustModal, setShowAdjustModal] = useState(false);
+  const [adjustForm, setAdjustForm] = useState({
+    type: 'credit',
+    amount: '',
+    reason: '',
+    reference: '',
+    date: new Date().toISOString().slice(0, 10),
+  });
+  const [adjustErrors, setAdjustErrors] = useState({});
+  const [adjustError, setAdjustError] = useState(null);
+  const [submittingAdjust, setSubmittingAdjust] = useState(false);
+  const [manualAdjustments, setManualAdjustments] = useState([]);
+  const [manualBalance, setManualBalance] = useState(0);
 
   // Fetch data on mount
 
@@ -540,6 +568,8 @@ const FinancePage = () => {
         statsRes,
         vendorsRes,
         posRes,
+        manualAdjustmentsRes,
+        manualBalanceRes,
       ] = await Promise.all([
 
         financeApi.getInvoices(),
@@ -554,6 +584,10 @@ const FinancePage = () => {
 
         api.get('/procurement/purchase-orders'),
 
+        financeApi.getManualAdjustments(),
+
+        financeApi.getManualAdjustmentBalance(),
+
       ]);
 
       
@@ -567,6 +601,10 @@ const FinancePage = () => {
       const vendorExpenses = vendorExpensesRes || [];
 
       setDashboardStats(statsRes);
+
+      // Set manual adjustments and balance
+      setManualAdjustments(manualAdjustmentsRes || []);
+      setManualBalance(manualBalanceRes?.balance || 0);
 
       // Vendor Payables (from Procurement Purchase Orders)
       const vendors = Array.isArray(vendorsRes)
@@ -760,6 +798,7 @@ const FinancePage = () => {
   const canViewFinance = canFinance('view');
 
   const financePermissions = {
+    create: canFinance('create'),
     edit: canFinance('edit'),
     delete: canFinance('delete'),
     export: canFinance('export'),
@@ -810,10 +849,13 @@ const FinancePage = () => {
 
       description: row?.description || '',
 
+      email: row?.email || '',
+
+      status: row?.status || '',
+
     });
 
-    setError(null);
-
+    setEditModalError(null);
     setShowEditInvoice(true);
 
   };
@@ -821,103 +863,102 @@ const FinancePage = () => {
 
 
   const handleSaveEditInvoice = async () => {
-
     if (!editInvoiceTarget) return;
 
     if (!editInvoice.invoiceNumber.trim()) {
-
-      setError('Invoice Number is required');
-
+      setEditModalError('Invoice Number is required');
       return;
-
     }
 
     if (!editInvoice.customerName.trim()) {
-
-      setError('Customer Name is required');
-
+      setEditModalError('Customer Name is required');
       return;
-
     }
 
     if (!editInvoice.amount || parseFloat(editInvoice.amount) <= 0) {
-
-      setError('Valid Invoice Amount is required');
-
+      setEditModalError('Valid Invoice Amount is required');
       return;
-
     }
 
     if (!editInvoice.invoiceDate) {
-
-      setError('Invoice Date is required');
-
+      setEditModalError('Invoice Date is required');
       return;
-
     }
 
     if (!editInvoice.dueDate) {
-
-      setError('Due Date is required');
-
+      setEditModalError('Due Date is required');
       return;
-
     }
 
+    // Status validation (same as Kanban view)
+    const previousStatus = editInvoiceTarget?.status;
+    const newStatus = editInvoice.status;
 
-
-    const invoiceId = editInvoiceTarget?._id || editInvoiceTarget?.id;
-
-    if (!invoiceId) return;
-
-
-
-    try {
-
-      setSavingEditInvoice(true);
-
-      setError(null);
-
-
-
-      const dto = {
-
-        invoiceNumber: editInvoice.invoiceNumber.trim(),
-
-        customerName: editInvoice.customerName.trim(),
-
-        amount: parseFloat(editInvoice.amount),
-
-        invoiceDate: editInvoice.invoiceDate,
-
-        dueDate: editInvoice.dueDate,
-
-        ...(editInvoice.paymentTerms ? { paymentTerms: editInvoice.paymentTerms } : {}),
-
-        ...(editInvoice.description ? { description: editInvoice.description } : {}),
-
+    if (previousStatus && previousStatus !== newStatus) {
+      const order = {
+        Draft: 0,
+        Sent: 1,
+        Pending: 2,
+        Partial: 3,
+        Paid: 4,
+        Overdue: 5,
       };
 
+      const isBackward = order[newStatus] < order[previousStatus];
+      if (isBackward) {
+        setEditModalError('Invoice status cannot be moved backward.');
+        return;
+      }
 
+      const allowedTransitions = new Set([
+        'Draft->Sent',
+        'Draft->Pending',
+        'Sent->Pending',
+        'Sent->Partial',
+        'Pending->Partial',
+        'Partial->Paid',
+        'Pending->Overdue',
+        'Partial->Overdue',
+        'Sent->Overdue',
+      ]);
+
+      const key = `${previousStatus}->${newStatus}`;
+      if (!allowedTransitions.has(key)) {
+        setEditModalError('Invalid invoice status transition');
+        return;
+      }
+    }
+
+    const invoiceId = editInvoiceTarget?._id || editInvoiceTarget?.id;
+    if (!invoiceId) return;
+
+    try {
+      setSavingEditInvoice(true);
+      setEditModalError(null);
+
+      const dto = {
+        invoiceNumber: editInvoice.invoiceNumber.trim(),
+        customerName: editInvoice.customerName.trim(),
+        amount: parseFloat(editInvoice.amount),
+        invoiceDate: editInvoice.invoiceDate,
+        dueDate: editInvoice.dueDate,
+        ...(editInvoice.email ? { email: editInvoice.email.trim() } : {}),
+        ...(editInvoice.status ? { status: editInvoice.status } : {}),
+        ...(editInvoice.paymentTerms ? { paymentTerms: editInvoice.paymentTerms } : {}),
+        ...(editInvoice.description ? { description: editInvoice.description } : {}),
+      };
 
       await financeApi.updateInvoice(invoiceId, dto);
 
       setShowEditInvoice(false);
-
       setEditInvoiceTarget(null);
-
+      toast.success('Invoice updated successfully');
       await fetchData();
-
     } catch (err) {
-
-      setError(err.message || 'Failed to update invoice');
-
+      setEditModalError(err.message || 'Failed to update invoice');
     } finally {
-
       setSavingEditInvoice(false);
-
     }
-
   };
 
 
@@ -1208,7 +1249,15 @@ const FinancePage = () => {
 
     setCanCreateInvoice(false);
 
-    setNewInvoice((prev) => ({ ...prev, paymentTerms: '' }));
+    setNewInvoice((prev) => ({ ...prev, paymentTerms: '', email: '' }));
+
+    
+    // Try to get email from projects list immediately
+    const selectedProjectFromList = projects.find(p => (p._id || p.id) === newInvoice.projectId);
+    if (selectedProjectFromList?.email) {
+      setNewInvoice(prev => ({ ...prev, email: selectedProjectFromList.email }));
+      console.log('Email from projects list:', selectedProjectFromList.email);
+    }
 
 
 
@@ -1235,6 +1284,10 @@ const FinancePage = () => {
         const projectStatus = projectRes?.status || projectRes?.data?.status || projectRes?.project?.status || '';
 
         const customerName = projectRes?.customerName || projectRes?.data?.customerName || projectRes?.project?.customerName || '';
+        const customerEmail = projectRes?.email || projectRes?.data?.email || projectRes?.project?.email || projectRes?.customerEmail || projectRes?.data?.customerEmail || projectRes?.project?.customerEmail || '';
+        
+        console.log('Project Response:', projectRes);
+        console.log('Extracted Email:', customerEmail);
 
         // Get contract value from projects list (already loaded)
         const selectedProject = projects.find(p => (p._id || p.id) === requestedProjectId);
@@ -1260,7 +1313,7 @@ const FinancePage = () => {
 
         setProjectStatus(projectStatus);
 
-        setNewInvoice(prev => ({ ...prev, customerName }));
+        setNewInvoice(prev => ({ ...prev, customerName, email: customerEmail }));
 
         if (!Number.isNaN(contractValue) && contractValue > 0) {
           setSelectedProjectContractValue(contractValue);
@@ -1356,10 +1409,11 @@ const FinancePage = () => {
     if (previousStatus && previousStatus !== newStage) {
       const order = {
         Draft: 0,
-        Pending: 1,
-        Partial: 2,
-        Paid: 3,
-        Overdue: 4,
+        Sent: 1,
+        Pending: 2,
+        Partial: 3,
+        Paid: 4,
+        Overdue: 5,
       };
 
       const isBackward = order[newStage] < order[previousStatus];
@@ -1369,11 +1423,15 @@ const FinancePage = () => {
       }
 
       const allowedTransitions = new Set([
+        'Draft->Sent',
         'Draft->Pending',
+        'Sent->Pending',
+        'Sent->Partial',
         'Pending->Partial',
         'Partial->Paid',
         'Pending->Overdue',
         'Partial->Overdue',
+        'Sent->Overdue',
       ]);
 
       const key = `${previousStatus}->${newStage}`;
@@ -1467,6 +1525,7 @@ const FinancePage = () => {
         projectStatus: projectStatus || undefined,
 
         customerName: newInvoice.customerName.trim(),
+        email: newInvoice.email?.trim() || undefined,
 
         amount: parseFloat(newInvoice.amount),
 
@@ -1503,6 +1562,8 @@ const FinancePage = () => {
         paymentTerms: '',
 
         description: '',
+
+        email: '',
 
       });
 
@@ -1692,6 +1753,82 @@ const FinancePage = () => {
 
 
 
+  const handleSubmitAdjustment = async () => {
+    const nextErrors = {};
+    const amountNum = Number(adjustForm.amount);
+    if (!adjustForm.amount || Number.isNaN(amountNum) || amountNum <= 0) {
+      nextErrors.amount = 'Amount must be greater than 0';
+    }
+    if (!adjustForm.date) {
+      nextErrors.date = 'Date is required';
+    }
+
+    if (Object.keys(nextErrors).length > 0) {
+      setAdjustErrors(nextErrors);
+      return;
+    }
+
+    try {
+      setSubmittingAdjust(true);
+      setAdjustError(null);
+
+      // First create the manual adjustment
+      const result = await financeApi.createManualAdjustment({
+        type: adjustForm.type,
+        amount: amountNum,
+        reason: adjustForm.reason?.trim() || undefined,
+        reference: adjustForm.reference?.trim() || undefined,
+        date: adjustForm.date,
+      });
+
+      // Also create a transaction for this adjustment
+      try {
+        const transactionNumber = `TXN-ADJ-${Date.now().toString().slice(-6)}`;
+        await financeApi.createTransaction({
+          transactionNumber: transactionNumber,
+          type: adjustForm.type === 'credit' ? 'Income' : 'Expense',
+          amount: amountNum,
+          transactionDate: adjustForm.date,
+          description: `Manual adjustment: ${adjustForm.reason || adjustForm.type}`,
+          category: 'Manual Adjustment',
+          status: 'Completed',
+          referenceId: adjustForm.reference || undefined,
+        });
+        console.log('Transaction created for manual adjustment');
+      } catch (txnErr) {
+        console.error('Failed to create transaction for adjustment:', txnErr);
+        // Don't fail the whole operation if transaction creation fails
+      }
+
+      setShowAdjustModal(false);
+      setAdjustForm({
+        type: 'credit',
+        amount: '',
+        reason: '',
+        reference: '',
+        date: new Date().toISOString().slice(0, 10),
+      });
+      setAdjustErrors({});
+      setAdjustError(null);
+
+      // Update local state with new adjustment and balance
+      if (result?.adjustment) {
+        setManualAdjustments(prev => [result.adjustment, ...prev]);
+      }
+      if (typeof result?.balance === 'number') {
+        setManualBalance(result.balance);
+      }
+
+      toast.success(`Manual ${adjustForm.type} of ${fmt(amountNum)} recorded successfully`);
+    } catch (err) {
+      setAdjustError(err.message || 'Failed to record adjustment');
+    } finally {
+      setSubmittingAdjust(false);
+    }
+  };
+
+
+
   const fetchTimeline = async (invoiceId) => {
 
     try {
@@ -1868,7 +2005,22 @@ const FinancePage = () => {
 
     { label: 'Record Payment', icon: CheckCircle, onClick: () => { } },
 
-    { label: 'Send Reminder', icon: Clock, onClick: () => { } },
+    {
+      label: 'Send Reminder',
+      icon: Clock,
+      show: (row) => !['Draft', 'Paid'].includes(row?.status) && (row?.balance > 0),
+      onClick: (row) => {
+        setSelectedReminderInvoice(row);
+        setReminderForm({
+          reminderType: 'Gentle',
+          customerEmail: row?.email || '',
+          messageBody: '',
+        });
+        setShowReminderModal(true);
+        setReminderSuccess(false);
+        setError(null);
+      },
+    },
 
   ];
 
@@ -1906,7 +2058,8 @@ const FinancePage = () => {
 
   const revenueCurrent = dashboardStats?.totalRevenue || 0;
 
-  const cashPosition = (dashboardStats?.totalCollected || 0) - (dashboardStats?.totalPayables || 0);
+  // Cash position includes manual adjustments
+  const cashPosition = (dashboardStats?.totalCollected || 0) - (dashboardStats?.totalPayables || 0) + manualBalance;
 
   const receivables = dashboardStats?.totalOutstanding || 0;
 
@@ -2031,6 +2184,9 @@ const FinancePage = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          <Button onClick={() => onNavigate('finance-dashboard')}><BarChart3 size={13} /> Dashboard</Button>
+
+          <Button variant="outline" onClick={() => setShowAdjustModal(true)}><TrendingUp size={13} /> Adjust Amount</Button>
 
           <Button variant="outline" onClick={() => setShowRecordPayment(true)}><IndianRupee size={13} /> Record Payment</Button>
 
@@ -2185,6 +2341,8 @@ const FinancePage = () => {
 
           <TabsTrigger value="invoices">Invoices ({invoices.length})</TabsTrigger>
 
+          <TabsTrigger value="transactions">Transactions ({manualAdjustments.length})</TabsTrigger>
+
           <TabsTrigger value="payables">Payables Summary</TabsTrigger>
 
         </TabsList>
@@ -2276,6 +2434,57 @@ const FinancePage = () => {
                 emptyText="No invoices found."
 
               />
+
+            )}
+
+          </div>
+
+        </TabsContent>
+
+
+
+        <TabsContent value="transactions">
+
+          <div className="glass-card p-4 space-y-3">
+
+            <h3 className="text-sm font-semibold text-[var(--text-primary)]">Manual Adjustments</h3>
+
+            {manualAdjustments.length === 0 ? (
+
+              <p className="text-sm text-[var(--text-muted)] text-center py-8">No manual adjustments recorded</p>
+
+            ) : (
+
+              <div className="space-y-2">
+
+                <div className="grid grid-cols-5 gap-4 text-[11px] text-[var(--text-muted)] px-2">
+                  <div>Type</div>
+                  <div className="text-right">Amount</div>
+                  <div>Reason</div>
+                  <div>Reference</div>
+                  <div>Date</div>
+                </div>
+
+                {manualAdjustments.map((adj) => (
+                  <div
+                    key={adj._id || adj.id}
+                    className="grid grid-cols-5 gap-4 items-center p-3 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-muted)]"
+                  >
+                    <div className={`text-xs font-semibold ${adj.type === 'credit' ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {adj.type === 'credit' ? 'Credit (+)' : 'Debit (-)'}
+                    </div>
+                    <div className={`text-xs text-right font-bold ${adj.type === 'credit' ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {adj.type === 'credit' ? '+' : '-'}{fmt(adj.amount)}
+                    </div>
+                    <div className="text-xs text-[var(--text-primary)]">{adj.reason || '—'}</div>
+                    <div className="text-xs text-[var(--text-muted)]">{adj.reference || '—'}</div>
+                    <div className="text-xs text-[var(--text-muted)]">
+                      {adj.date ? new Date(adj.date).toLocaleDateString() : '—'}
+                    </div>
+                  </div>
+                ))}
+
+              </div>
 
             )}
 
@@ -2552,6 +2761,16 @@ const FinancePage = () => {
 
           </div>
 
+          <FormField label="Customer Email">
+            <Input 
+              type="email"
+              value={newInvoice.email}
+              onChange={e => setNewInvoice({ ...newInvoice, email: e.target.value })}
+              placeholder="customer@example.com"
+              disabled={!newInvoice.projectId}
+            />
+          </FormField>
+
         </div>
 
       </Modal>
@@ -2584,6 +2803,8 @@ const FinancePage = () => {
 
               ['Customer', selected.customerName],
 
+              ['Email', selected.email || '—'],
+
               ['Invoice Amt', fmt(selected.amount)],
 
               ['Amount Paid', fmt(selected.paid || 0)],
@@ -2597,6 +2818,10 @@ const FinancePage = () => {
               ['Due Date', selected.dueDate ? new Date(selected.dueDate).toLocaleDateString() : '—'],
 
               ['Paid On', selected.paidDate ? new Date(selected.paidDate).toLocaleDateString() : '—'],
+
+              ['Last Reminder', selected.lastReminderSentAt ? new Date(selected.lastReminderSentAt).toLocaleDateString() : '—'],
+
+              ['Reminder Count', selected.reminderCount || 0],
 
             ].map(([k, v]) => (
 
@@ -2634,7 +2859,7 @@ const FinancePage = () => {
 
             setEditInvoiceTarget(null);
 
-            setError(null);
+            setEditModalError(null);
 
           }}
 
@@ -2656,7 +2881,7 @@ const FinancePage = () => {
 
                   setEditInvoiceTarget(null);
 
-                  setError(null);
+                  setEditModalError(null);
 
                 }}
 
@@ -2684,11 +2909,11 @@ const FinancePage = () => {
 
           <div className="space-y-3 pb-20">
 
-            {error && (
+            {editModalError && (
 
               <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
 
-                {error}
+                {editModalError}
 
               </div>
 
@@ -2792,6 +3017,40 @@ const FinancePage = () => {
 
               </FormField>
 
+              <FormField label="Status">
+
+                <Select
+
+                  value={editInvoice.status}
+
+                  onChange={e => setEditInvoice({ ...editInvoice, status: e.target.value })}
+
+                  disabled={savingEditInvoice}
+
+                >
+
+                  <option value="">Select Status</option>
+
+                  <option value="Draft">Draft</option>
+
+                  <option value="Sent">Sent</option>
+
+                  <option value="Partial">Partial</option>
+
+                  <option value="Paid">Paid</option>
+
+                  <option value="Overdue">Overdue</option>
+
+                </Select>
+
+              </FormField>
+
+            </div>
+
+
+
+            <div className="grid grid-cols-2 gap-3">
+
               <FormField label="Payment Terms">
 
                 <Input
@@ -2801,6 +3060,24 @@ const FinancePage = () => {
                   onChange={e => setEditInvoice({ ...editInvoice, paymentTerms: e.target.value })}
 
                   placeholder="Net 30"
+
+                  disabled={savingEditInvoice}
+
+                />
+
+              </FormField>
+
+              <FormField label="Customer Email">
+
+                <Input
+
+                  type="email"
+
+                  value={editInvoice.email}
+
+                  onChange={e => setEditInvoice({ ...editInvoice, email: e.target.value })}
+
+                  placeholder="customer@example.com"
 
                   disabled={savingEditInvoice}
 
@@ -3794,6 +4071,117 @@ const FinancePage = () => {
 
         </div>
 
+      </Modal>
+
+      {/* Manual Adjustment Modal */}
+      <Modal
+        open={showAdjustModal}
+        onClose={() => {
+          if (submittingAdjust) return;
+          setShowAdjustModal(false);
+          setAdjustError(null);
+          setAdjustErrors({});
+        }}
+        title="Manual Adjustment"
+        footer={
+          <div className="flex gap-2 justify-end">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                if (submittingAdjust) return;
+                setShowAdjustModal(false);
+                setAdjustError(null);
+                setAdjustErrors({});
+              }}
+              disabled={submittingAdjust}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleSubmitAdjustment} disabled={submittingAdjust}>
+              {submittingAdjust ? <Loader2 size={13} className="animate-spin" /> : <TrendingUp size={13} />}
+              {submittingAdjust ? ' Saving...' : ' Save Adjustment'}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-[64px] pb-4">
+          {adjustError && (
+            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+              {adjustError}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Type">
+              <Select
+                value={adjustForm.type}
+                onChange={e => {
+                  setAdjustForm({ ...adjustForm, type: e.target.value });
+                  if (adjustErrors.type) setAdjustErrors(prev => ({ ...prev, type: undefined }));
+                }}
+                disabled={submittingAdjust}
+              >
+                <option value="credit">Credit (+ Add Amount)</option>
+                <option value="debit">Debit (- Subtract Amount)</option>
+              </Select>
+            </FormField>
+
+            <FormField label="Amount (₹)">
+              <Input
+                type="number"
+                value={adjustForm.amount}
+                onChange={e => {
+                  setAdjustForm({ ...adjustForm, amount: e.target.value });
+                  if (adjustErrors.amount) setAdjustErrors(prev => ({ ...prev, amount: undefined }));
+                }}
+                placeholder="Enter amount"
+                disabled={submittingAdjust}
+              />
+              {adjustErrors.amount && (
+                <div className="text-[11px] text-red-400 mt-1">{adjustErrors.amount}</div>
+              )}
+            </FormField>
+          </div>
+
+          <div className="mt-4">
+            <FormField label="Date">
+              <Input
+                type="date"
+                value={adjustForm.date}
+                onChange={e => {
+                  setAdjustForm({ ...adjustForm, date: e.target.value });
+                  if (adjustErrors.date) setAdjustErrors(prev => ({ ...prev, date: undefined }));
+                }}
+                disabled={submittingAdjust}
+              />
+              {adjustErrors.date && (
+                <div className="text-[11px] text-red-400 mt-1">{adjustErrors.date}</div>
+              )}
+            </FormField>
+          </div>
+
+          <div className="mt-4">
+            <FormField label="Reason (Optional)">
+              <Input
+                value={adjustForm.reason}
+                onChange={e => setAdjustForm({ ...adjustForm, reason: e.target.value })}
+                placeholder="e.g., Year-end adjustment, Correction"
+                disabled={submittingAdjust}
+              />
+            </FormField>
+          </div>
+
+          <div className="mt-4">
+            <FormField label="Reference (Optional)">
+              <Input
+                value={adjustForm.reference}
+                onChange={e => setAdjustForm({ ...adjustForm, reference: e.target.value })}
+                placeholder="e.g., ADJ-001, Journal entry reference"
+                disabled={submittingAdjust}
+              />
+            </FormField>
+          </div>
+        </div>
       </Modal>
 
     </div>

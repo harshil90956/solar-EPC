@@ -23,7 +23,7 @@ export class ProjectsController {
     @Query('status') status?: string,
     @Query('search') search?: string,
   ) {
-    const tenantId = headerTenantId || queryTenantId;
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
     return this.projectsService.findAll(tenantId, status, search);
   }
 
@@ -32,7 +32,7 @@ export class ProjectsController {
     @Headers('x-tenant-id') headerTenantId: string,
     @Query('tenantId') queryTenantId: string,
   ) {
-    const tenantId = headerTenantId || queryTenantId;
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
     return this.projectsService.getStats(tenantId);
   }
 
@@ -41,7 +41,7 @@ export class ProjectsController {
     @Headers('x-tenant-id') headerTenantId: string,
     @Query('tenantId') queryTenantId: string,
   ) {
-    const tenantId = headerTenantId || queryTenantId;
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
     return this.projectsService.getProjectsByStage(tenantId);
   }
 
@@ -50,7 +50,7 @@ export class ProjectsController {
     @Headers('x-tenant-id') headerTenantId: string,
     @Query('tenantId') queryTenantId: string,
   ) {
-    const tenantId = headerTenantId || queryTenantId;
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
     return this.projectsService.getProjectManagers(tenantId);
   }
 
@@ -60,7 +60,7 @@ export class ProjectsController {
     @Query('tenantId') queryTenantId: string,
     @Param('projectId') projectId: string,
   ) {
-    const tenantId = headerTenantId || queryTenantId;
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
     return this.projectsService.findOne(tenantId, projectId);
   }
 
@@ -70,7 +70,7 @@ export class ProjectsController {
     @Query('tenantId') queryTenantId: string,
     @Body() createProjectDto: CreateProjectDto,
   ) {
-    const tenantId = headerTenantId || queryTenantId;
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
     return this.projectsService.create(tenantId, createProjectDto);
   }
 
@@ -81,7 +81,7 @@ export class ProjectsController {
     @Param('projectId') projectId: string,
     @Body() updateProjectDto: UpdateProjectDto,
   ) {
-    const tenantId = headerTenantId || queryTenantId;
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
     return this.projectsService.update(tenantId, projectId, updateProjectDto);
   }
 
@@ -92,7 +92,7 @@ export class ProjectsController {
     @Param('projectId') projectId: string,
     @Body() updateStatusDto: UpdateProjectStatusDto,
   ) {
-    const tenantId = headerTenantId || queryTenantId;
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
     return this.projectsService.updateStatus(
       tenantId, 
       projectId, 
@@ -107,7 +107,7 @@ export class ProjectsController {
     @Query('tenantId') queryTenantId: string,
     @Param('projectId') projectId: string,
   ) {
-    const tenantId = headerTenantId || queryTenantId;
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
     return this.projectsService.remove(tenantId, projectId);
   }
 }

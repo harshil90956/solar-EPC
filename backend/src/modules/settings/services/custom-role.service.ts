@@ -56,6 +56,9 @@ export class CustomRoleService {
 
   private toObjectId(tenantId: string | undefined): Types.ObjectId | undefined {
     if (!tenantId) return undefined;
+    // Check if tenantId is a valid 24-character hex string (MongoDB ObjectId format)
+    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(tenantId);
+    if (!isValidObjectId) return undefined;
     try { return new Types.ObjectId(tenantId); } catch { return undefined; }
   }
 
@@ -162,8 +165,30 @@ export class CustomRoleService {
     if (!role) throw new NotFoundException(`Custom role ${roleId} not found`);
 
     // Update permissions for the module
-    const currentPerms = role.permissions || new Map();
-    const modulePerms = currentPerms.get(moduleId) || new Map<string, boolean>();
+    // Handle both Map (from DB) and plain object (from frontend) formats
+    let currentPerms = role.permissions || new Map();
+    
+    // If it's a plain object, convert to Map
+    if (!(currentPerms instanceof Map) && typeof currentPerms === 'object') {
+      const map = new Map();
+      for (const [key, val] of Object.entries(currentPerms)) {
+        map.set(key, val);
+      }
+      currentPerms = map;
+    }
+    
+    // Get module permissions - handle both Map and plain object
+    let modulePerms = currentPerms.get(moduleId);
+    if (!modulePerms) {
+      modulePerms = new Map<string, boolean>();
+    } else if (!(modulePerms instanceof Map) && typeof modulePerms === 'object') {
+      // Convert plain object to Map
+      const map = new Map<string, boolean>();
+      for (const [key, val] of Object.entries(modulePerms)) {
+        map.set(key, val as boolean);
+      }
+      modulePerms = map;
+    }
     
     for (const [action, enabled] of Object.entries(permissions)) {
       modulePerms.set(action, enabled);

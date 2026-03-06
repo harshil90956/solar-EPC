@@ -15,7 +15,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/Tabs'
 import DataTable from '../components/ui/DataTable';
 import { generateCompliancePDF } from '../utils/compliancePdfGenerator';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api/v1';
 const TENANT_ID = 'solarcorp';
 
 /* ─── Config-driven Status Maps ─── */
@@ -348,11 +348,11 @@ const CompliancePage = () => {
 
     const handleSubmitNM = async () => {
         if (!nmForm.projectId) { alert('Please select a project'); return; }
-        
+
         // Find selected project to get customer, site, systemSize
         const selectedProject = projects.find(p => (p.projectId || p._id) === nmForm.projectId);
         if (!selectedProject) { alert('Project not found'); return; }
-        
+
         try {
             const payload = {
                 applicationId: `NM${Date.now().toString().slice(-6)}`,
@@ -366,7 +366,7 @@ const CompliancePage = () => {
                 discomPhone: nmForm.contactPhone,
                 status: 'Draft',
             };
-            
+
             const response = await fetch(`${API_BASE_URL}/compliance/net-metering?tenantId=${TENANT_ID}`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
@@ -387,10 +387,10 @@ const CompliancePage = () => {
 
     const handleSubmitSub = async () => {
         if (!subForm.projectId) { alert('Please select a project'); return; }
-        
+
         const selectedProject = projects.find(p => (p.projectId || p._id) === subForm.projectId);
         if (!selectedProject) { alert('Project not found'); return; }
-        
+
         try {
             const payload = {
                 subsidyId: `SUB${Date.now().toString().slice(-6)}`,
@@ -403,7 +403,7 @@ const CompliancePage = () => {
                 applicationRef: subForm.referenceNo,
                 status: 'Applied',
             };
-            
+
             const response = await fetch(`${API_BASE_URL}/compliance/subsidies?tenantId=${TENANT_ID}`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
@@ -424,10 +424,10 @@ const CompliancePage = () => {
 
     const handleSubmitIns = async () => {
         if (!insForm.projectId) { alert('Please select a project'); return; }
-        
+
         const selectedProject = projects.find(p => (p.projectId || p._id) === insForm.projectId);
         if (!selectedProject) { alert('Project not found'); return; }
-        
+
         try {
             const payload = {
                 inspectionId: `INS${Date.now().toString().slice(-6)}`,
@@ -439,7 +439,7 @@ const CompliancePage = () => {
                 inspector: insForm.inspector,
                 status: 'Scheduled',
             };
-            
+
             const response = await fetch(`${API_BASE_URL}/compliance/inspections?tenantId=${TENANT_ID}`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
@@ -461,9 +461,9 @@ const CompliancePage = () => {
     const handleSubmitDoc = async () => {
         if (!docForm.projectId) { alert('Please select a project'); return; }
         if (!docForm.documentType) { alert('Please select document type'); return; }
-        
+
         const selectedProject = projects.find(p => (p.projectId || p._id) === docForm.projectId);
-        
+
         try {
             const payload = {
                 documentId: `DOC${Date.now().toString().slice(-6)}`,
@@ -478,7 +478,7 @@ const CompliancePage = () => {
                 fileSize: docFile?.size || null,
                 mimeType: docFile?.type || null,
             };
-            
+
             const response = await fetch(`${API_BASE_URL}/compliance/documents?tenantId=${TENANT_ID}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1001,7 +1001,7 @@ const CompliancePage = () => {
                         accept=".pdf,.jpg,.jpeg,.png"
                         style={{ display: 'none' }}
                     />
-                    <div 
+                    <div
                         className="border-2 border-dashed border-[var(--border-base)] rounded-lg p-6 text-center cursor-pointer hover:bg-[var(--bg-hover)] transition-colors"
                         onClick={() => fileInputRef.current?.click()}
                     >

@@ -17,6 +17,10 @@ export class ProjectsService {
   ) {}
 
   private async getTenantId(tenantCode: string): Promise<Types.ObjectId> {
+    // If no tenant code provided, use 'default'
+    if (!tenantCode || tenantCode === 'undefined') {
+      tenantCode = 'default';
+    }
     // If it looks like an ObjectId (24 hex chars), use it directly
     if (/^[0-9a-fA-F]{24}$/.test(tenantCode)) {
       return new Types.ObjectId(tenantCode);
@@ -85,7 +89,7 @@ export class ProjectsService {
                 { id: material.itemId },
                 { itemId: material.itemId }
               ],
-              tenantId: tenantCode,  // Use tenantCode (string) not ObjectId
+              tenantId: tenantCode,
               isDeleted: false,
             }).session(session);
 
@@ -139,7 +143,7 @@ export class ProjectsService {
             // Create reservation record
             await this.inventoryModel.db.collection('reservations').insertOne({
               reservationId: `RES-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              itemId: material.itemId,
+              itemId: item.itemId || item.id || material.itemId,  // Use human-readable itemId
               itemName: material.itemName || item.description || 'Unknown',
               projectId: createProjectDto.projectId,
               projectName: createProjectDto.customerName,
@@ -147,7 +151,7 @@ export class ProjectsService {
               status: 'Reserved',
               notes: material.remarks || `Reserved for project ${createProjectDto.projectId}`,
               issuedDate: material.issuedDate || new Date().toISOString().split('T')[0],
-              tenantId: tenantCode,  // Use tenantCode for consistency
+              tenantId: tenantId,
               createdAt: new Date(),
               updatedAt: new Date(),
             }, { session });
@@ -165,17 +169,199 @@ export class ProjectsService {
 
   async update(tenantCode: string, projectId: string, updateProjectDto: UpdateProjectDto) {
     const tenantId = await this.getTenantId(tenantCode);
-    const project = await this.projectModel.findOneAndUpdate(
-      { tenantId, projectId },
-      { $set: updateProjectDto },
-      { new: true },
-    ).exec();
-
-    if (!project) {
+    
+    // Get existing project to compare materials
+    const existingProject = await this.projectModel.findOne({ tenantId, projectId }).exec();
+    if (!existingProject) {
       throw new NotFoundException(`Project ${projectId} not found`);
     }
 
-    return project;
+    const oldMaterials = existingProject.materials || [];
+    const newMaterials = updateProjectDto.materials || [];
+
+    // Start session for transaction
+    const session = await this.projectModel.db.startSession();
+    let project;
+
+    try {
+      await session.withTransaction(async () => {
+        // First, restore stock for removed materials
+        for (const oldMaterial of oldMaterials) {
+          const stillExists = newMaterials.some(m => m.itemId === oldMaterial.itemId);
+          if (!stillExists) {
+            // Material removed - restore stock
+            const item = await this.itemModel.findOne({
+              $or: [
+                { _id: new Types.ObjectId(oldMaterial.itemId) },
+                { id: oldMaterial.itemId },
+                { itemId: oldMaterial.itemId }
+              ],
+              tenantId: tenantCode,
+              isDeleted: false,
+            }).session(session);
+
+            if (item) {
+              // Restore stock to item
+              await this.itemModel.findOneAndUpdate(
+                { _id: item._id, tenantId: tenantCode },
+                {
+                  $inc: { stock: oldMaterial.quantity, reserved: -oldMaterial.quantity },
+                },
+                { session }
+              );
+
+              // Restore stock to inventory
+              const inventoryItem = await this.inventoryModel.findOne({
+                tenantId,
+                $or: [
+                  { itemId: item._id.toString() },
+                  { itemId: oldMaterial.itemId },
+                  { name: item.description || 'Unknown' }
+                ]
+              }).session(session);
+
+              if (inventoryItem) {
+                const newStock = inventoryItem.stock + oldMaterial.quantity;
+                const newAvailable = newStock - inventoryItem.reserved;
+
+                await this.inventoryModel.findOneAndUpdate(
+                  { _id: inventoryItem._id, tenantId },
+                  {
+                    $set: {
+                      stock: newStock,
+                      available: newAvailable,
+                      lastUpdated: new Date().toISOString().split('T')[0],
+                    }
+                  },
+                  { session }
+                );
+              }
+
+              // Remove reservation record
+              await this.inventoryModel.db.collection('reservations').deleteMany({
+                itemId: oldMaterial.itemId,
+                projectId: projectId,
+                tenantId: tenantCode,
+              }, { session });
+            }
+          }
+        }
+
+        // Then, handle new materials and quantity changes
+        for (const newMaterial of newMaterials) {
+          const oldMaterial = oldMaterials.find(m => m.itemId === newMaterial.itemId);
+          const quantityDiff = oldMaterial ? newMaterial.quantity - oldMaterial.quantity : newMaterial.quantity;
+
+          if (quantityDiff !== 0 || !oldMaterial) {
+            // Find item
+            const item = await this.itemModel.findOne({
+              $or: [
+                { _id: new Types.ObjectId(newMaterial.itemId) },
+                { id: newMaterial.itemId },
+                { itemId: newMaterial.itemId }
+              ],
+              tenantId: tenantCode,
+              isDeleted: false,
+            }).session(session);
+
+            if (!item) {
+              throw new NotFoundException(`Item ${newMaterial.itemId} not found`);
+            }
+
+            // Check stock availability for new items or increased quantities
+            if (quantityDiff > 0 && (item.stock || 0) < quantityDiff) {
+              throw new BadRequestException(
+                `Insufficient stock for item ${item.description || 'Unknown'}. Available: ${item.stock || 0}, Required: ${quantityDiff}`
+              );
+            }
+
+            // Update item stock
+            await this.itemModel.findOneAndUpdate(
+              { _id: item._id, tenantId: tenantCode },
+              {
+                $inc: { 
+                  stock: quantityDiff > 0 ? -quantityDiff : Math.abs(quantityDiff),
+                  reserved: quantityDiff 
+                },
+              },
+              { session }
+            );
+
+            // Update inventory stock
+            const inventoryItem = await this.inventoryModel.findOne({
+              tenantId,
+              $or: [
+                { itemId: item._id.toString() },
+                { itemId: newMaterial.itemId },
+                { name: item.description || 'Unknown' }
+              ]
+            }).session(session);
+
+            if (inventoryItem) {
+              const newStock = inventoryItem.stock - quantityDiff;
+              const newAvailable = newStock - inventoryItem.reserved;
+
+              await this.inventoryModel.findOneAndUpdate(
+                { _id: inventoryItem._id, tenantId },
+                {
+                  $set: {
+                    stock: newStock,
+                    available: newAvailable,
+                    lastUpdated: new Date().toISOString().split('T')[0],
+                  }
+                },
+                { session }
+              );
+            }
+
+            // Create or update reservation
+            if (!oldMaterial) {
+              // New material - create reservation
+              await this.inventoryModel.db.collection('reservations').insertOne({
+                reservationId: `RES-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                itemId: item.itemId || item.id || newMaterial.itemId,  // Use human-readable itemId
+                itemName: newMaterial.itemName || item.description || 'Unknown',
+                projectId: projectId,
+                projectName: updateProjectDto.customerName || existingProject.customerName,
+                quantity: newMaterial.quantity,
+                status: 'active',
+                notes: newMaterial.remarks || `Reserved for project ${projectId}`,
+                issuedDate: newMaterial.issuedDate || new Date().toISOString().split('T')[0],
+                tenantId: tenantCode,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              }, { session });
+            } else if (quantityDiff !== 0) {
+              // Quantity changed - update reservation
+              await this.inventoryModel.db.collection('reservations').updateOne(
+                { itemId: item.itemId || item.id || newMaterial.itemId, projectId: projectId, tenantId: tenantId },
+                {
+                  $set: {
+                    quantity: newMaterial.quantity,
+                    notes: newMaterial.remarks || `Updated for project ${projectId}`,
+                    updatedAt: new Date(),
+                  }
+                },
+                { session }
+              );
+            }
+          }
+        }
+
+        // Update project
+        project = await this.projectModel.findOneAndUpdate(
+          { tenantId, projectId },
+          { $set: updateProjectDto },
+          { new: true, session },
+        );
+      });
+
+      return project;
+    } catch (error) {
+      throw error;
+    } finally {
+      await session.endSession();
+    }
   }
 
   async updateStatus(

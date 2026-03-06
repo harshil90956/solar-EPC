@@ -56,7 +56,7 @@ const HRMPage = () => {
   // Employee State
   const [employees, setEmployees] = useState([]);
   const [projectManagers, setProjectManagers] = useState([]);
-  const { customRoles, allRoles } = useSettings();
+  const { customRoles, allRoles, assignCustomRoleToUser } = useSettings();
   const [showEmployeeModal, setShowEmployeeModal] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [employeeSearch, setEmployeeSearch] = useState('');
@@ -65,6 +65,7 @@ const HRMPage = () => {
     firstName: '',
     lastName: '',
     email: '',
+    password: '',
     phone: '',
     address: '',
     joiningDate: '',
@@ -250,7 +251,7 @@ const HRMPage = () => {
       toast.error('Please select a role for the employee');
       return;
     }
-    if (!employeeForm.employeeId || !employeeForm.firstName || !employeeForm.lastName || !employeeForm.email || !employeeForm.phone) {
+    if (!employeeForm.employeeId || !employeeForm.firstName || !employeeForm.lastName || !employeeForm.email || !employeeForm.password || !employeeForm.phone) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -265,6 +266,18 @@ const HRMPage = () => {
     try {
       const response = await employeeApi.create(employeeForm);
       console.log('[DEBUG] Employee created successfully:', response.data);
+      
+      // If custom role assigned, update user override in settings
+      const employeeId = response.data?.data?._id || response.data?._id;
+      if (employeeId && employeeForm.roleId?.startsWith('custom_')) {
+        try {
+          await assignCustomRoleToUser(employeeId, employeeForm.roleId, 'Admin');
+          console.log('[DEBUG] Custom role assigned to user:', employeeForm.roleId);
+        } catch (roleError) {
+          console.error('[DEBUG] Failed to assign custom role:', roleError);
+        }
+      }
+      
       toast.success('Employee created successfully');
       setShowEmployeeModal(false);
       fetchEmployees();
@@ -279,6 +292,19 @@ const HRMPage = () => {
   const handleUpdateEmployee = async () => {
     try {
       await employeeApi.update(selectedEmployee._id, employeeForm);
+      
+      // If custom role changed, update user override in settings
+      const oldRoleId = selectedEmployee.roleId;
+      const newRoleId = employeeForm.roleId;
+      if (newRoleId?.startsWith('custom_') && oldRoleId !== newRoleId) {
+        try {
+          await assignCustomRoleToUser(selectedEmployee._id, newRoleId, 'Admin');
+          console.log('[DEBUG] Custom role updated for user:', newRoleId);
+        } catch (roleError) {
+          console.error('[DEBUG] Failed to update custom role:', roleError);
+        }
+      }
+      
       toast.success('Employee updated successfully');
       setShowEmployeeModal(false);
       fetchEmployees();
@@ -305,6 +331,7 @@ const HRMPage = () => {
       firstName: '',
       lastName: '',
       email: '',
+      password: '',
       phone: '',
       address: '',
       joiningDate: '',
@@ -1415,7 +1442,7 @@ const HRMPage = () => {
               </Button>
               <Button
                 onClick={selectedEmployee ? handleUpdateEmployee : handleCreateEmployee}
-                disabled={!employeeForm.employeeId || !employeeForm.firstName || !employeeForm.lastName || !employeeForm.email || !employeeForm.phone || !employeeForm.roleId}
+                disabled={!employeeForm.employeeId || !employeeForm.firstName || !employeeForm.lastName || !employeeForm.email || !employeeForm.password || !employeeForm.phone || !employeeForm.roleId}
               >
                 <Plus size={13} /> {selectedEmployee ? 'Update' : 'Create'}
               </Button>
@@ -1457,6 +1484,14 @@ const HRMPage = () => {
                 value={employeeForm.email}
                 onChange={(e) => setEmployeeForm({ ...employeeForm, email: e.target.value })}
                 placeholder="john@example.com"
+              />
+            </FormField>
+            <FormField label="Password *">
+              <Input
+                type="password"
+                value={employeeForm.password}
+                onChange={(e) => setEmployeeForm({ ...employeeForm, password: e.target.value })}
+                placeholder="Set password..."
               />
             </FormField>
             <FormField label="Phone">

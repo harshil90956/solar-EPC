@@ -35,7 +35,7 @@ import LeadTracker from '../components/LeadTracker';
 import { useAuditLog } from '../hooks/useAuditLog';
 import { usePermissions } from '../hooks/usePermissions';
 import { CURRENCY } from '../config/app.config';
-import CanAccess, { CanCreate, CanEdit } from '../components/CanAccess';
+import CanAccess, { CanCreate, CanEdit, CanDelete, CanView } from '../components/CanAccess';
 import { toast } from '../components/ui/Toast';
 
 const fmt = CURRENCY.format;
@@ -1498,6 +1498,24 @@ const CRMPage = () => {
               </Button>
             </div>
           </div>
+          <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)]">
+            <Brain size={12} className="text-[var(--text-muted)]" />
+            <span className="text-[10px] text-[var(--text-muted)]">Scoring</span>
+            <button
+              onClick={() => setLeadScoring(!leadScoring)}
+              className={`w-8 h-4 rounded-full transition-colors ${leadScoring ? 'bg-emerald-500' : 'bg-gray-300'
+                }`}
+            >
+              <div className={`w-3 h-3 bg-white rounded-full transition-transform ${leadScoring ? 'translate-x-4' : 'translate-x-0.5'
+                }`} />
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <CanCreate module="crm">
+              <Button variant="outline" onClick={() => setShowAddModal(true)}><Plus size={14} /> Add Lead</Button>
+            </CanCreate>
+            <ImportExport moduleName="Leads" fields={crmFields} onImport={handleImport} onExport={handleExport} />
+          </div>
         </div>
       )}
 
@@ -2101,9 +2119,8 @@ const CRMPage = () => {
             selectedRows={selected}
             onSelectRows={setSelected}
             bulkActions={[
-              { label: 'Export', icon: Download, onClick: (selectedIds) => { 
+              ...(can('crm', 'export') ? [{ label: 'Export', icon: Download, onClick: (selectedIds) => { 
                 if (guardExport()) {
-                  // Get actual row data from selected IDs (handle both string and ObjectId)
                   const selectedIdSet = new Set(selectedIds.map(id => String(id)));
                   const dataToExport = selectedIds.length > 0 
                     ? sortedLeads.filter(lead => selectedIdSet.has(String(lead._id)))
@@ -2134,15 +2151,15 @@ const CRMPage = () => {
                   document.body.removeChild(link);
                   alert(`Exported ${dataToExport.length} leads to CSV!`);
                 }
-              }},
-              { label: 'Score Boost', icon: Brain, onClick: (rows) => { if (guardEdit()) console.log('Boosting scores', rows); } },
-              { label: 'Delete', icon: Trash2, onClick: (rows) => { if (guardDelete()) console.log('Soft Deleting', rows); }, danger: true },
+              }}] : []),
+              ...(can('crm', 'edit') ? [{ label: 'Score Boost', icon: Brain, onClick: (rows) => { if (guardEdit()) console.log('Boosting scores', rows); } }] : []),
+              ...(can('crm', 'delete') ? [{ label: 'Delete', icon: Trash2, onClick: (rows) => { if (guardDelete()) console.log('Soft Deleting', rows); }, danger: true }] : []),
             ]}
             rowActions={[
               { label: 'View', icon: Eye, onClick: handleViewLead },
-              { label: 'Edit', icon: Edit2, onClick: handleEditLead },
-              { label: 'Score', icon: Brain, onClick: handleRecalculateScore },
-              { label: 'Delete', icon: Trash2, onClick: handleDeleteLead, danger: true },
+              ...(can('crm', 'edit') ? [{ label: 'Edit', icon: Edit2, onClick: handleEditLead }] : []),
+              ...(can('crm', 'edit') ? [{ label: 'Score', icon: Brain, onClick: handleRecalculateScore }] : []),
+              ...(can('crm', 'delete') ? [{ label: 'Delete', icon: Trash2, onClick: handleDeleteLead, danger: true }] : []),
               { label: 'Activity Log', icon: Clock, onClick: handleViewActivity },
             ]}
           />
