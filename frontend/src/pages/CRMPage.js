@@ -553,6 +553,23 @@ const CRMPage = () => {
 
   const [activeFilters, setActiveFilters] = useState([]);
   const [quickFilter, setQuickFilter] = useState(null);
+  
+  // Advanced filter states - arrays for multiple values
+  const [filterStages, setFilterStages] = useState([]); // multiple stages
+  const [filterScoreRanges, setFilterScoreRanges] = useState([]); // multiple score ranges
+  const [filterValueRanges, setFilterValueRanges] = useState([]); // multiple value ranges
+  const [filterSources, setFilterSources] = useState([]); // multiple sources
+  
+  // Temp states for adding new values
+  const [tempStage, setTempStage] = useState('');
+  const [tempScoreMin, setTempScoreMin] = useState('');
+  const [tempScoreMax, setTempScoreMax] = useState('');
+  const [tempValueMin, setTempValueMin] = useState('');
+  const [tempValueMax, setTempValueMax] = useState('');
+  const [tempSource, setTempSource] = useState('');
+  
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  
   const [visibleColumns, setVisibleColumns] = useState({
     name: true,
     email: true,
@@ -627,6 +644,7 @@ const CRMPage = () => {
       const result = await leadsApi.getAll(params);
       // Handle nested response structure: { success: true, data: { data: [], total: 0 } }
       const leadsData = result.data?.data || result.data || [];
+      console.log('[DEBUG] Raw leads from API:', leadsData.slice(0, 3).map(l => ({ name: l.name, status: l.status, statusKey: l.statusKey })));
       const totalCount = result.data?.total || result.total || 0;
       setActiveLeads(leadsData);
       setTotalLeads(totalCount);
@@ -878,6 +896,23 @@ const CRMPage = () => {
     statusKey: 'new'
   });
 
+  // Reset newLead when Add Lead modal opens
+  useEffect(() => {
+    if (showAddModal) {
+      setNewLead({
+        firstName: '',
+        lastName: '',
+        company: '',
+        email: '',
+        phone: '',
+        source: '',
+        city: '',
+        notes: '',
+        statusKey: 'new'
+      });
+    }
+  }, [showAddModal]);
+
   const handleCreateLead = async () => {
     try {
       setActionLoading(true);
@@ -893,10 +928,12 @@ const CRMPage = () => {
         statusKey: newLead.statusKey
       };
       const created = await leadsApi.create(leadData);
-      logCreate(created.data || created);
+      const newLeadData = created.data || created;
+      logCreate(newLeadData);
       setShowAddModal(false);
       setNewLead({ firstName: '', lastName: '', company: '', email: '', phone: '', source: '', city: '', notes: '', statusKey: 'new' });
-      fetchLeads(); // Refresh list
+      // Immediately add to list without refresh
+      setActiveLeads(prev => [newLeadData, ...prev]);
       // Toast removed as per user request - no alerts on lead pages
     } catch (err) {
       console.error('Failed to create lead:', err);
@@ -1027,6 +1064,8 @@ const CRMPage = () => {
   const enhancedLeads = useMemo(() => {
     return activeLeads.map(lead => ({
       ...lead,
+      // Ensure statusKey is set - use backend statusKey, status, or default to 'new'
+      statusKey: lead.statusKey || lead.status || 'new',
       // Use backend score if available, otherwise calculate
       score: lead.score !== undefined ? lead.score : calculateLeadScore(lead),
       automation: applyAutomationRules(lead),
@@ -1066,32 +1105,45 @@ const CRMPage = () => {
       }
     }
 
-    // Advanced filters
-    if (activeFilters.length > 0) {
+    // Multiple Stage filters (OR logic)
+    if (filterStages.length > 0) {
       result = result.filter(lead => {
-        return activeFilters.every(filter => {
-          const value = lead[filter.field];
-          const filterValue = filter.value;
+        const leadStatus = (lead.statusKey || lead.status || 'new').toString().toLowerCase();
+        return filterStages.some(stage => leadStatus === stage.toLowerCase());
+      });
+    }
 
-          switch (filter.operator) {
-            case 'equals':
-            case 'eq':
-              return String(value).toLowerCase() === String(filterValue).toLowerCase();
-            case 'contains':
-              return String(value).toLowerCase().includes(String(filterValue).toLowerCase());
-            case 'gt':
-              return Number(value) > Number(filterValue);
-            case 'lt':
-              return Number(value) < Number(filterValue);
-            case 'gte':
-              return Number(value) >= Number(filterValue);
-            case 'lte':
-              return Number(value) <= Number(filterValue);
-            default:
-              return true;
-          }
+    // Multiple Score ranges (OR logic)
+    if (filterScoreRanges.length > 0) {
+      result = result.filter(lead => {
+        const score = Number(lead.score) || 0;
+        return filterScoreRanges.some(range => {
+          const min = range.min !== '' ? Number(range.min) : -Infinity;
+          const max = range.max !== '' ? Number(range.max) : Infinity;
+          return score >= min && score <= max;
         });
       });
+    }
+
+    // Multiple Value ranges (OR logic)
+    if (filterValueRanges.length > 0) {
+      result = result.filter(lead => {
+        const value = Number(lead.value) || 0;
+        return filterValueRanges.some(range => {
+          const min = range.min !== '' ? Number(range.min) : -Infinity;
+          const max = range.max !== '' ? Number(range.max) : Infinity;
+          return value >= min && value <= max;
+        });
+      });
+    }
+
+    // Multiple Source filters (OR logic)
+    if (filterSources.length > 0) {
+      result = result.filter(lead => 
+        filterSources.some(source => 
+          lead.source?.toLowerCase() === source.toLowerCase()
+        )
+      );
     }
 
     // Search filter
@@ -1107,12 +1159,56 @@ const CRMPage = () => {
     }
 
     return result;
-  }, [enhancedLeads, quickFilter, activeFilters]);
+  }, [enhancedLeads, quickFilter, filterStages, filterScoreRanges, filterValueRanges, filterSources, search]);
 
   // Sort handler for DataTable
   const handleSort = useCallback(({ key, dir }) => {
     setSort({ key, dir });
   }, []);
+
+  // Multi-value filter management
+  const addStageFilter = () => {
+    if (tempStage && !filterStages.includes(tempStage)) {
+      setFilterStages([...filterStages, tempStage]);
+      setTempStage('');
+    }
+  };
+  const removeStageFilter = (stage) => setFilterStages(filterStages.filter(s => s !== stage));
+
+  const addScoreRange = () => {
+    if (tempScoreMin || tempScoreMax) {
+      const newRange = { min: tempScoreMin || '0', max: tempScoreMax || '100', id: Date.now() };
+      setFilterScoreRanges([...filterScoreRanges, newRange]);
+      setTempScoreMin('');
+      setTempScoreMax('');
+    }
+  };
+  const removeScoreRange = (id) => setFilterScoreRanges(filterScoreRanges.filter(r => r.id !== id));
+
+  const addValueRange = () => {
+    if (tempValueMin || tempValueMax) {
+      const newRange = { min: tempValueMin || '0', max: tempValueMax || '∞', id: Date.now() };
+      setFilterValueRanges([...filterValueRanges, newRange]);
+      setTempValueMin('');
+      setTempValueMax('');
+    }
+  };
+  const removeValueRange = (id) => setFilterValueRanges(filterValueRanges.filter(r => r.id !== id));
+
+  const addSourceFilter = () => {
+    if (tempSource && !filterSources.includes(tempSource)) {
+      setFilterSources([...filterSources, tempSource]);
+      setTempSource('');
+    }
+  };
+  const removeSourceFilter = (source) => setFilterSources(filterSources.filter(s => s !== source));
+
+  const clearAllFilters = () => {
+    setFilterStages([]);
+    setFilterScoreRanges([]);
+    setFilterValueRanges([]);
+    setFilterSources([]);
+  };
 
   // Apply sorting to filtered leads
   const sortedLeads = useMemo(() => {
@@ -1255,15 +1351,16 @@ const CRMPage = () => {
       
       // Show result
       if (errorCount === 0) {
-        alert(`Successfully imported ${successCount} leads!`);
+        // Success - no alert
       } else {
-        alert(`Import completed: ${successCount} leads created, ${errorCount} errors.\n\nFirst 5 errors:\n${errors.slice(0, 5).join('\n')}`);
+        // Errors occurred but don't show alert
+        console.log(`Import completed: ${successCount} leads created, ${errorCount} errors.`);
       }
       
       fetchLeads(); // Refresh list
     } catch (err) {
       console.error('Import failed:', err);
-      alert('Import failed: ' + err.message);
+      // Alert removed as per user request - no alerts on lead pages
     } finally {
       setActionLoading(false);
     }
@@ -1324,10 +1421,6 @@ const CRMPage = () => {
         ]}
         activeTab={view}
         onTabChange={setView}
-        actions={[
-          { type: 'toggle', label: 'Scoring', icon: Brain, value: leadScoring, onToggle: () => setLeadScoring(!leadScoring) },
-          { type: 'button', label: 'Add Lead', icon: Plus, variant: 'primary', onClick: () => setShowAddModal(true) }
-        ]}
       />
 
       {/* ── Date Filters ── */}
@@ -1404,22 +1497,6 @@ const CRMPage = () => {
                 <RefreshCw size={12} /> Reset
               </Button>
             </div>
-          </div>
-          <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)]">
-            <Brain size={12} className="text-[var(--text-muted)]" />
-            <span className="text-[10px] text-[var(--text-muted)]">Scoring</span>
-            <button
-              onClick={() => setLeadScoring(!leadScoring)}
-              className={`w-8 h-4 rounded-full transition-colors ${leadScoring ? 'bg-emerald-500' : 'bg-gray-300'
-                }`}
-            >
-              <div className={`w-3 h-3 bg-white rounded-full transition-transform ${leadScoring ? 'translate-x-4' : 'translate-x-0.5'
-                }`} />
-            </button>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => setShowAddModal(true)}><Plus size={14} /> Add Lead</Button>
-            <ImportExport moduleName="Leads" fields={crmFields} onImport={handleImport} onExport={handleExport} />
           </div>
         </div>
       )}
@@ -1673,6 +1750,7 @@ const CRMPage = () => {
       {/* ── Kanban Board View ── */}
       {view === 'kanban' && (
         <div className="space-y-4">
+          {(() => { console.log('[KANBAN DEBUG] statusOptions:', statusOptions); console.log('[KANBAN DEBUG] enhancedLeads first 3:', enhancedLeads.slice(0, 3).map(l => ({name: l.name, statusKey: l.statusKey, status: l.status}))); return null; })()}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <h3 className="text-lg font-bold text-[var(--text-primary)]">Pipeline Kanban Board</h3>
@@ -1691,7 +1769,12 @@ const CRMPage = () => {
           <div className="overflow-x-auto pb-3">
             <div className="flex gap-3 min-w-max">
               {(statusOptions || []).map((stage) => {
-                const stageLeads = enhancedLeads.filter(lead => lead.statusKey === stage.key);
+                // Filter leads that match this stage's key - handle both statusKey and status fields
+                // Use case-insensitive comparison to handle status value mismatches
+                const stageLeads = enhancedLeads.filter(lead => {
+                  const leadStatus = (lead.statusKey || lead.status || 'new').toString().toLowerCase();
+                  return leadStatus === stage.key.toLowerCase();
+                });
                 const totalValue = stageLeads.reduce((sum, lead) => sum + (lead.value || 0), 0);
 
                 return (
@@ -1707,15 +1790,25 @@ const CRMPage = () => {
                       if (leadId) {
                         const lead = enhancedLeads.find(l => String(l._id || l.id) === String(leadId));
                         if (lead) {
-                          const newLeads = activeLeads.map(l => String(l._id || l.id) === String(leadId) ? { ...l, statusKey: stage.key } : l);
+                          // Optimistically update UI
+                          const newLeads = activeLeads.map(l => 
+                            String(l._id || l.id) === String(leadId) 
+                              ? { ...l, statusKey: stage.key, status: stage.key } 
+                              : l
+                          );
                           setActiveLeads(newLeads);
-                          leadsApi.update(lead._id || lead.id, { statusKey: stage.key })
+                          // Update backend with both statusKey and status for compatibility
+                          leadsApi.update(lead._id || lead.id, { 
+                            statusKey: stage.key,
+                            status: stage.key 
+                          })
                             .then(() => {
                               logUpdate({ id: leadId, statusKey: stage.key });
                               fetchLeads();
                             })
-                            .catch(() => {
-                              toast.error('Failed to change lead status');
+                            .catch((err) => {
+                              // Silently handle error and refresh to get correct state
+                              console.error('Status update failed:', err);
                               fetchLeads();
                             });
                         }
@@ -1824,128 +1917,135 @@ const CRMPage = () => {
       {/* ── Leads Table View ── */}
       {view === 'leads' && (
         <div className="space-y-4">
-          {/* Advanced Search Bar */}
-          <div className="glass-card p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex-1 relative">
-                <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[var(--text-muted)]" />
-                <Input
-                  placeholder="Search anything - name, email, score, value, city, stage..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-              <div className="relative" ref={sortDropdownRef}>
+          {/* Action Buttons & Filter Toggle */}
+          <div className="flex items-center justify-between gap-2 mb-4">
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                className={showAdvancedFilters ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : ''}
+              >
+                <Filter size={14} className="mr-1" /> 
+                {showAdvancedFilters ? 'Hide Filters' : 'Advanced Filters'}
+              </Button>
+              {(filterStages.length > 0 || filterScoreRanges.length > 0 || filterValueRanges.length > 0 || filterSources.length > 0) && (
                 <button
-                  onClick={() => setShowSortDropdown(!showSortDropdown)}
-                  className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors flex items-center gap-2 ${showSortDropdown ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : 'bg-[var(--bg-elevated)] border-[var(--border-base)] text-[var(--text-muted)] hover:bg-[var(--bg-hovered)]'}`}
+                  onClick={clearAllFilters}
+                  className="px-3 py-1.5 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] text-xs text-[var(--text-muted)] hover:bg-[var(--bg-hovered)] transition-colors flex items-center gap-1"
                 >
-                  {sort.dir === 'asc' ? <SortAsc size={14} /> : <SortDesc size={14} />}
-                  Sort
-                </button>
-                {showSortDropdown && (
-                  <div className="absolute right-0 top-full mt-2 w-48 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] shadow-lg z-50">
-                    <div className="p-2">
-                      <p className="text-[10px] text-[var(--text-muted)] px-2 py-1">Sort by</p>
-                      {[
-                        { key: 'name', label: 'Lead Name' },
-                        { key: 'email', label: 'Email' },
-                        { key: 'statusKey', label: 'Stage' },
-                        { key: 'score', label: 'Lead Score' },
-                        { key: 'value', label: 'Deal Value' },
-                        { key: 'source', label: 'Source' }
-                      ].map((col) => (
-                        <button
-                          key={col.key}
-                          onClick={() => applySort(col.key)}
-                          className={`w-full text-left px-3 py-2 rounded text-xs flex items-center justify-between hover:bg-[var(--bg-hovered)] ${sort.key === col.key ? 'text-[var(--primary)] font-bold' : 'text-[var(--text-secondary)]'}`}
-                        >
-                          {col.label}
-                          {sort.key === col.key && (
-                            sort.dir === 'asc' ? <SortAsc size={12} /> : <SortDesc size={12} />
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div className="relative" ref={columnsDropdownRef}>
-                <button
-                  onClick={() => setShowColumnsDropdown(!showColumnsDropdown)}
-                  className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors flex items-center gap-2 ${showColumnsDropdown ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : 'bg-[var(--bg-elevated)] border-[var(--border-base)] text-[var(--text-muted)] hover:bg-[var(--bg-hovered)]'}`}
-                >
-                  <LayoutDashboard size={14} />
-                  Columns
-                </button>
-                {showColumnsDropdown && (
-                  <div className="absolute right-0 top-full mt-2 w-48 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] shadow-lg z-50">
-                    <div className="p-2">
-                      <p className="text-[10px] text-[var(--text-muted)] px-2 py-1">Show/Hide Columns</p>
-                      {[
-                        { key: 'name', label: 'Lead' },
-                        { key: 'email', label: 'Email' },
-                        { key: 'statusKey', label: 'Stage' },
-                        { key: 'score', label: 'Score' },
-                        { key: 'value', label: 'Value' },
-                        { key: 'automation', label: 'Automation' },
-                        { key: 'source', label: 'Source' }
-                      ].map((col) => (
-                        <label
-                          key={col.key}
-                          className="flex items-center gap-2 px-3 py-2 rounded text-xs cursor-pointer hover:bg-[var(--bg-hovered)]"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={visibleColumns[col.key] !== false}
-                            onChange={() => toggleColumn(col.key)}
-                            className="w-4 h-4 rounded border-[var(--border-base)]"
-                          />
-                          <span className={visibleColumns[col.key] !== false ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}>
-                            {col.label}
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Quick Filter Pills */}
-            <div className="flex items-center gap-2 mt-3 flex-wrap">
-              <span className="text-xs text-[var(--text-muted)] font-medium">Quick Filters:</span>
-              {[
-                { label: 'High Score (>75)', id: 'highScore', color: 'emerald' },
-                { label: 'SLA Breached', id: 'slaBreached', color: 'red' },
-                { label: 'High Value (>5L)', id: 'highValue', color: 'blue' },
-                { label: 'Referral Source', id: 'referral', color: 'purple' },
-                { label: 'Active Automation', id: 'automation', color: 'amber' },
-                { label: 'Last 7 Days', id: 'recent', color: 'cyan' }
-              ].map((filter) => (
-                <button
-                  key={filter.id}
-                  onClick={() => setQuickFilter(quickFilter === filter.id ? null : filter.id)}
-                  className={`px-3 py-1 rounded-full text-[10px] font-medium border transition-all ${quickFilter === filter.id
-                    ? `bg-${filter.color}-500 text-white border-${filter.color}-500`
-                    : `border-${filter.color}-500/30 text-${filter.color}-600 bg-${filter.color}-50 hover:bg-${filter.color}-100`
-                    }`}
-                >
-                  {filter.label}
-                </button>
-              ))}
-              {(quickFilter || activeFilters.length > 0 || search) && (
-                <button
-                  onClick={() => { setQuickFilter(null); setActiveFilters([]); setSearch(''); }}
-                  className="px-3 py-1 rounded-full text-[10px] font-medium border border-gray-500/30 text-gray-600 bg-gray-50 hover:bg-gray-100 transition-colors"
-                >
-                  Clear All
+                  <FilterX size={12} /> Clear All
                 </button>
               )}
             </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => setShowAddModal(true)}><Plus size={14} /> Add Lead</Button>
+              <ImportExport moduleName="Leads" fields={crmFields} onImport={handleImport} onExport={handleExport} />
+            </div>
           </div>
 
+          {/* Advanced Filters Panel - Compact Single Row */}
+          {showAdvancedFilters && (
+            <div className="glass-card p-4 rounded-lg border border-[var(--border-base)] w-full">
+              <div className="flex flex-wrap items-start gap-4">
+                {/* Stage Filter */}
+                <div className="space-y-1 flex-1 min-w-[220px]">
+                  <label className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">Stage</label>
+                  <div className="flex items-center gap-1.5">
+                    <Select value={tempStage} onChange={(e) => setTempStage(e.target.value)} className="flex-1 text-sm">
+                      <option value="">Select</option>
+                      {(statusOptions || []).map(s => (
+                        <option key={s.key} value={s.key}>{s.label}</option>
+                      ))}
+                    </Select>
+                    <Button size="sm" className="px-2" onClick={addStageFilter} disabled={!tempStage}><Plus size={12} /></Button>
+                  </div>
+                  {filterStages.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {filterStages.map(stage => (
+                        <span key={stage} className="px-2 py-0.5 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] text-[10px] flex items-center gap-1">
+                          {statusMap[stage]?.label || stage}
+                          <button onClick={() => removeStageFilter(stage)} className="hover:text-red-500"><X size={8} /></button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Source Filter */}
+                <div className="space-y-1 flex-1 min-w-[220px]">
+                  <label className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">Source</label>
+                  <div className="flex items-center gap-1.5">
+                    <Select value={tempSource} onChange={(e) => setTempSource(e.target.value)} className="flex-1 text-sm">
+                      <option value="">Select</option>
+                      {SOURCES.filter(s => s !== 'All').map(s => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </Select>
+                    <Button size="sm" className="px-2" onClick={addSourceFilter} disabled={!tempSource}><Plus size={12} /></Button>
+                  </div>
+                  {filterSources.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {filterSources.map(source => (
+                        <span key={source} className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 text-[10px] flex items-center gap-1">
+                          {source}
+                          <button onClick={() => removeSourceFilter(source)} className="hover:text-red-500"><X size={8} /></button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Score Range */}
+                <div className="space-y-1 flex-1 min-w-[200px]">
+                  <label className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">Score</label>
+                  <div className="flex items-center gap-1.5">
+                    <Input type="number" placeholder="Min" value={tempScoreMin} onChange={(e) => setTempScoreMin(e.target.value)} className="h-8 text-sm w-20 px-2" />
+                    <span className="text-[var(--text-muted)] text-sm">-</span>
+                    <Input type="number" placeholder="Max" value={tempScoreMax} onChange={(e) => setTempScoreMax(e.target.value)} className="h-8 text-sm w-20 px-2" />
+                    <Button size="sm" className="px-2" onClick={addScoreRange} disabled={!tempScoreMin && !tempScoreMax}><Plus size={12} /></Button>
+                  </div>
+                  {filterScoreRanges.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {filterScoreRanges.map(range => (
+                        <span key={range.id} className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 text-[10px] flex items-center gap-1">
+                          {range.min}-{range.max}
+                          <button onClick={() => removeScoreRange(range.id)} className="hover:text-red-500"><X size={8} /></button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Value Range */}
+                <div className="space-y-1 flex-1 min-w-[200px]">
+                  <label className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">Value ₹</label>
+                  <div className="flex items-center gap-1.5">
+                    <Input type="number" placeholder="Min" value={tempValueMin} onChange={(e) => setTempValueMin(e.target.value)} className="h-8 text-sm w-20 px-2" />
+                    <span className="text-[var(--text-muted)] text-sm">-</span>
+                    <Input type="number" placeholder="Max" value={tempValueMax} onChange={(e) => setTempValueMax(e.target.value)} className="h-8 text-sm w-20 px-2" />
+                    <Button size="sm" className="px-2" onClick={addValueRange} disabled={!tempValueMin && !tempValueMax}><Plus size={12} /></Button>
+                  </div>
+                  {filterValueRanges.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {filterValueRanges.map(range => (
+                        <span key={range.id} className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 text-[10px] flex items-center gap-1">
+                          {range.min}-{range.max}
+                          <button onClick={() => removeValueRange(range.id)} className="hover:text-red-500"><X size={8} /></button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Results Count */}
+              <div className="flex justify-end pt-2 mt-2 border-t border-[var(--border-base)]">
+                <span className="text-[10px] text-[var(--text-muted)]">
+                  {filteredLeads.length} leads found
+                </span>
+              </div>
+            </div>
+          )}
           <DataTable
             columns={columns}
             data={sortedLeads}
@@ -1956,8 +2056,46 @@ const CRMPage = () => {
             onPageChange={setPage}
             onPageSizeChange={setPageSize}
             onSort={handleSort}
+            toolbar={(
+              <div className="flex items-center gap-2">
+                <div className="relative" ref={sortDropdownRef}>
+                  <button
+                    onClick={() => setShowSortDropdown(!showSortDropdown)}
+                    className={`h-8 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors flex items-center gap-2 ${showSortDropdown ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : 'bg-[var(--bg-elevated)] border-[var(--border-base)] text-[var(--text-muted)] hover:bg-[var(--bg-hovered)]'}`}
+                  >
+                    {sort.dir === 'asc' ? <SortAsc size={12} /> : <SortDesc size={12} />}
+                    Sort
+                  </button>
+                  {showSortDropdown && (
+                    <div className="absolute left-0 top-full mt-2 w-48 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] shadow-lg z-50">
+                      <div className="p-2">
+                        <p className="text-[10px] text-[var(--text-muted)] px-2 py-1">Sort by</p>
+                        {[
+                          { key: 'name', label: 'Lead Name' },
+                          { key: 'email', label: 'Email' },
+                          { key: 'statusKey', label: 'Stage' },
+                          { key: 'score', label: 'Lead Score' },
+                          { key: 'value', label: 'Deal Value' },
+                          { key: 'source', label: 'Source' }
+                        ].map((col) => (
+                          <button
+                            key={col.key}
+                            onClick={() => applySort(col.key)}
+                            className={`w-full text-left px-3 py-2 rounded text-xs flex items-center justify-between hover:bg-[var(--bg-hovered)] ${sort.key === col.key ? 'text-[var(--primary)] font-bold' : 'text-[var(--text-secondary)]'}`}
+                          >
+                            {col.label}
+                            {sort.key === col.key && (
+                              sort.dir === 'asc' ? <SortAsc size={12} /> : <SortDesc size={12} />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
             onRowClick={(row) => { setTrackerLeadId(row._id); setShowTrackerDrawer(true); }}
-            sort={sort}
             search={search}
             onSearch={setSearch}
             selectedRows={selected}
@@ -2030,15 +2168,15 @@ const CRMPage = () => {
             <FormField label="First Name">
               <Input
                 placeholder="Enter first name"
-                value={newLead.name}
-                onChange={(e) => setNewLead({ ...newLead, name: e.target.value })}
+                value={newLead.firstName || ''}
+                onChange={(e) => setNewLead({ ...newLead, firstName: e.target.value })}
               />
             </FormField>
             <FormField label="Last Name">
               <Input
                 placeholder="Enter last name"
-                value={newLead.company}
-                onChange={(e) => setNewLead({ ...newLead, company: e.target.value })}
+                value={newLead.lastName || ''}
+                onChange={(e) => setNewLead({ ...newLead, lastName: e.target.value })}
               />
             </FormField>
           </div>
@@ -2265,8 +2403,8 @@ const CRMPage = () => {
             <div className="grid grid-cols-2 gap-3">
               <FormField label="Stage">
                 <Select
-                  value={editingLead.stage}
-                  onChange={(e) => setEditingLead({ ...editingLead, stage: e.target.value })}
+                  value={editingLead.statusKey || editingLead.status || editingLead.stage || 'new'}
+                  onChange={(e) => setEditingLead({ ...editingLead, statusKey: e.target.value, status: e.target.value })}
                 >
                   {(statusOptions || []).map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
                 </Select>
