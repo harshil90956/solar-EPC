@@ -85,23 +85,31 @@ export class InventoryService {
   }
 
   async update(tenantCode: string, itemId: string, updateDto: UpdateInventoryDto) {
-    const tenantId = await this.getTenantId(tenantCode);
-    const item = await this.inventoryModel.findOneAndUpdate(
-      { tenantId, itemId },
-      { 
-        $set: { 
+    // Use native MongoDB driver to bypass mongoose schema casting for tenantId
+    const collection = this.inventoryModel.db.collection('inventories');
+    
+    const result = await collection.findOneAndUpdate(
+      {
+        itemId,
+        $or: [
+          { tenantId: tenantCode },  // String format (old)
+          { tenantId: { $type: 'objectId' } }  // ObjectId format (new)
+        ]
+      },
+      {
+        $set: {
           ...updateDto,
           lastUpdated: new Date().toISOString().split('T')[0],
         }
       },
-      { new: true },
-    ).exec();
+      { returnDocument: 'after' }
+    );
 
-    if (!item) {
+    if (!result) {
       throw new NotFoundException(`Item ${itemId} not found`);
     }
 
-    return item;
+    return result;
   }
 
   async createReservation(tenantCode: string, createDto: CreateReservationDto) {
