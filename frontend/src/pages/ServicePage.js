@@ -1074,28 +1074,17 @@ const ServicePage = () => {
               {/* Reserved Materials - Same as ProjectPage */}
               {amcProjectData.materials && amcProjectData.materials.length > 0 && (
                 <div>
-                  <div className="text-xs font-semibold text-[var(--text-primary)] mb-3">Milestone Tracker</div>
-                  <div className="space-y-3">
-                    {amcProjectData.milestones.map((milestone, idx) => (
-                      <div key={idx} className="flex items-start gap-3">
-                        <div className={`w-6 h-6 rounded-full flex items-center justify-center ${milestone.status === 'Done' ? 'bg-green-500 text-white' :
-                          milestone.status === 'In Progress' ? 'bg-blue-500 text-white' :
-                            'bg-[var(--bg-tertiary)] text-[var(--text-muted)]'
-                          }`}>
-                          {milestone.status === 'Done' ? <CheckCircle2 size={14} /> : <span className="text-xs">{idx + 1}</span>}
+                  <div className="text-xs font-semibold text-[var(--text-primary)] mb-3">Reserved Materials</div>
+                  <div className="space-y-2">
+                    {amcProjectData.materials.map((m, idx) => (
+                      <div key={`mat-${idx}`} className="glass-card p-2 flex items-center justify-between">
+                        <div>
+                          <div className="text-xs font-medium text-[var(--text-primary)]">{m.itemName}</div>
+                          <div className="text-[10px] text-[var(--text-muted)]">Qty: {m.quantity} | Issued: {m.issuedDate || '—'}</div>
                         </div>
-                        <div className="flex-1">
-                          <div className={`text-xs font-medium ${milestone.status === 'Done' ? 'text-green-500' :
-                            milestone.status === 'In Progress' ? 'text-blue-500' :
-                              'text-[var(--text-muted)]'
-                            }`}>{milestone.name}</div>
-                          {milestone.date && (
-                            <div className="text-[10px] text-[var(--text-muted)]">{milestone.date}</div>
-                          )}
-                        </div>
-                        {milestone.remarks && (
-                          <div className="text-[10px] text-[var(--text-faint)] max-w-[150px] truncate" title={milestone.remarks}>
-                            {milestone.remarks}
+                        {m.remarks && (
+                          <div className="text-[10px] text-[var(--text-faint)] max-w-[150px] truncate" title={m.remarks}>
+                            {m.remarks}
                           </div>
                         )}
                       </div>
