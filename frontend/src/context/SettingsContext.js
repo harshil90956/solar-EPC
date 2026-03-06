@@ -321,37 +321,6 @@ export const SettingsProvider = ({ children }) => {
 
     const refreshCustomRoles = useCallback(async () => {
         try {
-            const response = await settingsApi.getCustomRoles();
-
-            // Handle wrapped response format {success: true, data: {...}}
-            const rolesData = response?.data || response;
-
-            const rolesObj = {};
-            const rolesArray = Array.isArray(rolesData) ? rolesData : Object.values(rolesData || {});
-            rolesArray.forEach(r => {
-                const roleId = r?.roleId || r?.id;
-                if (!roleId) return;
-                rolesObj[roleId] = {
-                    id: roleId,
-                    label: r.label,
-                    description: r.description,
-                    baseRole: r.baseRole,
-                    color: r.color,
-                    bg: r.bg,
-                    isCustom: true,
-                    permissions: r.permissions || {},
-                    createdAt: r.createdAt,
-                    updatedAt: r.updatedAt,
-                };
-            });
-            setCustomRoles(rolesObj);
-        } catch (e) {
-            // silent fail
-        }
-    }, []);
-
-    const refreshCustomRoles = useCallback(async () => {
-        try {
             console.log('[DEBUG] Fetching custom roles from API...');
             const response = await settingsApi.getCustomRoles();
             console.log('[DEBUG] Custom roles API response:', response);
@@ -426,6 +395,54 @@ export const SettingsProvider = ({ children }) => {
             };
             setCustomRoles(prev => ({ ...prev, [id]: newRole }));
             addAudit('CUSTOM_ROLE_CLONED', `${sourceRoleId} → ${clonedLabel}`, sourceRoleId, id, user);
+            return id;
+        }
+    }, [customRoles, rbac, addAudit, refreshCustomRoles]);
+
+    const createCustomRole = useCallback(async (label, description, baseRole, user) => {
+        try {
+            const id = `custom_${Date.now()}`;
+            const basePerms = baseRole
+                ? (customRoles[baseRole]?.permissions || rbac[baseRole] || {})
+                : {};
+            const newRole = {
+                id,
+                label,
+                description: description || '',
+                baseRole: baseRole || null,
+                color: '#8b5cf6',
+                bg: 'rgba(139,92,246,0.12)',
+                isCustom: true,
+                permissions: JSON.parse(JSON.stringify(basePerms)),
+            };
+
+            // Persist to backend
+            try {
+                await settingsApi.createCustomRole(newRole);
+            } catch (e) {
+                console.error('Failed to create custom role on backend:', e);
+            }
+
+            setCustomRoles(prev => ({ ...prev, [id]: newRole }));
+            addAudit('CUSTOM_ROLE_CREATED', label, 'null', id, user);
+            await refreshCustomRoles();
+            return id;
+        } catch (error) {
+            console.error('Failed to create custom role:', error);
+            // Fallback: create locally
+            const id = `custom_${Date.now()}`;
+            const newRole = {
+                id,
+                label,
+                description: description || '',
+                baseRole: baseRole || null,
+                color: '#8b5cf6',
+                bg: 'rgba(139,92,246,0.12)',
+                isCustom: true,
+                permissions: {},
+            };
+            setCustomRoles(prev => ({ ...prev, [id]: newRole }));
+            addAudit('CUSTOM_ROLE_CREATED', label, 'null', id, user);
             return id;
         }
     }, [customRoles, rbac, addAudit, refreshCustomRoles]);

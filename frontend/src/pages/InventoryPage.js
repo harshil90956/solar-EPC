@@ -600,13 +600,8 @@ const InventoryPage = () => {
 
       const updatedItem = await response.json();
       const itemData = updatedItem.data || updatedItem;
-<<<<<<< Updated upstream
       setInventory(prev => prev.map(i => (i._id || i.itemId) === (itemData._id || itemData.itemId) ? { ...i, status: newStatus } : i));
-      
-=======
-      setInventory(prev => prev.map(i => i.itemId === itemId ? { ...i, status: newStatus } : i));
 
->>>>>>> Stashed changes
       // Refresh stats
       const statsResponse = await fetch(`${API_BASE_URL}/inventory/stats?tenantId=${TENANT_ID}`);
       if (statsResponse.ok) {

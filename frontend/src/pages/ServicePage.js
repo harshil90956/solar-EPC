@@ -609,7 +609,7 @@ const ServicePage = () => {
       notes: '',
     });
     fetchEngineers();
-    
+
     // Fetch project data to get email and mobile
     setLoadingScheduleVisitProject(true);
     try {
@@ -1079,23 +1079,23 @@ const ServicePage = () => {
                     {amcProjectData.milestones.map((milestone, idx) => (
                       <div key={idx} className="flex items-start gap-3">
                         <div className={`w-6 h-6 rounded-full flex items-center justify-center ${milestone.status === 'Done' ? 'bg-green-500 text-white' :
-                            milestone.status === 'In Progress' ? 'bg-blue-500 text-white' :
-                              'bg-[var(--bg-tertiary)] text-[var(--text-muted)]'
+                          milestone.status === 'In Progress' ? 'bg-blue-500 text-white' :
+                            'bg-[var(--bg-tertiary)] text-[var(--text-muted)]'
                           }`}>
                           {milestone.status === 'Done' ? <CheckCircle2 size={14} /> : <span className="text-xs">{idx + 1}</span>}
                         </div>
                         <div className="flex-1">
                           <div className={`text-xs font-medium ${milestone.status === 'Done' ? 'text-green-500' :
-                              milestone.status === 'In Progress' ? 'text-blue-500' :
-                                'text-[var(--text-muted)]'
+                            milestone.status === 'In Progress' ? 'text-blue-500' :
+                              'text-[var(--text-muted)]'
                             }`}>{milestone.name}</div>
                           {milestone.date && (
                             <div className="text-[10px] text-[var(--text-muted)]">{milestone.date}</div>
                           )}
                         </div>
-                        {m.remarks && (
-                          <div className="text-[10px] text-[var(--text-faint)] max-w-[150px] truncate" title={m.remarks}>
-                            {m.remarks}
+                        {milestone.remarks && (
+                          <div className="text-[10px] text-[var(--text-faint)] max-w-[150px] truncate" title={milestone.remarks}>
+                            {milestone.remarks}
                           </div>
                         )}
                       </div>
