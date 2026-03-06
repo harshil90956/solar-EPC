@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Req, HttpCode, HttpStatus, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Req, Headers, Query, HttpCode, HttpStatus, UnauthorizedException } from '@nestjs/common';
 import { EmployeeService } from '../services/employee.service';
 import { CreateEmployeeDto, UpdateEmployeeDto } from '../dto/employee.dto';
 import { EmployeeDocument } from '../schemas/employee.schema';
@@ -9,11 +9,20 @@ export class EmployeeController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(@Body() loginDto: { email: string; password: string }, @Req() req: any) {
-    const tenantId = req.tenant?.id || 'default';
+  async login(
+    @Body() loginDto: { email: string; password: string },
+    @Req() req: any,
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
+  ) {
+    // For login, tenant won't be in JWT yet, so check headers/query
+    const tenantId = headerTenantId || queryTenantId || req.tenant?.id || 'default';
+    console.log('[DEBUG] Employee login - tenantId:', tenantId, 'email:', loginDto.email);
+    
     const employee = await this.employeeService.validateLogin(loginDto.email, loginDto.password, tenantId) as EmployeeDocument | null;
     
     if (!employee) {
+      console.log('[DEBUG] Login failed - employee not found or invalid password');
       throw new UnauthorizedException('Invalid email or password');
     }
 

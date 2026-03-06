@@ -201,21 +201,42 @@ export class EmployeeService {
   }
 
   async validateLogin(email: string, password: string, tenantId?: string): Promise<Employee | null> {
-    const query: any = { email: email.toLowerCase() };
+    console.log('[DEBUG] validateLogin called with email:', email, 'tenantId:', tenantId);
+    
+    // Build query to find employee by email
+    // If tenantId is provided (and not 'default'), search for employees with matching tenantId OR null tenantId
+    let query: any = { email: email.toLowerCase() };
+    
     if (tenantId && tenantId !== 'default') {
-      query.tenantId = new Types.ObjectId(tenantId);
+      // Search for employees with matching tenantId OR null/undefined tenantId
+      query = {
+        email: email.toLowerCase(),
+        $or: [
+          { tenantId: new Types.ObjectId(tenantId) },
+          { tenantId: null },
+          { tenantId: { $exists: false } }
+        ]
+      };
     }
-
+    
+    console.log('[DEBUG] Login query:', JSON.stringify(query));
+    
     const employee = await this.employeeModel
       .findOne(query)
       .populate('roleId', 'roleId label color permissions')
       .exec();
 
+    console.log('[DEBUG] Employee found:', employee ? 'YES' : 'NO');
+    
     if (!employee || !employee.password) {
+      console.log('[DEBUG] Employee not found or no password');
       return null;
     }
 
+    console.log('[DEBUG] Comparing passwords...');
     const isPasswordValid = await bcrypt.compare(password, employee.password);
+    console.log('[DEBUG] Password valid:', isPasswordValid);
+    
     if (!isPasswordValid) {
       return null;
     }

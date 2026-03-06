@@ -1,4 +1,4 @@
-const API_BASE_URL = (process.env.REACT_APP_API_URL || 'http://localhost:3001') + '/api/v1';
+import apiClient from '../lib/apiClient';
 
 const getTenantId = () => {
   try {
@@ -7,16 +7,6 @@ const getTenantId = () => {
   } catch {
     return null;
   }
-};
-
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('solar_token') || localStorage.getItem('token');
-  const tenantId = getTenantId();
-  return {
-    'Content-Type': 'application/json',
-    ...(token && { Authorization: `Bearer ${token}` }),
-    ...(tenantId && { 'x-tenant-id': tenantId }),
-  };
 };
 
 export const settingsApi = {

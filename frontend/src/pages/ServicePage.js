@@ -1093,9 +1093,9 @@ const ServicePage = () => {
                             <div className="text-[10px] text-[var(--text-muted)]">{milestone.date}</div>
                           )}
                         </div>
-                        {m.remarks && (
-                          <div className="text-[10px] text-[var(--text-faint)] max-w-[150px] truncate" title={m.remarks}>
-                            {m.remarks}
+                        {milestone.remarks && (
+                          <div className="text-[10px] text-[var(--text-faint)] max-w-[150px] truncate" title={milestone.remarks}>
+                            {milestone.remarks}
                           </div>
                         )}
                       </div>
