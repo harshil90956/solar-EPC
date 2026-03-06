@@ -10,8 +10,20 @@ export class ExpenseService {
     @InjectModel(Expense.name) private readonly expenseModel: Model<ExpenseDocument>,
   ) {}
 
+  private toObjectId(id: string | undefined): Types.ObjectId | undefined {
+    if (!id) return undefined;
+    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(id);
+    if (!isValidObjectId) return undefined;
+    try {
+      return new Types.ObjectId(id);
+    } catch {
+      return undefined;
+    }
+  }
+
   async findAll(tenantId: string, status?: string, category?: string): Promise<Expense[]> {
-    const query: any = { tenantId: new Types.ObjectId(tenantId), isDeleted: false };
+    const tid = this.toObjectId(tenantId);
+    const query: any = tid ? { tenantId: tid, isDeleted: false } : { isDeleted: false };
     if (status && status !== 'All') {
       query.status = status;
     }
@@ -22,9 +34,10 @@ export class ExpenseService {
   }
 
   async findById(tenantId: string, id: string): Promise<Expense> {
+    const tid = this.toObjectId(tenantId);
     const expense = await this.expenseModel.findOne({
       _id: new Types.ObjectId(id),
-      tenantId: new Types.ObjectId(tenantId),
+      ...(tid ? { tenantId: tid } : {}),
       isDeleted: false,
     }).lean();
 
@@ -38,7 +51,7 @@ export class ExpenseService {
   async create(tenantId: string, dto: CreateExpenseDto): Promise<Expense> {
     const expense = new this.expenseModel({
       ...dto,
-      tenantId: new Types.ObjectId(tenantId),
+      tenantId: this.toObjectId(tenantId),
       expenseDate: new Date(dto.expenseDate),
       dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
     });

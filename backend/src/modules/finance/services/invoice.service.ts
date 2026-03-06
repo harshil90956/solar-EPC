@@ -39,10 +39,23 @@ export class InvoiceService {
     @InjectModel(Activity.name) private readonly activityModel: Model<ActivityDocument>,
   ) {}
 
+  private toObjectId(id: string | undefined): Types.ObjectId | undefined {
+    if (!id) return undefined;
+    // Check if id is a valid 24-character hex string (MongoDB ObjectId format)
+    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(id);
+    if (!isValidObjectId) return undefined;
+    try {
+      return new Types.ObjectId(id);
+    } catch {
+      return undefined;
+    }
+  }
+
   private tenantOrLegacyMatch(tenantId: string) {
+    const tid = this.toObjectId(tenantId);
     return {
       $or: [
-        { tenantId: new Types.ObjectId(tenantId) },
+        ...(tid ? [{ tenantId: tid }] : []),
         { tenantId: { $exists: false } },
         { tenantId: null },
       ],
@@ -70,7 +83,7 @@ export class InvoiceService {
 
   async getCustomerNamesFromProjects(tenantId: string): Promise<string[]> {
     const names = await this.projectModel.distinct('customerName', {
-      tenantId: new Types.ObjectId(tenantId),
+      ...(this.toObjectId(tenantId) ? { tenantId: this.toObjectId(tenantId) } : {}),
       $or: [{ isDeleted: false }, { isDeleted: { $exists: false } }, { isDeleted: null }],
       customerName: { $exists: true, $nin: [null, ''] },
     });
@@ -83,7 +96,7 @@ export class InvoiceService {
 
   async getAllProjects(tenantId: string): Promise<Project[]> {
     return this.projectModel.find({
-      tenantId: new Types.ObjectId(tenantId),
+      ...(this.toObjectId(tenantId) ? { tenantId: this.toObjectId(tenantId) } : {}),
       ...this.notDeletedMatch(),
     }).select('_id name customerName status value').sort({ name: 1 }).lean();
   }
@@ -91,7 +104,7 @@ export class InvoiceService {
   async getProjectById(tenantId: string, id: string): Promise<Project> {
     const project = await this.projectModel.findOne({
       _id: new Types.ObjectId(id),
-      tenantId: new Types.ObjectId(tenantId),
+      ...(this.toObjectId(tenantId) ? { tenantId: this.toObjectId(tenantId) } : {}),
       ...this.notDeletedMatch(),
     }).select('_id name customerName status value').lean();
 
@@ -137,7 +150,7 @@ export class InvoiceService {
 
     const invoice = new this.invoiceModel({
       ...dto,
-      tenantId: new Types.ObjectId(tenantId),
+      tenantId: this.toObjectId(tenantId),
       paid: dto.paid || 0,
       balance: dto.amount - (dto.paid || 0),
       status: this.calculateStatus(dto.amount, dto.paid || 0, dto.status ?? 'Draft'),
@@ -219,7 +232,7 @@ export class InvoiceService {
     }
 
     const result = await this.invoiceModel.findOneAndUpdate(
-      { _id: new Types.ObjectId(id), tenantId: new Types.ObjectId(tenantId) },
+      { _id: new Types.ObjectId(id), tenantId: this.toObjectId(tenantId) },
       { isDeleted: true },
     );
 
@@ -308,7 +321,7 @@ export class InvoiceService {
       referenceNumber: dto.referenceNumber,
       bankName: dto.bankName,
       notes: dto.notes,
-      tenantId: new Types.ObjectId(tenantId),
+      tenantId: this.toObjectId(tenantId),
     });
 
     const savedPayment = await payment.save();
@@ -361,10 +374,12 @@ export class InvoiceService {
   }
 
   async getDashboardStats(tenantId: string): Promise<any> {
-    const invoices = await this.invoiceModel.find({
-      tenantId: new Types.ObjectId(tenantId),
-      isDeleted: false,
-    }).lean();
+    const tid = this.toObjectId(tenantId);
+    const query: any = { isDeleted: false };
+    if (tid) {
+      query.tenantId = tid;
+    }
+    const invoices = await this.invoiceModel.find(query).lean();
 
     const totalRevenue = invoices.reduce((sum, inv) => sum + inv.amount, 0);
     const totalCollected = invoices.reduce((sum, inv) => sum + inv.paid, 0);
@@ -517,7 +532,7 @@ export class InvoiceService {
 
     // Create reminder log
     const reminderLog = new this.reminderLogModel({
-      tenantId: new Types.ObjectId(tenantId),
+      tenantId: this.toObjectId(tenantId),
       invoiceId: new Types.ObjectId(invoiceId),
       invoiceNumber: invoice.invoiceNumber,
       customerName: invoice.customerName,
@@ -604,7 +619,7 @@ Solar EPC Team`;
     metadata?: Record<string, any>,
   ): Promise<void> {
     const activity = new this.activityModel({
-      tenantId: new Types.ObjectId(tenantId),
+      tenantId: this.toObjectId(tenantId),
       module: 'invoice',
       moduleId: new Types.ObjectId(moduleId),
       action,
@@ -619,7 +634,7 @@ Solar EPC Team`;
   async getTimeline(tenantId: string, invoiceId: string): Promise<any[]> {
     const activities = await this.activityModel
       .find({
-        tenantId: new Types.ObjectId(tenantId),
+        tenantId: this.toObjectId(tenantId),
         module: 'invoice',
         moduleId: new Types.ObjectId(invoiceId),
       })
