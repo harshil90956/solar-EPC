@@ -74,6 +74,9 @@ export class AuditService {
 
   private toObjectId(id: string | undefined): Types.ObjectId | undefined {
     if (!id) return undefined;
+    // Check if id is a valid 24-character hex string (MongoDB ObjectId format)
+    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(id);
+    if (!isValidObjectId) return undefined;
     try { return new Types.ObjectId(id); } catch { return undefined; }
   }
 
