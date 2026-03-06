@@ -310,12 +310,14 @@ const InventoryPage = () => {
     const lowStockItems = inventory.filter(i => ((i.stock || 0) - (i.reserved || 0)) <= (i.minStock || 0) && ((i.stock || 0) - (i.reserved || 0)) > 0).length;
     const outOfStockItems = inventory.filter(i => (i.stock || 0) === 0).length;
 
-    setStats({
+    const stats = {
       totalItems,
       totalValue,
       lowStockItems,
       outOfStockItems
-    });
+    };
+    setStats(stats);
+    return stats;
   }, [inventory]);
 
   const filtered = useMemo(() =>
