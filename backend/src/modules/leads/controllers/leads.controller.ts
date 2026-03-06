@@ -30,7 +30,8 @@ export class LeadsController {
   @HttpCode(HttpStatus.CREATED)
   async create(@Body() createLeadDto: CreateLeadDto, @Request() req: any) {
     try {
-      const tenantId = req.tenant?.id;
+      const tenantId = req.tenant?.id || 'default';
+      this.logger.log(`[DEBUG] create lead - tenantId: ${tenantId}`);
       const result = await this.leadsService.create(createLeadDto, tenantId);
       return { success: true, data: result };
     } catch (error: any) {
@@ -42,7 +43,8 @@ export class LeadsController {
   @Get()
   async findAll(@Query() query: QueryLeadDto, @Request() req: any) {
     try {
-      const tenantId = req.tenant?.id;
+      const tenantId = req.tenant?.id || 'default';
+      this.logger.log(`[DEBUG] findAll leads - tenantId: ${tenantId}`);
       const result = await this.leadsService.findAll(query, tenantId);
       return { success: true, data: result.data, total: result.total };
     } catch (error: any) {
@@ -54,7 +56,8 @@ export class LeadsController {
   @Get('stats')
   async getStats(@Request() req: any) {
     try {
-      const tenantId = req.tenant?.id;
+      const tenantId = req.tenant?.id || 'default';
+      this.logger.log(`[DEBUG] getStats leads - tenantId: ${tenantId}`);
       return await this.leadsService.getStats(tenantId);
     } catch (error: any) {
       this.logger.error(`Get stats failed: ${error?.message || 'Unknown error'}`, error?.stack);
