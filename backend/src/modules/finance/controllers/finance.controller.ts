@@ -38,6 +38,8 @@ import { ExpenseService } from '../services/expense.service';
 
 import { TransactionService } from '../services/transaction.service';
 
+import { ManualAdjustmentService } from '../services/manual-adjustment.service';
+
 import { CreateInvoiceDto, UpdateInvoiceDto, RecordPaymentDto as InvoiceRecordPaymentDto } from '../dto/invoice.dto';
 
 import { RecordPaymentDto } from '../dto/record-payment.dto';
@@ -47,6 +49,8 @@ import { CreatePaymentDto, UpdatePaymentDto } from '../dto/payment.dto';
 import { CreateExpenseDto, UpdateExpenseDto } from '../dto/expense.dto';
 
 import { CreateTransactionDto, UpdateTransactionDto } from '../dto/transaction.dto';
+
+import { CreateManualAdjustmentDto } from '../dto/manual-adjustment.dto';
 
 import { InvoiceStatus } from '../schemas/invoice.schema';
 
@@ -102,6 +106,8 @@ export class FinanceController {
     private readonly expenseService: ExpenseService,
 
     private readonly transactionService: TransactionService,
+
+    private readonly manualAdjustmentService: ManualAdjustmentService,
 
   ) {}
 
@@ -600,6 +606,48 @@ export class FinanceController {
     const tenantId = getTenantId(req);
 
     return this.transactionService.getMonthlyRevenue(tenantId, months ? parseInt(months, 10) : 6);
+
+  }
+
+
+
+  // Manual Adjustment endpoints
+
+  @Get('manual-adjustments')
+
+  async getManualAdjustments(@Req() req: RequestWithUser) {
+
+    const tenantId = getTenantId(req);
+
+    return this.manualAdjustmentService.findAll(tenantId);
+
+  }
+
+
+
+  @Post('manual-adjustments')
+
+  async createManualAdjustment(@Req() req: RequestWithUser, @Body() dto: CreateManualAdjustmentDto) {
+
+    const tenantId = getTenantId(req);
+
+    const userId = (req as any).user?.userId;
+
+    return this.manualAdjustmentService.create(tenantId, dto, userId);
+
+  }
+
+
+
+  @Get('manual-adjustments/balance')
+
+  async getManualAdjustmentBalance(@Req() req: RequestWithUser) {
+
+    const tenantId = getTenantId(req);
+
+    const balance = await this.manualAdjustmentService.getBalance(tenantId);
+
+    return { balance };
 
   }
 

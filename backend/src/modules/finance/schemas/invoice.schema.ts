@@ -4,7 +4,7 @@ import { BaseSchemaDefinition, BaseSchemaOptions } from '../../../shared/databas
 
 export type InvoiceDocument = Invoice & Document;
 
-export type InvoiceStatus = 'Draft' | 'Pending' | 'Partial' | 'Paid' | 'Overdue';
+export type InvoiceStatus = 'Draft' | 'Sent' | 'Pending' | 'Partial' | 'Paid' | 'Overdue';
 
 export type PaymentTerm = '30% Advance' | '50% on Delivery' | 'Net 30' | 'Net 60';
 
@@ -51,7 +51,7 @@ export class Invoice {
 
   @Prop({ 
     required: true, 
-    enum: ['Draft', 'Pending', 'Partial', 'Paid', 'Overdue'],
+    enum: ['Draft', 'Sent', 'Pending', 'Partial', 'Paid', 'Overdue'],
     default: 'Draft',
     index: true 
   })
@@ -71,6 +71,9 @@ export class Invoice {
 
   @Prop({ required: false })
   paymentTerms?: string;
+
+  @Prop({ required: false })
+  email?: string;
 
   @Prop({
     type: [{

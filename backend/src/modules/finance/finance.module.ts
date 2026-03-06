@@ -4,9 +4,9 @@ import { MongooseModule } from '@nestjs/mongoose';
 
 import { FinanceController } from './controllers/finance.controller';
 
-import { InvoiceService, PaymentService, ExpenseService, TransactionService, FinancePaymentService } from './services';
+import { InvoiceService, PaymentService, ExpenseService, TransactionService, FinancePaymentService, ManualAdjustmentService } from './services';
 
-import { Invoice, InvoiceSchema, Payment, PaymentSchema, Expense, ExpenseSchema, Transaction, TransactionSchema, Project, ProjectSchema, ReminderLog, ReminderLogSchema, Activity, ActivitySchema, FinancePayment, FinancePaymentSchema } from './schemas';
+import { Invoice, InvoiceSchema, Payment, PaymentSchema, Expense, ExpenseSchema, Transaction, TransactionSchema, Project, ProjectSchema, ReminderLog, ReminderLogSchema, Activity, ActivitySchema, FinancePayment, FinancePaymentSchema, ManualAdjustment, ManualAdjustmentSchema } from './schemas';
 
 
 
@@ -32,15 +32,17 @@ import { Invoice, InvoiceSchema, Payment, PaymentSchema, Expense, ExpenseSchema,
 
       { name: Activity.name, schema: ActivitySchema },
 
+      { name: ManualAdjustment.name, schema: ManualAdjustmentSchema },
+
     ]),
 
   ],
 
   controllers: [FinanceController],
 
-  providers: [InvoiceService, PaymentService, FinancePaymentService, ExpenseService, TransactionService],
+  providers: [InvoiceService, PaymentService, FinancePaymentService, ExpenseService, TransactionService, ManualAdjustmentService],
 
-  exports: [InvoiceService, PaymentService, FinancePaymentService, ExpenseService, TransactionService],
+  exports: [InvoiceService, PaymentService, FinancePaymentService, ExpenseService, TransactionService, ManualAdjustmentService],
 
 })
 
