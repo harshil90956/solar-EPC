@@ -92,6 +92,8 @@ const DataTable = ({
 
     hideColumnToggle = false,
 
+    hideSearch = false,
+
 }) => {
 
     // Support both flat props and pagination object for backward compatibility
@@ -314,7 +316,7 @@ const DataTable = ({
 
             <div className="flex items-center gap-2 flex-wrap">
 
-                {onSearch !== undefined && (
+                {!hideSearch && onSearch !== undefined && (
 
                     <div className="relative min-w-[200px] flex-1 max-w-xs">
 
