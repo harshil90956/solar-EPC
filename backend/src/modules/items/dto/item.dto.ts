@@ -47,6 +47,11 @@ export class CreateItemDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
+  minStock?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
   reserved?: number;
 
   @IsOptional()
