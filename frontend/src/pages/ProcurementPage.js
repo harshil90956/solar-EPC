@@ -818,11 +818,14 @@ const ProcurementPage = () => {
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3 text-xs">
-              {[
-                ['PO Number', selectedPO.id], ['Vendor', selectedPO.vendorName], ['Items', selectedPO.items],
+              {[['PO Number', selectedPO.id], ['Vendor', selectedPO.vendorName], ['Items', selectedPO.items],
                 ['Amount', fmt(selectedPO.totalAmount)], ['Status', <StatusBadge domain="purchaseOrder" value={selectedPO.status} />],
                 ['Ordered Date', selectedPO.orderedDate], ['Expected Date', selectedPO.expectedDate],
                 ['Delivered Date', selectedPO.deliveredDate ?? '—'],
+                ['Related Project', (() => {
+                  const project = projects.find(p => (p.id || p._id) === selectedPO.relatedProjectId);
+                  return project ? `${project.id || project._id} – ${getProjectDisplayName(project)}` : (selectedPO.relatedProjectId || '—');
+                })()],
               ].map(([k, v]) => (
                 <div key={k} className="glass-card p-2">
                   <div className="text-[var(--text-muted)] mb-0.5">{k}</div>
