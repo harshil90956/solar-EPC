@@ -43,11 +43,11 @@ export class UpdateInventoryDto {
   name?: string;
 
   @IsOptional()
-  @IsEnum(['Panel', 'Inverter', 'BOS', 'Structure', 'Cable', 'Other'])
+  @IsString()
   category?: string;
 
   @IsOptional()
-  @IsEnum(['Nos', 'Mtr', 'Kg', 'Set', 'Pairs', 'Box'])
+  @IsString()
   unit?: string;
 
   @IsOptional()
@@ -80,7 +80,7 @@ export class UpdateInventoryDto {
   warehouse?: string;
 
   @IsOptional()
-  @IsEnum(['In Stock', 'Partially Reserved', 'Low Stock', 'Out of Stock'])
+  @IsString()
   status?: string;
 }
 

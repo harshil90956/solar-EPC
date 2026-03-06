@@ -15,6 +15,12 @@ export class Project {
   @Prop({ required: true, index: true })
   customerName!: string;
 
+  @Prop({ required: false })
+  name?: string;
+
+  @Prop({ required: false })
+  email?: string;
+
   @Prop({ required: false, index: true })
   status?: string;
 }

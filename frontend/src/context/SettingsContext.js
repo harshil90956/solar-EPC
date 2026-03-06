@@ -108,6 +108,20 @@ export const SettingsProvider = ({ children }) => {
                     rolesArray.forEach(r => {
                         const roleId = r.roleId || r.id;
                         if (roleId) {
+                            // Handle permissions that might be MongoDB Map or plain object
+                            let perms = r.permissions || {};
+                            if (typeof perms === 'object' && typeof perms.entries === 'function') {
+                                // It's a Map - convert to object
+                                const permsObj = {};
+                                for (const [moduleId, modulePerms] of perms.entries()) {
+                                    if (typeof modulePerms === 'object' && typeof modulePerms.entries === 'function') {
+                                        permsObj[moduleId] = Object.fromEntries(modulePerms.entries());
+                                    } else {
+                                        permsObj[moduleId] = modulePerms;
+                                    }
+                                }
+                                perms = permsObj;
+                            }
                             rolesObj[roleId] = {
                                 id: roleId,
                                 label: r.label,
@@ -116,7 +130,7 @@ export const SettingsProvider = ({ children }) => {
                                 color: r.color,
                                 bg: r.bg,
                                 isCustom: r.isCustom,
-                                permissions: r.permissions || {},
+                                permissions: perms,
                             };
                         }
                     });
@@ -508,18 +522,30 @@ export const SettingsProvider = ({ children }) => {
         }
     }, [customRoles, addAudit]);
 
-    const setCustomRolePreset = useCallback((roleId, preset, user) => {
+    const setCustomRolePreset = useCallback(async (roleId, preset, user) => {
+        // Build permissions object
+        const perms = {};
+        MODULE_DEFS.forEach(mod => {
+            if (preset === 'full') perms[mod.id] = fullPerms();
+            else if (preset === 'view_only') perms[mod.id] = { ...emptyPerms(), view: true };
+            else perms[mod.id] = emptyPerms();
+        });
+        
+        // Update local state
         setCustomRoles(prev => {
             if (!prev[roleId]) return prev;
-            const perms = {};
-            MODULE_DEFS.forEach(mod => {
-                if (preset === 'full') perms[mod.id] = fullPerms();
-                else if (preset === 'view_only') perms[mod.id] = { ...emptyPerms(), view: true };
-                else perms[mod.id] = emptyPerms();
-            });
             addAudit('CUSTOM_ROLE_PRESET', `${roleId} → ${preset}`, 'custom', preset, user);
             return { ...prev, [roleId]: { ...prev[roleId], permissions: perms } };
         });
+        
+        // Persist to backend - update each module's permissions
+        try {
+            for (const [moduleId, modulePerms] of Object.entries(perms)) {
+                await settingsApi.updateCustomRolePermissions(roleId, moduleId, modulePerms);
+            }
+        } catch (e) {
+            console.error('Failed to save preset permissions:', e);
+        }
     }, [addAudit]);
 
     const deleteCustomRole = useCallback(async (roleId, user) => {

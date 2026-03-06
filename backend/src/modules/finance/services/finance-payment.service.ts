@@ -14,6 +14,17 @@ export class FinancePaymentService {
     @InjectModel(Expense.name) private readonly expenseModel: Model<ExpenseDocument>,
   ) {}
 
+  private toObjectId(id: string | undefined): Types.ObjectId | undefined {
+    if (!id) return undefined;
+    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(id);
+    if (!isValidObjectId) return undefined;
+    try {
+      return new Types.ObjectId(id);
+    } catch {
+      return undefined;
+    }
+  }
+
   async initiatePayment(tenantId: string, dto: RecordPaymentDto, userId?: string): Promise<FinancePayment> {
     const paymentNumber = await this.generatePaymentNumber(tenantId);
 
@@ -32,7 +43,7 @@ export class FinancePaymentService {
     }
 
     const financePayment = new this.financePaymentModel({
-      tenantId: new Types.ObjectId(tenantId),
+      tenantId: this.toObjectId(tenantId),
       paymentNumber,
       paymentType: dto.paymentType,
       referenceType: dto.referenceType,

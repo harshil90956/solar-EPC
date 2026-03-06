@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
-import { SettingsProvider } from './context/SettingsContext';
+import { SettingsProvider, useSettings } from './context/SettingsContext';
 import { ReminderProvider } from './context/ReminderContext';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
@@ -18,6 +18,7 @@ import LogisticsPage from './pages/LogisticsPage';
 import InstallationPage from './pages/InstallationPage';
 import CommissioningPage from './pages/CommissioningPage';
 import FinancePage from './pages/FinancePage';
+import FinanceDashboardPage from './pages/FinanceDashboardPage';
 import ServicePage from './pages/ServicePage';
 import CompliancePage from './pages/CompliancePage';
 import SettingsPage from './pages/SettingsPage';
@@ -27,7 +28,6 @@ import IntelligenceDashboardPage from './pages/IntelligenceDashboardPage';
 import RemindersPage from './pages/RemindersPage';
 import ItemsPage from './pages/ItemsPage';
 import NotificationSystem from './components/NotificationSystem';
-import { canAccess } from './config/roles.config';
 
 // ── Page Map ──────────────────────────────────────────────────────────────────
 const PAGE_MAP = {
@@ -46,6 +46,7 @@ const PAGE_MAP = {
   installation: { component: InstallationPage, title: 'Installation' },
   commissioning: { component: CommissioningPage, title: 'Commissioning' },
   finance: { component: FinancePage, title: 'Finance' },
+  'finance-dashboard': { component: FinanceDashboardPage, title: 'Finance Dashboard' },
   service: { component: ServicePage, title: 'Service & AMC' },
   compliance: { component: CompliancePage, title: 'Compliance' },
   settings: { component: SettingsPage, title: 'Settings' },
@@ -89,6 +90,7 @@ const getInitialPage = () => {
 // ── Main App Inner ────────────────────────────────────────────────────────────
 const AppInner = () => {
   const { user } = useAuth();
+  const { resolvePermission, isModuleEnabled } = useSettings();
   const [currentPage, setCurrentPage] = useState(getInitialPage);
 
   // ── Sync URL hash on page change ──
@@ -118,6 +120,14 @@ const AppInner = () => {
   if (!user) return <LoginPage />;
 
   // ── Role guard: redirect to dashboard if no access ──
+  // Uses resolvePermission for custom role support (User Override → Custom Role → Base RBAC)
+  const hasAccess = (page) => {
+    if (page === 'dashboard') return true;
+    if (!isModuleEnabled(page)) return false;
+    // Check view permission using resolvePermission
+    return resolvePermission(user?.id, user?.role, page, 'view');
+  };
+
   const entry = PAGE_MAP[currentPage];
   if (!entry) {
     return (
@@ -127,7 +137,7 @@ const AppInner = () => {
     );
   }
 
-  if (currentPage !== 'dashboard' && !canAccess(user.role, currentPage)) {
+  if (!hasAccess(currentPage)) {
     return (
       <Layout currentPage="dashboard" onNavigate={navigate}>
         <NotFoundPage onNavigate={navigate} type="unauthorized" />

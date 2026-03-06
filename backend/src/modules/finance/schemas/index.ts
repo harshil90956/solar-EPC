@@ -3,6 +3,7 @@ export { Payment, PaymentSchema, PaymentDocument, PaymentMethod } from './paymen
 export { FinancePayment, FinancePaymentSchema, FinancePaymentDocument, PaymentType, ReferenceType } from './finance-payment.schema';
 export { Expense, ExpenseSchema, ExpenseDocument, ExpenseCategory, ExpenseStatus } from './expense.schema';
 export { Transaction, TransactionSchema, TransactionDocument, TransactionType } from './transaction.schema';
+export { ManualAdjustment, ManualAdjustmentSchema, ManualAdjustmentDocument, ManualAdjustmentType } from './manual-adjustment.schema';
 export { Project, ProjectSchema, ProjectDocument } from './project.schema';
 export { ReminderLog, ReminderLogSchema, ReminderLogDocument, ReminderType } from './reminder-log.schema';
 export { Activity, ActivitySchema, ActivityDocument, ActivityAction, ActivityModule } from './activity.schema';
