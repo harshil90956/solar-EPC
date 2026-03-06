@@ -14,20 +14,46 @@ export class ManualAdjustmentService {
     @InjectModel(Expense.name) private readonly expenseModel: Model<ExpenseDocument>,
   ) {}
 
+  private toObjectId(id: string | undefined): Types.ObjectId | undefined {
+    if (!id) return undefined;
+    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(id);
+    if (!isValidObjectId) return undefined;
+    try {
+      return new Types.ObjectId(id);
+    } catch {
+      return undefined;
+    }
+  }
+
   async findAll(tenantId: string): Promise<ManualAdjustment[]> {
+    const tid = this.toObjectId(tenantId);
+    const query: any = { isDeleted: false };
+    if (tid) {
+      query.tenantId = tid;
+    }
     return this.manualAdjustmentModel
-      .find({ tenantId: new Types.ObjectId(tenantId), isDeleted: false })
+      .find(query)
       .sort({ date: -1, createdAt: -1 })
       .lean();
   }
 
   async getBalance(tenantId: string): Promise<number> {
-    const tenantObjectId = new Types.ObjectId(tenantId);
+    const tid = this.toObjectId(tenantId);
+
+    const paymentQuery: any = { isDeleted: false };
+    const expenseQuery: any = { isDeleted: false, status: 'Paid' };
+    const adjustmentQuery: any = { isDeleted: false };
+
+    if (tid) {
+      paymentQuery.tenantId = tid;
+      expenseQuery.tenantId = tid;
+      adjustmentQuery.tenantId = tid;
+    }
 
     const [payments, paidExpenses, adjustments] = await Promise.all([
-      this.paymentModel.find({ tenantId: tenantObjectId, isDeleted: false }).lean(),
-      this.expenseModel.find({ tenantId: tenantObjectId, isDeleted: false, status: 'Paid' }).lean(),
-      this.manualAdjustmentModel.find({ tenantId: tenantObjectId, isDeleted: false }).lean(),
+      this.paymentModel.find(paymentQuery).lean(),
+      this.expenseModel.find(expenseQuery).lean(),
+      this.manualAdjustmentModel.find(adjustmentQuery).lean(),
     ]);
 
     const inflow = (payments || []).reduce((sum, p: any) => sum + Number(p?.amount || p?.amountPaid || 0), 0);
@@ -55,7 +81,7 @@ export class ManualAdjustmentService {
     const createdByObjectId = userId && Types.ObjectId.isValid(userId) ? new Types.ObjectId(userId) : undefined;
 
     const adjustment = new this.manualAdjustmentModel({
-      tenantId: new Types.ObjectId(tenantId),
+      tenantId: this.toObjectId(tenantId),
       type: dto.type,
       amount,
       reason: dto.reason,
