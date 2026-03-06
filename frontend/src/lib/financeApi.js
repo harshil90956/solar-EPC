@@ -91,6 +91,11 @@ export const financeApi = {
   updateTransaction: (id, data) => api.patch(`/finance/transactions/${id}`, data).then(extractData).catch(handleError),
   deleteTransaction: (id) => api.delete(`/finance/transactions/${id}`).then(extractData).catch(handleError),
 
+  // Manual Adjustments
+  getManualAdjustments: () => api.get('/finance/manual-adjustments').then(extractData).catch(handleError),
+  createManualAdjustment: (data) => api.post('/finance/manual-adjustments', data).then(extractData).catch(handleError),
+  getManualAdjustmentBalance: () => api.get('/finance/manual-adjustments/balance').then(extractData).catch(handleError),
+
   // Dashboard & Analytics
   getDashboardStats: () => api.get('/finance/dashboard-stats').then(extractData).catch(handleError),
   getCashFlow: (months) => api.get('/finance/cash-flow', { months }).then(extractData).catch(handleError),

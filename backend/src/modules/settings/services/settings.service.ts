@@ -20,7 +20,11 @@ export class SettingsService {
   ) {}
 
   private toObjectId(tenantId: string | undefined): Types.ObjectId | undefined {
-    return tenantId ? new Types.ObjectId(tenantId) : undefined;
+    if (!tenantId) return undefined;
+    // Check if tenantId is a valid 24-character hex string (MongoDB ObjectId format)
+    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(tenantId);
+    if (!isValidObjectId) return undefined;
+    return new Types.ObjectId(tenantId);
   }
 
   // ── Feature Flags ─────────────────────────────────────────────────────────

@@ -22,7 +22,7 @@ const Layout = ({ currentPage, onNavigate, children }) => {
   const { user, logout } = useAuth();
   const { theme, setTheme, themes, currentLabel, customization } = useTheme();
   const { activeNotifications, upcomingCount, overdueCount } = useReminders();
-  const { isModuleEnabled } = useSettings();
+  const { isModuleEnabled, resolvePermission, userOverrides, customRoles } = useSettings();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarHovered, setSidebarHovered] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -94,11 +94,20 @@ const Layout = ({ currentPage, onNavigate, children }) => {
   const totalReminderAlerts = activeNotifications.length + upcomingCount + overdueCount;
 
   // Filter nav based on role permissions AND module enabled flags
+  // Uses resolvePermission to support custom roles (User Override → Custom Role → Base RBAC)
   const visibleSections = NAV_CONFIG.map(section => ({
     ...section,
-    items: section.items.filter(item =>
-      canAccess(user?.role, item.id) && isModuleEnabled(item.id)
-    ),
+    items: section.items.filter(item => {
+      const hasModuleAccess = isModuleEnabled(item.id);
+      if (!hasModuleAccess) return false;
+      
+      // Check view permission using resolvePermission (supports custom roles)
+      const userId = user?.id;
+      const roleId = user?.role;
+      const canView = resolvePermission(userId, roleId, item.id, 'view');
+      
+      return canView;
+    }),
   })).filter(s => s.items.length > 0);
 
   /* ── Derive layout dimensions from customization ── */

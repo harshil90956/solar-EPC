@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import * as nodemailer from 'nodemailer';
+import PDFDocument from 'pdfkit';
 import { Invoice, InvoiceDocument, InvoiceStatus } from '../schemas/invoice.schema';
 import { Payment, PaymentDocument } from '../schemas/payment.schema';
 import { Project, ProjectDocument } from '../schemas/project.schema';
@@ -85,7 +87,7 @@ export class InvoiceService {
     return this.projectModel.find({
       tenantId: new Types.ObjectId(tenantId),
       ...this.notDeletedMatch(),
-    }).select('_id name customerName status value').sort({ name: 1 }).lean();
+    }).select('_id name customerName email status value').sort({ name: 1 }).lean();
   }
 
   async getProjectById(tenantId: string, id: string): Promise<Project> {
@@ -93,7 +95,7 @@ export class InvoiceService {
       _id: new Types.ObjectId(id),
       tenantId: new Types.ObjectId(tenantId),
       ...this.notDeletedMatch(),
-    }).select('_id name customerName status value').lean();
+    }).select('_id name customerName email status value').lean();
 
     if (!project) {
       throw new NotFoundException('Project not found');
@@ -102,12 +104,36 @@ export class InvoiceService {
     return project;
   }
 
-  async findAll(tenantId: string, status?: string): Promise<Invoice[]> {
+  async findAll(tenantId: string, status?: string): Promise<any[]> {
     const query: any = { ...this.tenantOrLegacyMatch(tenantId), ...this.notDeletedMatch() };
     if (status && status !== 'All') {
       query.status = status;
     }
-    return this.invoiceModel.find(query).sort({ createdAt: -1 }).lean();
+    const invoices = await this.invoiceModel.find(query).sort({ createdAt: -1 }).lean();
+    
+    // Get all unique projectIds from invoices
+    const projectIds = invoices.map(inv => inv.projectId?.toString()).filter(Boolean);
+    const uniqueProjectIds = [...new Set(projectIds)];
+    
+    // Fetch projects for these invoices
+    const projects = await this.projectModel.find({
+      _id: { $in: uniqueProjectIds.map(id => new Types.ObjectId(id)) },
+      ...this.notDeletedMatch(),
+    }).select('_id email customerName').lean();
+    
+    // Create project map for quick lookup
+    const projectMap = new Map();
+    projects.forEach(p => projectMap.set(p._id.toString(), p));
+    
+    // Merge email from project into invoice data
+    return invoices.map(inv => {
+      const project = inv.projectId ? projectMap.get(inv.projectId.toString()) : null;
+      return {
+        ...inv,
+        email: inv.email || project?.email || null,
+        customerName: inv.customerName || project?.customerName || null,
+      };
+    });
   }
 
   async findById(tenantId: string, id: string): Promise<Invoice> {
@@ -238,20 +264,25 @@ export class InvoiceService {
 
     const order: Record<InvoiceStatus, number> = {
       Draft: 0,
-      Pending: 1,
-      Partial: 2,
-      Paid: 3,
-      Overdue: 4,
+      Sent: 1,
+      Pending: 2,
+      Partial: 3,
+      Paid: 4,
+      Overdue: 5,
     };
 
     const isBackward = order[status] < order[previousStatus];
 
     const allowedTransitions = new Set<string>([
+      'Draft->Sent',
       'Draft->Pending',
+      'Sent->Pending',
+      'Sent->Partial',
       'Pending->Partial',
       'Partial->Paid',
       'Pending->Overdue',
       'Partial->Overdue',
+      'Sent->Overdue',
     ]);
 
     const transitionKey = `${previousStatus}->${status}`;
@@ -290,6 +321,20 @@ export class InvoiceService {
         newStatus: status,
       },
     );
+
+    // Send invoice email when status changes from Draft to Sent
+    console.log('Status change check:', { previousStatus, status, projectId: updated.projectId });
+    if (previousStatus === 'Draft' && status === 'Sent') {
+      console.log('Triggering email send...');
+      try {
+        await this.sendInvoiceEmail(tenantId, updated);
+      } catch (error) {
+        // Log error but don't fail the status update
+        console.error('Failed to send invoice email:', error);
+      }
+    } else {
+      console.log('Email not sent - status transition does not match Draft->Sent');
+    }
 
     return updated;
   }
@@ -492,7 +537,7 @@ export class InvoiceService {
 
     // Validation: Check status
     if (invoice.status === 'Draft' || invoice.status === 'Paid') {
-      throw new BadRequestException('Cannot send reminder for paid invoice.');
+      throw new BadRequestException('Reminder cannot be sent for this invoice status.');
     }
 
     // Validation: Check balance
@@ -510,10 +555,24 @@ export class InvoiceService {
     const emailSubject = this.generateReminderSubject(invoice, reminderType);
     const emailBody = messageBody || this.generateDefaultMessage(invoice, reminderType, balance);
 
-    // TODO: Integrate with email service here
-    // For now, simulate email sending success
-    const emailSent = true;
-    const emailError = undefined;
+    // Send actual email using nodemailer
+    let emailSent = false;
+    let emailError: string | undefined;
+
+    try {
+      await this.sendReminderEmail({
+        to: customerEmail.trim(),
+        subject: emailSubject,
+        html: this.generateReminderEmailBody(invoice, reminderType, balance, emailBody),
+      });
+      emailSent = true;
+      console.log(`Reminder email sent to ${customerEmail} for invoice ${invoice.invoiceNumber}`);
+    } catch (error) {
+      emailSent = false;
+      emailError = error instanceof Error ? error.message : 'Failed to send email';
+      console.error('Failed to send reminder email:', error);
+      throw new BadRequestException('Failed to send reminder email. Please check email configuration.');
+    }
 
     // Create reminder log
     const reminderLog = new this.reminderLogModel({
@@ -595,6 +654,164 @@ Best regards,
 Solar EPC Team`;
   }
 
+  // Send reminder email using Nodemailer
+  private async sendReminderEmail(options: {
+    to: string;
+    subject: string;
+    html: string;
+  }): Promise<void> {
+    // Quick validation
+    if (!options.to || !options.to.includes('@')) {
+      throw new Error('Invalid recipient email');
+    }
+
+    let transporter;
+    let fromEmail = 'noreply@solarepc.com';
+
+    // If SMTP credentials configured, use them (FAST)
+    if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+      transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST || 'smtp.gmail.com',
+        port: parseInt(process.env.SMTP_PORT || '587'),
+        secure: false,
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS,
+        },
+        // Connection pooling for faster sending
+        pool: true,
+        maxConnections: 5,
+        maxMessages: 100,
+        rateDelta: 1000,
+        rateLimit: 5,
+      });
+      fromEmail = process.env.SMTP_USER;
+    } else {
+      // Fallback: Use a simple mock/test transporter that completes immediately
+      // This allows testing without real email but still completes fast
+      console.warn('No SMTP config found - email would be sent to:', options.to);
+      console.log('Email subject:', options.subject);
+      // Return immediately without actually sending (for dev/testing)
+      return;
+    }
+
+    try {
+      const info = await transporter.sendMail({
+        from: `"Solar EPC" <${fromEmail}>`,
+        to: options.to,
+        subject: options.subject,
+        html: options.html,
+      });
+
+      console.log('Reminder email sent successfully:', info.messageId);
+      const etherealUrl = (info as any).etherealMessageUrl;
+      if (etherealUrl) {
+        console.log('View reminder email at:', etherealUrl);
+      }
+    } catch (error) {
+      console.error('Failed to send reminder email:', error);
+      throw error;
+    }
+  }
+
+  // Generate reminder email HTML body
+  private generateReminderEmailBody(
+    invoice: Invoice,
+    reminderType: ReminderType,
+    balance: number,
+    messageBody: string,
+  ): string {
+    const formatCurrency = (amount: number) => {
+      return amount.toLocaleString('en-IN', { style: 'currency', currency: 'INR' });
+    };
+
+    const formatDate = (date: Date) => {
+      return new Date(date).toLocaleDateString('en-IN');
+    };
+
+    const dueDate = new Date(invoice.dueDate);
+    const today = new Date();
+    const daysDiff = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+    let urgencyColor = '#f59e0b'; // amber for gentle
+    let urgencyBg = '#fffbeb';
+    if (reminderType === 'Due Today') {
+      urgencyColor = '#ef4444'; // red
+      urgencyBg = '#fef2f2';
+    } else if (reminderType === 'Overdue') {
+      urgencyColor = '#dc2626'; // dark red
+      urgencyBg = '#fee2e2';
+    }
+
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff;">
+        <div style="background: ${urgencyColor}; padding: 20px; text-align: center;">
+          <h2 style="color: #ffffff; margin: 0; font-size: 24px;">Solar EPC</h2>
+          <p style="color: #ffffff; margin: 5px 0 0 0; font-size: 14px;">Payment Reminder</p>
+        </div>
+        
+        <div style="padding: 30px; background: ${urgencyBg}; border-left: 4px solid ${urgencyColor};">
+          <p style="font-size: 16px; color: #333; margin-bottom: 20px;">Dear ${invoice.customerName},</p>
+          
+          <div style="background: #ffffff; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            ${messageBody.replace(/\n/g, '<br>')}
+          </div>
+        </div>
+        
+        <div style="padding: 30px; background: #f9fafb;">
+          <h3 style="color: #333; margin-bottom: 15px; font-size: 18px;">Invoice Summary</h3>
+          
+          <table style="width: 100%; border-collapse: collapse; background: #ffffff; border-radius: 8px; overflow: hidden;">
+            <tr style="border-bottom: 1px solid #e5e7eb;">
+              <td style="padding: 12px 15px; font-weight: bold; color: #6b7280; width: 40%;">Invoice Number</td>
+              <td style="padding: 12px 15px; color: #111;">${invoice.invoiceNumber}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #e5e7eb;">
+              <td style="padding: 12px 15px; font-weight: bold; color: #6b7280;">Customer Name</td>
+              <td style="padding: 12px 15px; color: #111;">${invoice.customerName}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #e5e7eb;">
+              <td style="padding: 12px 15px; font-weight: bold; color: #6b7280;">Total Amount</td>
+              <td style="padding: 12px 15px; color: #111;">${formatCurrency(invoice.amount)}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #e5e7eb;">
+              <td style="padding: 12px 15px; font-weight: bold; color: #6b7280;">Amount Paid</td>
+              <td style="padding: 12px 15px; color: #22c55e;">${formatCurrency(invoice.paid || 0)}</td>
+            </tr>
+            <tr style="background: ${urgencyBg};">
+              <td style="padding: 12px 15px; font-weight: bold; color: ${urgencyColor};">Balance Due</td>
+              <td style="padding: 12px 15px; font-weight: bold; color: ${urgencyColor}; font-size: 18px;">${formatCurrency(balance)}</td>
+            </tr>
+            <tr style="border-top: 1px solid #e5e7eb;">
+              <td style="padding: 12px 15px; font-weight: bold; color: #6b7280;">Due Date</td>
+              <td style="padding: 12px 15px; color: ${daysDiff < 0 ? '#dc2626' : '#111'};">
+                ${formatDate(invoice.dueDate)}
+                ${daysDiff < 0 ? ` <span style="color: #dc2626; font-weight: bold;">(${Math.abs(daysDiff)} days overdue)</span>` : ''}
+                ${daysDiff === 0 ? ' <span style="color: #ef4444; font-weight: bold;">(Today)</span>' : ''}
+                ${daysDiff > 0 && daysDiff <= 3 ? ` <span style="color: #f59e0b; font-weight: bold;">(${daysDiff} days left)</span>` : ''}
+              </td>
+            </tr>
+          </table>
+          
+          <div style="margin-top: 25px; padding: 20px; background: #ffffff; border-radius: 8px; border: 1px solid #e5e7eb;">
+            <p style="margin: 0 0 10px 0; color: #6b7280; font-size: 14px;">Payment Options:</p>
+            <ul style="margin: 0; padding-left: 20px; color: #374151; font-size: 14px; line-height: 1.8;">
+              <li>Bank Transfer: Account details available on request</li>
+              <li>UPI: <strong>solarepc@upi</strong></li>
+              <li>Cheque: Payable to "Solar EPC Solutions"</li>
+            </ul>
+          </div>
+        </div>
+        
+        <div style="background: #1f2937; color: #9ca3af; padding: 20px; text-align: center; font-size: 12px;">
+          <p style="margin: 0 0 5px 0;">Thank you for your business!</p>
+          <p style="margin: 0;">For any queries, contact us at <a href="mailto:info@solarepc.com" style="color: #60a5fa; text-decoration: none;">info@solarepc.com</a></p>
+          <p style="margin: 10px 0 0 0; font-size: 11px;">Solar EPC Solutions | This is an automated reminder</p>
+        </div>
+      </div>
+    `;
+  }
+
   // Activity logging helper
   private async logActivity(
     tenantId: string,
@@ -634,5 +851,261 @@ Solar EPC Team`;
       performedBy: activity.performedBy,
       createdAt: activity.createdAt,
     }));
+  }
+
+  // Send invoice email when status changes to Sent
+  private async sendInvoiceEmail(tenantId: string, invoice: any): Promise<void> {
+    // Fetch project to get customer email
+    const project = await this.projectModel.findOne({
+      _id: new Types.ObjectId(invoice.projectId),
+      ...this.notDeletedMatch(),
+    }).select('customerName email').lean();
+
+    if (!project?.email) {
+      console.warn('No customer email found for project:', invoice.projectId);
+      return;
+    }
+
+    // Generate PDF attachment (skip if no project email to save time)
+    let attachments: Array<{ filename: string; content: Buffer; contentType: string }> = [];
+    if (project?.email && process.env.SMTP_USER) {
+      try {
+        const pdfBuffer = await this.generateInvoicePDF(invoice);
+        attachments = [{
+          filename: `Invoice-${invoice.invoiceNumber}.pdf`,
+          content: pdfBuffer,
+          contentType: 'application/pdf',
+        }];
+      } catch (pdfError) {
+        console.warn('PDF generation failed, sending without attachment:', pdfError);
+      }
+    }
+
+    // Send email
+    await this.sendEmailWithAttachment({
+      to: project.email,
+      subject: `Solar EPC Invoice - ${invoice.invoiceNumber}`,
+      html: this.generateInvoiceEmailBody(invoice, project),
+      attachments,
+    });
+
+    console.log(`Invoice email sent to ${project.email} for invoice ${invoice.invoiceNumber}`);
+  }
+
+  // Generate invoice PDF
+  private async generateInvoicePDF(invoice: any): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      try {
+        const doc = new PDFDocument();
+        const chunks: Buffer[] = [];
+
+        doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+        doc.on('end', () => resolve(Buffer.concat(chunks)));
+        doc.on('error', (err: Error) => reject(err));
+
+        const formatCurrency = (amount: number) => {
+          return '₹' + amount.toLocaleString('en-IN');
+        };
+
+        const formatDate = (date: Date) => {
+          return new Date(date).toLocaleDateString('en-IN');
+        };
+
+        // Header
+        doc.fontSize(24).text('Solar EPC', 50, 50);
+        doc.fontSize(18).text('INVOICE', 50, 80);
+        
+        // Company Info
+        doc.fontSize(10).text('Solar EPC Solutions', 400, 50, { align: 'right' });
+        doc.fontSize(10).text('Email: info@solarepc.com', 400, 65, { align: 'right' });
+        
+        // Invoice Details
+        doc.fontSize(12).text(`Invoice Number: ${invoice.invoiceNumber}`, 50, 130);
+        doc.fontSize(12).text(`Invoice Date: ${formatDate(invoice.invoiceDate)}`, 50, 150);
+        doc.fontSize(12).text(`Due Date: ${formatDate(invoice.dueDate)}`, 50, 170);
+
+        // Bill To
+        doc.fontSize(14).text('Bill To:', 50, 210);
+        doc.fontSize(12).text(invoice.customerName || 'Customer', 50, 230);
+        if (invoice.customerAddress) {
+          doc.fontSize(10).text(invoice.customerAddress, 50, 250);
+        }
+
+        // Line items header
+        doc.moveTo(50, 300).lineTo(550, 300).stroke();
+        doc.fontSize(12).text('Description', 50, 310);
+        doc.fontSize(12).text('Amount', 450, 310, { align: 'right' });
+        doc.moveTo(50, 330).lineTo(550, 330).stroke();
+
+        // Line items (if any)
+        let yPos = 350;
+        if (invoice.items && invoice.items.length > 0) {
+          invoice.items.forEach((item: any) => {
+            doc.fontSize(10).text(item.description || 'Service', 50, yPos);
+            doc.fontSize(10).text(formatCurrency(item.amount || 0), 450, yPos, { align: 'right' });
+            yPos += 20;
+          });
+        } else {
+          doc.fontSize(10).text('Solar EPC Services', 50, yPos);
+          doc.fontSize(10).text(formatCurrency(invoice.amount || 0), 450, yPos, { align: 'right' });
+          yPos += 20;
+        }
+
+        // Totals
+        yPos += 20;
+        doc.moveTo(350, yPos).lineTo(550, yPos).stroke();
+        yPos += 15;
+        doc.fontSize(12).text('Total Amount:', 350, yPos);
+        doc.fontSize(12).text(formatCurrency(invoice.amount || 0), 450, yPos, { align: 'right' });
+        
+        yPos += 25;
+        doc.fontSize(12).text('Amount Paid:', 350, yPos);
+        doc.fontSize(12).text(formatCurrency(invoice.paid || 0), 450, yPos, { align: 'right' });
+        
+        yPos += 25;
+        doc.fontSize(12).text('Balance Due:', 350, yPos);
+        doc.fontSize(12).text(formatCurrency(invoice.balance || 0), 450, yPos, { align: 'right' });
+
+        // Status
+        yPos += 40;
+        doc.fontSize(12).text(`Status: ${invoice.status || 'Pending'}`, 50, yPos);
+
+        // Payment Terms
+        if (invoice.paymentTerms) {
+          yPos += 25;
+          doc.fontSize(10).text(`Payment Terms: ${invoice.paymentTerms}`, 50, yPos);
+        }
+
+        // Footer
+        doc.fontSize(10).text('Thank you for your business!', 50, 700);
+        doc.fontSize(10).text('For any queries, please contact us at info@solarepc.com', 50, 715);
+
+        doc.end();
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  // Generate invoice email body
+  private generateInvoiceEmailBody(invoice: any, project: any): string {
+    const formatCurrency = (amount: number) => {
+      return amount.toLocaleString('en-IN', { style: 'currency', currency: 'INR' });
+    };
+
+    const formatDate = (date: Date) => {
+      return new Date(date).toLocaleDateString('en-IN');
+    };
+
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #333;">Solar EPC Invoice</h2>
+        
+        <p>Dear ${project?.customerName || invoice.customerName},</p>
+        
+        <p>Please find your invoice details below:</p>
+        
+        <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+          <tr>
+            <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Customer Name</td>
+            <td style="padding: 8px; border: 1px solid #ddd;">${project?.customerName || invoice.customerName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Project Name</td>
+            <td style="padding: 8px; border: 1px solid #ddd;">${project?.name || '-'}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Invoice Number</td>
+            <td style="padding: 8px; border: 1px solid #ddd;">${invoice.invoiceNumber}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Invoice Date</td>
+            <td style="padding: 8px; border: 1px solid #ddd;">${formatDate(invoice.invoiceDate)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Due Date</td>
+            <td style="padding: 8px; border: 1px solid #ddd;">${formatDate(invoice.dueDate)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Total Amount</td>
+            <td style="padding: 8px; border: 1px solid #ddd;">${formatCurrency(invoice.amount)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Outstanding Amount</td>
+            <td style="padding: 8px; border: 1px solid #ddd;">${formatCurrency(invoice.balance)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Company Name</td>
+            <td style="padding: 8px; border: 1px solid #ddd;">Solar EPC</td>
+          </tr>
+        </table>
+        
+        <p>Please find your invoice attached.</p>
+        
+        <p style="margin-top: 30px;">
+          Best regards,<br>
+          <strong>Solar EPC Team</strong>
+        </p>
+      </div>
+    `;
+  }
+
+  // Send email with attachment using Nodemailer
+  private async sendEmailWithAttachment(options: {
+    to: string;
+    subject: string;
+    html: string;
+    attachments?: Array<{ filename: string; content: Buffer; contentType: string }>;
+  }): Promise<void> {
+    let transporter;
+    let fromEmail = 'noreply@solarepc.com';
+
+    // If SMTP credentials configured, use them (FAST)
+    if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+      transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST || 'smtp.gmail.com',
+        port: parseInt(process.env.SMTP_PORT || '587'),
+        secure: false,
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS,
+        },
+        // Connection pooling for faster sending
+        pool: true,
+        maxConnections: 5,
+        maxMessages: 100,
+        rateDelta: 1000,
+        rateLimit: 5,
+      });
+      fromEmail = process.env.SMTP_USER;
+    } else {
+      // Fallback: Log and return immediately for dev/testing (FAST)
+      console.warn('No SMTP config found - email would be sent to:', options.to);
+      console.log('Email subject:', options.subject);
+      return;
+    }
+
+    try {
+      const info = await transporter.sendMail({
+        from: `"Solar EPC" <${fromEmail}>`,
+        to: options.to,
+        subject: options.subject,
+        html: options.html,
+        attachments: (options.attachments || []).map(att => ({
+          filename: att.filename,
+          content: att.content,
+          contentType: att.contentType,
+        })),
+      });
+
+      console.log('Email sent successfully:', info.messageId);
+      const etherealUrl = (info as any).etherealMessageUrl;
+      if (etherealUrl) {
+        console.log('View email at:', etherealUrl);
+      }
+    } catch (error) {
+      console.error('Failed to send email:', error);
+      throw error;
+    }
   }
 }

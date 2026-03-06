@@ -124,7 +124,7 @@ export const ROLE_PERMISSIONS = {
 };
 
 export const getRolePermissions = (role) =>
-    ROLE_PERMISSIONS[role] ?? { modules: [MODULES.DASHBOARD], canCreate: false, canEdit: false, canDelete: false, canExport: false, canApprove: false };
+    ROLE_PERMISSIONS[role] ?? ROLE_PERMISSIONS[role?.toLowerCase()] ?? ROLE_PERMISSIONS[role?.charAt(0)?.toUpperCase() + role?.slice(1)?.toLowerCase()] ?? { modules: [MODULES.DASHBOARD], canCreate: false, canEdit: false, canDelete: false, canExport: false, canApprove: false };
 
 export const canAccess = (role, module) =>
     getRolePermissions(role).modules.includes(module);

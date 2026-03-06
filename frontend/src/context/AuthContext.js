@@ -24,13 +24,15 @@ export const AuthProvider = ({ children }) => {
       console.log('Attempting login...', { email });
       const res = await api.post('/hrm/employees/login', { email, password });
       console.log('Login API response:', res);
-      const { data } = res?.data || {};
+      const { data } = res || {};
       if (!data || !data.token) {
         console.error('Invalid response structure:', res);
         throw new Error('Invalid response from server');
       }
       const permissions = getRolePermissions(data.roleId);
-      const authedUser = { ...data, permissions };
+      // Normalize role: capitalize first letter (admin -> Admin)
+      const normalizedRole = data.roleId ? data.roleId.charAt(0).toUpperCase() + data.roleId.slice(1).toLowerCase() : data.roleId;
+      const authedUser = { ...data, role: normalizedRole, permissions };
       localStorage.setItem(TOKEN_KEY, data.token);
       localStorage.setItem(USER_KEY, JSON.stringify(authedUser));
       setUser(authedUser);

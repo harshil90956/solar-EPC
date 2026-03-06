@@ -66,11 +66,10 @@ export class RBACService {
 
   private toObjectId(tenantId: string | undefined): Types.ObjectId | undefined {
     if (!tenantId) return undefined;
-    try {
-      return new Types.ObjectId(tenantId);
-    } catch {
-      return undefined;
-    }
+    // Check if tenantId is a valid 24-character hex string (MongoDB ObjectId format)
+    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(tenantId);
+    if (!isValidObjectId) return undefined;
+    try { return new Types.ObjectId(tenantId); } catch { return undefined; }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
