@@ -21,6 +21,10 @@ export class CreateEmployeeDto {
 
   @IsString()
   @IsNotEmpty()
+  password!: string;
+
+  @IsString()
+  @IsNotEmpty()
   phone!: string;
 
   @IsString()

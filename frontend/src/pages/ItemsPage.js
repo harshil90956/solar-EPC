@@ -13,7 +13,7 @@ import { toast } from '../components/ui/Toast';
 
 const fmt = CURRENCY.format;
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api/v1';
 const TENANT_ID = 'solarcorp';
 
 // Tax options
@@ -37,40 +37,40 @@ const ITEM_GROUPS = [
 ];
 
 const ITEM_COLUMNS = [
-  { 
-    key: 'description', 
-    header: 'Description', 
+  {
+    key: 'description',
+    header: 'Description',
     sortable: true,
     render: v => <span className="text-xs font-semibold text-[var(--text-primary)]">{v}</span>
   },
-  { 
-    key: 'longDescription', 
-    header: 'Long Description', 
+  {
+    key: 'longDescription',
+    header: 'Long Description',
     render: v => <span className="text-xs text-[var(--text-muted)] line-clamp-2 max-w-xs">{v || '—'}</span>
   },
-  { 
-    key: 'rate', 
-    header: 'Rate', 
+  {
+    key: 'rate',
+    header: 'Rate',
     sortable: true,
     render: v => <span className="text-xs font-bold text-[var(--text-primary)]">${v?.toFixed(2)}</span>
   },
-  { 
-    key: 'tax1', 
-    header: 'Tax 1', 
+  {
+    key: 'tax1',
+    header: 'Tax 1',
     render: v => <span className="text-xs text-[var(--text-muted)]">{v ? `${v}%` : '0.00%'}</span>
   },
-  { 
-    key: 'tax2', 
-    header: 'Tax 2', 
+  {
+    key: 'tax2',
+    header: 'Tax 2',
     render: v => <span className="text-xs text-[var(--text-muted)]">{v ? `${v}%` : '0.00%'}</span>
   },
-  { 
-    key: 'unit', 
+  {
+    key: 'unit',
     header: 'Unit',
     render: v => <span className="text-xs text-[var(--text-secondary)]">{v || '—'}</span>
   },
-  { 
-    key: 'itemGroupName', 
+  {
+    key: 'itemGroupName',
     header: 'Group Name',
     render: v => <span className="text-xs text-[var(--text-secondary)]">{v || '—'}</span>
   },
@@ -83,7 +83,7 @@ const ItemsPage = () => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(APP_CONFIG.defaultPageSize);
   const [selectedRows, setSelectedRows] = useState(new Set());
-  
+
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -91,7 +91,7 @@ const ItemsPage = () => {
   const [showBulkActionsModal, setShowBulkActionsModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
-  
+
   // Form state
   const [newItem, setNewItem] = useState({
     itemId: '',
@@ -125,7 +125,7 @@ const ItemsPage = () => {
       }
       const data = await response.json();
       console.log('Raw API response:', data);
-      
+
       // Handle different response formats
       let itemsArray = [];
       if (Array.isArray(data)) {
@@ -140,7 +140,7 @@ const ItemsPage = () => {
         // If single object, wrap in array
         itemsArray = data._id ? [data] : [];
       }
-      
+
       console.log('Parsed items array:', itemsArray);
       setItems(itemsArray);
     } catch (err) {
@@ -156,7 +156,7 @@ const ItemsPage = () => {
     let result = items;
     if (search) {
       const searchLower = search.toLowerCase();
-      result = result.filter(item => 
+      result = result.filter(item =>
         item.description?.toLowerCase().includes(searchLower) ||
         item.longDescription?.toLowerCase().includes(searchLower) ||
         item.itemGroupName?.toLowerCase().includes(searchLower)
@@ -180,15 +180,15 @@ const ItemsPage = () => {
         tax1: Number(newItem.tax1) || 0,
         tax2: Number(newItem.tax2) || 0,
       };
-      
+
       const response = await fetch(`${API_BASE_URL}/items?tenantId=${TENANT_ID}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      
+
       if (!response.ok) throw new Error('Failed to create item');
-      
+
       const created = await response.json();
       console.log('Created item:', created);
       // Refetch all items to ensure consistency
@@ -241,7 +241,7 @@ const ItemsPage = () => {
       toast.error('No item selected for update');
       return;
     }
-    
+
     try {
       const payload = {
         ...newItem,
@@ -249,25 +249,25 @@ const ItemsPage = () => {
         tax1: Number(newItem.tax1) || 0,
         tax2: Number(newItem.tax2) || 0,
       };
-      
+
       console.log('Updating item:', editingItem._id, payload);
-      
+
       const response = await fetch(`${API_BASE_URL}/items/${editingItem._id}?tenantId=${TENANT_ID}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Update failed:', response.status, errorText);
         throw new Error(`Failed to update item: ${response.status}`);
       }
-      
+
       const updated = await response.json();
       console.log('Updated item:', updated);
-      
-      setItems(prev => prev.map(item => 
+
+      setItems(prev => prev.map(item =>
         item._id === editingItem._id ? (updated.data || updated) : item
       ));
       setShowEditModal(false);
@@ -287,14 +287,14 @@ const ItemsPage = () => {
 
   const handleDeleteItem = async (item) => {
     if (!window.confirm(`Are you sure you want to delete "${item.description}"?`)) return;
-    
+
     try {
       const response = await fetch(`${API_BASE_URL}/items/${item._id}?tenantId=${TENANT_ID}`, {
         method: 'DELETE'
       });
-      
+
       if (!response.ok) throw new Error('Failed to delete item');
-      
+
       setItems(prev => prev.filter(i => i._id !== item._id));
       toast.success('Item deleted successfully');
     } catch (err) {
@@ -305,7 +305,7 @@ const ItemsPage = () => {
 
   const handleBulkDelete = async () => {
     if (!window.confirm(`Are you sure you want to delete ${selectedRows.size} items?`)) return;
-    
+
     try {
       const ids = Array.from(selectedRows);
       const response = await fetch(`${API_BASE_URL}/items/bulk/delete?tenantId=${TENANT_ID}`, {
@@ -313,9 +313,9 @@ const ItemsPage = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids })
       });
-      
+
       if (!response.ok) throw new Error('Failed to delete items');
-      
+
       setItems(prev => prev.filter(item => !selectedRows.has(item._id)));
       setSelectedRows(new Set());
       setShowBulkActionsModal(false);
@@ -373,24 +373,26 @@ const ItemsPage = () => {
   const ROW_ACTIONS = [
     { label: 'View', icon: Eye, onClick: handleViewClick },
     { label: 'Edit', icon: Edit2, onClick: handleEditClick },
-    { label: 'Duplicate', icon: Copy, onClick: (item) => {
-      setNewItem({
-        itemId: item.itemId ? item.itemId + '-COPY' : '',
-        description: item.description + ' (Copy)',
-        longDescription: item.longDescription || '',
-        category: item.category || '',
-        warehouse: item.warehouse || '',
-        unit: item.unit || 'PCS',
-        stock: item.stock || 0,
-        minStock: item.minStock || 0,
-        rate: item.rate?.toString() || '',
-        tax1: item.tax1 || 0,
-        tax2: item.tax2 || 0,
-        itemGroupId: item.itemGroupId || '',
-        itemGroupName: item.itemGroupName || ''
-      });
-      setShowAddModal(true);
-    }},
+    {
+      label: 'Duplicate', icon: Copy, onClick: (item) => {
+        setNewItem({
+          itemId: item.itemId ? item.itemId + '-COPY' : '',
+          description: item.description + ' (Copy)',
+          longDescription: item.longDescription || '',
+          category: item.category || '',
+          warehouse: item.warehouse || '',
+          unit: item.unit || 'PCS',
+          stock: item.stock || 0,
+          minStock: item.minStock || 0,
+          rate: item.rate?.toString() || '',
+          tax1: item.tax1 || 0,
+          tax2: item.tax2 || 0,
+          itemGroupId: item.itemGroupId || '',
+          itemGroupName: item.itemGroupName || ''
+        });
+        setShowAddModal(true);
+      }
+    },
     { label: 'Delete', icon: Trash2, onClick: handleDeleteItem, danger: true },
   ];
 
@@ -514,7 +516,7 @@ const ItemsPage = () => {
                   </td>
                   {ITEM_COLUMNS.map(col => (
                     <td key={col.key} className="px-4 py-3">
-                      {col.render 
+                      {col.render
                         ? col.render(item[col.key], item)
                         : <span className="text-xs text-[var(--text-primary)]">{item[col.key]}</span>
                       }
@@ -526,11 +528,10 @@ const ItemsPage = () => {
                         <button
                           key={idx}
                           onClick={() => action.onClick(item)}
-                          className={`p-1.5 rounded-lg transition-colors ${
-                            action.danger 
-                              ? 'text-red-400 hover:bg-red-500/10' 
+                          className={`p-1.5 rounded-lg transition-colors ${action.danger
+                              ? 'text-red-400 hover:bg-red-500/10'
                               : 'text-[var(--text-faint)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
-                          }`}
+                            }`}
                           title={action.label}
                         >
                           <action.icon size={14} />
@@ -564,11 +565,10 @@ const ItemsPage = () => {
                 <button
                   key={pageNum}
                   onClick={() => setPage(pageNum)}
-                  className={`w-8 h-8 rounded-lg text-xs font-medium transition-colors ${
-                    page === pageNum
+                  className={`w-8 h-8 rounded-lg text-xs font-medium transition-colors ${page === pageNum
                       ? 'bg-[var(--primary)] text-white'
                       : 'text-[var(--text-muted)] hover:bg-[var(--bg-hover)]'
-                  }`}
+                    }`}
                 >
                   {pageNum}
                 </button>
@@ -678,8 +678,8 @@ const ItemsPage = () => {
                 value={newItem.itemGroupId}
                 onChange={(e) => {
                   const group = ITEM_GROUPS.find(g => g.id === e.target.value);
-                  setNewItem({ 
-                    ...newItem, 
+                  setNewItem({
+                    ...newItem,
                     itemGroupId: e.target.value,
                     itemGroupName: group?.name || ''
                   });
@@ -840,8 +840,8 @@ const ItemsPage = () => {
                 value={newItem.itemGroupId}
                 onChange={(e) => {
                   const group = ITEM_GROUPS.find(g => g.id === e.target.value);
-                  setNewItem({ 
-                    ...newItem, 
+                  setNewItem({
+                    ...newItem,
                     itemGroupId: e.target.value,
                     itemGroupName: group?.name || ''
                   });
@@ -986,15 +986,14 @@ const ItemsPage = () => {
               <div className="p-3 bg-[var(--bg-elevated)] border border-[var(--border-base)] rounded-xl">
                 <p className="text-xs text-[var(--text-muted)] mb-1">Status</p>
                 <div className="flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full ${
-                    (selectedItem.stock || 0) === 0 ? 'bg-red-500' :
-                    ((selectedItem.stock || 0) - (selectedItem.reserved || 0)) <= (selectedItem.minStock || 0) ? 'bg-amber-500' :
-                    (selectedItem.reserved || 0) > 0 ? 'bg-cyan-500' : 'bg-emerald-500'
-                  }`} />
+                  <span className={`w-2 h-2 rounded-full ${(selectedItem.stock || 0) === 0 ? 'bg-red-500' :
+                      ((selectedItem.stock || 0) - (selectedItem.reserved || 0)) <= (selectedItem.minStock || 0) ? 'bg-amber-500' :
+                        (selectedItem.reserved || 0) > 0 ? 'bg-cyan-500' : 'bg-emerald-500'
+                    }`} />
                   <span className="text-sm font-semibold text-[var(--text-primary)]">
                     {(selectedItem.stock || 0) === 0 ? 'Out of Stock' :
-                     ((selectedItem.stock || 0) - (selectedItem.reserved || 0)) <= (selectedItem.minStock || 0) ? 'Low Stock' :
-                     (selectedItem.reserved || 0) > 0 ? 'Partially Reserved' : 'In Stock'}
+                      ((selectedItem.stock || 0) - (selectedItem.reserved || 0)) <= (selectedItem.minStock || 0) ? 'Low Stock' :
+                        (selectedItem.reserved || 0) > 0 ? 'Partially Reserved' : 'In Stock'}
                   </span>
                 </div>
               </div>
