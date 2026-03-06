@@ -22,16 +22,16 @@ export const AuthProvider = ({ children }) => {
     setError('');
     try {
       console.log('Attempting login...', { email });
-      const res = await api.post('/auth/login', { email, password });
+      const res = await api.post('/hrm/employees/login', { email, password });
       console.log('Login API response:', res);
-      const { accessToken, user: backendUser } = res?.data || {};
-      if (!accessToken || !backendUser) {
+      const { data } = res?.data || {};
+      if (!data || !data.token) {
         console.error('Invalid response structure:', res);
         throw new Error('Invalid response from server');
       }
-      const permissions = getRolePermissions(backendUser.role);
-      const authedUser = { ...backendUser, permissions };
-      localStorage.setItem(TOKEN_KEY, accessToken);
+      const permissions = getRolePermissions(data.roleId);
+      const authedUser = { ...data, permissions };
+      localStorage.setItem(TOKEN_KEY, data.token);
       localStorage.setItem(USER_KEY, JSON.stringify(authedUser));
       setUser(authedUser);
       setError('');

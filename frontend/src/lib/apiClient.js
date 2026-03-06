@@ -1,7 +1,7 @@
 // CENTRAL API CLIENT — All API calls route through here. No direct fetch/axios in components.
 import axios from 'axios';
 
-const BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
+const BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api/v1';
 const TIMEOUT = parseInt(process.env.REACT_APP_API_TIMEOUT || '30000', 10);
 
 const apiClient = axios.create({
@@ -12,10 +12,15 @@ const apiClient = axios.create({
 
 const getTenantId = () => {
     try {
+        // First try to get from user object
         const user = JSON.parse(localStorage.getItem('solar_user') || '{}');
-        return user?.tenantId || user?.tenant?.id || user?.id || null;
+        if (user?.tenantId || user?.tenant?.id) {
+            return user?.tenantId || user?.tenant?.id;
+        }
+        // Fallback to tenantId stored separately (for pre-login requests)
+        return localStorage.getItem('tenantId') || null;
     } catch {
-        return null;
+        return localStorage.getItem('tenantId') || null;
     }
 };
 
@@ -43,7 +48,10 @@ apiClient.interceptors.response.use(
 
         if (status === 401) {
             localStorage.removeItem('solar_token');
-            window.location.href = '/login';
+            // Only redirect if not already on login page to avoid loops
+            if (window.location.pathname !== '/login') {
+                window.location.href = '/login';
+            }
         }
 
         return Promise.reject({ status, message, raw: error });

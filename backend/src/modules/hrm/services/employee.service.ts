@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import * as bcrypt from 'bcryptjs';
 import { Employee, EmployeeDocument } from '../schemas/employee.schema';
 import { CreateEmployeeDto, UpdateEmployeeDto } from '../dto/employee.dto';
 
@@ -17,6 +18,8 @@ export class EmployeeService {
   }
 
   async create(createEmployeeDto: CreateEmployeeDto, tenantId?: string): Promise<Employee> {
+    console.log('[DEBUG] EmployeeService.create called with:', createEmployeeDto, 'tenantId:', tenantId);
+    
     // Build query for duplicate check
     const duplicateQuery: any = { employeeId: createEmployeeDto.employeeId };
     if (tenantId && tenantId !== 'default') {
@@ -24,9 +27,11 @@ export class EmployeeService {
     }
     
     // Check if employeeId already exists for this tenant
+    console.log('[DEBUG] Checking duplicate employeeId:', duplicateQuery);
     const existingEmployee = await this.employeeModel.findOne(duplicateQuery);
 
     if (existingEmployee) {
+      console.log('[DEBUG] Employee with ID already exists:', createEmployeeDto.employeeId);
       throw new BadRequestException(`Employee with ID ${createEmployeeDto.employeeId} already exists`);
     }
 
@@ -37,9 +42,11 @@ export class EmployeeService {
     }
     
     // Check if email already exists for this tenant
+    console.log('[DEBUG] Checking duplicate email:', emailQuery);
     const existingEmail = await this.employeeModel.findOne(emailQuery);
 
     if (existingEmail) {
+      console.log('[DEBUG] Employee with email already exists:', createEmployeeDto.email);
       throw new BadRequestException(`Employee with email ${createEmployeeDto.email} already exists`);
     }
 
@@ -48,8 +55,19 @@ export class EmployeeService {
       employeeData.tenantId = new Types.ObjectId(tenantId);
     }
 
+    // Hash password before saving
+    if (employeeData.password) {
+      console.log('[DEBUG] Hashing password...');
+      employeeData.password = await bcrypt.hash(employeeData.password, 10);
+    } else {
+      console.log('[DEBUG] No password provided!');
+    }
+
+    console.log('[DEBUG] Creating employee with data:', employeeData);
     const employee = new this.employeeModel(employeeData);
-    return employee.save();
+    const savedEmployee = await employee.save();
+    console.log('[DEBUG] Employee saved successfully:', savedEmployee);
+    return savedEmployee;
   }
 
   async findAll(tenantId?: string): Promise<Employee[]> {
@@ -180,5 +198,49 @@ export class EmployeeService {
       .populate('roleId', 'roleId label color')
       .sort({ createdAt: -1 })
       .exec();
+  }
+
+  async validateLogin(email: string, password: string, tenantId?: string): Promise<Employee | null> {
+    console.log('[DEBUG] validateLogin called with email:', email, 'tenantId:', tenantId);
+    
+    // Build query to find employee by email
+    // If tenantId is provided (and not 'default'), search for employees with matching tenantId OR null tenantId
+    let query: any = { email: email.toLowerCase() };
+    
+    if (tenantId && tenantId !== 'default') {
+      // Search for employees with matching tenantId OR null/undefined tenantId
+      query = {
+        email: email.toLowerCase(),
+        $or: [
+          { tenantId: new Types.ObjectId(tenantId) },
+          { tenantId: null },
+          { tenantId: { $exists: false } }
+        ]
+      };
+    }
+    
+    console.log('[DEBUG] Login query:', JSON.stringify(query));
+    
+    const employee = await this.employeeModel
+      .findOne(query)
+      .populate('roleId', 'roleId label color permissions')
+      .exec();
+
+    console.log('[DEBUG] Employee found:', employee ? 'YES' : 'NO');
+    
+    if (!employee || !employee.password) {
+      console.log('[DEBUG] Employee not found or no password');
+      return null;
+    }
+
+    console.log('[DEBUG] Comparing passwords...');
+    const isPasswordValid = await bcrypt.compare(password, employee.password);
+    console.log('[DEBUG] Password valid:', isPasswordValid);
+    
+    if (!isPasswordValid) {
+      return null;
+    }
+
+    return employee;
   }
 }

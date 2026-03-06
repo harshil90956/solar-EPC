@@ -15,7 +15,7 @@ import DataTable from '../components/ui/DataTable';
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
 
 const fmt = CURRENCY.format;
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api/v1';
 const TENANT_ID = 'solarcorp';
 
 const getStockStatus = (item) => {
@@ -234,7 +234,7 @@ const InventoryPage = () => {
         }
         const data = await response.json();
         console.log('Items API Response:', data);
-        
+
         // Parse items array from response
         let itemsArray = [];
         if (Array.isArray(data)) {
@@ -244,7 +244,7 @@ const InventoryPage = () => {
         } else if (data.items && Array.isArray(data.items)) {
           itemsArray = data.items;
         }
-        
+
         // Map items to inventory format (description -> name, add reserved/available)
         const inventoryData = itemsArray.map(item => ({
           ...item,
@@ -253,7 +253,7 @@ const InventoryPage = () => {
           available: (item.stock || 0) - (item.reserved || 0),
           lastUpdated: item.updatedAt || new Date().toISOString().split('T')[0]
         }));
-        
+
         setInventory(inventoryData);
         setError(null);
       } catch (err) {
@@ -307,20 +307,15 @@ const InventoryPage = () => {
   const dynamicStats = useMemo(() => {
     const totalItems = inventory.length;
     const totalValue = inventory.reduce((a, i) => a + (i.stock || 0) * (i.rate || 0), 0);
-    
-    // Count by actual status if available, otherwise calculate
-    const lowStockItems = inventory.filter(i => {
-      if (i.status) return i.status === 'Low Stock';
-      const avail = (i.stock || 0) - (i.reserved || 0);
-      return avail <= (i.minStock || 0) && avail > 0;
-    }).length;
-    
-    const outOfStockItems = inventory.filter(i => {
-      if (i.status) return i.status === 'Out of Stock';
-      return (i.stock || 0) === 0;
-    }).length;
-    
-    return { totalItems, totalValue, lowStockItems, outOfStockItems };
+    const lowStockItems = inventory.filter(i => ((i.stock || 0) - (i.reserved || 0)) <= (i.minStock || 0) && ((i.stock || 0) - (i.reserved || 0)) > 0).length;
+    const outOfStockItems = inventory.filter(i => (i.stock || 0) === 0).length;
+
+    setStats({
+      totalItems,
+      totalValue,
+      lowStockItems,
+      outOfStockItems
+    });
   }, [inventory]);
 
   const filtered = useMemo(() =>
@@ -384,7 +379,7 @@ const InventoryPage = () => {
 
   const handleStockIn = async () => {
     if (!stockInForm.itemId || !stockInForm.quantity) return;
-    
+
     setSubmitting(true);
     try {
       const response = await fetch(`${API_BASE_URL}/items/${stockInForm.itemId}/stock-in?tenantId=${TENANT_ID}`, {
@@ -519,7 +514,7 @@ const InventoryPage = () => {
 
   const handleStockOut = async () => {
     if (!stockOutForm.itemId || !stockOutForm.quantity) return;
-    
+
     setSubmitting(true);
     try {
       const response = await fetch(`${API_BASE_URL}/items/${stockOutForm.itemId}/stock-out?tenantId=${TENANT_ID}`, {
@@ -540,7 +535,7 @@ const InventoryPage = () => {
 
       const updatedItem = await response.json();
       const itemData = updatedItem.data || updatedItem;
-      
+
       // Create reservation record for the project
       if (stockOutForm.projectId) {
         try {
@@ -562,7 +557,7 @@ const InventoryPage = () => {
           // Don't fail the whole operation if reservation creation fails
         }
       }
-      
+
       setInventory(prev => prev.map(i => i._id === stockOutForm.itemId ? itemData : i));
       setShowStockOut(false);
       setStockOutForm({ itemId: '', quantity: '', projectId: '', issuedDate: '', remarks: '' });
@@ -584,7 +579,7 @@ const InventoryPage = () => {
       'low-stock': 'Low Stock',
       'out-of-stock': 'Out of Stock'
     };
-    
+
     const newStatus = stageToStatus[targetStage];
     if (!newStatus) return;
 
@@ -748,29 +743,29 @@ const InventoryPage = () => {
             {submitting ? 'Adding...' : <><Plus size={13} /> Add Item</>}
           </Button>
         </div>}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <FormField label="Item Name"><Input placeholder="e.g. 400W Mono PERC Panel" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></FormField>
-            <FormField label="Category">
-              <Select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
-                <option value="">Select Category</option>
-                {['Panel', 'Inverter', 'BOS', 'Structure', 'Cable', 'Other'].map(c => <option key={c}>{c}</option>)}
-              </Select>
-            </FormField>
-            <FormField label="Unit">
-              <Select value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))}>
-                <option value="">Select Unit</option>
-                {['Nos', 'Mtr', 'Kg', 'Set', 'Pairs', 'Box'].map(u => <option key={u}>{u}</option>)}
-              </Select>
-            </FormField>
-            <FormField label="Min Stock Level"><Input type="number" placeholder="100" value={form.minStock} onChange={e => setForm(f => ({ ...f, minStock: e.target.value }))} /></FormField>
-            <FormField label="Unit Rate (₹)"><Input type="number" placeholder="14500" value={form.rate} onChange={e => setForm(f => ({ ...f, rate: e.target.value }))} /></FormField>
-            <FormField label="Warehouse">
-              <Select value={form.warehouse} onChange={e => setForm(f => ({ ...f, warehouse: e.target.value }))}>
-                <option value="">Select Warehouse</option>
-                <option>WH-Ahmedabad</option><option>WH-Surat</option><option>WH-Mumbai</option>
-              </Select>
-            </FormField>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <FormField label="Item Name"><Input placeholder="e.g. 400W Mono PERC Panel" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></FormField>
+          <FormField label="Category">
+            <Select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
+              <option value="">Select Category</option>
+              {['Panel', 'Inverter', 'BOS', 'Structure', 'Cable', 'Other'].map(c => <option key={c}>{c}</option>)}
+            </Select>
+          </FormField>
+          <FormField label="Unit">
+            <Select value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))}>
+              <option value="">Select Unit</option>
+              {['Nos', 'Mtr', 'Kg', 'Set', 'Pairs', 'Box'].map(u => <option key={u}>{u}</option>)}
+            </Select>
+          </FormField>
+          <FormField label="Min Stock Level"><Input type="number" placeholder="100" value={form.minStock} onChange={e => setForm(f => ({ ...f, minStock: e.target.value }))} /></FormField>
+          <FormField label="Unit Rate (₹)"><Input type="number" placeholder="14500" value={form.rate} onChange={e => setForm(f => ({ ...f, rate: e.target.value }))} /></FormField>
+          <FormField label="Warehouse">
+            <Select value={form.warehouse} onChange={e => setForm(f => ({ ...f, warehouse: e.target.value }))}>
+              <option value="">Select Warehouse</option>
+              <option>WH-Ahmedabad</option><option>WH-Surat</option><option>WH-Mumbai</option>
+            </Select>
+          </FormField>
+        </div>
       </Modal>
 
       {/* Stock In Modal */}
@@ -897,7 +892,7 @@ const InventoryPage = () => {
               </div>
             ))}
           </div>
-          
+
           {/* Project Reservations Section */}
           <div className="border-t border-[var(--border-base)] pt-3">
             <h4 className="text-xs font-semibold text-[var(--text-primary)] mb-2">Reserved for Projects</h4>

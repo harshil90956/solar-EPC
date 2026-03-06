@@ -3,11 +3,13 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Visit, VisitDocument } from '../schemas/visit.schema';
 import { CreateVisitDto, UpdateVisitDto, QueryVisitDto } from '../dto/visit.dto';
+import { EmailService } from '../../email/email.service';
 
 @Injectable()
 export class VisitsService {
   constructor(
     @InjectModel(Visit.name) private visitModel: Model<VisitDocument>,
+    private readonly emailService: EmailService,
   ) {}
 
   async create(createVisitDto: CreateVisitDto, tenantId?: string): Promise<Visit> {
@@ -41,7 +43,83 @@ export class VisitsService {
     
     console.log('Creating visit with data:', visitData);
     const createdVisit = new this.visitModel(visitData);
-    return createdVisit.save();
+    const savedVisit = await createdVisit.save();
+    
+    // Send email notification if email is provided
+    if (createVisitDto.email) {
+      await this.sendVisitScheduledEmail(savedVisit, createVisitDto.email);
+    }
+    
+    return savedVisit;
+  }
+
+  private async sendVisitScheduledEmail(visit: any, toEmail: string): Promise<void> {
+    try {
+      const subject = `Visit Scheduled - ${visit.visitId}`;
+      const text = `
+Dear ${visit.customer},
+
+Your maintenance visit has been scheduled successfully.
+
+Visit Details:
+- Visit ID: ${visit.visitId}
+- Contract ID: ${visit.contractId}
+- Visit Type: ${visit.visitType}
+- Scheduled Date: ${visit.scheduledDate}
+- Scheduled Time: ${visit.scheduledTime}
+- Engineer: ${visit.engineerName}
+- Site: ${visit.site}
+- Priority: ${visit.priority}
+
+${visit.notes ? `Notes: ${visit.notes}` : ''}
+
+Please ensure someone is available at the site during the scheduled time.
+
+Best regards,
+Solar EPC Team
+      `.trim();
+      
+      const html = `
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+  <h2 style="color: #f97316;">Visit Scheduled Successfully</h2>
+  <p>Dear <strong>${visit.customer}</strong>,</p>
+  <p>Your maintenance visit has been scheduled successfully.</p>
+  
+  <div style="background: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
+    <h3 style="margin-top: 0; color: #374151;">Visit Details</h3>
+    <table style="width: 100%; border-collapse: collapse;">
+      <tr><td style="padding: 8px 0; color: #6b7280;">Visit ID:</td><td style="padding: 8px 0; font-weight: bold;">${visit.visitId}</td></tr>
+      <tr><td style="padding: 8px 0; color: #6b7280;">Contract ID:</td><td style="padding: 8px 0; font-weight: bold;">${visit.contractId}</td></tr>
+      <tr><td style="padding: 8px 0; color: #6b7280;">Visit Type:</td><td style="padding: 8px 0; font-weight: bold;">${visit.visitType}</td></tr>
+      <tr><td style="padding: 8px 0; color: #6b7280;">Scheduled Date:</td><td style="padding: 8px 0; font-weight: bold;">${visit.scheduledDate}</td></tr>
+      <tr><td style="padding: 8px 0; color: #6b7280;">Scheduled Time:</td><td style="padding: 8px 0; font-weight: bold;">${visit.scheduledTime}</td></tr>
+      <tr><td style="padding: 8px 0; color: #6b7280;">Engineer:</td><td style="padding: 8px 0; font-weight: bold;">${visit.engineerName}</td></tr>
+      <tr><td style="padding: 8px 0; color: #6b7280;">Site:</td><td style="padding: 8px 0; font-weight: bold;">${visit.site}</td></tr>
+      <tr><td style="padding: 8px 0; color: #6b7280;">Priority:</td><td style="padding: 8px 0; font-weight: bold;">${visit.priority}</td></tr>
+    </table>
+    ${visit.notes ? `<p style="margin-top: 15px;"><strong>Notes:</strong> ${visit.notes}</p>` : ''}
+  </div>
+  
+  <p style="background: #fef3c7; padding: 10px; border-radius: 5px; border-left: 4px solid #f59e0b;">
+    Please ensure someone is available at the site during the scheduled time.
+  </p>
+  
+  <p style="margin-top: 30px; color: #6b7280; font-size: 12px;">
+    Best regards,<br>
+    <strong>Solar EPC Team</strong>
+  </p>
+</div>
+      `;
+      
+      const result = await this.emailService.sendEmail(toEmail, subject, text, html);
+      if (result.success) {
+        console.log(`Visit scheduled email sent to ${toEmail}, messageId: ${result.messageId}`);
+      } else {
+        console.error(`Failed to send visit scheduled email: ${result.message}`);
+      }
+    } catch (error) {
+      console.error('Error sending visit scheduled email:', error);
+    }
   }
 
   async findAll(query: QueryVisitDto, tenantId?: string): Promise<{ data: Visit[]; total: number }> {

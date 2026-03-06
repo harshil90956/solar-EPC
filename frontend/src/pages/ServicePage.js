@@ -34,7 +34,7 @@ import {
   getCustomers,
 } from '../modules/service-amc/services/serviceAmcApi';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api/v1';
 const TENANT_ID = 'solarcorp';
 
 /* ── Ticket stage defs ──────────────────────────────────────────────────────── */
@@ -160,7 +160,7 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
               <div className="flex flex-col gap-2 p-2 flex-1 min-h-[120px]">
                 {cards.map(t => (
                   <TicketCard key={t.id} ticket={t}
-                    onDragStart={() => {}}
+                    onDragStart={() => { }}
                     onDragEnd={handleDragEnd}
                     onClick={onCardClick}
                   />
@@ -265,6 +265,8 @@ const ServicePage = () => {
 
   // Schedule Visit modal state
   const [scheduleVisitModal, setScheduleVisitModal] = useState({ open: false, contract: null });
+  const [scheduleVisitProjectData, setScheduleVisitProjectData] = useState(null);
+  const [loadingScheduleVisitProject, setLoadingScheduleVisitProject] = useState(false);
   const [visitForm, setVisitForm] = useState({
     visitType: 'Routine Maintenance',
     scheduledDate: '',
@@ -468,7 +470,7 @@ const ServicePage = () => {
       console.log('Assign cancelled: no engineer or ticket selected');
       return;
     }
-    
+
     console.log('Assigning engineer:', selectedEngineer, 'to ticket:', assignModal.ticket.id);
     setAssigning(true);
     try {
@@ -594,9 +596,10 @@ const ServicePage = () => {
     }
   };
 
-  // Open Schedule Visit modal
-  const openScheduleVisitModal = (contract) => {
+  // Open Schedule Visit modal - fetch project data for email/mobile
+  const openScheduleVisitModal = async (contract) => {
     setScheduleVisitModal({ open: true, contract });
+    setScheduleVisitProjectData(null);
     setVisitForm({
       visitType: 'Routine Maintenance',
       scheduledDate: '',
@@ -606,11 +609,31 @@ const ServicePage = () => {
       notes: '',
     });
     fetchEngineers();
+    
+    // Fetch project data to get email and mobile
+    setLoadingScheduleVisitProject(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/projects?tenantId=${TENANT_ID}`);
+      if (response.ok) {
+        const data = await response.json();
+        const projectsArray = Array.isArray(data) ? data : (data.data || []);
+        const matchingProject = projectsArray.find(
+          p => p.customerName === contract.customer && p.site === contract.site
+        );
+        setScheduleVisitProjectData(matchingProject || null);
+      }
+    } catch (err) {
+      console.error('Error fetching project for schedule visit:', err);
+      setScheduleVisitProjectData(null);
+    } finally {
+      setLoadingScheduleVisitProject(false);
+    }
   };
 
   // Close Schedule Visit modal
   const closeScheduleVisitModal = () => {
     setScheduleVisitModal({ open: false, contract: null });
+    setScheduleVisitProjectData(null);
     setVisitForm({
       visitType: 'Routine Maintenance',
       scheduledDate: '',
@@ -627,7 +650,7 @@ const ServicePage = () => {
     // Validate all required fields
     const contractId = scheduleVisitModal.contract?.id;
     const { visitType, scheduledDate, scheduledTime, engineerId } = visitForm;
-    
+
     if (!contractId || !visitType || !scheduledDate || !scheduledTime || !engineerId) {
       alert('Please fill all required fields');
       return;
@@ -650,6 +673,7 @@ const ServicePage = () => {
         engineer_name: engineers.find(e => e.id === engineerId)?.name || '',
         status: 'Scheduled',
         tenant_id: TENANT_ID,
+        email: scheduleVisitProjectData?.email || '',
       };
 
       await createVisit(visitData);
@@ -995,7 +1019,7 @@ const ServicePage = () => {
         </Modal>
       )}
 
-      {/* AMC Project View Modal - Shows project details like Project Module */}
+      {/* AMC Project View Modal - Shows project details like Project Module View Details */}
       {amcProjectView && (
         <Modal
           open={!!amcProjectView}
@@ -1014,37 +1038,19 @@ const ServicePage = () => {
             </div>
           ) : amcProjectData ? (
             <div className="space-y-4">
-              {/* Project Info Grid */}
+              {/* Project Info Grid - Same as ProjectPage View Details */}
               <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="glass-card p-2">
-                  <div className="text-[var(--text-muted)] mb-0.5">Customer</div>
-                  <div className="font-semibold text-[var(--text-primary)]">{amcProjectData.customerName}</div>
-                </div>
-                <div className="glass-card p-2">
-                  <div className="text-[var(--text-muted)] mb-0.5">Site</div>
-                  <div className="font-semibold text-[var(--text-primary)]">{amcProjectData.site}</div>
-                </div>
-                <div className="glass-card p-2">
-                  <div className="text-[var(--text-muted)] mb-0.5">System Size</div>
-                  <div className="font-semibold text-[var(--text-primary)]">{amcProjectData.systemSize} kW</div>
-                </div>
-                <div className="glass-card p-2">
-                  <div className="text-[var(--text-muted)] mb-0.5">Project Manager</div>
-                  <div className="font-semibold text-[var(--text-primary)]">{amcProjectData.pm}</div>
-                </div>
-                <div className="glass-card p-2">
-                  <div className="text-[var(--text-muted)] mb-0.5">Status</div>
-                  <div className="font-semibold text-[var(--text-primary)]">
-                    <StatusBadge domain="project" value={amcProjectData.status} />
+                {[['Customer', amcProjectData.customerName], ['Email', amcProjectData.email || '—'], ['Mobile', amcProjectData.mobileNumber || '—'], ['Site', amcProjectData.site], ['System Size', `${amcProjectData.systemSize} kW`], ['Project Manager', amcProjectData.pm],
+                ['Status', <StatusBadge domain="project" value={amcProjectData.status} />], ['Value', `₹${(amcProjectData.value / 100000).toFixed(1)}L`],
+                ].map(([k, v]) => (
+                  <div key={k} className="glass-card p-2">
+                    <div className="text-[var(--text-muted)] mb-0.5">{k}</div>
+                    <div className="font-semibold text-[var(--text-primary)]">{v}</div>
                   </div>
-                </div>
-                <div className="glass-card p-2">
-                  <div className="text-[var(--text-muted)] mb-0.5">Value</div>
-                  <div className="font-semibold text-[var(--text-primary)]">₹{(amcProjectData.value / 100000).toFixed(1)}L</div>
-                </div>
+                ))}
               </div>
 
-              {/* Progress Bar */}
+              {/* Progress Bar - Same as ProjectPage */}
               <div>
                 <div className="text-xs flex items-center justify-between mb-1">
                   <span className="font-semibold text-[var(--text-primary)]">Overall Progress</span>
@@ -1053,30 +1059,45 @@ const ServicePage = () => {
                 <Progress value={amcProjectData.progress} className="h-2" />
               </div>
 
-              {/* Milestone Tracker */}
-              {amcProjectData.milestones && amcProjectData.milestones.length > 0 && (
+              {/* Milestone Tracker - Same as ProjectPage View Details */}
+              <div>
+                <div className="text-xs font-semibold text-[var(--text-primary)] mb-3">Milestone Tracker</div>
+                <Stepper steps={amcProjectData.milestones?.map(m => ({ name: m.name, status: m.status, date: m.date })) ?? [
+                  { name: 'Material Ready', status: 'Pending', date: null },
+                  { name: 'Installation', status: 'Pending', date: null },
+                  { name: 'Commission', status: 'Pending', date: null },
+                  { name: 'Billing', status: 'Pending', date: null },
+                  { name: 'Closure', status: 'Pending', date: null }
+                ]} />
+              </div>
+
+              {/* Reserved Materials - Same as ProjectPage */}
+              {amcProjectData.materials && amcProjectData.materials.length > 0 && (
                 <div>
                   <div className="text-xs font-semibold text-[var(--text-primary)] mb-3">Milestone Tracker</div>
                   <div className="space-y-3">
                     {amcProjectData.milestones.map((milestone, idx) => (
                       <div key={idx} className="flex items-start gap-3">
-                        <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                          milestone.status === 'Done' ? 'bg-green-500 text-white' : 
-                          milestone.status === 'In Progress' ? 'bg-blue-500 text-white' : 
-                          'bg-[var(--bg-tertiary)] text-[var(--text-muted)]'
-                        }`}>
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center ${milestone.status === 'Done' ? 'bg-green-500 text-white' :
+                            milestone.status === 'In Progress' ? 'bg-blue-500 text-white' :
+                              'bg-[var(--bg-tertiary)] text-[var(--text-muted)]'
+                          }`}>
                           {milestone.status === 'Done' ? <CheckCircle2 size={14} /> : <span className="text-xs">{idx + 1}</span>}
                         </div>
                         <div className="flex-1">
-                          <div className={`text-xs font-medium ${
-                            milestone.status === 'Done' ? 'text-green-500' :
-                            milestone.status === 'In Progress' ? 'text-blue-500' :
-                            'text-[var(--text-muted)]'
-                          }`}>{milestone.name}</div>
+                          <div className={`text-xs font-medium ${milestone.status === 'Done' ? 'text-green-500' :
+                              milestone.status === 'In Progress' ? 'text-blue-500' :
+                                'text-[var(--text-muted)]'
+                            }`}>{milestone.name}</div>
                           {milestone.date && (
                             <div className="text-[10px] text-[var(--text-muted)]">{milestone.date}</div>
                           )}
                         </div>
+                        {milestone.remarks && (
+                          <div className="text-[10px] text-[var(--text-faint)] max-w-[150px] truncate" title={milestone.remarks}>
+                            {milestone.remarks}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1117,12 +1138,32 @@ const ServicePage = () => {
                 <div className="font-semibold text-[var(--text-primary)]">{scheduleVisitModal.contract.id}</div>
               </div>
               <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
-                <div className="text-[var(--text-muted)] mb-0.5">Customer Name</div>
-                <div className="font-semibold text-[var(--text-primary)]">{scheduleVisitModal.contract.customer}</div>
+                <div className="text-[var(--text-muted)] mb-0.5">Email ID</div>
+                <div className="font-semibold text-[var(--text-primary)]">
+                  {loadingScheduleVisitProject ? (
+                    <span className="text-[var(--text-muted)]">Loading...</span>
+                  ) : (
+                    scheduleVisitProjectData?.email || '—'
+                  )}
+                </div>
+              </div>
+              <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
+                <div className="text-[var(--text-muted)] mb-0.5">Mobile Number</div>
+                <div className="font-semibold text-[var(--text-primary)]">
+                  {loadingScheduleVisitProject ? (
+                    <span className="text-[var(--text-muted)]">Loading...</span>
+                  ) : (
+                    scheduleVisitProjectData?.mobileNumber || '—'
+                  )}
+                </div>
               </div>
               <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
                 <div className="text-[var(--text-muted)] mb-0.5">Site</div>
                 <div className="font-semibold text-[var(--text-primary)]">{scheduleVisitModal.contract.site}</div>
+              </div>
+              <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
+                <div className="text-[var(--text-muted)] mb-0.5">Customer Name</div>
+                <div className="font-semibold text-[var(--text-primary)]">{scheduleVisitModal.contract.customer}</div>
               </div>
               <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
                 <div className="text-[var(--text-muted)] mb-0.5">Size (kW)</div>
@@ -1206,9 +1247,8 @@ const ServicePage = () => {
 
       {/* Toast Notification */}
       {toast.show && (
-        <div className={`fixed bottom-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg transition-all duration-300 ${
-          toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
-        }`}>
+        <div className={`fixed bottom-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg transition-all duration-300 ${toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+          }`}>
           <div className="flex items-center gap-2">
             {toast.type === 'success' ? <CheckCircle size={16} /> : <AlertTriangle size={16} />}
             <span className="text-sm font-medium">{toast.message}</span>

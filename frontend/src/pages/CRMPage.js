@@ -722,7 +722,6 @@ const CRMPage = () => {
   };
 
   const handleDeleteLead = async (lead) => {
-    if (!window.confirm(`Are you sure you want to delete "${lead.name}"?`)) return;
     try {
       setActionLoading(true);
       await leadsApi.delete(lead._id);
@@ -1405,6 +1404,22 @@ const CRMPage = () => {
                 <RefreshCw size={12} /> Reset
               </Button>
             </div>
+          </div>
+          <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)]">
+            <Brain size={12} className="text-[var(--text-muted)]" />
+            <span className="text-[10px] text-[var(--text-muted)]">Scoring</span>
+            <button
+              onClick={() => setLeadScoring(!leadScoring)}
+              className={`w-8 h-4 rounded-full transition-colors ${leadScoring ? 'bg-emerald-500' : 'bg-gray-300'
+                }`}
+            >
+              <div className={`w-3 h-3 bg-white rounded-full transition-transform ${leadScoring ? 'translate-x-4' : 'translate-x-0.5'
+                }`} />
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setShowAddModal(true)}><Plus size={14} /> Add Lead</Button>
+            <ImportExport moduleName="Leads" fields={crmFields} onImport={handleImport} onExport={handleExport} />
           </div>
         </div>
       )}

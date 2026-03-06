@@ -1,4 +1,14 @@
 import apiClient from '../lib/apiClient';
+
+const getTenantId = () => {
+  try {
+    const user = JSON.parse(localStorage.getItem('solar_user') || '{}');
+    return user?.tenantId || user?.tenant?.id || user?.id || null;
+  } catch {
+    return null;
+  }
+};
+
 export const settingsApi = {
   // ── Full Settings ─────────────────────────────────────────────────────────
   async getFullSettings() {
