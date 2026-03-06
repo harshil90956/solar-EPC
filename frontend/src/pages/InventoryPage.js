@@ -15,7 +15,8 @@ import DataTable from '../components/ui/DataTable';
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
 
 const fmt = CURRENCY.format;
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api/v1';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
+const PROJECT_API_BASE_URL = process.env.REACT_APP_PROJECT_API_BASE_URL || 'http://localhost:3000/api/v1';
 const TENANT_ID = 'solarcorp';
 
 const getStockStatus = (item) => {
@@ -23,7 +24,7 @@ const getStockStatus = (item) => {
   if (item.status) {
     const statusMap = {
       'In Stock': 'in-stock',
-      'Partially Reserved': 'partially-reserved',
+      'Reserved': 'reserved',
       'Low Stock': 'low-stock',
       'Out of Stock': 'out-of-stock'
     };
@@ -32,14 +33,14 @@ const getStockStatus = (item) => {
   // Otherwise calculate from stock values
   if (item.available === 0) return 'out-of-stock';
   if (item.available <= item.minStock) return 'low-stock';
-  if (item.reserved > 0 && item.available > item.minStock) return 'partially-reserved';
+  if (item.reserved > 0) return 'reserved';
   return 'in-stock';
 };
 
 // ── Kanban columns ─────────────────────────────────────────────────────────────
 const INV_STAGES = [
   { id: 'in-stock', label: 'In Stock', color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
-  { id: 'partially-reserved', label: 'Partially Reserved', color: '#06b6d4', bg: 'rgba(6,182,212,0.12)' },
+  { id: 'reserved', label: 'Reserved', color: '#06b6d4', bg: 'rgba(6,182,212,0.12)' },
   { id: 'low-stock', label: 'Low Stock', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
   { id: 'out-of-stock', label: 'Out of Stock', color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
 ];
@@ -289,7 +290,7 @@ const InventoryPage = () => {
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/projects?tenantId=${TENANT_ID}`);
+        const response = await fetch(`${PROJECT_API_BASE_URL}/projects?tenantId=${TENANT_ID}`);
         if (response.ok) {
           const data = await response.json();
           const projectsArray = Array.isArray(data) ? data : (data.data || []);
@@ -310,12 +311,7 @@ const InventoryPage = () => {
     const lowStockItems = inventory.filter(i => ((i.stock || 0) - (i.reserved || 0)) <= (i.minStock || 0) && ((i.stock || 0) - (i.reserved || 0)) > 0).length;
     const outOfStockItems = inventory.filter(i => (i.stock || 0) === 0).length;
 
-    setStats({
-      totalItems,
-      totalValue,
-      lowStockItems,
-      outOfStockItems
-    });
+    return { totalItems, totalValue, lowStockItems, outOfStockItems };
   }, [inventory]);
 
   const filtered = useMemo(() =>
@@ -424,10 +420,12 @@ const InventoryPage = () => {
   const fetchItemReservations = async (itemId) => {
     setLoadingReservations(true);
     try {
+      console.log('Fetching reservations for itemId:', itemId);
       const response = await fetch(`${API_BASE_URL}/inventory/reservations/by-item/${itemId}?tenantId=${TENANT_ID}`);
       if (response.ok) {
         const data = await response.json();
         console.log('Reservation API response:', data);
+        console.log('Reservations count:', (data.data || data || []).length);
         setItemReservations(data.data || data || []);
       } else {
         console.error('Reservation API error:', response.status, await response.text());
@@ -539,8 +537,12 @@ const InventoryPage = () => {
       // Create reservation record for the project
       if (stockOutForm.projectId) {
         try {
-          // Find the item to get its itemId (not _id)
-          const item = inventory.find(i => i._id === stockOutForm.itemId);
+          // Find the item by itemId (not _id since stockOutForm.itemId now contains itemId)
+          const item = inventory.find(i => i.itemId === stockOutForm.itemId);
+          // Find project name
+          const project = projects.find(p => p.projectId === stockOutForm.projectId);
+          const projectName = project?.customerName || project?.name || 'Unknown Project';
+          
           await fetch(`${API_BASE_URL}/inventory/reservations?tenantId=${TENANT_ID}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -548,6 +550,7 @@ const InventoryPage = () => {
               reservationId: `RES-${Date.now()}`,
               itemId: item?.itemId || stockOutForm.itemId,
               projectId: stockOutForm.projectId,
+              projectName: projectName,
               quantity: parseInt(stockOutForm.quantity),
               notes: stockOutForm.remarks || `Stock issued on ${stockOutForm.issuedDate || new Date().toISOString().split('T')[0]}`,
             }),
@@ -558,7 +561,7 @@ const InventoryPage = () => {
         }
       }
 
-      setInventory(prev => prev.map(i => i._id === stockOutForm.itemId ? itemData : i));
+      setInventory(prev => prev.map(i => i.itemId === stockOutForm.itemId ? itemData : i));
       setShowStockOut(false);
       setStockOutForm({ itemId: '', quantity: '', projectId: '', issuedDate: '', remarks: '' });
       alert('Stock issued successfully! Project reservation recorded.');
@@ -575,7 +578,7 @@ const InventoryPage = () => {
     // Map stage IDs to status values
     const stageToStatus = {
       'in-stock': 'In Stock',
-      'partially-reserved': 'Partially Reserved',
+      'reserved': 'Reserved',
       'low-stock': 'Low Stock',
       'out-of-stock': 'Out of Stock'
     };
@@ -780,7 +783,7 @@ const InventoryPage = () => {
           <FormField label="Item">
             <Select value={stockInForm.itemId} onChange={e => setStockInForm(f => ({ ...f, itemId: e.target.value }))}>
               <option value="">Select Item</option>
-              {inventory.map(i => <option key={i._id} value={i._id}>{i.name || i.description} ({i.itemId})</option>)}
+              {inventory.map(i => <option key={i._id} value={i.itemId}>{i.name || i.description} ({i.itemId})</option>)}
             </Select>
           </FormField>
           <div className="grid grid-cols-2 gap-3">
@@ -829,7 +832,7 @@ const InventoryPage = () => {
             <Select value={editForm.status} onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))}>
               <option value="">Auto (calculated from stock)</option>
               <option value="In Stock">In Stock</option>
-              <option value="Partially Reserved">Partially Reserved</option>
+              <option value="Reserved">Reserved</option>
               <option value="Low Stock">Low Stock</option>
               <option value="Out of Stock">Out of Stock</option>
             </Select>
@@ -855,7 +858,7 @@ const InventoryPage = () => {
           <FormField label="Item">
             <Select value={stockOutForm.itemId} onChange={e => setStockOutForm(f => ({ ...f, itemId: e.target.value }))}>
               <option value="">Select Item</option>
-              {inventory.map(i => <option key={i._id} value={i._id}>{i.name || i.description} ({i.itemId})</option>)}
+              {inventory.map(i => <option key={i._id} value={i.itemId}>{i.name || i.description} ({i.itemId})</option>)}
             </Select>
           </FormField>
           <div className="grid grid-cols-2 gap-3">
@@ -903,8 +906,10 @@ const InventoryPage = () => {
             ) : (
               <div className="space-y-2">
                 {itemReservations.map(res => {
-                  // First check if reservation has project details
+                  // First check if reservation has project details embedded
                   const projectFromRes = res.project;
+                  // Check for projectName directly on reservation
+                  const projectNameFromRes = res.projectName || res.project_name;
                   // Then try to find in projects array
                   const projectFromList = projects.find(p => 
                     p.projectId === res.projectId || 
@@ -917,11 +922,22 @@ const InventoryPage = () => {
                   let isDeleted = false;
                   
                   if (projectFromRes?.customerName || projectFromRes?.name) {
+                    // Project info embedded in reservation
                     projectName = projectFromRes.customerName || projectFromRes.name;
                     isDeleted = projectFromRes.deleted || projectFromRes.isDeleted;
+                  } else if (projectNameFromRes) {
+                    // Project name stored in reservation
+                    projectName = projectNameFromRes;
+                    // Mark as deleted if project not found in active projects list
+                    isDeleted = !projectFromList;
                   } else if (projectFromList?.customerName || projectFromList?.name) {
+                    // Project found in active list
                     projectName = projectFromList.customerName || projectFromList.name;
                     isDeleted = projectFromList.deleted || projectFromList.isDeleted;
+                  } else {
+                    // Project not found anywhere - show ID as unknown but mark deleted
+                    projectName = res.projectId || 'Unknown Project';
+                    isDeleted = true;
                   }
                   
                   const projectId = res.projectId || res.projectID || 'N/A';
@@ -935,7 +951,7 @@ const InventoryPage = () => {
                         <span className="text-xs font-medium text-[var(--text-primary)]">
                           {projectName}{' '}
                           <span className="text-[var(--text-muted)]">
-                            ({isDeleted ? 'deleted' : projectId})
+                            ({projectId}{isDeleted ? ' - deleted' : ''})
                           </span>
                         </span>
                       </div>
