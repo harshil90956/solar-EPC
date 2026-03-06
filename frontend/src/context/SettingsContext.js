@@ -413,6 +413,54 @@ export const SettingsProvider = ({ children }) => {
         }
     }, [customRoles, rbac, addAudit, refreshCustomRoles]);
 
+    const createCustomRole = useCallback(async (label, description, baseRole, user) => {
+        try {
+            const id = `custom_${Date.now()}`;
+            const basePerms = baseRole
+                ? (customRoles[baseRole]?.permissions || rbac[baseRole] || {})
+                : {};
+            const newRole = {
+                id,
+                label,
+                description: description || '',
+                baseRole: baseRole || null,
+                color: '#8b5cf6',
+                bg: 'rgba(139,92,246,0.12)',
+                isCustom: true,
+                permissions: JSON.parse(JSON.stringify(basePerms)),
+            };
+
+            // Persist to backend
+            try {
+                await settingsApi.createCustomRole(newRole);
+            } catch (e) {
+                console.error('Failed to create custom role on backend:', e);
+            }
+
+            setCustomRoles(prev => ({ ...prev, [id]: newRole }));
+            addAudit('CUSTOM_ROLE_CREATED', label, 'null', id, user);
+            await refreshCustomRoles();
+            return id;
+        } catch (error) {
+            console.error('Failed to create custom role:', error);
+            // Fallback: create locally
+            const id = `custom_${Date.now()}`;
+            const newRole = {
+                id,
+                label,
+                description: description || '',
+                baseRole: baseRole || null,
+                color: '#8b5cf6',
+                bg: 'rgba(139,92,246,0.12)',
+                isCustom: true,
+                permissions: {},
+            };
+            setCustomRoles(prev => ({ ...prev, [id]: newRole }));
+            addAudit('CUSTOM_ROLE_CREATED', label, 'null', id, user);
+            return id;
+        }
+    }, [customRoles, rbac, addAudit, refreshCustomRoles]);
+
     const updateCustomRole = useCallback(async (roleId, updates, user) => {
         setCustomRoles(prev => {
             if (!prev[roleId]) return prev;

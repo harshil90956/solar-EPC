@@ -279,17 +279,17 @@ const ProcurementPage = () => {
       const tenantId = localStorage.getItem('tenantId') || 'default';
       const baseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
       const response = await fetch(`${baseUrl}/projects?tenantId=${tenantId}`);
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch projects');
       }
-      
+
       const data = await response.json();
       console.log('Projects API response:', data);
-      
+
       const projectsData = Array.isArray(data) ? data : (data?.data || []);
       console.log('Parsed projects:', projectsData);
-      
+
       // If API returns empty data, use mock data for testing
       if (projectsData.length === 0) {
         console.log('API returned empty projects, using mock data');
@@ -405,49 +405,49 @@ const ProcurementPage = () => {
   // Helper function to get project display name - prioritizes customer names
   const getProjectDisplayName = (project) => {
     if (!project) return 'Unknown Customer';
-    
+
     // Debug: log the full project object
     console.log('Project object:', JSON.stringify(project, null, 2));
-    
+
     // List of fields to check for customer name (in priority order)
     const customerFields = ['customer', 'customerName', 'clientName', 'client', 'customerEmail', 'email'];
-    
+
     // Check each field
     for (const field of customerFields) {
       const value = project[field];
       if (value && typeof value === 'string') {
         const clean = value.trim();
         // Skip empty or placeholder values
-        if (clean && 
-            clean.length > 0 &&
-            !clean.toLowerCase().includes('project name') &&
-            !clean.toLowerCase().includes('enter') &&
-            !clean.toLowerCase().includes('type here') &&
-            !clean.toLowerCase().includes('customer') &&
-            clean !== '*' &&
-            clean !== '-') {
+        if (clean &&
+          clean.length > 0 &&
+          !clean.toLowerCase().includes('project name') &&
+          !clean.toLowerCase().includes('enter') &&
+          !clean.toLowerCase().includes('type here') &&
+          !clean.toLowerCase().includes('customer') &&
+          clean !== '*' &&
+          clean !== '-') {
           console.log(`Found customer name in field "${field}": ${clean}`);
           return clean;
         }
       }
     }
-    
+
     // Check name field as fallback
     if (project.name && typeof project.name === 'string') {
       const cleanName = project.name.trim();
       if (cleanName &&
-          !cleanName.toLowerCase().includes('project name') &&
-          !cleanName.toLowerCase().includes('enter') &&
-          !cleanName.includes('*')) {
+        !cleanName.toLowerCase().includes('project name') &&
+        !cleanName.toLowerCase().includes('enter') &&
+        !cleanName.includes('*')) {
         return cleanName;
       }
     }
-    
+
     // Check title field
     if (project.title && typeof project.title === 'string' && project.title.trim()) {
       return project.title.trim();
     }
-    
+
     // Last resort - show project ID
     return `Project ${project.id || project._id || 'Unknown'}`;
   };
@@ -574,7 +574,7 @@ const ProcurementPage = () => {
           <FormField label="Related Project *">
             <div className="relative" ref={projectDropdownRef}>
               {/* Selected Project Display / Search Input */}
-              <div 
+              <div
                 onClick={() => setShowProjectDropdown(true)}
                 className="w-full h-9 px-3 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] text-[var(--text-primary)] text-sm cursor-pointer flex items-center justify-between hover:border-[var(--primary)] transition-colors"
               >
@@ -638,9 +638,8 @@ const ProcurementPage = () => {
                             setShowProjectDropdown(false);
                             setProjectSearch('');
                           }}
-                          className={`px-3 py-2 cursor-pointer hover:bg-[var(--bg-hover)] transition-colors border-b border-[var(--border-base)] last:border-0 ${
-                            newPO.relatedProjectId === (p.id || p._id) ? 'bg-[var(--primary)]/10 border-[var(--primary)]/30' : ''
-                          }`}
+                          className={`px-3 py-2 cursor-pointer hover:bg-[var(--bg-hover)] transition-colors border-b border-[var(--border-base)] last:border-0 ${newPO.relatedProjectId === (p.id || p._id) ? 'bg-[var(--primary)]/10 border-[var(--primary)]/30' : ''
+                            }`}
                         >
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-semibold text-[var(--primary)] px-1.5 py-0.5 rounded bg-[var(--primary)]/10">
@@ -671,9 +670,9 @@ const ProcurementPage = () => {
 
       {/* PO Detail Modal */}
       {selectedPO && (
-        <Modal 
-          open={!!selectedPO} 
-          onClose={() => { setSelectedPO(null); setIsEditingPO(false); setEditedPO(null); }} 
+        <Modal
+          open={!!selectedPO}
+          onClose={() => { setSelectedPO(null); setIsEditingPO(false); setEditedPO(null); }}
           title={isEditingPO ? `Edit PO — ${selectedPO.id}` : `PO — ${selectedPO.id}`}
           footer={
             <div className="flex gap-2 justify-end">
@@ -728,7 +727,7 @@ const ProcurementPage = () => {
               <FormField label="Related Project *">
                 <div className="relative" ref={projectDropdownRef}>
                   {/* Selected Project Display */}
-                  <div 
+                  <div
                     onClick={() => setShowProjectDropdown(true)}
                     className="w-full h-9 px-3 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] text-[var(--text-primary)] text-sm cursor-pointer flex items-center justify-between hover:border-[var(--primary)] transition-colors"
                   >
@@ -792,9 +791,8 @@ const ProcurementPage = () => {
                                 setShowProjectDropdown(false);
                                 setProjectSearch('');
                               }}
-                              className={`px-3 py-2 cursor-pointer hover:bg-[var(--bg-hover)] transition-colors border-b border-[var(--border-base)] last:border-0 ${
-                                editedPO?.relatedProjectId === (p.id || p._id) ? 'bg-[var(--primary)]/10 border-[var(--primary)]/30' : ''
-                              }`}
+                              className={`px-3 py-2 cursor-pointer hover:bg-[var(--bg-hover)] transition-colors border-b border-[var(--border-base)] last:border-0 ${editedPO?.relatedProjectId === (p.id || p._id) ? 'bg-[var(--primary)]/10 border-[var(--primary)]/30' : ''
+                                }`}
                             >
                               <div className="flex items-center gap-2">
                                 <span className="text-xs font-semibold text-[var(--primary)] px-1.5 py-0.5 rounded bg-[var(--primary)]/10">
