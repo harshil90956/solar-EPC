@@ -41,6 +41,8 @@ import { usePermissions } from '../hooks/usePermissions';
 
 import { format, subMonths } from 'date-fns';
 
+import FinanceDashboard from '../components/finance/FinanceDashboard';
+
 const fmt = CURRENCY.format;
 
 /* ── Invoice stage definitions ──────────────────────────────────────────────── */
@@ -48,7 +50,6 @@ const fmt = CURRENCY.format;
 const INV_STAGES = [
   { id: 'Draft', label: 'Draft', color: '#64748b', bg: 'rgba(100,116,139,0.12)' },
   { id: 'Sent', label: 'Sent', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
-  { id: 'Pending', label: 'Pending', color: '#f97316', bg: 'rgba(249,115,22,0.12)' },
   { id: 'Partial', label: 'Partial', color: '#3b82f6', bg: 'rgba(59,130,246,0.12)' },
   { id: 'Paid', label: 'Paid', color: '#22c55e', bg: 'rgba(34,197,94,0.12)' },
   { id: 'Overdue', label: 'Overdue', color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
@@ -160,7 +161,10 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
         {INV_STAGES.map(stage => {
 
-          const cards = invoices.filter(i => i.status === stage.id);
+          // Show Pending invoices in Sent column
+          const cards = invoices.filter(i => 
+            i.status === stage.id || (stage.id === 'Sent' && i.status === 'Pending')
+          );
 
           const colAmt = cards.reduce((s, i) => s + i.amount, 0);
 
@@ -306,7 +310,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 
 
-const INV_STATUS_FILTERS = ['All', 'Draft', 'Pending', 'Partial', 'Paid', 'Overdue'];
+const INV_STATUS_FILTERS = ['All', 'Draft', 'Sent', 'Partial', 'Paid', 'Overdue'];
 
 
 
@@ -321,6 +325,9 @@ const FinancePage = ({ onNavigate }) => {
   const { can } = usePermissions();
 
   const [view, setView] = useState('table');
+  
+  // Main view mode: 'dashboard', 'kanban', 'table'
+  const [mainView, setMainView] = useState('dashboard');
 
   const [invSearch, setInvSearch] = useState('');
 
@@ -328,7 +335,15 @@ const FinancePage = ({ onNavigate }) => {
 
   const [page, setPage] = useState(1);
 
-  const [pageSize, setPageSize] = useState(APP_CONFIG.defaultPageSize);
+  const [pageSize, setPageSizeState] = useState(() => {
+    const saved = localStorage.getItem('finance_invoice_pageSize');
+    return saved ? parseInt(saved, 10) : APP_CONFIG.defaultPageSize;
+  });
+  
+  const setPageSize = (size) => {
+    localStorage.setItem('finance_invoice_pageSize', String(size));
+    setPageSizeState(size);
+  };
   const [dateRange, setDateRange] = useState({
     start: format(subMonths(new Date(), 6), 'yyyy-MM-dd'),
     end: format(new Date(), 'yyyy-MM-dd')
@@ -1859,7 +1874,11 @@ const FinancePage = ({ onNavigate }) => {
 
     invoices.filter(inv =>
 
-      (invStatus === 'All' || inv.status === invStatus) &&
+      (invStatus === 'All' || 
+        inv.status === invStatus || 
+        // Handle Pending status showing as Sent in UI
+        (invStatus === 'Sent' && inv.status === 'Pending')
+      ) &&
 
       inv.customerName?.toLowerCase().includes(invSearch.toLowerCase())
 
@@ -1867,7 +1886,9 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-  const paginatedInvoices = filteredInvoices.slice((page - 1) * pageSize, page * pageSize);
+  const paginatedInvoices = useMemo(() => 
+    filteredInvoices.slice((page - 1) * pageSize, page * pageSize),
+  [filteredInvoices, page, pageSize]);
 
 
 
@@ -2184,24 +2205,97 @@ const FinancePage = ({ onNavigate }) => {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button onClick={() => onNavigate('finance-dashboard')}><BarChart3 size={13} /> Dashboard</Button>
+          {/* View Toggle Buttons */}
+          <div className="flex items-center gap-1 bg-[var(--bg-elevated)] rounded-lg p-1 border border-[var(--border-base)]">
+            <button
+              onClick={() => setMainView('dashboard')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                mainView === 'dashboard'
+                  ? 'bg-[var(--primary)] text-white shadow-sm'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+              }`}
+            >
+              <BarChart3 size={14} /> Dashboard
+            </button>
+            <button
+              onClick={() => setMainView('kanban')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                mainView === 'kanban'
+                  ? 'bg-[var(--primary)] text-white shadow-sm'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+              }`}
+            >
+              <LayoutGrid size={14} /> Kanban
+            </button>
+            <button
+              onClick={() => setMainView('table')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                mainView === 'table'
+                  ? 'bg-[var(--primary)] text-white shadow-sm'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+              }`}
+            >
+              <List size={14} /> Table
+            </button>
+          </div>
 
-          <Button variant="outline" onClick={() => setShowAdjustModal(true)}><TrendingUp size={13} /> Adjust Amount</Button>
+          <div className="h-6 w-px bg-[var(--border-base)] mx-1" />
 
-          <Button variant="outline" onClick={() => setShowRecordPayment(true)}><IndianRupee size={13} /> Record Payment</Button>
-
-          {financePermissions?.create && (
-
-            <Button onClick={() => setShowInvoice(true)}><Plus size={13} /> New Invoice</Button>
-
-          )}
+          {/* Action Buttons - Row 1: New Invoice, Row 2: Adjust & Record */}
+          <div className="flex flex-col gap-2">
+            {financePermissions?.create && (
+              <Button onClick={() => setShowInvoice(true)}><Plus size={13} /> New Invoice</Button>
+            )}
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setShowAdjustModal(true)}><TrendingUp size={13} /> Adjust Amount</Button>
+              <Button variant="outline" onClick={() => setShowRecordPayment(true)}><IndianRupee size={13} /> Record Payment</Button>
+            </div>
+          </div>
 
         </div>
 
       </div>
 
+      {/* Dashboard View */}
+      {mainView === 'dashboard' && (
+        <FinanceDashboard
+          isOpen={true}
+          onClose={() => {}}
+          dashboardStats={dashboardStats}
+          payables={payables}
+          invoices={invoices}
+          payments={payments}
+          manualAdjustments={manualAdjustments}
+          monthlyRevenue={monthlyRevenue}
+          cashFlow={cashFlow}
+          manualBalance={manualBalance}
+          onInvoicesClick={() => {}}
+          onStatusClick={() => {}}
+        />
+      )}
 
+      {/* Kanban View */}
+      {mainView === 'kanban' && (
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-xs text-[var(--text-muted)] mr-1">Status:</span>
+            {INV_STATUS_FILTERS.map(s => (
+              <button key={s} onClick={() => { setInvStatus(s); setPage(1); }}
+                className={`filter-chip ${invStatus === s ? 'filter-chip-active' : ''}`}>{s}</button>
+            ))}
+            <div className="flex items-center gap-2 ml-auto">
+              <Input placeholder="Search invoices..." value={invSearch}
+                onChange={e => { setInvSearch(e.target.value); setPage(1); }}
+                className="h-8 text-xs w-44" />
+            </div>
+          </div>
+          <InvKanbanBoard invoices={filteredInvoices} onStageChange={handleStageChange} onCardClick={setSelected} />
+        </div>
+      )}
 
+      {/* Table View - Original Content */}
+      {mainView === 'table' && (
+        <>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KPICard label="Total Revenue" value={fmt(revenueCurrent)} sub="From invoices" icon={TrendingUp} accentColor="#22c55e" />
         <KPICard label="Cash Position" value={fmt(cashPosition)} sub="Collected - Payables" icon={IndianRupee} accentColor="#3b82f6" />
@@ -2209,128 +2303,21 @@ const FinancePage = ({ onNavigate }) => {
         <KPICard label="Payables" value={fmt(payablesTotal)} sub="Due" icon={TrendingDown} accentColor="#ef4444" />
       </div>
 
-
-
-      {/* Charts — table view only */}
-
-      {view === 'table' && (
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-          <div className="glass-card p-4">
-
-            <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3 flex items-center gap-2">
-
-              <TrendingUp size={14} className="text-emerald-400" /> Revenue vs Cost (6M)
-
-            </h3>
-
-            <ResponsiveContainer width="100%" height={200}>
-
-              <BarChart data={monthlyRevenue} barSize={14} barGap={3}>
-
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-
-                <XAxis dataKey="month" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
-
-                <YAxis tickFormatter={v => `${(v / 100000).toFixed(0)}L`} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
-
-                <Tooltip content={<CustomTooltip />} />
-
-                <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
-
-                <Bar dataKey="revenue" fill="#22c55e" radius={[3, 3, 0, 0]} name="Revenue" />
-
-                <Bar dataKey="cost" fill="#3b82f6" radius={[3, 3, 0, 0]} name="Cost" />
-
-              </BarChart>
-
-            </ResponsiveContainer>
-
-          </div>
-
-          <div className="glass-card p-4">
-
-            <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3 flex items-center gap-2">
-
-              <DollarSign size={14} className="text-cyan-400" /> Cash Flow Trend (6M)
-
-            </h3>
-
-            <ResponsiveContainer width="100%" height={200}>
-
-              <AreaChart data={cashFlow}>
-
-                <defs>
-
-                  <linearGradient id="inflowGrad" x1="0" y1="0" x2="0" y2="1">
-
-                    <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3} />
-
-                    <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
-
-                  </linearGradient>
-
-                  <linearGradient id="outflowGrad" x1="0" y1="0" x2="0" y2="1">
-
-                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3} />
-
-                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
-
-                  </linearGradient>
-
-                </defs>
-
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-
-                <XAxis dataKey="month" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
-
-                <YAxis tickFormatter={v => `${(v / 100000).toFixed(0)}L`} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
-
-                <Tooltip content={<CustomTooltip />} />
-
-                <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
-
-                <Area type="monotone" dataKey="inflow" stroke="#06b6d4" fill="url(#inflowGrad)" strokeWidth={2} name="Inflow" />
-
-                <Area type="monotone" dataKey="outflow" stroke="#f59e0b" fill="url(#outflowGrad)" strokeWidth={2} name="Outflow" />
-
-              </AreaChart>
-
-            </ResponsiveContainer>
-
-          </div>
-
+      <div className="space-y-2">
+        <p className="text-[10px] text-[var(--accent)] uppercase tracking-wider">Current Month</p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[
+            { label: 'Total Invoiced', value: fmt(currentMonthInvoiced), color: 'text-[var(--text-primary)]' },
+            { label: 'Collected', value: fmt(currentMonthCollected), color: 'text-emerald-400' },
+            { label: 'Outstanding', value: fmt(currentMonthOutstanding), color: 'text-amber-400' },
+            { label: 'Collection Rate', value: `${currentMonthCollectionRate}%`, color: 'text-cyan-400' },
+          ].map(stat => (
+            <div key={stat.label} className="glass-card p-3 text-center">
+              <p className="text-[11px] text-[var(--text-muted)] mb-1">{stat.label}</p>
+              <p className={`text-base font-black ${stat.color}`}>{stat.value}</p>
+            </div>
+          ))}
         </div>
-
-      )}
-
-
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-
-        {[
-
-          { label: 'Total Invoiced', value: fmt(currentMonthInvoiced), color: 'text-[var(--text-primary)]' },
-
-          { label: 'Collected', value: fmt(currentMonthCollected), color: 'text-emerald-400' },
-
-          { label: 'Outstanding', value: fmt(currentMonthOutstanding), color: 'text-amber-400' },
-
-          { label: 'Collection Rate', value: `${currentMonthCollectionRate}%`, color: 'text-cyan-400' },
-
-        ].map(stat => (
-
-          <div key={stat.label} className="glass-card p-3 text-center">
-
-            <p className="text-[11px] text-[var(--text-muted)] mb-1">{stat.label}</p>
-
-            <p className={`text-base font-black ${stat.color}`}>{stat.value}</p>
-
-          </div>
-
-        ))}
-
       </div>
 
 
@@ -2361,7 +2348,7 @@ const FinancePage = ({ onNavigate }) => {
 
                 <button key={s} onClick={() => { setInvStatus(s); setPage(1); }}
 
-                  className={`filter-chip ${invStatus === s ? 'filter-chip-active' : ''}`}>{s === 'Pending' ? 'Sent' : s}</button>
+                  className={`filter-chip ${invStatus === s ? 'filter-chip-active' : ''}`}>{s}</button>
 
               ))}
 
@@ -2542,6 +2529,8 @@ const FinancePage = ({ onNavigate }) => {
         </TabsContent>
 
       </Tabs>
+      </>
+      )}
 
 
 

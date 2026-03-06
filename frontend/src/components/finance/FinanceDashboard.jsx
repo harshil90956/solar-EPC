@@ -144,7 +144,10 @@ const FinancialOverview = ({ dashboardStats, payablesTotal, manualBalance, onInv
             >
               <card.icon size={22} style={{ color: card.accentColor }} />
             </div>
-            <div className="flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full bg-[var(--bg-elevated)]">
+            <div
+              className="flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full bg-[var(--bg-elevated)]"
+              onClick={(e) => e.stopPropagation()}
+            >
               <span style={{ color: card.trend.startsWith('+') ? '#22c55e' : '#ef4444' }}>
                 {card.trend}
               </span>
@@ -339,8 +342,13 @@ const InvoiceStatusChart = ({ invoices }) => {
   const data = useMemo(() => {
     const statusCounts = { Draft: 0, Sent: 0, Partial: 0, Paid: 0, Overdue: 0 };
     invoices.forEach((inv) => {
-      if (statusCounts[inv.status] !== undefined) {
-        statusCounts[inv.status] += 1;
+      // Map "Pending" to "Sent" as per UI convention
+      const status = inv.status === 'Pending' ? 'Sent' : inv.status;
+      if (statusCounts[status] !== undefined) {
+        statusCounts[status] += 1;
+      } else {
+        // Handle any other unknown statuses by counting them as Draft
+        statusCounts.Draft += 1;
       }
     });
     return [
@@ -367,6 +375,7 @@ const InvoiceStatusChart = ({ invoices }) => {
       <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2">
         <PieChart size={16} className="text-purple-400" />
         Invoice Status Distribution
+        <span className="text-[10px] text-[var(--text-muted)] font-normal ml-2">({invoices.length} total)</span>
       </h3>
       <ResponsiveContainer width="100%" height={200}>
         <RePieChart>
