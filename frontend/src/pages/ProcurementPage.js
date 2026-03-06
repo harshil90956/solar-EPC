@@ -172,7 +172,6 @@ const ProcurementPage = () => {
 
   // Vendor detail modal state
   const [selectedVendor, setSelectedVendor] = useState(null);
-  const [showVendor, setShowVendor] = useState(false);
 
   // PO Edit state
   const [isEditingPO, setIsEditingPO] = useState(false);
@@ -342,13 +341,6 @@ const ProcurementPage = () => {
       // Handle API response - could be direct array or wrapped object
       let posData = [];
 
-<<<<<<< Updated upstream
-      const vendorsData = Array.isArray(vendorsRes.data)
-        ? vendorsRes.data
-        : (vendorsRes.data?.data || []);
-
-=======
->>>>>>> Stashed changes
       if (Array.isArray(posRes.data)) {
         posData = posRes.data;
       } else if (posRes.data && typeof posRes.data === 'object') {
