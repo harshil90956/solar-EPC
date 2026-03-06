@@ -163,7 +163,7 @@ export class LeadsService {
     leadData.activeAutomation = this.applyAutomation(leadData);
 
     if (tenantId) {
-      leadData.tenantId = new Types.ObjectId(tenantId);
+      leadData.tenantId = this.toObjectId(tenantId);
     }
 
     const createdLead = new this.leadModel(leadData);
@@ -191,8 +191,9 @@ export class LeadsService {
 
     const filter: any = { isDeleted: { $ne: true } };
 
-    if (tenantId) {
-      filter.tenantId = this.toObjectId(tenantId);
+    const tid = this.toObjectId(tenantId);
+    if (tid) {
+      filter.$or = [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }];
     }
 
     // Quick filters
@@ -302,8 +303,9 @@ export class LeadsService {
       isDeleted: { $ne: true } 
     };
     
-    if (tenantId) {
-      filter.tenantId = this.toObjectId(tenantId);
+    const tid = this.toObjectId(tenantId);
+    if (tid) {
+      filter.$and = [{ $or: [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }] }];
     }
 
     const lead = await this.leadModel.findOne(filter).lean().exec();
@@ -324,8 +326,9 @@ export class LeadsService {
       isDeleted: { $ne: true } 
     };
     
-    if (tenantId) {
-      filter.tenantId = this.toObjectId(tenantId);
+    const tid = this.toObjectId(tenantId);
+    if (tid) {
+      filter.$and = [{ $or: [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }] }];
     }
 
     // Check if lead exists first
@@ -401,8 +404,9 @@ export class LeadsService {
       isDeleted: { $ne: true } 
     };
     
-    if (tenantId) {
-      filter.tenantId = this.toObjectId(tenantId);
+    const tid = this.toObjectId(tenantId);
+    if (tid) {
+      filter.$and = [{ $or: [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }] }];
     }
 
     const result = await this.leadModel.findOneAndUpdate(
@@ -448,8 +452,9 @@ export class LeadsService {
       isDeleted: { $ne: true } 
     };
     
-    if (tenantId) {
-      filter.tenantId = this.toObjectId(tenantId);
+    const tid = this.toObjectId(tenantId);
+    if (tid) {
+      filter.$and = [{ $or: [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }] }];
     }
 
     const lead = await this.leadModel.findOne(filter).exec();
@@ -496,8 +501,9 @@ export class LeadsService {
       isDeleted: { $ne: true } 
     };
     
-    if (tenantId) {
-      filter.tenantId = this.toObjectId(tenantId);
+    const tid = this.toObjectId(tenantId);
+    if (tid) {
+      filter.$and = [{ $or: [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }] }];
     }
 
     const result = await this.leadModel.updateMany(
@@ -516,8 +522,9 @@ export class LeadsService {
       ]
     };
     
-    if (tenantId) {
-      filter.tenantId = this.toObjectId(tenantId);
+    const tid = this.toObjectId(tenantId);
+    if (tid) {
+      filter.$and = [{ $or: [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }] }];
     }
 
     const result = await this.leadModel.updateMany(
@@ -538,8 +545,9 @@ export class LeadsService {
       isDeleted: { $ne: true } 
     };
     
-    if (tenantId) {
-      filter.tenantId = this.toObjectId(tenantId);
+    const tid = this.toObjectId(tenantId);
+    if (tid) {
+      filter.$and = [{ $or: [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }] }];
     }
 
     const result = await this.leadModel.updateMany(
@@ -552,8 +560,9 @@ export class LeadsService {
   async getStats(tenantId?: string): Promise<any> {
     const filter: any = { isDeleted: { $ne: true } };
     
-    if (tenantId) {
-      filter.tenantId = this.toObjectId(tenantId);
+    const tid = this.toObjectId(tenantId);
+    if (tid) {
+      filter.$or = [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }];
     }
 
     const [
@@ -617,8 +626,9 @@ export class LeadsService {
   async recalculateAllScores(tenantId?: string): Promise<{ updated: number }> {
     const filter: any = { isDeleted: { $ne: true } };
     
-    if (tenantId) {
-      filter.tenantId = this.toObjectId(tenantId);
+    const tid = this.toObjectId(tenantId);
+    if (tid) {
+      filter.$or = [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }];
     }
 
     const leads = await this.leadModel.find(filter).exec();
@@ -786,8 +796,9 @@ export class LeadsService {
       isDeleted: { $ne: true } 
     };
     
-    if (tenantId) {
-      filter.tenantId = this.toObjectId(tenantId);
+    const tid = this.toObjectId(tenantId);
+    if (tid) {
+      filter.$and = [{ $or: [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }] }];
     }
 
     const updatedLead = await this.leadModel.findOneAndUpdate(
