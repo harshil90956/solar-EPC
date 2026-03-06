@@ -8,7 +8,7 @@ import {
 
   CheckCircle, Clock, Zap, FileText, Plus, IndianRupee,
   LayoutGrid, List, Calendar, AlertCircle, RefreshCw,
-  Edit, Download, Trash2, Loader2, X,
+  Edit, Download, Trash2, Loader2, X, BarChart3,
 } from 'lucide-react';
 
 import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
@@ -41,12 +41,7 @@ import { usePermissions } from '../hooks/usePermissions';
 
 import { format, subMonths } from 'date-fns';
 
-
-
-
 const fmt = CURRENCY.format;
-
-
 
 /* ── Invoice stage definitions ──────────────────────────────────────────────── */
 
@@ -321,7 +316,7 @@ const INV_STATUS_FILTERS = ['All', 'Draft', 'Pending', 'Partial', 'Paid', 'Overd
 
 ══════════════════════════════════════════════════════════════════════════════ */
 
-const FinancePage = () => {
+const FinancePage = ({ onNavigate }) => {
   const { isActionEnabled } = useSettings();
   const { can } = usePermissions();
 
@@ -1777,6 +1772,7 @@ const FinancePage = () => {
       setSubmittingAdjust(true);
       setAdjustError(null);
 
+      // First create the manual adjustment
       const result = await financeApi.createManualAdjustment({
         type: adjustForm.type,
         amount: amountNum,
@@ -1784,6 +1780,25 @@ const FinancePage = () => {
         reference: adjustForm.reference?.trim() || undefined,
         date: adjustForm.date,
       });
+
+      // Also create a transaction for this adjustment
+      try {
+        const transactionNumber = `TXN-ADJ-${Date.now().toString().slice(-6)}`;
+        await financeApi.createTransaction({
+          transactionNumber: transactionNumber,
+          type: adjustForm.type === 'credit' ? 'Income' : 'Expense',
+          amount: amountNum,
+          transactionDate: adjustForm.date,
+          description: `Manual adjustment: ${adjustForm.reason || adjustForm.type}`,
+          category: 'Manual Adjustment',
+          status: 'Completed',
+          referenceId: adjustForm.reference || undefined,
+        });
+        console.log('Transaction created for manual adjustment');
+      } catch (txnErr) {
+        console.error('Failed to create transaction for adjustment:', txnErr);
+        // Don't fail the whole operation if transaction creation fails
+      }
 
       setShowAdjustModal(false);
       setAdjustForm({
@@ -2169,6 +2184,7 @@ const FinancePage = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          <Button onClick={() => onNavigate('finance-dashboard')}><BarChart3 size={13} /> Dashboard</Button>
 
           <Button variant="outline" onClick={() => setShowAdjustModal(true)}><TrendingUp size={13} /> Adjust Amount</Button>
 

@@ -18,6 +18,7 @@ import LogisticsPage from './pages/LogisticsPage';
 import InstallationPage from './pages/InstallationPage';
 import CommissioningPage from './pages/CommissioningPage';
 import FinancePage from './pages/FinancePage';
+import FinanceDashboardPage from './pages/FinanceDashboardPage';
 import ServicePage from './pages/ServicePage';
 import CompliancePage from './pages/CompliancePage';
 import SettingsPage from './pages/SettingsPage';
@@ -45,6 +46,7 @@ const PAGE_MAP = {
   installation: { component: InstallationPage, title: 'Installation' },
   commissioning: { component: CommissioningPage, title: 'Commissioning' },
   finance: { component: FinancePage, title: 'Finance' },
+  'finance-dashboard': { component: FinanceDashboardPage, title: 'Finance Dashboard' },
   service: { component: ServicePage, title: 'Service & AMC' },
   compliance: { component: CompliancePage, title: 'Compliance' },
   settings: { component: SettingsPage, title: 'Settings' },
