@@ -162,3 +162,6 @@ LeadSchema.index({ email: 1, tenantId: 1 }, { unique: true, sparse: true });
 LeadSchema.index({ statusKey: 1 });
 LeadSchema.index({ source: 1 });
 LeadSchema.index({ score: -1 });
+LeadSchema.index({ createdAt: -1 }); // For date-based queries
+LeadSchema.index({ tenantId: 1, createdAt: -1 }); // For tenant-scoped date queries
+LeadSchema.index({ isDeleted: 1, createdAt: -1 }); // For filtering deleted + date
