@@ -20,8 +20,11 @@ export const KPICard = ({
     trend, trendUp,
     accentColor = 'var(--primary)',
     className,
+    style,
+    iconBgColor = 'bg-gray-100',
+    iconColor = 'text-gray-600',
 }) => (
-    <div className={cn('glass-card p-4 flex flex-col gap-2 group cursor-default', className)}>
+    <div className={cn('p-4 flex flex-col gap-2 group cursor-default rounded-xl border border-gray-200/50 backdrop-blur-sm', className)} style={style}>
         <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
                 <p className="label-muted mb-1">{label}</p>
@@ -42,10 +45,9 @@ export const KPICard = ({
             </div>
             {Icon && (
                 <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110"
-                    style={{ backgroundColor: accentColor + '18', border: `1px solid ${accentColor}30` }}
+                    className={cn('w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110 border border-gray-200', iconBgColor)}
                 >
-                    <Icon size={18} style={{ color: accentColor }} />
+                    <Icon size={18} className={iconColor} />
                 </div>
             )}
         </div>

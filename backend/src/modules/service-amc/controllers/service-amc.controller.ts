@@ -164,6 +164,20 @@ export class ServiceAmcController {
     }
   }
 
+  @Post('contracts/remove-duplicates')
+  @HttpCode(HttpStatus.OK)
+  async removeDuplicateContracts() {
+    try {
+      console.log('POST /contracts/remove-duplicates called');
+      const result = await this.amcContractsService.forceRemoveDuplicates();
+      console.log('Removed duplicates:', result.deleted, 'Remaining:', result.remaining);
+      return result;
+    } catch (error: any) {
+      console.error('Error removing duplicates:', error.message, error.stack);
+      throw error;
+    }
+  }
+
   // ============ AI INSIGHT ============
 
   @Get('ai-insight')

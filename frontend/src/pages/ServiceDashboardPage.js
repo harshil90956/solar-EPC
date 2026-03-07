@@ -305,9 +305,9 @@ const ServiceDashboardPage = ({ onNavigate }) => {
       />
 
       {/* AI Insight Banner */}
-      <div className="ai-banner">
-        <Zap size={14} className="text-[var(--accent-light)] mt-0.5 shrink-0" />
-        <p className="text-xs text-[var(--text-secondary)]">
+      <div className="ai-banner flex items-center gap-3 px-4 py-3 rounded-lg" style={{ backgroundColor: 'rgba(249, 115, 22, 0.05)' }}>
+        <Zap size={16} className="text-[var(--accent-light)] shrink-0" />
+        <p className="text-sm text-[var(--text-secondary)]">
           <span className="text-[var(--accent-light)] font-semibold">AI Insight:</span>{' '}
           {aiInsightText}
         </p>
@@ -321,6 +321,9 @@ const ServiceDashboardPage = ({ onNavigate }) => {
           icon={Headphones}
           sub={`${dynamicTicketStats.openTickets} open now`}
           accentColor="#3b82f6"
+          className="bg-[rgba(59,130,246,0.20)]"
+          iconBgColor="bg-blue-100"
+          iconColor="text-blue-500"
         />
         <KPICard
           label={<span className="text-sm font-semibold text-[var(--text-primary)]">Open Tickets</span>}
@@ -328,21 +331,30 @@ const ServiceDashboardPage = ({ onNavigate }) => {
           icon={AlertTriangle}
           trend="Need attention"
           trendUp={false}
-          accentColor="#ef4444"
+          accentColor="#f97316"
+          className="bg-[rgba(249,115,22,0.20)]"
+          iconBgColor="bg-orange-100"
+          iconColor="text-orange-500"
         />
         <KPICard
           label={<span className="text-sm font-semibold text-[var(--text-primary)]">Scheduled</span>}
-          value={dynamicTicketStats.scheduled}
+          value={dynamicVisitStats.scheduled}
           icon={Calendar}
-          sub="Planned visits"
-          accentColor="#3b82f6"
+          sub={`${dynamicVisitStats.total} total visits`}
+          accentColor="#8b5cf6"
+          className="bg-[rgba(139,92,246,0.20)]"
+          iconBgColor="bg-purple-100"
+          iconColor="text-purple-500"
         />
         <KPICard
           label={<span className="text-sm font-semibold text-[var(--text-primary)]">In Progress</span>}
           value={dynamicTicketStats.inProgress}
-          icon={Wrench}
+          icon={Clock}
           sub="Being handled"
-          accentColor="#f59e0b"
+          accentColor="#eab308"
+          className="bg-[rgba(234,179,8,0.20)]"
+          iconBgColor="bg-yellow-100"
+          iconColor="text-yellow-500"
         />
       </div>
 
@@ -354,7 +366,10 @@ const ServiceDashboardPage = ({ onNavigate }) => {
           icon={CheckCircle}
           trend="This month"
           trendUp={true}
-          accentColor="#10b981"
+          accentColor="#22c55e"
+          className="bg-[rgba(34,197,94,0.20)]"
+          iconBgColor="bg-green-100"
+          iconColor="text-green-500"
         />
         <KPICard
           label={<span className="text-sm font-semibold text-[var(--text-primary)]">Closed</span>}
@@ -362,20 +377,29 @@ const ServiceDashboardPage = ({ onNavigate }) => {
           icon={XCircle}
           sub="Completed"
           accentColor="#64748b"
+          className="bg-[rgba(100,116,139,0.20)]"
+          iconBgColor="bg-slate-100"
+          iconColor="text-slate-500"
         />
         <KPICard
           label={<span className="text-sm font-semibold text-[var(--text-primary)]">AMC Contracts</span>}
           value={dynamicAmcStats.active}
           icon={Shield}
           sub={`${dynamicAmcStats.total} total contracts`}
-          accentColor="#8b5cf6"
+          accentColor="#a855f7"
+          className="bg-[rgba(168,85,247,0.20)]"
+          iconBgColor="bg-violet-100"
+          iconColor="text-violet-500"
         />
         <KPICard
           label={<span className="text-sm font-semibold text-[var(--text-primary)]">Total Visits</span>}
           value={dynamicVisitStats.total}
-          icon={Clock}
+          icon={Activity}
           sub={`${dynamicVisitStats.scheduled} scheduled`}
           accentColor="#06b6d4"
+          className="bg-[rgba(6,182,212,0.20)]"
+          iconBgColor="bg-cyan-100"
+          iconColor="text-cyan-500"
         />
       </div>
 
@@ -409,43 +433,6 @@ const ServiceDashboardPage = ({ onNavigate }) => {
                 <span className="text-xs font-bold text-[var(--text-primary)] w-8 text-right">{item.count}</span>
               </div>
             ))}
-          </div>
-        </div>
-
-        {/* AMC Contracts Status */}
-        <div className="glass-card p-4">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
-              <Shield size={16} className="text-[var(--accent-light)]" />
-              AMC Contracts Status
-            </h3>
-            <span className="text-xs text-[var(--text-muted)]">Total: {dynamicAmcStats.total}</span>
-          </div>
-          <div className="space-y-3">
-            {[
-              { label: 'Active', count: dynamicAmcStats.active, color: 'bg-emerald-500', text: 'text-emerald-400' },
-              { label: 'Expiring', count: dynamicAmcStats.expiring, color: 'bg-amber-500', text: 'text-amber-400' },
-              { label: 'Expired', count: dynamicAmcStats.expired, color: 'bg-red-500', text: 'text-red-400' },
-            ].map((item) => (
-              <div key={item.label} className="flex items-center gap-3">
-                <span className={`text-xs font-medium w-20 ${item.text}`}>{item.label}</span>
-                <div className="flex-1 h-2 bg-[var(--bg-tertiary)] rounded-full overflow-hidden">
-                  <div
-                    className={`h-full ${item.color} rounded-full`}
-                    style={{ width: `${dynamicAmcStats.total > 0 ? (item.count / dynamicAmcStats.total) * 100 : 0}%` }}
-                  />
-                </div>
-                <span className="text-xs font-bold text-[var(--text-primary)] w-8 text-right">{item.count}</span>
-              </div>
-            ))}
-          </div>
-          <div className="mt-4 pt-3 border-t border-[var(--border-muted)]">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-[var(--text-muted)]">Total AMC Value</span>
-              <span className="font-bold text-[var(--accent-light)]">
-                ₹{dynamicAmcStats.totalValue.toLocaleString('en-IN')}
-              </span>
-            </div>
           </div>
         </div>
 
@@ -519,7 +506,7 @@ const ServiceDashboardPage = ({ onNavigate }) => {
               <Clock size={16} className="text-[var(--accent-light)]" />
               Recent Visits
             </h3>
-            <Button variant="ghost" size="sm" onClick={() => onNavigate('service')}>
+            <Button variant="ghost" size="sm" onClick={() => onNavigate('service', 'schedule-visit')}>
               View All
             </Button>
           </div>
@@ -569,15 +556,6 @@ const ServiceDashboardPage = ({ onNavigate }) => {
             )}
           </div>
         </div>
-      </div>
-
-      {/* Refresh Status */}
-      <div className="flex items-center justify-between text-[10px] text-[var(--text-muted)] px-1">
-        <span className="flex items-center gap-1">
-          <Activity size={12} className="animate-pulse" />
-          Data auto-refreshes every 30 seconds
-        </span>
-        <span>Last updated: {lastRefresh.toLocaleTimeString()}</span>
       </div>
 
       {/* Toast Notification */}
