@@ -4,3 +4,5 @@ export { FinancePaymentService } from './finance-payment.service';
 export { ExpenseService } from './expense.service';
 export { TransactionService } from './transaction.service';
 export { ManualAdjustmentService } from './manual-adjustment.service';
+export { AdjustmentCategoryService } from './adjustment-category.service';
+export { JournalEntryService } from './journal-entry.service';

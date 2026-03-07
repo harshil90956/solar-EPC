@@ -8,7 +8,7 @@ import {
 
   CheckCircle, Clock, Zap, FileText, Plus, IndianRupee,
   LayoutGrid, List, Calendar, AlertCircle, RefreshCw,
-  Edit, Download, Trash2, Loader2, X, BarChart3,
+  Edit, Download, Trash2, Loader2, X, BarChart3, Eye, EyeOff,
 } from 'lucide-react';
 
 import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
@@ -329,6 +329,9 @@ const FinancePage = ({ onNavigate }) => {
   // Main view mode: 'dashboard', 'kanban', 'table'
   const [mainView, setMainView] = useState('dashboard');
 
+  // Table view summary cards visibility (default hidden)
+  const [showSummaryCards, setShowSummaryCards] = useState(false);
+
   const [invSearch, setInvSearch] = useState('');
 
   const [invStatus, setInvStatus] = useState('All');
@@ -535,6 +538,7 @@ const FinancePage = ({ onNavigate }) => {
   const [showAdjustModal, setShowAdjustModal] = useState(false);
   const [adjustForm, setAdjustForm] = useState({
     type: 'credit',
+    category: '',
     amount: '',
     reason: '',
     reference: '',
@@ -545,6 +549,16 @@ const FinancePage = ({ onNavigate }) => {
   const [submittingAdjust, setSubmittingAdjust] = useState(false);
   const [manualAdjustments, setManualAdjustments] = useState([]);
   const [manualBalance, setManualBalance] = useState(0);
+  // Adjustment categories state
+  const [adjustmentCategories, setAdjustmentCategories] = useState([]);
+  const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
+  const [newCategory, setNewCategory] = useState({
+    categoryName: '',
+    type: 'credit',
+  });
+  const [addingCategory, setAddingCategory] = useState(false);
+  // Journal entries state
+  const [journalEntries, setJournalEntries] = useState([]);
 
   // Fetch data on mount
 
@@ -585,6 +599,8 @@ const FinancePage = ({ onNavigate }) => {
         posRes,
         manualAdjustmentsRes,
         manualBalanceRes,
+        categoriesRes,
+        journalEntriesRes,
       ] = await Promise.all([
 
         financeApi.getInvoices(),
@@ -603,6 +619,10 @@ const FinancePage = ({ onNavigate }) => {
 
         financeApi.getManualAdjustmentBalance(),
 
+        financeApi.getAdjustmentCategories(),
+
+        financeApi.getJournalEntries(),
+
       ]);
 
       
@@ -620,6 +640,12 @@ const FinancePage = ({ onNavigate }) => {
       // Set manual adjustments and balance
       setManualAdjustments(manualAdjustmentsRes || []);
       setManualBalance(manualBalanceRes?.balance || 0);
+
+      // Set adjustment categories
+      setAdjustmentCategories(categoriesRes || []);
+
+      // Set journal entries
+      setJournalEntries(journalEntriesRes || []);
 
       // Vendor Payables (from Procurement Purchase Orders)
       const vendors = Array.isArray(vendorsRes)
@@ -700,10 +726,19 @@ const FinancePage = ({ onNavigate }) => {
       });
 
       const cashFlowSeries = months.map((m) => {
-        const inflow = (payments || []).reduce((sum, p) => {
-          const dt = paymentDate(p);
+        // Inflow: Use invoices.paid instead of payments (like backend getBalance)
+        const inflow = (invoicesRes || []).reduce((sum, inv) => {
+          // For paid invoices, use invoiceDate if paidDate is missing
+          let dt = safeDate(inv?.paidDate);
+          if (!dt && inv?.status === 'Paid') {
+            dt = safeDate(inv?.invoiceDate) || safeDate(inv?.updatedAt) || safeDate(inv?.createdAt);
+          }
           if (!dt || dt < m.start || dt >= m.end) return sum;
-          return sum + Number(p?.amount || p?.amountPaid || 0);
+          // Use paid amount (or amount if status is Paid)
+          const paid = Number(inv?.paid || 0);
+          const amount = Number(inv?.amount || 0);
+          const effectivePaid = (paid === 0 && inv?.status === 'Paid') ? amount : paid;
+          return sum + effectivePaid;
         }, 0);
 
         const outflow = (vendorExpenses || []).reduce((sum, exp) => {
@@ -714,6 +749,19 @@ const FinancePage = ({ onNavigate }) => {
         }, 0);
 
         return { month: m.month, inflow, outflow };
+      });
+
+      console.log('FinancePage CashFlow debug:', { 
+        months: months.map(m => ({ month: m.month, start: m.start.toISOString(), end: m.end.toISOString() })),
+        invoicesCount: invoicesRes?.length || 0,
+        paidInvoices: invoicesRes?.filter(inv => inv?.status === 'Paid').map(inv => ({ 
+          status: inv.status, 
+          amount: inv.amount, 
+          paid: inv.paid,
+          invoiceDate: inv.invoiceDate,
+          paidDate: inv.paidDate 
+        })),
+        cashFlowSeries 
       });
 
       setMonthlyRevenue(revenueCostSeries);
@@ -1777,6 +1825,9 @@ const FinancePage = ({ onNavigate }) => {
     if (!adjustForm.date) {
       nextErrors.date = 'Date is required';
     }
+    if (!adjustForm.category) {
+      nextErrors.category = 'Category is required';
+    }
 
     if (Object.keys(nextErrors).length > 0) {
       setAdjustErrors(nextErrors);
@@ -1790,6 +1841,7 @@ const FinancePage = ({ onNavigate }) => {
       // First create the manual adjustment
       const result = await financeApi.createManualAdjustment({
         type: adjustForm.type,
+        category: adjustForm.category,
         amount: amountNum,
         reason: adjustForm.reason?.trim() || undefined,
         reference: adjustForm.reference?.trim() || undefined,
@@ -1805,7 +1857,7 @@ const FinancePage = ({ onNavigate }) => {
           amount: amountNum,
           transactionDate: adjustForm.date,
           description: `Manual adjustment: ${adjustForm.reason || adjustForm.type}`,
-          category: 'Manual Adjustment',
+          category: adjustForm.category || 'Manual Adjustment',
           status: 'Completed',
           referenceId: adjustForm.reference || undefined,
         });
@@ -1818,6 +1870,7 @@ const FinancePage = ({ onNavigate }) => {
       setShowAdjustModal(false);
       setAdjustForm({
         type: 'credit',
+        category: '',
         amount: '',
         reason: '',
         reference: '',
@@ -2169,51 +2222,59 @@ const FinancePage = ({ onNavigate }) => {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* View Toggle Buttons */}
-          <div className="flex items-center gap-1 bg-[var(--bg-elevated)] rounded-lg p-1 border border-[var(--border-base)]">
-            <button
-              onClick={() => setMainView('dashboard')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                mainView === 'dashboard'
-                  ? 'bg-[var(--primary)] text-white shadow-sm'
-                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
-              }`}
-            >
-              <BarChart3 size={14} /> Dashboard
-            </button>
-            <button
-              onClick={() => setMainView('kanban')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                mainView === 'kanban'
-                  ? 'bg-[var(--primary)] text-white shadow-sm'
-                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
-              }`}
-            >
-              <LayoutGrid size={14} /> Kanban
-            </button>
-            <button
-              onClick={() => setMainView('table')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                mainView === 'table'
-                  ? 'bg-[var(--primary)] text-white shadow-sm'
-                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
-              }`}
-            >
-              <List size={14} /> Table
-            </button>
-          </div>
-
           <div className="h-6 w-px bg-[var(--border-base)] mx-1" />
 
-          {/* Action Buttons - Row 1: New Invoice, Row 2: Adjust & Record */}
+          {/* Action Buttons - Row 1: View Toggle + New Invoice, Row 2: Adjust & Record */}
           <div className="flex flex-col gap-2">
-            {financePermissions?.create && (
-              <Button onClick={() => setShowInvoice(true)}><Plus size={13} /> New Invoice</Button>
-            )}
+            <div className="flex items-center gap-2">
+              {/* View Toggle Buttons */}
+              <div className="flex items-center gap-1 bg-[var(--bg-elevated)] rounded-lg p-1 border border-[var(--border-base)]">
+                <button
+                  onClick={() => setMainView('dashboard')}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    mainView === 'dashboard'
+                      ? 'bg-[var(--primary)] text-white shadow-sm'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                  }`}
+                >
+                  <BarChart3 size={14} /> Dashboard
+                </button>
+                <button
+                  onClick={() => setMainView('kanban')}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    mainView === 'kanban'
+                      ? 'bg-[var(--primary)] text-white shadow-sm'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                  }`}
+                >
+                  <LayoutGrid size={14} /> Kanban
+                </button>
+                <button
+                  onClick={() => setMainView('table')}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    mainView === 'table'
+                      ? 'bg-[var(--primary)] text-white shadow-sm'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                  }`}
+                >
+                  <List size={14} /> Table
+                </button>
+              </div>
+              {financePermissions?.create && (
+                <Button onClick={() => setShowInvoice(true)}><Plus size={13} /> New Invoice</Button>
+              )}
+            </div>
             <div className="flex gap-2 justify-end">
               <Button variant="outline" onClick={() => setShowAdjustModal(true)}><TrendingUp size={13} /> Adjust Amount</Button>
               <Button variant="outline" onClick={() => setShowRecordPayment(true)}><IndianRupee size={13} /> Record Payment</Button>
             </div>
+            {mainView === 'table' && (
+              <div className="flex justify-end">
+                <Button variant="outline" onClick={() => setShowSummaryCards(!showSummaryCards)}>
+                  {showSummaryCards ? <EyeOff size={13} /> : <Eye size={13} />}
+                </Button>
+              </div>
+            )}
           </div>
 
         </div>
@@ -2260,6 +2321,8 @@ const FinancePage = ({ onNavigate }) => {
       {/* Table View - Original Content */}
       {mainView === 'table' && (
         <>
+      {showSummaryCards && (
+        <>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KPICard label="Total Revenue" value={fmt(revenueCurrent)} sub="From invoices" icon={TrendingUp} accentColor="#22c55e" />
         <KPICard label="Cash Position" value={fmt(cashPosition)} sub="Collected - Payables" icon={IndianRupee} accentColor="#3b82f6" />
@@ -2283,6 +2346,8 @@ const FinancePage = ({ onNavigate }) => {
           ))}
         </div>
       </div>
+        </>
+      )}
 
 
 
@@ -2292,9 +2357,9 @@ const FinancePage = ({ onNavigate }) => {
 
           <TabsTrigger value="invoices">Invoices ({invoices.length})</TabsTrigger>
 
-          <TabsTrigger value="transactions">Transactions ({manualAdjustments.length})</TabsTrigger>
-
           <TabsTrigger value="payables">Payables Summary</TabsTrigger>
+
+          <TabsTrigger value="transactions">Transactions ({manualAdjustments.length})</TabsTrigger>
 
         </TabsList>
 
@@ -2380,57 +2445,6 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-        <TabsContent value="transactions">
-
-          <div className="glass-card p-4 space-y-3">
-
-            <h3 className="text-sm font-semibold text-[var(--text-primary)]">Manual Adjustments</h3>
-
-            {manualAdjustments.length === 0 ? (
-
-              <p className="text-sm text-[var(--text-muted)] text-center py-8">No manual adjustments recorded</p>
-
-            ) : (
-
-              <div className="space-y-2">
-
-                <div className="grid grid-cols-5 gap-4 text-[11px] text-[var(--text-muted)] px-2">
-                  <div>Type</div>
-                  <div className="text-right">Amount</div>
-                  <div>Reason</div>
-                  <div>Reference</div>
-                  <div>Date</div>
-                </div>
-
-                {manualAdjustments.map((adj) => (
-                  <div
-                    key={adj._id || adj.id}
-                    className="grid grid-cols-5 gap-4 items-center p-3 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-muted)]"
-                  >
-                    <div className={`text-xs font-semibold ${adj.type === 'credit' ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {adj.type === 'credit' ? 'Credit (+)' : 'Debit (-)'}
-                    </div>
-                    <div className={`text-xs text-right font-bold ${adj.type === 'credit' ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {adj.type === 'credit' ? '+' : '-'}{fmt(adj.amount)}
-                    </div>
-                    <div className="text-xs text-[var(--text-primary)]">{adj.reason || '—'}</div>
-                    <div className="text-xs text-[var(--text-muted)]">{adj.reference || '—'}</div>
-                    <div className="text-xs text-[var(--text-muted)]">
-                      {adj.date ? new Date(adj.date).toLocaleDateString() : '—'}
-                    </div>
-                  </div>
-                ))}
-
-              </div>
-
-            )}
-
-          </div>
-
-        </TabsContent>
-
-
-
         <TabsContent value="payables">
 
           <div className="glass-card p-4 space-y-3">
@@ -2467,6 +2481,134 @@ const FinancePage = ({ onNavigate }) => {
                     <div className="text-xs text-right text-[var(--text-primary)]">{fmt(p.amountPaid)}</div>
                     <div className="text-xs text-right font-bold text-amber-400">{fmt(p.outstandingAmount)}</div>
                     <div className="text-xs text-right text-[var(--text-muted)]">{p.lastPurchaseOrderDate || '—'}</div>
+                  </div>
+                ))}
+
+              </div>
+
+            )}
+
+          </div>
+
+        </TabsContent>
+
+
+
+        <TabsContent value="transactions">
+
+          <div className="glass-card p-4 space-y-3">
+
+            <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4">Journal Entries</h3>
+
+            {journalEntries.length === 0 ? (
+
+              <p className="text-sm text-[var(--text-muted)] text-center py-8">No journal entries recorded</p>
+
+            ) : (
+
+              <div className="space-y-4">
+
+                {/* Table Header - Traditional Accounting Format */}
+                <div className="grid grid-cols-12 gap-1 text-[11px] font-semibold text-[var(--text-primary)] border-b-2 border-[var(--border-base)] pb-2">
+                  <div className="col-span-2">Date</div>
+                  <div className="col-span-5">Particulars</div>
+                  <div className="col-span-1 text-center">L.F.</div>
+                  <div className="col-span-2 text-right">Amount(Dr.)</div>
+                  <div className="col-span-2 text-right">Amount(Cr.)</div>
+                </div>
+
+                {journalEntries.map((entry) => (
+                  <div 
+                    key={entry._id || entry.id} 
+                    className="border border-[var(--border-base)] rounded-lg overflow-hidden bg-[var(--bg-elevated)]"
+                  >
+                    {/* Journal Entry Box - Traditional Format */}
+                    <div className="divide-y divide-[var(--border-muted)]">
+                      
+                      {/* First Row with Date */}
+                      {(() => {
+                        const debitLines = entry.lines?.filter(l => l.debitAmount > 0) || [];
+                        const creditLines = entry.lines?.filter(l => l.creditAmount > 0) || [];
+                        const firstDebit = debitLines[0];
+                        const firstCredit = creditLines[0];
+                        
+                        return (
+                          <>
+                            {/* First Debit Line with Date */}
+                            {firstDebit && (
+                              <div className="grid grid-cols-12 gap-1 px-3 py-2 items-start">
+                                <div className="col-span-2 text-xs text-[var(--text-primary)]">
+                                  {new Date(entry.date).toLocaleDateString('en-IN', { 
+                                    day: '2-digit', 
+                                    month: '2-digit', 
+                                    year: 'numeric' 
+                                  })}
+                                </div>
+                                <div className="col-span-5 text-xs text-[var(--text-primary)]">
+                                  {firstDebit.accountName} <span className="text-[var(--text-muted)]">Dr.</span>
+                                </div>
+                                <div className="col-span-1 text-center text-xs text-[var(--text-muted)]">-</div>
+                                <div className="col-span-2 text-right text-xs font-medium text-[var(--text-primary)]">
+                                  {fmt(firstDebit.debitAmount)}
+                                </div>
+                                <div className="col-span-2 text-right text-xs">-</div>
+                              </div>
+                            )}
+                            
+                            {/* Additional Debit Lines */}
+                            {debitLines.slice(1).map((line, idx) => (
+                              <div 
+                                key={`debit-${idx + 1}`}
+                                className="grid grid-cols-12 gap-1 px-3 py-2 items-start"
+                              >
+                                <div className="col-span-2 text-xs"></div>
+                                <div className="col-span-5 text-xs text-[var(--text-primary)]">
+                                  {line.accountName} <span className="text-[var(--text-muted)]">Dr.</span>
+                                </div>
+                                <div className="col-span-1 text-center text-xs text-[var(--text-muted)]">-</div>
+                                <div className="col-span-2 text-right text-xs font-medium text-[var(--text-primary)]">
+                                  {fmt(line.debitAmount)}
+                                </div>
+                                <div className="col-span-2 text-right text-xs">-</div>
+                              </div>
+                            ))}
+                            
+                            {/* Credit Lines - Indented with "To" */}
+                            {creditLines.map((line, idx) => (
+                              <div 
+                                key={`credit-${idx}`}
+                                className="grid grid-cols-12 gap-1 px-3 py-2 items-start"
+                              >
+                                <div className="col-span-2 text-xs"></div>
+                                <div className="col-span-5 text-xs text-[var(--text-primary)] pl-4">
+                                  <span className="text-[var(--text-muted)]">To</span> {line.accountName}
+                                </div>
+                                <div className="col-span-1 text-center text-xs text-[var(--text-muted)]">-</div>
+                                <div className="col-span-2 text-right text-xs">-</div>
+                                <div className="col-span-2 text-right text-xs font-medium text-[var(--text-primary)]">
+                                  {fmt(line.creditAmount)}
+                                </div>
+                              </div>
+                            ))}
+                            
+                            {/* Narration Line */}
+                            {entry.narration && (
+                              <div className="grid grid-cols-12 gap-1 px-3 py-2 items-start bg-[var(--bg-surface)]">
+                                <div className="col-span-2"></div>
+                                <div className="col-span-5 text-xs text-[var(--text-muted)] italic">
+                                  ({entry.narration})
+                                </div>
+                                <div className="col-span-1"></div>
+                                <div className="col-span-2"></div>
+                                <div className="col-span-2"></div>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
+                      
+                    </div>
+                    
                   </div>
                 ))}
 
@@ -4055,7 +4197,7 @@ const FinancePage = ({ onNavigate }) => {
               <Select
                 value={adjustForm.type}
                 onChange={e => {
-                  setAdjustForm({ ...adjustForm, type: e.target.value });
+                  setAdjustForm({ ...adjustForm, type: e.target.value, category: '' });
                   if (adjustErrors.type) setAdjustErrors(prev => ({ ...prev, type: undefined }));
                 }}
                 disabled={submittingAdjust}
@@ -4065,6 +4207,38 @@ const FinancePage = ({ onNavigate }) => {
               </Select>
             </FormField>
 
+            <FormField label="Category *">
+              <Select
+                value={adjustForm.category}
+                onChange={e => {
+                  const value = e.target.value;
+                  if (value === '__add_new__') {
+                    setShowAddCategoryModal(true);
+                    setNewCategory({ categoryName: '', type: adjustForm.type });
+                    return;
+                  }
+                  setAdjustForm({ ...adjustForm, category: value });
+                  if (adjustErrors.category) setAdjustErrors(prev => ({ ...prev, category: undefined }));
+                }}
+                disabled={submittingAdjust}
+              >
+                <option value="">Select Category</option>
+                {adjustmentCategories
+                  .filter(cat => cat.type === adjustForm.type)
+                  .map(cat => (
+                    <option key={cat._id || cat.id} value={cat.categoryName}>
+                      {cat.categoryName}
+                    </option>
+                  ))}
+                <option value="__add_new__">+ Add New Category</option>
+              </Select>
+              {adjustErrors.category && (
+                <div className="text-[11px] text-red-400 mt-1">{adjustErrors.category}</div>
+              )}
+            </FormField>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 mt-4">
             <FormField label="Amount (₹)">
               <Input
                 type="number"
@@ -4080,9 +4254,7 @@ const FinancePage = ({ onNavigate }) => {
                 <div className="text-[11px] text-red-400 mt-1">{adjustErrors.amount}</div>
               )}
             </FormField>
-          </div>
 
-          <div className="mt-4">
             <FormField label="Date">
               <Input
                 type="date"
@@ -4123,13 +4295,93 @@ const FinancePage = ({ onNavigate }) => {
         </div>
       </Modal>
 
+      {/* Add New Category Modal */}
+      <Modal
+        open={showAddCategoryModal}
+        onClose={() => {
+          if (addingCategory) return;
+          setShowAddCategoryModal(false);
+          setNewCategory({ categoryName: '', type: 'credit' });
+        }}
+        title="Add New Category"
+        footer={
+          <div className="flex gap-2 justify-end">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                if (addingCategory) return;
+                setShowAddCategoryModal(false);
+                setNewCategory({ categoryName: '', type: 'credit' });
+              }}
+              disabled={addingCategory}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!newCategory.categoryName.trim()) {
+                  toast.error('Category name is required');
+                  return;
+                }
+                try {
+                  setAddingCategory(true);
+                  const result = await financeApi.createAdjustmentCategory({
+                    categoryName: newCategory.categoryName.trim(),
+                    type: newCategory.type,
+                  });
+                  // Add new category to list and select it
+                  const newCat = result?.category || result;
+                  if (newCat) {
+                    setAdjustmentCategories(prev => [...prev, newCat]);
+                    // If the new category type matches current form type, select it
+                    if (newCat.type === adjustForm.type) {
+                      setAdjustForm(prev => ({ ...prev, category: newCat.categoryName }));
+                    }
+                  }
+                  toast.success(`Category "${newCategory.categoryName}" created successfully`);
+                  setShowAddCategoryModal(false);
+                  setNewCategory({ categoryName: '', type: 'credit' });
+                } catch (err) {
+                  toast.error(err.message || 'Failed to create category');
+                } finally {
+                  setAddingCategory(false);
+                }
+              }}
+              disabled={addingCategory}
+            >
+              {addingCategory ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+              {addingCategory ? ' Saving...' : ' Save Category'}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4 pb-4">
+          <FormField label="Category Name">
+            <Input
+              value={newCategory.categoryName}
+              onChange={e => setNewCategory({ ...newCategory, categoryName: e.target.value })}
+              placeholder="e.g., Customer Advance, Bank Charges"
+              disabled={addingCategory}
+              autoFocus
+            />
+          </FormField>
+          <FormField label="Type">
+            <Select
+              value={newCategory.type}
+              onChange={e => setNewCategory({ ...newCategory, type: e.target.value })}
+              disabled={addingCategory}
+            >
+              <option value="credit">Credit</option>
+              <option value="debit">Debit</option>
+            </Select>
+          </FormField>
+        </div>
+      </Modal>
+
     </div>
 
   );
 
 };
 
-
-
 export default FinancePage;
-
