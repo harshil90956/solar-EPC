@@ -29,10 +29,16 @@ export const AuthProvider = ({ children }) => {
         console.error('Invalid response structure:', res);
         throw new Error('Invalid response from server');
       }
-      const permissions = getRolePermissions(data.roleId);
+
+      const rawRole = data.roleId || data.role;
+      const permissions = getRolePermissions(rawRole);
       // Normalize role: capitalize first letter (admin -> Admin)
-      const normalizedRole = data.roleId ? data.roleId.charAt(0).toUpperCase() + data.roleId.slice(1).toLowerCase() : data.roleId;
-      const authedUser = { ...data, role: normalizedRole, permissions };
+      const normalizedRole = rawRole
+        ? rawRole.charAt(0).toUpperCase() + rawRole.slice(1).toLowerCase()
+        : rawRole;
+
+      const normalizedId = data.id || data._id || data.userId;
+      const authedUser = { ...data, id: normalizedId, role: normalizedRole, permissions };
       localStorage.setItem(TOKEN_KEY, data.token);
       localStorage.setItem(USER_KEY, JSON.stringify(authedUser));
       setUser(authedUser);
