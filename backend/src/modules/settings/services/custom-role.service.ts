@@ -137,11 +137,15 @@ export class CustomRoleService {
     // Prevent changing isCustom flag
     delete (updates as any).isCustom;
 
+    console.log('[DEBUG] updateCustomRole - roleId:', roleId, 'updates:', updates);
+
     const doc = await this.customRoleModel.findOneAndUpdate(
       filter,
       { $set: updates },
       { new: true },
     ).exec();
+
+    console.log('[DEBUG] updateCustomRole - saved doc:', doc);
 
     if (doc) {
       this.invalidateCache(tenantId, `role:${roleId}`);

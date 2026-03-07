@@ -11,7 +11,6 @@ import Dashboard from './pages/Dashboard';
 import CRMPage from './pages/CRMPage';
 import SurveyPage from './pages/SurveyPage';
 import DesignPage from './pages/DesignPage';
-import QuotationPage from './pages/QuotationPage';
 import ProjectPage from './pages/ProjectPage';
 import InventoryPage from './pages/InventoryPage';
 import ProcurementPage from './pages/ProcurementPage';
@@ -26,6 +25,13 @@ import CompliancePage from './pages/CompliancePage';
 import SettingsPage from './pages/SettingsPage';
 import AdminPage from './pages/AdminPage';
 import HRMPage from './pages/HRMPage';
+import EmployeesPage from './pages/EmployeesPage';
+import AttendancePageHRM from './pages/AttendancePageHRM';
+import LeavesPage from './pages/LeavesPage';
+import PayrollPage from './pages/PayrollPage';
+import IncrementsPage from './pages/IncrementsPage';
+import DepartmentsPage from './pages/DepartmentsPage';
+import AttendancePage from './pages/AttendancePage';
 import IntelligenceDashboardPage from './pages/IntelligenceDashboardPage';
 import RemindersPage from './pages/RemindersPage';
 import NotificationSystem from './components/NotificationSystem';
@@ -35,11 +41,17 @@ const PAGE_MAP = {
   dashboard: { component: Dashboard, title: 'Dashboard' },
   admin: { component: AdminPage, title: 'Admin Dashboard' },
   hrm: { component: HRMPage, title: 'Human Resource Management' },
+  'hrm-employees': { component: EmployeesPage, title: 'Employees' },
+  'hrm-attendance': { component: AttendancePage, title: 'Attendance' },
+  'hrm-leaves': { component: LeavesPage, title: 'Leaves' },
+  'hrm-payroll': { component: PayrollPage, title: 'Payroll' },
+  'hrm-increments': { component: IncrementsPage, title: 'Increments' },
+  'hrm-departments': { component: DepartmentsPage, title: 'Departments' },
+  attendance: { component: AttendancePage, title: 'Attendance Management' },
   reminders: { component: RemindersPage, title: 'Reminder Center' },
   crm: { component: CRMPage, title: 'CRM & Sales' },
   survey: { component: SurveyPage, title: 'Survey Management' },
   design: { component: DesignPage, title: 'Design & BOQ' },
-  quotation: { component: QuotationPage, title: 'Quotation' },
   project: { component: ProjectPage, title: 'Projects' },
   inventory: { component: InventoryPage, title: 'Inventory' },
   procurement: { component: ProcurementPage, title: 'Procurement' },
@@ -104,10 +116,13 @@ const AppInner = () => {
   const { resolvePermission, isModuleEnabled } = useSettings();
   const [currentPage, setCurrentPage] = useState(getInitialPage);
 
+  const [activeTab, setActiveTab] = useState(null);
+
   // ── Sync URL hash on page change ──
-  const navigate = useCallback((page) => {
+  const navigate = useCallback((page, tab = null) => {
     if (!PAGE_MAP[page]) return; // guard unknown routes
     setCurrentPage(page);
+    setActiveTab(tab);
     window.location.hash = `#${page}`;
   }, []);
 
@@ -160,7 +175,7 @@ const AppInner = () => {
 
   return (
     <Layout currentPage={currentPage} onNavigate={navigate}>
-      <PageComponent onNavigate={navigate} />
+      <PageComponent onNavigate={navigate} {...(entry.props || {})} />
       <NotificationSystem />
     </Layout>
   );

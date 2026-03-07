@@ -66,8 +66,8 @@ export class Lead {
   @Prop({ type: Number, default: 0 })
   score!: number;
 
-  @Prop({ default: '' })
-  assignedTo!: string;
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', index: true })
+  assignedTo?: Types.ObjectId;
 
   @Prop({ type: Number, default: 0 })
   kw!: number;
@@ -86,6 +86,9 @@ export class Lead {
 
   @Prop({ default: Date.now })
   created!: Date;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', index: true })
+  createdBy?: Types.ObjectId;
 
   @Prop({ default: Date.now })
   lastContact!: Date;
@@ -162,3 +165,5 @@ LeadSchema.index({ email: 1, tenantId: 1 }, { unique: true, sparse: true });
 LeadSchema.index({ statusKey: 1 });
 LeadSchema.index({ source: 1 });
 LeadSchema.index({ score: -1 });
+LeadSchema.index({ assignedTo: 1 });
+LeadSchema.index({ createdBy: 1 });

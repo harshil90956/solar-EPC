@@ -3,7 +3,8 @@ import {
     LayoutDashboard, Users, MapPin, Pencil, FileText, FolderOpen,
     Package, ShoppingCart, Truck, Wrench, CheckCircle, DollarSign,
     Headphones, FileCheck, Settings, Brain, Bell, Shield,
-    Briefcase, UserCircle, Calendar, Wallet, TrendingUp, List,
+    Briefcase, UserCircle, Calendar, Clock, Wallet, TrendingUp, List,
+    Building2, ArrowUpRight, Files, Sun, Hammer
 } from 'lucide-react';
 import { INVENTORY, TICKETS, LEADS, PROJECTS, QUOTATIONS } from '../data/mockData';
 
@@ -20,7 +21,20 @@ export const NAV_CONFIG = [
         items: [
             { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, badge: null },
             { id: 'admin', label: 'Admin', icon: Shield, badge: null, badgeVariant: 'red' },
-            { id: 'hrm', label: 'HRM', icon: Briefcase, badge: null, badgeVariant: 'accent' },
+            {
+                id: 'hrm',
+                label: 'HRM',
+                icon: Briefcase,
+                badge: null,
+                badgeVariant: 'accent',
+                children: [
+                    { id: 'hrm-employees', label: 'Employees', icon: UserCircle },
+                    { id: 'hrm-leaves', label: 'Leaves', icon: Calendar },
+                    { id: 'hrm-payroll', label: 'Payroll', icon: Wallet },
+                    { id: 'hrm-increments', label: 'Increments', icon: TrendingUp },
+                    { id: 'hrm-departments', label: 'Departments', icon: Building2 },
+                ]
+            },
             { id: 'intelligence', label: 'AI Intelligence', icon: Brain, badge: null, badgeVariant: 'accent' },
         ],
     },
@@ -28,9 +42,9 @@ export const NAV_CONFIG = [
         section: 'PIPELINE',
         items: [
             { id: 'crm', label: 'CRM & Sales', icon: Users, badge: hotLeads || null },
+            { id: 'documents', label: 'Documents', icon: Files, badge: null },
             { id: 'survey', label: 'Survey', icon: MapPin, badge: null },
             { id: 'design', label: 'Design & BOQ', icon: Pencil, badge: null },
-            { id: 'quotation', label: 'Quotation', icon: FileText, badge: draftQuotes || null },
             { id: 'project', label: 'Projects', icon: FolderOpen, badge: activeProjects || null },
         ],
     },

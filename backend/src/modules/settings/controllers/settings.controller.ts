@@ -124,6 +124,7 @@ export class SettingsController {
           color: r.color,
           bg: r.bg,
           isCustom: r.isCustom,
+          dataScope: (r as any).dataScope || 'ASSIGNED',
           permissions: permsObj,
           createdAt: (r as any).createdAt,
           updatedAt: (r as any).updatedAt,
@@ -699,6 +700,7 @@ export class SettingsController {
         color: r.color,
         bg: r.bg,
         isCustom: r.isCustom,
+        dataScope: (r as any).dataScope || 'ASSIGNED',
         permissions: permsObj,
         createdAt: (r as any).createdAt,
         updatedAt: (r as any).updatedAt,
@@ -728,6 +730,7 @@ export class SettingsController {
       color: role.color,
       bg: role.bg,
       isCustom: role.isCustom,
+      dataScope: (role as any).dataScope || 'ASSIGNED',
       permissions: Object.fromEntries(
         Array.from((role as any).permissions?.entries() || []).map((entry: any) => [entry[0], Object.fromEntries(entry[1] || new Map())])
       ),
@@ -754,6 +757,7 @@ export class SettingsController {
       color: role.color,
       bg: role.bg,
       isCustom: role.isCustom,
+      dataScope: (role as any).dataScope || 'ASSIGNED',
       created: true,
       timestamp: new Date().toISOString(),
     };

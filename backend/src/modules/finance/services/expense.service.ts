@@ -4,6 +4,12 @@ import { Model, Types } from 'mongoose';
 import { Expense, ExpenseDocument } from '../schemas/expense.schema';
 import { CreateExpenseDto, UpdateExpenseDto } from '../dto/expense.dto';
 
+interface UserWithVisibility {
+  id?: string;
+  _id?: string;
+  dataScope?: 'ALL' | 'ASSIGNED';
+}
+
 @Injectable()
 export class ExpenseService {
   constructor(
@@ -91,12 +97,34 @@ export class ExpenseService {
     }
   }
 
-  async getPayablesSummary(tenantId: string): Promise<any> {
-    const expenses = await this.expenseModel.find({
-      tenantId: new Types.ObjectId(tenantId),
+  async getPayablesSummary(tenantId: string, user?: UserWithVisibility): Promise<any> {
+    const tid = this.toObjectId(tenantId);
+    const query: any = {
+      ...(tid ? { tenantId: tid } : {}),
       isDeleted: false,
       status: { $in: ['Pending', 'Approved'] },
-    }).lean();
+    };
+    
+    console.log(`[EXPENSE PAYABLES VISIBILITY] user:`, JSON.stringify(user));
+    console.log(`[EXPENSE PAYABLES VISIBILITY] user?.dataScope:`, user?.dataScope);
+    
+    // Apply visibility filter based on user's dataScope
+    if (user?.dataScope === 'ASSIGNED') {
+      const userId = user._id || user.id;
+      if (userId) {
+        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
+          ? new Types.ObjectId(userId)
+          : userId;
+        query.assignedTo = objectId;
+        console.log(`[EXPENSE PAYABLES VISIBILITY] Applied assignedTo filter:`, objectId);
+      }
+    } else {
+      console.log(`[EXPENSE PAYABLES VISIBILITY] No filter applied - ALL scope or no user`);
+    }
+    
+    console.log(`[EXPENSE PAYABLES VISIBILITY] Final query:`, JSON.stringify(query));
+
+    const expenses = await this.expenseModel.find(query).lean();
 
     const totalPayables = expenses.reduce((sum, exp) => sum + exp.amount, 0);
     const dueIn30Days = expenses.filter(exp => {

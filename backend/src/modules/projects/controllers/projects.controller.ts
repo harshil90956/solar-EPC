@@ -8,32 +8,44 @@ import {
   Param,
   Query,
   Headers,
+  Request,
+  UseGuards,
 } from '@nestjs/common';
 import { ProjectsService } from '../services/projects.service';
 import { CreateProjectDto, UpdateProjectDto, UpdateProjectStatusDto } from '../dto/project.dto';
+import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
+import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
+import { PermissionGuard } from '../../../modules/settings/guards/permission.guard';
+import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
 
 @Controller('projects')
+@UseGuards(JwtAuthGuard, TenantGuard, PermissionGuard)
 export class ProjectsController {
   constructor(private readonly projectsService: ProjectsService) {}
 
   @Get()
+  @RequirePermission('projects', 'view')
   async findAll(
     @Headers('x-tenant-id') headerTenantId: string,
     @Query('tenantId') queryTenantId: string,
     @Query('status') status?: string,
     @Query('search') search?: string,
+    @Request() req?: any,
   ) {
     const tenantId = headerTenantId || queryTenantId || 'solarcorp';
-    return this.projectsService.findAll(tenantId, status, search);
+    const user = req?.user;
+    return this.projectsService.findAll(tenantId, user, status, search);
   }
 
   @Get('stats')
   async getStats(
     @Headers('x-tenant-id') headerTenantId: string,
     @Query('tenantId') queryTenantId: string,
+    @Request() req?: any,
   ) {
     const tenantId = headerTenantId || queryTenantId || 'solarcorp';
-    return this.projectsService.getStats(tenantId);
+    const user = req?.user;
+    return this.projectsService.getStats(tenantId, user);
   }
 
   @Get('by-stage')
@@ -65,6 +77,7 @@ export class ProjectsController {
   }
 
   @Post()
+  @RequirePermission('projects', 'create')
   async create(
     @Headers('x-tenant-id') headerTenantId: string,
     @Query('tenantId') queryTenantId: string,
@@ -75,6 +88,7 @@ export class ProjectsController {
   }
 
   @Patch(':projectId')
+  @RequirePermission('projects', 'edit')
   async update(
     @Headers('x-tenant-id') headerTenantId: string,
     @Query('tenantId') queryTenantId: string,
@@ -112,6 +126,7 @@ export class ProjectsController {
   }
 
   @Delete(':projectId')
+  @RequirePermission('projects', 'delete')
   async remove(
     @Headers('x-tenant-id') headerTenantId: string,
     @Query('tenantId') queryTenantId: string,

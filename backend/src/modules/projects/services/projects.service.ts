@@ -6,6 +6,7 @@ import { Tenant, TenantSchema } from '../../../core/tenant/schemas/tenant.schema
 import { Item } from '../../items/schemas/item.schema';
 import { Inventory } from '../../inventory/schemas/inventory.schema';
 import { CreateProjectDto, UpdateProjectDto, UpdateProjectStatusDto } from '../dto/project.dto';
+import { UserWithVisibility } from '../../../common/utils/visibility-filter';
 
 @Injectable()
 export class ProjectsService {
@@ -33,9 +34,30 @@ export class ProjectsService {
     return tenant._id as Types.ObjectId;
   }
 
-  async findAll(tenantCode: string, status?: string, search?: string) {
+  async findAll(tenantCode: string, user?: UserWithVisibility, status?: string, search?: string) {
     const tenantId = await this.getTenantId(tenantCode);
     const query: any = { tenantId, isDeleted: false };
+    
+    console.log(`[PROJECTS VISIBILITY] user:`, JSON.stringify(user));
+    console.log(`[PROJECTS VISIBILITY] user?.dataScope:`, user?.dataScope);
+    
+    // Apply visibility filter based on user's dataScope
+    if (user?.dataScope === 'ASSIGNED') {
+      const userId = user._id || user.id;
+      console.log(`[PROJECTS VISIBILITY] userId:`, userId);
+      if (userId) {
+        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
+          ? new Types.ObjectId(userId)
+          : userId;
+        query.assignedTo = objectId;
+        console.log(`[PROJECTS VISIBILITY] Applied assignedTo filter - type:`, typeof objectId, `instance:`, objectId instanceof Types.ObjectId, `value:`, objectId);
+      }
+    } else {
+      console.log(`[PROJECTS VISIBILITY] No filter applied - ALL scope or no user`);
+    }
+    
+    console.log(`[PROJECTS VISIBILITY] Final query (stringified):`, JSON.stringify(query));
+    console.log(`[PROJECTS VISIBILITY] Query assignedTo type:`, typeof query.assignedTo, `instance:`, query.assignedTo instanceof Types.ObjectId);
     
     if (status && status !== 'All') {
       query.status = status;
@@ -45,7 +67,9 @@ export class ProjectsService {
       query.$text = { $search: search };
     }
 
-    return this.projectModel.find(query).sort({ createdAt: -1 }).exec();
+    const result = await this.projectModel.find(query).sort({ createdAt: -1 }).exec();
+    console.log(`[PROJECTS VISIBILITY] Query returned ${result.length} records`);
+    return result;
   }
 
   async findOne(tenantCode: string, projectId: string) {
@@ -430,26 +454,45 @@ export class ProjectsService {
     const tenantId = await this.getTenantId(tenantCode);
     const project = await this.projectModel.findOneAndUpdate(
       { tenantId, projectId, isDeleted: true },
-      { $set: { isDeleted: false, deletedAt: null } },
+      { $set: { isDeleted: false } },
       { new: true },
     ).exec();
 
     if (!project) {
-      throw new NotFoundException(`Deleted project ${projectId} not found`);
+      throw new NotFoundException(`Project ${projectId} not found or not deleted`);
     }
 
-    return { message: `Project ${projectId} restored successfully`, project };
+    return { message: `Project ${projectId} restored successfully` };
   }
 
-  async getStats(tenantCode: string) {
+  async getStats(tenantCode: string, user?: UserWithVisibility) {
     const tenantId = await this.getTenantId(tenantCode);
+    
+    // Build match conditions for aggregation
+    const matchConditions: any = {
+      tenantId,
+      isDeleted: false,
+      status: { $ne: 'Cancelled' }, // Exclude cancelled projects from stats
+    };
+    
+    // Apply visibility filter based on user's dataScope
+    if (user?.dataScope === 'ASSIGNED') {
+      const userId = user._id || user.id;
+      if (userId) {
+        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
+          ? new Types.ObjectId(userId)
+          : userId;
+        // STRICT: Only include projects explicitly assigned to this user
+        matchConditions.assignedTo = objectId;
+        console.log(`[PROJECTS STATS VISIBILITY] Applied assignedTo filter:`, objectId);
+      }
+    }
+    
+    console.log(`[PROJECTS STATS VISIBILITY] Match conditions:`, JSON.stringify(matchConditions));
+    
     const stats = await this.projectModel.aggregate([
       {
-        $match: {
-          tenantId,
-          isDeleted: false,
-          status: { $ne: 'Cancelled' }, // Exclude cancelled projects from stats
-        },
+        $match: matchConditions,
       },
       {
         $group: {

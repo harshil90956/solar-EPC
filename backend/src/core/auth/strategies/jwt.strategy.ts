@@ -1,18 +1,31 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectModel } from '@nestjs/mongoose';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import { Model, Types } from 'mongoose';
+import { User, UserDocument } from '../schemas/user.schema';
+import { CustomRole, CustomRoleDocument } from '../../../modules/settings/schemas/custom-role.schema';
+import { UserOverride, UserOverrideDocument } from '../../../modules/settings/schemas/user-override.schema';
 
 export interface JwtPayload {
-  sub: string;
-  role: string;
-  tenantId: string | null;
-  isSuperAdmin: boolean;
+  sub?: string;
+  id?: string;
+  role?: any;
+  tenantId?: any;
+  isSuperAdmin?: boolean;
+  dataScope?: string;
 }
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(configService: ConfigService) {
+  private readonly logger = new Logger(JwtStrategy.name);
+  constructor(
+    configService: ConfigService,
+    @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+    @InjectModel(CustomRole.name) private readonly customRoleModel: Model<CustomRoleDocument>,
+    @InjectModel(UserOverride.name) private readonly userOverrideModel: Model<UserOverrideDocument>,
+  ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -20,7 +33,62 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  validate(payload: JwtPayload) {
-    return payload;
+  async validate(payload: JwtPayload) {
+    this.logger.debug(`JWT Validate - payload: ${JSON.stringify(payload)}`);
+    
+    const userId = (payload.sub || (payload as any).id) as string | undefined;
+    const tenantId = payload.tenantId as string | undefined;
+
+    const tenantObjId = (tenantId && Types.ObjectId.isValid(tenantId))
+      ? new Types.ObjectId(tenantId)
+      : undefined;
+
+    // NOTE:
+    // - This strategy is used across modules, including HRM employee login.
+    // - HRM JWT payload contains { id, role, tenantId } (no `sub`).
+    // - Core auth JWT payload contains { sub, role, tenantId }.
+    // So we must be resilient and never throw here, otherwise Passport will return 401.
+
+    let override: any = null;
+    if (userId && Types.ObjectId.isValid(userId)) {
+      override = await this.userOverrideModel.findOne({
+        userId: new Types.ObjectId(userId),
+        ...(tenantObjId ? { tenantId: tenantObjId } : {}),
+      }).select('customRoleId').lean();
+    }
+
+    const roleIdRaw = payload.role;
+    const roleId = typeof roleIdRaw === 'string' ? roleIdRaw : (roleIdRaw?.roleId || roleIdRaw?._id || roleIdRaw);
+    const roleIdString = typeof roleId === 'string' ? roleId : (roleId ? String(roleId) : null);
+
+    const roleLower = (roleIdString || '').toLowerCase();
+    const isAdminLike = Boolean(payload.isSuperAdmin)
+      || roleLower === 'admin'
+      || roleLower === 'superadmin'
+      || roleLower === 'super-admin'
+      || roleLower === 'super_admin';
+
+    const roleIdAsCustom = roleIdString && roleIdString.toLowerCase().startsWith('custom_') ? roleIdString : null;
+    const customRoleId = (override as any)?.customRoleId || roleIdAsCustom;
+
+    const customRole = customRoleId
+      ? await this.customRoleModel.findOne({
+          roleId: customRoleId,
+          ...(tenantObjId ? { tenantId: tenantObjId } : {}),
+        }).select('dataScope').lean()
+      : null;
+
+    const effectiveDataScope = (customRole as any)?.dataScope
+      || (payload.dataScope as any)
+      || (isAdminLike ? 'ALL' : 'ASSIGNED'); // Default: Admin=ALL, Others=ASSIGNED
+
+    this.logger.debug(`JWT Validate - userId: ${userId}, dataScope: ${effectiveDataScope}, isAdminLike: ${isAdminLike}`);
+    
+    const dataScope: 'ALL' | 'ASSIGNED' = effectiveDataScope === 'ALL' ? 'ALL' : 'ASSIGNED';
+    return {
+      ...payload,
+      id: userId,
+      dataScope,
+    };
   }
 }

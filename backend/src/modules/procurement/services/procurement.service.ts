@@ -7,6 +7,12 @@ import { Tenant } from '../../../core/tenant/schemas/tenant.schema';
 import { CreateVendorDto, UpdateVendorDto } from '../dto/create-vendor.dto';
 import { CreatePurchaseOrderDto, UpdatePurchaseOrderDto, UpdatePurchaseOrderStatusDto } from '../dto/create-purchase-order.dto';
 
+interface UserWithVisibility {
+  id?: string;
+  _id?: string;
+  dataScope?: 'ALL' | 'ASSIGNED';
+}
+
 @Injectable()
 export class ProcurementService {
   constructor(
@@ -50,15 +56,34 @@ export class ProcurementService {
     return vendor.save();
   }
 
-  async findAllVendors(tenantId: string): Promise<Vendor[]> {
+  async findAllVendors(tenantId: string, user?: UserWithVisibility): Promise<Vendor[]> {
+    console.log(`[PROCUREMENT VENDORS] Called with user:`, JSON.stringify(user));
     const tenantObjId = await this.getTenantId(tenantId);
     // If tenantId provided, find records with matching tenantId OR null tenantId
-    const query = tenantObjId 
+    const query: any = tenantObjId 
       ? { $or: [{ tenantId: tenantObjId }, { tenantId: null }, { tenantId: { $exists: false } }], isActive: true }
       : { isActive: true };
-    console.log('[DEBUG] findAllVendors - tenantId:', tenantId, 'tenantObjId:', tenantObjId, 'query:', JSON.stringify(query));
+    
+    console.log(`[PROCUREMENT VENDORS] user?.dataScope:`, user?.dataScope);
+    // Apply visibility filter based on user's dataScope
+    if (user?.dataScope === 'ASSIGNED') {
+      const userId = user._id || user.id;
+      console.log(`[PROCUREMENT VENDORS] userId:`, userId);
+      if (userId) {
+        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
+          ? new Types.ObjectId(userId)
+          : userId;
+        // STRICT: Only show vendors explicitly assigned to this user
+        query.assignedTo = objectId;
+        console.log(`[PROCUREMENT VENDORS VISIBILITY] Applied assignedTo filter:`, objectId);
+      }
+    } else {
+      console.log(`[PROCUREMENT VENDORS] SKIPPING filter - dataScope is not ASSIGNED`);
+    }
+    
+    console.log('[PROCUREMENT VENDORS] Final query:', JSON.stringify(query));
     const results = await this.vendorModel.find(query).exec();
-    console.log('[DEBUG] findAllVendors - found:', results.length, 'records');
+    console.log('[PROCUREMENT VENDORS] Found:', results.length, 'records');
     return results;
   }
 
@@ -126,12 +151,26 @@ export class ProcurementService {
     return purchaseOrder.save();
   }
 
-  async findAllPurchaseOrders(tenantId: string): Promise<PurchaseOrder[]> {
+  async findAllPurchaseOrders(tenantId: string, user?: UserWithVisibility): Promise<PurchaseOrder[]> {
     const tenantObjId = await this.getTenantId(tenantId);
     // If tenantId provided, find records with matching tenantId OR null tenantId
-    const query = tenantObjId 
+    const query: any = tenantObjId 
       ? { $or: [{ tenantId: tenantObjId }, { tenantId: null }, { tenantId: { $exists: false } }], isActive: true }
       : { isActive: true };
+    
+    // Apply visibility filter based on user's dataScope
+    if (user?.dataScope === 'ASSIGNED') {
+      const userId = user._id || user.id;
+      if (userId) {
+        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
+          ? new Types.ObjectId(userId)
+          : userId;
+        // STRICT: Only show POs explicitly assigned to this user
+        query.assignedTo = objectId;
+        console.log(`[PROCUREMENT PO VISIBILITY] Applied assignedTo filter:`, objectId);
+      }
+    }
+    
     return this.purchaseOrderModel
       .find(query)
       .populate('vendorId', 'id name')
@@ -205,9 +244,22 @@ export class ProcurementService {
 
   // ==================== STATS ====================
 
-  async getProcurementStats(tenantId: string): Promise<any> {
+  async getProcurementStats(tenantId: string, user?: UserWithVisibility): Promise<any> {
     const tenantObjId = await this.getTenantId(tenantId);
-    const baseQuery = tenantObjId ? { tenantId: tenantObjId, isActive: true } : { isActive: true };
+    const baseQuery: any = tenantObjId ? { tenantId: tenantObjId, isActive: true } : { isActive: true };
+    
+    // Apply visibility filter based on user's dataScope
+    if (user?.dataScope === 'ASSIGNED') {
+      const userId = user._id || user.id;
+      if (userId) {
+        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
+          ? new Types.ObjectId(userId)
+          : userId;
+        // STRICT: Only include records explicitly assigned to this user
+        baseQuery.assignedTo = objectId;
+        console.log(`[PROCUREMENT STATS VISIBILITY] Applied assignedTo filter:`, objectId);
+      }
+    }
     
     const vendorCount = await this.vendorModel.countDocuments(baseQuery);
     const poCount = await this.purchaseOrderModel.countDocuments(baseQuery);
@@ -218,11 +270,11 @@ export class ProcurementService {
 
     const totalSpendAgg = tenantObjId 
       ? await this.purchaseOrderModel.aggregate([
-          { $match: { tenantId: tenantObjId, isActive: true } },
+          { $match: { tenantId: tenantObjId, isActive: true, ...(baseQuery.assignedTo ? { assignedTo: baseQuery.assignedTo } : {}) } },
           { $group: { _id: null, total: { $sum: '$totalAmount' } } },
         ])
       : await this.purchaseOrderModel.aggregate([
-          { $match: { isActive: true } },
+          { $match: { isActive: true, ...(baseQuery.assignedTo ? { assignedTo: baseQuery.assignedTo } : {}) } },
           { $group: { _id: null, total: { $sum: '$totalAmount' } } },
         ]);
     const totalSpend = totalSpendAgg.length > 0 ? totalSpendAgg[0].total : 0;

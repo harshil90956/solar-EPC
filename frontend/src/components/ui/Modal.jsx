@@ -6,21 +6,21 @@ import { cn } from '../../lib/utils';
  * Generic Modal — controlled by `open` prop
  * Sizes: sm (400px) | md (560px) | lg (720px) | xl (900px) | full
  */
-export const Modal = ({ open, onClose, title, description, size = 'md', children, footer }) => {
+export const Modal = ({ isOpen, onClose, title, description, size = 'md', children, footer }) => {
   const overlayRef = useRef(null);
   useEffect(() => {
-    if (open) document.body.style.overflow = 'hidden';
+    if (isOpen) document.body.style.overflow = 'hidden';
     else document.body.style.overflow = '';
     return () => { document.body.style.overflow = ''; };
-  }, [open]);
+  }, [isOpen]);
 
   useEffect(() => {
-    const handle = (e) => { if (e.key === 'Escape' && open) onClose?.(); };
+    const handle = (e) => { if (e.key === 'Escape' && isOpen) onClose?.(); };
     window.addEventListener('keydown', handle);
     return () => window.removeEventListener('keydown', handle);
-  }, [open, onClose]);
+  }, [isOpen, onClose]);
 
-  if (!open) return null;
+  if (!isOpen) return null;
 
   const widths = { sm: 'max-w-sm', md: 'max-w-lg md:max-w-md', lg: 'max-w-2xl md:max-w-xl', xl: 'max-w-4xl md:max-w-2xl', full: 'max-w-[95vw]' };
 

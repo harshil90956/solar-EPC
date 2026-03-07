@@ -60,6 +60,9 @@ export class Expense {
 
   @Prop({ type: [{ type: MongooseSchema.Types.ObjectId }], ref: 'Payment', default: [] })
   paymentIds?: Types.ObjectId[];
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', index: true })
+  assignedTo?: Types.ObjectId;
 }
 
 export const ExpenseSchema = SchemaFactory.createForClass(Expense);
@@ -69,3 +72,4 @@ ExpenseSchema.index({ tenantId: 1, status: 1 });
 ExpenseSchema.index({ tenantId: 1, vendorName: 1 });
 ExpenseSchema.index({ tenantId: 1, category: 1 });
 ExpenseSchema.index({ tenantId: 1, dueDate: 1 });
+ExpenseSchema.index({ tenantId: 1, assignedTo: 1 });

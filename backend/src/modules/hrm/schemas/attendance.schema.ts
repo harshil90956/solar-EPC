@@ -3,6 +3,13 @@ import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 
 export type AttendanceDocument = Attendance & Document;
 
+export enum AttendanceStatus {
+  PRESENT = 'present',
+  ABSENT = 'absent',
+  LATE = 'late',
+  HALF_DAY = 'half_day',
+}
+
 export enum AttendanceType {
   OFFICE = 'office',
   SITE = 'site',
@@ -28,6 +35,9 @@ export class Attendance {
 
   @Prop({ default: '' })
   location!: string;
+
+  @Prop({ enum: AttendanceStatus, default: AttendanceStatus.PRESENT })
+  status!: AttendanceStatus;
 
   @Prop({ enum: AttendanceType, default: AttendanceType.OFFICE })
   type!: AttendanceType;

@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Attendance, AttendanceDocument } from '../schemas/attendance.schema';
+import { Attendance, AttendanceDocument, AttendanceStatus } from '../schemas/attendance.schema';
 import { CheckInDto, CheckOutDto } from '../dto/attendance.dto';
 
 @Injectable()
@@ -25,12 +25,21 @@ export class AttendanceService {
       throw new BadRequestException('Already checked in for today');
     }
 
+    // Calculate status based on check-in time (Late if after 9:30 AM)
+    const now = new Date();
+    const checkInTime = new Date();
+    const lateThreshold = new Date();
+    lateThreshold.setHours(9, 30, 0, 0);
+    
+    const status = checkInTime > lateThreshold ? AttendanceStatus.LATE : AttendanceStatus.PRESENT;
+
     if (existingAttendance) {
       // Update existing record
-      existingAttendance.checkIn = new Date();
+      existingAttendance.checkIn = now;
       existingAttendance.type = checkInDto.type || existingAttendance.type;
       existingAttendance.location = checkInDto.location || existingAttendance.location;
       existingAttendance.notes = checkInDto.notes || existingAttendance.notes;
+      existingAttendance.status = status;
       return existingAttendance.save();
     }
 
@@ -38,7 +47,8 @@ export class AttendanceService {
     const attendance = new this.attendanceModel({
       employeeId: new Types.ObjectId(checkInDto.employeeId),
       date: today,
-      checkIn: new Date(),
+      checkIn: now,
+      status,
       type: checkInDto.type,
       location: checkInDto.location,
       notes: checkInDto.notes,
@@ -77,6 +87,11 @@ export class AttendanceService {
     const checkIn = new Date(attendance.checkIn);
     const diffMs = checkOut.getTime() - checkIn.getTime();
     attendance.totalHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
+    
+    // Auto mark as Half Day if working hours are less than 4 hours
+    if (attendance.totalHours < 4) {
+      attendance.status = AttendanceStatus.HALF_DAY;
+    }
     
     if (checkOutDto.notes) {
       attendance.notes = checkOutDto.notes;
@@ -155,6 +170,69 @@ export class AttendanceService {
       presentDays,
       totalHours,
       averageHours,
+    };
+  }
+
+  async update(id: string, updateData: Partial<Attendance>, tenantId?: string): Promise<Attendance> {
+    const query: any = { _id: new Types.ObjectId(id) };
+    
+    if (tenantId && tenantId !== 'default') {
+      query.tenantId = new Types.ObjectId(tenantId);
+    }
+
+    const attendance = await this.attendanceModel.findOneAndUpdate(
+      query,
+      { $set: updateData },
+      { new: true },
+    ).exec();
+
+    if (!attendance) {
+      throw new NotFoundException('Attendance record not found');
+    }
+
+    return attendance;
+  }
+
+  async delete(id: string, tenantId?: string): Promise<void> {
+    const query: any = { _id: new Types.ObjectId(id) };
+    
+    if (tenantId && tenantId !== 'default') {
+      query.tenantId = new Types.ObjectId(tenantId);
+    }
+
+    const result = await this.attendanceModel.deleteOne(query).exec();
+    
+    if (result.deletedCount === 0) {
+      throw new NotFoundException('Attendance record not found');
+    }
+  }
+
+  async getTodaySummary(tenantId?: string): Promise<any> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const query: any = { date: today };
+    
+    if (tenantId && tenantId !== 'default') {
+      query.tenantId = new Types.ObjectId(tenantId);
+    }
+
+    const attendances = await this.attendanceModel.find(query).exec();
+    
+    const present = attendances.filter(a => a.checkIn && a.status === AttendanceStatus.PRESENT).length;
+    const late = attendances.filter(a => a.checkIn && a.status === AttendanceStatus.LATE).length;
+    const halfDay = attendances.filter(a => a.checkIn && a.status === AttendanceStatus.HALF_DAY).length;
+    const absent = attendances.filter(a => !a.checkIn).length;
+    const checkedOut = attendances.filter(a => a.checkOut).length;
+
+    return {
+      date: today,
+      total: attendances.length,
+      present,
+      late,
+      halfDay,
+      absent,
+      checkedOut,
     };
   }
 }

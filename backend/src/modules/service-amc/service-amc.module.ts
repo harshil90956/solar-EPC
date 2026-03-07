@@ -10,6 +10,7 @@ import { AmcContractsService } from './services/amc-contracts.service';
 import { VisitsService } from './services/visits.service';
 import { ServiceAmcController } from './controllers/service-amc.controller';
 import { EmailModule } from '../email/email.module';
+import { SettingsModule } from '../settings/settings.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { EmailModule } from '../email/email.module';
       { name: Project.name, schema: ProjectSchema },
     ]),
     EmailModule,
+    SettingsModule,
   ],
   controllers: [ServiceAmcController],
   providers: [TicketsService, AmcContractsService, VisitsService],
