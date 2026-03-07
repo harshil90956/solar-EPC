@@ -15,6 +15,9 @@ export class LeadsService {
     @InjectModel(LeadStatus.name) private leadStatusModel: Model<LeadStatusDocument>,
   ) {}
 
+  private readonly dashboardCache = new Map<string, { ts: number; data: any }>();
+  private readonly dashboardCacheTtlMs = 30_000;
+
   private toObjectId(id: string | undefined): Types.ObjectId | undefined {
     if (!id) return undefined;
     // Check if id is a valid 24-character hex string (MongoDB ObjectId format)
@@ -25,6 +28,29 @@ export class LeadsService {
     } catch {
       return undefined;
     }
+  }
+
+  private buildTenantFilter(tenantId?: string): any {
+    const filter: any = { isDeleted: { $ne: true } };
+    if (tenantId) {
+      const tid = this.toObjectId(tenantId);
+      if (tid) {
+        filter.tenantId = tid;
+      }
+    }
+    return filter;
+  }
+
+  private async withDashboardCache<T>(tenantId: string | undefined, key: string, fn: () => Promise<T>): Promise<T> {
+    const cacheKey = `${tenantId || 'default'}:${key}`;
+    const now = Date.now();
+    const cached = this.dashboardCache.get(cacheKey);
+    if (cached && now - cached.ts <= this.dashboardCacheTtlMs) {
+      return cached.data as T;
+    }
+    const data = await fn();
+    this.dashboardCache.set(cacheKey, { ts: now, data });
+    return data;
   }
 
   private async assertValidStatusKey(statusKey: string | undefined, tenantId?: string): Promise<void> {
@@ -626,6 +652,200 @@ export class LeadsService {
     };
   }
 
+  async getDashboardOverview(
+    tenantId?: string,
+  ): Promise<{ totalLeads: number; newLeadsThisMonth: number; pipelineValue: number; conversionRate: number }> {
+    return this.withDashboardCache(tenantId, 'overview', async () => {
+      const filter = this.buildTenantFilter(tenantId);
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+      const [totalLeads, newLeadsThisMonth, pipelineAgg, wonCount] = await Promise.all([
+        this.leadModel.countDocuments(filter),
+        this.leadModel.countDocuments({
+          ...filter,
+          $or: [{ createdAt: { $gte: monthStart } }, { created: { $gte: monthStart } }],
+        }),
+        this.leadModel.aggregate([
+          { $match: { ...filter, archived: { $ne: true } } },
+          { $group: { _id: null, total: { $sum: { $ifNull: ['$value', 0] } } } },
+        ]),
+        this.leadModel.countDocuments({ ...filter, statusKey: { $in: ['won', 'Won'] } }),
+      ]);
+
+      const pipelineValue = pipelineAgg?.[0]?.total || 0;
+      const conversionRate = totalLeads > 0 ? Math.round((wonCount / totalLeads) * 100) : 0;
+
+      return { totalLeads, newLeadsThisMonth, pipelineValue, conversionRate };
+    });
+  }
+
+  async getDashboardFunnel(tenantId?: string): Promise<{ stages: Array<{ stage: string; count: number }> }> {
+    return this.withDashboardCache(tenantId, 'funnel', async () => {
+      const filter = this.buildTenantFilter(tenantId);
+      const stageOrder = ['new', 'contacted', 'qualified', 'proposal', 'negotiation', 'won', 'lost'];
+
+      const stageAgg = await this.leadModel.aggregate([
+        { $match: filter },
+        {
+          $group: {
+            _id: { $toLower: { $ifNull: ['$statusKey', 'new'] } },
+            count: { $sum: 1 },
+          },
+        },
+      ]);
+
+      const map = new Map<string, number>(stageAgg.map((s: any) => [s._id, s.count]));
+      return { stages: stageOrder.map(stage => ({ stage, count: map.get(stage) || 0 })) };
+    });
+  }
+
+  async getDashboardSource(tenantId?: string): Promise<{ sources: Array<{ source: string; leads: number; value: number }> }> {
+    return this.withDashboardCache(tenantId, 'source', async () => {
+      const filter = this.buildTenantFilter(tenantId);
+
+      const agg = await this.leadModel.aggregate([
+        { $match: filter },
+        {
+          $group: {
+            _id: { $ifNull: ['$source', 'Unknown'] },
+            leads: { $sum: 1 },
+            value: { $sum: { $ifNull: ['$value', 0] } },
+          },
+        },
+        { $sort: { leads: -1 } },
+      ]);
+
+      return { sources: agg.map((r: any) => ({ source: r._id, leads: r.leads, value: r.value })) };
+    });
+  }
+
+  async getDashboardTrend(
+    tenantId?: string,
+  ): Promise<{ months: Array<{ month: string; leads: number; value: number }>; scoreBuckets: Array<{ bucket: string; count: number }> }> {
+    return this.withDashboardCache(tenantId, 'trend', async () => {
+      const filter = this.buildTenantFilter(tenantId);
+
+      const start = new Date();
+      start.setMonth(start.getMonth() - 11);
+      start.setDate(1);
+      start.setHours(0, 0, 0, 0);
+
+      const [trendAgg, scoreAgg] = await Promise.all([
+        this.leadModel.aggregate([
+          {
+            $match: {
+              ...filter,
+              $or: [{ createdAt: { $gte: start } }, { created: { $gte: start } }],
+            },
+          },
+          { $addFields: { _createdAt: { $ifNull: ['$createdAt', '$created'] } } },
+          {
+            $group: {
+              _id: { y: { $year: '$_createdAt' }, m: { $month: '$_createdAt' } },
+              leads: { $sum: 1 },
+              value: { $sum: { $ifNull: ['$value', 0] } },
+            },
+          },
+          { $sort: { '_id.y': 1, '_id.m': 1 } },
+        ]),
+        this.leadModel.aggregate([
+          { $match: filter },
+          {
+            $bucket: {
+              groupBy: { $ifNull: ['$score', 0] },
+              boundaries: [0, 21, 41, 61, 81, 101],
+              default: 'other',
+              output: { count: { $sum: 1 } },
+            },
+          },
+        ]),
+      ]);
+
+      const monthLabel = (y: number, m: number) => new Date(y, m - 1, 1).toLocaleString('en-US', { month: 'short' });
+
+      const months = (trendAgg || []).map((r: any) => ({
+        month: `${monthLabel(r._id.y, r._id.m)} ${String(r._id.y).slice(-2)}`,
+        leads: r.leads,
+        value: r.value,
+      }));
+
+      const scoreBucketsOrder = ['0-20', '21-40', '41-60', '61-80', '81-100'];
+      const scoreMap = new Map<string, number>();
+      for (const r of scoreAgg as any[]) {
+        if (typeof r._id !== 'number') continue;
+        const startNum = r._id;
+        const label =
+          startNum === 0
+            ? '0-20'
+            : startNum === 21
+              ? '21-40'
+              : startNum === 41
+                ? '41-60'
+                : startNum === 61
+                  ? '61-80'
+                  : startNum === 81
+                    ? '81-100'
+                    : undefined;
+        if (label) scoreMap.set(label, r.count);
+      }
+
+      return {
+        months,
+        scoreBuckets: scoreBucketsOrder.map(bucket => ({ bucket, count: scoreMap.get(bucket) || 0 })),
+      };
+    });
+  }
+
+  async getDashboardActivity(
+    tenantId?: string,
+  ): Promise<{ last30Days: Array<{ date: string; count: number }>; byType: Array<{ type: string; count: number }> }> {
+    return this.withDashboardCache(tenantId, 'activity', async () => {
+      const filter = this.buildTenantFilter(tenantId);
+      const start = new Date();
+      start.setDate(start.getDate() - 30);
+      start.setHours(0, 0, 0, 0);
+
+      const agg = await this.leadModel.aggregate([
+        { $match: filter },
+        { $unwind: { path: '$activities', preserveNullAndEmptyArrays: false } },
+        { $match: { 'activities.timestamp': { $gte: start } } },
+        {
+          $facet: {
+            last30Days: [
+              {
+                $group: {
+                  _id: {
+                    y: { $year: '$activities.timestamp' },
+                    m: { $month: '$activities.timestamp' },
+                    d: { $dayOfMonth: '$activities.timestamp' },
+                  },
+                  count: { $sum: 1 },
+                },
+              },
+              { $sort: { '_id.y': 1, '_id.m': 1, '_id.d': 1 } },
+            ],
+            byType: [
+              { $group: { _id: '$activities.type', count: { $sum: 1 } } },
+              { $sort: { count: -1 } },
+            ],
+          },
+        },
+      ]);
+
+      const result = agg?.[0] || { last30Days: [], byType: [] };
+      const last30Days = (result.last30Days || []).map((r: any) => {
+        const d = new Date(r._id.y, r._id.m - 1, r._id.d);
+        return { date: d.toISOString().slice(0, 10), count: r.count };
+      });
+
+      return {
+        last30Days,
+        byType: (result.byType || []).map((r: any) => ({ type: r._id || 'unknown', count: r.count })),
+      };
+    });
+  }
+
   async recalculateAllScores(tenantId?: string): Promise<{ updated: number }> {
     const filter: any = { isDeleted: { $ne: true } };
     
@@ -1180,291 +1400,6 @@ export class LeadsService {
     }
 
     return updateFields;
-  }
-
-  // ============================================
-  // DASHBOARD ANALYTICS
-  // ============================================
-
-  async getDashboardOverview(tenantId?: string): Promise<any> {
-    const filter: any = { isDeleted: { $ne: true } };
-    if (tenantId) {
-      filter.tenantId = this.toObjectId(tenantId);
-    }
-
-    const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-    const [
-      totalLeads,
-      newLeadsThisMonth,
-      pipelineValue,
-      wonLeads,
-      totalValue
-    ] = await Promise.all([
-      this.leadModel.countDocuments(filter),
-      this.leadModel.countDocuments({
-        ...filter,
-        createdAt: { $gte: startOfMonth }
-      }),
-      this.leadModel.aggregate([
-        { $match: { ...filter, statusKey: { $nin: ['won', 'lost'] } } },
-        { $group: { _id: null, total: { $sum: '$value' } } }
-      ]),
-      this.leadModel.countDocuments({ ...filter, statusKey: 'won' }),
-      this.leadModel.aggregate([
-        { $match: filter },
-        { $group: { _id: null, total: { $sum: '$value' } } }
-      ])
-    ]);
-
-    const conversionRate = totalLeads > 0 ? Math.round((wonLeads / totalLeads) * 100) : 0;
-
-    return {
-      totalLeads,
-      newLeadsThisMonth,
-      pipelineValue: pipelineValue[0]?.total || 0,
-      conversionRate,
-      totalValue: totalValue[0]?.total || 0
-    };
-  }
-
-  async getFunnelData(tenantId?: string): Promise<any[]> {
-    const filter: any = { isDeleted: { $ne: true } };
-    if (tenantId) {
-      filter.tenantId = this.toObjectId(tenantId);
-    }
-
-    const funnelStages = ['new', 'contacted', 'qualified', 'proposal', 'negotiation', 'won', 'lost'];
-    
-    const result = await this.leadModel.aggregate([
-      { $match: filter },
-      {
-        $group: {
-          _id: '$statusKey',
-          count: { $sum: 1 },
-          value: { $sum: '$value' }
-        }
-      }
-    ]);
-
-    const stageMap = new Map(result.map(r => [r._id, { count: r.count, value: r.value }]));
-
-    return funnelStages.map(stage => ({
-      stage,
-      count: stageMap.get(stage)?.count || 0,
-      value: stageMap.get(stage)?.value || 0
-    }));
-  }
-
-  async getSourcePerformance(tenantId?: string): Promise<any[]> {
-    const filter: any = { isDeleted: { $ne: true } };
-    if (tenantId) {
-      filter.tenantId = this.toObjectId(tenantId);
-    }
-
-    const result = await this.leadModel.aggregate([
-      { $match: filter },
-      {
-        $group: {
-          _id: '$source',
-          leads: { $sum: 1 },
-          value: { $sum: '$value' }
-        }
-      },
-      { $sort: { leads: -1 } }
-    ]);
-
-    return result.map(r => ({
-      source: r._id || 'Unknown',
-      leads: r.leads,
-      value: r.value
-    }));
-  }
-
-  async getLeadTrend(tenantId?: string, months: number = 6): Promise<any[]> {
-    const filter: any = { isDeleted: { $ne: true } };
-    if (tenantId) {
-      filter.tenantId = this.toObjectId(tenantId);
-    }
-
-    const now = new Date();
-    const startDate = new Date(now.getFullYear(), now.getMonth() - months + 1, 1);
-
-    const result = await this.leadModel.aggregate([
-      {
-        $match: {
-          ...filter,
-          createdAt: { $gte: startDate }
-        }
-      },
-      {
-        $group: {
-          _id: {
-            year: { $year: '$createdAt' },
-            month: { $month: '$createdAt' }
-          },
-          count: { $sum: 1 }
-        }
-      },
-      { $sort: { '_id.year': 1, '_id.month': 1 } }
-    ]);
-
-    // Fill in missing months
-    const monthsData = [];
-    for (let i = months - 1; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const year = d.getFullYear();
-      const month = d.getMonth() + 1;
-      const monthName = d.toLocaleString('en-US', { month: 'short' });
-      
-      const found = result.find(r => r._id.year === year && r._id.month === month);
-      monthsData.push({
-        month: monthName,
-        year,
-        count: found?.count || 0
-      });
-    }
-
-    return monthsData;
-  }
-
-  async getValueTrend(tenantId?: string, months: number = 6): Promise<any[]> {
-    const filter: any = { isDeleted: { $ne: true } };
-    if (tenantId) {
-      filter.tenantId = this.toObjectId(tenantId);
-    }
-
-    const now = new Date();
-    const startDate = new Date(now.getFullYear(), now.getMonth() - months + 1, 1);
-
-    const result = await this.leadModel.aggregate([
-      {
-        $match: {
-          ...filter,
-          createdAt: { $gte: startDate }
-        }
-      },
-      {
-        $group: {
-          _id: {
-            year: { $year: '$createdAt' },
-            month: { $month: '$createdAt' }
-          },
-          value: { $sum: '$value' }
-        }
-      },
-      { $sort: { '_id.year': 1, '_id.month': 1 } }
-    ]);
-
-    // Fill in missing months
-    const monthsData = [];
-    for (let i = months - 1; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const year = d.getFullYear();
-      const month = d.getMonth() + 1;
-      const monthName = d.toLocaleString('en-US', { month: 'short' });
-      
-      const found = result.find(r => r._id.year === year && r._id.month === month);
-      monthsData.push({
-        month: monthName,
-        year,
-        value: found?.value || 0
-      });
-    }
-
-    return monthsData;
-  }
-
-  async getScoreDistribution(tenantId?: string): Promise<any[]> {
-    const filter: any = { isDeleted: { $ne: true } };
-    if (tenantId) {
-      filter.tenantId = this.toObjectId(tenantId);
-    }
-
-    const result = await this.leadModel.aggregate([
-      { $match: filter },
-      {
-        $bucket: {
-          groupBy: '$score',
-          boundaries: [0, 21, 41, 61, 81, 101],
-          default: '0-20',
-          output: {
-            count: { $sum: 1 }
-          }
-        }
-      }
-    ]);
-
-    const ranges = [
-      { range: '0-20', min: 0, max: 20 },
-      { range: '21-40', min: 21, max: 40 },
-      { range: '41-60', min: 41, max: 60 },
-      { range: '61-80', min: 61, max: 80 },
-      { range: '81-100', min: 81, max: 100 }
-    ];
-
-    return ranges.map(r => {
-      const found = result.find(x => x._id === r.min);
-      return {
-        range: r.range,
-        count: found?.count || 0
-      };
-    });
-  }
-
-  async getActivityStats(tenantId?: string): Promise<any> {
-    const filter: any = { isDeleted: { $ne: true } };
-    if (tenantId) {
-      filter.tenantId = this.toObjectId(tenantId);
-    }
-
-    const now = new Date();
-    const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-
-    const [
-      totalActivities,
-      activitiesLast7Days,
-      activitiesLast30Days
-    ] = await Promise.all([
-      this.leadModel.aggregate([
-        { $match: filter },
-        { $unwind: '$activities' },
-        { $count: 'total' }
-      ]),
-      this.leadModel.aggregate([
-        { $match: filter },
-        { $unwind: '$activities' },
-        { $match: { 'activities.timestamp': { $gte: last7Days } } },
-        { $count: 'total' }
-      ]),
-      this.leadModel.aggregate([
-        { $match: filter },
-        { $unwind: '$activities' },
-        { $match: { 'activities.timestamp': { $gte: last30Days } } },
-        { $count: 'total' }
-      ])
-    ]);
-
-    const activityTypes = await this.leadModel.aggregate([
-      { $match: filter },
-      { $unwind: '$activities' },
-      {
-        $group: {
-          _id: '$activities.type',
-          count: { $sum: 1 }
-        }
-      },
-      { $sort: { count: -1 } }
-    ]);
-
-    return {
-      totalActivities: totalActivities[0]?.total || 0,
-      activitiesLast7Days: activitiesLast7Days[0]?.total || 0,
-      activitiesLast30Days: activitiesLast30Days[0]?.total || 0,
-      activityTypes: activityTypes.map(a => ({ type: a._id, count: a.count }))
-    };
   }
 
   // ============================================
