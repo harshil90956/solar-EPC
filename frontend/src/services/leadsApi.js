@@ -220,4 +220,29 @@ export const leadsApi = {
     if (!response.ok) throw new Error('Failed to export leads');
     return response.blob();
   },
+
+  // Import leads from file (CSV, XLSX, JSON)
+  async importLeads(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const token = localStorage.getItem('solar_token') || localStorage.getItem('token');
+    const tenantId = getTenantId();
+
+    const response = await fetch(`${API_BASE_URL}/leads/import`, {
+      method: 'POST',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+        ...(tenantId && { 'x-tenant-id': tenantId }),
+        // Don't set Content-Type - browser will set it with boundary for FormData
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to import leads: ${errorText}`);
+    }
+    return response.json();
+  },
 };
