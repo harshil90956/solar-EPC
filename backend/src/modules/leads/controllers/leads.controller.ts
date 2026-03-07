@@ -13,7 +13,13 @@ import {
   HttpCode,
   HttpStatus,
   Logger,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
 import { LeadsService } from '../services/leads.service';
 import { CreateLeadDto, UpdateLeadDto, QueryLeadDto, AddActivityDto, BulkActionDto } from '../dto/lead.dto';
 import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
@@ -72,6 +78,61 @@ export class LeadsController {
       return await this.leadsService.getStatusOptions(tenantId);
     } catch (error: any) {
       this.logger.error(`Get status options failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
+  @Get('dashboard/overview')
+  async getDashboardOverview(@Request() req: any) {
+    try {
+      const tenantId = req.tenant?.id || 'default';
+      return await this.leadsService.getDashboardOverview(tenantId);
+    } catch (error: any) {
+      this.logger.error(`Get dashboard overview failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
+  @Get('dashboard/funnel')
+  async getDashboardFunnel(@Request() req: any) {
+    try {
+      const tenantId = req.tenant?.id || 'default';
+      return await this.leadsService.getDashboardFunnel(tenantId);
+    } catch (error: any) {
+      this.logger.error(`Get dashboard funnel failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
+  @Get('dashboard/source')
+  async getDashboardSource(@Request() req: any) {
+    try {
+      const tenantId = req.tenant?.id || 'default';
+      return await this.leadsService.getDashboardSource(tenantId);
+    } catch (error: any) {
+      this.logger.error(`Get dashboard source failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
+  @Get('dashboard/trend')
+  async getDashboardTrend(@Request() req: any) {
+    try {
+      const tenantId = req.tenant?.id || 'default';
+      return await this.leadsService.getDashboardTrend(tenantId);
+    } catch (error: any) {
+      this.logger.error(`Get dashboard trend failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
+  @Get('dashboard/activity')
+  async getDashboardActivity(@Request() req: any) {
+    try {
+      const tenantId = req.tenant?.id || 'default';
+      return await this.leadsService.getDashboardActivity(tenantId);
+    } catch (error: any) {
+      this.logger.error(`Get dashboard activity failed: ${error?.message || 'Unknown error'}`, error?.stack);
       throw error;
     }
   }
@@ -248,6 +309,54 @@ export class LeadsController {
       return await this.leadsService.bulkUpdateStage(bulkDto.ids, stage, tenantId);
     } catch (error: any) {
       this.logger.error(`Bulk update stage failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
+  // ============================================
+  // LEAD IMPORT ENDPOINT
+  // ============================================
+
+  @Post('import')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileInterceptor('file', {
+    storage: diskStorage({
+      destination: './uploads/leads',
+      filename: (req: any, file: any, cb: any) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        cb(null, `leads-${uniqueSuffix}${extname(file.originalname)}`);
+      }
+    }),
+    fileFilter: (req: any, file: any, cb: any) => {
+      const allowedExt = ['.csv', '.xlsx', '.xls', '.json'];
+      const ext = extname(file.originalname).toLowerCase();
+      if (allowedExt.includes(ext)) {
+        cb(null, true);
+      } else {
+        cb(new BadRequestException('Only CSV, XLSX, XLS, or JSON files are allowed'), false);
+      }
+    },
+    limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+  }))
+  async importLeads(
+    @UploadedFile() file: any,
+    @Request() req: any
+  ) {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+
+    try {
+      const tenantId = req.tenant?.id;
+      const fileExtension = extname(file.originalname).toLowerCase();
+      
+      this.logger.log(`Importing leads from file: ${file.originalname}, size: ${file.size} bytes, tenant: ${tenantId || 'default'}`);
+      
+      const result = await this.leadsService.importLeads(file.path, fileExtension, tenantId);
+      
+      return result;
+    } catch (error: any) {
+      this.logger.error(`Import leads failed: ${error?.message || 'Unknown error'}`, error?.stack);
       throw error;
     }
   }

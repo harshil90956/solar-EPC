@@ -508,7 +508,7 @@ const DataTable = ({
 
                                         )}
 
-                                        {visibleColumns.map(col => (
+                                        {visibleColumns.map(col     => (
 
                                             <td key={`${i}-${col.key}`} className="px-4 py-3.5">
 
@@ -536,7 +536,9 @@ const DataTable = ({
 
                                 </tr>
 
-                            ) : data.map((row, index) => (
+                            ) : data.map((row, index) => {
+                                if (!row) return null;
+                                return (
                                 <tr 
                                     key={row[rowKey] || index} 
                                     className="table-row border-b border-[var(--border-base)] last:border-0 group cursor-pointer"
@@ -601,7 +603,8 @@ const DataTable = ({
                                         )}
 
                                     </tr>
-                                ))}
+                                );
+                            })}
                             </tbody>
                         </table>
                     </div>

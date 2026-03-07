@@ -182,6 +182,7 @@ const ProjectPage = () => {
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [hiddenCols, setHiddenCols] = useState(new Set());
+  const [showCardsInViews, setShowCardsInViews] = useState(false);
   const [colToggleOpen, setColToggleOpen] = useState(false);
   const [projectStats, setProjectStats] = useState(null);
   const [projectsByStage, setProjectsByStage] = useState([]);
@@ -709,25 +710,80 @@ const ProjectPage = () => {
         activeTab={view}
         onTabChange={setView}
         actions={[
-          { type: 'button', label: 'New Project', icon: Plus, variant: 'primary', onClick: () => { if (guardCreate()) setShowAdd(true); } }
-        ]}
+          { type: 'button', label: 'New Project', icon: Plus, variant: 'primary', onClick: () => { if (guardCreate()) setShowAdd(true); } },
+          view !== 'dashboard' && { type: 'button', label: showCardsInViews ? 'Hide Cards' : 'Show Cards', icon: Layers, variant: 'ghost', onClick: () => setShowCardsInViews(!showCardsInViews) }
+        ].filter(Boolean)}
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <KPICard label="Total Projects" value={projectStats?.totalProjects ?? projects.length} sub="All projects" icon={Layers} accentColor="#6366f1" />
-        <KPICard label="Active Projects" value={projectStats?.active ?? active} sub="Currently executing" icon={FolderOpen} accentColor="#3b82f6" />
-        <KPICard label="Completed" value={projectStats?.commissioned ?? commissioned} sub="Finished projects" icon={CheckCircle} accentColor="#06b6d4" />
-        <KPICard label="Total Capacity" value={`${Math.round(projectStats?.totalCapacity ?? totalKW)} kW`} sub="Pipeline capacity" icon={Zap} accentColor="#f59e0b" />
-        <KPICard label="Current Progress" value={`${Math.round(projectStats?.avgProgress ?? avgProgress)}%`} sub="Across all projects" icon={TrendingUp} accentColor="#22c55e" />
-      </div>
+      {(view === 'dashboard' || showCardsInViews) && (
+        <>
+          {/* Summary Cards with Light Colors */}
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="p-4 rounded-xl bg-gradient-to-br from-violet-50 to-purple-50 border border-violet-100">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] uppercase tracking-wider text-violet-600 font-semibold">TOTAL PROJECTS</span>
+            <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center">
+              <Layers size={16} className="text-violet-600" />
+            </div>
+          </div>
+          <div className="text-2xl font-bold text-gray-800">{projectStats?.totalProjects ?? projects.length}</div>
+          <div className="text-xs text-gray-500 mt-1">All projects</div>
+        </div>
 
-      <div className="ai-banner">
-        <Zap size={14} className="text-[var(--accent-light)] mt-0.5 shrink-0" />
-        <p className="text-xs text-[var(--text-secondary)]">
-          <span className="text-[var(--accent-light)] font-semibold">AI Insight:</span>{' '}
-          Project P001 (Joshi Industries) is on track for on-time commissioning. P004 (Trivedi Foods) may face a 5-day delay — procurement ETA slipped by 2 days. Review PO002 immediately.
-        </p>
-      </div>
+        <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50 to-sky-50 border border-blue-100">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] uppercase tracking-wider text-blue-600 font-semibold">ACTIVE PROJECTS</span>
+            <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+              <FolderOpen size={16} className="text-blue-600" />
+            </div>
+          </div>
+          <div className="text-2xl font-bold text-gray-800">{projectStats?.active ?? active}</div>
+          <div className="text-xs text-gray-500 mt-1">Currently executing</div>
+        </div>
+
+        <div className="p-4 rounded-xl bg-gradient-to-br from-cyan-50 to-teal-50 border border-cyan-100">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] uppercase tracking-wider text-cyan-600 font-semibold">COMPLETED</span>
+            <div className="w-8 h-8 rounded-lg bg-cyan-100 flex items-center justify-center">
+              <CheckCircle size={16} className="text-cyan-600" />
+            </div>
+          </div>
+          <div className="text-2xl font-bold text-gray-800">{projectStats?.commissioned ?? commissioned}</div>
+          <div className="text-xs text-gray-500 mt-1">Finished projects</div>
+        </div>
+
+        <div className="p-4 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] uppercase tracking-wider text-amber-600 font-semibold">TOTAL CAPACITY</span>
+            <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+              <Zap size={16} className="text-amber-600" />
+            </div>
+          </div>
+          <div className="text-2xl font-bold text-gray-800">{Math.round(projectStats?.totalCapacity ?? totalKW)} <span className="text-sm font-normal text-gray-600">kW</span></div>
+          <div className="text-xs text-gray-500 mt-1">Pipeline capacity</div>
+        </div>
+
+        <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-50 to-green-50 border border-emerald-100">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] uppercase tracking-wider text-emerald-600 font-semibold">CURRENT PROGRESS</span>
+            <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+              <TrendingUp size={16} className="text-emerald-600" />
+            </div>
+          </div>
+          <div className="text-2xl font-bold text-gray-800">{Math.round(projectStats?.avgProgress ?? avgProgress)}%</div>
+          <div className="text-xs text-gray-500 mt-1">Across all projects</div>
+        </div>
+          </div>
+
+          <div className="ai-banner">
+            <Zap size={14} className="text-[var(--accent-light)] mt-0.5 shrink-0" />
+            <p className="text-xs text-[var(--text-secondary)]">
+              <span className="text-[var(--accent-light)] font-semibold">AI Insight:</span>{' '}
+              Project P001 (Joshi Industries) is on track for on-time commissioning. P004 (Trivedi Foods) may face a 5-day delay — procurement ETA slipped by 2 days. Review PO002 immediately.
+            </p>
+          </div>
+        </>
+      )}
 
       {/* Dashboard View - Comprehensive Charts */}
       {view === 'dashboard' && (
@@ -791,88 +847,231 @@ const ProjectPage = () => {
           </div>
 
           {/* Row 2: Performance Overview */}
-          <div className="glass-card p-4">
-            <div className="flex items-center gap-2 mb-4">
-              <TrendingUp size={15} className="text-[var(--accent)]" />
-              <h3 className="text-sm font-semibold text-[var(--text-primary)]">Performance Overview</h3>
+          <div className="glass-card p-5">
+            <div className="flex items-center gap-2 mb-5">
+              <TrendingUp size={18} className="text-[var(--accent)]" />
+              <h3 className="text-base font-semibold text-[var(--text-primary)]">Performance Overview</h3>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
               {[
-                { label: 'Completion Rate', value: Math.round((activeProjects.filter(p => p.progress === 100).length / (activeProjects.length || 1)) * 100), target: 85, color: '#22c55e' },
-                { label: 'Avg Progress', value: avgProgress, target: 75, color: '#3b82f6' },
-                { label: 'On Track', value: Math.round((activeProjects.filter(p => p.progress >= 50).length / (activeProjects.length || 1)) * 100), target: 80, color: '#8b5cf6' },
-                { label: 'Delayed Risk', value: Math.round((activeProjects.filter(p => p.progress < 25 && p.status !== 'Commissioned').length / (activeProjects.length || 1)) * 100), target: 15, color: '#f59e0b', reverse: true },
-              ].map((metric) => (
-                <div key={metric.label} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-[var(--text-secondary)]">{metric.label}</span>
-                    <span className="text-xs font-bold" style={{ color: metric.color }}>{metric.value}%</span>
-                  </div>
-                  <div className="h-2 bg-[var(--bg-tertiary)] rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all"
-                      style={{ width: `${Math.min(metric.value, 100)}%`, backgroundColor: metric.color }}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between text-[10px] text-[var(--text-muted)]">
-                    <span>Target: {metric.target}%</span>
-                    <span className={metric.value >= metric.target ? 'text-green-500' : metric.reverse ? 'text-amber-500' : 'text-red-500'}>
-                      {metric.value >= metric.target ? '✓' : metric.reverse ? '⚠' : '↓'}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Row 3: Project Manager Performance */}
-          <div className="glass-card p-4">
-            <div className="flex items-center gap-2 mb-4">
-              <User size={15} className="text-[var(--accent)]" />
-              <h3 className="text-sm font-semibold text-[var(--text-primary)]">Project Manager Performance</h3>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-              {Array.from(new Set(projects.map(p => p.pm))).filter(pm => pm).map(pm => {
-                const pmProjects = projects.filter(p => p.pm === pm);
-                const completed = pmProjects.filter(p => p.status === 'Commissioned').length;
-                const active = pmProjects.filter(p => p.status !== 'Commissioned' && p.status !== 'Cancelled').length;
-                const totalValue = pmProjects.reduce((a, p) => a + (p.value || 0), 0);
-                const avgProgress = pmProjects.length > 0 ? Math.round(pmProjects.reduce((a, p) => a + (p.progress || 0), 0) / pmProjects.length) : 0;
+                { label: 'Completion Rate', value: Math.round((activeProjects.filter(p => p.progress === 100).length / (activeProjects.length || 1)) * 100), target: 85, color: '#22c55e', bgColor: 'bg-green-50', iconColor: 'text-green-500', hint: 'Finished projects' },
+                { label: 'Avg Progress', value: avgProgress, target: 75, color: '#3b82f6', bgColor: 'bg-blue-50', iconColor: 'text-blue-500', hint: 'How far along' },
+                { label: 'On Track', value: Math.round((activeProjects.filter(p => p.progress >= 50).length / (activeProjects.length || 1)) * 100), target: 80, color: '#8b5cf6', bgColor: 'bg-purple-50', iconColor: 'text-purple-500', hint: 'Going well' },
+                { label: 'Delayed Risk', value: Math.round((activeProjects.filter(p => p.progress < 25 && p.status !== 'Commissioned').length / (activeProjects.length || 1)) * 100), target: 15, color: '#f59e0b', bgColor: 'bg-amber-50', iconColor: 'text-amber-500', reverse: true, hint: 'Needs attention' },
+              ].map((metric) => {
+                const circumference = 2 * Math.PI * 36;
+                const strokeDashoffset = circumference - (Math.min(metric.value, 100) / 100) * circumference;
+                const isGood = metric.reverse ? metric.value <= metric.target : metric.value >= metric.target;
+                
                 return (
-                  <div key={pm} className="p-3 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-base)]">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-8 h-8 rounded-full bg-[var(--primary)]/20 flex items-center justify-center text-xs font-bold text-[var(--primary)]">
-                        {pm.split(' ').map(n => n[0]).join('').toUpperCase()}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-[var(--text-primary)] truncate">{pm}</p>
-                        <p className="text-[10px] text-[var(--text-muted)]">{pmProjects.length} Projects</p>
+                  <div key={metric.label} className="flex items-center gap-4">
+                    {/* Circular Chart */}
+                    <div className="relative w-20 h-20 flex-shrink-0">
+                      <svg className="w-20 h-20 transform -rotate-90" viewBox="0 0 80 80">
+                        {/* Background circle */}
+                        <circle
+                          cx="40"
+                          cy="40"
+                          r="36"
+                          fill="none"
+                          stroke={metric.color + '20'}
+                          strokeWidth="8"
+                        />
+                        {/* Progress circle */}
+                        <circle
+                          cx="40"
+                          cy="40"
+                          r="36"
+                          fill="none"
+                          stroke={metric.color}
+                          strokeWidth="8"
+                          strokeLinecap="round"
+                          strokeDasharray={circumference}
+                          strokeDashoffset={strokeDashoffset}
+                          className="transition-all duration-1000 ease-out"
+                        />
+                      </svg>
+                      {/* Percentage in center */}
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-sm font-bold" style={{ color: metric.color }}>{metric.value}%</span>
                       </div>
                     </div>
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between text-[10px]">
-                        <span className="text-[var(--text-muted)]">Active</span>
-                        <span className="text-[var(--accent-light)] font-semibold">{active}</span>
+                    
+                    {/* Text Info */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-[var(--text-primary)] mb-1">{metric.label}</p>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span className="text-xs text-[var(--text-muted)]">Target: {metric.target}%</span>
                       </div>
-                      <div className="flex items-center justify-between text-[10px]">
-                        <span className="text-[var(--text-muted)]">Completed</span>
-                        <span className="text-green-500 font-semibold">{completed}</span>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span className={`text-xs font-medium ${isGood ? 'text-green-500' : metric.reverse ? 'text-amber-500' : 'text-red-500'}`}>
+                          {isGood ? '✓ On Track' : metric.reverse ? '⚠ High Risk' : '↓ Below Target'}
+                        </span>
                       </div>
-                      <div className="flex items-center justify-between text-[10px]">
-                        <span className="text-[var(--text-muted)]">Avg Progress</span>
-                        <span className="text-[var(--text-primary)] font-semibold">{avgProgress}%</span>
-                      </div>
-                      <div className="flex items-center justify-between text-[10px]">
-                        <span className="text-[var(--text-muted)]">Value</span>
-                        <span className="text-[var(--solar)] font-semibold">{fmt(totalValue)}</span>
-                      </div>
-                    </div>
-                    <div className="mt-2 h-1.5 bg-[var(--bg-surface)] rounded-full overflow-hidden">
-                      <div className="h-full bg-gradient-to-r from-[var(--primary)] to-[var(--accent)] rounded-full" style={{ width: `${avgProgress}%` }} />
+                      <p className="text-[10px] text-[var(--text-faint)] italic">{metric.hint}</p>
                     </div>
                   </div>
                 );
               })}
+            </div>
+          </div>
+
+          {/* Row 3: Project Manager Performance - Charts */}
+          <div className="glass-card p-5">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2">
+                <User size={18} className="text-[var(--accent)]" />
+                <h3 className="text-base font-semibold text-[var(--text-primary)]">Project Manager Performance</h3>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
+                <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-gradient-to-r from-blue-400 to-blue-600" /> Active</span>
+                <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-gradient-to-r from-emerald-400 to-emerald-600" /> Completed</span>
+                <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-gradient-to-r from-amber-400 to-orange-500" /> Progress</span>
+              </div>
+            </div>
+            
+            {/* PM Charts Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              {/* Chart 1: Projects Distribution Bar Chart */}
+              <div className="p-4 rounded-xl bg-gradient-to-br from-slate-50 to-gray-50 border border-gray-200">
+                <h4 className="text-sm font-medium text-[var(--text-primary)] mb-4">Projects by Manager</h4>
+                <div className="space-y-3">
+                  {Array.from(new Set(projects.map(p => p.pm))).filter(pm => pm).slice(0, 6).map((pm, index) => {
+                    const pmProjects = projects.filter(p => p.pm === pm);
+                    const maxProjects = Math.max(...Array.from(new Set(projects.map(p => p.pm))).filter(pm => pm).map(pm => projects.filter(p => p.pm === pm).length));
+                    const barWidth = maxProjects > 0 ? (pmProjects.length / maxProjects) * 100 : 0;
+                    const colors = [
+                      'from-violet-400 to-purple-600',
+                      'from-blue-400 to-blue-600',
+                      'from-cyan-400 to-teal-500',
+                      'from-amber-400 to-orange-500',
+                      'from-rose-400 to-pink-500',
+                      'from-emerald-400 to-green-500'
+                    ];
+                    return (
+                      <div key={pm} className="flex items-center gap-3">
+                        <div className="w-24 text-xs font-medium text-[var(--text-primary)] truncate">{pm}</div>
+                        <div className="flex-1 h-6 bg-gray-200 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full bg-gradient-to-r ${colors[index % colors.length]} rounded-full transition-all duration-1000 ease-out flex items-center justify-end pr-2`}
+                            style={{ width: `${Math.max(barWidth, 8)}%` }}
+                          >
+                            <span className="text-[10px] text-white font-semibold">{pmProjects.length}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Chart 2: Active vs Completed Stacked Bar */}
+              <div className="p-4 rounded-xl bg-gradient-to-br from-slate-50 to-gray-50 border border-gray-200">
+                <h4 className="text-sm font-medium text-[var(--text-primary)] mb-4">Active vs Completed Projects</h4>
+                <div className="space-y-3">
+                  {Array.from(new Set(projects.map(p => p.pm))).filter(pm => pm).slice(0, 6).map((pm, index) => {
+                    const pmProjects = projects.filter(p => p.pm === pm);
+                    const completed = pmProjects.filter(p => p.status === 'Commissioned').length;
+                    const active = pmProjects.filter(p => p.status !== 'Commissioned' && p.status !== 'Cancelled').length;
+                    const total = active + completed;
+                    const activePct = total > 0 ? (active / total) * 100 : 0;
+                    const completedPct = total > 0 ? (completed / total) * 100 : 0;
+                    
+                    return (
+                      <div key={pm} className="flex items-center gap-3">
+                        <div className="w-20 text-[10px] text-[var(--text-muted)] truncate">{pm.split(' ')[0]}</div>
+                        <div className="flex-1 h-5 flex rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-gradient-to-r from-blue-400 to-blue-600 transition-all duration-1000 ease-out"
+                            style={{ width: `${activePct}%` }}
+                            title={`Active: ${active}`}
+                          />
+                          <div 
+                            className="h-full bg-gradient-to-r from-emerald-400 to-emerald-600 transition-all duration-1000 ease-out"
+                            style={{ width: `${completedPct}%` }}
+                            title={`Completed: ${completed}`}
+                          />
+                        </div>
+                        <div className="w-16 text-[10px] text-right">
+                          <span className="text-blue-600 font-semibold">{active}</span>
+                          <span className="text-gray-400 mx-1">|</span>
+                          <span className="text-emerald-600 font-semibold">{completed}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Chart 3: Average Progress Circular Indicators */}
+              <div className="p-4 rounded-xl bg-gradient-to-br from-slate-50 to-gray-50 border border-gray-200">
+                <h4 className="text-sm font-medium text-[var(--text-primary)] mb-4">Average Progress</h4>
+                <div className="grid grid-cols-3 gap-4">
+                  {Array.from(new Set(projects.map(p => p.pm))).filter(pm => pm).slice(0, 6).map((pm, index) => {
+                    const pmProjects = projects.filter(p => p.pm === pm);
+                    const avgProgress = pmProjects.length > 0 ? Math.round(pmProjects.reduce((a, p) => a + (p.progress || 0), 0) / pmProjects.length) : 0;
+                    const colors = ['#8b5cf6', '#3b82f6', '#06b6d4', '#f59e0b', '#ec4899', '#22c55e'];
+                    const color = colors[index % colors.length];
+                    const circumference = 2 * Math.PI * 28;
+                    const strokeDashoffset = circumference - (avgProgress / 100) * circumference;
+                    
+                    return (
+                      <div key={pm} className="flex flex-col items-center">
+                        <div className="relative w-16 h-16">
+                          <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 64 64">
+                            <circle cx="32" cy="32" r="28" fill="none" stroke={color + '20'} strokeWidth="6" />
+                            <circle 
+                              cx="32" cy="32" r="28" fill="none" stroke={color} strokeWidth="6" 
+                              strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={strokeDashoffset}
+                              className="transition-all duration-1000 ease-out"
+                            />
+                          </svg>
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <span className="text-xs font-bold" style={{ color }}>{avgProgress}%</span>
+                          </div>
+                        </div>
+                        <span className="text-[10px] text-[var(--text-muted)] mt-1 text-center truncate w-full">{pm.split(' ')[0]}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Chart 4: Project Value Comparison */}
+              <div className="p-4 rounded-xl bg-gradient-to-br from-slate-50 to-gray-50 border border-gray-200">
+                <h4 className="text-sm font-medium text-[var(--text-primary)] mb-4">Total Project Value</h4>
+                <div className="space-y-3">
+                  {Array.from(new Set(projects.map(p => p.pm))).filter(pm => pm).slice(0, 6).map((pm, index) => {
+                    const pmProjects = projects.filter(p => p.pm === pm);
+                    const totalValue = pmProjects.reduce((a, p) => a + (p.value || 0), 0);
+                    const maxValue = Math.max(...Array.from(new Set(projects.map(p => p.pm))).filter(pm => pm).map(pm => projects.filter(p => p.pm === pm).reduce((a, p) => a + (p.value || 0), 0)));
+                    const barWidth = maxValue > 0 ? (totalValue / maxValue) * 100 : 0;
+                    const colors = [
+                      'from-violet-400 to-purple-600',
+                      'from-blue-400 to-blue-600',
+                      'from-cyan-400 to-teal-500',
+                      'from-amber-400 to-orange-500',
+                      'from-rose-400 to-pink-500',
+                      'from-emerald-400 to-green-500'
+                    ];
+                    
+                    return (
+                      <div key={pm} className="flex items-center gap-3">
+                        <div className="w-20 text-[10px] text-[var(--text-muted)] truncate">{pm.split(' ')[0]}</div>
+                        <div className="flex-1 h-5 bg-gray-200 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full bg-gradient-to-r ${colors[index % colors.length]} rounded-full transition-all duration-1000 ease-out`}
+                            style={{ width: `${Math.max(barWidth, 5)}%` }}
+                          />
+                        </div>
+                        <div className="w-16 text-[10px] font-semibold text-[var(--text-primary)] text-right">
+                          ₹{(totalValue / 100000).toFixed(1)}L
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -932,7 +1131,8 @@ const ProjectPage = () => {
             hiddenCols={hiddenCols}
             onHiddenColsChange={setHiddenCols}
             hideColumnToggle={true}
-            rowActions={ROW_ACTIONS} emptyText="No projects found." />
+            rowActions={ROW_ACTIONS} emptyText="No projects found."
+            onRowClick={row => setSelected(row)} />
         </>
       )}
 

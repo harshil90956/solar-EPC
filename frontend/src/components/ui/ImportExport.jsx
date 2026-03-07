@@ -9,11 +9,16 @@ const ImportExport = ({ moduleName, fields = [], onImport, onExport, className }
     const [step, setStep] = useState(1); // 1: Select/Download, 2: Mapping, 3: Preview/Validate
     const [file, setFile] = useState(null);
     const [mapping, setMapping] = useState({});
+    const [parsedData, setParsedData] = useState([]);
+    const [validationResults, setValidationResults] = useState({ valid: 0, errors: [] });
+    const [isValidating, setIsValidating] = useState(false);
 
     const reset = () => {
         setStep(1);
         setFile(null);
         setMapping({});
+        setParsedData([]);
+        setValidationResults({ valid: 0, errors: [] });
     };
 
     const handleOpen = () => {
@@ -25,6 +30,66 @@ const ImportExport = ({ moduleName, fields = [], onImport, onExport, className }
         console.log('[ImportExport] Closing modal');
         setIsOpen(false);
         reset();
+    };
+
+    // Filter out empty rows from parsed data
+    const filterValidRows = (rows) => {
+        return rows.filter(row => {
+            return Object.values(row).some(value => {
+                if (value === null || value === undefined || value === '') return false;
+                const trimmed = String(value).trim();
+                // Skip formatting artifacts
+                if (trimmed === '' || trimmed === '######' || trimmed === 'NaN' || 
+                    trimmed === 'undefined' || trimmed === 'null') return false;
+                return true;
+            });
+        });
+    };
+
+    // Validate data when moving to step 3
+    const handleValidate = async () => {
+        if (!file) return;
+        
+        setIsValidating(true);
+        try {
+            const Papa = await import('papaparse');
+            const text = await file.text();
+            
+            const { data } = Papa.parse(text, {
+                header: true,
+                skipEmptyLines: true,
+                dynamicTyping: true
+            });
+            
+            // Filter out empty rows
+            const cleanedRows = filterValidRows(data);
+            console.log('[ImportExport] Parsed rows:', data.length, 'Valid rows:', cleanedRows.length);
+            
+            setParsedData(cleanedRows);
+            
+            // Simple validation - count rows with at least one field mapped
+            let validCount = 0;
+            let errorCount = 0;
+            const errors = [];
+            
+            cleanedRows.forEach((row, index) => {
+                const hasData = Object.values(row).some(v => v && String(v).trim() !== '');
+                if (hasData) {
+                    validCount++;
+                } else {
+                    errorCount++;
+                    errors.push({ row: index + 1, message: 'Empty row' });
+                }
+            });
+            
+            setValidationResults({ valid: validCount, errors });
+            setStep(3);
+        } catch (error) {
+            console.error('[ImportExport] Validation error:', error);
+            alert('Error validating file: ' + error.message);
+        } finally {
+            setIsValidating(false);
+        }
     };
 
     const handleFileSelect = (e) => {
@@ -122,7 +187,7 @@ const ImportExport = ({ moduleName, fields = [], onImport, onExport, className }
                     {step === 1 && (
                         <div className="space-y-4 py-4 text-center">
                             <div className="glass-card p-8 border-dashed border-2 flex flex-col items-center gap-4 hover:border-[var(--primary)] transition-colors cursor-pointer group" onClick={() => document.getElementById('import-file').click()}>
-                                <input type="file" id="import-file" className="hidden" accept=".csv,.json" onChange={handleFileSelect} />
+                                <input type="file" id="import-file" className="hidden" accept=".csv,.json,.xlsx,.xls" onChange={handleFileSelect} />
                                 <div className="p-4 rounded-full bg-[var(--primary)]/10 group-hover:bg-[var(--primary)]/20 transition-colors">
                                     <FileText size={32} className="text-[var(--primary)]" />
                                 </div>
@@ -166,7 +231,9 @@ const ImportExport = ({ moduleName, fields = [], onImport, onExport, className }
                             </div>
                             <div className="flex justify-end gap-3 pt-4">
                                 <Button variant="secondary" onClick={() => setStep(1)}>Back</Button>
-                                <Button onClick={() => setStep(3)}>Validate Data</Button>
+                                <Button onClick={handleValidate} disabled={isValidating}>
+                                    {isValidating ? 'Validating...' : 'Validate Data'}
+                                </Button>
                             </div>
                         </div>
                     )}
@@ -178,7 +245,7 @@ const ImportExport = ({ moduleName, fields = [], onImport, onExport, className }
                                 <div>
                                     <p className="text-sm font-bold text-amber-500">Validation Results</p>
                                     <p className="text-xs text-[var(--text-muted)] mt-1">
-                                        We found 120 valid rows and 2 rows with errors. You can proceed with partial import.
+                                        We found {validationResults.valid} valid rows {validationResults.errors.length > 0 && `and ${validationResults.errors.length} rows with errors`}. You can proceed with import.
                                     </p>
                                 </div>
                             </div>
@@ -193,23 +260,29 @@ const ImportExport = ({ moduleName, fields = [], onImport, onExport, className }
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-[var(--border-base)]">
-                                        <tr className="text-emerald-400">
-                                            <td className="p-3">1-120</td>
-                                            <td className="p-3 font-bold">Valid</td>
-                                            <td className="p-3">Ready for import</td>
-                                        </tr>
-                                        <tr className="text-red-400 bg-red-500/5">
-                                            <td className="p-3">121</td>
-                                            <td className="p-3 font-bold">Error</td>
-                                            <td className="p-3">Email format invalid: "wrong-email.com"</td>
-                                        </tr>
+                                        {validationResults.valid > 0 && (
+                                            <tr className="text-emerald-400">
+                                                <td className="p-3">1-{validationResults.valid}</td>
+                                                <td className="p-3 font-bold">Valid</td>
+                                                <td className="p-3">Ready for import</td>
+                                            </tr>
+                                        )}
+                                        {validationResults.errors.map((error, idx) => (
+                                            <tr key={idx} className="text-red-400 bg-red-500/5">
+                                                <td className="p-3">{error.row}</td>
+                                                <td className="p-3 font-bold">Error</td>
+                                                <td className="p-3">{error.message}</td>
+                                            </tr>
+                                        ))}
                                     </tbody>
                                 </table>
                             </div>
 
                             <div className="flex justify-end gap-3 pt-4">
                                 <Button variant="secondary" onClick={() => setStep(2)}>Back</Button>
-                                <Button onClick={handleImportClick} type="button">Import 120 Valid Rows</Button>
+                                <Button onClick={handleImportClick} type="button" disabled={validationResults.valid === 0}>
+                                    Import {validationResults.valid} Valid Rows
+                                </Button>
                             </div>
                         </div>
                     )}

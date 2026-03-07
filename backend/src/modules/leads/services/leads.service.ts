@@ -1,9 +1,12 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Lead, LeadDocument } from '../schemas/lead.schema';
 import { CreateLeadDto, UpdateLeadDto, QueryLeadDto, AddActivityDto } from '../dto/lead.dto';
 import { LeadStatus, LeadStatusDocument } from '../../settings/schemas/lead-status.schema';
+import * as fs from 'fs';
+import csvParser from 'csv-parser';
+import * as xlsx from 'xlsx';
 
 @Injectable()
 export class LeadsService {
@@ -11,6 +14,9 @@ export class LeadsService {
     @InjectModel(Lead.name) private leadModel: Model<LeadDocument>,
     @InjectModel(LeadStatus.name) private leadStatusModel: Model<LeadStatusDocument>,
   ) {}
+
+  private readonly dashboardCache = new Map<string, { ts: number; data: any }>();
+  private readonly dashboardCacheTtlMs = 30_000;
 
   private toObjectId(id: string | undefined): Types.ObjectId | undefined {
     if (!id) return undefined;
@@ -22,6 +28,29 @@ export class LeadsService {
     } catch {
       return undefined;
     }
+  }
+
+  private buildTenantFilter(tenantId?: string): any {
+    const filter: any = { isDeleted: { $ne: true } };
+    if (tenantId) {
+      const tid = this.toObjectId(tenantId);
+      if (tid) {
+        filter.tenantId = tid;
+      }
+    }
+    return filter;
+  }
+
+  private async withDashboardCache<T>(tenantId: string | undefined, key: string, fn: () => Promise<T>): Promise<T> {
+    const cacheKey = `${tenantId || 'default'}:${key}`;
+    const now = Date.now();
+    const cached = this.dashboardCache.get(cacheKey);
+    if (cached && now - cached.ts <= this.dashboardCacheTtlMs) {
+      return cached.data as T;
+    }
+    const data = await fn();
+    this.dashboardCache.set(cacheKey, { ts: now, data });
+    return data;
   }
 
   private async assertValidStatusKey(statusKey: string | undefined, tenantId?: string): Promise<void> {
@@ -623,6 +652,200 @@ export class LeadsService {
     };
   }
 
+  async getDashboardOverview(
+    tenantId?: string,
+  ): Promise<{ totalLeads: number; newLeadsThisMonth: number; pipelineValue: number; conversionRate: number }> {
+    return this.withDashboardCache(tenantId, 'overview', async () => {
+      const filter = this.buildTenantFilter(tenantId);
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+      const [totalLeads, newLeadsThisMonth, pipelineAgg, wonCount] = await Promise.all([
+        this.leadModel.countDocuments(filter),
+        this.leadModel.countDocuments({
+          ...filter,
+          $or: [{ createdAt: { $gte: monthStart } }, { created: { $gte: monthStart } }],
+        }),
+        this.leadModel.aggregate([
+          { $match: { ...filter, archived: { $ne: true } } },
+          { $group: { _id: null, total: { $sum: { $ifNull: ['$value', 0] } } } },
+        ]),
+        this.leadModel.countDocuments({ ...filter, statusKey: { $in: ['won', 'Won'] } }),
+      ]);
+
+      const pipelineValue = pipelineAgg?.[0]?.total || 0;
+      const conversionRate = totalLeads > 0 ? Math.round((wonCount / totalLeads) * 100) : 0;
+
+      return { totalLeads, newLeadsThisMonth, pipelineValue, conversionRate };
+    });
+  }
+
+  async getDashboardFunnel(tenantId?: string): Promise<{ stages: Array<{ stage: string; count: number }> }> {
+    return this.withDashboardCache(tenantId, 'funnel', async () => {
+      const filter = this.buildTenantFilter(tenantId);
+      const stageOrder = ['new', 'contacted', 'qualified', 'proposal', 'negotiation', 'won', 'lost'];
+
+      const stageAgg = await this.leadModel.aggregate([
+        { $match: filter },
+        {
+          $group: {
+            _id: { $toLower: { $ifNull: ['$statusKey', 'new'] } },
+            count: { $sum: 1 },
+          },
+        },
+      ]);
+
+      const map = new Map<string, number>(stageAgg.map((s: any) => [s._id, s.count]));
+      return { stages: stageOrder.map(stage => ({ stage, count: map.get(stage) || 0 })) };
+    });
+  }
+
+  async getDashboardSource(tenantId?: string): Promise<{ sources: Array<{ source: string; leads: number; value: number }> }> {
+    return this.withDashboardCache(tenantId, 'source', async () => {
+      const filter = this.buildTenantFilter(tenantId);
+
+      const agg = await this.leadModel.aggregate([
+        { $match: filter },
+        {
+          $group: {
+            _id: { $ifNull: ['$source', 'Unknown'] },
+            leads: { $sum: 1 },
+            value: { $sum: { $ifNull: ['$value', 0] } },
+          },
+        },
+        { $sort: { leads: -1 } },
+      ]);
+
+      return { sources: agg.map((r: any) => ({ source: r._id, leads: r.leads, value: r.value })) };
+    });
+  }
+
+  async getDashboardTrend(
+    tenantId?: string,
+  ): Promise<{ months: Array<{ month: string; leads: number; value: number }>; scoreBuckets: Array<{ bucket: string; count: number }> }> {
+    return this.withDashboardCache(tenantId, 'trend', async () => {
+      const filter = this.buildTenantFilter(tenantId);
+
+      const start = new Date();
+      start.setMonth(start.getMonth() - 11);
+      start.setDate(1);
+      start.setHours(0, 0, 0, 0);
+
+      const [trendAgg, scoreAgg] = await Promise.all([
+        this.leadModel.aggregate([
+          {
+            $match: {
+              ...filter,
+              $or: [{ createdAt: { $gte: start } }, { created: { $gte: start } }],
+            },
+          },
+          { $addFields: { _createdAt: { $ifNull: ['$createdAt', '$created'] } } },
+          {
+            $group: {
+              _id: { y: { $year: '$_createdAt' }, m: { $month: '$_createdAt' } },
+              leads: { $sum: 1 },
+              value: { $sum: { $ifNull: ['$value', 0] } },
+            },
+          },
+          { $sort: { '_id.y': 1, '_id.m': 1 } },
+        ]),
+        this.leadModel.aggregate([
+          { $match: filter },
+          {
+            $bucket: {
+              groupBy: { $ifNull: ['$score', 0] },
+              boundaries: [0, 21, 41, 61, 81, 101],
+              default: 'other',
+              output: { count: { $sum: 1 } },
+            },
+          },
+        ]),
+      ]);
+
+      const monthLabel = (y: number, m: number) => new Date(y, m - 1, 1).toLocaleString('en-US', { month: 'short' });
+
+      const months = (trendAgg || []).map((r: any) => ({
+        month: `${monthLabel(r._id.y, r._id.m)} ${String(r._id.y).slice(-2)}`,
+        leads: r.leads,
+        value: r.value,
+      }));
+
+      const scoreBucketsOrder = ['0-20', '21-40', '41-60', '61-80', '81-100'];
+      const scoreMap = new Map<string, number>();
+      for (const r of scoreAgg as any[]) {
+        if (typeof r._id !== 'number') continue;
+        const startNum = r._id;
+        const label =
+          startNum === 0
+            ? '0-20'
+            : startNum === 21
+              ? '21-40'
+              : startNum === 41
+                ? '41-60'
+                : startNum === 61
+                  ? '61-80'
+                  : startNum === 81
+                    ? '81-100'
+                    : undefined;
+        if (label) scoreMap.set(label, r.count);
+      }
+
+      return {
+        months,
+        scoreBuckets: scoreBucketsOrder.map(bucket => ({ bucket, count: scoreMap.get(bucket) || 0 })),
+      };
+    });
+  }
+
+  async getDashboardActivity(
+    tenantId?: string,
+  ): Promise<{ last30Days: Array<{ date: string; count: number }>; byType: Array<{ type: string; count: number }> }> {
+    return this.withDashboardCache(tenantId, 'activity', async () => {
+      const filter = this.buildTenantFilter(tenantId);
+      const start = new Date();
+      start.setDate(start.getDate() - 30);
+      start.setHours(0, 0, 0, 0);
+
+      const agg = await this.leadModel.aggregate([
+        { $match: filter },
+        { $unwind: { path: '$activities', preserveNullAndEmptyArrays: false } },
+        { $match: { 'activities.timestamp': { $gte: start } } },
+        {
+          $facet: {
+            last30Days: [
+              {
+                $group: {
+                  _id: {
+                    y: { $year: '$activities.timestamp' },
+                    m: { $month: '$activities.timestamp' },
+                    d: { $dayOfMonth: '$activities.timestamp' },
+                  },
+                  count: { $sum: 1 },
+                },
+              },
+              { $sort: { '_id.y': 1, '_id.m': 1, '_id.d': 1 } },
+            ],
+            byType: [
+              { $group: { _id: '$activities.type', count: { $sum: 1 } } },
+              { $sort: { count: -1 } },
+            ],
+          },
+        },
+      ]);
+
+      const result = agg?.[0] || { last30Days: [], byType: [] };
+      const last30Days = (result.last30Days || []).map((r: any) => {
+        const d = new Date(r._id.y, r._id.m - 1, r._id.d);
+        return { date: d.toISOString().slice(0, 10), count: r.count };
+      });
+
+      return {
+        last30Days,
+        byType: (result.byType || []).map((r: any) => ({ type: r._id || 'unknown', count: r.count })),
+      };
+    });
+  }
+
   async recalculateAllScores(tenantId?: string): Promise<{ updated: number }> {
     const filter: any = { isDeleted: { $ne: true } };
     
@@ -823,6 +1046,391 @@ export class LeadsService {
     const month = months[date.getMonth()];
     const hours = date.getHours().toString().padStart(2, '0');
     const minutes = date.getMinutes().toString().padStart(2, '0');
-    return `${month} ${day}, ${hours}:${minutes}`;
+    return `${day} ${month}, ${hours}:${minutes}`;
+  }
+
+  // ============================================
+  // LEAD IMPORT SYSTEM
+  // ============================================
+
+  async importLeads(
+    filePath: string,
+    fileExtension: string,
+    tenantId?: string
+  ): Promise<{ success: boolean; inserted: number; updated: number; failed: number; errors: Array<{ row: number; reason: string }> }> {
+    const result = {
+      success: true,
+      inserted: 0,
+      updated: 0,
+      failed: 0,
+      errors: [] as Array<{ row: number; reason: string }>,
+    };
+
+    try {
+      // Parse file based on extension
+      let rows = await this.parseFile(filePath, fileExtension);
+      
+      // Debug logging: Log initial row count
+      Logger.log(`[IMPORT] Initial rows parsed: ${rows.length}`, 'LeadsService');
+      
+      // Filter out empty rows and rows with only formatting artifacts
+      rows = this.filterValidRows(rows);
+      
+      // Debug logging: Log filtered row count
+      Logger.log(`[IMPORT] Valid rows after filtering: ${rows.length}`, 'LeadsService');
+
+      // Known schema fields
+      const knownFields = [
+        'name', 'company', 'email', 'phone', 'source', 'statusKey', 'city', 'state',
+        'value', 'kw', 'roofArea', 'monthlyBill', 'roofType', 'budget', 'category',
+        'tags', 'notes', 'assignedTo', 'score', 'archived', 'nextFollowUp', 'slaHours',
+        'firstName', 'lastName', 'stage', 'status'
+      ];
+
+      // Process rows in batches of 500
+      const batchSize = 500;
+      const bulkOps: any[] = [];
+
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const rowNumber = i + 1;
+
+        try {
+          // Validate required field
+          if (!row.name && !row.firstName && !row.lastName) {
+            result.errors.push({ row: rowNumber, reason: 'Missing name' });
+            result.failed++;
+            continue;
+          }
+
+          // Normalize row data
+          const normalizedData = this.normalizeRowData(row, knownFields);
+
+          // Check for duplicate by email or phone
+          const duplicate = await this.findDuplicate(
+            normalizedData.email,
+            normalizedData.phone,
+            tenantId
+          );
+
+          if (duplicate) {
+            // Update existing lead
+            const updateData = this.buildUpdateData(normalizedData);
+            updateData.lastContact = new Date();
+            
+            // Handle activity logs if present
+            if (normalizedData.activityLogs && normalizedData.activityLogs.length > 0) {
+              const activities = normalizedData.activityLogs.map((log: string) => ({
+                type: 'import',
+                ts: this.formatTimestamp(new Date()),
+                note: log,
+                by: 'System',
+                timestamp: new Date(),
+              }));
+              updateData.$push = { activities: { $each: activities } };
+            }
+
+            bulkOps.push({
+              updateOne: {
+                filter: { _id: duplicate._id },
+                update: { $set: updateData },
+              },
+            });
+            result.updated++;
+          } else {
+            // Create new lead
+            const leadId = `LEAD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            const now = new Date();
+
+            const leadData: any = {
+              leadId,
+              ...normalizedData,
+              created: now,
+              lastContact: now,
+              statusKey: normalizedData.statusKey || 'new',
+              activities: [],
+            };
+
+            // Add import activity
+            leadData.activities.push({
+              type: 'created',
+              ts: this.formatTimestamp(now),
+              note: 'Lead imported',
+              by: 'System',
+              timestamp: now,
+            });
+
+            // Add activity logs if present
+            if (normalizedData.activityLogs && normalizedData.activityLogs.length > 0) {
+              normalizedData.activityLogs.forEach((log: string) => {
+                leadData.activities.push({
+                  type: 'import',
+                  ts: this.formatTimestamp(now),
+                  note: log,
+                  by: 'System',
+                  timestamp: now,
+                });
+              });
+            }
+
+            // Calculate score and SLA
+            leadData.score = this.calculateScore(leadData);
+            leadData.slaBreached = this.checkSlaBreached(leadData);
+            leadData.activeAutomation = this.applyAutomation(leadData);
+
+            if (tenantId) {
+              leadData.tenantId = new Types.ObjectId(tenantId);
+            }
+
+            bulkOps.push({
+              insertOne: { document: leadData },
+            });
+            result.inserted++;
+          }
+
+          // Execute batch when size reached
+          if (bulkOps.length >= batchSize || i === rows.length - 1) {
+            if (bulkOps.length > 0) {
+              await this.leadModel.bulkWrite(bulkOps);
+              bulkOps.length = 0; // Clear array
+            }
+          }
+        } catch (error: any) {
+          result.errors.push({ row: rowNumber, reason: error.message || 'Unknown error' });
+          result.failed++;
+        }
+      }
+
+      return result;
+    } catch (error: any) {
+      throw new BadRequestException(`Import failed: ${error.message}`);
+    } finally {
+      // Clean up temp file
+      try {
+        fs.unlinkSync(filePath);
+      } catch (e) {
+        // Ignore cleanup errors
+      }
+    }
+  }
+
+  private async parseFile(filePath: string, fileExtension: string): Promise<any[]> {
+    const ext = fileExtension.toLowerCase();
+
+    if (ext === '.csv') {
+      return this.parseCSV(filePath);
+    } else if (ext === '.xlsx' || ext === '.xls') {
+      return this.parseExcel(filePath);
+    } else if (ext === '.json') {
+      return this.parseJSON(filePath);
+    } else {
+      throw new BadRequestException('Unsupported file format. Use CSV, XLSX, or JSON.');
+    }
+  }
+
+  private parseCSV(filePath: string): Promise<any[]> {
+    return new Promise((resolve, reject) => {
+      const rows: any[] = [];
+      fs.createReadStream(filePath)
+        .pipe(csvParser())
+        .on('data', (data: any) => rows.push(data))
+        .on('end', () => resolve(rows))
+        .on('error', (error: any) => reject(error));
+    });
+  }
+
+  private parseExcel(filePath: string): any[] {
+    const workbook = xlsx.readFile(filePath);
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    return xlsx.utils.sheet_to_json(worksheet);
+  }
+
+  private parseJSON(filePath: string): any[] {
+    const data = fs.readFileSync(filePath, 'utf8');
+    const parsed = JSON.parse(data);
+    return Array.isArray(parsed) ? parsed : [parsed];
+  }
+
+  private normalizeRowData(row: any, knownFields: string[]): any {
+    const normalized: any = {
+      customFields: {},
+    };
+
+    // Normalize header names
+    const normalizedRow: any = {};
+    Object.keys(row).forEach((key) => {
+      const normalizedKey = this.normalizeHeader(key);
+      normalizedRow[normalizedKey] = row[key];
+    });
+
+    // Process each field
+    Object.keys(normalizedRow).forEach((key) => {
+      const value = normalizedRow[key];
+      if (value === undefined || value === null || value === '') return;
+
+      // Map known fields
+      if (key === 'firstname' || key === 'first_name') {
+        normalized.firstName = String(value).trim();
+      } else if (key === 'lastname' || key === 'last_name') {
+        normalized.lastName = String(value).trim();
+      } else if (key === 'stage' || key === 'status') {
+        normalized.statusKey = String(value).toLowerCase().trim();
+      } else if (key === 'score') {
+        const numScore = Number(value);
+        normalized.score = isNaN(numScore) ? 0 : Math.min(Math.max(numScore, 0), 100);
+      } else if (key === 'value') {
+        normalized.value = this.normalizeValue(value);
+      } else if (key === 'activity_logs' || key === 'activities' || key === 'activitylogs') {
+        const logs = String(value).split('|').map((s) => s.trim()).filter((s) => s);
+        normalized.activityLogs = logs;
+      } else if (knownFields.includes(key)) {
+        normalized[key] = this.normalizeField(key, value);
+      } else {
+        // Store unknown fields in customFields
+        normalized.customFields[key] = value;
+      }
+    });
+
+    // Build full name from firstName + lastName
+    if (normalized.firstName || normalized.lastName) {
+      const first = normalized.firstName || '';
+      const last = normalized.lastName || '';
+      normalized.name = `${first} ${last}`.trim();
+    } else if (normalizedRow.name) {
+      normalized.name = String(normalizedRow.name).trim();
+    }
+
+    // Remove firstName/lastName from top level
+    delete normalized.firstName;
+    delete normalized.lastName;
+
+    return normalized;
+  }
+
+  private normalizeHeader(header: string): string {
+    return header
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '_')
+      .replace(/[^a-z0-9_]/g, '');
+  }
+
+  private normalizeValue(value: any): number {
+    if (typeof value === 'number') return value;
+    if (!value) return 0;
+
+    const str = String(value).trim();
+
+    // Remove ₹ symbol and commas
+    let cleanStr = str.replace(/[₹,]/g, '');
+
+    // Handle L (Lakhs)
+    if (cleanStr.toLowerCase().includes('l')) {
+      const num = parseFloat(cleanStr.replace(/l/i, ''));
+      return isNaN(num) ? 0 : num * 100000;
+    }
+
+    // Handle Cr (Crores)
+    if (cleanStr.toLowerCase().includes('cr')) {
+      const num = parseFloat(cleanStr.replace(/cr/i, ''));
+      return isNaN(num) ? 0 : num * 10000000;
+    }
+
+    // Handle K (Thousands)
+    if (cleanStr.toLowerCase().includes('k')) {
+      const num = parseFloat(cleanStr.replace(/k/i, ''));
+      return isNaN(num) ? 0 : num * 1000;
+    }
+
+    const num = parseFloat(cleanStr);
+    return isNaN(num) ? 0 : num;
+  }
+
+  private normalizeField(field: string, value: any): any {
+    if (field === 'email') {
+      return String(value).toLowerCase().trim();
+    }
+    if (field === 'score') {
+      const num = Number(value);
+      return isNaN(num) ? 0 : Math.min(Math.max(num, 0), 100);
+    }
+    if (field === 'value' || field === 'kw' || field === 'roofArea' || field === 'monthlyBill' || field === 'budget') {
+      return this.normalizeValue(value);
+    }
+    return value;
+  }
+
+  private async findDuplicate(email?: string, phone?: string, tenantId?: string): Promise<any> {
+    if (!email && !phone) return null;
+
+    const filter: any = { isDeleted: { $ne: true } };
+    
+    if (tenantId) {
+      filter.tenantId = this.toObjectId(tenantId);
+    }
+
+    const orConditions: any[] = [];
+    if (email) orConditions.push({ email: email.toLowerCase() });
+    if (phone) orConditions.push({ phone });
+    
+    filter.$or = orConditions;
+
+    return this.leadModel.findOne(filter).lean().exec();
+  }
+
+  private buildUpdateData(normalizedData: any): any {
+    const updateFields: any = {};
+    
+    const allowedFields = [
+      'name', 'company', 'email', 'phone', 'source', 'statusKey', 'city', 'state',
+      'value', 'kw', 'roofArea', 'monthlyBill', 'roofType', 'budget', 'category',
+      'tags', 'notes', 'assignedTo', 'score', 'archived', 'nextFollowUp', 'slaHours'
+    ];
+
+    allowedFields.forEach((field) => {
+      if (normalizedData[field] !== undefined) {
+        updateFields[field] = normalizedData[field];
+      }
+    });
+
+    // Merge customFields if any
+    if (Object.keys(normalizedData.customFields).length > 0) {
+      updateFields.customFields = normalizedData.customFields;
+    }
+
+    return updateFields;
+  }
+
+  // ============================================
+  // CSV/Excel ROW FILTERING
+  // ============================================
+
+  private filterValidRows(rows: any[]): any[] {
+    return rows.filter(row => {
+      // Check if row has any valid data
+      const hasValidData = Object.values(row).some(value => {
+        // Skip null, undefined, empty strings
+        if (value === null || value === undefined || value === '') {
+          return false;
+        }
+        
+        // Trim and check for formatting artifacts
+        const trimmedValue = String(value).trim();
+        
+        // Skip formatting artifacts
+        if (trimmedValue === '' || 
+            trimmedValue === '######' || 
+            trimmedValue === 'NaN' ||
+            trimmedValue === 'undefined' ||
+            trimmedValue === 'null') {
+          return false;
+        }
+        
+        return true;
+      });
+      
+      return hasValidData;
+    });
   }
 }

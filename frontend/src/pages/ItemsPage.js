@@ -1,7 +1,7 @@
 // Solar OS – EPC Edition — ItemsPage.js
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-  List, Plus, Search, Download, Trash2, Package,
+  List, Plus, Search, Download, Trash2, Package, Tag,
   ChevronDown, X, Check, MoreHorizontal, Edit2, Copy, Eye
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
@@ -34,6 +34,11 @@ const ITEM_GROUPS = [
   { id: '2', name: 'Products' },
   { id: '3', name: 'Materials' },
   { id: '4', name: 'Labor' },
+];
+
+// Default categories - will be stored in localStorage and can be extended
+const DEFAULT_CATEGORIES = [
+  'Panel', 'Inverter', 'BOS', 'Battery', 'Mounting', 'Electrical', 'Services', 'Labor'
 ];
 
 const ITEM_COLUMNS = [
@@ -89,8 +94,18 @@ const ItemsPage = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showBulkActionsModal, setShowBulkActionsModal] = useState(false);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
+
+  // Categories state - load from localStorage or use defaults
+  const [categories, setCategories] = useState(() => {
+    const saved = localStorage.getItem('itemCategories');
+    return saved ? JSON.parse(saved) : DEFAULT_CATEGORIES;
+  });
+  const [newCategory, setNewCategory] = useState('');
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [editCategoryValue, setEditCategoryValue] = useState('');
 
   // Form state
   const [newItem, setNewItem] = useState({
@@ -108,6 +123,11 @@ const ItemsPage = () => {
     itemGroupId: '',
     itemGroupName: ''
   });
+
+  // Save categories to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('itemCategories', JSON.stringify(categories));
+  }, [categories]);
 
   // Fetch items
   useEffect(() => {
@@ -352,6 +372,51 @@ const ItemsPage = () => {
     toast.success(`Exported ${filteredItems.length} items to CSV`);
   };
 
+  const handleAddCategory = () => {
+    if (!newCategory.trim()) {
+      toast.error('Please enter a category name');
+      return;
+    }
+    if (categories.includes(newCategory.trim())) {
+      toast.error('Category already exists');
+      return;
+    }
+    setCategories([...categories, newCategory.trim()]);
+    setNewCategory('');
+    toast.success('Category added successfully');
+  };
+
+  const handleEditCategory = (oldCategory) => {
+    if (!editCategoryValue.trim()) {
+      toast.error('Please enter a category name');
+      return;
+    }
+    if (categories.includes(editCategoryValue.trim()) && editCategoryValue.trim() !== oldCategory) {
+      toast.error('Category already exists');
+      return;
+    }
+    setCategories(categories.map(cat => cat === oldCategory ? editCategoryValue.trim() : cat));
+    // Also update items that use this category
+    setItems(items.map(item => 
+      item.category === oldCategory ? { ...item, category: editCategoryValue.trim() } : item
+    ));
+    setEditingCategory(null);
+    setEditCategoryValue('');
+    toast.success('Category updated successfully');
+  };
+
+  const handleDeleteCategory = (categoryToDelete) => {
+    if (!window.confirm(`Are you sure you want to delete "${categoryToDelete}" category?\n\nItems using this category will have their category cleared.`)) {
+      return;
+    }
+    setCategories(categories.filter(cat => cat !== categoryToDelete));
+    // Clear category from items that use it
+    setItems(items.map(item => 
+      item.category === categoryToDelete ? { ...item, category: '' } : item
+    ));
+    toast.success('Category deleted successfully');
+  };
+
   const toggleRowSelection = (id) => {
     const newSelected = new Set(selectedRows);
     if (newSelected.has(id)) {
@@ -405,11 +470,14 @@ const ItemsPage = () => {
         <div>
           <h1 className="heading-page flex items-center gap-2">
             <List size={20} className="text-[var(--primary)]" />
-            Items
+            Items and Category
           </h1>
-          <p className="text-xs text-[var(--text-muted)] mt-0.5">Manage products, services, and materials</p>
+          <p className="text-xs text-[var(--text-muted)] mt-0.5">Manage products, services, materials and categories</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowCategoryModal(true)}>
+            <Tag size={14} /> Add Category
+          </Button>
           <Button variant="outline" onClick={handleExport}>
             <Download size={14} /> Export
           </Button>
@@ -505,8 +573,10 @@ const ItemsPage = () => {
               </tr>
             ) : (
               paginatedItems.map((item, index) => (
-                <tr key={item._id || index} className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)]">
-                  <td className="px-4 py-3">
+                <tr key={item._id || index} 
+                    className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)] cursor-pointer"
+                    onClick={() => setSelectedItem(item)}>
+                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
                       checked={selectedRows.has(item._id)}
@@ -522,7 +592,7 @@ const ItemsPage = () => {
                       }
                     </td>
                   ))}
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1">
                       {ROW_ACTIONS.map((action, idx) => (
                         <button
@@ -636,14 +706,9 @@ const ItemsPage = () => {
                 onChange={(e) => setNewItem({ ...newItem, category: e.target.value })}
               >
                 <option value="">Select Category</option>
-                <option value="Panel">Panel</option>
-                <option value="Inverter">Inverter</option>
-                <option value="BOS">BOS</option>
-                <option value="Battery">Battery</option>
-                <option value="Mounting">Mounting</option>
-                <option value="Electrical">Electrical</option>
-                <option value="Services">Services</option>
-                <option value="Labor">Labor</option>
+                {categories.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
               </Select>
             </FormField>
 
@@ -798,14 +863,9 @@ const ItemsPage = () => {
                 onChange={(e) => setNewItem({ ...newItem, category: e.target.value })}
               >
                 <option value="">Select Category</option>
-                <option value="Panel">Panel</option>
-                <option value="Inverter">Inverter</option>
-                <option value="BOS">BOS</option>
-                <option value="Battery">Battery</option>
-                <option value="Mounting">Mounting</option>
-                <option value="Electrical">Electrical</option>
-                <option value="Services">Services</option>
-                <option value="Labor">Labor</option>
+                {categories.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
               </Select>
             </FormField>
 
@@ -1044,6 +1104,102 @@ const ItemsPage = () => {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Add Category Modal */}
+      <Modal
+        open={showCategoryModal}
+        onClose={() => { setShowCategoryModal(false); setNewCategory(''); }}
+        title="Add New Category"
+        size="sm"
+        footer={
+          <div className="flex gap-2 justify-end">
+            <Button variant="ghost" onClick={() => { setShowCategoryModal(false); setNewCategory(''); }}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddCategory}>
+              Add Category
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <FormField label="Category Name" required>
+            <Input
+              placeholder="Enter category name (e.g., Cables, Connectors)"
+              value={newCategory}
+              onChange={(e) => setNewCategory(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleAddCategory();
+                }
+              }}
+            />
+          </FormField>
+
+          {/* Existing Categories List with CRUD */}
+          <div className="mt-4">
+            <p className="text-xs font-medium text-[var(--text-muted)] mb-2">Existing Categories:</p>
+            <div className="flex flex-wrap gap-2">
+              {categories.map((cat) => (
+                <div
+                  key={cat}
+                  className="flex items-center gap-1 px-2 py-1 text-xs bg-[var(--bg-elevated)] border border-[var(--border-base)] rounded-lg text-[var(--text-secondary)] group"
+                >
+                  {editingCategory === cat ? (
+                    <>
+                      <Input
+                        value={editCategoryValue}
+                        onChange={(e) => setEditCategoryValue(e.target.value)}
+                        className="h-6 w-24 text-xs px-1"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleEditCategory(cat);
+                          }
+                          if (e.key === 'Escape') {
+                            setEditingCategory(null);
+                            setEditCategoryValue('');
+                          }
+                        }}
+                        autoFocus
+                      />
+                      <button
+                        onClick={() => handleEditCategory(cat)}
+                        className="p-0.5 text-emerald-500 hover:bg-emerald-500/10 rounded"
+                      >
+                        <Check size={12} />
+                      </button>
+                      <button
+                        onClick={() => { setEditingCategory(null); setEditCategoryValue(''); }}
+                        className="p-0.5 text-red-500 hover:bg-red-500/10 rounded"
+                      >
+                        <X size={12} />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span>{cat}</span>
+                      <button
+                        onClick={() => { setEditingCategory(cat); setEditCategoryValue(cat); }}
+                        className="p-0.5 opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--bg-hover)] rounded transition-opacity"
+                      >
+                        <Edit2 size={12} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteCategory(cat)}
+                        className="p-0.5 opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-red-500 hover:bg-red-500/10 rounded transition-opacity"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </Modal>
     </div>
   );
