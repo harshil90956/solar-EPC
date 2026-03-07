@@ -1,7 +1,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
-import multipart from '@fastify/multipart';
+import { setServers } from 'dns';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './shared/filters/global-exception.filter';
 import { SuccessResponseInterceptor } from './shared/interceptors/success-response.interceptor';
@@ -9,6 +9,17 @@ import { LogisticsService } from './modules/logistics/services/logistics.service
 import { ProcurementService } from './modules/procurement/services/procurement.service';
 
 async function bootstrap() {
+  const dnsServersRaw = process.env.DNS_SERVERS;
+  if (dnsServersRaw) {
+    const servers = dnsServersRaw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (servers.length > 0) {
+      setServers(servers);
+    }
+  }
+
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter(),
@@ -21,9 +32,10 @@ async function bootstrap() {
   });
 
   app.enableCors({
-    origin: true,
+    origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:8000', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001', 'http://127.0.0.1:8000'],
     credentials: true,
-    allowedHeaders: ['Authorization', 'Content-Type', 'x-tenant-id', 'tenant-id'],
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    allowedHeaders: 'Content-Type,Authorization',
   });
 
   app.setGlobalPrefix('api/v1');

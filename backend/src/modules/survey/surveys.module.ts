@@ -1,4 +1,4 @@
-﻿import { Module } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { SurveysController } from './controllers/surveys.controller';
 import { SurveysService } from './services/surveys.service';
@@ -12,5 +12,4 @@ import { Survey, SurveySchema } from './schemas/survey.schema';
   providers: [SurveysService],
   exports: [SurveysService],
 })
-export class SurveyModule {}
-
+export class SurveysModule {}

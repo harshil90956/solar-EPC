@@ -19,7 +19,9 @@ import {
 } from 'recharts';
 
 
-import { SURVEYS } from '../data/mockData';
+import { PIPELINE_STAGES } from '../data/mockData';
+import { leadsApi } from '../services/leadsApi';
+import { surveysApi } from '../services/surveysApi';
 import { StatusBadge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Avatar } from '../components/ui/Avatar';
@@ -66,146 +68,6 @@ const SurveyDashboardKPI = ({ title, value, change, icon: Icon, color, subtitle,
   </div>
 );
 
-const SurveyPerformanceMetrics = () => {
-  const data = [
-    { metric: 'Completion Rate', current: 78.5, previous: 72.1, change: 8.9, target: 85 },
-    { metric: 'Avg Feasibility', current: 82.3, previous: 79.8, change: 3.1, target: 90 },
-    { metric: 'Shadow Clearance', current: 91.2, previous: 88.5, change: 3.0, target: 95 },
-    { metric: 'On-Time Delivery', current: 85.7, previous: 81.2, change: 5.5, target: 90 },
-    { metric: 'Customer Satisfaction', current: 92.1, previous: 89.3, change: 3.1, target: 95 },
-    { metric: 'Report Accuracy', current: 94.8, previous: 92.1, change: 2.9, target: 98 }
-  ];
-
-  return (
-    <div className="glass-card p-5">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-bold text-[var(--text-primary)]">Performance Overview</h3>
-        <Gauge size={16} className="text-[var(--accent)]" />
-      </div>
-      <div className="space-y-3">
-        {data.map((item) => (
-          <div key={item.metric} className="flex items-center justify-between p-3 rounded-lg bg-[var(--bg-elevated)]">
-            <div className="flex-1">
-              <p className="text-xs font-medium text-[var(--text-primary)]">{item.metric}</p>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-sm font-bold text-[var(--text-primary)]">{item.current}%</span>
-                <span className={`text-[10px] font-bold ${item.change >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                  {item.change >= 0 ? '↑' : '↓'} {Math.abs(item.change)}%
-                </span>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="text-[9px] text-[var(--text-muted)]">Target</p>
-              <p className="text-xs font-bold text-[var(--accent)]">{item.target}%</p>
-            </div>
-            <div className="ml-3">
-              <div className="w-12 h-2 bg-[var(--border-subtle)] rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all duration-500 ${(item.current / item.target) >= 0.9 ? 'bg-emerald-500' :
-                    (item.current / item.target) >= 0.7 ? 'bg-amber-500' : 'bg-red-500'
-                    }`}
-                  style={{ width: `${Math.min((item.current / item.target) * 100, 100)}%` }}
-                />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-const SurveyActivityHeatmap = () => {
-  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  const hours = ['8AM', '10AM', '12PM', '2PM', '4PM', '6PM'];
-
-  const data = hours.map(hour => ({
-    hour,
-    ...days.reduce((acc, day) => ({
-      ...acc,
-      [day]: Math.floor(Math.random() * 100)
-    }), {})
-  }));
-
-  return (
-    <div className="glass-card p-5">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-bold text-[var(--text-primary)]">Survey Activity Heatmap</h3>
-        <Activity size={16} className="text-[var(--text-muted)]" />
-      </div>
-      <div className="space-y-2">
-        {data.map((row) => (
-          <div key={row.hour} className="flex items-center gap-2">
-            <span className="text-[10px] text-[var(--text-muted)] w-8">{row.hour}</span>
-            <div className="flex gap-1 flex-1">
-              {days.map((day) => (
-                <div
-                  key={day}
-                  className="flex-1 h-6 rounded"
-                  style={{
-                    backgroundColor: `rgba(59, 130, 246, ${row[day] / 100})`,
-                    opacity: row[day] > 0 ? 1 : 0.1
-                  }}
-                  title={`${day} ${row.hour}: ${row[day]} surveys`}
-                />
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="flex justify-between mt-3">
-        {days.map((day) => (
-          <span key={day} className="text-[9px] text-[var(--text-muted)]">{day[0]}</span>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-const SurveyEngineerPerformance = () => {
-  const engineerData = [
-    { name: 'Priya Patel', surveys: 45, completed: 42, avgScore: 88, efficiency: 93 },
-    { name: 'Rahul Sharma', surveys: 38, completed: 35, avgScore: 91, efficiency: 92 },
-    { name: 'Amit Kumar', surveys: 32, completed: 28, avgScore: 85, efficiency: 87 },
-    { name: 'Sneha Reddy', surveys: 28, completed: 26, avgScore: 89, efficiency: 93 },
-    { name: 'Vikram Singh', surveys: 25, completed: 22, avgScore: 82, efficiency: 88 }
-  ];
-
-  return (
-    <div className="glass-card p-5">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-bold text-[var(--text-primary)]">Engineer Performance</h3>
-        <Users size={16} className="text-[var(--accent)]" />
-      </div>
-      <div className="space-y-3">
-        {engineerData.map((engineer, index) => (
-          <div key={engineer.name} className="flex items-center gap-3 p-3 rounded-lg bg-[var(--bg-elevated)] hover:bg-[var(--bg-hovered)] transition-colors">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 text-white flex items-center justify-center font-bold text-xs">
-              {engineer.name.split(' ').map(n => n[0]).join('')}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold text-[var(--text-primary)]">{engineer.name}</p>
-              <p className="text-[9px] text-[var(--text-muted)]">{engineer.completed}/{engineer.surveys} completed</p>
-            </div>
-            <div className="text-right">
-              <div className="flex items-center gap-1">
-                <Brain size={8} className="text-[var(--text-muted)]" />
-                <span className="text-[9px] font-bold text-emerald-500">{engineer.avgScore}pts</span>
-              </div>
-              <p className="text-[9px] text-[var(--text-muted)]">{engineer.efficiency}% eff.</p>
-            </div>
-            <div className="text-center">
-              <p className="text-[9px] text-[var(--text-muted)]">Rank</p>
-              <p className="text-xs font-black text-emerald-500">#{index + 1}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-// ── Standards Mapping ──────────────────────────────────────────────────────────
 const SURVEY_FIELDS = [
   { id: 'id', label: 'Survey ID', type: 'text' },
   { id: 'customerName', label: 'Customer Name', type: 'text' },
@@ -240,104 +102,6 @@ const SITE_ANALYSIS = {
   S018: { gpsLat: '23.0775', gpsLng: '72.6357', roofType: 'RCC Flat', orientation: 'South', annualIrradiance: 1860, subsidyEligible: true, subsidyPct: 40, netMetering: true, feasibilityScore: 86, aiCapacityHint: '38 kW recommended — hospital complex with 24/7 operations, ideal for solar + battery + generator hybrid system.' },
   S019: { gpsLat: '19.0760', gpsLng: '72.8777', roofType: 'RCC Flat', orientation: 'South', annualIrradiance: 1850, subsidyEligible: true, subsidyPct: 30, netMetering: true, feasibilityScore: 84, aiCapacityHint: '60 kW maximum — film studio with specialized equipment, requires comprehensive energy audit and custom solar solution.' },
 };
-
-// ── Enriched survey data ──────────────────────────────────────────────────────
-const SURVEY_ENRICHED = [
-  ...SURVEYS.map(s => ({
-    ...s,
-    feasibilityScore: SITE_ANALYSIS[s.id]?.feasibilityScore || Math.floor(Math.random() * 40) + 60
-  })),
-  {
-    id: 'S005', leadId: 'L006', customerName: 'Anjali Desai',
-    site: 'Anand Farms, Nr. NDDB', scheduledDate: '2026-03-05', completedDate: null,
-    status: 'Pending', roofArea: 120, shadowPct: 3, tiltAngle: 15,
-    estimatedKw: 10, engineer: 'Priya Patel', feasibilityScore: 96,
-  },
-  {
-    id: 'S006', leadId: 'L003', customerName: 'Amitabh Verma',
-    site: 'Rajkot Cold Storage', scheduledDate: '2026-02-28', completedDate: null,
-    status: 'Scheduled', roofArea: 280, shadowPct: 12, tiltAngle: 20,
-    estimatedKw: 25, engineer: 'Priya Patel', feasibilityScore: 65,
-  },
-  {
-    id: 'S007', leadId: 'L007', customerName: 'Rakesh Mehta',
-    site: 'Gandhinagar Industrial Park', scheduledDate: '2026-02-15', completedDate: '2026-02-20',
-    status: 'Inspections', roofArea: 350, shadowPct: 8, tiltAngle: 18,
-    estimatedKw: 45, engineer: 'Rahul Sharma', feasibilityScore: 89,
-  },
-  {
-    id: 'S008', leadId: 'L008', customerName: 'Kavita Shah',
-    site: 'Vadodara Manufacturing Unit', scheduledDate: '2026-02-10', completedDate: '2026-02-18',
-    status: 'Inspections', roofArea: 180, shadowPct: 5, tiltAngle: 22,
-    estimatedKw: 20, engineer: 'Sneha Reddy', feasibilityScore: 92,
-  },
-  {
-    id: 'S009', leadId: 'L009', customerName: 'Mahesh Patel',
-    site: 'Surat Textile Mill', scheduledDate: '2026-02-05', completedDate: '2026-02-12',
-    status: 'Inspections', roofArea: 420, shadowPct: 15, tiltAngle: 25,
-    estimatedKw: 55, engineer: 'Amit Kumar', feasibilityScore: 78,
-  },
-  {
-    id: 'S010', leadId: 'L010', customerName: 'Divya Singh',
-    site: 'Ahmedabad Corporate Tower', scheduledDate: '2026-02-01', completedDate: '2026-02-08',
-    status: 'Documents', roofArea: 200, shadowPct: 6, tiltAngle: 20,
-    estimatedKw: 30, engineer: 'Priya Patel', feasibilityScore: 94,
-  },
-  {
-    id: 'S011', leadId: 'L011', customerName: 'Anil Gupta',
-    site: 'Rajkot Processing Plant', scheduledDate: '2026-01-28', completedDate: '2026-02-05',
-    status: 'Documents', roofArea: 150, shadowPct: 4, tiltAngle: 19,
-    estimatedKw: 18, engineer: 'Rahul Sharma', feasibilityScore: 88,
-  },
-  {
-    id: 'S012', leadId: 'L012', customerName: 'Pooja Joshi',
-    site: 'Baroda Chemical Factory', scheduledDate: '2026-01-25', completedDate: '2026-02-01',
-    status: 'Documents', roofArea: 280, shadowPct: 9, tiltAngle: 21,
-    estimatedKw: 35, engineer: 'Sneha Reddy', feasibilityScore: 85,
-  },
-  {
-    id: 'S013', leadId: 'L013', customerName: 'Rajesh Kumar',
-    site: 'Mehsana Agricultural Facility', scheduledDate: '2026-01-22', completedDate: '2026-01-29',
-    status: 'Documents', roofArea: 320, shadowPct: 7, tiltAngle: 17,
-    estimatedKw: 40, engineer: 'Amit Kumar', feasibilityScore: 91,
-  },
-  {
-    id: 'S014', leadId: 'L014', customerName: 'Sunita Rao',
-    site: 'Anand Food Processing Unit', scheduledDate: '2026-01-20', completedDate: '2026-01-27',
-    status: 'Documents', roofArea: 190, shadowPct: 5, tiltAngle: 23,
-    estimatedKw: 22, engineer: 'Priya Patel', feasibilityScore: 87,
-  },
-  {
-    id: 'S015', leadId: 'L015', customerName: 'Vikram Desai',
-    site: 'Nadiad Warehousing Complex', scheduledDate: '2026-01-18', completedDate: '2026-01-25',
-    status: 'Documents', roofArea: 260, shadowPct: 11, tiltAngle: 20,
-    estimatedKw: 28, engineer: 'Rahul Sharma', feasibilityScore: 82,
-  },
-  {
-    id: 'S016', leadId: 'L016', customerName: 'Meera Shah',
-    site: 'Surendranagar Steel Plant', scheduledDate: '2026-01-15', completedDate: '2026-01-22',
-    status: 'Documents', roofArea: 380, shadowPct: 13, tiltAngle: 24,
-    estimatedKw: 48, engineer: 'Sneha Reddy', feasibilityScore: 79,
-  },
-  {
-    id: 'S017', leadId: 'L017', customerName: 'Amitabh Bachchan',
-    site: 'Gandhinagar IT Park', scheduledDate: '2026-01-12', completedDate: '2026-01-19',
-    status: 'Documents', roofArea: 220, shadowPct: 4, tiltAngle: 18,
-    estimatedKw: 25, engineer: 'Amit Kumar', feasibilityScore: 93,
-  },
-  {
-    id: 'S018', leadId: 'L018', customerName: 'Kiran Bedi',
-    site: 'Ahmedabad Hospital Complex', scheduledDate: '2026-01-10', completedDate: '2026-01-17',
-    status: 'Documents', roofArea: 300, shadowPct: 8, tiltAngle: 22,
-    estimatedKw: 38, engineer: 'Priya Patel', feasibilityScore: 86,
-  },
-  {
-    id: 'S019', leadId: 'L019', customerName: 'Sanjay Leela Bhansali',
-    site: 'Mumbai Film Studio', scheduledDate: '2026-01-08', completedDate: '2026-01-15',
-    status: 'Compliance & Regulatory', roofArea: 450, shadowPct: 12, tiltAngle: 19,
-    estimatedKw: 60, engineer: 'Rahul Sharma', feasibilityScore: 84,
-  },
-];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const scoreColor = s => s >= 85 ? 'text-emerald-400' : s >= 65 ? 'text-amber-400' : 'text-red-400';
@@ -451,17 +215,132 @@ const SurveyKanbanBoard = ({ surveys, onStageChange, onCardClick }) => {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 const SurveyPage = () => {
-  const [surveys, setSurveys] = useState(SURVEY_ENRICHED);
   const [view, setView] = useState('dashboard');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [selected, setSelected] = useState(new Set());
   const [selectedSurvey, setSelectedSurvey] = useState(null);
+  const [selectedLead, setSelectedLead] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [isScheduling, setIsScheduling] = useState(false);
   const [studioSurvey, setStudioSurvey] = useState(null);
   const [kanbanView, setKanbanView] = useState(false);
   const [reportsView, setReportsView] = useState(false);
+  
+  // 4-Section Survey Management State
+  // Section 1: CRM Leads (stage='survey') - fetched from leads API
+  const [crmLeads, setCrmLeads] = useState([]);
+  const [leadsLoading, setLeadsLoading] = useState(true);
+  const [leadsError, setLeadsError] = useState(null);
+  
+  // All surveys combined (for calculations and legacy support)
+  const [surveys, setSurveys] = useState([]);
+  
+  // Section 2: Pending Surveys (status='pending') - survey scheduled, form not submitted
+  const [pendingSurveys, setPendingSurveys] = useState([]);
+  
+  // Section 3: Active Surveys (status='active') - form submitted, survey in progress
+  const [activeSurveys, setActiveSurveys] = useState([]);
+  
+  // Section 4: Completed Surveys (status='completed') - survey done
+  const [completedSurveys, setCompletedSurveys] = useState([]);
+  
+  const [surveysLoading, setSurveysLoading] = useState(true);
+  const [surveysError, setSurveysError] = useState(null);
+  
+  // Track which leads have surveys created (to prevent duplicate scheduling)
+  const [surveyCreatedLeadIds, setSurveyCreatedLeadIds] = useState([]);
+  
+  // Form state for scheduling survey
+  const [formData, setFormData] = useState({
+    customerName: '',
+    engineer: 'Priya Patel',
+    siteAddress: '',
+    scheduledDate: '',
+    size: '',
+    notes: ''
+  });
+
+  // Fetch real leads and surveys from backend
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLeadsLoading(true);
+        setSurveysLoading(true);
+        
+        // Fetch leads from CRM (Site Survey Scheduled stage)
+        const leadsResult = await leadsApi.getAll({ stage: 'survey', limit: 100 });
+        const leadsData = leadsResult.data?.data || leadsResult.data || [];
+        setCrmLeads(leadsData);
+        setLeadsError(null);
+        
+        // Fetch ALL surveys from backend (no status filter to get all)
+        const surveysResult = await surveysApi.getAll({ limit: 100 });
+        const surveysData = surveysResult.data?.data || surveysResult.data || [];
+        
+        // Transform and categorize surveys by status
+        const transformedSurveys = surveysData.map(s => ({
+          id: s.surveyId || s._id,
+          customerName: s.customerName,
+          engineer: s.engineer,
+          site: s.site,
+          scheduledDate: s.scheduledDate,
+          estimatedKw: s.estimatedKw,
+          status: s.status,
+          shadowPct: s.shadowPct,
+          roofArea: s.roofArea,
+          sourceLeadId: s.sourceLeadId,
+          notes: s.notes,
+          createdAt: s.createdAt
+        }));
+        
+        // Split surveys by status
+        setPendingSurveys(transformedSurveys.filter(s => s.status === 'pending'));
+        setActiveSurveys(transformedSurveys.filter(s => s.status === 'active'));
+        setCompletedSurveys(transformedSurveys.filter(s => s.status === 'completed'));
+        
+        // Track which leads have surveys created
+        const createdLeadIds = surveysData
+          .filter(s => s.sourceLeadId)
+          .map(s => s.sourceLeadId);
+        setSurveyCreatedLeadIds(createdLeadIds);
+        
+        setSurveysError(null);
+      } catch (err) {
+        console.error('Failed to fetch data:', err);
+        setLeadsError('Failed to load leads from CRM');
+        setSurveysError('Failed to load surveys');
+      } finally {
+        setLeadsLoading(false);
+        setSurveysLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  // Pre-fill form when lead is selected
+  useEffect(() => {
+    if (selectedLead) {
+      setFormData({
+        customerName: selectedLead.name || '',
+        engineer: selectedLead.assignedTo || 'Priya Patel',
+        siteAddress: selectedLead.company || '',
+        scheduledDate: selectedLead.nextFollowUp || '',
+        size: selectedLead.kw?.replace('kW', '') || '',
+        notes: `Lead from CRM. City: ${selectedLead.city || ''}, Phone: ${selectedLead.phone || ''}`
+      });
+    } else {
+      setFormData({
+        customerName: '',
+        engineer: 'Priya Patel',
+        siteAddress: '',
+        scheduledDate: '',
+        size: '',
+        notes: ''
+      });
+    }
+  }, [selectedLead, showAdd]);
   const [automationRules, setAutomationRules] = useState([
     { id: 1, name: 'High Feasibility Alert', condition: 'feasibilityScore > 90', action: 'notify_manager', enabled: true },
     { id: 2, name: 'Shadow Risk Follow-up', condition: 'shadowPct > 10', action: 'schedule_analysis', enabled: true },
@@ -674,23 +553,80 @@ const SurveyPage = () => {
     logStatusChange(survey, survey.status, newStage);
   };
 
-  const activeSurveys = useMemo(() => {
-    return enhancedSurveys.filter(s =>
+  // 🔄 SURVEY FLOW: Pending → Active (Submit Form)
+  const handleSubmitSurveyForm = async (survey) => {
+    if (!guardEdit()) return;
+    
+    // Optimistic UI update - move immediately
+    const surveyWithActiveStatus = { ...survey, status: 'active' };
+    setPendingSurveys(prev => prev.filter(s => s.id !== survey.id));
+    setActiveSurveys(prev => [surveyWithActiveStatus, ...prev]);
+    toast.success('Survey form submitted! Moved to Active.');
+    logStatusChange(survey, 'pending', 'active');
+    
+    try {
+      setSurveysLoading(true);
+      // Update survey status to 'active' in backend
+      await surveysApi.update(survey.id, { status: 'active' });
+    } catch (err) {
+      console.error('Failed to update survey status:', err);
+      // Don't show error - UI already updated optimistically
+      // Optionally refresh to sync with backend
+      toast.error('Backend sync failed, but survey moved to Active');
+    } finally {
+      setSurveysLoading(false);
+    }
+  };
+
+  // 🔄 SURVEY FLOW: Active → Completed + Lead Stage → Proposal
+  const handleCompleteSurvey = async (survey) => {
+    if (!guardEdit()) return;
+    
+    // Optimistic UI update - move immediately
+    const surveyWithCompletedStatus = { ...survey, status: 'completed' };
+    setActiveSurveys(prev => prev.filter(s => s.id !== survey.id));
+    setCompletedSurveys(prev => [surveyWithCompletedStatus, ...prev]);
+    toast.success('Survey completed! Lead moved to Proposal stage.');
+    logStatusChange(survey, 'active', 'completed');
+    
+    try {
+      setSurveysLoading(true);
+      // Update survey status to 'completed' in backend
+      await surveysApi.update(survey.id, { status: 'completed' });
+      
+      // Update lead stage to 'proposal' (ONLY on completion)
+      if (survey.sourceLeadId) {
+        await leadsApi.bulkUpdateStage([survey.sourceLeadId], 'proposal');
+      }
+    } catch (err) {
+      console.error('Failed to complete survey:', err);
+      toast.error('Backend sync failed, but survey moved to Completed');
+    } finally {
+      setSurveysLoading(false);
+    }
+  };
+
+  // Generate proposal for completed survey
+  const handleGenerateProposal = (survey) => {
+    toast.success(`Generating proposal for ${survey.customerName}...`);
+    // TODO: Navigate to proposal creation page
+    console.log('Generate proposal for survey:', survey);
+  };
+
+  const filteredActiveSurveys = useMemo(() => {
+    return activeSurveys.filter(s =>
       s.customerName.toLowerCase().includes(search.toLowerCase()) ||
       s.id.toLowerCase().includes(search.toLowerCase())
     );
-  }, [enhancedSurveys, search]);
+  }, [activeSurveys, search]);
 
   const stats = useMemo(() => ({
-    total: enhancedSurveys.length,
-    completed: enhancedSurveys.filter(s => s.status === 'Completed').length,
-    scheduled: enhancedSurveys.filter(s => s.status === 'Scheduled').length,
-    highShadow: enhancedSurveys.filter(s => s.shadowPct > 10).length,
-    totalKw: enhancedSurveys.reduce((acc, s) => acc + s.estimatedKw, 0),
-    avgScore: Math.round(enhancedSurveys.reduce((acc, s) => acc + (s.calculatedScore || 0), 0) / enhancedSurveys.length),
-    slaBreached: enhancedSurveys.filter(s => s.slaBreached).length,
-    automationActive: enhancedSurveys.filter(s => s.automation && s.automation.length > 0).length
-  }), [enhancedSurveys]);
+    total: pendingSurveys.length + activeSurveys.length + completedSurveys.length,
+    pending: pendingSurveys.length,
+    active: activeSurveys.length,
+    completed: completedSurveys.length,
+    totalKw: [...pendingSurveys, ...activeSurveys, ...completedSurveys].reduce((acc, s) => acc + (s.estimatedKw || 0), 0),
+  }), [pendingSurveys, activeSurveys, completedSurveys]);
 
   const [dateRange, setDateRange] = useState({
     start: format(subMonths(new Date(), 6), 'yyyy-MM-dd'),
@@ -702,105 +638,23 @@ const SurveyPage = () => {
   return (
     <div className="animate-fade-in space-y-6">
       {/* ── Advanced Header ── */}
-      <PageHeader
-        title="Survey Management"
-        subtitle="Advanced site assessments · AI feasibility · Automation · Performance tracking"
-        tabs={[
-          { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-          { id: 'kanban', label: 'Kanban', icon: LayoutGrid },
-          { id: 'table', label: 'Surveys', icon: List },
-          { id: 'reports', label: 'Reports', icon: BarChart2 }
-        ]}
-        activeTab={view}
-        onTabChange={(v) => {
-          if (v === 'kanban') setKanbanView(true);
-          else if (v === 'reports') setReportsView(true);
-          else {
-            setKanbanView(false);
-            setReportsView(false);
-            setView(v);
-          }
-        }}
-        actions={[
-          { type: 'toggle', label: 'Automation', icon: Brain, value: automationRules.some(r => r.enabled), onToggle: () => setAutomationRules(prev => prev.map(rule => ({ ...rule, enabled: !rule.enabled }))) },
-          { type: 'button', label: 'Schedule Survey', icon: Plus, variant: 'primary', onClick: () => setShowAdd(true) }
-        ]}
-      />
-
-      {/* ── Date Filters ── */}
-      {view === 'dashboard' && (
-        <div className="glass-card p-3">
-          <div className="flex flex-wrap gap-3 items-center">
-            <div className="flex items-center gap-2">
-              <Calendar size={14} className="text-[var(--text-muted)]" />
-              <span className="text-xs text-[var(--text-muted)]">Date Range:</span>
-              <Input
-                type="date"
-                value={dateRange.start}
-                onChange={e => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-                className="h-7 text-xs w-32"
-              />
-              <span className="text-xs text-[var(--text-muted)]">to</span>
-              <Input
-                type="date"
-                value={dateRange.end}
-                onChange={e => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-                className="h-7 text-xs w-32"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-[var(--text-muted)]">Year:</span>
-              <Select
-                value={selectedYear}
-                onChange={e => setSelectedYear(Number(e.target.value))}
-                className="h-7 text-xs w-24"
-              >
-                {[2024, 2025, 2026].map(year => (
-                  <option key={year} value={year}>{year}</option>
-                ))}
-              </Select>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-[var(--text-muted)]">Month:</span>
-              <Select
-                value={selectedMonth}
-                onChange={e => setSelectedMonth(Number(e.target.value))}
-                className="h-7 text-xs w-28"
-              >
-                {[
-                  { value: 1, label: 'January' },
-                  { value: 2, label: 'February' },
-                  { value: 3, label: 'March' },
-                  { value: 4, label: 'April' },
-                  { value: 5, label: 'May' },
-                  { value: 6, label: 'June' },
-                  { value: 7, label: 'July' },
-                  { value: 8, label: 'August' },
-                  { value: 9, label: 'September' },
-                  { value: 10, label: 'October' },
-                  { value: 11, label: 'November' },
-                  { value: 12, label: 'December' },
-                ].map(m => (
-                  <option key={m.value} value={m.value}>{m.label}</option>
-                ))}
-              </Select>
-            </div>
-            <div className="ml-auto flex gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setDateRange({
-                    start: format(subMonths(new Date(), 6), 'yyyy-MM-dd'),
-                    end: format(new Date(), 'yyyy-MM-dd')
-                  });
-                  setSelectedYear(new Date().getFullYear());
-                  setSelectedMonth(new Date().getMonth() + 1);
-                }}
-              >
-                <RefreshCw size={12} /> Reset
-              </Button>
-            </div>
+      <div className="page-header">
+        <div>
+          <h1 className="heading-page">Survey Management</h1>
+          <p className="text-xs text-[var(--text-muted)] mt-0.5">Advanced site assessments · AI feasibility · Automation · Performance tracking</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)]">
+            <Brain size={12} className="text-[var(--text-muted)]" />
+            <span className="text-[10px] text-[var(--text-muted)]">Automation</span>
+            <button
+              onClick={() => setAutomationRules(prev => prev.map(rule => ({ ...rule, enabled: !rule.enabled })))}
+              className={`w-8 h-4 rounded-full transition-colors ${automationRules.some(r => r.enabled) ? 'bg-emerald-500' : 'bg-gray-300'
+                }`}
+            >
+              <div className={`w-3 h-3 bg-white rounded-full transition-transform ${automationRules.some(r => r.enabled) ? 'translate-x-4' : 'translate-x-0.5'
+                }`} />
+            </button>
           </div>
         </div>
       )}
@@ -833,178 +687,274 @@ const SurveyPage = () => {
       {/* ── Advanced Dashboard ── */}
       {view === 'dashboard' && (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
-          {/* Executive Summary Metrics */}
+          {/* Simple Stats Cards Only */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <SurveyDashboardKPI
-              title="Active Surveys"
+              title="ALL"
               value={stats.total}
               change={12.5}
               icon={MapPin}
               color="#3b82f6"
-              subtitle="In pipeline"
+              subtitle="Total surveys"
               trend="up"
             />
             <SurveyDashboardKPI
-              title="Total Capacity"
-              value={`${stats.totalKw} kW`}
+              title="PENDING"
+              value={stats.pending}
+              change={-5.2}
+              icon={Clock}
+              color="#f59e0b"
+              subtitle="Awaiting form submission"
+              trend="down"
+            />
+            <SurveyDashboardKPI
+              title="ACTIVE"
+              value={stats.active}
               change={8.2}
               icon={Zap}
-              color="#f59e0b"
-              subtitle="Estimated"
-              trend="up"
-            />
-            <SurveyDashboardKPI
-              title="Avg Score"
-              value={stats.avgScore}
-              change={5.8}
-              icon={Brain}
               color="#22c55e"
-              subtitle="Feasibility"
+              subtitle="In progress"
               trend="up"
             />
             <SurveyDashboardKPI
-              title="Automation"
-              value={stats.automationActive}
+              title="COMPLETED"
+              value={stats.completed}
               change={15.3}
-              icon={Zap}
+              icon={CheckCircle}
               color="#a855f7"
-              subtitle="Active rules"
+              subtitle="Finished surveys"
               trend="up"
             />
           </div>
 
-          {/* Advanced Analytics Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Performance Metrics */}
-            <SurveyPerformanceMetrics />
-
-            {/* Engineer Performance */}
-            <SurveyEngineerPerformance />
-
-            {/* Activity Heatmap */}
-            <SurveyActivityHeatmap />
-          </div>
-
-          {/* Feasibility & Trends Charts */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Feasibility Breakdown Chart */}
-            <div className="glass-card p-5">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h3 className="text-sm font-bold text-[var(--text-primary)]">Site Feasibility Analysis</h3>
-                  <p className="text-[11px] text-[var(--text-muted)]">Distribution of sites by AI feasibility score</p>
-                </div>
-                <TrendingUp size={16} className="text-[var(--accent)]" />
+          {/* CRM Leads - Site Survey Scheduled */}
+          <div className="glass-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-sm font-bold text-[var(--text-primary)]">Site Survey Scheduled (From CRM)</h3>
+                <p className="text-[11px] text-[var(--text-muted)]">Leads ready for site survey scheduling</p>
               </div>
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={[
-                  { range: '0-20', count: 2, color: '#ef4444' },
-                  { range: '21-40', count: 5, color: '#f97316' },
-                  { range: '41-60', count: 12, color: '#f59e0b' },
-                  { range: '61-80', count: 28, color: '#3b82f6' },
-                  { range: '81-100', count: 18, color: '#22c55e' },
-                ]}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
-                  <XAxis dataKey="range" tick={{ fontSize: 10 }} stroke="var(--text-muted)" />
-                  <YAxis tick={{ fontSize: 10 }} stroke="var(--text-muted)" />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'var(--bg-elevated)',
-                      border: '1px solid var(--border-base)',
-                      borderRadius: '8px',
-                      fontSize: '11px'
-                    }}
-                  />
-                  <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-1 rounded-full bg-amber-500/10 text-amber-500 text-[10px] font-bold">
+                  {crmLeads.filter(l => !surveyCreatedLeadIds.includes(l.id)).length} Pending
+                </span>
+              </div>
             </div>
-
-            {/* Survey Trends Chart */}
-            <div className="glass-card p-5">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h3 className="text-sm font-bold text-[var(--text-primary)]">Survey Completion Trends</h3>
-                  <p className="text-[11px] text-[var(--text-muted)]">Monthly survey completion and capacity addition</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {leadsLoading ? (
+                <div className="col-span-full p-8 text-center">
+                  <div className="animate-spin w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full mx-auto mb-3"></div>
+                  <p className="text-[11px] text-[var(--text-muted)]">Loading leads from CRM...</p>
                 </div>
-                <BarChart2 size={16} className="text-[var(--accent)]" />
-              </div>
-              <ResponsiveContainer width="100%" height={240}>
-                <AreaChart data={[
-                  { month: 'Jan', completed: 12, capacity: 450, scheduled: 18 },
-                  { month: 'Feb', completed: 18, capacity: 680, scheduled: 22 },
-                  { month: 'Mar', completed: 15, capacity: 520, scheduled: 20 },
-                  { month: 'Apr', completed: 22, capacity: 890, scheduled: 28 },
-                  { month: 'May', completed: 28, capacity: 1100, scheduled: 32 },
-                  { month: 'Jun', completed: 25, capacity: 950, scheduled: 30 },
-                ]}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
-                  <XAxis dataKey="month" tick={{ fontSize: 10 }} stroke="var(--text-muted)" />
-                  <YAxis tick={{ fontSize: 10 }} stroke="var(--text-muted)" />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'var(--bg-elevated)',
-                      border: '1px solid var(--border-base)',
-                      borderRadius: '8px',
-                      fontSize: '11px'
-                    }}
-                  />
-                  <Area type="monotone" dataKey="completed" stackId="1" stroke="#22c55e" fill="#22c55e" fillOpacity={0.6} />
-                  <Area type="monotone" dataKey="scheduled" stackId="1" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.6} />
-                  <Area type="monotone" dataKey="capacity" stackId="2" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.3} />
-                </AreaChart>
-              </ResponsiveContainer>
+              ) : leadsError ? (
+                <div className="col-span-full p-8 text-center">
+                  <p className="text-[11px] text-red-500">{leadsError}</p>
+                </div>
+              ) : crmLeads.filter(l => !surveyCreatedLeadIds.includes(l.id)).length === 0 ? (
+                <div className="col-span-full p-8 text-center">
+                  <p className="text-[11px] text-[var(--text-muted)]">No leads in "Site Survey Scheduled" stage</p>
+                </div>
+              ) : (
+                crmLeads.filter(l => !surveyCreatedLeadIds.includes(l.id)).map(lead => (
+                <div
+                  key={lead.id}
+                  onClick={() => {
+                    setSelectedLead(lead);
+                    setShowAdd(true);
+                  }}
+                  className="p-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] hover:border-[var(--accent)]/50 cursor-pointer hover:scale-[1.02] transition-all group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center font-bold text-sm">
+                      {lead.name.split(' ').map(n => n[0]).join('')}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-[var(--text-primary)] truncate group-hover:text-[var(--accent)] transition-colors">{lead.name}</p>
+                      <p className="text-[10px] text-[var(--text-muted)] truncate">{lead.company}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold text-amber-500">{lead.kw}</p>
+                      <p className="text-[9px] text-[var(--text-muted)]">{lead.city}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-[var(--border-subtle)]">
+                    <div className="flex items-center gap-1 text-[9px] text-[var(--text-muted)]">
+                      <Calendar size={10} />
+                      <span>Due: {lead.nextFollowUp}</span>
+                    </div>
+                    <span className="text-[9px] text-[var(--accent)] font-medium">Click to Schedule →</span>
+                  </div>
+                </div>
+              ))
+              )}
             </div>
           </div>
 
-          {/* Risk Alerts & Automation */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Risk Alerts */}
-            <div className="glass-card p-5 border-l-4 border-l-red-500/50">
-              <div className="flex items-center gap-2 mb-4">
-                <AlertTriangle size={16} className="text-red-500" />
-                <h3 className="text-sm font-bold text-[var(--text-primary)]">Risk & Action Alerts</h3>
+          {/* PENDING Surveys - Form not yet submitted */}
+          <div className="glass-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-sm font-bold text-[var(--text-primary)]">PENDING Surveys (Form Required)</h3>
+                <p className="text-[11px] text-[var(--text-muted)]">Scheduled but form not yet submitted</p>
               </div>
-              <div className="space-y-4">
-                <div className="p-3 rounded-xl bg-red-500/5 border border-red-500/10">
-                  <p className="text-[11px] font-bold text-red-500 mb-1">High Shadow Risk ({stats.highShadow} sites)</p>
-                  <p className="text-[10px] text-[var(--text-muted)] leading-relaxed">Sites with {'>'}10% shadow require immediate micro-inverter evaluation.</p>
-                </div>
-                <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/10">
-                  <p className="text-[11px] font-bold text-amber-500 mb-1">SLA Breach Warning</p>
-                  <p className="text-[10px] text-[var(--text-muted)] leading-relaxed">{stats.slaBreached} surveys waiting {'>'}48h for engineer assignment.</p>
-                </div>
-                <div className="p-3 rounded-xl bg-blue-500/5 border border-blue-500/10">
-                  <p className="text-[11px] font-bold text-blue-500 mb-1">Pending Sync</p>
-                  <p className="text-[10px] text-[var(--text-muted)] leading-relaxed">2 offline reports need synchronization to cloud.</p>
-                </div>
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-1 rounded-full bg-amber-500/10 text-amber-500 text-[10px] font-bold">
+                  {pendingSurveys.length} Pending
+                </span>
               </div>
-              <Button variant="ghost" className="w-full mt-4 text-[10px] h-8">View Detailed Risks</Button>
             </div>
-
-            {/* Automation Rules */}
-            <div className="glass-card p-5 border-l-4 border-l-amber-500/50">
-              <div className="flex items-center gap-2 mb-4">
-                <Zap size={16} className="text-amber-500" />
-                <h3 className="text-sm font-bold text-[var(--text-primary)]">Automation Rules</h3>
-              </div>
-              <div className="space-y-3">
-                {automationRules.map(rule => (
-                  <div key={rule.id} className="flex items-center justify-between p-3 rounded-lg bg-[var(--bg-elevated)]">
-                    <div className="flex-1">
-                      <p className="text-xs font-bold text-[var(--text-primary)]">{rule.name}</p>
-                      <p className="text-[10px] text-[var(--text-muted)]">{rule.condition}</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {pendingSurveys.map(survey => (
+                <div
+                  key={survey.id}
+                  className="p-3 rounded-xl bg-[var(--bg-elevated)] border border-amber-500/30 hover:border-amber-500/60 transition-all"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center font-bold text-sm">
+                      {survey.customerName?.split(' ').map(n => n[0]).join('')}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-[var(--text-primary)] truncate">{survey.customerName}</p>
+                      <p className="text-[10px] text-[var(--text-muted)] truncate">{survey.site}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold text-amber-500">{survey.estimatedKw}kW</p>
+                      <StatusBadge domain="survey" value="pending" />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-[var(--border-subtle)]">
+                    <div className="flex items-center gap-1 text-[9px] text-[var(--text-muted)]">
+                      <Calendar size={10} />
+                      <span>Scheduled: {survey.scheduledDate}</span>
                     </div>
                     <button
-                      onClick={() => setAutomationRules(prev => prev.map(r => r.id === rule.id ? { ...r, enabled: !r.enabled } : r))}
-                      className={`w-10 h-5 rounded-full transition-colors ${rule.enabled ? 'bg-emerald-500' : 'bg-gray-300'}`}
+                      onClick={() => handleSubmitSurveyForm(survey)}
+                      className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold rounded-lg transition-colors flex items-center gap-1"
                     >
-                      <div className={`w-4 h-4 bg-white rounded-full transition-transform ${rule.enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                      <Edit2 size={10} />
+                      Fill Survey Form
                     </button>
                   </div>
-                ))}
+                </div>
+              ))}
+              {pendingSurveys.length === 0 && (
+                <div className="col-span-full p-8 text-center">
+                  <p className="text-[11px] text-[var(--text-muted)]">No pending surveys</p>
+                  <p className="text-[9px] text-[var(--text-muted)] mt-1">Schedule from CRM leads above</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ACTIVE Surveys */}
+          <div className="glass-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-sm font-bold text-[var(--text-primary)]">ACTIVE Surveys (Running)</h3>
+                <p className="text-[11px] text-[var(--text-muted)]">Scheduled site surveys in progress</p>
               </div>
-              <Button variant="ghost" className="w-full mt-4 text-[10px] h-8">Configure Rules</Button>
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-[10px] font-bold">
+                  {activeSurveys.length} Active
+                </span>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {activeSurveys.map(survey => (
+                <div
+                  key={survey.id}
+                  className="p-3 rounded-xl bg-[var(--bg-elevated)] border border-emerald-500/30 hover:border-emerald-500/60 transition-all"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-green-500 text-white flex items-center justify-center font-bold text-sm">
+                      {survey.customerName?.split(' ').map(n => n[0]).join('')}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-[var(--text-primary)] truncate">{survey.customerName}</p>
+                      <p className="text-[10px] text-[var(--text-muted)] truncate">{survey.site}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold text-emerald-500">{survey.estimatedKw}kW</p>
+                      <StatusBadge domain="survey" value="active" />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-[var(--border-subtle)]">
+                    <div className="flex items-center gap-1 text-[9px] text-[var(--text-muted)]">
+                      <Calendar size={10} />
+                      <span>Scheduled: {survey.scheduledDate}</span>
+                    </div>
+                    <button
+                      onClick={() => handleCompleteSurvey(survey)}
+                      className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold rounded-lg transition-colors flex items-center gap-1"
+                    >
+                      <CheckCircle size={10} />
+                      Complete Survey
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {activeSurveys.length === 0 && (
+                <div className="col-span-full p-8 text-center">
+                  <p className="text-[11px] text-[var(--text-muted)]">No active surveys</p>
+                  <p className="text-[9px] text-[var(--text-muted)] mt-1">Submit form from Pending section to activate</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* COMPLETED Surveys */}
+          <div className="glass-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-sm font-bold text-[var(--text-primary)]">COMPLETED Surveys</h3>
+                <p className="text-[11px] text-[var(--text-muted)]">Survey completed, lead ready for proposal</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-1 rounded-full bg-blue-500/10 text-blue-500 text-[10px] font-bold">
+                  {completedSurveys.length} Completed
+                </span>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {completedSurveys.map(survey => (
+                <div
+                  key={survey.id}
+                  className="p-3 rounded-xl bg-[var(--bg-elevated)] border border-blue-500/30 hover:border-blue-500/60 transition-all"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 text-white flex items-center justify-center font-bold text-sm">
+                      {survey.customerName?.split(' ').map(n => n[0]).join('')}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-[var(--text-primary)] truncate">{survey.customerName}</p>
+                      <p className="text-[10px] text-[var(--text-muted)] truncate">{survey.site}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold text-blue-500">{survey.estimatedKw}kW</p>
+                      <StatusBadge domain="survey" value="completed" />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-[var(--border-subtle)]">
+                    <div className="flex items-center gap-1 text-[9px] text-[var(--text-muted)]">
+                      <Calendar size={10} />
+                      <span>Completed: {survey.scheduledDate}</span>
+                    </div>
+                    <button
+                      onClick={() => handleGenerateProposal(survey)}
+                      className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-[10px] font-bold rounded-lg transition-colors flex items-center gap-1"
+                    >
+                      <FileText size={10} />
+                      Generate Proposal
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {completedSurveys.length === 0 && (
+                <div className="col-span-full p-8 text-center">
+                  <p className="text-[11px] text-[var(--text-muted)]">No completed surveys yet</p>
+                  <p className="text-[9px] text-[var(--text-muted)] mt-1">Complete surveys from Active section</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1034,11 +984,11 @@ const SurveyPage = () => {
           selectedRows={selected}
           onSelectRows={setSelected}
           bulkActions={[
-            { label: 'Export', icon: Download, onClick: (rows) => { if (guardExport()) console.log('Exporting', rows); } },
-            { label: 'Assign Engineer', icon: Users, onClick: (rows) => { if (guardEdit()) console.log('Assigning', rows); } },
-            { label: 'Schedule', icon: Calendar, onClick: (rows) => { if (guardEdit()) console.log('Scheduling', rows); } },
+            { key: 'export', label: 'Export', icon: Download, onClick: (rows) => { if (guardExport()) console.log('Exporting', rows); } },
+            { key: 'assign', label: 'Assign Engineer', icon: Users, onClick: (rows) => { if (guardEdit()) console.log('Assigning', rows); } },
+            { key: 'schedule', label: 'Schedule', icon: Calendar, onClick: (rows) => { if (guardEdit()) console.log('Scheduling', rows); } },
             {
-              label: 'Delete', icon: Trash2, onClick: (rows) => {
+              key: 'delete', label: 'Delete', icon: Trash2, onClick: (rows) => {
                 if (!guardDelete()) return;
                 rows.forEach(row => logDelete(row));
                 console.log('Deleting', rows);
@@ -1046,11 +996,11 @@ const SurveyPage = () => {
             },
           ]}
           rowActions={[
-            { label: 'View Report', icon: Eye, onClick: (r) => setSelectedSurvey(r) },
-            { label: 'Timeline', icon: History, onClick: (r) => console.log('Timeline', r) },
-            { label: 'Edit', icon: Edit2, onClick: (r) => { if (guardEdit()) console.log('Edit', r); } },
+            { key: 'view', label: 'View Report', icon: Eye, onClick: (r) => setSelectedSurvey(r) },
+            { key: 'timeline', label: 'Timeline', icon: History, onClick: (r) => console.log('Timeline', r) },
+            { key: 'edit', label: 'Edit', icon: Edit2, onClick: (r) => { if (guardEdit()) console.log('Edit', r); } },
             {
-              label: '3D Studio', icon: Box, onClick: (r) => {
+              key: '3d', label: '3D Studio', icon: Box, onClick: (r) => {
                 const analysis = SITE_ANALYSIS[r.id];
                 setStudioSurvey({
                   projectName: r.customerName,
@@ -1060,7 +1010,7 @@ const SurveyPage = () => {
               }
             },
             {
-              label: 'Delete', icon: Trash2, onClick: (r) => {
+              key: 'delete', label: 'Delete', icon: Trash2, onClick: (r) => {
                 if (!guardDelete()) return;
                 logDelete(r);
                 console.log('Deleted', r);
@@ -1106,8 +1056,8 @@ const SurveyPage = () => {
                     <Pie
                       data={[
                         { name: 'Completed', value: stats.completed, color: '#22c55e' },
-                        { name: 'Scheduled', value: stats.scheduled, color: '#3b82f6' },
-                        { name: 'Pending', value: stats.total - stats.completed - stats.scheduled, color: '#f59e0b' },
+                        { name: 'Active', value: stats.active, color: '#3b82f6' },
+                        { name: 'Pending', value: stats.pending, color: '#f59e0b' },
                       ]}
                       cx="50%"
                       cy="50%"
@@ -1118,7 +1068,7 @@ const SurveyPage = () => {
                     >
                       {[
                         { name: 'Completed', color: '#22c55e' },
-                        { name: 'Scheduled', color: '#3b82f6' },
+                        { name: 'Active', color: '#3b82f6' },
                         { name: 'Pending', color: '#f59e0b' },
                       ].map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
@@ -1136,38 +1086,178 @@ const SurveyPage = () => {
       {/* ── Schedule Survey Modal ── */}
       <Modal
         open={showAdd}
-        onClose={() => setShowAdd(false)}
-        title="Schedule New Site Survey"
+        onClose={() => {
+          setShowAdd(false);
+          setSelectedLead(null);
+        }}
+        title={selectedLead ? `Schedule Survey — ${selectedLead.name}` : "Schedule New Site Survey"}
         footer={
           <div className="flex gap-2 justify-end">
-            <Button variant="ghost" onClick={() => setShowAdd(false)}>Cancel</Button>
-            <Button onClick={() => {
+            <Button variant="ghost" onClick={() => {
+              setShowAdd(false);
+              setSelectedLead(null);
+            }}>Cancel</Button>
+            <Button 
+              disabled={isScheduling}
+              onClick={async () => {
               if (guardCreate()) {
-                logCreate({ id: 'new', name: 'New survey scheduled' });
-                setShowAdd(false);
+                setIsScheduling(true);
+                try {
+                  // Create survey with 'pending' status
+                  // Lead stage will NOT change - it stays 'survey' in CRM
+                  const surveyData = {
+                    customerName: formData.customerName,
+                    engineer: formData.engineer,
+                    site: formData.siteAddress,
+                    scheduledDate: formData.scheduledDate,
+                    estimatedKw: parseInt(formData.size) || 0,
+                    status: 'pending', // NEW: Create as pending, not active
+                    shadowPct: 0,
+                    roofArea: 0,
+                    sourceLeadId: selectedLead?.id || null,
+                    notes: formData.notes
+                  };
+                  
+                  const result = await surveysApi.create(surveyData);
+                  const newSurveyId = result.data?.surveyId || result.data?._id || `temp-${Date.now()}`;
+                  
+                  // Add to pending surveys immediately (lead stays in CRM section)
+                  const newSurvey = {
+                    id: newSurveyId,
+                    customerName: formData.customerName,
+                    engineer: formData.engineer,
+                    site: formData.siteAddress,
+                    scheduledDate: formData.scheduledDate,
+                    estimatedKw: parseInt(formData.size) || 0,
+                    status: 'pending',
+                    shadowPct: 0,
+                    roofArea: 0,
+                    sourceLeadId: selectedLead?.id || null,
+                    notes: formData.notes,
+                    createdAt: new Date().toISOString()
+                  };
+                  
+                  setPendingSurveys(prev => [newSurvey, ...prev]);
+                  
+                  // Track this lead as having a survey created
+                  if (selectedLead?.id) {
+                    setSurveyCreatedLeadIds(prev => [...prev, selectedLead.id]);
+                  }
+                  
+                  // Refresh all surveys from backend
+                  const surveysResult = await surveysApi.getAll({ limit: 100 });
+                  const surveysData = surveysResult.data?.data || surveysResult.data || [];
+                  
+                  const transformedSurveys = surveysData.map(s => ({
+                    id: s.surveyId || s._id,
+                    customerName: s.customerName,
+                    engineer: s.engineer,
+                    site: s.site,
+                    scheduledDate: s.scheduledDate,
+                    estimatedKw: s.estimatedKw,
+                    status: s.status,
+                    shadowPct: s.shadowPct,
+                    roofArea: s.roofArea,
+                    sourceLeadId: s.sourceLeadId,
+                    notes: s.notes,
+                    createdAt: s.createdAt
+                  }));
+                  
+                  // Update all survey lists
+                  setPendingSurveys(transformedSurveys.filter(s => s.status === 'pending'));
+                  setActiveSurveys(transformedSurveys.filter(s => s.status === 'active'));
+                  setCompletedSurveys(transformedSurveys.filter(s => s.status === 'completed'));
+                  
+                  logCreate({ id: 'new', name: `Survey scheduled for ${formData.customerName}` });
+                  toast.success(`Survey scheduled for ${formData.customerName} - Pending Form Submission`);
+                  setShowAdd(false);
+                  setSelectedLead(null);
+                  
+                  // Reset form
+                  setFormData({
+                    customerName: '',
+                    engineer: 'Priya Patel',
+                    siteAddress: '',
+                    scheduledDate: '',
+                    size: '',
+                    notes: ''
+                  });
+                } catch (err) {
+                  console.error('Failed to create survey:', err);
+                  toast.error(err.message || 'Failed to schedule survey. Please try again.');
+                } finally {
+                  setIsScheduling(false);
+                }
               }
             }}>
-              <Plus size={14} /> Schedule Visit
+              {isScheduling ? 'Scheduling...' : <><Plus size={14} /> {selectedLead ? 'Schedule from Lead' : 'Schedule Visit'}</>}
             </Button>
           </div>
         }
       >
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <FormField label="Customer Name"><Input placeholder="e.g. Rajesh Kumar" /></FormField>
+            <FormField label="Customer Name">
+              <Input 
+                value={formData.customerName}
+                onChange={(e) => setFormData({...formData, customerName: e.target.value})}
+                placeholder="e.g. Rajesh Kumar" 
+              />
+            </FormField>
             <FormField label="Assigned Engineer">
-              <Select>
-                <option>Priya Patel</option>
-                <option>Arjun Mehta</option>
+              <Select 
+                value={formData.engineer}
+                onChange={(e) => setFormData({...formData, engineer: e.target.value})}
+              >
+                <option key="eng1" value="Priya Patel">Priya Patel</option>
+                <option key="eng2" value="Rahul Sharma">Rahul Sharma</option>
+                <option key="eng3" value="Amit Kumar">Amit Kumar</option>
+                <option key="eng4" value="Sneha Reddy">Sneha Reddy</option>
+                <option key="eng5" value="Vikram Singh">Vikram Singh</option>
               </Select>
             </FormField>
           </div>
-          <FormField label="Site Address"><Input placeholder="Plot 45, GIDC Phase II, Ahmedabad" /></FormField>
+          <FormField label="Site Address">
+            <Input 
+              value={formData.siteAddress}
+              onChange={(e) => setFormData({...formData, siteAddress: e.target.value})}
+              placeholder="Plot 45, GIDC Phase II, Ahmedabad" 
+            />
+          </FormField>
           <div className="grid grid-cols-2 gap-4">
-            <FormField label="Scheduled Date"><Input type="date" /></FormField>
-            <FormField label="Est. Size (kW)"><Input type="number" placeholder="50" /></FormField>
+            <FormField label="Scheduled Date">
+              <Input 
+                type="date" 
+                value={formData.scheduledDate}
+                onChange={(e) => setFormData({...formData, scheduledDate: e.target.value})}
+              />
+            </FormField>
+            <FormField label="Est. Size (kW)">
+              <Input 
+                type="number" 
+                value={formData.size}
+                onChange={(e) => setFormData({...formData, size: e.target.value})}
+                placeholder="50" 
+              />
+            </FormField>
           </div>
-          <FormField label="Site Notes"><Textarea rows={3} placeholder="Access restrictions, structural observations..." /></FormField>
+          <FormField label="Site Notes">
+            <Textarea 
+              rows={3} 
+              value={formData.notes}
+              onChange={(e) => setFormData({...formData, notes: e.target.value})}
+              placeholder="Access restrictions, structural observations..." 
+            />
+          </FormField>
+          {selectedLead && (
+            <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
+              <p className="text-[11px] text-blue-600">
+                <strong>Source:</strong> CRM Lead #{selectedLead.id} | 
+                <strong>Stage:</strong> {PIPELINE_STAGES.find(s => s.id === selectedLead.stage)?.label} | 
+                <strong>Value:</strong> ₹{selectedLead.value?.toLocaleString()}
+              </p>
+            </div>
+          )}
         </div>
       </Modal>
 

@@ -1,3 +1,4 @@
+
 // Solar OS – Lead Management Module (Premium Enterprise Edition)
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import {
@@ -1284,6 +1285,14 @@ const CRMPage = () => {
   const guardExport = () => {
     if (!can('crm', 'export')) {
       toast.error('Permission denied: Cannot export leads');
+      return false;
+    }
+    return true;
+  };
+
+  const guardEdit = () => {
+    if (!can('crm', 'edit')) {
+      toast.error('Permission denied: Cannot edit leads');
       return false;
     }
     return true;
