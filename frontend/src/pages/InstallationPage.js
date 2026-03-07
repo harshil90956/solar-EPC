@@ -259,11 +259,18 @@ const InstallationPage = () => {
         ]}
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KPICard title="Active Installations" value={active} icon={Wrench} trend={+1} trendLabel="in progress" color="amber" />
-        <KPICard title="Completed" value={completed} icon={CheckCircle} trend={+2} trendLabel="this month" color="emerald" />
-        <KPICard title="Pending" value={pending} icon={Clock} trend={0} trendLabel="awaiting start" color="accent" />
-        <KPICard title="Avg. Progress" value={`${avgProg}%`} icon={Zap} trend={+8} trendLabel="across active sites" color="solar" />
+      {/* Installation Overview KPI Cards */}
+      <div className="mb-2">
+        <p className="text-xs text-[var(--text-muted)] mb-2 flex items-center gap-2">
+          <Wrench size={12} className="text-[var(--accent-light)]" />
+          <span>Installation Overview - Site installation tracking and progress</span>
+        </p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <KPICard title="Total Active Installations" value={active} icon={Wrench} sub="currently in progress" color="amber" />
+          <KPICard title="Total Completed Installations" value={completed} icon={CheckCircle} sub="finished this month" color="emerald" />
+          <KPICard title="Total Pending Installations" value={pending} icon={Clock} sub="awaiting start" color="accent" />
+          <KPICard title="Average Installation Progress" value={`${avgProg}%`} icon={Zap} sub="across all active sites" color="solar" />
+        </div>
       </div>
 
       <div className="ai-banner">

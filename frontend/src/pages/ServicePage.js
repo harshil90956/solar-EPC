@@ -1018,61 +1018,62 @@ const ServicePage = ({ onNavigate }) => {
         ]}
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-        <KPICard
-          label={<span className="text-sm font-semibold text-[var(--text-primary)]">Open Tickets</span>}
-          value={dynamicTicketStats.openTickets}
-          icon={AlertTriangle}
-          trend={+1}
-          trendLabel="need attention"
-          color="red"
-          loading={loadingStats}
-        />
-        <KPICard
-          label={<span className="text-sm font-semibold text-[var(--text-primary)]">Scheduled</span>}
-          value={dynamicTicketStats.scheduled}
-          icon={Calendar}
-          trend={0}
-          trendLabel="planned visits"
-          color="blue"
-          loading={loadingStats}
-        />
-        <KPICard
-          label={<span className="text-sm font-semibold text-[var(--text-primary)]">In Progress</span>}
-          value={dynamicTicketStats.inProgress}
-          icon={Wrench}
-          trend={0}
-          trendLabel="being handled"
-          color="amber"
-          loading={loadingStats}
-        />
-        <KPICard
-          label={<span className="text-sm font-semibold text-[var(--text-primary)]">Resolved</span>}
-          value={dynamicTicketStats.resolved}
-          icon={CheckCircle}
-          trend={+3}
-          trendLabel="this month"
-          color="emerald"
-          loading={loadingStats}
-        />
-        <KPICard
-          label={<span className="text-sm font-semibold text-[var(--text-primary)]">Closed</span>}
-          value={dynamicTicketStats.closed}
-          icon={XCircle}
-          trend={0}
-          trendLabel="completed"
-          color="slate"
-          loading={loadingStats}
-        />
-        <KPICard
-          label={<span className="text-sm font-semibold text-[var(--text-primary)]">AMC Contracts</span>}
-          value={dynamicAmcStats.activeContracts}
-          icon={Shield}
-          trend={+1}
-          trendLabel="active contracts"
-          color="accent"
-          loading={loadingStats}
-        />
+      {/* Service Overview KPI Cards */}
+      <div className="mb-2">
+        <p className="text-xs text-[var(--text-muted)] mb-2 flex items-center gap-2">
+          <Headphones size={12} className="text-[var(--accent-light)]" />
+          <span>Service Overview - Tickets and AMC contracts tracking</span>
+        </p>
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+          <KPICard
+            title="Total Open Tickets"
+            value={dynamicTicketStats.openTickets}
+            icon={AlertTriangle}
+            sub="need immediate attention"
+            color="red"
+            loading={loadingStats}
+          />
+          <KPICard
+            title="Total Scheduled Tickets"
+            value={dynamicTicketStats.scheduled}
+            icon={Calendar}
+            sub="planned for visits"
+            color="blue"
+            loading={loadingStats}
+          />
+          <KPICard
+            title="Total In Progress Tickets"
+            value={dynamicTicketStats.inProgress}
+            icon={Wrench}
+            sub="currently being handled"
+            color="amber"
+            loading={loadingStats}
+          />
+          <KPICard
+            title="Total Resolved Tickets"
+            value={dynamicTicketStats.resolved}
+            icon={CheckCircle}
+            sub="resolved this month"
+            color="emerald"
+            loading={loadingStats}
+          />
+          <KPICard
+            title="Total Closed Tickets"
+            value={dynamicTicketStats.closed}
+            icon={XCircle}
+            sub="completed and closed"
+            color="slate"
+            loading={loadingStats}
+          />
+          <KPICard
+            title="Total Active AMC Contracts"
+            value={dynamicAmcStats.activeContracts}
+            icon={Shield}
+            sub="maintenance contracts active"
+            color="accent"
+            loading={loadingStats}
+          />
+        </div>
       </div>
 
       <div className="ai-banner">
