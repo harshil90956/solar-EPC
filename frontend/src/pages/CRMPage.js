@@ -13,7 +13,7 @@ import {
   MailOpen, Send, CheckSquare, Square, ArrowRight, Sparkles,
   Brain, ZapOff, BatteryCharging, Wind, Sun, Moon, Cloud,
   Gauge, Targeted, FilterX, SearchX, UserPlus, UserMinus,
-  Save, GitCommit
+  Save, GitCommit, ChevronDown, Info
 } from 'lucide-react';
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
@@ -740,7 +740,25 @@ const CRMPage = () => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const sortDropdownRef = useRef(null);
   const columnsDropdownRef = useRef(null);
-  const [showFiltersPanel, setShowFiltersPanel] = useState(false);
+  // Date Range Filter State
+  const [dateRangeFilter, setDateRangeFilter] = useState({
+    type: 'last7days', // today, yesterday, last7days, last30days, thisMonth, lastMonth, custom
+    startDate: null,
+    endDate: null
+  });
+  const [showDateRangeDropdown, setShowDateRangeDropdown] = useState(false);
+  const dateRangeRef = useRef(null);
+  // Date range preset options
+  const dateRangeOptions = [
+    { id: 'today', label: 'Today', days: 0 },
+    { id: 'yesterday', label: 'Yesterday', days: 1 },
+    { id: 'last7days', label: 'Last 7 Days', days: 7 },
+    { id: 'last30days', label: 'Last 30 Days', days: 30 },
+    { id: 'thisMonth', label: 'This Month', days: null },
+    { id: 'lastMonth', label: 'Last Month', days: null },
+    { id: 'custom', label: 'Custom Range', days: null },
+  ];
+
   const [automationRules, setAutomationRules] = useState([
     { id: 1, name: 'High Value Alert', condition: 'value > 500000', action: 'notify_manager', enabled: true },
     { id: 2, name: 'SLA Follow-up', condition: 'days_inactive > 3', action: 'send_email', enabled: true },
@@ -823,6 +841,68 @@ const CRMPage = () => {
     return () => { mounted = false; };
   }, []);
 
+  // Helper function to get date range based on preset - MUST be defined before fetchLeads
+  const getDateRangeFromPreset = useCallback((preset) => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    let startDate, endDate;
+
+    switch (preset) {
+      case 'today':
+        startDate = today;
+        endDate = new Date(today);
+        endDate.setHours(23, 59, 59, 999);
+        break;
+      case 'yesterday':
+        startDate = new Date(today);
+        startDate.setDate(startDate.getDate() - 1);
+        endDate = new Date(startDate);
+        endDate.setHours(23, 59, 59, 999);
+        break;
+      case 'last7days':
+        endDate = new Date(today);
+        endDate.setHours(23, 59, 59, 999);
+        startDate = new Date(today);
+        startDate.setDate(startDate.getDate() - 6);
+        startDate.setHours(0, 0, 0, 0);
+        break;
+      case 'last30days':
+        endDate = new Date(today);
+        endDate.setHours(23, 59, 59, 999);
+        startDate = new Date(today);
+        startDate.setDate(startDate.getDate() - 29);
+        startDate.setHours(0, 0, 0, 0);
+        break;
+      case 'thisMonth':
+        startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+        endDate = new Date(today);
+        endDate.setHours(23, 59, 59, 999);
+        break;
+      case 'lastMonth':
+        startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        endDate = new Date(today.getFullYear(), today.getMonth(), 0);
+        endDate.setHours(23, 59, 59, 999);
+        break;
+      case 'custom':
+        if (dateRangeFilter.startDate && dateRangeFilter.endDate) {
+          startDate = new Date(dateRangeFilter.startDate);
+          startDate.setHours(0, 0, 0, 0);
+          endDate = new Date(dateRangeFilter.endDate);
+          endDate.setHours(23, 59, 59, 999);
+        }
+        break;
+      default:
+        // Default to last 7 days
+        endDate = new Date(today);
+        endDate.setHours(23, 59, 59, 999);
+        startDate = new Date(today);
+        startDate.setDate(startDate.getDate() - 6);
+        startDate.setHours(0, 0, 0, 0);
+    }
+
+    return { startDate, endDate };
+  }, [dateRangeFilter.startDate, dateRangeFilter.endDate]);
+
   // Fetch leads from API with filters
   const fetchLeads = useCallback(async () => {
     try {
@@ -832,6 +912,14 @@ const CRMPage = () => {
         limit: pageSize,
         search,
       };
+      
+      // Add date range filter
+      const { startDate, endDate } = getDateRangeFromPreset(dateRangeFilter.type);
+      if (startDate && endDate) {
+        params.startDate = startDate.toISOString();
+        params.endDate = endDate.toISOString();
+      }
+      
       // Only add sort params if sort key is valid
       if (sort.key) {
         params.sortBy = sort.key;
@@ -855,7 +943,7 @@ const CRMPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, search, sort.key, sort.dir, quickFilter]);
+  }, [page, pageSize, search, sort.key, sort.dir, quickFilter, dateRangeFilter.type, getDateRangeFromPreset]);
 
   useEffect(() => {
     fetchLeads();
@@ -1416,7 +1504,27 @@ const CRMPage = () => {
     setFilterSources([]);
   };
 
-  // Apply sorting to filtered leads
+  // Get formatted date range for display
+  const getDateRangeLabel = useCallback(() => {
+    const option = dateRangeOptions.find(opt => opt.id === dateRangeFilter.type);
+    if (option) {
+      if (dateRangeFilter.type === 'custom' && dateRangeFilter.startDate && dateRangeFilter.endDate) {
+        return `${format(new Date(dateRangeFilter.startDate), 'MMM dd')} - ${format(new Date(dateRangeFilter.endDate), 'MMM dd')}`;
+      }
+      return option.label;
+    }
+    return 'Last 7 Days';
+  }, [dateRangeFilter, dateRangeOptions]);
+
+  // Reset date range filter
+  const resetDateRangeFilter = () => {
+    setDateRangeFilter({
+      type: 'last7days',
+      startDate: null,
+      endDate: null
+    });
+    setPage(1);
+  };
   const sortedLeads = useMemo(() => {
     if (!sort.key) return filteredLeads;
 
@@ -2018,6 +2126,103 @@ const CRMPage = () => {
                 <Filter size={14} className="mr-1" /> 
                 {showAdvancedFilters ? 'Hide Filters' : 'Advanced Filters'}
               </Button>
+              
+              {/* Date Range Picker */}
+              <div className="relative" ref={dateRangeRef}>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowDateRangeDropdown(!showDateRangeDropdown)}
+                  className={showDateRangeDropdown ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : ''}
+                >
+                  <Calendar size={14} className="mr-1" />
+                  {getDateRangeLabel()}
+                  <ChevronDown size={12} className="ml-1" />
+                </Button>
+                
+                {showDateRangeDropdown && (
+                  <div className="absolute left-0 top-full mt-2 w-56 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] shadow-lg z-50">
+                    <div className="p-2">
+                      <p className="text-[10px] text-[var(--text-muted)] px-2 py-1 uppercase tracking-wider">Date Range</p>
+                      {dateRangeOptions.map((option) => (
+                        <button
+                          key={option.id}
+                          onClick={() => {
+                            setDateRangeFilter(prev => ({
+                              ...prev,
+                              type: option.id,
+                              ...(option.id !== 'custom' ? { startDate: null, endDate: null } : {})
+                            }));
+                            // Don't close dropdown for custom - show date inputs
+                            if (option.id !== 'custom') {
+                              setShowDateRangeDropdown(false);
+                              setPage(1); // Reset pagination
+                            }
+                          }}
+                          className={`w-full text-left px-3 py-2 rounded text-xs flex items-center justify-between hover:bg-[var(--bg-hovered)] ${
+                            dateRangeFilter.type === option.id 
+                              ? 'text-[var(--primary)] font-bold bg-[var(--primary)]/10' 
+                              : 'text-[var(--text-secondary)]'
+                          }`}
+                        >
+                          {option.label}
+                          {dateRangeFilter.type === option.id && <CheckCircle2 size={12} />}
+                        </button>
+                      ))}
+                      
+                      {/* Custom Range Inputs */}
+                      {dateRangeFilter.type === 'custom' && (
+                        <div className="mt-2 pt-2 border-t border-[var(--border-base)] px-2">
+                          <p className="text-[10px] text-[var(--text-muted)] mb-2">Custom Range</p>
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-[var(--text-muted)] w-10">From:</span>
+                              <Input
+                                type="date"
+                                value={dateRangeFilter.startDate || ''}
+                                onChange={(e) => setDateRangeFilter(prev => ({ ...prev, startDate: e.target.value }))}
+                                className="h-7 text-xs flex-1"
+                              />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-[var(--text-muted)] w-10">To:</span>
+                              <Input
+                                type="date"
+                                value={dateRangeFilter.endDate || ''}
+                                onChange={(e) => setDateRangeFilter(prev => ({ ...prev, endDate: e.target.value }))}
+                                className="h-7 text-xs flex-1"
+                              />
+                            </div>
+                            <Button
+                              size="sm"
+                              className="w-full mt-1"
+                              onClick={() => {
+                                if (dateRangeFilter.startDate && dateRangeFilter.endDate) {
+                                  setShowDateRangeDropdown(false);
+                                  setPage(1);
+                                }
+                              }}
+                              disabled={!dateRangeFilter.startDate || !dateRangeFilter.endDate}
+                            >
+                              Apply
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Reset Filter Button */}
+              {dateRangeFilter.type !== 'last7days' && (
+                <button
+                  onClick={resetDateRangeFilter}
+                  className="px-3 py-1.5 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] text-xs text-[var(--text-muted)] hover:bg-[var(--bg-hovered)] transition-colors flex items-center gap-1"
+                >
+                  <RefreshCw size={12} /> Reset
+                </button>
+              )}
+              
               {(filterStages.length > 0 || filterScoreRanges.length > 0 || filterValueRanges.length > 0 || filterSources.length > 0) && (
                 <button
                   onClick={clearAllFilters}
@@ -2034,6 +2239,25 @@ const CRMPage = () => {
               <ImportExport moduleName="Leads" fields={crmFields} onImport={handleImport} onExport={handleExport} />
             </div>
           </div>
+
+          {/* Date Range Status Message */}
+          {dateRangeFilter.type !== 'custom' && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs text-blue-600">
+              <Info size={14} />
+              <span>
+                Showing leads from the <strong>{getDateRangeLabel()}</strong>. 
+                Use the date filter to view older leads.
+              </span>
+            </div>
+          )}
+          {dateRangeFilter.type === 'custom' && dateRangeFilter.startDate && dateRangeFilter.endDate && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-600">
+              <CheckCircle2 size={14} />
+              <span>
+                Showing leads from <strong>{format(new Date(dateRangeFilter.startDate), 'MMM dd')} - {format(new Date(dateRangeFilter.endDate), 'MMM dd')}</strong>
+              </span>
+            </div>
+          )}
 
           {/* Advanced Filters Panel - Compact Single Row */}
           {showAdvancedFilters && (

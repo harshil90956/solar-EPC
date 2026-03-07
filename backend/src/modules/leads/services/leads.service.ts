@@ -32,12 +32,20 @@ export class LeadsService {
 
   private buildTenantFilter(tenantId?: string): any {
     const filter: any = { isDeleted: { $ne: true } };
-    if (tenantId) {
-      const tid = this.toObjectId(tenantId);
-      if (tid) {
-        filter.tenantId = tid;
-      }
+    const tid = this.toObjectId(tenantId);
+    
+    if (tid) {
+      // Valid tenantId - match this specific tenant
+      filter.tenantId = tid;
+    } else {
+      // No valid tenantId - match leads with no tenantId OR leads with null tenantId
+      filter.$or = [
+        { tenantId: { $exists: false } },
+        { tenantId: null },
+      ];
     }
+    
+    Logger.log(`[DEBUG] buildTenantFilter - tenantId: ${tenantId}, tid: ${tid}, filter: ${JSON.stringify(filter)}`, 'LeadsService');
     return filter;
   }
 
@@ -45,9 +53,15 @@ export class LeadsService {
     const cacheKey = `${tenantId || 'default'}:${key}`;
     const now = Date.now();
     const cached = this.dashboardCache.get(cacheKey);
+    
+    // TEMP: Clear cache to force fresh data
+    this.dashboardCache.clear();
+    
     if (cached && now - cached.ts <= this.dashboardCacheTtlMs) {
+      Logger.log(`[DEBUG] Cache hit for ${cacheKey}`, 'LeadsService');
       return cached.data as T;
     }
+    Logger.log(`[DEBUG] Cache miss for ${cacheKey}, fetching fresh data`, 'LeadsService');
     const data = await fn();
     this.dashboardCache.set(cacheKey, { ts: now, data });
     return data;
@@ -705,13 +719,25 @@ export class LeadsService {
 
   async getDashboardOverview(
     tenantId?: string,
-  ): Promise<{ totalLeads: number; newLeadsThisMonth: number; pipelineValue: number; conversionRate: number }> {
+  ): Promise<{
+    totalLeads: number;
+    newLeadsThisMonth: number;
+    pipelineValue: number;
+    conversionRate: number;
+    qualifiedLeads: number;
+    convertedLeads: number;
+    lostLeads: number;
+    averageScore: number;
+    activeLeads: number;
+  }> {
     return this.withDashboardCache(tenantId, 'overview', async () => {
       const filter = this.buildTenantFilter(tenantId);
+      Logger.log(`[DEBUG] getDashboardOverview - tenantId: ${tenantId}, filter: ${JSON.stringify(filter)}`, 'LeadsService');
+      
       const now = new Date();
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-      const [totalLeads, newLeadsThisMonth, pipelineAgg, wonCount] = await Promise.all([
+      const [totalLeads, newLeadsThisMonth, pipelineAgg, wonCount, qualifiedCount, lostCount, scoreAgg] = await Promise.all([
         this.leadModel.countDocuments(filter),
         this.leadModel.countDocuments({
           ...filter,
@@ -722,12 +748,32 @@ export class LeadsService {
           { $group: { _id: null, total: { $sum: { $ifNull: ['$value', 0] } } } },
         ]),
         this.leadModel.countDocuments({ ...filter, statusKey: { $in: ['won', 'Won'] } }),
+        this.leadModel.countDocuments({ ...filter, statusKey: { $in: ['qualified', 'Qualified'] } }),
+        this.leadModel.countDocuments({ ...filter, statusKey: { $in: ['lost', 'Lost'] } }),
+        this.leadModel.aggregate([
+          { $match: filter },
+          { $group: { _id: null, avgScore: { $avg: '$score' } } },
+        ]),
       ]);
+      
+      Logger.log(`[DEBUG] getDashboardOverview - totalLeads: ${totalLeads}, newLeadsThisMonth: ${newLeadsThisMonth}`, 'LeadsService');
 
       const pipelineValue = pipelineAgg?.[0]?.total || 0;
       const conversionRate = totalLeads > 0 ? Math.round((wonCount / totalLeads) * 100) : 0;
+      const averageScore = Math.round(scoreAgg?.[0]?.avgScore || 0);
+      const activeLeads = totalLeads - (wonCount + lostCount);
 
-      return { totalLeads, newLeadsThisMonth, pipelineValue, conversionRate };
+      return {
+        totalLeads,
+        newLeadsThisMonth,
+        pipelineValue,
+        conversionRate,
+        qualifiedLeads: qualifiedCount,
+        convertedLeads: wonCount,
+        lostLeads: lostCount,
+        averageScore,
+        activeLeads: Math.max(0, activeLeads),
+      };
     });
   }
 
@@ -773,7 +819,7 @@ export class LeadsService {
 
   async getDashboardTrend(
     tenantId?: string,
-  ): Promise<{ months: Array<{ month: string; leads: number; value: number }>; scoreBuckets: Array<{ bucket: string; count: number }> }> {
+  ): Promise<{ months: Array<{ month: string; leads: number; value: number }>; scoreBuckets: Array<{ bucket: string; count: number }>; agents: Array<{ id: string; name: string; leadsAssigned: number; leadsConverted: number; conversionRate: number; rank: number }> }> {
     return this.withDashboardCache(tenantId, 'trend', async () => {
       const filter = this.buildTenantFilter(tenantId);
 
@@ -782,7 +828,7 @@ export class LeadsService {
       start.setDate(1);
       start.setHours(0, 0, 0, 0);
 
-      const [trendAgg, scoreAgg] = await Promise.all([
+      const [trendAgg, scoreAgg, agentsAgg] = await Promise.all([
         this.leadModel.aggregate([
           {
             $match: {
@@ -810,6 +856,19 @@ export class LeadsService {
               output: { count: { $sum: 1 } },
             },
           },
+        ]),
+        this.leadModel.aggregate([
+          { $match: { ...filter, assignedTo: { $exists: true, $ne: null } } },
+          {
+            $group: {
+              _id: '$assignedTo',
+              leadsAssigned: { $sum: 1 },
+              leadsConverted: { $sum: { $cond: [{ $in: ['$statusKey', ['won', 'Won']] }, 1, 0] } },
+              totalValue: { $sum: { $ifNull: ['$value', 0] } },
+            },
+          },
+          { $sort: { leadsConverted: -1 } },
+          { $limit: 5 },
         ]),
       ]);
 
@@ -841,9 +900,20 @@ export class LeadsService {
         if (label) scoreMap.set(label, r.count);
       }
 
+      // Format agents with rank
+      const agents = (agentsAgg || []).map((r: any, index: number) => ({
+        id: r._id || String(index),
+        name: r._id || 'Unknown',
+        leadsAssigned: r.leadsAssigned || 0,
+        leadsConverted: r.leadsConverted || 0,
+        conversionRate: r.leadsAssigned > 0 ? Math.round((r.leadsConverted / r.leadsAssigned) * 100) : 0,
+        rank: index + 1,
+      }));
+
       return {
         months,
         scoreBuckets: scoreBucketsOrder.map(bucket => ({ bucket, count: scoreMap.get(bucket) || 0 })),
+        agents,
       };
     });
   }
