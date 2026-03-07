@@ -95,10 +95,13 @@ const AppInner = () => {
   const { resolvePermission, isModuleEnabled } = useSettings();
   const [currentPage, setCurrentPage] = useState(getInitialPage);
 
+  const [activeTab, setActiveTab] = useState(null);
+
   // ── Sync URL hash on page change ──
-  const navigate = useCallback((page) => {
+  const navigate = useCallback((page, tab = null) => {
     if (!PAGE_MAP[page]) return; // guard unknown routes
     setCurrentPage(page);
+    setActiveTab(tab);
     window.location.hash = `#${page}`;
   }, []);
 
@@ -151,7 +154,7 @@ const AppInner = () => {
 
   return (
     <Layout currentPage={currentPage} onNavigate={navigate}>
-      <PageComponent onNavigate={navigate} />
+      <PageComponent onNavigate={navigate} initialTab={activeTab} />
       <NotificationSystem />
     </Layout>
   );
