@@ -651,11 +651,18 @@ const InventoryPage = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KPICard label="Total Items" value={dynamicStats.totalItems} sub="SKUs tracked" icon={Package} accentColor="#3b82f6" />
-        <KPICard label="Inventory Value" value={fmt(dynamicStats.totalValue)} sub="At current rates" icon={Warehouse} accentColor="#f59e0b" />
-        <KPICard label="Low Stock Alerts" value={dynamicStats.lowStockItems} sub="Items need reorder" icon={AlertTriangle} accentColor="#f59e0b" />
-        <KPICard label="Out of Stock" value={dynamicStats.outOfStockItems} sub="Immediate action needed" icon={AlertTriangle} accentColor="#ef4444" />
+      {/* Inventory Overview KPI Cards */}
+      <div className="mb-2">
+        <p className="text-xs text-[var(--text-muted)] mb-2 flex items-center gap-2">
+          <Package size={12} className="text-[var(--accent-light)]" />
+          <span>Inventory Overview - Stock levels and valuation tracking</span>
+        </p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <KPICard title="Total Inventory Items" value={dynamicStats.totalItems} sub={`${dynamicStats.totalItems} SKUs tracked in system`} icon={Package} accentColor="#3b82f6" />
+          <KPICard title="Total Inventory Value" value={fmt(dynamicStats.totalValue)} sub="Total valuation at current rates" icon={Warehouse} accentColor="#f59e0b" />
+          <KPICard title="Total Low Stock Alerts" value={dynamicStats.lowStockItems} sub={`${dynamicStats.lowStockItems} items need reordering`} icon={AlertTriangle} accentColor="#f59e0b" />
+          <KPICard title="Total Out of Stock Items" value={dynamicStats.outOfStockItems} sub={`${dynamicStats.outOfStockItems} items need immediate attention`} icon={AlertTriangle} accentColor="#ef4444" />
+        </div>
       </div>
 
       {dynamicStats.lowStockItems > 0 && (

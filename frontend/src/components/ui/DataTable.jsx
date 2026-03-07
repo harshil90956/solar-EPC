@@ -506,7 +506,7 @@ const DataTable = ({
 
                                         )}
 
-                                        {visibleColumns.map(col => (
+                                        {visibleColumns.map(col     => (
 
                                             <td key={`${i}-${col.key}`} className="px-4 py-3.5">
 
