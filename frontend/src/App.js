@@ -76,10 +76,10 @@ const NotFoundPage = ({ onNavigate, type = '404' }) => (
   </div>
 );
 
-// ── Read initial page from URL hash ──────────────────────────────────────────
+// ── Read initial page from URL pathname ──────────────────────────────────────────
 const getInitialPage = () => {
-  const hash = window.location.hash.replace('#', '').replace('/', '').trim();
-  return (hash && PAGE_MAP[hash]) ? hash : 'dashboard';
+  const path = window.location.pathname.replace('/', '').trim();
+  return (path && PAGE_MAP[path]) ? path : 'dashboard';
 };
 
 // ── Main App Inner ────────────────────────────────────────────────────────────
@@ -87,21 +87,21 @@ const AppInner = () => {
   const { user } = useAuth();
   const [currentPage, setCurrentPage] = useState(getInitialPage);
 
-  // ── Sync URL hash on page change ──
+  // ── Sync URL pathname on page change ──
   const navigate = useCallback((page) => {
     if (!PAGE_MAP[page]) return; // guard unknown routes
     setCurrentPage(page);
-    window.location.hash = `#${page}`;
+    window.history.pushState({}, '', `/${page}`);
   }, []);
 
   // ── Listen for browser back/forward ──
   useEffect(() => {
-    const handleHashChange = () => {
-      const page = window.location.hash.replace('#', '').replace('/', '').trim();
-      if (PAGE_MAP[page]) setCurrentPage(page);
+    const handlePopState = () => {
+      const path = window.location.pathname.replace('/', '').trim();
+      if (PAGE_MAP[path]) setCurrentPage(path);
     };
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   // ── Update document title on navigation ──

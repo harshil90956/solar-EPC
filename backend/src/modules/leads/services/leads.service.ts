@@ -430,6 +430,7 @@ export class LeadsService {
   }
 
   async bulkUpdateStage(ids: string[], stage: string, tenantId?: string): Promise<{ modified: number }> {
+    // Find leads by IDs (supports both MongoDB _id and leadId)
     const objectIds = ids.filter(id => Types.ObjectId.isValid(id)).map(id => new Types.ObjectId(id));
     const filter: any = { 
       $or: [
@@ -443,11 +444,39 @@ export class LeadsService {
       filter.tenantId = new Types.ObjectId(tenantId);
     }
 
-    const result = await this.leadModel.updateMany(
-      filter,
-      { $set: { stage, lastContact: new Date() } },
-    );
-    return { modified: result.modifiedCount };
+    // Find all matching leads
+    const leads = await this.leadModel.find(filter).exec();
+    
+    // Update each lead individually to trigger hooks and add activities
+    let modified = 0;
+    const now = new Date();
+    
+    for (const lead of leads) {
+      const oldStage = lead.stage;
+      
+      // Update stage
+      lead.stage = stage;
+      lead.lastContact = now;
+      
+      // Add stage change activity
+      lead.activities.push({
+        type: 'stage_change',
+        ts: this.formatTimestamp(now),
+        note: `Stage changed from ${oldStage} to ${stage}`,
+        by: 'System',
+        timestamp: now,
+      });
+      
+      // Recalculate metrics
+      lead.score = this.calculateScore(lead);
+      lead.slaBreached = this.checkSlaBreached(lead);
+      lead.activeAutomation = this.applyAutomation(lead);
+      
+      await lead.save();
+      modified++;
+    }
+    
+    return { modified };
   }
 
   async getStats(tenantId?: string): Promise<any> {
