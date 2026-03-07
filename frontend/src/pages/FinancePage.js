@@ -1892,12 +1892,6 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-  const totalRevenue = invoices.reduce((a, i) => a + (i.amount || 0), 0);
-
-  const totalCollected = invoices.reduce((a, i) => a + (i.paid || 0), 0);
-
-  const totalBalance = invoices.reduce((a, i) => a + (i.balance || 0), 0);
-
   const safeDateForSummary = (d) => {
     if (!d) return null;
     if (d instanceof Date) {
@@ -1957,75 +1951,40 @@ const FinancePage = ({ onNavigate }) => {
     URL.revokeObjectURL(url);
   };
   const INV_ACTIONS = [
-
     { label: 'View Invoice', icon: FileText, onClick: row => setSelected(row) },
-
     ...(canFinance('edit') ? [
-
       {
-
         label: 'Edit',
-
         icon: Edit,
-
         show: (row) => row?.status !== 'Paid',
-
         onClick: (row) => openEditInvoice(row),
-
       },
-
     ] : []),
-
     ...(canFinance('export') ? [
-
       {
-
         label: 'Export',
-
         icon: Download,
-
         onClick: (row) => exportInvoiceCsv(row),
-
       },
-
     ] : []),
-
     ...(canFinance('assign') ? [
-
       {
-
         label: 'Assign',
-
         icon: Zap,
-
         show: (row) => ['Draft', 'Pending', 'Partial', 'Overdue'].includes(row?.status),
-
         onClick: (row) => openAssignInvoice(row),
-
       },
-
     ] : []),
-
     ...(canFinance('delete') ? [
-
       {
-
         label: 'Delete',
-
         icon: Trash2,
-
         danger: true,
-
         show: (row) => row?.status !== 'Paid',
-
         onClick: (row) => openDeleteInvoice(row),
-
       },
-
     ] : []),
-
     { label: 'Record Payment', icon: CheckCircle, onClick: () => { } },
-
     {
       label: 'Send Reminder',
       icon: Clock,
@@ -2042,47 +2001,48 @@ const FinancePage = ({ onNavigate }) => {
         setError(null);
       },
     },
-
   ];
 
   const filteredRowActions = INV_ACTIONS.filter(action => {
-
     switch (action.label) {
-
       case 'Edit':
-
         return !!financePermissions?.edit;
-
       case 'Delete':
-
         return !!financePermissions?.delete;
-
       case 'Export':
-
         return !!financePermissions?.export;
-
       case 'Assign':
-
         return !!financePermissions?.assign;
-
       default:
-
         return true;
-
     }
-
   });
 
+  // Helper functions to calculate paid and balance from invoice data
+  const getPaidAmount = (inv) => {
+    if (inv.status === 'Paid') return Number(inv.amount || 0);
+    if (inv.status === 'Partial') return Number(inv.paid || inv.amountPaid || 0);
+    return Number(inv.paid || 0);
+  };
 
+  const getBalance = (inv) => {
+    if (inv.status === 'Paid') return 0;
+    const amount = Number(inv.amount || 0);
+    const paid = getPaidAmount(inv);
+    return amount - paid;
+  };
 
   // Calculate KPI values from real data
-
   const revenueCurrent = dashboardStats?.totalRevenue || 0;
 
-  // Cash position includes manual adjustments
-  const cashPosition = (dashboardStats?.totalCollected || 0) - (dashboardStats?.totalPayables || 0) + manualBalance;
+  // Calculate total collected from invoices
+  const totalCollected = (invoices || []).reduce((sum, inv) => sum + getPaidAmount(inv), 0);
 
-  const receivables = dashboardStats?.totalOutstanding || 0;
+  // Calculate total receivables (outstanding balance only)
+  const receivables = (invoices || []).reduce((sum, inv) => sum + getBalance(inv), 0);
+
+  // Cash position includes manual adjustments
+  const cashPosition = totalCollected - (dashboardStats?.totalPayables || 0) + manualBalance;
 
   const payablesTotal = payables.reduce((sum, p) => sum + (p.outstandingAmount || 0), 0);
 
@@ -2104,13 +2064,17 @@ const FinancePage = ({ onNavigate }) => {
     return sum + Number(inv?.amount || inv?.invoiceAmount || 0);
   }, 0);
 
-  const currentMonthCollected = (payments || []).reduce((sum, p) => {
-    const dt = safeDate(p?.paymentDate) || safeDate(p?.createdAt);
+  const currentMonthCollected = (invoices || []).reduce((sum, inv) => {
+    const dt = safeDate(inv?.invoiceDate) || safeDate(inv?.createdAt);
     if (!isInCurrentMonth(dt)) return sum;
-    return sum + Number(p?.amount || p?.amountPaid || 0);
+    return sum + getPaidAmount(inv);
   }, 0);
 
-  const currentMonthOutstanding = Math.max(0, currentMonthInvoiced - currentMonthCollected);
+  const currentMonthOutstanding = (invoices || []).reduce((sum, inv) => {
+    const dt = safeDate(inv?.invoiceDate) || safeDate(inv?.createdAt);
+    if (!isInCurrentMonth(dt)) return sum;
+    return sum + getBalance(inv);
+  }, 0);
 
   const currentMonthCollectionRate = currentMonthInvoiced > 0
     ? Math.round((currentMonthCollected / currentMonthInvoiced) * 100)
@@ -2304,7 +2268,7 @@ const FinancePage = ({ onNavigate }) => {
       </div>
 
       <div className="space-y-2">
-        <p className="text-[10px] text-[var(--accent)] uppercase tracking-wider">Current Month</p>
+        <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Current Month</p>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[
             { label: 'Total Invoiced', value: fmt(currentMonthInvoiced), color: 'text-[var(--text-primary)]' },
@@ -2360,22 +2324,6 @@ const FinancePage = ({ onNavigate }) => {
 
                   className="h-8 text-xs w-44" />
 
-                <div className="view-toggle-pill">
-
-                  <button onClick={() => setView('kanban')}
-
-                    className={`view-toggle-btn ${view === 'kanban' ? 'active' : ''}`}
-
-                    title="Kanban view"><LayoutGrid size={13} /></button>
-
-                  <button onClick={() => setView('table')}
-
-                    className={`view-toggle-btn ${view === 'table' ? 'active' : ''}`}
-
-                    title="Table view"><List size={13} /></button>
-
-                </div>
-
               </div>
 
             </div>
@@ -2415,6 +2363,8 @@ const FinancePage = ({ onNavigate }) => {
                 ) : null}
 
                 rowActions={filteredRowActions}
+
+                onRowClick={setSelected}
 
                 rowKey="_id"
 
