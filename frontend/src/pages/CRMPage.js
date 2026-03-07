@@ -57,22 +57,6 @@ const UserSelect = ({ value, onChange, placeholder }) => {
   );
 };
 
-// UserSelect component for lead assignment
-const UserSelect = ({ value, onChange, placeholder }) => {
-  const { users } = useAuth();
-  
-  return (
-    <Select value={value} onChange={(e) => onChange(e.target.value)}>
-      <option value="">{placeholder || 'Select user...'}</option>
-      {(users || []).map(user => (
-        <option key={user.id} value={user.id}>
-          {user.name} ({user.role})
-        </option>
-      ))}
-    </Select>
-  );
-};
-
 const fmt = CURRENCY.format;
 
 const SOURCES = ['All', 'Website', 'Referral', 'Campaign', 'Ads', 'Walk-in', 'Cold Call', 'Partner', 'Event', 'Social Media'];
