@@ -6,32 +6,33 @@ import { cn } from '../../lib/utils';
  * Generic Modal — controlled by `open` prop
  * Sizes: sm (400px) | md (560px) | lg (720px) | xl (900px) | full
  */
-export const Modal = ({ open, onClose, title, description, size = 'md', children, footer }) => {
+export const Modal = ({ isOpen, onClose, title, description, size = 'md', children, footer }) => {
   const overlayRef = useRef(null);
   useEffect(() => {
-    if (open) document.body.style.overflow = 'hidden';
+    if (isOpen) document.body.style.overflow = 'hidden';
     else document.body.style.overflow = '';
     return () => { document.body.style.overflow = ''; };
-  }, [open]);
+  }, [isOpen]);
 
   useEffect(() => {
-    const handle = (e) => { if (e.key === 'Escape' && open) onClose?.(); };
+    const handle = (e) => { if (e.key === 'Escape' && isOpen) onClose?.(); };
     window.addEventListener('keydown', handle);
     return () => window.removeEventListener('keydown', handle);
-  }, [open, onClose]);
+  }, [isOpen, onClose]);
 
-  if (!open) return null;
+  if (!isOpen) return null;
 
-  const widths = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl', full: 'max-w-[95vw]' };
+  const widths = { sm: 'max-w-sm', md: 'max-w-lg md:max-w-md', lg: 'max-w-2xl md:max-w-xl', xl: 'max-w-4xl md:max-w-2xl', full: 'max-w-[95vw]' };
 
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
       onClick={(e) => { if (e.target === overlayRef.current) onClose?.(); }}
     >
       <div className={cn(
-        'relative w-full glass-card shadow-2xl shadow-black/60 animate-slide-up flex flex-col max-h-[88vh]',
+        'relative w-full sm:glass-card bg-[var(--bg-surface)] sm:shadow-2xl sm:shadow-black/60 animate-slide-up flex flex-col max-h-[90vh] sm:max-h-[88vh] rounded-t-xl sm:rounded-xl',
+        size === 'full' ? 'h-[90vh]' : '',
         widths[size] ?? widths.md
       )}>
         {/* Header */}

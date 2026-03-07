@@ -1,6 +1,8 @@
 // Solar OS – EPC Edition
 // CONFIG LAYER: All app-level constants driven from env — NO hardcoding
 
+export const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000/api/v1';
+
 export const APP_CONFIG = {
     name: process.env.REACT_APP_APP_NAME || 'Solar OS',
     edition: process.env.REACT_APP_APP_EDITION || 'EPC Edition',
@@ -19,6 +21,20 @@ export const CURRENCY = {
         if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
         if (n >= 1000) return `₹${(n / 1000).toFixed(1)}K`;
         return `₹${n?.toLocaleString('en-IN') ?? 0}`;
+    },
+    formatFull: (n) => {
+        if (!n || n === 0) return '₹0';
+        // Indian numbering: Crores (1,00,00,000), Lakhs (1,00,000)
+        if (n >= 10000000) { // 1 Crore or more
+            return `₹${(n / 10000000).toFixed(2)} Crores`;
+        }
+        if (n >= 100000) { // 1 Lakh or more
+            return `₹${(n / 100000).toFixed(2)} Lakhs`;
+        }
+        if (n >= 1000) { // 1 Thousand or more
+            return `₹${(n / 1000).toFixed(0)}K`;
+        }
+        return `₹${n.toLocaleString('en-IN')}`;
     },
 };
 

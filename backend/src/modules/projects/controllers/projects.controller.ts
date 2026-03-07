@@ -7,64 +7,106 @@ import {
   Body,
   Param,
   Query,
+  Headers,
+  Request,
+  UseGuards,
 } from '@nestjs/common';
 import { ProjectsService } from '../services/projects.service';
 import { CreateProjectDto, UpdateProjectDto, UpdateProjectStatusDto } from '../dto/project.dto';
+import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
+import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
+import { PermissionGuard } from '../../../modules/settings/guards/permission.guard';
+import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
 
 @Controller('projects')
+@UseGuards(JwtAuthGuard, TenantGuard, PermissionGuard)
 export class ProjectsController {
   constructor(private readonly projectsService: ProjectsService) {}
 
   @Get()
+  @RequirePermission('projects', 'view')
   async findAll(
-    @Query('tenantId') tenantId: string,
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
     @Query('status') status?: string,
     @Query('search') search?: string,
+    @Request() req?: any,
   ) {
-    return this.projectsService.findAll(tenantId, status, search);
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
+    const user = req?.user;
+    return this.projectsService.findAll(tenantId, user, status, search);
   }
 
   @Get('stats')
-  async getStats(@Query('tenantId') tenantId: string) {
-    return this.projectsService.getStats(tenantId);
+  async getStats(
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
+    @Request() req?: any,
+  ) {
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
+    const user = req?.user;
+    return this.projectsService.getStats(tenantId, user);
   }
 
   @Get('by-stage')
-  async getProjectsByStage(@Query('tenantId') tenantId: string) {
+  async getProjectsByStage(
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
+  ) {
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
     return this.projectsService.getProjectsByStage(tenantId);
+  }
+
+  @Get('project-managers')
+  async getProjectManagers(
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
+  ) {
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
+    return this.projectsService.getProjectManagers(tenantId);
   }
 
   @Get(':projectId')
   async findOne(
-    @Query('tenantId') tenantId: string,
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
     @Param('projectId') projectId: string,
   ) {
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
     return this.projectsService.findOne(tenantId, projectId);
   }
 
   @Post()
+  @RequirePermission('projects', 'create')
   async create(
-    @Query('tenantId') tenantId: string,
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
     @Body() createProjectDto: CreateProjectDto,
   ) {
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
     return this.projectsService.create(tenantId, createProjectDto);
   }
 
   @Patch(':projectId')
+  @RequirePermission('projects', 'edit')
   async update(
-    @Query('tenantId') tenantId: string,
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
     @Param('projectId') projectId: string,
     @Body() updateProjectDto: UpdateProjectDto,
   ) {
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
     return this.projectsService.update(tenantId, projectId, updateProjectDto);
   }
 
   @Patch(':projectId/status')
   async updateStatus(
-    @Query('tenantId') tenantId: string,
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
     @Param('projectId') projectId: string,
     @Body() updateStatusDto: UpdateProjectStatusDto,
   ) {
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
     return this.projectsService.updateStatus(
       tenantId, 
       projectId, 
@@ -73,11 +115,24 @@ export class ProjectsController {
     );
   }
 
-  @Delete(':projectId')
-  async remove(
-    @Query('tenantId') tenantId: string,
+  @Patch(':projectId/restore')
+  async restore(
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
     @Param('projectId') projectId: string,
   ) {
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
+    return this.projectsService.restore(tenantId, projectId);
+  }
+
+  @Delete(':projectId')
+  @RequirePermission('projects', 'delete')
+  async remove(
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
+    @Param('projectId') projectId: string,
+  ) {
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
     return this.projectsService.remove(tenantId, projectId);
   }
 }

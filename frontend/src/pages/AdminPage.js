@@ -18,13 +18,15 @@ import {
 } from 'lucide-react';
 import {
   USERS, PROJECTS, LEADS, INVENTORY, TICKETS, QUOTATIONS,
-  VENDORS, PURCHASE_ORDERS, PIPELINE_STAGES
+  VENDORS, PIPELINE_STAGES
 } from '../data/mockData';
 import { StatusBadge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input, FormField, Select, Textarea } from '../components/ui/Input';
+import { PageHeader } from '../components/ui/PageHeader';
 import { KPICard } from '../components/ui/KPICard';
+import { format, subMonths } from 'date-fns';
 import { Avatar } from '../components/ui/Avatar';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/Tabs';
 import DataTable from '../components/ui/DataTable';
@@ -352,13 +354,18 @@ const AdminUserKanbanBoard = ({ users, onStageChange, onCardClick }) => {
 const AdminPage = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [userSearch, setUserSearch] = useState('');
-  const [activityFilter, setActivityFilter] = useState('all');
+  const [systemUsers, setSystemUsers] = useState(USERS);
+  const [userView, setUserView] = useState('table');
   const [userPage, setUserPage] = useState(1);
   const [userPageSize, setUserPageSize] = useState(10);
   const [showAddUser, setShowAddUser] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
-  const [userView, setUserView] = useState('kanban'); // Add Kanban view state
-  const [systemUsers, setSystemUsers] = useState(SYSTEM_USERS); // Add state for users
+  const [dateRange, setDateRange] = useState({
+    start: format(subMonths(new Date(), 6), 'yyyy-MM-dd'),
+    end: format(new Date(), 'yyyy-MM-dd')
+  });
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
 
   // Handle user stage change for Kanban
   const handleUserStageChange = (userId, newStatus) => {
@@ -407,25 +414,15 @@ const AdminPage = () => {
   return (
     <div className="animate-fade-in space-y-5">
       {/* Header */}
-      <div className="page-header">
-        <div>
-          <h1 className="heading-page">Admin Control Center</h1>
-          <p className="text-xs text-[var(--text-muted)] mt-0.5">
-            System administration · User management · Performance monitoring · Security oversight · Advanced analytics
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="ghost" onClick={() => console.log('Export data')}>
-            <Download size={13} /> Export Report
-          </Button>
-          <Button variant="ghost" onClick={() => console.log('System backup')}>
-            <Database size={13} /> Backup
-          </Button>
-          <Button onClick={() => setShowAddUser(true)}>
-            <Plus size={13} /> Add User
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Admin Control Center"
+        subtitle="System administration · User management · Performance monitoring · Security oversight · Advanced analytics"
+        actions={[
+          { type: 'button', label: 'Export Report', icon: Download, onClick: () => console.log('Export data') },
+          { type: 'button', label: 'Backup', icon: Database, onClick: () => console.log('System backup') },
+          { type: 'button', label: 'Add User', icon: Plus, variant: 'primary', onClick: () => setShowAddUser(true) }
+        ]}
+      />
 
       {/* Advanced KPI Cards Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3">
@@ -527,6 +524,84 @@ const AdminPage = () => {
           3 hot leads require immediate attention. Security posture is excellent with zero critical vulnerabilities.
         </p>
       </div>
+
+      {/* ── Date Filters ── */}
+      {activeTab === 'overview' && (
+        <div className="glass-card p-3">
+          <div className="flex flex-wrap gap-3 items-center">
+            <div className="flex items-center gap-2">
+              <Calendar size={14} className="text-[var(--text-muted)]" />
+              <span className="text-xs text-[var(--text-muted)]">Date Range:</span>
+              <Input
+                type="date"
+                value={dateRange.start}
+                onChange={e => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                className="h-7 text-xs w-32"
+              />
+              <span className="text-xs text-[var(--text-muted)]">to</span>
+              <Input
+                type="date"
+                value={dateRange.end}
+                onChange={e => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                className="h-7 text-xs w-32"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[var(--text-muted)]">Year:</span>
+              <Select
+                value={selectedYear}
+                onChange={e => setSelectedYear(Number(e.target.value))}
+                className="h-7 text-xs w-24"
+              >
+                {[2024, 2025, 2026].map(year => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[var(--text-muted)]">Month:</span>
+              <Select
+                value={selectedMonth}
+                onChange={e => setSelectedMonth(Number(e.target.value))}
+                className="h-7 text-xs w-28"
+              >
+                {[
+                  { value: 1, label: 'January' },
+                  { value: 2, label: 'February' },
+                  { value: 3, label: 'March' },
+                  { value: 4, label: 'April' },
+                  { value: 5, label: 'May' },
+                  { value: 6, label: 'June' },
+                  { value: 7, label: 'July' },
+                  { value: 8, label: 'August' },
+                  { value: 9, label: 'September' },
+                  { value: 10, label: 'October' },
+                  { value: 11, label: 'November' },
+                  { value: 12, label: 'December' },
+                ].map(m => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </Select>
+            </div>
+            <div className="ml-auto flex gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setDateRange({
+                    start: format(subMonths(new Date(), 6), 'yyyy-MM-dd'),
+                    end: format(new Date(), 'yyyy-MM-dd')
+                  });
+                  setSelectedYear(new Date().getFullYear());
+                  setSelectedMonth(new Date().getMonth() + 1);
+                }}
+              >
+                <RefreshCw size={12} /> Reset
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>

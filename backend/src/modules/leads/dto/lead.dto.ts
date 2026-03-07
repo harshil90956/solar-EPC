@@ -62,7 +62,7 @@ export class CreateLeadDto {
 
   @IsOptional()
   @IsString()
-  stage?: string;
+  statusKey?: string;
 
   @IsOptional()
   @IsNumber()
@@ -148,7 +148,7 @@ export class UpdateLeadDto extends CreateLeadDto {}
 export class QueryLeadDto {
   @IsOptional()
   @IsString()
-  stage?: string;
+  statusKey?: string;
 
   @IsOptional()
   @IsString()
@@ -215,4 +215,108 @@ export class QueryLeadDto {
   @IsOptional()
   @IsString()
   endDate?: string;
+}
+
+// ============================================
+// IMPORT DTOs
+// ============================================
+
+export class ImportLeadDto {
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  firstName?: string;
+
+  @IsOptional()
+  @IsString()
+  lastName?: string;
+
+  @IsOptional()
+  @IsString()
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @IsOptional()
+  @IsString()
+  company?: string;
+
+  @IsOptional()
+  @IsString()
+  stage?: string;
+
+  @IsOptional()
+  @IsString()
+  statusKey?: string;
+
+  @IsOptional()
+  @IsNumber()
+  score?: number;
+
+  @IsOptional()
+  value?: string | number;
+
+  @IsOptional()
+  @IsString()
+  source?: string;
+
+  @IsOptional()
+  @IsString()
+  city?: string;
+
+  @IsOptional()
+  @IsString()
+  state?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @IsOptional()
+  @IsString()
+  activity_logs?: string;
+
+  @IsOptional()
+  @IsString()
+  assignedTo?: string;
+
+  @IsOptional()
+  @IsNumber()
+  kw?: number;
+
+  @IsOptional()
+  @IsNumber()
+  monthlyBill?: number;
+
+  @IsOptional()
+  @IsNumber()
+  roofArea?: number;
+
+  @IsOptional()
+  @IsString()
+  roofType?: string;
+
+  @IsOptional()
+  @IsNumber()
+  budget?: number;
+
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  // Allow any additional fields for customFields
+  [key: string]: any;
+}
+
+export interface ImportResultDto {
+  success: boolean;
+  inserted: number;
+  updated: number;
+  failed: number;
+  errors: Array<{ row: number; reason: string; data?: any }>;
 }

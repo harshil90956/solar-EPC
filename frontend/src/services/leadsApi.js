@@ -1,10 +1,21 @@
-const API_BASE_URL = (process.env.REACT_APP_API_URL || 'http://localhost:3000') + '/api/v1';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api/v1';
+
+const getTenantId = () => {
+  try {
+    const user = JSON.parse(localStorage.getItem('solar_user') || '{}');
+    return user?.tenantId || user?.tenant?.id || user?.id || null;
+  } catch {
+    return null;
+  }
+};
 
 const getAuthHeaders = () => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('solar_token') || localStorage.getItem('token');
+  const tenantId = getTenantId();
   return {
     'Content-Type': 'application/json',
     ...(token && { Authorization: `Bearer ${token}` }),
+    ...(tenantId && { 'x-tenant-id': tenantId }),
   };
 };
 
@@ -16,6 +27,15 @@ export const leadsApi = {
       headers: getAuthHeaders(),
     });
     if (!response.ok) throw new Error('Failed to fetch leads');
+    return response.json();
+  },
+
+  // Get ordered active lead status options
+  async getStatusOptions() {
+    const response = await fetch(`${API_BASE_URL}/leads/status-options`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to fetch lead status options');
     return response.json();
   },
 
@@ -46,7 +66,11 @@ export const leadsApi = {
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
     });
-    if (!response.ok) throw new Error('Failed to update lead');
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[leadsApi] Update failed:', response.status, errorText);
+      throw new Error(`Failed to update lead: ${errorText}`);
+    }
     return response.json();
   },
 
@@ -57,6 +81,8 @@ export const leadsApi = {
       headers: getAuthHeaders(),
     });
     if (!response.ok) throw new Error('Failed to delete lead');
+    // Backend returns NO_CONTENT (204) with empty body
+    if (response.status === 204) return { success: true };
     return response.json();
   },
 
@@ -66,6 +92,46 @@ export const leadsApi = {
       headers: getAuthHeaders(),
     });
     if (!response.ok) throw new Error('Failed to fetch stats');
+    return response.json();
+  },
+
+  async getDashboardOverview() {
+    const response = await fetch(`${API_BASE_URL}/leads/dashboard/overview`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to fetch dashboard overview');
+    return response.json();
+  },
+
+  async getDashboardFunnel() {
+    const response = await fetch(`${API_BASE_URL}/leads/dashboard/funnel`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to fetch dashboard funnel');
+    return response.json();
+  },
+
+  async getDashboardSource() {
+    const response = await fetch(`${API_BASE_URL}/leads/dashboard/source`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to fetch dashboard source');
+    return response.json();
+  },
+
+  async getDashboardTrend() {
+    const response = await fetch(`${API_BASE_URL}/leads/dashboard/trend`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to fetch dashboard trend');
+    return response.json();
+  },
+
+  async getDashboardActivity() {
+    const response = await fetch(`${API_BASE_URL}/leads/dashboard/activity`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to fetch dashboard activity');
     return response.json();
   },
 
@@ -119,6 +185,29 @@ export const leadsApi = {
     return response.json();
   },
 
+  // Get lead tracker / status progress
+  async getTracker(id) {
+    const response = await fetch(`${API_BASE_URL}/leads/${id}/tracker`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to fetch tracker');
+    return response.json();
+  },
+
+  // Update lead stage (with tracker update)
+  async updateStage(id, stage) {
+    const response = await fetch(`${API_BASE_URL}/leads/${id}/stage`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ stage }),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to update stage: ${errorText}`);
+    }
+    return response.json();
+  },
+
   // Bulk archive leads
   async bulkArchive(ids) {
     const response = await fetch(`${API_BASE_URL}/leads/bulk/archive`, {
@@ -162,6 +251,20 @@ export const leadsApi = {
     return response.json();
   },
 
+  // Assign lead to user
+  async assignLead(id, assignedTo) {
+    const response = await fetch(`${API_BASE_URL}/leads/${id}/assign`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ assignedTo }),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to assign lead: ${errorText}`);
+    }
+    return response.json();
+  },
+
   // Export leads to CSV
   async exportCSV(ids = null) {
     const params = ids ? `?ids=${ids.join(',')}` : '';
@@ -170,5 +273,30 @@ export const leadsApi = {
     });
     if (!response.ok) throw new Error('Failed to export leads');
     return response.blob();
+  },
+
+  // Import leads from file (CSV, XLSX, JSON)
+  async importLeads(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const token = localStorage.getItem('solar_token') || localStorage.getItem('token');
+    const tenantId = getTenantId();
+
+    const response = await fetch(`${API_BASE_URL}/leads/import`, {
+      method: 'POST',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+        ...(tenantId && { 'x-tenant-id': tenantId }),
+        // Don't set Content-Type - browser will set it with boundary for FormData
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to import leads: ${errorText}`);
+    }
+    return response.json();
   },
 };

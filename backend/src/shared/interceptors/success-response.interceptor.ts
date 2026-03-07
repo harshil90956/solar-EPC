@@ -10,10 +10,16 @@ import { Observable, map } from 'rxjs';
 export class SuccessResponseInterceptor implements NestInterceptor {
   intercept(_context: ExecutionContext, next: CallHandler): Observable<unknown> {
     return next.handle().pipe(
-      map((data) => ({
-        success: true,
-        data,
-      })),
+      map((data) => {
+        // Skip if already wrapped or if data is null/undefined
+        if (data && typeof data === 'object' && 'success' in data) {
+          return data;
+        }
+        return {
+          success: true,
+          data,
+        };
+      }),
     );
   }
 }

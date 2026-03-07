@@ -10,10 +10,12 @@ import { StatusBadge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input, FormField, Select, Textarea } from '../components/ui/Input';
+import { PageHeader } from '../components/ui/PageHeader';
 import { KPICard } from '../components/ui/KPICard';
 import { Progress } from '../components/ui/Progress';
 import DataTable from '../components/ui/DataTable';
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
+import { downloadQuotationPDF } from '../lib/pdfTemplate';
 
 const fmt = CURRENCY.format;
 
@@ -278,17 +280,6 @@ const QuotationPage = () => {
   return (
     <div className="animate-fade-in space-y-5">
 
-      {/* ── Header ── */}
-      <div className="page-header">
-        <div>
-          <h1 className="heading-page">Quotation Management</h1>
-          <p className="text-xs text-[var(--text-muted)] mt-0.5">
-            Proposals · margin engine · discount approval · subsidy / EMI · PDF send · conversion tracking
-          </p>
-        </div>
-        <Button onClick={() => setShowAdd(true)}><Plus size={13} /> New Quote</Button>
-      </div>
-
       {/* ── Primary KPIs ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KPICard
@@ -369,21 +360,6 @@ const QuotationPage = () => {
         </div>
       </div>
 
-      {/* ── AI Pricing Banner ── */}
-      <div className="ai-banner">
-        <div className="w-8 h-8 rounded-xl bg-[var(--primary)]/10 border border-[var(--primary)]/20 flex items-center justify-center shrink-0">
-          <Zap size={14} className="text-[var(--primary-light)]" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-xs font-bold text-[var(--primary-light)] mb-0.5">AI Pricing Intelligence</p>
-          <p className="text-xs text-[var(--text-muted)] leading-relaxed">
-            <strong className="text-[var(--text-secondary)]">Q002 (Sunita Malhotra)</strong> — competitor pricing 3% lower in Surat; 2% strategic discount keeps margin at 23% (above floor). Recommend immediate follow-up.&nbsp;
-            <strong className="text-[var(--text-secondary)]">Q003 (Deepika Shah)</strong> — Vadodara region high competition; 62% win probability, valid for 25 more days.&nbsp;
-            <strong className="text-[var(--text-secondary)]">Q004 (Nilesh Parekh)</strong> — design approved, quote pending; 150 kW at ₹8.4L is strong pipeline value.
-          </p>
-        </div>
-      </div>
-
       {/* ── Discount Approval Alerts ── */}
       {pendingApproval > 0 && (
         <div className="flex gap-3 p-3 rounded-xl bg-amber-500/5 border border-amber-500/20">
@@ -409,24 +385,17 @@ const QuotationPage = () => {
           <Input placeholder="Search quotes..." value={search}
             onChange={e => { setSearch(e.target.value); setPage(1); }}
             className="h-8 text-xs w-44" />
-          <div className="view-toggle-pill">
-            <button onClick={() => setView('kanban')} className={`view-toggle-btn ${view === 'kanban' ? 'active' : ''}`} title="Kanban view"><LayoutGrid size={13} /></button>
-            <button onClick={() => setView('table')} className={`view-toggle-btn ${view === 'table' ? 'active' : ''}`} title="Table view"><List size={13} /></button>
-          </div>
         </div>
       </div>
 
-      {view === 'kanban' ? (
-        <QuoteKanbanBoard quotes={filtered} onStageChange={handleStageChange} onCardClick={q => { setSelected(q); setActiveTab('details'); }} />
-      ) : (
-        <DataTable
-          columns={COLUMNS} data={paginated} total={filtered.length}
-          page={page} pageSize={pageSize}
-          onPageChange={setPage} onPageSizeChange={s => { setPageSize(s); setPage(1); }}
-          search={search} onSearch={v => { setSearch(v); setPage(1); }}
-          rowActions={ROW_ACTIONS}
-        />
-      )}
+      {/* ── Data Table ── */}
+      <DataTable
+        columns={COLUMNS} data={paginated} total={filtered.length}
+        page={page} pageSize={pageSize}
+        onPageChange={setPage} onPageSizeChange={s => { setPageSize(s); setPage(1); }}
+        search={search} onSearch={v => { setSearch(v); setPage(1); }}
+        rowActions={ROW_ACTIONS}
+      />
 
       {/* ══════════════════════════════════════════════
           NEW QUOTATION MODAL — with live margin engine
@@ -578,7 +547,7 @@ const QuotationPage = () => {
         footer={
           <>
             <Button variant="secondary" onClick={() => setSelected(null)}>Close</Button>
-            <Button variant="outline"><Download size={13} /> Export PDF</Button>
+            <Button variant="outline" onClick={() => downloadQuotationPDF(selected)}><Download size={13} /> Export PDF</Button>
             {selected?.status !== 'Approved' && selected?.status !== 'Rejected' && (
               <Button variant="outline"><Send size={13} /> Send to Customer</Button>
             )}

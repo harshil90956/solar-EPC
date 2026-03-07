@@ -16,9 +16,15 @@ import { ServiceAmcModule } from './modules/service-amc/service-amc.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { SurveyModule } from './modules/survey/survey.module';
 import { WorkflowModule } from './core/workflow/workflow.module';
+import { HrmModule } from './modules/hrm/hrm.module';
 import { PermissionsModule } from './core/permissions/permissions.module';
 import { AuthModule } from './core/auth/auth.module';
 import { TenantModule } from './core/tenant/tenant.module';
+
+import { DocumentModule } from './modules/document/document.module';
+import { EmailModule } from './modules/email/email.module';
+import { ItemsModule } from './modules/items/items.module';
+import { EstimatesModule } from './modules/estimates/estimates.module';
 
 @Module({
   imports: [
@@ -29,8 +35,10 @@ import { TenantModule } from './core/tenant/tenant.module';
     TenantModule,
     WorkflowModule,
     PermissionsModule,
+    EmailModule,
 
     LeadsModule,
+    DocumentModule,
     SurveyModule,
     DesignModule,
     QuotationModule,
@@ -38,12 +46,15 @@ import { TenantModule } from './core/tenant/tenant.module';
     InventoryModule,
     ProcurementModule,
     LogisticsModule,
+    ItemsModule,
+    EstimatesModule,
     InstallationModule,
     CommissioningModule,
     FinanceModule,
     ServiceAmcModule,
     ComplianceModule,
     SettingsModule,
+    HrmModule,
   ],
 })
 export class AppModule {}

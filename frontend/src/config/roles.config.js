@@ -17,12 +17,14 @@ export const ROLES = {
 export const MODULES = {
     DASHBOARD: 'dashboard',
     REMINDERS: 'reminders',
+    HRM: 'hrm',
     CRM: 'crm',
     SURVEY: 'survey',
     DESIGN: 'design',
     QUOTATION: 'quotation',
     PROJECT: 'project',
     INVENTORY: 'inventory',
+    ITEMS: 'items',
     PROCUREMENT: 'procurement',
     LOGISTICS: 'logistics',
     INSTALLATION: 'installation',
@@ -32,6 +34,7 @@ export const MODULES = {
     COMPLIANCE: 'compliance',
     SETTINGS: 'settings',
     INTELLIGENCE: 'intelligence',
+    HRM: 'hrm',
 };
 
 const ALL_MODULES = Object.values(MODULES);
@@ -79,7 +82,7 @@ export const ROLE_PERMISSIONS = {
         canApprove: true,
     },
     [ROLES.STORE_MANAGER]: {
-        modules: [MODULES.DASHBOARD, MODULES.REMINDERS, MODULES.INVENTORY, MODULES.PROCUREMENT, MODULES.LOGISTICS],
+        modules: [MODULES.DASHBOARD, MODULES.REMINDERS, MODULES.INVENTORY, MODULES.PROCUREMENT, MODULES.LOGISTICS, MODULES.ITEMS],
         canCreate: true,
         canEdit: true,
         canDelete: false,
@@ -87,7 +90,7 @@ export const ROLE_PERMISSIONS = {
         canApprove: false,
     },
     [ROLES.PROCUREMENT_OFFICER]: {
-        modules: [MODULES.DASHBOARD, MODULES.REMINDERS, MODULES.PROCUREMENT, MODULES.INVENTORY, MODULES.LOGISTICS],
+        modules: [MODULES.DASHBOARD, MODULES.REMINDERS, MODULES.PROCUREMENT, MODULES.INVENTORY, MODULES.LOGISTICS, MODULES.ITEMS],
         canCreate: true,
         canEdit: true,
         canDelete: false,
@@ -121,7 +124,7 @@ export const ROLE_PERMISSIONS = {
 };
 
 export const getRolePermissions = (role) =>
-    ROLE_PERMISSIONS[role] ?? { modules: [MODULES.DASHBOARD], canCreate: false, canEdit: false, canDelete: false, canExport: false, canApprove: false };
+    ROLE_PERMISSIONS[role] ?? ROLE_PERMISSIONS[role?.toLowerCase()] ?? ROLE_PERMISSIONS[role?.charAt(0)?.toUpperCase() + role?.slice(1)?.toLowerCase()] ?? { modules: [MODULES.DASHBOARD], canCreate: false, canEdit: false, canDelete: false, canExport: false, canApprove: false };
 
 export const canAccess = (role, module) =>
     getRolePermissions(role).modules.includes(module);

@@ -8,6 +8,14 @@ export interface Milestone {
   date: string | null;
 }
 
+export interface Material {
+  itemId: string;
+  itemName: string;
+  quantity: number;
+  issuedDate?: string;
+  remarks?: string;
+}
+
 @Schema(BaseSchemaOptions)
 export class Project extends Document {
   @Prop({ required: true, unique: true })
@@ -18,6 +26,12 @@ export class Project extends Document {
 
   @Prop({ required: true })
   customerName!: string;
+
+  @Prop({ required: false })
+  email?: string;
+
+  @Prop({ required: false })
+  mobileNumber?: string;
 
   @Prop({ required: true })
   site!: string;
@@ -56,6 +70,18 @@ export class Project extends Document {
   })
   milestones!: Milestone[];
 
+  @Prop({
+    type: [{
+      itemId: { type: String, required: true },
+      itemName: { type: String, required: true },
+      quantity: { type: Number, required: true, min: 1 },
+      issuedDate: { type: String, required: false },
+      remarks: { type: String, required: false },
+    }],
+    default: [],
+  })
+  materials?: Material[];
+
   @Prop(BaseSchemaDefinition.tenantId)
   tenantId!: Types.ObjectId;
 
@@ -64,6 +90,9 @@ export class Project extends Document {
 
   @Prop({ required: false })
   cancelledAt?: Date;
+
+  @Prop({ type: Types.ObjectId, ref: 'User', index: true, required: false })
+  assignedTo?: Types.ObjectId;
 
   @Prop({ type: Types.ObjectId, ref: 'User', required: false })
   cancelledBy?: Types.ObjectId;
@@ -75,3 +104,4 @@ export const ProjectSchema = SchemaFactory.createForClass(Project);
 ProjectSchema.index({ tenantId: 1, status: 1 });
 ProjectSchema.index({ tenantId: 1, projectId: 1 });
 ProjectSchema.index({ tenantId: 1, customerName: 'text', site: 'text' });
+ProjectSchema.index({ assignedTo: 1 });

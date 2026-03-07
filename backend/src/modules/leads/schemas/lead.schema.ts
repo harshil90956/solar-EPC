@@ -24,6 +24,23 @@ export class Activity {
 const ActivitySchema = SchemaFactory.createForClass(Activity);
 
 @Schema({ timestamps: true })
+export class LeadStage {
+  @Prop({ required: true })
+  stage!: string;
+
+  @Prop({ type: Boolean, default: false })
+  completed!: boolean;
+
+  @Prop({ type: Date, default: null })
+  completedAt?: Date | null;
+
+  @Prop({ type: Date, default: Date.now })
+  createdAt!: Date;
+}
+
+const LeadStageSchema = SchemaFactory.createForClass(LeadStage);
+
+@Schema({ timestamps: true })
 export class Lead {
   @Prop({ required: true, unique: true })
   leadId!: string;
@@ -44,13 +61,13 @@ export class Lead {
   source!: string;
 
   @Prop({ required: true, default: 'new' })
-  stage!: string;
+  statusKey!: string;
 
   @Prop({ type: Number, default: 0 })
   score!: number;
 
-  @Prop({ default: '' })
-  assignedTo!: string;
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', index: true })
+  assignedTo?: Types.ObjectId;
 
   @Prop({ type: Number, default: 0 })
   kw!: number;
@@ -69,6 +86,9 @@ export class Lead {
 
   @Prop({ default: Date.now })
   created!: Date;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', index: true })
+  createdBy?: Types.ObjectId;
 
   @Prop({ default: Date.now })
   lastContact!: Date;
@@ -100,6 +120,9 @@ export class Lead {
   @Prop({ type: [ActivitySchema], default: [] })
   activities!: Activity[];
 
+  @Prop({ type: [LeadStageSchema], default: [] })
+  leadStages!: LeadStage[];
+
   @Prop({ default: '' })
   nextFollowUp!: string;
 
@@ -111,6 +134,9 @@ export class Lead {
 
   @Prop({ type: String, default: '' })
   notes!: string;
+
+  @Prop({ type: MongooseSchema.Types.Mixed, default: {} })
+  customFields!: Record<string, any>;
 
   @Prop({
     type: [{
@@ -136,7 +162,8 @@ export class Lead {
 export const LeadSchema = SchemaFactory.createForClass(Lead);
 
 LeadSchema.index({ email: 1, tenantId: 1 }, { unique: true, sparse: true });
-LeadSchema.index({ leadId: 1 });
-LeadSchema.index({ stage: 1 });
+LeadSchema.index({ statusKey: 1 });
 LeadSchema.index({ source: 1 });
 LeadSchema.index({ score: -1 });
+LeadSchema.index({ assignedTo: 1 });
+LeadSchema.index({ createdBy: 1 });

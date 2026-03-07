@@ -8,7 +8,8 @@ import {
   Filter, MoreVertical, Bell, Settings, Activity, Target,
   Award, PieChart as PieChartIcon, Clock, Star, Brain,
   Gauge, Wind, Cloud, FileText, MessageSquare, Phone,
-  Mail, Send, ChevronLeft, ArrowRight, ArrowUpRight, ArrowDownRight
+  Mail, Send, ChevronLeft, ArrowRight, ArrowUpRight, ArrowDownRight,
+  RefreshCw
 } from 'lucide-react';
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
@@ -26,7 +27,9 @@ import { Button } from '../components/ui/Button';
 import { Avatar } from '../components/ui/Avatar';
 import { Modal } from '../components/ui/Modal';
 import { Input, FormField, Textarea, Select } from '../components/ui/Input';
+import { PageHeader } from '../components/ui/PageHeader';
 import { KPICard } from '../components/ui/KPICard';
+import { format, subMonths } from 'date-fns';
 import { Progress } from '../components/ui/Progress';
 import DataTable from '../components/ui/DataTable';
 import FilterSystem from '../components/ui/FilterSystem';
@@ -625,7 +628,12 @@ const SurveyPage = () => {
     totalKw: [...pendingSurveys, ...activeSurveys, ...completedSurveys].reduce((acc, s) => acc + (s.estimatedKw || 0), 0),
   }), [pendingSurveys, activeSurveys, completedSurveys]);
 
-  const selAnalysis = selectedSurvey ? (SITE_ANALYSIS[selectedSurvey.id] ?? null) : null; // eslint-disable-line no-unused-vars
+  const [dateRange, setDateRange] = useState({
+    start: format(subMonths(new Date(), 6), 'yyyy-MM-dd'),
+    end: format(new Date(), 'yyyy-MM-dd')
+  });
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
 
   return (
     <div className="animate-fade-in space-y-6">
@@ -648,24 +656,8 @@ const SurveyPage = () => {
                 }`} />
             </button>
           </div>
-          <CanAccess module="survey" action="export">
-            <ImportExport
-              onImport={(data) => {
-                if (!guardCreate()) return;
-                setSurveys(prev => [...prev, ...data]);
-                logCreate({ id: 'batch', name: `Import batch of ${data.length} surveys` });
-              }}
-              onExport={() => { if (guardExport()) console.log('Exporting surveys...'); }}
-              templateFields={SURVEY_FIELDS}
-            />
-          </CanAccess>
-          <CanCreate module="survey">
-            <Button onClick={() => setShowAdd(true)} className="shadow-lg shadow-[var(--primary)]/20">
-              <Plus size={14} /> Schedule Survey
-            </Button>
-          </CanCreate>
         </div>
-      </div>
+      )}
 
       {/* ── Search & Filter Bar ── */}
       {view !== 'dashboard' && (

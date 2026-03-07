@@ -3,6 +3,7 @@ import { Sun, Bell, Search, ChevronDown, LogOut, Menu, X, Zap, Settings, User, P
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useReminders } from '../context/ReminderContext';
+import { useSettings } from '../context/SettingsContext';
 import { NAV_CONFIG } from '../config/nav.config';
 import { canAccess } from '../config/roles.config';
 import { APP_CONFIG } from '../config/app.config';
@@ -12,19 +13,31 @@ import { Badge } from './ui/Badge';
 import { cn } from '../lib/utils';
 import ThemeCustomizer from './ThemeCustomizer';
 import ReminderSidebar from './Reminder/ReminderSidebar';
+import { api } from '../lib/apiClient';
+
+const TENANT_ID = 'solarcorp';
 
 const Layout = ({ currentPage, onNavigate, children }) => {
   const { user, logout } = useAuth();
   const { theme, setTheme, themes, currentLabel, customization } = useTheme();
   const { activeNotifications, upcomingCount, overdueCount } = useReminders();
+  const { isModuleEnabled, resolvePermission, userOverrides, customRoles } = useSettings();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarHovered, setSidebarHovered] = useState(false);
+  const [expandedMenus, setExpandedMenus] = useState({ hrm: false });
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [reminderSidebarOpen, setReminderSidebarOpen] = useState(false);
   const [searchVal, setSearchVal] = useState('');
   const [notifTab, setNotifTab] = useState('alerts');
+  const [badgeCounts, setBadgeCounts] = useState({
+    inventory: 0,
+    project: 0,
+    crm: 0,
+    quotation: 0,
+    service: 0,
+  });
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1280);
 
   useEffect(() => {
@@ -33,16 +46,74 @@ const Layout = ({ currentPage, onNavigate, children }) => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Fetch dynamic badge counts
+  useEffect(() => {
+    const fetchBadgeCounts = async () => {
+      try {
+        // Fetch inventory stats (auth headers via apiClient interceptor)
+        const inventoryData = await api.get('/inventory/stats', { tenantId: TENANT_ID }).catch(() => null);
+
+        // Fetch projects
+        const projectsData = await api.get('/projects').catch(() => null);
+        const projects = projectsData?.data || projectsData || [];
+
+        // Calculate counts
+        const lowStockCount = inventoryData?.data?.lowStockItems ?? inventoryData?.lowStockItems ?? 0;
+        const activeProjects = projects.filter(p => p.status !== 'Commissioned').length;
+
+        setBadgeCounts({
+          inventory: lowStockCount,
+          project: activeProjects,
+          crm: 0,
+          quotation: 0,
+          service: 0,
+        });
+      } catch (err) {
+        console.error('Error fetching badge counts:', err);
+        // Set default values on error
+        setBadgeCounts({
+          inventory: 0,
+          project: 0,
+          crm: 0,
+          quotation: 0,
+          service: 0,
+        });
+      }
+    };
+
+    fetchBadgeCounts();
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchBadgeCounts, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   const close = useCallback(() => setSidebarOpen(false), []);
 
   const unreadCount = ALERTS.filter(a => a.severity === 'critical' || a.severity === 'warning').length;
   const totalReminderAlerts = activeNotifications.length + upcomingCount + overdueCount;
 
-  // Filter nav based on role permissions (config-driven)
+  // Filter nav based on role permissions AND module enabled flags
+  // Uses resolvePermission to support custom roles (User Override → Custom Role → Base RBAC)
+  // Admin always sees all modules
   const visibleSections = NAV_CONFIG.map(section => ({
     ...section,
-    items: section.items.filter(item => canAccess(user?.role, item.id)),
+    items: section.items.filter(item => {
+      const hasModuleAccess = isModuleEnabled(item.id);
+      console.log('[DEBUG] Module:', item.id, 'isModuleEnabled:', hasModuleAccess);
+      
+      if (!hasModuleAccess) return false;
+
+      // Check view permission using resolvePermission (supports custom roles)
+      const userId = user?.id;
+      const roleId = user?.role;
+      const canView = resolvePermission(userId, roleId, item.id, 'view');
+
+      return canView;
+    }),
   })).filter(s => s.items.length > 0);
+  
+  console.log('[DEBUG] visibleSections:', visibleSections.length, 'sections');
+  console.log('[DEBUG] user:', user?.id, user?.role);
 
   /* ── Derive layout dimensions from customization ── */
   const c = customization || {};
@@ -61,7 +132,8 @@ const Layout = ({ currentPage, onNavigate, children }) => {
     return 220;
   };
   const sidebarW = getSidebarWidth();
-  const showLabels = isOverlay ? sidebarHovered : sidebarW >= 220;
+  // Always show labels unless explicitly in mini/compact mode
+  const showLabels = true;
 
   // Boxed layout
   const isBoxed = c.layoutWidth === 'boxed';
@@ -480,62 +552,53 @@ const Layout = ({ currentPage, onNavigate, children }) => {
 
           {/* ════════════════ SIDEBAR LOGO ════════════════ */}
           <div className={cn(
-            'flex items-center border-b border-[var(--border-base)] transition-all duration-300',
-            showLabels ? 'px-4 py-4 gap-3' : 'px-2 py-3 justify-center'
+            'relative z-50 flex items-center border-b border-[var(--border-base)] bg-[var(--bg-sidebar)] shrink-0',
+            showLabels ? 'px-4 h-20 gap-3' : 'justify-center h-20'
           )}>
             {/* Solar Logo Icon */}
             <div className={cn(
-              'relative shrink-0 rounded-xl bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600 flex items-center justify-center shadow-lg transition-all duration-300',
-              showLabels ? 'w-10 h-10' : 'w-9 h-9'
+              'relative z-10 shrink-0 rounded-xl flex items-center justify-center',
+              'w-12 h-12'
             )}
               style={{
-                boxShadow: '0 8px 24px rgba(245, 158, 11, 0.4), 0 0 20px rgba(251, 191, 36, 0.3)',
-                animation: 'pulse-glow 3s ease-in-out infinite'
+                background: 'linear-gradient(135deg, #f59e0b 0%, #f97316 100%)',
+                boxShadow: '0 4px 20px rgba(245, 158, 11, 0.5)',
               }}
             >
-              {/* Sun rays animation */}
-              <div className="absolute inset-0 rounded-xl"
-                style={{
-                  background: 'radial-gradient(circle at center, rgba(251, 191, 36, 0.3) 0%, transparent 70%)',
-                  animation: 'rotate-slow 20s linear infinite'
-                }}
-              />
-
-              {/* Main sun icon */}
               <Sun
-                size={showLabels ? 20 : 18}
-                className="relative z-10 text-white drop-shadow-lg"
-                strokeWidth={2.5}
-                style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' }}
+                size={24}
+                className="relative z-10 text-white"
+                strokeWidth={2}
               />
 
-              {/* Solar panel detail */}
-              <div className="absolute bottom-1 right-1 w-2 h-2 rounded-sm opacity-80"
+              {/* Solar panel badge */}
+              <div className="absolute -bottom-1.5 -right-1.5 z-20 w-5 h-5 rounded-lg flex items-center justify-center"
                 style={{
-                  boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.3)',
-                  background: `linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%)`
+                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  border: '2px solid var(--bg-sidebar)'
                 }}
-              />
+              >
+                <div className="w-2.5 h-2.5 grid grid-cols-2 gap-px">
+                  <div className="bg-white/90 rounded-sm" />
+                  <div className="bg-white/90 rounded-sm" />
+                  <div className="bg-white/90 rounded-sm" />
+                  <div className="bg-white/90 rounded-sm" />
+                </div>
+              </div>
             </div>
 
             {/* Logo Text */}
             {showLabels && (
-              <div className="flex flex-col leading-tight">
-                <div className="flex items-baseline gap-1.5">
+              <div className="relative z-10 flex flex-col justify-center">
+                <div className="flex items-baseline gap-1">
                   <span className={cn(
-                    'font-extrabold text-base tracking-tight',
-                    sidebarHasCustomColor
-                      ? 'text-white'
-                      : 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 bg-clip-text text-transparent'
-                  )}
-                    style={{
-                      textShadow: sidebarHasCustomColor ? '0 2px 8px rgba(255,255,255,0.15)' : 'none'
-                    }}
-                  >
+                    'font-bold text-lg leading-none',
+                    sidebarHasCustomColor ? 'text-white' : 'text-amber-500'
+                  )}>
                     {APP_CONFIG.name.split(' ')[0]}
                   </span>
                   <span className={cn(
-                    'font-bold text-base tracking-tight',
+                    'font-semibold text-lg leading-none',
                     sidebarHasCustomColor ? 'text-white/90' : 'text-[var(--text-primary)]'
                   )}>
                     {APP_CONFIG.name.split(' ')[1]}
@@ -543,15 +606,14 @@ const Layout = ({ currentPage, onNavigate, children }) => {
                 </div>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <span className={cn(
-                    'text-[9px] font-bold uppercase tracking-[0.1em]',
-                    sidebarHasCustomColor ? 'text-white/50' : 'text-[var(--text-faint)]'
+                    'text-[8px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded',
+                    sidebarHasCustomColor
+                      ? 'bg-white/10 text-white/60'
+                      : 'bg-amber-500/10 text-amber-600'
                   )}>
                     {APP_CONFIG.edition}
                   </span>
-                  <div className="flex items-center gap-0.5">
-                    <span className="w-1 h-1 rounded-full bg-green-500 animate-pulse-dot" />
-                    <span className="text-[8px] font-semibold text-green-500">Active</span>
-                  </div>
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
                 </div>
               </div>
             )}
@@ -562,49 +624,100 @@ const Layout = ({ currentPage, onNavigate, children }) => {
               <div key={section.section} className="mb-3">
                 {showLabels && (
                   <p className={cn(
-                    'px-3 pb-1.5 pt-2 text-[9px] font-bold uppercase tracking-[0.15em]',
-                    sidebarHasCustomColor ? 'text-white/40' : 'text-[var(--text-faint)]'
+                    'px-3 pb-1 pt-1.5 text-[8px] font-bold uppercase tracking-[0.15em]',
+                    sidebarHasCustomColor ? 'text-white/30' : 'text-[var(--text-faint)]'
                   )}>
                     {section.section}
                   </p>
                 )}
                 {section.items.map(item => {
                   const Icon = item.icon;
-                  const active = currentPage === item.id;
+                  const hasChildren = item.children && item.children.length > 0;
+                  const isExpanded = expandedMenus[item.id];
+                  const isChildActive = hasChildren && item.children.some(child => child.id === currentPage);
+                  const isActive = currentPage === item.id || isChildActive;
+
                   return (
-                    <button
-                      key={item.id}
-                      onClick={() => { onNavigate(item.id); close(); setSidebarHovered(false); }}
-                      title={!showLabels ? item.label : undefined}
-                      className={cn(
-                        'w-full flex items-center transition-all duration-150',
-                        showLabels ? 'nav-item' : 'justify-center py-2 px-1 rounded-lg my-0.5',
-                        active && showLabels && !sidebarHasCustomColor && 'nav-item-active',
-                        active && showLabels && sidebarHasCustomColor && 'bg-white/15 text-white font-semibold',
-                        active && !showLabels && 'bg-[var(--primary)]/15',
-                        !active && !showLabels && 'hover:bg-[var(--bg-hover)]',
-                        !active && sidebarHasCustomColor && showLabels && 'text-white/60 hover:text-white/90 hover:bg-white/10',
-                      )}
-                    >
-                      <Icon
-                        size={showLabels ? 14 : 18}
+                    <div key={item.id}>
+                      <button
+                        onClick={() => {
+                          if (hasChildren) {
+                            setExpandedMenus(prev => ({ ...prev, [item.id]: !prev[item.id] }));
+                          } else {
+                            onNavigate(item.id);
+                            close();
+                            setSidebarHovered(false);
+                          }
+                        }}
+                        title={!showLabels ? item.label : undefined}
                         className={cn(
-                          'shrink-0',
-                          active
-                            ? (sidebarHasCustomColor ? 'text-white' : 'text-[var(--primary-light)]')
-                            : (sidebarHasCustomColor ? 'text-white/50' : 'text-[var(--text-faint)]')
+                          'w-full flex items-center transition-all duration-150',
+                          showLabels ? 'nav-item' : 'justify-center py-2 px-1 rounded-lg my-0.5',
+                          (isActive || isChildActive) && showLabels && !sidebarHasCustomColor && 'nav-item-active',
+                          (isActive || isChildActive) && showLabels && sidebarHasCustomColor && 'bg-white/15 text-white font-semibold',
+                          (isActive || isChildActive) && !showLabels && 'bg-[var(--primary)]/15',
+                          !isActive && !showLabels && 'hover:bg-[var(--bg-hover)]',
+                          !isActive && sidebarHasCustomColor && showLabels && 'text-white/60 hover:text-white/90 hover:bg-white/10',
                         )}
-                      />
-                      {showLabels && <span className="truncate">{item.label}</span>}
-                      {showLabels && item.badge && (
-                        <span className={cn(
-                          'ml-auto text-[9px] rounded-full px-1.5 py-0.5 font-bold',
-                          item.badgeVariant === 'red' ? 'bg-red-500 text-white' :
-                            item.badgeVariant === 'amber' ? 'bg-amber-500 text-black' :
-                              'bg-[var(--primary)] text-white'
-                        )}>{item.badge}</span>
+                      >
+                        <Icon
+                          size={showLabels ? 13 : 16}
+                          className={cn(
+                            'shrink-0',
+                            (isActive || isChildActive)
+                              ? (sidebarHasCustomColor ? 'text-white' : 'text-[var(--primary-light)]')
+                              : (sidebarHasCustomColor ? 'text-white/40' : 'text-[var(--text-faint)]')
+                          )}
+                        />
+                        {showLabels && <span className="truncate text-[11px]">{item.label}</span>}
+                        {showLabels && hasChildren && (
+                          <ChevronDown
+                            size={12}
+                            className={cn(
+                              'ml-auto transition-transform duration-200',
+                              isExpanded ? 'rotate-180' : ''
+                            )}
+                          />
+                        )}
+                        {showLabels && item.badge && (
+                          <span className={cn(
+                            'ml-auto text-[8px] rounded-full px-1.5 py-0.5 font-bold',
+                            item.badgeVariant === 'red' ? 'bg-red-500 text-white' :
+                              item.badgeVariant === 'amber' ? 'bg-amber-500 text-black' :
+                                'bg-[var(--primary)] text-white'
+                          )}>{badgeCounts[item.id]}</span>
+                        )}
+                      </button>
+
+                      {/* Dropdown for children */}
+                      {showLabels && hasChildren && isExpanded && (
+                        <div className="ml-4 mt-1 space-y-0.5 border-l border-[var(--border-base)] pl-2">
+                          {item.children.map(child => {
+                            const ChildIcon = child.icon;
+                            const isChildActive = currentPage === child.id;
+                            return (
+                              <button
+                                key={child.id}
+                                onClick={() => {
+                                  onNavigate(child.id);
+                                  close();
+                                  setSidebarHovered(false);
+                                }}
+                                className={cn(
+                                  'w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] transition-all duration-150',
+                                  isChildActive
+                                    ? 'bg-[var(--primary)]/10 text-[var(--primary-light)] font-medium'
+                                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                                )}
+                              >
+                                <ChildIcon size={12} className="shrink-0" />
+                                <span className="truncate">{child.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       )}
-                    </button>
+                    </div>
                   );
                 })}
               </div>
