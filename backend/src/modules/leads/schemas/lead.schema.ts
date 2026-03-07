@@ -132,6 +132,9 @@ export class Lead {
   @Prop({ type: String, default: '' })
   notes!: string;
 
+  @Prop({ type: MongooseSchema.Types.Mixed, default: {} })
+  customFields!: Record<string, any>;
+
   @Prop({
     type: [{
       ruleId: Number,

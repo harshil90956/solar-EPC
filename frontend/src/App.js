@@ -20,6 +20,7 @@ import CommissioningPage from './pages/CommissioningPage';
 import FinancePage from './pages/FinancePage';
 import FinanceDashboardPage from './pages/FinanceDashboardPage';
 import ServicePage from './pages/ServicePage';
+import ServiceDashboardPage from './pages/ServiceDashboardPage';
 import CompliancePage from './pages/CompliancePage';
 import SettingsPage from './pages/SettingsPage';
 import AdminPage from './pages/AdminPage';
@@ -48,6 +49,7 @@ const PAGE_MAP = {
   finance: { component: FinancePage, title: 'Finance' },
   'finance-dashboard': { component: FinanceDashboardPage, title: 'Finance Dashboard' },
   service: { component: ServicePage, title: 'Service & AMC' },
+  'service-dashboard': { component: ServiceDashboardPage, title: 'Service & AMC Dashboard' },
   compliance: { component: CompliancePage, title: 'Compliance' },
   settings: { component: SettingsPage, title: 'Settings' },
   intelligence: { component: IntelligenceDashboardPage, title: 'AI Intelligence' },

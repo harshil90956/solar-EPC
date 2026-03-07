@@ -92,6 +92,8 @@ const DataTable = ({
 
     hideColumnToggle = false,
 
+    hideSearch = false,
+
 }) => {
 
     // Support both flat props and pagination object for backward compatibility
@@ -314,7 +316,7 @@ const DataTable = ({
 
             <div className="flex items-center gap-2 flex-wrap">
 
-                {onSearch !== undefined && (
+                {!hideSearch && onSearch !== undefined && (
 
                     <div className="relative min-w-[200px] flex-1 max-w-xs">
 
@@ -540,7 +542,8 @@ const DataTable = ({
                                     onClick={() => onRowClick?.(row)}>
 
                                     {bulkActions.length > 0 && (
-                                            <td className="px-3 py-3.5 sticky left-0 z-10 bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] transition-colors">
+                                            <td className="px-3 py-3.5 sticky left-0 z-10 bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] transition-colors"
+                                                onClick={e => e.stopPropagation()}>
 
                                                 <input
 

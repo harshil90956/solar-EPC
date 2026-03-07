@@ -264,7 +264,7 @@ export class AmcContractsService {
    * - Removes AMC contracts when project is deleted or no longer commissioned
    */
   async autoGenerateFromProjects(tenantId?: string): Promise<{ created: number; removed: number; contracts: AmcContract[] }> {
-    const projectFilter: any = { progress: 100 };
+    const projectFilter: any = { progress: 100, isDeleted: false };
     const amcFilter: any = { isDeleted: { $ne: true } };
 
     if (tenantId) {
