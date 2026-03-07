@@ -1,11 +1,15 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Req, Headers, Query, HttpCode, HttpStatus, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { EmployeeService } from '../services/employee.service';
 import { CreateEmployeeDto, UpdateEmployeeDto } from '../dto/employee.dto';
 import { EmployeeDocument } from '../schemas/employee.schema';
 
 @Controller('hrm/employees')
 export class EmployeeController {
-  constructor(private readonly employeeService: EmployeeService) {}
+  constructor(
+    private readonly employeeService: EmployeeService,
+    private readonly configService: ConfigService,
+  ) {}
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
@@ -26,7 +30,8 @@ export class EmployeeController {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    // Generate JWT token
+    // Generate JWT token using same secret as JwtStrategy
+    const jwtSecret = this.configService.getOrThrow<string>('JWT_SECRET');
     const token = require('jsonwebtoken').sign(
       { 
         id: employee._id,
@@ -34,7 +39,7 @@ export class EmployeeController {
         role: employee.roleId,
         tenantId: tenantId
       },
-      process.env.JWT_SECRET || 'default-secret',
+      jwtSecret,
       { expiresIn: '24h' }
     );
 

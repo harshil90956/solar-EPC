@@ -88,6 +88,9 @@ export class Invoice {
   })
   milestones?: Milestone[];
 
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', index: true })
+  assignedTo?: Types.ObjectId;
+
   @Prop({ type: [{ type: MongooseSchema.Types.ObjectId }], ref: 'Payment', default: [] })
   paymentIds?: Types.ObjectId[];
 
@@ -104,3 +107,4 @@ InvoiceSchema.index({ tenantId: 1, invoiceNumber: 1 }, { unique: true });
 InvoiceSchema.index({ tenantId: 1, status: 1 });
 InvoiceSchema.index({ tenantId: 1, customerName: 1 });
 InvoiceSchema.index({ tenantId: 1, dueDate: 1 });
+InvoiceSchema.index({ tenantId: 1, assignedTo: 1 });

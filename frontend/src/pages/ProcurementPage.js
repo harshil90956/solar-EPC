@@ -1,7 +1,8 @@
 // Solar OS – EPC Edition — ProcurementPage.js
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
-  ShoppingCart, Plus, Truck, Package, CheckCircle, LayoutGrid, List, Calendar, Zap, Phone, Mail, Star, Edit
+  ShoppingCart, Plus, Truck, Package, CheckCircle, LayoutGrid, List, Calendar, Zap, Phone, Mail, Star, Edit, BarChart3,
+  TrendingUp, PieChart, BarChart, Activity, Users, IndianRupee, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { StatusBadge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
@@ -116,6 +117,526 @@ const POKanbanBoard = ({ pos, onStageChange, onCardClick }) => {
   );
 };
 
+const MONTHS = [
+  { value: 'All', label: 'All Months' },
+  { value: 0, label: 'January' },
+  { value: 1, label: 'February' },
+  { value: 2, label: 'March' },
+  { value: 3, label: 'April' },
+  { value: 4, label: 'May' },
+  { value: 5, label: 'June' },
+  { value: 6, label: 'July' },
+  { value: 7, label: 'August' },
+  { value: 8, label: 'September' },
+  { value: 9, label: 'October' },
+  { value: 10, label: 'November' },
+  { value: 11, label: 'December' }
+];
+
+/* ── PO Visualization View ── */
+const POVisualizationView = ({ pos, filterMonth, filterYear }) => {
+  const [animateChart, setAnimateChart] = useState(false);
+  
+  // Calendar view states
+  const [showCalendarView, setShowCalendarView] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth());
+  const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
+  
+  useEffect(() => {
+    // Trigger animation when component mounts or filters change
+    setAnimateChart(false);
+    setTimeout(() => setAnimateChart(true), 50);
+  }, [filterMonth, filterYear]);
+
+  // Filter POs based on month/year
+  const filteredPOs = useMemo(() => {
+    if (filterMonth === 'All') return pos;
+    return pos.filter(p => {
+      const date = p?.orderedDate || p?.createdAt;
+      if (!date) return false;
+      const d = new Date(date);
+      const monthMatch = d.getMonth() === filterMonth;
+      const yearMatch = d.getFullYear() === filterYear;
+      return monthMatch && yearMatch;
+    });
+  }, [pos, filterMonth, filterYear]);
+
+  // Calculate stats on filtered data
+  const statusCounts = {
+    Draft: filteredPOs.filter(p => p?.status === 'Draft').length,
+    Ordered: filteredPOs.filter(p => p?.status === 'Ordered').length,
+    'In Transit': filteredPOs.filter(p => p?.status === 'In Transit').length,
+    Delivered: filteredPOs.filter(p => p?.status === 'Delivered').length,
+    Cancelled: filteredPOs.filter(p => p?.status === 'Cancelled').length,
+  };
+
+  const total = filteredPOs.length || 1;
+  const totalAmount = filteredPOs.reduce((a, p) => a + (p?.totalAmount || 0), 0);
+
+  // Light aesthetic colors
+  const statusColors = {
+    Draft: '#94a3b8',      // slate-400
+    Ordered: '#a78bfa',   // violet-400
+    'In Transit': '#67e8f9', // cyan-300
+    Delivered: '#86efac', // green-300
+    Cancelled: '#fca5a5', // red-300
+  };
+
+  const statusGradients = {
+    Draft: ['#cbd5e1', '#94a3b8'],
+    Ordered: ['#ddd6fe', '#a78bfa'],
+    'In Transit': ['#a5f3fc', '#67e8f9'],
+    Delivered: ['#bbf7d0', '#86efac'],
+    Cancelled: ['#fecaca', '#fca5a5'],
+  };
+
+  // Get top 5 vendors by PO count from filtered data
+  const vendorData = useMemo(() => {
+    const vendorCounts = {};
+    filteredPOs.forEach(p => {
+      const vendor = p?.vendorName || 'Unknown';
+      vendorCounts[vendor] = (vendorCounts[vendor] || 0) + 1;
+    });
+    return Object.entries(vendorCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+  }, [filteredPOs]);
+  const maxVendorCount = Math.max(...vendorData.map(v => v[1]), 1);
+
+  // Get last 6 months actual data from filtered POs
+  const monthlyData = useMemo(() => {
+    const months = [];
+    const today = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      months.push({
+        month: d.toLocaleString('default', { month: 'short' }),
+        year: d.getFullYear(),
+        monthIdx: d.getMonth(),
+        fullYear: d.getFullYear()
+      });
+    }
+    return months.map(m => {
+      const count = filteredPOs.filter(p => {
+        const date = p?.orderedDate || p?.createdAt;
+        if (!date) return false;
+        const d = new Date(date);
+        return d.getMonth() === m.monthIdx && d.getFullYear() === m.fullYear;
+      }).length;
+      return { ...m, count };
+    });
+  }, [filteredPOs]);
+  const maxMonthly = Math.max(...monthlyData.map(d => d.count), 1);
+
+  // Monthly spend data - actual calculation from filtered POs
+  const monthlySpendData = useMemo(() => {
+    const today = new Date();
+    const months = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      months.push({
+        month: d.toLocaleString('default', { month: 'short' }),
+        monthIdx: d.getMonth(),
+        fullYear: d.getFullYear()
+      });
+    }
+    return months.map(m => {
+      const amount = filteredPOs
+        .filter(p => {
+          const date = p?.orderedDate || p?.createdAt;
+          if (!date) return false;
+          const d = new Date(date);
+          return d.getMonth() === m.monthIdx && d.getFullYear() === m.fullYear;
+        })
+        .reduce((a, p) => a + (p?.totalAmount || 0), 0);
+      return { ...m, amount: amount / 100000 }; // Convert to lakhs
+    });
+  }, [filteredPOs]);
+  const maxSpend = Math.max(...monthlySpendData.map(d => d.amount), 1);
+
+  // Donut chart segments with animation
+  const donutSegments = Object.entries(statusCounts).map(([status, count], idx, arr) => {
+    const percentage = count / total;
+    const circumference = 2 * Math.PI * 50;
+    const prevSegments = arr.slice(0, idx);
+    const offset = prevSegments.reduce((acc, entry) => {
+      const prevCount = entry[1];
+      return acc + (prevCount / total) * circumference;
+    }, 0);
+    return {
+      status: status,
+      count: count,
+      percentage: percentage,
+      dashArray: `${percentage * circumference} ${circumference}`,
+      offset: -offset,
+      color: statusColors[status],
+    };
+  });
+
+  // Calendar days calculation
+  const calendarDays = useMemo(() => {
+    const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+    const firstDayOfMonth = new Date(calendarYear, calendarMonth, 1).getDay();
+    const days = [];
+    
+    // Add empty slots for days before the first day of the month
+    for (let i = 0; i < firstDayOfMonth; i++) {
+      days.push(null);
+    }
+    
+    // Add all days of the month
+    for (let i = 1; i <= daysInMonth; i++) {
+      days.push(i);
+    }
+    
+    return days;
+  }, [calendarMonth, calendarYear]);
+
+  // Calendar data calculation - POs per day
+  const calendarData = useMemo(() => {
+    const data = [];
+    const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+    
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dayPOs = pos.filter(p => {
+        const date = p?.orderedDate || p?.createdAt;
+        if (!date) return false;
+        const d = new Date(date);
+        return d.getDate() === day && 
+               d.getMonth() === calendarMonth && 
+               d.getFullYear() === calendarYear;
+      });
+      
+      const count = dayPOs.length;
+      const amount = dayPOs.reduce((sum, p) => sum + (p?.totalAmount || 0), 0) / 100000;
+      
+      if (count > 0) {
+        data.push({ day, count, amount });
+      }
+    }
+    return data;
+  }, [pos, calendarMonth, calendarYear]);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-[var(--text-muted)]">Visual analytics dashboard for purchase orders</p>
+        {filterMonth !== 'All' && (
+          <span className="text-xs text-[var(--accent-light)] bg-[var(--accent-light)]/10 px-2 py-1 rounded-full">
+            Showing: {MONTHS.find(m => m.value === filterMonth)?.label} {filterYear}
+          </span>
+        )}
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Row 1: Top Vendors & Status Distribution */}
+        {/* Card 1: Top Vendors Horizontal Bar Chart */}
+        <div className="glass-card p-4">
+          <h4 className="text-xs font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2">
+            <Users size={14} className="text-indigo-400" />
+            Top Vendors (by PO Count)
+          </h4>
+          <div className="space-y-2">
+            {vendorData.length === 0 ? (
+              <p className="text-xs text-[var(--text-primary)] text-center py-4">No vendor data available</p>
+            ) : (
+              vendorData.map(([vendor, count], idx) => (
+                <div key={vendor} className="flex items-center gap-2">
+                  <span className="text-[10px] text-[var(--text-primary)] font-medium w-20 truncate" title={vendor}>
+                    {vendor.length > 12 ? vendor.substring(0, 12) + '...' : vendor}
+                  </span>
+                  <div className="flex-1 h-3 bg-[var(--bg-elevated)] rounded-full overflow-hidden">
+                    <div 
+                      className="h-full rounded-full transition-all duration-1000 ease-out"
+                      style={{ 
+                        width: animateChart ? `${(count / maxVendorCount) * 100}%` : '0%',
+                        background: `linear-gradient(90deg, ${statusGradients['Ordered'][0]} 0%, ${statusGradients['Ordered'][1]} 100%)`
+                      }}
+                    />
+                  </div>
+                  <span className="text-[10px] font-semibold text-indigo-400 w-4 text-right">{count}</span>
+                </div>
+              ))
+            )}
+          </div>
+          <div className="mt-3 pt-2 border-t border-[var(--border-base)] text-center">
+            <span className="text-[10px] text-[var(--text-primary)]">Total Vendors: </span>
+            <span className="text-sm font-bold text-indigo-400">{vendorData.length}</span>
+          </div>
+        </div>
+
+        {/* Card 2: Animated Donut Chart - Status Distribution */}
+        <div className="glass-card p-4">
+          <h4 className="text-xs font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2">
+            <PieChart size={14} className="text-violet-400" />
+            Status Distribution
+          </h4>
+          <div className="flex items-center justify-center">
+            <div className="relative w-36 h-36">
+              <svg 
+                className={`w-full h-full ${animateChart ? 'animate-spin-slow' : ''}`} 
+                viewBox="0 0 120 120"
+                style={{ animation: animateChart ? 'spin 2s ease-out' : 'none' }}
+              >
+                {donutSegments.map((seg, idx) => (
+                  <circle
+                    key={seg.status}
+                    cx="60"
+                    cy="60"
+                    r="50"
+                    fill="none"
+                    stroke={seg.color}
+                    strokeWidth="14"
+                    strokeDasharray={seg.dashArray}
+                    strokeDashoffset={animateChart ? seg.offset : -314}
+                    className="transition-all duration-1000 ease-out"
+                    style={{ transform: 'rotate(-90deg)', transformOrigin: '60px 60px' }}
+                  />
+                ))}
+                {/* Inner circle for donut effect */}
+                <circle cx="60" cy="60" r="32" fill="var(--bg-surface)" />
+              </svg>
+              
+              {/* Center text */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-2xl font-bold text-[var(--text-primary)]">{total}</span>
+                <span className="text-[9px] text-[var(--text-muted)]">Total POs</span>
+              </div>
+            </div>
+          </div>
+          
+          {/* Legend */}
+          <div className="mt-3 flex flex-wrap gap-2 justify-center">
+            {Object.entries(statusCounts).filter((entry) => entry[1] > 0).map(([status, count]) => (
+              <div key={status} className="flex items-center gap-1 px-2 py-1 rounded-full bg-[var(--bg-elevated)]">
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: statusColors[status] }} />
+                <span className="text-[9px] text-[var(--text-primary)] font-medium">{status} ({count})</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Row 2: Monthly Spend & PO Status Pipeline */}
+        {/* Card 3: Monthly Spend with Calendar View */}
+        <div className="glass-card p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="text-xs font-semibold text-[var(--text-primary)] flex items-center gap-2">
+              <IndianRupee size={14} className="text-emerald-400" />
+              Monthly Spend (₹ Lakhs)
+            </h4>
+            <div className="flex items-center gap-1">
+              <button 
+                onClick={() => setShowCalendarView(false)}
+                className={`p-1.5 rounded ${!showCalendarView ? 'bg-[var(--accent-light)]/20 text-[var(--accent-light)]' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
+                title="Bar Chart View"
+              >
+                <BarChart size={12} />
+              </button>
+              <button 
+                onClick={() => setShowCalendarView(true)}
+                className={`p-1.5 rounded ${showCalendarView ? 'bg-[var(--accent-light)]/20 text-[var(--accent-light)]' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
+                title="Calendar View"
+              >
+                <Calendar size={12} />
+              </button>
+            </div>
+          </div>
+          
+          {showCalendarView ? (
+            /* Calendar View */
+            <div className="space-y-3">
+              {/* Month Navigation */}
+              <div className="flex items-center justify-between">
+                <button 
+                  onClick={() => setCalendarMonth(prev => prev === 0 ? 11 : prev - 1)}
+                  className="p-1 rounded hover:bg-[var(--bg-elevated)] text-[var(--text-muted)]"
+                >
+                  <ChevronLeft size={14} />
+                </button>
+                <span className="text-xs font-medium text-[var(--text-primary)]">
+                  {MONTHS.find(m => m.value === calendarMonth)?.label}
+                </span>
+                <button 
+                  onClick={() => setCalendarMonth(prev => prev === 11 ? 0 : prev + 1)}
+                  className="p-1 rounded hover:bg-[var(--bg-elevated)] text-[var(--text-muted)]"
+                >
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+              
+              {/* Year Navigation */}
+              <div className="flex items-center justify-between">
+                <button 
+                  onClick={() => setCalendarYear(prev => prev - 1)}
+                  className="p-1 rounded hover:bg-[var(--bg-elevated)] text-[var(--text-muted)]"
+                >
+                  <ChevronLeft size={14} />
+                </button>
+                <span className="text-xs font-medium text-[var(--accent-light)]">
+                  {calendarYear}
+                </span>
+                <button 
+                  onClick={() => setCalendarYear(prev => prev + 1)}
+                  className="p-1 rounded hover:bg-[var(--bg-elevated)] text-[var(--text-muted)]"
+                >
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+              
+              {/* Calendar Grid */}
+              <div className="grid grid-cols-7 gap-1 text-center">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                  <div key={day} className="text-[9px] text-[var(--text-muted)] py-1">{day}</div>
+                ))}
+                {calendarDays.map((day, idx) => {
+                  const dayData = calendarData.find(d => d.day === day);
+                  const hasData = dayData && dayData.count > 0;
+                  const isToday = new Date().toDateString() === new Date(calendarYear, calendarMonth, day).toDateString();
+                  
+                  return (
+                    <div 
+                      key={idx} 
+                      className={`relative aspect-square rounded-lg flex flex-col items-center justify-center text-[10px] cursor-pointer transition-all ${
+                        day === null 
+                          ? 'invisible' 
+                          : hasData 
+                            ? 'bg-emerald-500/20 hover:bg-emerald-500/30' 
+                            : 'bg-[var(--bg-elevated)] hover:bg-[var(--border-base)]'
+                      } ${isToday ? 'ring-1 ring-[var(--accent-light)]' : ''}`}
+                      title={hasData ? `₹${dayData.amount.toFixed(1)}L - ${dayData.count} POs` : 'No data'}
+                    >
+                      <span className={`font-medium ${hasData ? 'text-emerald-400' : 'text-[var(--text-muted)]'}`}>{day}</span>
+                      {hasData && (
+                        <span className="text-[8px] text-emerald-500">₹{dayData.amount.toFixed(0)}</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              
+              {/* Calendar Summary */}
+              <div className="pt-2 border-t border-[var(--border-base)] flex justify-between items-center">
+                <span className="text-[10px] text-[var(--text-muted)]">
+                  {calendarData.reduce((sum, d) => sum + d.count, 0)} POs this month
+                </span>
+                <span className="text-sm font-bold text-emerald-400">
+                  ₹{(calendarData.reduce((sum, d) => sum + d.amount, 0)).toFixed(1)}L
+                </span>
+              </div>
+            </div>
+          ) : (
+            /* Bar Chart View */
+            <div className="relative h-40">
+              {/* Y-axis labels */}
+              <div className="absolute left-0 top-0 bottom-6 w-8 flex flex-col justify-between text-[9px] text-[var(--text-primary)] font-medium">
+                <span>₹{maxSpend.toFixed(0)}L</span>
+                <span>₹{(maxSpend / 2).toFixed(0)}L</span>
+                <span>₹0</span>
+              </div>
+              
+              {/* Chart area */}
+              <div className="absolute left-8 right-0 top-0 bottom-6 flex items-end justify-between gap-1">
+                {monthlySpendData.map((data, i) => (
+                  <div key={i} className="flex flex-col items-center flex-1 group cursor-pointer">
+                    <div className="relative w-full flex justify-center">
+                      {/* Tooltip on hover */}
+                      <div className="absolute -top-8 opacity-0 group-hover:opacity-100 transition-all text-[9px] text-white bg-[var(--bg-elevated)] px-2 py-1 rounded shadow-lg whitespace-nowrap z-10 border border-[var(--border-base)]">
+                        {data.month}: ₹{data.amount.toFixed(1)}L
+                      </div>
+                      
+                      {/* Bar with gradient */}
+                      <div
+                        className="w-6 rounded-t-lg transition-all duration-1000 ease-out hover:opacity-80"
+                        style={{
+                          height: animateChart ? `${(data.amount / maxSpend) * 100}px` : '0px',
+                          minHeight: data.amount > 0 ? '4px' : '0',
+                          background: data.amount > 0 
+                            ? `linear-gradient(180deg, #86efac 0%, #22c55e 100%)`
+                            : 'transparent',
+                          boxShadow: data.amount > 0 ? '0 -2px 8px rgba(34, 197, 94, 0.3)' : 'none'
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              {/* X-axis labels */}
+              <div className="absolute left-8 right-0 bottom-0 flex justify-between text-[9px] text-[var(--text-primary)] font-medium">
+                {monthlySpendData.map(d => <span key={d.month}>{d.month}</span>)}
+              </div>
+            </div>
+          )}
+          
+          {!showCalendarView && (
+            <div className="mt-2 pt-2 border-t border-[var(--border-base)] flex justify-between items-center">
+              <span className="text-[10px] text-[var(--text-muted)]">Total Spend</span>
+              <span className="text-sm font-bold text-emerald-400">₹{(totalAmount / 100000).toFixed(1)}L</span>
+            </div>
+          )}
+        </div>
+
+        {/* Card 4: PO Status Flow - Better Presentation */}
+        <div className="glass-card p-4">
+          <h4 className="text-xs font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2">
+            <Activity size={14} className="text-amber-400" />
+            PO Status Pipeline
+          </h4>
+          <div className="space-y-3">
+            {['Delivered', 'In Transit', 'Ordered', 'Draft'].map((status, idx) => {
+              const count = statusCounts[status];
+              const percentage = total > 0 ? (count / total) * 100 : 0;
+              
+              return (
+                <div key={status} className="flex items-center gap-3">
+                  <div 
+                    className="w-10 h-10 rounded-xl flex items-center justify-center shadow-lg"
+                    style={{ backgroundColor: statusGradients[status][0] }}
+                  >
+                    <span className="text-sm font-bold" style={{ color: statusColors[status] }}>{count}</span>
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-1">
+                    <span className="text-[11px] font-semibold text-[var(--text-primary)]">{status}</span>
+                      <span className="text-[10px] text-[var(--text-primary)] font-medium">{percentage.toFixed(0)}%</span>
+                    </div>
+                    <div className="h-2.5 bg-[var(--bg-elevated)] rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-1000 ease-out"
+                        style={{
+                          width: animateChart ? `${percentage}%` : '0%',
+                          backgroundColor: statusColors[status],
+                          boxShadow: `0 0 8px ${statusColors[status]}40`
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          
+          {/* Summary stats */}
+          <div className="mt-4 pt-3 border-t border-[var(--border-base)] grid grid-cols-3 gap-2">
+            <div className="text-center p-2 rounded-lg bg-emerald-500/10">
+              <span className="text-[9px] text-emerald-400 block">Done</span>
+              <p className="text-lg font-bold text-emerald-400">{statusCounts.Delivered}</p>
+            </div>
+            <div className="text-center p-2 rounded-lg bg-blue-500/10">
+              <span className="text-[9px] text-blue-400 block">Active</span>
+              <p className="text-lg font-bold text-blue-400">{statusCounts['In Transit'] + statusCounts.Ordered}</p>
+            </div>
+            <div className="text-center p-2 rounded-lg bg-slate-500/10">
+              <span className="text-[9px] text-slate-400 block">Draft</span>
+              <p className="text-lg font-bold text-slate-400">{statusCounts.Draft}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 /* ── Main Page ── */
 const ProcurementPage = () => {
   const { can } = usePermissions();
@@ -156,6 +677,11 @@ const ProcurementPage = () => {
   const [selectedPO, setSelectedPO] = useState(null);
   const [pos, setPos] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Month/Year filter for visualization
+  const currentYear = new Date().getFullYear();
+  const [vizMonth, setVizMonth] = useState('All');
+  const [vizYear, setVizYear] = useState(currentYear);
 
   // Form states
   const [newPO, setNewPO] = useState({ vendorId: '', items: '', totalAmount: '', expectedDate: '', relatedProjectId: '' });
@@ -277,14 +803,8 @@ const ProcurementPage = () => {
   const fetchProjects = async () => {
     try {
       const tenantId = localStorage.getItem('tenantId') || 'default';
-      const baseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
-      const response = await fetch(`${baseUrl}/projects?tenantId=${tenantId}`);
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch projects');
-      }
-
-      const data = await response.json();
+      const res = await api.get('/projects', { tenantId });
+      const data = res?.data ?? res;
       console.log('Projects API response:', data);
 
       const projectsData = Array.isArray(data) ? data : (data?.data || []);
@@ -460,7 +980,9 @@ const ProcurementPage = () => {
 
   const paginatedPOs = filteredPOs.slice((poPage - 1) * poPageSize, poPage * poPageSize);
 
-  const pendingPOs = pos.filter(p => p && p?.status !== 'Delivered' && p?.status !== 'Cancelled').length;
+  // Calculate KPI stats with correct filtering
+  const pendingPOs = pos.filter(p => p && ['Draft', 'Ordered'].includes(p?.status)).length;
+  const activePOs = pos.filter(p => p && p?.status !== 'Delivered' && p?.status !== 'Cancelled').length;
   const totalSpend = pos.reduce((a, p) => a + (p?.totalAmount || 0), 0);
   const inTransit = pos.filter(p => p && p?.status === 'In Transit').length;
   const delivered = pos.filter(p => p && p?.status === 'Delivered').length;
@@ -482,14 +1004,27 @@ const ProcurementPage = () => {
           <h1 className="heading-page">Procurement</h1>
         </div>
         <div className="flex gap-2">
+          <div className="view-toggle-pill mr-2">
+            <button onClick={() => setPoView('kanban')} className={`view-toggle-btn ${poView === 'kanban' ? 'active' : ''}`} title="Kanban View"><LayoutGrid size={13} /></button>
+            <button onClick={() => setPoView('table')} className={`view-toggle-btn ${poView === 'table' ? 'active' : ''}`} title="Table View"><List size={13} /></button>
+            <button onClick={() => setPoView('visualization')} className={`view-toggle-btn ${poView === 'visualization' ? 'active' : ''}`} title="Visualization"><BarChart3 size={13} /></button>
+          </div>
           <Button onClick={() => setShowPO(true)}><Plus size={13} /> Create PO</Button>
         </div>
       </div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KPICard title="Active POs" value={pendingPOs} icon={ShoppingCart} color="accent" />
-        <KPICard title="Delivered" value={delivered} icon={CheckCircle} color="emerald" />
-        <KPICard title="In Transit" value={inTransit} icon={Truck} color="cyan" />
-        <KPICard title="Total Spend" value={fmtFull(totalSpend)} icon={Package} color="solar" />
+      {/* Procurement KPI Cards with Descriptive Label */}
+      <div className="mb-2">
+        <p className="text-xs text-[var(--text-muted)] mb-2 flex items-center gap-2">
+          <ShoppingCart size={12} className="text-[var(--accent-light)]" />
+          <span>Procurement Overview - Purchase orders and spending tracking</span>
+        </p>
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          <KPICard title="Total Pending Approvals" value={pendingPOs} icon={ShoppingCart} sub="Draft & ordered POs awaiting approval" color="accent" />
+          <KPICard title="Total Active POs" value={activePOs} icon={Package} sub="All active purchase orders" color="blue" />
+          <KPICard title="Total POs Delivered" value={delivered} icon={CheckCircle} sub="Completed deliveries" color="emerald" />
+          <KPICard title="Total POs In Transit" value={inTransit} icon={Truck} sub="On the way" color="cyan" />
+          <KPICard title="Total Spend" value={fmtFull(totalSpend)} icon={Package} sub="Total PO value" color="solar" />
+        </div>
       </div>
 
       <div className="ai-banner">
@@ -518,14 +1053,43 @@ const ProcurementPage = () => {
               <div className="flex items-center gap-2 shrink-0">
                 <Input placeholder="Search POs…" value={poSearch}
                   onChange={e => { setPoSearch(e.target.value); setPoPage(1); }} className="h-8 text-xs w-44" />
-                <div className="view-toggle-pill">
-                  <button onClick={() => setPoView('kanban')} className={`view-toggle-btn ${poView === 'kanban' ? 'active' : ''}`}><LayoutGrid size={13} /></button>
-                  <button onClick={() => setPoView('table')} className={`view-toggle-btn ${poView === 'table' ? 'active' : ''}`}><List size={13} /></button>
-                </div>
               </div>
             </div>
 
-            {poView === 'kanban' ? (
+            {poView === 'visualization' ? (
+              <>
+                <div className="flex items-center gap-3 mb-3 p-3 glass-card rounded-lg">
+                  <span className="text-xs text-[var(--text-muted)]">Filter by:</span>
+                  <Select 
+                    value={vizMonth} 
+                    onChange={e => setVizMonth(e.target.value === 'All' ? 'All' : parseInt(e.target.value))}
+                    className="h-8 text-xs w-32"
+                  >
+                    {MONTHS.map(m => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))}
+                  </Select>
+                  <Select 
+                    value={vizYear} 
+                    onChange={e => setVizYear(parseInt(e.target.value))}
+                    className="h-8 text-xs w-24"
+                  >
+                    {[currentYear, currentYear - 1, currentYear - 2].map(year => (
+                      <option key={year} value={year}>{year}</option>
+                    ))}
+                  </Select>
+                  {vizMonth !== 'All' && (
+                    <button 
+                      onClick={() => { setVizMonth('All'); setVizYear(currentYear); }}
+                      className="text-xs text-[var(--text-muted)] hover:text-[var(--accent-light)] underline"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+                <POVisualizationView pos={pos} filterMonth={vizMonth} filterYear={vizYear} />
+              </>
+            ) : poView === 'kanban' ? (
               <>
                 <p className="text-xs text-[var(--text-muted)]">Drag POs between columns to update their status</p>
                 <POKanbanBoard pos={filteredPOs} onStageChange={handlePOStageChange} onCardClick={setSelectedPO} />
@@ -724,13 +1288,14 @@ const ProcurementPage = () => {
                   <Input type="date" value={editedPO.deliveredDate || ''} onChange={e => setEditedPO({ ...editedPO, deliveredDate: e.target.value })} />
                 </FormField>
               </div>
-              <FormField label="Related Project *">
-                <div className="relative" ref={projectDropdownRef}>
-                  {/* Selected Project Display */}
-                  <div
-                    onClick={() => setShowProjectDropdown(true)}
-                    className="w-full h-9 px-3 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] text-[var(--text-primary)] text-sm cursor-pointer flex items-center justify-between hover:border-[var(--primary)] transition-colors"
-                  >
+              <div className="w-full">
+                <FormField label="Related Project *">
+                  <div className="relative" ref={projectDropdownRef}>
+                    {/* Selected Project Display */}
+                    <div
+                      onClick={() => setShowProjectDropdown(true)}
+                      className="w-full h-9 px-3 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] text-[var(--text-primary)] text-sm cursor-pointer flex items-center justify-between hover:border-[var(--primary)] transition-colors"
+                    >
                     {editedPO?.relatedProjectId ? (
                       <span className="truncate">
                         {(() => {
@@ -808,18 +1373,17 @@ const ProcurementPage = () => {
                                 </div>
                               )}
                             </div>
-                          ))
-                        )}
+                          )))}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              </FormField>
+                    )}
+                  </div>
+                </FormField>
+              </div>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              {[['PO Number', selectedPO.id], ['Vendor', selectedPO.vendorName], ['Items', selectedPO.items],
-                ['Amount', fmt(selectedPO.totalAmount)], ['Status', <StatusBadge domain="purchaseOrder" value={selectedPO.status} />],
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  {[['PO Number', selectedPO.id], ['Vendor', selectedPO.vendorName], ['Items', selectedPO.items],
                 ['Ordered Date', selectedPO.orderedDate], ['Expected Date', selectedPO.expectedDate],
                 ['Delivered Date', selectedPO.deliveredDate ?? '—'],
                 ['Related Project', (() => {

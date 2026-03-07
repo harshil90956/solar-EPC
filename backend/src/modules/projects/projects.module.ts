@@ -6,6 +6,7 @@ import { Project, ProjectSchema } from './schemas/project.schema';
 import { Tenant, TenantSchema } from '../../core/tenant/schemas/tenant.schema';
 import { Item, ItemSchema } from '../items/schemas/item.schema';
 import { Inventory, InventorySchema } from '../inventory/schemas/inventory.schema';
+import { SettingsModule } from '../settings/settings.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { Inventory, InventorySchema } from '../inventory/schemas/inventory.schem
       { name: Item.name, schema: ItemSchema },
       { name: Inventory.name, schema: InventorySchema },
     ]),
+    SettingsModule,
   ],
   controllers: [ProjectsController],
   providers: [ProjectsService],

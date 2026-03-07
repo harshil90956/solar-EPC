@@ -23,6 +23,7 @@ import {
 } from 'recharts';
 import { USERS } from '../data/mockData';
 import { leadsApi } from '../services/leadsApi';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input, Select, Textarea, FormField } from '../components/ui/Input';
@@ -34,9 +35,27 @@ import ImportExport from '../components/ui/ImportExport';
 import LeadTracker from '../components/LeadTracker';
 import { useAuditLog } from '../hooks/useAuditLog';
 import { usePermissions } from '../hooks/usePermissions';
+import { useAuth } from '../context/AuthContext';
 import { CURRENCY } from '../config/app.config';
 import CanAccess, { CanCreate, CanEdit, CanDelete, CanView } from '../components/CanAccess';
 import { toast } from '../components/ui/Toast';
+import LeadAnalyticsDashboard from '../components/dashboard/LeadAnalyticsDashboard.js';
+
+// UserSelect component for lead assignment
+const UserSelect = ({ value, onChange, placeholder }) => {
+  const { users } = useAuth();
+  
+  return (
+    <Select value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="">{placeholder || 'Select user...'}</option>
+      {(users || []).map(user => (
+        <option key={user.id} value={user.id}>
+          {user.name} ({user.role})
+        </option>
+      ))}
+    </Select>
+  );
+};
 
 const fmt = CURRENCY.format;
 
@@ -56,6 +75,25 @@ const avatarColor = (name = '') => {
 };
 
 // ── Advanced Dashboard Components ──────────────────────────────────────────────
+const EmptyState = ({ onAddLead }) => (
+  <div className="glass-card p-8 flex flex-col items-center justify-center text-center">
+    <div className="w-16 h-16 rounded-full bg-[var(--bg-elevated)] border border-[var(--border-base)] flex items-center justify-center mb-4">
+      <Users size={24} className="text-[var(--text-muted)]" />
+    </div>
+    <h3 className="text-base font-bold text-[var(--text-primary)] mb-2">No Leads Available</h3>
+    <p className="text-xs text-[var(--text-muted)] mb-4 max-w-sm">
+      Import or add leads to see analytics. Once you have leads, this dashboard will show your sales funnel, pipeline value, and conversion metrics.
+    </p>
+    <div className="flex items-center gap-2">
+      <CanCreate module="crm">
+        <Button variant="outline" onClick={onAddLead}>
+          <Plus size={14} className="mr-1" /> Add Lead
+        </Button>
+      </CanCreate>
+    </div>
+  </div>
+);
+
 const DashboardKPI = ({ title, value, change, icon: Icon, color, subtitle, trend }) => (
   <div className="glass-card p-4 flex items-center gap-3 hover:scale-[1.02] transition-transform cursor-pointer">
     <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${color}20, ${color}10)` }}>
@@ -82,6 +120,141 @@ const DashboardKPI = ({ title, value, change, icon: Icon, color, subtitle, trend
     </div>
   </div>
 );
+
+const ScoreDistributionChart = ({ buckets }) => {
+  const data = (buckets || []).map(b => ({ score: b.bucket, count: b.count }));
+  return (
+    <div className="glass-card p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-bold text-[var(--text-primary)]">Score Distribution</h3>
+        <Brain size={16} className="text-[var(--text-muted)]" />
+      </div>
+      <ResponsiveContainer width="100%" height={200}>
+        <BarChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
+          <XAxis dataKey="score" tick={{ fontSize: 10 }} stroke="var(--text-muted)" />
+          <YAxis tick={{ fontSize: 10 }} stroke="var(--text-muted)" />
+          <Tooltip
+            contentStyle={{
+              backgroundColor: 'var(--bg-elevated)',
+              border: '1px solid var(--border-base)',
+              borderRadius: '8px',
+              fontSize: '11px',
+            }}
+          />
+          <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+};
+
+const FunnelChart = ({ stages }) => {
+  const stageLabel = (k) => {
+    const map = {
+      new: 'New',
+      contacted: 'Contacted',
+      qualified: 'Qualified',
+      proposal: 'Proposal',
+      negotiation: 'Negotiation',
+      won: 'Won',
+      lost: 'Lost',
+    };
+    return map[k] || k;
+  };
+
+  const max = Math.max(1, ...(stages || []).map(s => s.count || 0));
+  return (
+    <div className="glass-card p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-bold text-[var(--text-primary)]">Sales Funnel</h3>
+        <Funnel size={16} className="text-[var(--text-muted)]" />
+      </div>
+      <div className="space-y-2">
+        {(stages || []).map((s) => {
+          const pct = Math.round(((s.count || 0) / max) * 100);
+          return (
+            <div key={s.stage} className="relative">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-medium text-[var(--text-primary)]">{stageLabel(s.stage)}</span>
+                <span className="text-xs font-bold text-[var(--accent)]">{s.count}</span>
+              </div>
+              <div className="w-full bg-[var(--bg-elevated)] rounded-full h-6 overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${pct}%`,
+                    background: 'linear-gradient(90deg, #3b82f6, #8b5cf6)',
+                  }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+const SourcePerformanceChart = ({ sources }) => {
+  const data = (sources || []).map(s => ({ source: s.source, leads: s.leads, value: s.value }));
+  return (
+    <div className="glass-card p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-bold text-[var(--text-primary)]">Lead Sources</h3>
+        <PieChartIcon size={16} className="text-[var(--text-muted)]" />
+      </div>
+      <ResponsiveContainer width="100%" height={220}>
+        <ComposedChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
+          <XAxis dataKey="source" tick={{ fontSize: 10 }} stroke="var(--text-muted)" />
+          <YAxis yAxisId="left" tick={{ fontSize: 10 }} stroke="var(--text-muted)" />
+          <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} stroke="var(--text-muted)" />
+          <Tooltip
+            contentStyle={{
+              backgroundColor: 'var(--bg-elevated)',
+              border: '1px solid var(--border-base)',
+              borderRadius: '8px',
+              fontSize: '11px',
+            }}
+          />
+          <Bar yAxisId="left" dataKey="leads" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+          <Line yAxisId="right" type="monotone" dataKey="value" stroke="#22c55e" strokeWidth={2} dot={false} />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+  );
+};
+
+const TrendCharts = ({ months }) => {
+  const data = months || [];
+  return (
+    <div className="glass-card p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-bold text-[var(--text-primary)]">Leads & Pipeline Trend (Last 12 months)</h3>
+        <TrendingUp size={16} className="text-emerald-500" />
+      </div>
+      <ResponsiveContainer width="100%" height={240}>
+        <ComposedChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
+          <XAxis dataKey="month" tick={{ fontSize: 10 }} stroke="var(--text-muted)" />
+          <YAxis yAxisId="left" tick={{ fontSize: 10 }} stroke="var(--text-muted)" />
+          <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} stroke="var(--text-muted)" />
+          <Tooltip
+            contentStyle={{
+              backgroundColor: 'var(--bg-elevated)',
+              border: '1px solid var(--border-base)',
+              borderRadius: '8px',
+              fontSize: '11px',
+            }}
+          />
+          <Bar yAxisId="left" dataKey="leads" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+          <Area yAxisId="right" type="monotone" dataKey="value" stroke="#22c55e" fill="#22c55e" fillOpacity={0.15} />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+  );
+};
 
 const ConversionFunnel = () => {
   const data = [
@@ -532,8 +705,31 @@ const CRMPage = () => {
   const [showScoreEditModal, setShowScoreEditModal] = useState(false);
   const [scoreEditingLead, setScoreEditingLead] = useState(null);
   const [newScore, setNewScore] = useState('');
+
+  const overviewQ = useQuery({
+    queryKey: ['leads-dashboard-overview'],
+    queryFn: () => leadsApi.getDashboardOverview(),
+    enabled: view === 'dashboard',
+  });
+
+  const funnelQ = useQuery({
+    queryKey: ['leads-dashboard-funnel'],
+    queryFn: () => leadsApi.getDashboardFunnel(),
+    enabled: view === 'dashboard',
+  });
+
+  const sourceQ = useQuery({
+    queryKey: ['leads-dashboard-source'],
+    queryFn: () => leadsApi.getDashboardSource(),
+    enabled: view === 'dashboard',
+  });
+
+  const trendQ = useQuery({
+    queryKey: ['leads-dashboard-trend'],
+    queryFn: () => leadsApi.getDashboardTrend(),
+    enabled: view === 'dashboard',
+  });
   const [sort, setSort] = useState({ key: null, dir: 'asc' });
-  const [leadScoring, setLeadScoring] = useState(true);
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const [showColumnsDropdown, setShowColumnsDropdown] = useState(false);
   const [dateRange, setDateRange] = useState({
@@ -582,6 +778,10 @@ const CRMPage = () => {
 
   const { logCreate, logUpdate, logDelete } = useAuditLog('CRM');
   const { can } = usePermissions();
+  const { user } = useAuth();
+
+  // Get user's data scope for visibility indicator
+  const userDataScope = user?.dataScope || 'ASSIGNED';
 
   const statusMap = useMemo(() => {
     const map = {};
@@ -680,6 +880,12 @@ const CRMPage = () => {
     if (!editingLead) return;
     try {
       setActionLoading(true);
+      
+      // Handle lead assignment if changed
+      if (editingLead.assignedTo && editingLead.assignedTo !== selectedLead?.assignedTo) {
+        await leadsApi.assignLead(editingLead._id, editingLead.assignedTo);
+      }
+      
       // Only send allowed fields to API
       const updateData = {
         name: editingLead.name,
@@ -1410,18 +1616,32 @@ const CRMPage = () => {
   return (
     <div className="animate-fade-in space-y-5">
       {/* ── Header ── */}
-      <PageHeader
-        title="CRM Module"
-        subtitle="Rulebook Compliant Lead Management"
-        tabs={[
-          { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-          { id: 'leads', label: 'Leads', icon: List },
-          { id: 'kanban', label: 'Kanban', icon: LayoutDashboard },
-          { id: 'reports', label: 'Reports', icon: BarChart2 }
-        ]}
-        activeTab={view}
-        onTabChange={setView}
-      />
+      <div className="flex items-center justify-between">
+        <PageHeader
+          title="CRM Module"
+          subtitle="Rulebook Compliant Lead Management"
+          tabs={[
+            { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+            { id: 'leads', label: 'Leads', icon: List },
+            { id: 'kanban', label: 'Kanban', icon: LayoutDashboard },
+            { id: 'reports', label: 'Reports', icon: BarChart2 }
+          ]}
+          activeTab={view}
+          onTabChange={setView}
+        />
+        
+        {/* Data Visibility Indicator */}
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[11px] font-medium ${
+          userDataScope === 'ALL' 
+            ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' 
+            : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+        }`}>
+          <Eye size={12} />
+          <span>
+            {userDataScope === 'ALL' ? 'Showing: All Leads' : 'Showing: Assigned Leads Only'}
+          </span>
+        </div>
+      </div>
 
       {/* ── Date Filters ── */}
       {(view === 'dashboard' || view === 'reports') && (
@@ -1498,160 +1718,12 @@ const CRMPage = () => {
               </Button>
             </div>
           </div>
-          <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)]">
-            <Brain size={12} className="text-[var(--text-muted)]" />
-            <span className="text-[10px] text-[var(--text-muted)]">Scoring</span>
-            <button
-              onClick={() => setLeadScoring(!leadScoring)}
-              className={`w-8 h-4 rounded-full transition-colors ${leadScoring ? 'bg-emerald-500' : 'bg-gray-300'
-                }`}
-            >
-              <div className={`w-3 h-3 bg-white rounded-full transition-transform ${leadScoring ? 'translate-x-4' : 'translate-x-0.5'
-                }`} />
-            </button>
-          </div>
-          <div className="flex items-center gap-2">
-            <CanCreate module="crm">
-              <Button variant="outline" onClick={() => setShowAddModal(true)}><Plus size={14} /> Add Lead</Button>
-            </CanCreate>
-            <ImportExport moduleName="Leads" fields={crmFields} onImport={handleImport} onExport={handleExport} />
-          </div>
         </div>
       )}
 
       {/* ── Advanced Dashboard ── */}
       {view === 'dashboard' && (
-        <div className="space-y-6">
-          {/* Executive Summary Metrics */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <DashboardKPI
-              title="Total Leads"
-              value={totalLeads}
-              change={12.5}
-              icon={Users}
-              color="#3b82f6"
-              subtitle="This month"
-              trend="up"
-            />
-            <DashboardKPI
-              title="Pipeline Value"
-              value={fmt(activeLeads.reduce((s, l) => s + (l.value || 0), 0))}
-              change={8.2}
-              icon={DollarSign}
-              color="#22c55e"
-              subtitle="Total value"
-              trend="up"
-            />
-            <DashboardKPI
-              title="Conversion Rate"
-              value="24%"
-              change={2.1}
-              icon={Target}
-              color="#a855f7"
-              subtitle="Lead to close"
-              trend="up"
-            />
-            <DashboardKPI
-              title="Avg Deal Size"
-              value={fmt(activeLeads.reduce((s, l) => s + (l.value || 0), 0) / (totalLeads || 1))}
-              change={-3.4}
-              icon={TrendingUp}
-              color="#f59e0b"
-              subtitle="Per deal"
-              trend="down"
-            />
-          </div>
-
-          {/* Advanced Analytics Grid */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <ConversionFunnel />
-            <LeadSourceAnalytics />
-          </div>
-
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-            <div className="xl:col-span-2">
-              <SalesPipelineChart />
-            </div>
-            <div className="space-y-4">
-              <LeadScoreDistribution />
-              <ActivityHeatmap />
-            </div>
-          </div>
-
-          {/* Risk Alerts & Performance Metrics */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Risk Alerts */}
-            <div className="glass-card p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <AlertTriangle size={16} className="text-red-500" />
-                <h3 className="text-sm font-bold text-[var(--text-primary)]">Risk Alerts</h3>
-                <span className="ml-auto bg-red-500 text-white text-[10px] px-2 py-1 rounded-full font-bold">3 Active</span>
-              </div>
-              <div className="space-y-3">
-                <div className="p-3 rounded-lg bg-red-500/5 border border-red-500/20">
-                  <div className="flex items-start gap-2">
-                    <AlertCircle size={12} className="text-red-500 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="text-xs font-bold text-red-500">SLA Breached (5 leads)</p>
-                      <p className="text-[10px] text-[var(--text-muted)] mt-1">No activity for &gt;3 days. Immediate follow-up required.</p>
-                      <button className="text-[10px] text-red-500 font-bold mt-2 hover:underline">Take Action →</button>
-                    </div>
-                  </div>
-                </div>
-                <div className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/20">
-                  <div className="flex items-start gap-2">
-                    <Clock size={12} className="text-amber-500 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="text-xs font-bold text-amber-500">Quotation Delay (12 leads)</p>
-                      <p className="text-[10px] text-[var(--text-muted)] mt-1">Average wait for quote approval is 48h.</p>
-                      <button className="text-[10px] text-amber-500 font-bold mt-2 hover:underline">Review Queue →</button>
-                    </div>
-                  </div>
-                </div>
-                <div className="p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
-                  <div className="flex items-start gap-2">
-                    <TrendingDown size={12} className="text-blue-500 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="text-xs font-bold text-blue-500">Conversion Drop</p>
-                      <p className="text-[10px] text-[var(--text-muted)] mt-1">15% decrease in qualified-to-proposal rate this week.</p>
-                      <button className="text-[10px] text-blue-500 font-bold mt-2 hover:underline">View Analysis →</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Performance Metrics */}
-            <div className="glass-card p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Award size={16} className="text-emerald-500" />
-                <h3 className="text-sm font-bold text-[var(--text-primary)]">Top Performers</h3>
-                <span className="ml-auto text-[10px] text-[var(--text-muted)]">This Month</span>
-              </div>
-              <div className="space-y-3">
-                {[
-                  { name: 'Rahul Sharma', leads: 45, conversion: 28, value: 2400000, avatar: 'RS' },
-                  { name: 'Priya Patel', leads: 38, conversion: 32, value: 1800000, avatar: 'PP' },
-                  { name: 'Amit Kumar', leads: 32, conversion: 25, value: 1500000, avatar: 'AK' }
-                ].map((performer, index) => (
-                  <div key={performer.name} className="flex items-center gap-3 p-2 rounded-lg hover:bg-[var(--bg-elevated)] transition-colors">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-white flex items-center justify-center font-bold text-xs">
-                      {performer.avatar}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-[var(--text-primary)] truncate">{performer.name}</p>
-                      <p className="text-[9px] text-[var(--text-muted)]">{performer.leads} leads · {performer.conversion}% conv.</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs font-bold text-[var(--accent)]">{fmt(performer.value)}</p>
-                      <p className="text-[9px] text-emerald-500">#{index + 1}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
+        <LeadAnalyticsDashboard />
       )}
 
       {/* ── Comprehensive Reports View ── */}
@@ -1956,7 +2028,9 @@ const CRMPage = () => {
               )}
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={() => setShowAddModal(true)}><Plus size={14} /> Add Lead</Button>
+              {can('crm', 'create') && (
+                <Button variant="outline" onClick={() => setShowAddModal(true)}><Plus size={14} /> Add Lead</Button>
+              )}
               <ImportExport moduleName="Leads" fields={crmFields} onImport={handleImport} onExport={handleExport} />
             </div>
           </div>
@@ -2271,7 +2345,9 @@ const CRMPage = () => {
             footer={
               <div className="flex gap-2 justify-end">
                 <Button variant="ghost" onClick={() => setSelectedLead(null)}>Close</Button>
-                <Button variant="outline" onClick={() => handleEditLead(selectedLead)}><Edit2 size={13} /> Edit</Button>
+                {can('crm', 'edit') && (
+                  <Button variant="outline" onClick={() => handleEditLead(selectedLead)}><Edit2 size={13} /> Edit</Button>
+                )}
                 <Button onClick={() => handleCallLead(selectedLead)}><Phone size={13} /> Call Lead</Button>
               </div>
             }
@@ -2458,6 +2534,17 @@ const CRMPage = () => {
                 onChange={(e) => setEditingLead({ ...editingLead, notes: e.target.value })}
               />
             </FormField>
+
+            {/* Lead Assignment - Only show if user has assign permission */}
+            {can('crm', 'assign') && (
+              <FormField label="Assigned To">
+                <UserSelect
+                  value={editingLead.assignedTo || ''}
+                  onChange={(userId) => setEditingLead({ ...editingLead, assignedTo: userId })}
+                  placeholder="Select user to assign..."
+                />
+              </FormField>
+            )}
           </div>
         </Modal>
       )}

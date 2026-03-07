@@ -95,6 +95,46 @@ export const leadsApi = {
     return response.json();
   },
 
+  async getDashboardOverview() {
+    const response = await fetch(`${API_BASE_URL}/leads/dashboard/overview`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to fetch dashboard overview');
+    return response.json();
+  },
+
+  async getDashboardFunnel() {
+    const response = await fetch(`${API_BASE_URL}/leads/dashboard/funnel`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to fetch dashboard funnel');
+    return response.json();
+  },
+
+  async getDashboardSource() {
+    const response = await fetch(`${API_BASE_URL}/leads/dashboard/source`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to fetch dashboard source');
+    return response.json();
+  },
+
+  async getDashboardTrend() {
+    const response = await fetch(`${API_BASE_URL}/leads/dashboard/trend`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to fetch dashboard trend');
+    return response.json();
+  },
+
+  async getDashboardActivity() {
+    const response = await fetch(`${API_BASE_URL}/leads/dashboard/activity`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to fetch dashboard activity');
+    return response.json();
+  },
+
   // Add activity to lead
   async addActivity(id, activity) {
     const response = await fetch(`${API_BASE_URL}/leads/${id}/activities`, {
@@ -208,6 +248,20 @@ export const leadsApi = {
       headers: getAuthHeaders(),
     });
     if (!response.ok) throw new Error('Failed to recalculate scores');
+    return response.json();
+  },
+
+  // Assign lead to user
+  async assignLead(id, assignedTo) {
+    const response = await fetch(`${API_BASE_URL}/leads/${id}/assign`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ assignedTo }),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to assign lead: ${errorText}`);
+    }
     return response.json();
   },
 

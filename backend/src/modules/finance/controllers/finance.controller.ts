@@ -55,6 +55,9 @@ import type { FastifyRequest } from 'fastify';
 
 
 import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
+import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
+import { PermissionGuard } from '../../../modules/settings/guards/permission.guard';
+import { RequirePermission } from '../../../modules/settings/decorators/permissions.decorator';
 
 
 

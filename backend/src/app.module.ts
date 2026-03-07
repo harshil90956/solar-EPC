@@ -21,8 +21,10 @@ import { PermissionsModule } from './core/permissions/permissions.module';
 import { AuthModule } from './core/auth/auth.module';
 import { TenantModule } from './core/tenant/tenant.module';
 
+import { DocumentModule } from './modules/document/document.module';
 import { EmailModule } from './modules/email/email.module';
 import { ItemsModule } from './modules/items/items.module';
+import { EstimatesModule } from './modules/estimates/estimates.module';
 
 @Module({
   imports: [
@@ -36,6 +38,7 @@ import { ItemsModule } from './modules/items/items.module';
     EmailModule,
 
     LeadsModule,
+    DocumentModule,
     SurveyModule,
     DesignModule,
     QuotationModule,
@@ -44,6 +47,7 @@ import { ItemsModule } from './modules/items/items.module';
     ProcurementModule,
     LogisticsModule,
     ItemsModule,
+    EstimatesModule,
     InstallationModule,
     CommissioningModule,
     FinanceModule,

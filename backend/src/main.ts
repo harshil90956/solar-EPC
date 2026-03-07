@@ -1,6 +1,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
+import multipart from '@fastify/multipart';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './shared/filters/global-exception.filter';
 import { SuccessResponseInterceptor } from './shared/interceptors/success-response.interceptor';
@@ -12,6 +13,12 @@ async function bootstrap() {
     AppModule,
     new FastifyAdapter(),
   );
+
+  await app.register(multipart as any, {
+    limits: {
+      fileSize: 5 * 1024 * 1024,
+    },
+  });
 
   app.enableCors({
     origin: true,
@@ -38,7 +45,9 @@ async function bootstrap() {
   // Seed logistics data
   try {
     const logisticsService = app.get(LogisticsService);
-    const existing = await logisticsService.findAll();
+    // Use a system user with ALL dataScope for seeding (bypasses visibility filters)
+    const systemUser = { id: 'system', dataScope: 'ALL' as const, tenantId: 'default' };
+    const existing = await logisticsService.findAll(systemUser);
     if (existing.length === 0) {
       const dispatches = [
         { id: 'DS001', projectId: 'P001', customer: 'Ramesh Joshi', items: '125 Panels, 1 Inverter, BOS Kit', from: 'WH-Ahmedabad', to: 'GIDC Ahmedabad', status: 'Delivered', dispatchDate: '2026-02-20', driver: 'Mahesh K.', vehicle: 'GJ-01-AB-1234', cost: 8500, isActive: true, deliveredDate: new Date('2026-02-20') },
@@ -58,7 +67,9 @@ async function bootstrap() {
   // Seed procurement vendors
   try {
     const procurementService = app.get(ProcurementService);
-    const vendors = await procurementService.findAllVendors('default');
+    // Use a system user with ALL dataScope for seeding (bypasses visibility filters)
+    const systemUser = { id: 'system', dataScope: 'ALL' as const, tenantId: 'default' };
+    const vendors = await procurementService.findAllVendors('default', systemUser);
     if (vendors.length === 0) {
       const sampleVendors = [
         { name: 'Tata Power Solar', category: 'Panel', contact: 'Rajesh Kumar', phone: '+91 98765 43210', email: 'sales@tatapowersolar.com', city: 'Mumbai', rating: 5 },

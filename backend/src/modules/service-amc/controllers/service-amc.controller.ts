@@ -11,6 +11,8 @@ import {
   HttpStatus,
   UsePipes,
   ValidationPipe,
+  Request,
+  UseGuards,
 } from '@nestjs/common';
 import { TicketsService } from '../services/tickets.service';
 import { AmcContractsService } from '../services/amc-contracts.service';
@@ -18,8 +20,13 @@ import { VisitsService } from '../services/visits.service';
 import { CreateTicketDto, UpdateTicketDto, QueryTicketDto } from '../dto/ticket.dto';
 import { CreateAmcContractDto, UpdateAmcContractDto, QueryAmcContractDto } from '../dto/amc-contract.dto';
 import { CreateVisitDto, UpdateVisitDto, QueryVisitDto } from '../dto/visit.dto';
+import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
+import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
+import { PermissionGuard } from '../../../modules/settings/guards/permission.guard';
+import { RequirePermission } from '../../../modules/settings/decorators/permissions.decorator';
 
 @Controller('service-amc')
+@UseGuards(JwtAuthGuard, TenantGuard, PermissionGuard)
 export class ServiceAmcController {
   constructor(
     private readonly ticketsService: TicketsService,
@@ -30,9 +37,11 @@ export class ServiceAmcController {
   // ============ TICKETS ============
 
   @Get('tickets')
-  findAllTickets(@Query() query: QueryTicketDto) {
+  @RequirePermission('tickets', 'view')
+  findAllTickets(@Query() query: QueryTicketDto, @Request() req: any) {
     try {
-      return this.ticketsService.findAll(query);
+      const user = req?.user;
+      return this.ticketsService.findAll(query, undefined, user);
     } catch (error: any) {
       console.error('Error finding all tickets:', error.message, error.stack);
       throw error;
@@ -40,9 +49,10 @@ export class ServiceAmcController {
   }
 
   @Get('tickets/stats')
-  getTicketStats() {
+  getTicketStats(@Request() req: any) {
     try {
-      return this.ticketsService.getStats();
+      const user = req?.user;
+      return this.ticketsService.getStats(undefined, user);
     } catch (error: any) {
       console.error('Error getting ticket stats:', error.message, error.stack);
       throw error;
@@ -61,10 +71,12 @@ export class ServiceAmcController {
 
   @Post('tickets')
   @HttpCode(HttpStatus.CREATED)
-  async createTicket(@Body() createDto: CreateTicketDto) {
+  @RequirePermission('tickets', 'create')
+  async createTicket(@Body() createDto: CreateTicketDto, @Request() req: any) {
     try {
       console.log('POST /tickets received:', createDto);
-      const result = await this.ticketsService.create(createDto);
+      const user = req?.user;
+      const result = await this.ticketsService.create(createDto, undefined, user);
       console.log('Ticket created, returning:', result);
       return result;
     } catch (error: any) {
@@ -74,6 +86,7 @@ export class ServiceAmcController {
   }
 
   @Patch('tickets/:id')
+  @RequirePermission('tickets', 'edit')
   async updateTicket(@Param('id') id: string, @Body() updateDto: UpdateTicketDto) {
     try {
       console.log('PATCH /tickets/' + id, 'body:', updateDto);
@@ -88,6 +101,7 @@ export class ServiceAmcController {
 
   @Delete('tickets/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @RequirePermission('tickets', 'delete')
   removeTicket(@Param('id') id: string) {
     try {
       return this.ticketsService.remove(id);
@@ -160,6 +174,20 @@ export class ServiceAmcController {
       return result;
     } catch (error: any) {
       console.error('Error auto-generating contracts:', error.message, error.stack);
+      throw error;
+    }
+  }
+
+  @Post('contracts/remove-duplicates')
+  @HttpCode(HttpStatus.OK)
+  async removeDuplicateContracts() {
+    try {
+      console.log('POST /contracts/remove-duplicates called');
+      const result = await this.amcContractsService.forceRemoveDuplicates();
+      console.log('Removed duplicates:', result.deleted, 'Remaining:', result.remaining);
+      return result;
+    } catch (error: any) {
+      console.error('Error removing duplicates:', error.message, error.stack);
       throw error;
     }
   }

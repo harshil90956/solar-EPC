@@ -537,12 +537,18 @@ const DesignPage = () => {
         })()}
       </div>
 
-      {/* ── KPIs ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KPICard label="Total Designs" value={designs.length} sub={`${totalKw} kW total`} icon={Pencil} accentColor="var(--primary)" />
-        <KPICard label="Approved" value={approved} sub="Ready to quote" icon={CheckCircle} accentColor="#22c55e" />
-        <KPICard label="In Review" value={inReview} sub="Awaiting sign-off" icon={Layers} accentColor="#f59e0b" />
-        <KPICard label="BOQ Generated" value={boqGenerated} sub={`${fmt(totalEstCost)} total`} icon={FileText} accentColor="#3b82f6" />
+      {/* ── KPIs with descriptive labels ── */}
+      <div className="mb-2">
+        <p className="text-xs text-[var(--text-muted)] mb-2 flex items-center gap-2">
+          <Pencil size={12} className="text-[var(--accent-light)]" />
+          <span>Design Overview - Project designs and BOQ statistics</span>
+        </p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <KPICard label="Total Designs" value={designs.length} sub={`${totalKw} kW total capacity`} icon={Pencil} accentColor="var(--primary)" />
+          <KPICard label="Total Approved Designs" value={approved} sub="Ready for quotation" icon={CheckCircle} accentColor="#22c55e" />
+          <KPICard label="Total Designs In Review" value={inReview} sub="Awaiting approval" icon={Layers} accentColor="#f59e0b" />
+          <KPICard label="Total BOQs Generated" value={boqGenerated} sub={`${fmt(totalEstCost)} total value`} icon={FileText} accentColor="#3b82f6" />
+        </div>
       </div>
 
       {/* ── Type breakdown ── */}

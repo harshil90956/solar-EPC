@@ -13,20 +13,21 @@ import {
   HttpCode,
   HttpStatus,
   Logger,
-  UseInterceptors,
-  UploadedFile,
   BadRequestException,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { extname, join } from 'path';
+import { existsSync, mkdirSync } from 'fs';
+import { createWriteStream } from 'fs';
+import { pipeline } from 'stream/promises';
 import { LeadsService } from '../services/leads.service';
 import { CreateLeadDto, UpdateLeadDto, QueryLeadDto, AddActivityDto, BulkActionDto } from '../dto/lead.dto';
 import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
+import { PermissionGuard } from '../../../modules/settings/guards/permission.guard';
+import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
 
 @Controller('leads')
-@UseGuards(JwtAuthGuard, TenantGuard)
+@UseGuards(JwtAuthGuard, TenantGuard, PermissionGuard)
 export class LeadsController {
   private readonly logger = new Logger(LeadsController.name);
   
@@ -34,6 +35,7 @@ export class LeadsController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @RequirePermission('leads', 'create')
   async create(@Body() createLeadDto: CreateLeadDto, @Request() req: any) {
     try {
       const tenantId = req.tenant?.id || 'default';
@@ -47,11 +49,13 @@ export class LeadsController {
   }
 
   @Get()
+  @RequirePermission('leads', 'view')
   async findAll(@Query() query: QueryLeadDto, @Request() req: any) {
     try {
       const tenantId = req.tenant?.id || 'default';
-      this.logger.log(`[DEBUG] findAll leads - tenantId: ${tenantId}`);
-      const result = await this.leadsService.findAll(query, tenantId);
+      const user = req.user;
+      this.logger.log(`[DEBUG] findAll leads - tenantId: ${tenantId}, user: ${user?.id}, dataScope: ${user?.dataScope}`);
+      const result = await this.leadsService.findAll(query, tenantId, user);
       return { success: true, data: result.data, total: result.total };
     } catch (error: any) {
       this.logger.error(`Find all leads failed: ${error?.message || 'Unknown error'}`, error?.stack);
@@ -63,8 +67,9 @@ export class LeadsController {
   async getStats(@Request() req: any) {
     try {
       const tenantId = req.tenant?.id || 'default';
-      this.logger.log(`[DEBUG] getStats leads - tenantId: ${tenantId}`);
-      return await this.leadsService.getStats(tenantId);
+      const user = req.user;
+      this.logger.log(`[DEBUG] getStats leads - tenantId: ${tenantId}, user: ${user?.id}, dataScope: ${user?.dataScope}`);
+      return await this.leadsService.getStats(tenantId, user);
     } catch (error: any) {
       this.logger.error(`Get stats failed: ${error?.message || 'Unknown error'}`, error?.stack);
       throw error;
@@ -107,6 +112,7 @@ export class LeadsController {
   }
 
   @Put(':id')
+  @RequirePermission('leads', 'edit')
   async update(@Param('id') id: string, @Body() updateLeadDto: UpdateLeadDto, @Request() req: any) {
     try {
       this.logger.log(`Updating lead ${id} with data: ${JSON.stringify(updateLeadDto)}`);
@@ -121,6 +127,7 @@ export class LeadsController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @RequirePermission('leads', 'delete')
   async remove(@Param('id') id: string, @Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
@@ -208,6 +215,25 @@ export class LeadsController {
     }
   }
 
+  @Patch(':id/assign')
+  @HttpCode(HttpStatus.OK)
+  async assignLead(
+    @Param('id') id: string,
+    @Body('assignedTo') assignedTo: string,
+    @Request() req: any
+  ) {
+    try {
+      const tenantId = req.tenant?.id;
+      const userId = req.user?.id || req.user?._id;
+      this.logger.log(`[DEBUG] assignLead ${id} to ${assignedTo} by ${userId}`);
+      const result = await this.leadsService.assignLead(id, assignedTo, userId, tenantId);
+      return { success: true, data: result };
+    } catch (error: any) {
+      this.logger.error(`Assign lead ${id} failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
   @Patch(':id/stage')
   @HttpCode(HttpStatus.OK)
   async updateStage(@Param('id') id: string, @Body('stage') stage: string, @Request() req: any) {
@@ -278,7 +304,7 @@ export class LeadsController {
   async getFunnelData(@Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
-      const result = await this.leadsService.getFunnelData(tenantId);
+      const result = await this.leadsService.getDashboardFunnel(tenantId);
       return { success: true, data: result };
     } catch (error: any) {
       this.logger.error(`Get funnel data failed: ${error?.message || 'Unknown error'}`, error?.stack);
@@ -290,7 +316,7 @@ export class LeadsController {
   async getSourcePerformance(@Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
-      const result = await this.leadsService.getSourcePerformance(tenantId);
+      const result = await this.leadsService.getDashboardSource(tenantId);
       return { success: true, data: result };
     } catch (error: any) {
       this.logger.error(`Get source performance failed: ${error?.message || 'Unknown error'}`, error?.stack);
@@ -302,8 +328,7 @@ export class LeadsController {
   async getLeadTrend(@Query('months') months: string, @Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
-      const monthsNum = parseInt(months) || 6;
-      const result = await this.leadsService.getLeadTrend(tenantId, monthsNum);
+      const result = await this.leadsService.getDashboardTrend(tenantId);
       return { success: true, data: result };
     } catch (error: any) {
       this.logger.error(`Get lead trend failed: ${error?.message || 'Unknown error'}`, error?.stack);
@@ -315,9 +340,9 @@ export class LeadsController {
   async getValueTrend(@Query('months') months: string, @Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
-      const monthsNum = parseInt(months) || 6;
-      const result = await this.leadsService.getValueTrend(tenantId, monthsNum);
-      return { success: true, data: result };
+      // Value trend is included in getDashboardTrend
+      const result = await this.leadsService.getDashboardTrend(tenantId);
+      return { success: true, data: result.months };
     } catch (error: any) {
       this.logger.error(`Get value trend failed: ${error?.message || 'Unknown error'}`, error?.stack);
       throw error;
@@ -328,8 +353,9 @@ export class LeadsController {
   async getScoreDistribution(@Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
-      const result = await this.leadsService.getScoreDistribution(tenantId);
-      return { success: true, data: result };
+      // Score distribution is included in getDashboardTrend
+      const result = await this.leadsService.getDashboardTrend(tenantId);
+      return { success: true, data: result.scoreBuckets };
     } catch (error: any) {
       this.logger.error(`Get score distribution failed: ${error?.message || 'Unknown error'}`, error?.stack);
       throw error;
@@ -340,7 +366,7 @@ export class LeadsController {
   async getActivityStats(@Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
-      const result = await this.leadsService.getActivityStats(tenantId);
+      const result = await this.leadsService.getDashboardActivity(tenantId);
       return { success: true, data: result };
     } catch (error: any) {
       this.logger.error(`Get activity stats failed: ${error?.message || 'Unknown error'}`, error?.stack);
@@ -349,45 +375,37 @@ export class LeadsController {
   }
 
   // ============================================
-  // LEAD IMPORT ENDPOINT
+  // LEAD IMPORT ENDPOINT - TEMPORARILY DISABLED
   // ============================================
-
+  /*
   @Post('import')
   @HttpCode(HttpStatus.OK)
-  @UseInterceptors(FileInterceptor('file', {
-    storage: diskStorage({
-      destination: './uploads/leads',
-      filename: (req: any, file: any, cb: any) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-        cb(null, `leads-${uniqueSuffix}${extname(file.originalname)}`);
-      }
-    }),
-    fileFilter: (req: any, file: any, cb: any) => {
-      const allowedExt = ['.csv', '.xlsx', '.xls', '.json'];
-      const ext = extname(file.originalname).toLowerCase();
-      if (allowedExt.includes(ext)) {
-        cb(null, true);
-      } else {
-        cb(new BadRequestException('Only CSV, XLSX, XLS, or JSON files are allowed'), false);
-      }
-    },
-    limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
-  }))
-  async importLeads(
-    @UploadedFile() file: any,
-    @Request() req: any
-  ) {
-    if (!file) {
-      throw new BadRequestException('No file uploaded');
+  async importLeads(@Request() req: any) {
+    const file = await req.file?.();
+    if (!file) throw new BadRequestException('No file uploaded');
+
+    const allowedExt = ['.csv', '.xlsx', '.xls', '.json'];
+    const ext = extname(file.filename || '').toLowerCase();
+    if (!allowedExt.includes(ext)) {
+      throw new BadRequestException('Only CSV, XLSX, XLS, or JSON files are allowed');
     }
+
+    const uploadDir = join(process.cwd(), 'uploads', 'leads');
+    if (!existsSync(uploadDir)) mkdirSync(uploadDir, { recursive: true });
+
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const storedFileName = `leads-${uniqueSuffix}${ext}`;
+    const storedPath = join(uploadDir, storedFileName);
+
+    await pipeline(file.file, createWriteStream(storedPath));
 
     try {
       const tenantId = req.tenant?.id;
-      const fileExtension = extname(file.originalname).toLowerCase();
+      const fileExtension = ext;
       
-      this.logger.log(`Importing leads from file: ${file.originalname}, size: ${file.size} bytes, tenant: ${tenantId || 'default'}`);
+      this.logger.log(`Importing leads from file: ${file.filename}, tenant: ${tenantId || 'default'}`);
       
-      const result = await this.leadsService.importLeads(file.path, fileExtension, tenantId);
+      const result = await this.leadsService.importLeads(storedPath, fileExtension, tenantId);
       
       return result;
     } catch (error: any) {
@@ -395,4 +413,5 @@ export class LeadsController {
       throw error;
     }
   }
+  */
 }

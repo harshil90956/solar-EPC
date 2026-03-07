@@ -1,8 +1,11 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Headers } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Headers, UseGuards, Req } from '@nestjs/common';
+import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
+import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
 import { ItemsService } from '../services/items.service';
 import { CreateItemDto, UpdateItemDto } from '../dto/item.dto';
 
 @Controller('items')
+@UseGuards(JwtAuthGuard, TenantGuard)
 export class ItemsController {
   constructor(private readonly itemsService: ItemsService) {}
 
