@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
 import { ReminderProvider } from './context/ReminderContext';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
@@ -55,6 +56,16 @@ const PAGE_MAP = {
 };
 
 const APP_NAME = 'Solar OS';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 // ── 404 / Unauthorized Fallback ───────────────────────────────────────────────
 const NotFoundPage = ({ onNavigate, type = '404' }) => (
@@ -158,15 +169,17 @@ const AppInner = () => {
 // ── Root ──────────────────────────────────────────────────────────────────────
 function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <SettingsProvider>
-          <ReminderProvider>
-            <AppInner />
-          </ReminderProvider>
-        </SettingsProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <AuthProvider>
+          <SettingsProvider>
+            <ReminderProvider>
+              <AppInner />
+            </ReminderProvider>
+          </SettingsProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 }
 

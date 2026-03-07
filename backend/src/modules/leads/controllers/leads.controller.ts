@@ -82,6 +82,61 @@ export class LeadsController {
     }
   }
 
+  @Get('dashboard/overview')
+  async getDashboardOverview(@Request() req: any) {
+    try {
+      const tenantId = req.tenant?.id || 'default';
+      return await this.leadsService.getDashboardOverview(tenantId);
+    } catch (error: any) {
+      this.logger.error(`Get dashboard overview failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
+  @Get('dashboard/funnel')
+  async getDashboardFunnel(@Request() req: any) {
+    try {
+      const tenantId = req.tenant?.id || 'default';
+      return await this.leadsService.getDashboardFunnel(tenantId);
+    } catch (error: any) {
+      this.logger.error(`Get dashboard funnel failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
+  @Get('dashboard/source')
+  async getDashboardSource(@Request() req: any) {
+    try {
+      const tenantId = req.tenant?.id || 'default';
+      return await this.leadsService.getDashboardSource(tenantId);
+    } catch (error: any) {
+      this.logger.error(`Get dashboard source failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
+  @Get('dashboard/trend')
+  async getDashboardTrend(@Request() req: any) {
+    try {
+      const tenantId = req.tenant?.id || 'default';
+      return await this.leadsService.getDashboardTrend(tenantId);
+    } catch (error: any) {
+      this.logger.error(`Get dashboard trend failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
+  @Get('dashboard/activity')
+  async getDashboardActivity(@Request() req: any) {
+    try {
+      const tenantId = req.tenant?.id || 'default';
+      return await this.leadsService.getDashboardActivity(tenantId);
+    } catch (error: any) {
+      this.logger.error(`Get dashboard activity failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
   @Post('recalculate-scores')
   @HttpCode(HttpStatus.OK)
   async recalculateScores(@Request() req: any) {
@@ -254,96 +309,6 @@ export class LeadsController {
       return await this.leadsService.bulkUpdateStage(bulkDto.ids, stage, tenantId);
     } catch (error: any) {
       this.logger.error(`Bulk update stage failed: ${error?.message || 'Unknown error'}`, error?.stack);
-      throw error;
-    }
-  }
-
-  // ============================================
-  // DASHBOARD ANALYTICS ENDPOINTS
-  // ============================================
-
-  @Get('dashboard/overview')
-  async getDashboardOverview(@Request() req: any) {
-    try {
-      const tenantId = req.tenant?.id;
-      const result = await this.leadsService.getDashboardOverview(tenantId);
-      return { success: true, data: result };
-    } catch (error: any) {
-      this.logger.error(`Get dashboard overview failed: ${error?.message || 'Unknown error'}`, error?.stack);
-      throw error;
-    }
-  }
-
-  @Get('dashboard/funnel')
-  async getFunnelData(@Request() req: any) {
-    try {
-      const tenantId = req.tenant?.id;
-      const result = await this.leadsService.getFunnelData(tenantId);
-      return { success: true, data: result };
-    } catch (error: any) {
-      this.logger.error(`Get funnel data failed: ${error?.message || 'Unknown error'}`, error?.stack);
-      throw error;
-    }
-  }
-
-  @Get('dashboard/source')
-  async getSourcePerformance(@Request() req: any) {
-    try {
-      const tenantId = req.tenant?.id;
-      const result = await this.leadsService.getSourcePerformance(tenantId);
-      return { success: true, data: result };
-    } catch (error: any) {
-      this.logger.error(`Get source performance failed: ${error?.message || 'Unknown error'}`, error?.stack);
-      throw error;
-    }
-  }
-
-  @Get('dashboard/trend')
-  async getLeadTrend(@Query('months') months: string, @Request() req: any) {
-    try {
-      const tenantId = req.tenant?.id;
-      const monthsNum = parseInt(months) || 6;
-      const result = await this.leadsService.getLeadTrend(tenantId, monthsNum);
-      return { success: true, data: result };
-    } catch (error: any) {
-      this.logger.error(`Get lead trend failed: ${error?.message || 'Unknown error'}`, error?.stack);
-      throw error;
-    }
-  }
-
-  @Get('dashboard/value-trend')
-  async getValueTrend(@Query('months') months: string, @Request() req: any) {
-    try {
-      const tenantId = req.tenant?.id;
-      const monthsNum = parseInt(months) || 6;
-      const result = await this.leadsService.getValueTrend(tenantId, monthsNum);
-      return { success: true, data: result };
-    } catch (error: any) {
-      this.logger.error(`Get value trend failed: ${error?.message || 'Unknown error'}`, error?.stack);
-      throw error;
-    }
-  }
-
-  @Get('dashboard/score-distribution')
-  async getScoreDistribution(@Request() req: any) {
-    try {
-      const tenantId = req.tenant?.id;
-      const result = await this.leadsService.getScoreDistribution(tenantId);
-      return { success: true, data: result };
-    } catch (error: any) {
-      this.logger.error(`Get score distribution failed: ${error?.message || 'Unknown error'}`, error?.stack);
-      throw error;
-    }
-  }
-
-  @Get('dashboard/activity')
-  async getActivityStats(@Request() req: any) {
-    try {
-      const tenantId = req.tenant?.id;
-      const result = await this.leadsService.getActivityStats(tenantId);
-      return { success: true, data: result };
-    } catch (error: any) {
-      this.logger.error(`Get activity stats failed: ${error?.message || 'Unknown error'}`, error?.stack);
       throw error;
     }
   }
