@@ -1,4 +1,4 @@
-import { IsBoolean, IsObject, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { IsBoolean, IsIn, IsObject, IsOptional, IsString, ValidateNested } from 'class-validator';
 
 export class CreateCustomRoleDto {
   @IsString()
@@ -19,6 +19,10 @@ export class CreateCustomRoleDto {
   @IsOptional()
   @IsString()
   bg?: string;
+
+  @IsOptional()
+  @IsIn(['ALL', 'ASSIGNED'])
+  dataScope?: 'ALL' | 'ASSIGNED';
 }
 
 export class UpdateCustomRoleDto {
@@ -41,6 +45,10 @@ export class UpdateCustomRoleDto {
   @IsOptional()
   @IsString()
   bg?: string;
+
+  @IsOptional()
+  @IsIn(['ALL', 'ASSIGNED'])
+  dataScope?: 'ALL' | 'ASSIGNED';
 }
 
 export class UpdateCustomRolePermissionsDto {

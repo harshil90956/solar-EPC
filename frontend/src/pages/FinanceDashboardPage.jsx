@@ -224,7 +224,7 @@ const FinanceDashboardPage = ({ onNavigate }) => {
           <div className="flex gap-2 justify-center">
             <Button onClick={fetchDashboardData}>Retry</Button>
             <Button variant="outline" onClick={() => onNavigate('finance')}>
-              <ArrowLeft size={16} /> Back to Finance
+              <ArrowLeft size={16} />
             </Button>
           </div>
         </div>
@@ -238,7 +238,7 @@ const FinanceDashboardPage = ({ onNavigate }) => {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Button variant="outline" onClick={() => onNavigate('finance')} className="gap-2">
-            <ArrowLeft size={16} /> Back to Finance
+            <ArrowLeft size={16} />
           </Button>
           <div>
             <h1 className="heading-page flex items-center gap-2">

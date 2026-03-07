@@ -1,7 +1,7 @@
 // Solar OS – EPC Edition — InventoryPage.js
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
-  Package, Plus, AlertTriangle, Warehouse, ArrowUp, ArrowDown, Zap, LayoutGrid, List, Edit2, Trash2
+  Package, Plus, AlertTriangle, Warehouse, ArrowUp, ArrowDown, Zap, LayoutGrid, List, Edit2, Trash2, Eye
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { StatusBadge } from '../components/ui/Badge';
@@ -19,28 +19,40 @@ const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:300
 const PROJECT_API_BASE_URL = process.env.REACT_APP_PROJECT_API_BASE_URL || 'http://localhost:3000/api/v1';
 const TENANT_ID = 'solarcorp';
 
+// Helper to get auth headers
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('solar_token') || localStorage.getItem('token');
+  return {
+    'Content-Type': 'application/json',
+    ...(token && { Authorization: `Bearer ${token}` }),
+  };
+};
+
 const getStockStatus = (item) => {
   // If explicit status is set, return the stage ID format
   if (item.status) {
     const statusMap = {
-      'In Stock': 'in-stock',
+      'In Stock': 'available',
       'Reserved': 'reserved',
+      'Partially Reserved': 'reserved',
+      'Available': 'available',
       'Low Stock': 'low-stock',
       'Out of Stock': 'out-of-stock'
     };
     return statusMap[item.status] || item.status;
   }
   // Otherwise calculate from stock values
+  // Priority: Reserved > Out of Stock > Low Stock > In Stock
+  if (item.reserved > 0) return 'reserved';
   if (item.available === 0) return 'out-of-stock';
   if (item.available <= item.minStock) return 'low-stock';
-  if (item.reserved > 0) return 'reserved';
-  return 'in-stock';
+  return 'available';
 };
 
 // ── Kanban columns ─────────────────────────────────────────────────────────────
 const INV_STAGES = [
-  { id: 'in-stock', label: 'In Stock', color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
   { id: 'reserved', label: 'Reserved', color: '#06b6d4', bg: 'rgba(6,182,212,0.12)' },
+  { id: 'available', label: 'Available', color: '#22c55e', bg: 'rgba(34,197,94,0.12)' },
   { id: 'low-stock', label: 'Low Stock', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
   { id: 'out-of-stock', label: 'Out of Stock', color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
 ];
@@ -111,9 +123,50 @@ const InvCard = ({ item, onDragStart, onClick }) => {
 /* ── Kanban Board ── */
 const InvKanbanBoard = ({ items, onCardClick, onDrop }) => {
   const draggingId = useRef(null);
+  const draggingStageId = useRef(null);
   const [dragOver, setDragOver] = useState(null);
+  const [stageOrder, setStageOrder] = useState(() => {
+    try {
+      const saved = localStorage.getItem('invKanbanStageOrder');
+      if (!saved) return INV_STAGES.map(s => s.id);
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed)) return INV_STAGES.map(s => s.id);
+      const valid = parsed.filter(id => INV_STAGES.some(s => s.id === id));
+      const missing = INV_STAGES.map(s => s.id).filter(id => !valid.includes(id));
+      return [...valid, ...missing];
+    } catch {
+      return INV_STAGES.map(s => s.id);
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('invKanbanStageOrder', JSON.stringify(stageOrder));
+    } catch {
+      // ignore
+    }
+  }, [stageOrder]);
 
   const handleDrop = (stageId) => {
+    if (draggingStageId.current) {
+      const from = draggingStageId.current;
+      const to = stageId;
+      if (from !== to) {
+        setStageOrder(prev => {
+          const next = [...prev];
+          const fromIdx = next.indexOf(from);
+          const toIdx = next.indexOf(to);
+          if (fromIdx === -1 || toIdx === -1) return prev;
+          next.splice(fromIdx, 1);
+          next.splice(toIdx, 0, from);
+          return next;
+        });
+      }
+      draggingStageId.current = null;
+      setDragOver(null);
+      return;
+    }
+
     if (draggingId.current && onDrop) {
       onDrop(draggingId.current, stageId);
     }
@@ -123,7 +176,10 @@ const InvKanbanBoard = ({ items, onCardClick, onDrop }) => {
   return (
     <div className="overflow-x-auto pb-3 -mx-2 px-2">
       <div className="flex gap-3 min-w-max">
-        {INV_STAGES.map(stage => {
+        {stageOrder
+          .map(id => INV_STAGES.find(s => s.id === id))
+          .filter(Boolean)
+          .map(stage => {
           const cards = items.filter(i => getStockStatus(i) === stage.id);
           const totalVal = cards.reduce((a, i) => a + i.available * i.rate, 0);
           return (
@@ -132,7 +188,20 @@ const InvKanbanBoard = ({ items, onCardClick, onDrop }) => {
               onDragOver={e => { e.preventDefault(); setDragOver(stage.id); }}
               onDragLeave={() => setDragOver(null)}
               onDrop={() => handleDrop(stage.id)}>
-              <div className="flex items-center justify-between p-3 border-b border-[var(--border-base)]">
+              <div
+                draggable
+                onDragStart={(e) => {
+                  draggingStageId.current = stage.id;
+                  try {
+                    e.dataTransfer.effectAllowed = 'move';
+                  } catch {
+                    // ignore
+                  }
+                }}
+                onDragEnd={() => { draggingStageId.current = null; setDragOver(null); }}
+                className="flex items-center justify-between p-3 border-b border-[var(--border-base)] cursor-grab active:cursor-grabbing"
+                title="Drag to reorder columns"
+              >
                 <div className="flex items-center gap-2">
                   <div className="w-2.5 h-2.5 rounded-full" style={{ background: stage.color }} />
                   <span className="text-xs font-semibold text-[var(--text-primary)]">{stage.label}</span>
@@ -165,6 +234,7 @@ const InvKanbanBoard = ({ items, onCardClick, onDrop }) => {
 
 /* ── Main Page ── */
 const InventoryPage = () => {
+  const [activeTab, setActiveTab] = useState('inventory'); // 'inventory', 'warehouse', 'items', 'category'
   const [view, setView] = useState('kanban');
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('All');
@@ -175,9 +245,27 @@ const InventoryPage = () => {
   const [selected, setSelected] = useState(null);
   const [itemReservations, setItemReservations] = useState([]);
   const [loadingReservations, setLoadingReservations] = useState(false);
-  const [form, setForm] = useState({ name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
-  const [stockInForm, setStockInForm] = useState({ itemId: '', quantity: '', poReference: '', receivedDate: '', remarks: '', projectId: '' });
-  const [showEdit, setShowEdit] = useState(false);
+  const [form, setForm] = useState({ itemId: '', name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
+  const [stockInForm, setStockInForm] = useState({ itemId: '', quantity: '', poReference: '', receivedDate: '', remarks: '', warehouse: '' });
+  const [warehouses, setWarehouses] = useState(() => {
+    const saved = localStorage.getItem('warehouses');
+    return saved ? JSON.parse(saved) : ['WH-Ahmedabad', 'WH-Surat', 'WH-Mumbai'];
+  });
+  const [newWarehouse, setNewWarehouse] = useState('');
+  const [showWarehouseModal, setShowWarehouseModal] = useState(false);
+  const [editingWarehouse, setEditingWarehouse] = useState(null);
+  const [editWarehouseValue, setEditWarehouseValue] = useState('');
+  const [viewingWarehouse, setViewingWarehouse] = useState(null);
+  const [categories, setCategories] = useState(() => {
+    const saved = localStorage.getItem('itemCategories');
+    return saved ? JSON.parse(saved) : ['Panel', 'Inverter', 'BOS', 'Structure', 'Cable', 'Other'];
+  });
+  const [newCategory, setNewCategory] = useState('');
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [editCategoryValue, setEditCategoryValue] = useState('');
+  const [viewingCategory, setViewingCategory] = useState(null);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [editForm, setEditForm] = useState({ name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
   const [showStockOut, setShowStockOut] = useState(false);
@@ -190,13 +278,64 @@ const InventoryPage = () => {
   const [stats, setStats] = useState({ totalItems: 0, totalValue: 0, lowStockItems: 0, outOfStockItems: 0 });
   const [inventoryStats, setInventoryStats] = useState(null);
   const [itemsByCategory, setItemsByCategory] = useState([]);
-  const [submitting, setSubmitting] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+
+  // Save categories to localStorage
+  useEffect(() => {
+    localStorage.setItem('itemCategories', JSON.stringify(categories));
+  }, [categories]);
+
+  useEffect(() => {
+    localStorage.setItem('warehouses', JSON.stringify(warehouses));
+  }, [warehouses]);
+
+  const handleAddWarehouse = () => {
+    const name = newWarehouse.trim();
+    if (!name) {
+      alert('Please enter a warehouse name');
+      return;
+    }
+    if (warehouses.includes(name)) {
+      alert('Warehouse already exists');
+      return;
+    }
+    setWarehouses([...warehouses, name]);
+    setNewWarehouse('');
+    setShowWarehouseModal(false);
+    alert('Warehouse added successfully');
+  };
+
+  const handleEditWarehouse = (oldName) => {
+    const name = editWarehouseValue.trim();
+    if (!name) {
+      alert('Please enter a warehouse name');
+      return;
+    }
+    if (warehouses.includes(name) && name !== oldName) {
+      alert('Warehouse already exists');
+      return;
+    }
+    setWarehouses(warehouses.map(w => (w === oldName ? name : w)));
+    setInventory(prev => prev.map(i => (i.warehouse === oldName ? { ...i, warehouse: name } : i)));
+    setEditingWarehouse(null);
+    setEditWarehouseValue('');
+    alert('Warehouse updated successfully');
+  };
+
+  const handleDeleteWarehouse = (name) => {
+    if (!window.confirm(`Are you sure you want to delete "${name}" warehouse?`)) return;
+    setWarehouses(warehouses.filter(w => w !== name));
+    setInventory(prev => prev.map(i => (i.warehouse === name ? { ...i, warehouse: '' } : i)));
+    alert('Warehouse deleted successfully');
+  };
 
   // Fetch inventory stats from backend
   useEffect(() => {
     const fetchInventoryStats = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/inventory/stats?tenantId=${TENANT_ID}`);
+        const response = await fetch(`${API_BASE_URL}/inventory/stats?tenantId=${TENANT_ID}`, {
+          headers: getAuthHeaders(),
+        });
         if (response.ok) {
           const data = await response.json();
           setInventoryStats(data.data || data);
@@ -212,7 +351,9 @@ const InventoryPage = () => {
   useEffect(() => {
     const fetchByCategory = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/inventory/by-category?tenantId=${TENANT_ID}`);
+        const response = await fetch(`${API_BASE_URL}/inventory/by-category?tenantId=${TENANT_ID}`, {
+          headers: getAuthHeaders(),
+        });
         if (response.ok) {
           const data = await response.json();
           setItemsByCategory(data.data || data || []);
@@ -229,7 +370,9 @@ const InventoryPage = () => {
     const fetchInventory = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`${API_BASE_URL}/items?tenantId=${TENANT_ID}`);
+        const response = await fetch(`${API_BASE_URL}/items?tenantId=${TENANT_ID}`, {
+          headers: getAuthHeaders(),
+        });
         if (!response.ok) {
           throw new Error('Failed to fetch items');
         }
@@ -272,7 +415,9 @@ const InventoryPage = () => {
   useEffect(() => {
     const fetchItems = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/items?tenantId=${TENANT_ID}`);
+        const response = await fetch(`${API_BASE_URL}/items?tenantId=${TENANT_ID}`, {
+          headers: getAuthHeaders(),
+        });
         if (response.ok) {
           const data = await response.json();
           const itemsArray = Array.isArray(data) ? data : (data.data || []);
@@ -290,7 +435,9 @@ const InventoryPage = () => {
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        const response = await fetch(`${PROJECT_API_BASE_URL}/projects?tenantId=${TENANT_ID}`);
+        const response = await fetch(`${PROJECT_API_BASE_URL}/projects?tenantId=${TENANT_ID}`, {
+          headers: getAuthHeaders(),
+        });
         if (response.ok) {
           const data = await response.json();
           const projectsArray = Array.isArray(data) ? data : (data.data || []);
@@ -314,6 +461,18 @@ const InventoryPage = () => {
     return { totalItems, totalValue, lowStockItems, outOfStockItems };
   }, [inventory]);
 
+  const warehouseItems = useMemo(() => {
+    if (!viewingWarehouse) return [];
+    return inventory
+      .filter(i => i.warehouse === viewingWarehouse)
+      .map(i => ({
+        ...i,
+        name: i.name || i.description,
+        available: (i.available ?? ((i.stock || 0) - (i.reserved || 0))),
+      }))
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [inventory, viewingWarehouse]);
+
   const filtered = useMemo(() =>
     inventory.filter(i =>
       (catFilter === 'All' || i.category === catFilter) &&
@@ -331,8 +490,8 @@ const InventoryPage = () => {
     setSubmitting(true);
     try {
       const newItem = {
-        itemId: `INV${Date.now().toString().slice(-4)}`,
-        description: form.name,  // items module uses 'description' not 'name'
+        itemId: form.itemId?.trim() || `INV${Date.now().toString().slice(-4)}`,
+        description: form.name,
         category: form.category,
         unit: form.unit,
         stock: 0,
@@ -345,7 +504,7 @@ const InventoryPage = () => {
 
       const response = await fetch(`${API_BASE_URL}/items?tenantId=${TENANT_ID}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(newItem),
       });
 
@@ -363,7 +522,7 @@ const InventoryPage = () => {
         available: (itemData.stock || 0) - (itemData.reserved || 0)
       }]);
       setShowAdd(false);
-      setForm({ name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
+      setForm({ itemId: '', name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
       alert('Item added successfully!');
     } catch (err) {
       console.error('Error adding item:', err);
@@ -380,12 +539,13 @@ const InventoryPage = () => {
     try {
       const response = await fetch(`${API_BASE_URL}/items/${stockInForm.itemId}/stock-in?tenantId=${TENANT_ID}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           quantity: parseInt(stockInForm.quantity),
           poReference: stockInForm.poReference,
           receivedDate: stockInForm.receivedDate,
           remarks: stockInForm.remarks,
+          warehouse: stockInForm.warehouse,
         }),
       });
 
@@ -398,7 +558,7 @@ const InventoryPage = () => {
       const itemData = updatedItem.data || updatedItem;
       setInventory(prev => prev.map(i => i._id === stockInForm.itemId ? itemData : i));
       setStockIn(false);
-      setStockInForm({ itemId: '', quantity: '', poReference: '', receivedDate: '', remarks: '' });
+      setStockInForm({ itemId: '', quantity: '', poReference: '', receivedDate: '', remarks: '', warehouse: '' });
       alert('Stock added successfully!');
     } catch (err) {
       console.error('Error adding stock:', err);
@@ -421,7 +581,9 @@ const InventoryPage = () => {
     setLoadingReservations(true);
     try {
       console.log('Fetching reservations for itemId:', itemId);
-      const response = await fetch(`${API_BASE_URL}/inventory/reservations/by-item/${itemId}?tenantId=${TENANT_ID}`);
+      const response = await fetch(`${API_BASE_URL}/inventory/reservations/by-item/${itemId}?tenantId=${TENANT_ID}`, {
+        headers: getAuthHeaders(),
+      });
       if (response.ok) {
         const data = await response.json();
         console.log('Reservation API response:', data);
@@ -467,7 +629,7 @@ const InventoryPage = () => {
 
       const response = await fetch(`${API_BASE_URL}/inventory/${editingItem.itemId}?tenantId=${TENANT_ID}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(updateData),
       });
 
@@ -496,6 +658,7 @@ const InventoryPage = () => {
     try {
       const response = await fetch(`${API_BASE_URL}/inventory/${itemId}?tenantId=${TENANT_ID}`, {
         method: 'DELETE',
+        headers: getAuthHeaders(),
       });
 
       if (!response.ok) {
@@ -517,7 +680,7 @@ const InventoryPage = () => {
     try {
       const response = await fetch(`${API_BASE_URL}/items/${stockOutForm.itemId}/stock-out?tenantId=${TENANT_ID}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           quantity: parseInt(stockOutForm.quantity),
           projectId: stockOutForm.projectId,
@@ -545,7 +708,7 @@ const InventoryPage = () => {
           
           await fetch(`${API_BASE_URL}/inventory/reservations?tenantId=${TENANT_ID}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getAuthHeaders(),
             body: JSON.stringify({
               reservationId: `RES-${Date.now()}`,
               itemId: item?.itemId || stockOutForm.itemId,
@@ -577,8 +740,9 @@ const InventoryPage = () => {
   const handleKanbanDrop = async (itemId, targetStage) => {
     // Map stage IDs to status values
     const stageToStatus = {
-      'in-stock': 'In Stock',
+      'in-stock': 'Available',
       'reserved': 'Reserved',
+      'available': 'Available',
       'low-stock': 'Low Stock',
       'out-of-stock': 'Out of Stock'
     };
@@ -597,7 +761,7 @@ const InventoryPage = () => {
 
       const response = await fetch(`${API_BASE_URL}/items/${item._id || itemId}?tenantId=${TENANT_ID}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ status: newStatus }),
       });
 
@@ -611,7 +775,9 @@ const InventoryPage = () => {
       setInventory(prev => prev.map(i => (i._id || i.itemId) === (itemData._id || itemData.itemId) ? { ...i, status: newStatus } : i));
       
       // Refresh stats
-      const statsResponse = await fetch(`${API_BASE_URL}/inventory/stats?tenantId=${TENANT_ID}`);
+      const statsResponse = await fetch(`${API_BASE_URL}/inventory/stats?tenantId=${TENANT_ID}`, {
+        headers: getAuthHeaders(),
+      });
       if (statsResponse.ok) {
         const statsData = await statsResponse.json();
         setInventoryStats(statsData.data || statsData);
@@ -622,6 +788,45 @@ const InventoryPage = () => {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // Category CRUD Functions
+  const handleAddCategory = () => {
+    if (!newCategory.trim()) {
+      alert('Please enter a category name');
+      return;
+    }
+    if (categories.includes(newCategory.trim())) {
+      alert('Category already exists');
+      return;
+    }
+    setCategories([...categories, newCategory.trim()]);
+    setNewCategory('');
+    setShowCategoryModal(false);
+    alert('Category added successfully');
+  };
+
+  const handleEditCategory = (oldCategory) => {
+    if (!editCategoryValue.trim()) {
+      alert('Please enter a category name');
+      return;
+    }
+    if (categories.includes(editCategoryValue.trim()) && editCategoryValue.trim() !== oldCategory) {
+      alert('Category already exists');
+      return;
+    }
+    setCategories(categories.map(cat => cat === oldCategory ? editCategoryValue.trim() : cat));
+    setEditingCategory(null);
+    setEditCategoryValue('');
+    alert('Category updated successfully');
+  };
+
+  const handleDeleteCategory = (categoryToDelete) => {
+    if (!window.confirm(`Are you sure you want to delete "${categoryToDelete}" category?`)) {
+      return;
+    }
+    setCategories(categories.filter(cat => cat !== categoryToDelete));
+    alert('Category deleted successfully');
   };
 
   const ROW_ACTIONS = [
@@ -640,105 +845,409 @@ const InventoryPage = () => {
           <p className="text-xs text-[var(--text-muted)] mt-0.5">Stock levels · reservations · low-stock alerts · warehouses</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="view-toggle-pill">
-            <button onClick={() => setView('kanban')}
-              className={`view-toggle-btn ${view === 'kanban' ? 'active' : ''}`}><LayoutGrid size={14} /></button>
-            <button onClick={() => setView('table')}
-              className={`view-toggle-btn ${view === 'table' ? 'active' : ''}`}><List size={14} /></button>
+          {/* Main Tabs - Now at top right */}
+          <div className="flex items-center gap-1 p-1 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-base)]">
+            <button 
+              onClick={() => setActiveTab('inventory')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${activeTab === 'inventory' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+            >
+              Inventory
+            </button>
+            <button 
+              onClick={() => setActiveTab('warehouse')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${activeTab === 'warehouse' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+            >
+              Warehouse
+            </button>
+            <button 
+              onClick={() => setActiveTab('items')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${activeTab === 'items' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+            >
+              Item
+            </button>
+            <button 
+              onClick={() => setActiveTab('category')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${activeTab === 'category' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+            >
+              Category
+            </button>
           </div>
-          <Button variant="ghost" onClick={() => setStockIn(true)}><ArrowUp size={13} /> Stock In</Button>
-          <Button variant="ghost" onClick={() => setShowStockOut(true)}><ArrowDown size={13} /> Stock Out</Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KPICard label="Total Items" value={dynamicStats.totalItems} sub="SKUs tracked" icon={Package} accentColor="#3b82f6" />
-        <KPICard label="Inventory Value" value={fmt(dynamicStats.totalValue)} sub="At current rates" icon={Warehouse} accentColor="#f59e0b" />
-        <KPICard label="Low Stock Alerts" value={dynamicStats.lowStockItems} sub="Items need reorder" icon={AlertTriangle} accentColor="#f59e0b" />
-        <KPICard label="Out of Stock" value={dynamicStats.outOfStockItems} sub="Immediate action needed" icon={AlertTriangle} accentColor="#ef4444" />
-      </div>
-
-      {dynamicStats.lowStockItems > 0 && (
-        <div className="ai-banner border-amber-500/20 bg-amber-500/5">
-          <AlertTriangle size={14} className="text-amber-400 mt-0.5 shrink-0" />
-          <p className="text-xs text-[var(--text-secondary)]">
-            <span className="text-amber-400 font-semibold">Low Stock Alert:</span>{' '}
-            {inventory.filter(i => i.status === 'Low Stock' || ((i.stock || 0) - (i.reserved || 0)) <= (i.minStock || 0) && ((i.stock || 0) - (i.reserved || 0)) > 0).map(i => i.name || i.description).slice(0, 3).join(', ')}{inventory.filter(i => i.status === 'Low Stock' || ((i.stock || 0) - (i.reserved || 0)) <= (i.minStock || 0) && ((i.stock || 0) - (i.reserved || 0)) > 0).length > 3 ? '...' : ''} — reorder immediately to avoid project delays.
-          </p>
-        </div>
-      )}
-
-      <div className="ai-banner">
-        <Zap size={14} className="text-[var(--accent-light)] mt-0.5 shrink-0" />
-        <p className="text-xs text-[var(--text-secondary)]">
-          <span className="text-[var(--accent-light)] font-semibold">AI Insight:</span>{' '}
-          Based on current project pipeline, you need 500 additional panels by Mar 10. PO002 covers 5 inverters — approve immediately. 10kW inverter stock is critically low at 2 units.
-        </p>
-      </div>
-
-      {view === 'table' && (
-        <div className="glass-card p-4">
-          <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3">Inventory by Category</h3>
-          <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={itemsByCategory.map(c => ({ category: c._id, count: c.count, value: c.totalValue / 100000 }))} barSize={20} barGap={3}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-              <XAxis dataKey="category" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)', borderRadius: 8, fontSize: 12 }} />
-              <Bar dataKey="count" fill="#22c55e" radius={[3, 3, 0, 0]} name="Items" />
-              <Bar dataKey="value" fill="#f59e0b" radius={[3, 3, 0, 0]} name="Value (₹ Lakhs)" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      {view === 'table' ? (
+      {/* INVENTORY TAB CONTENT */}
+      {activeTab === 'inventory' && (
         <>
-          <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-xs text-[var(--text-muted)] mr-1">Category:</span>
-            {CATEGORY_FILTERS.map(c => (
-              <button key={c} onClick={() => { setCatFilter(c); setPage(1); }}
-                className={`filter-chip ${catFilter === c ? 'filter-chip-active' : ''}`}>{c}</button>
-            ))}
-            <div className="ml-auto">
-              <Input placeholder="Search inventory…" value={search}
-                onChange={e => { setSearch(e.target.value); setPage(1); }} className="h-8 text-xs w-52" />
+          {/* Inventory Controls Row */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {/* Left side can have other controls if needed */}
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="view-toggle-pill">
+                <button onClick={() => setView('kanban')}
+                  className={`view-toggle-btn ${view === 'kanban' ? 'active' : ''}`}><LayoutGrid size={14} /></button>
+                <button onClick={() => setView('table')}
+                  className={`view-toggle-btn ${view === 'table' ? 'active' : ''}`}><List size={14} /></button>
+              </div>
+              <Button variant="ghost" onClick={() => setStockIn(true)}><ArrowUp size={13} /> Stock In</Button>
+              <Button variant="ghost" onClick={() => setShowStockOut(true)}><ArrowDown size={13} /> Stock Out</Button>
             </div>
           </div>
-          <DataTable columns={COLUMNS} data={paginated} total={filtered.length}
-            page={page} pageSize={pageSize} onPageChange={setPage}
-            onPageSizeChange={s => { setPageSize(s); setPage(1); }}
-            search={search} onSearch={v => { setSearch(v); setPage(1); }}
-            rowActions={ROW_ACTIONS} emptyText="No inventory items found." />
-        </>
-      ) : (
-        <>
-          <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-xs text-[var(--text-muted)] mr-1">Category:</span>
-            {CATEGORY_FILTERS.map(c => (
-              <button key={c} onClick={() => setCatFilter(c)}
-                className={`filter-chip ${catFilter === c ? 'filter-chip-active' : ''}`}>{c}</button>
-            ))}
-            <div className="ml-auto">
-              <Input placeholder="Search inventory…" value={search} onChange={e => setSearch(e.target.value)} className="h-8 text-xs w-52" />
-            </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <KPICard label="Total Items" value={dynamicStats.totalItems} sub="SKUs tracked" icon={Package} accentColor="#3b82f6" />
+            <KPICard label="Inventory Value" value={fmt(dynamicStats.totalValue)} sub="At current rates" icon={Warehouse} accentColor="#f59e0b" />
+            <KPICard label="Low Stock Alerts" value={dynamicStats.lowStockItems} sub="Items need reorder" icon={AlertTriangle} accentColor="#f59e0b" />
+            <KPICard label="Out of Stock" value={dynamicStats.outOfStockItems} sub="Immediate action needed" icon={AlertTriangle} accentColor="#ef4444" />
           </div>
-          {loading ? (
-            <div className="glass-card p-8 text-center">
-              <div className="animate-pulse text-[var(--text-muted)]">Loading inventory...</div>
+
+          {dynamicStats.lowStockItems > 0 && (
+            <div className="ai-banner border-amber-500/20 bg-amber-500/5">
+              <AlertTriangle size={14} className="text-amber-400 mt-0.5 shrink-0" />
+              <p className="text-xs text-[var(--text-secondary)]">
+                <span className="text-amber-400 font-semibold">Low Stock Alert:</span>{' '}
+                {inventory.filter(i => i.status === 'Low Stock' || ((i.stock || 0) - (i.reserved || 0)) <= (i.minStock || 0) && ((i.stock || 0) - (i.reserved || 0)) > 0).map(i => i.name || i.description).slice(0, 3).join(', ')}{inventory.filter(i => i.status === 'Low Stock' || ((i.stock || 0) - (i.reserved || 0)) <= (i.minStock || 0) && ((i.stock || 0) - (i.reserved || 0)) > 0).length > 3 ? '...' : ''} — reorder immediately to avoid project delays.
+              </p>
             </div>
-          ) : error ? (
-            <div className="glass-card p-8 text-center text-red-500">
-              <p>Error loading inventory: {error}</p>
-              <p className="text-xs mt-2 text-[var(--text-muted)]">Make sure the backend server is running on port 3000</p>
-            </div>
+          )}
+
+          <div className="ai-banner">
+            <Zap size={14} className="text-[var(--accent-light)] mt-0.5 shrink-0" />
+            <p className="text-xs text-[var(--text-secondary)]">
+              <span className="text-[var(--accent-light)] font-semibold">AI Insight:</span>{' '}
+              Based on current project pipeline, you need 500 additional panels by Mar 10. PO002 covers 5 inverters — approve immediately. 10kW inverter stock is critically low at 2 units.
+            </p>
+          </div>
+
+          {view === 'table' ? (
+            <>
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="text-xs text-[var(--text-muted)] mr-1">Category:</span>
+                {CATEGORY_FILTERS.map(c => (
+                  <button key={c} onClick={() => { setCatFilter(c); setPage(1); }}
+                    className={`filter-chip ${catFilter === c ? 'filter-chip-active' : ''}`}>{c}</button>
+                ))}
+                <div className="ml-auto">
+                  <Input placeholder="Search inventory…" value={search}
+                    onChange={e => { setSearch(e.target.value); setPage(1); }} className="h-8 text-xs w-52" />
+                </div>
+              </div>
+              <DataTable columns={COLUMNS} data={paginated} total={filtered.length}
+                page={page} pageSize={pageSize} onPageChange={setPage}
+                onPageSizeChange={s => { setPageSize(s); setPage(1); }}
+                search={search} onSearch={v => { setSearch(v); setPage(1); }}
+                rowActions={ROW_ACTIONS} emptyText="No inventory items found."
+                onRowClick={setSelected} />
+            </>
           ) : (
-            <InvKanbanBoard items={filtered} onCardClick={setSelected} onDrop={handleKanbanDrop} />
+            <>
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="text-xs text-[var(--text-muted)] mr-1">Category:</span>
+                {CATEGORY_FILTERS.map(c => (
+                  <button key={c} onClick={() => setCatFilter(c)}
+                    className={`filter-chip ${catFilter === c ? 'filter-chip-active' : ''}`}>{c}</button>
+                ))}
+                <div className="ml-auto">
+                  <Input placeholder="Search inventory…" value={search} onChange={e => setSearch(e.target.value)} className="h-8 text-xs w-52" />
+                </div>
+              </div>
+              {loading ? (
+                <div className="glass-card p-8 text-center">
+                  <div className="animate-pulse text-[var(--text-muted)]">Loading inventory...</div>
+                </div>
+              ) : error ? (
+                <div className="glass-card p-8 text-center text-red-500">
+                  <p>Error loading inventory: {error}</p>
+                  <p className="text-xs mt-2 text-[var(--text-muted)]">Make sure the backend server is running on port 3000</p>
+                </div>
+              ) : (
+                <InvKanbanBoard items={filtered} onCardClick={setSelected} onDrop={handleKanbanDrop} />
+              )}
+            </>
           )}
         </>
       )}
 
-      {/* Add Item Modal */}
+      {activeTab === 'warehouse' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-[var(--text-primary)]">Warehouse Management</h2>
+            <Button onClick={() => setShowWarehouseModal(true)}>
+              <Plus size={14} /> Add Warehouse
+            </Button>
+          </div>
+
+          <div className="glass-card overflow-hidden">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-b border-[var(--border-base)] bg-[var(--bg-elevated)]">
+                  <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Warehouse</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Items</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {warehouses.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="px-4 py-8 text-center text-[var(--text-muted)]">No warehouses</td>
+                  </tr>
+                ) : (
+                  warehouses.map((w) => (
+                    <tr key={w} className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)]">
+                      <td className="px-4 py-3">
+                        <span className="text-sm font-medium text-[var(--text-primary)]">{w}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs text-[var(--text-secondary)]">{inventory.filter(i => i.warehouse === w).length} items</span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => setViewingWarehouse(w)}
+                            className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-blue-500 hover:bg-blue-500/10"
+                            title="View"
+                          >
+                            <Eye size={14} />
+                          </button>
+                          <button
+                            onClick={() => { setEditingWarehouse(w); setEditWarehouseValue(w); }}
+                            className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--bg-hover)]"
+                            title="Edit"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteWarehouse(w)}
+                            className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-red-500 hover:bg-red-500/10"
+                            title="Delete"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ITEMS TAB CONTENT */}
+      {activeTab === 'items' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Input 
+                placeholder="Search items..." 
+                value={search} 
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-9 text-xs w-64"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setShowAdd(true)}>
+                <Plus size={14} /> Add Item
+              </Button>
+            </div>
+          </div>
+
+          {/* Items Table */}
+          <div className="glass-card overflow-hidden">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-b border-[var(--border-base)] bg-[var(--bg-elevated)]">
+                  <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Item ID</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Description</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Category</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Unit</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Rate (₹)</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-8 text-center text-[var(--text-muted)]">
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="w-4 h-4 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+                        Loading items...
+                      </div>
+                    </td>
+                  </tr>
+                ) : inventory.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-8 text-center text-[var(--text-muted)]">
+                      <Package size={32} className="mx-auto mb-2 text-[var(--text-faint)]" />
+                      <p>No items found</p>
+                    </td>
+                  </tr>
+                ) : (
+                  inventory
+                    .filter(item => item.name?.toLowerCase().includes(search.toLowerCase()) || 
+                                   item.itemId?.toLowerCase().includes(search.toLowerCase()))
+                    .map((item) => (
+                    <tr key={item._id || item.itemId} 
+                      onClick={() => setSelected(item)}
+                      className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)] cursor-pointer">
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        <span className="text-xs font-mono text-[var(--accent-light)]">{item.itemId}</span>
+                      </td>
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        <span className="text-xs font-semibold text-[var(--text-primary)]">{item.name || item.description}</span>
+                      </td>
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        <span className="text-xs text-[var(--text-secondary)]">{item.category}</span>
+                      </td>
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        <span className="text-xs text-[var(--text-secondary)]">{item.unit}</span>
+                      </td>
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        <span className="text-xs text-[var(--text-primary)]">₹{item.rate?.toLocaleString('en-IN')}</span>
+                      </td>
+                      <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => { setSelected(item); }}
+                            className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-[var(--primary)] hover:bg-[var(--bg-hover)]"
+                            title="View"
+                          >
+                            <Package size={14} />
+                          </button>
+                          <button
+                            onClick={() => handleEditClick(item)}
+                            className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
+                            title="Edit"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteItem(item.itemId)}
+                            className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-red-500 hover:bg-red-500/10"
+                            title="Delete"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* CATEGORY TAB CONTENT */}
+      {activeTab === 'category' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-[var(--text-primary)]">Category Management</h2>
+            <Button onClick={() => setShowCategoryModal(true)}>
+              <Plus size={14} /> Add Category
+            </Button>
+          </div>
+
+          {/* Items by Category - Now at TOP as colored cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {categories.map((cat, index) => {
+              const catItems = inventory.filter(i => i.category === cat);
+              if (catItems.length === 0) return null;
+              const colors = ['bg-blue-50 border-blue-200', 'bg-amber-50 border-amber-200', 'bg-green-50 border-green-200', 'bg-purple-50 border-purple-200', 'bg-pink-50 border-pink-200', 'bg-cyan-50 border-cyan-200', 'bg-orange-50 border-orange-200', 'bg-teal-50 border-teal-200'];
+              const iconColors = ['text-blue-500', 'text-amber-500', 'text-green-500', 'text-purple-500', 'text-pink-500', 'text-cyan-500', 'text-orange-500', 'text-teal-500'];
+              const bgColors = ['bg-blue-100', 'bg-amber-100', 'bg-green-100', 'bg-purple-100', 'bg-pink-100', 'bg-cyan-100', 'bg-orange-100', 'bg-teal-100'];
+              return (
+                <div key={cat} className={`${colors[index % colors.length]} border rounded-xl p-4 flex flex-col gap-2 hover:shadow-md transition-all`}>
+                  <div className="flex items-center justify-between">
+                    <div className={`w-10 h-10 rounded-lg ${bgColors[index % bgColors.length]} flex items-center justify-center`}>
+                      <Package size={20} className={iconColors[index % iconColors.length]} />
+                    </div>
+                    <span className="text-xs font-medium text-[var(--text-muted)]">{catItems.length} items</span>
+                  </div>
+                  <span className="text-sm font-semibold text-[var(--text-primary)]">{cat}</span>
+                  <div className="flex flex-wrap gap-1">
+                    {catItems.slice(0, 3).map((item) => (
+                      <span key={item.itemId} className="text-[10px] px-2 py-1 bg-white rounded text-[var(--text-secondary)] border border-[var(--border-base)]">
+                        {item.name || item.description}
+                      </span>
+                    ))}
+                    {catItems.length > 3 && (
+                      <span className="text-[10px] px-2 py-1 text-[var(--text-muted)]">
+                        +{catItems.length - 3} more
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Categories Table - Now at BOTTOM */}
+          <div className="mt-8">
+            <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3">Categories</h3>
+            <div className="glass-card overflow-hidden">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-[var(--border-base)] bg-[var(--bg-elevated)]">
+                    <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Category Name</th>
+                    <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Items Count</th>
+                    <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {categories.map((cat) => (
+                    <tr 
+                      key={cat} 
+                      className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)] cursor-pointer"
+                      onClick={() => setViewingCategory(cat)}
+                    >
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-lg bg-[var(--bg-elevated)] flex items-center justify-center">
+                            <Package size={16} className="text-[var(--primary)]" />
+                          </div>
+                          <span className="text-sm font-medium text-[var(--text-primary)]">{cat}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs text-[var(--text-secondary)]">{inventory.filter(i => i.category === cat).length} items</span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setViewingCategory(cat); }}
+                            className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-blue-500 hover:bg-blue-500/10"
+                            title="View"
+                          >
+                            <Eye size={14} />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setEditingCategory(cat); setEditCategoryValue(cat); }}
+                            className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--bg-hover)]"
+                            title="Edit"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDeleteCategory(cat); }}
+                            className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-red-500 hover:bg-red-500/10"
+                            title="Delete"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Add Inventory Item"
         footer={<div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={() => setShowAdd(false)}>Cancel</Button>
@@ -747,6 +1256,7 @@ const InventoryPage = () => {
           </Button>
         </div>}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <FormField label="Item ID (Optional)"><Input placeholder="e.g. INV001" value={form.itemId} onChange={e => setForm(f => ({ ...f, itemId: e.target.value }))} /></FormField>
           <FormField label="Item Name"><Input placeholder="e.g. 400W Mono PERC Panel" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></FormField>
           <FormField label="Category">
             <Select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
@@ -765,10 +1275,82 @@ const InventoryPage = () => {
           <FormField label="Warehouse">
             <Select value={form.warehouse} onChange={e => setForm(f => ({ ...f, warehouse: e.target.value }))}>
               <option value="">Select Warehouse</option>
-              <option>WH-Ahmedabad</option><option>WH-Surat</option><option>WH-Mumbai</option>
+              {warehouses.map(w => <option key={w}>{w}</option>)}
             </Select>
           </FormField>
         </div>
+      </Modal>
+
+      <Modal open={!!viewingWarehouse} onClose={() => setViewingWarehouse(null)} title={`Warehouse — ${viewingWarehouse}`}
+        footer={<Button variant="ghost" onClick={() => setViewingWarehouse(null)}>Close</Button>}>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="text-xs text-[var(--text-muted)]">
+              {warehouseItems.length} items
+            </div>
+            <div className="text-xs font-semibold text-[var(--text-primary)]">
+              ₹{warehouseItems.reduce((a, i) => a + (i.stock || 0) * (i.rate || 0), 0).toLocaleString('en-IN')}
+            </div>
+          </div>
+
+          <div className="glass-card overflow-hidden">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-b border-[var(--border-base)] bg-[var(--bg-elevated)]">
+                  <th className="px-3 py-2 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Item</th>
+                  <th className="px-3 py-2 text-[11px] font-semibold text-[var(--text-secondary)] uppercase text-right">Stock</th>
+                  <th className="px-3 py-2 text-[11px] font-semibold text-[var(--text-secondary)] uppercase text-right">Reserved</th>
+                  <th className="px-3 py-2 text-[11px] font-semibold text-[var(--text-secondary)] uppercase text-right">Available</th>
+                </tr>
+              </thead>
+              <tbody>
+                {warehouseItems.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-3 py-8 text-center text-[var(--text-muted)]">No items in this warehouse</td>
+                  </tr>
+                ) : (
+                  warehouseItems.map((i) => (
+                    <tr key={i.itemId} className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)]">
+                      <td className="px-3 py-2">
+                        <div>
+                          <div className="text-xs font-semibold text-[var(--text-primary)]">{i.name}</div>
+                          <div className="text-[10px] text-[var(--text-muted)]">{i.itemId}</div>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-right text-xs font-semibold text-[var(--text-primary)]">{i.stock} {i.unit}</td>
+                      <td className="px-3 py-2 text-right text-xs font-semibold text-amber-400">{i.reserved} {i.unit}</td>
+                      <td className="px-3 py-2 text-right text-xs font-semibold text-emerald-400">{i.available} {i.unit}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={showWarehouseModal} onClose={() => { setShowWarehouseModal(false); setNewWarehouse(''); }} title="Add New Warehouse"
+        footer={<div className="flex gap-2 justify-end">
+          <Button variant="ghost" onClick={() => { setShowWarehouseModal(false); setNewWarehouse(''); }}>Cancel</Button>
+          <Button onClick={handleAddWarehouse} disabled={!newWarehouse.trim()}>Add Warehouse</Button>
+        </div>}>
+        <FormField label="Warehouse Name" required>
+          <Input placeholder="Enter warehouse name (e.g., WH-Baroda)" value={newWarehouse}
+            onChange={(e) => setNewWarehouse(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddWarehouse(); } }} />
+        </FormField>
+      </Modal>
+
+      <Modal open={!!editingWarehouse} onClose={() => { setEditingWarehouse(null); setEditWarehouseValue(''); }} title={`Edit Warehouse — ${editingWarehouse}`}
+        footer={<div className="flex gap-2 justify-end">
+          <Button variant="ghost" onClick={() => { setEditingWarehouse(null); setEditWarehouseValue(''); }}>Cancel</Button>
+          <Button onClick={() => handleEditWarehouse(editingWarehouse)} disabled={!editWarehouseValue.trim()}>Save Changes</Button>
+        </div>}>
+        <FormField label="Warehouse Name" required>
+          <Input placeholder="Enter new warehouse name" value={editWarehouseValue}
+            onChange={(e) => setEditWarehouseValue(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleEditWarehouse(editingWarehouse); } }} />
+        </FormField>
       </Modal>
 
       {/* Stock In Modal */}
@@ -788,10 +1370,10 @@ const InventoryPage = () => {
           </FormField>
           <div className="grid grid-cols-2 gap-3">
             <FormField label="Quantity Received"><Input type="number" placeholder="100" value={stockInForm.quantity} onChange={e => setStockInForm(f => ({ ...f, quantity: e.target.value }))} /></FormField>
-            <FormField label="Project">
-              <Select value={stockInForm.projectId} onChange={e => setStockInForm(f => ({ ...f, projectId: e.target.value }))}>
-                <option value="">Select Project</option>
-                {projects.map(p => <option key={p._id || p.projectId} value={p.projectId}>{p.customerName || p.name} ({p.projectId})</option>)}
+            <FormField label="Warehouse">
+              <Select value={stockInForm.warehouse} onChange={e => setStockInForm(f => ({ ...f, warehouse: e.target.value }))}>
+                <option value="">Select Warehouse</option>
+                {warehouses.map(w => <option key={w}>{w}</option>)}
               </Select>
             </FormField>
           </div>
@@ -809,7 +1391,10 @@ const InventoryPage = () => {
           </Button>
         </div>}>
         <div className="space-y-3">
-          <FormField label="Item Name"><Input placeholder="e.g. 400W Mono PERC Panel" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} /></FormField>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Item ID"><Input value={editingItem?.itemId || ''} disabled className="bg-[var(--bg-muted)]" /></FormField>
+            <FormField label="Item Name"><Input placeholder="e.g. 400W Mono PERC Panel" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} /></FormField>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <FormField label="Category">
               <Select value={editForm.category} onChange={e => setEditForm(f => ({ ...f, category: e.target.value }))}>
@@ -840,7 +1425,7 @@ const InventoryPage = () => {
           <FormField label="Warehouse">
             <Select value={editForm.warehouse} onChange={e => setEditForm(f => ({ ...f, warehouse: e.target.value }))}>
               <option value="">Select Warehouse</option>
-              <option>WH-Ahmedabad</option><option>WH-Surat</option><option>WH-Mumbai</option>
+              {warehouses.map(w => <option key={w}>{w}</option>)}
             </Select>
           </FormField>
         </div>
@@ -966,6 +1551,70 @@ const InventoryPage = () => {
           </div>
         </Modal>
       )}
+
+      <Modal open={showCategoryModal} onClose={() => { setShowCategoryModal(false); setNewCategory(''); }} title="Add New Category"
+        footer={<div className="flex gap-2 justify-end">
+          <Button variant="ghost" onClick={() => { setShowCategoryModal(false); setNewCategory(''); }}>Cancel</Button>
+          <Button onClick={handleAddCategory} disabled={!newCategory.trim()}>Add Category</Button>
+        </div>}>
+        <FormField label="Category Name" required>
+          <Input placeholder="Enter category name (e.g., Cables, Connectors)" value={newCategory}
+            onChange={(e) => setNewCategory(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddCategory(); } }} />
+        </FormField>
+      </Modal>
+
+      <Modal open={!!editingCategory} onClose={() => { setEditingCategory(null); setEditCategoryValue(''); }} title={`Edit Category — ${editingCategory}`}
+        footer={<div className="flex gap-2 justify-end">
+          <Button variant="ghost" onClick={() => { setEditingCategory(null); setEditCategoryValue(''); }}>Cancel</Button>
+          <Button onClick={() => handleEditCategory(editingCategory)} disabled={!editCategoryValue.trim()}>Save Changes</Button>
+        </div>}>
+        <FormField label="Category Name" required>
+          <Input placeholder="Enter new category name" value={editCategoryValue}
+            onChange={(e) => setEditCategoryValue(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleEditCategory(editingCategory); } }} />
+        </FormField>
+      </Modal>
+
+      {/* View Category Modal */}
+      <Modal open={!!viewingCategory} onClose={() => setViewingCategory(null)} title={`Category — ${viewingCategory}`}
+        footer={<Button variant="ghost" onClick={() => setViewingCategory(null)}>Close</Button>}>
+        <div className="space-y-4">
+          <div className="glass-card p-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-xl bg-[var(--bg-elevated)] flex items-center justify-center">
+                <Package size={24} className="text-[var(--primary)]" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-[var(--text-primary)]">{viewingCategory}</h3>
+                <p className="text-sm text-[var(--text-muted)]">{inventory.filter(i => i.category === viewingCategory).length} items</p>
+              </div>
+            </div>
+          </div>
+          
+          <div>
+            <h4 className="text-sm font-semibold text-[var(--text-primary)] mb-2">Items in this category</h4>
+            <div className="space-y-2">
+              {inventory.filter(i => i.category === viewingCategory).length === 0 ? (
+                <p className="text-sm text-[var(--text-muted)]">No items in this category</p>
+              ) : (
+                inventory.filter(i => i.category === viewingCategory).map(item => (
+                  <div key={item.itemId} className="glass-card p-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-[var(--text-primary)]">{item.name || item.description}</p>
+                      <p className="text-xs text-[var(--text-muted)]">{item.itemId}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-[var(--text-primary)]">{item.stock} {item.unit}</p>
+                      <p className="text-xs text-[var(--text-muted)]">₹{item.rate?.toLocaleString('en-IN') || 0}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

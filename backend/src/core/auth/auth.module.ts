@@ -7,12 +7,16 @@ import { AuthService } from './auth.service';
 import { User, UserSchema } from './schemas/user.schema';
 import { Tenant, TenantSchema } from '../../core/tenant/schemas/tenant.schema';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { CustomRole, CustomRoleSchema } from '../../modules/settings/schemas/custom-role.schema';
+import { UserOverride, UserOverrideSchema } from '../../modules/settings/schemas/user-override.schema';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
       { name: Tenant.name, schema: TenantSchema },
+      { name: CustomRole.name, schema: CustomRoleSchema },
+      { name: UserOverride.name, schema: UserOverrideSchema },
     ]),
     JwtModule.registerAsync({
       inject: [ConfigService],

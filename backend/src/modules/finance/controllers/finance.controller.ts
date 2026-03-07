@@ -27,6 +27,9 @@ import {
 import type { FastifyRequest } from 'fastify';
 
 import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
+import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
+import { PermissionGuard } from '../../../modules/settings/guards/permission.guard';
+import { RequirePermission } from '../../../modules/settings/decorators/permissions.decorator';
 
 import { InvoiceService } from '../services/invoice.service';
 
@@ -89,7 +92,7 @@ function getTenantId(req: RequestWithUser): string {
 
 
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, TenantGuard, PermissionGuard)
 
 @Controller('finance')
 
@@ -172,13 +175,10 @@ export class FinanceController {
   // Invoice endpoints
 
   @Get('invoices')
-
   async getInvoices(@Req() req: RequestWithUser, @Query('status') status?: string) {
-
     const tenantId = getTenantId(req);
-
-    return this.invoiceService.findAll(tenantId, status);
-
+    const user = (req as any).user;
+    return this.invoiceService.findAll(tenantId, status, user);
   }
 
 
@@ -197,6 +197,8 @@ export class FinanceController {
 
   @Post('invoices')
 
+  @RequirePermission('finance', 'create')
+
   async createInvoice(@Req() req: RequestWithUser, @Body() dto: CreateInvoiceDto) {
 
     const tenantId = getTenantId(req);
@@ -209,6 +211,8 @@ export class FinanceController {
 
   @Patch('invoices/:id')
 
+  @RequirePermission('finance', 'edit')
+
   async updateInvoice(@Req() req: RequestWithUser, @Param('id') id: string, @Body() dto: UpdateInvoiceDto) {
 
     const tenantId = getTenantId(req);
@@ -220,6 +224,8 @@ export class FinanceController {
 
 
   @Delete('invoices/:id')
+
+  @RequirePermission('finance', 'delete')
 
   async deleteInvoice(@Req() req: RequestWithUser, @Param('id') id: string) {
 
@@ -517,7 +523,9 @@ export class FinanceController {
 
     const tenantId = getTenantId(req);
 
-    return this.expenseService.getPayablesSummary(tenantId);
+    const user = (req as any).user;
+
+    return this.expenseService.getPayablesSummary(tenantId, user);
 
   }
 
@@ -661,7 +669,9 @@ export class FinanceController {
 
     const tenantId = getTenantId(req);
 
-    return this.invoiceService.getDashboardStats(tenantId);
+    const user = (req as any).user;
+
+    return this.invoiceService.getDashboardStats(tenantId, user);
 
   }
 

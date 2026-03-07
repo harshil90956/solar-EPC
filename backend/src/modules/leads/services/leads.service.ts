@@ -1,12 +1,12 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import * as fs from 'fs';
+import * as xlsx from 'xlsx';
 import { Lead, LeadDocument } from '../schemas/lead.schema';
 import { CreateLeadDto, UpdateLeadDto, QueryLeadDto, AddActivityDto } from '../dto/lead.dto';
 import { LeadStatus, LeadStatusDocument } from '../../settings/schemas/lead-status.schema';
-import * as fs from 'fs';
-import csvParser from 'csv-parser';
-import * as xlsx from 'xlsx';
+import { buildVisibilityFilter, applyVisibilityFilter, UserWithVisibility } from '../../../common/utils/visibility-filter';
 
 @Injectable()
 export class LeadsService {
@@ -206,14 +206,18 @@ export class LeadsService {
     leadData.activeAutomation = this.applyAutomation(leadData);
 
     if (tenantId) {
-      leadData.tenantId = new Types.ObjectId(tenantId);
+      leadData.tenantId = this.toObjectId(tenantId);
     }
 
     const createdLead = new this.leadModel(leadData);
     return createdLead.save();
   }
 
-  async findAll(query: QueryLeadDto, tenantId?: string): Promise<{ data: Lead[]; total: number }> {
+  async findAll(
+    query: QueryLeadDto,
+    tenantId?: string,
+    user?: UserWithVisibility
+  ): Promise<{ data: Lead[]; total: number }> {
     const {
       page = 1,
       limit = 25,
@@ -232,8 +236,34 @@ export class LeadsService {
       endDate,
     } = query;
 
-    // Use buildTenantFilter for consistent tenant filtering
-    const filter: any = this.buildTenantFilter(tenantId);
+    const filter: any = { isDeleted: { $ne: true } };
+
+    const tid = this.toObjectId(tenantId);
+    if (tid) {
+      filter.$or = [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }];
+    }
+
+    // Apply visibility filter based on user's dataScope
+    console.log(`[VISIBILITY DEBUG] user:`, JSON.stringify(user));
+    console.log(`[VISIBILITY DEBUG] user?.dataScope:`, user?.dataScope);
+    
+    if (user?.dataScope === 'ASSIGNED') {
+      const userId = user._id || user.id;
+      console.log(`[VISIBILITY DEBUG] userId:`, userId);
+      if (userId) {
+        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
+          ? new Types.ObjectId(userId)
+          : userId;
+        
+        // STRICT: Only show leads explicitly assigned to this user
+        // Do NOT show unassigned leads to users with ASSIGNED scope
+        filter.assignedTo = objectId;
+        
+        console.log(`[VISIBILITY DEBUG] Applied STRICT assignedTo filter:`, objectId);
+      }
+    } else {
+      console.log(`[VISIBILITY DEBUG] No filter applied - user has ALL scope or no user`);
+    }
 
     // Quick filters
     if (quickFilter) {
@@ -301,16 +331,24 @@ export class LeadsService {
       
       // For numeric search, also match score and value
       if (isNumeric) {
-        // Exact score match
         orConditions.push({ score: searchNum });
-        // Value search - match if value divided by 1000/100000 contains the number
-        // This handles both 50K (50000) and 1.5L (150000) formats
-        orConditions.push({ value: { $gte: searchNum * 1000, $lt: (searchNum + 1) * 1000 } }); // For thousands (K)
-        orConditions.push({ value: { $gte: searchNum * 100000, $lt: (searchNum + 1) * 100000 } }); // For lakhs (L)
-        orConditions.push({ value: { $gte: searchNum, $lt: searchNum + 1 } }); // For exact match
+        orConditions.push({ value: { $gte: searchNum * 1000, $lt: (searchNum + 1) * 1000 } });
+        orConditions.push({ value: { $gte: searchNum * 100000, $lt: (searchNum + 1) * 100000 } });
+        orConditions.push({ value: { $gte: searchNum, $lt: searchNum + 1 } });
       }
       
-      filter.$or = orConditions;
+      // IMPORTANT: Combine search $or with visibility filter using $and
+      // This ensures assignedTo filter is NOT overwritten
+      if (filter.$or) {
+        // If there's already an $or (tenant filter), wrap everything in $and
+        filter.$and = [
+          { $or: filter.$or },
+          { $or: orConditions }
+        ];
+        delete filter.$or;
+      } else {
+        filter.$or = orConditions;
+      }
     }
 
     const sort: any = {};
@@ -318,6 +356,8 @@ export class LeadsService {
     sort[sortField] = sortOrder === 'asc' ? 1 : -1;
 
     const skip = (page - 1) * limit;
+
+    console.log(`[VISIBILITY DEBUG] Final filter:`, JSON.stringify(filter));
 
     const [data, total] = await Promise.all([
       this.leadModel
@@ -342,8 +382,9 @@ export class LeadsService {
       isDeleted: { $ne: true } 
     };
     
-    if (tenantId) {
-      filter.tenantId = this.toObjectId(tenantId);
+    const tid = this.toObjectId(tenantId);
+    if (tid) {
+      filter.$and = [{ $or: [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }] }];
     }
 
     const lead = await this.leadModel.findOne(filter).lean().exec();
@@ -364,8 +405,9 @@ export class LeadsService {
       isDeleted: { $ne: true } 
     };
     
-    if (tenantId) {
-      filter.tenantId = this.toObjectId(tenantId);
+    const tid = this.toObjectId(tenantId);
+    if (tid) {
+      filter.$and = [{ $or: [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }] }];
     }
 
     // Check if lead exists first
@@ -441,8 +483,9 @@ export class LeadsService {
       isDeleted: { $ne: true } 
     };
     
-    if (tenantId) {
-      filter.tenantId = this.toObjectId(tenantId);
+    const tid = this.toObjectId(tenantId);
+    if (tid) {
+      filter.$and = [{ $or: [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }] }];
     }
 
     const result = await this.leadModel.findOneAndUpdate(
@@ -488,8 +531,9 @@ export class LeadsService {
       isDeleted: { $ne: true } 
     };
     
-    if (tenantId) {
-      filter.tenantId = this.toObjectId(tenantId);
+    const tid = this.toObjectId(tenantId);
+    if (tid) {
+      filter.$and = [{ $or: [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }] }];
     }
 
     const lead = await this.leadModel.findOne(filter).exec();
@@ -536,8 +580,9 @@ export class LeadsService {
       isDeleted: { $ne: true } 
     };
     
-    if (tenantId) {
-      filter.tenantId = this.toObjectId(tenantId);
+    const tid = this.toObjectId(tenantId);
+    if (tid) {
+      filter.$and = [{ $or: [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }] }];
     }
 
     const result = await this.leadModel.updateMany(
@@ -556,8 +601,9 @@ export class LeadsService {
       ]
     };
     
-    if (tenantId) {
-      filter.tenantId = this.toObjectId(tenantId);
+    const tid = this.toObjectId(tenantId);
+    if (tid) {
+      filter.$and = [{ $or: [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }] }];
     }
 
     const result = await this.leadModel.updateMany(
@@ -578,8 +624,9 @@ export class LeadsService {
       isDeleted: { $ne: true } 
     };
     
-    if (tenantId) {
-      filter.tenantId = this.toObjectId(tenantId);
+    const tid = this.toObjectId(tenantId);
+    if (tid) {
+      filter.$and = [{ $or: [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }] }];
     }
 
     const result = await this.leadModel.updateMany(
@@ -589,12 +636,28 @@ export class LeadsService {
     return { modified: result.modifiedCount };
   }
 
-  async getStats(tenantId?: string): Promise<any> {
+  async getStats(tenantId?: string, user?: UserWithVisibility): Promise<any> {
     const filter: any = { isDeleted: { $ne: true } };
     
-    if (tenantId) {
-      filter.tenantId = this.toObjectId(tenantId);
+    const tid = this.toObjectId(tenantId);
+    if (tid) {
+      filter.$or = [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }];
     }
+
+    // Apply visibility filter based on user's dataScope
+    if (user?.dataScope === 'ASSIGNED') {
+      const userId = user._id || user.id;
+      if (userId) {
+        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
+          ? new Types.ObjectId(userId)
+          : userId;
+        
+        // STRICT: Only show leads explicitly assigned to this user
+        filter.assignedTo = objectId;
+      }
+    }
+
+    console.log(`[LEADS STATS VISIBILITY] Final filter:`, JSON.stringify(filter));
 
     const [
       totalLeads,
@@ -907,8 +970,9 @@ export class LeadsService {
   async recalculateAllScores(tenantId?: string): Promise<{ updated: number }> {
     const filter: any = { isDeleted: { $ne: true } };
     
-    if (tenantId) {
-      filter.tenantId = this.toObjectId(tenantId);
+    const tid = this.toObjectId(tenantId);
+    if (tid) {
+      filter.$or = [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }];
     }
 
     const leads = await this.leadModel.find(filter).exec();
@@ -1076,8 +1140,9 @@ export class LeadsService {
       isDeleted: { $ne: true } 
     };
     
-    if (tenantId) {
-      filter.tenantId = this.toObjectId(tenantId);
+    const tid = this.toObjectId(tenantId);
+    if (tid) {
+      filter.$and = [{ $or: [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }] }];
     }
 
     const updatedLead = await this.leadModel.findOneAndUpdate(
@@ -1127,13 +1192,13 @@ export class LeadsService {
       let rows = await this.parseFile(filePath, fileExtension);
       
       // Debug logging: Log initial row count
-      Logger.log(`[IMPORT] Initial rows parsed: ${rows.length}`, 'LeadsService');
+      console.log(`[IMPORT] Initial rows parsed: ${rows.length}`);
       
       // Filter out empty rows and rows with only formatting artifacts
       rows = this.filterValidRows(rows);
       
       // Debug logging: Log filtered row count
-      Logger.log(`[IMPORT] Valid rows after filtering: ${rows.length}`, 'LeadsService');
+      console.log(`[IMPORT] Valid rows after filtering: ${rows.length}`);
 
       // Known schema fields
       const knownFields = [
@@ -1285,6 +1350,7 @@ export class LeadsService {
   }
 
   private parseCSV(filePath: string): Promise<any[]> {
+    const csvParser = require('csv-parser');
     return new Promise((resolve, reject) => {
       const rows: any[] = [];
       fs.createReadStream(filePath)
@@ -1488,5 +1554,74 @@ export class LeadsService {
       
       return hasValidData;
     });
+  }
+
+  // ============================================
+  // LEAD ASSIGNMENT
+  // ============================================
+
+  async assignLead(
+    id: string,
+    assignedTo: string,
+    assignedBy: string,
+    tenantId?: string
+  ): Promise<Lead> {
+    // Validate assignedTo user ID
+    if (!assignedTo || !Types.ObjectId.isValid(assignedTo)) {
+      throw new BadRequestException('Invalid assignedTo user ID');
+    }
+
+    const lead = await this.findOne(id, tenantId);
+    const assignedToId = new Types.ObjectId(assignedTo);
+
+    // Check if already assigned to same user
+    const currentAssignedTo = lead.assignedTo?.toString();
+    if (currentAssignedTo === assignedTo) {
+      throw new BadRequestException('Lead is already assigned to this user');
+    }
+
+    const now = new Date();
+
+    // Build update data
+    const updateData: any = {
+      assignedTo: assignedToId,
+      lastContact: now,
+    };
+
+    // Add assignment activity
+    const activity = {
+      type: 'assignment',
+      ts: this.formatTimestamp(now),
+      note: `Lead assigned to user ${assignedTo}`,
+      by: assignedBy || 'System',
+      timestamp: now,
+    };
+    updateData.$push = { activities: activity };
+
+    // Update lead
+    const filter: any = {
+      $or: [
+        { _id: Types.ObjectId.isValid(id) ? new Types.ObjectId(id) : undefined },
+        { leadId: id }
+      ].filter(Boolean),
+      isDeleted: { $ne: true }
+    };
+
+    const tid = this.toObjectId(tenantId);
+    if (tid) {
+      filter.$and = [{ $or: [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }] }];
+    }
+
+    const updatedLead = await this.leadModel.findOneAndUpdate(
+      filter,
+      updateData,
+      { new: true, runValidators: true }
+    ).exec();
+
+    if (!updatedLead) {
+      throw new NotFoundException('Lead not found after assignment');
+    }
+
+    return updatedLead;
   }
 }

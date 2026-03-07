@@ -78,10 +78,35 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 // Section 1: Financial Overview Cards with Animations
-const FinancialOverview = ({ dashboardStats, payablesTotal, manualBalance, onInvoicesClick }) => {
+const FinancialOverview = ({ dashboardStats, payablesTotal, manualBalance, onInvoicesClick, invoices }) => {
   const revenueCurrent = dashboardStats?.totalRevenue || 0;
-  const cashPosition = (dashboardStats?.totalCollected || 0) - (dashboardStats?.totalPayables || 0) + manualBalance;
-  const receivables = dashboardStats?.totalOutstanding || 0;
+  
+  // Helper to get paid amount from invoice
+  const getPaidAmount = (inv) => {
+    if (inv.status === 'Paid') return Number(inv.amount || 0);
+    if (inv.status === 'Partial') return Number(inv.paid || inv.amountPaid || 0);
+    return Number(inv.paid || 0);
+  };
+  
+  // Helper to get balance from invoice
+  const getBalance = (inv) => {
+    if (inv.status === 'Paid') return 0;
+    const amount = Number(inv.amount || 0);
+    const paid = getPaidAmount(inv);
+    return amount - paid;
+  };
+  
+  // Calculate receivables from invoices - sum of outstanding balance only
+  const receivables = useMemo(() => {
+    return (invoices || []).reduce((sum, inv) => sum + getBalance(inv), 0);
+  }, [invoices]);
+  
+  // Calculate total collected
+  const totalCollected = useMemo(() => {
+    return (invoices || []).reduce((sum, inv) => sum + getPaidAmount(inv), 0);
+  }, [invoices]);
+  
+  const cashPosition = totalCollected - (dashboardStats?.totalPayables || 0) + manualBalance;
 
   const cards = [
     {
@@ -144,16 +169,6 @@ const FinancialOverview = ({ dashboardStats, payablesTotal, manualBalance, onInv
             >
               <card.icon size={22} style={{ color: card.accentColor }} />
             </div>
-            <div className="flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full bg-[var(--bg-elevated)]">
-              <span style={{ color: card.trend.startsWith('+') ? '#22c55e' : '#ef4444' }}>
-                {card.trend}
-              </span>
-              {card.trend.startsWith('+') ? (
-                <ArrowUpRight size={12} className="text-emerald-400" />
-              ) : (
-                <ArrowDownRight size={12} className="text-red-400" />
-              )}
-            </div>
           </div>
           <div className="relative z-10">
             <div className="text-3xl font-bold text-[var(--text-primary)] mb-1 tracking-tight">
@@ -171,7 +186,30 @@ const FinancialOverview = ({ dashboardStats, payablesTotal, manualBalance, onInv
 };
 
 // Section 2: Cashflow Summary Cards
-const CashflowSummary = ({ dashboardStats, collectionRate }) => {
+const CashflowSummary = ({ dashboardStats, collectionRate, invoices }) => {
+  // Helper to get paid amount from invoice
+  const getPaidAmount = (inv) => {
+    if (inv.status === 'Paid') return Number(inv.amount || 0);
+    if (inv.status === 'Partial') return Number(inv.paid || inv.amountPaid || 0);
+    return Number(inv.paid || 0);
+  };
+  
+  // Helper to get balance from invoice
+  const getBalance = (inv) => {
+    if (inv.status === 'Paid') return 0;
+    const amount = Number(inv.amount || 0);
+    const paid = getPaidAmount(inv);
+    return amount - paid;
+  };
+  
+  // Calculate collected from invoices - sum of paid amounts
+  const collected = useMemo(() => {
+    return (invoices || []).reduce((sum, inv) => sum + getPaidAmount(inv), 0);
+  }, [invoices]);
+  // Calculate outstanding from invoices
+  const outstanding = useMemo(() => {
+    return (invoices || []).reduce((sum, inv) => sum + getBalance(inv), 0);
+  }, [invoices]);
   const cards = [
     {
       label: 'Total Invoiced',
@@ -181,13 +219,13 @@ const CashflowSummary = ({ dashboardStats, collectionRate }) => {
     },
     {
       label: 'Collected',
-      value: dashboardStats?.totalCollected || 0,
+      value: collected,
       icon: CheckCircle,
       color: '#22c55e',
     },
     {
       label: 'Outstanding',
-      value: dashboardStats?.totalOutstanding || 0,
+      value: outstanding,
       icon: Clock,
       color: '#f59e0b',
     },
@@ -339,8 +377,13 @@ const InvoiceStatusChart = ({ invoices }) => {
   const data = useMemo(() => {
     const statusCounts = { Draft: 0, Sent: 0, Partial: 0, Paid: 0, Overdue: 0 };
     invoices.forEach((inv) => {
-      if (statusCounts[inv.status] !== undefined) {
-        statusCounts[inv.status] += 1;
+      // Map "Pending" to "Sent" as per UI convention
+      const status = inv.status === 'Pending' ? 'Sent' : inv.status;
+      if (statusCounts[status] !== undefined) {
+        statusCounts[status] += 1;
+      } else {
+        // Handle any other unknown statuses by counting them as Draft
+        statusCounts.Draft += 1;
       }
     });
     return [
@@ -367,6 +410,7 @@ const InvoiceStatusChart = ({ invoices }) => {
       <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2">
         <PieChart size={16} className="text-purple-400" />
         Invoice Status Distribution
+        <span className="text-[10px] text-[var(--text-muted)] font-normal ml-2">({invoices.length} total)</span>
       </h3>
       <ResponsiveContainer width="100%" height={200}>
         <RePieChart>
@@ -698,10 +742,21 @@ const FinanceDashboard = ({
 }) => {
   if (!isOpen) return null;
 
-  const collectionRate =
-    (dashboardStats?.totalRevenue || 0) > 0
-      ? Math.round(((dashboardStats?.totalCollected || 0) / dashboardStats.totalRevenue) * 100)
-      : 0;
+  // Helper functions for calculations
+  const getPaidAmount = (inv) => {
+    if (inv.status === 'Paid') return Number(inv.amount || 0);
+    if (inv.status === 'Partial') return Number(inv.paid || inv.amountPaid || 0);
+    return Number(inv.paid || 0);
+  };
+
+  // Calculate total revenue and collected from invoices
+  const totalRevenue = (invoices || []).reduce((sum, inv) => sum + Number(inv.amount || 0), 0);
+  const totalCollected = (invoices || []).reduce((sum, inv) => sum + getPaidAmount(inv), 0);
+
+  // Calculate collection rate from invoices
+  const collectionRate = totalRevenue > 0
+    ? Math.round((totalCollected / totalRevenue) * 100)
+    : 0;
 
   const payablesTotal = payables.reduce((sum, p) => sum + (p.outstandingAmount || 0), 0);
 
@@ -730,6 +785,7 @@ const FinanceDashboard = ({
           payablesTotal={payablesTotal}
           manualBalance={manualBalance}
           onInvoicesClick={onInvoicesClick}
+          invoices={invoices}
         />
       </section>
 
@@ -741,6 +797,7 @@ const FinanceDashboard = ({
         <CashflowSummary
           dashboardStats={dashboardStats}
           collectionRate={collectionRate}
+          invoices={invoices}
         />
       </section>
 

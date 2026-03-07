@@ -4,6 +4,7 @@ import { Model, Types } from 'mongoose';
 import { Ticket, TicketDocument } from '../schemas/ticket.schema';
 import { User, UserDocument } from '../../../core/auth/schemas/user.schema';
 import { CreateTicketDto, UpdateTicketDto, QueryTicketDto } from '../dto/ticket.dto';
+import { UserWithVisibility } from '../../../common/utils/visibility-filter';
 
 @Injectable()
 export class TicketsService {
@@ -12,7 +13,7 @@ export class TicketsService {
     @InjectModel(User.name) private userModel: Model<UserDocument>,
   ) {}
 
-  async create(createTicketDto: CreateTicketDto, tenantId?: string): Promise<Ticket> {
+  async create(createTicketDto: CreateTicketDto, tenantId?: string, user?: UserWithVisibility): Promise<Ticket> {
     const now = new Date();
     const ticketId = `T${Date.now().toString().slice(-5)}`;
 
@@ -21,6 +22,7 @@ export class TicketsService {
       ticketId,
       created: now,
       resolved: null,
+      createdBy: user?._id || user?.id,
     };
 
     if (tenantId) {
@@ -40,7 +42,7 @@ export class TicketsService {
     return saved;
   }
 
-  async findAll(query: QueryTicketDto, tenantId?: string): Promise<{ data: Ticket[]; total: number }> {
+  async findAll(query: QueryTicketDto, tenantId?: string, user?: UserWithVisibility): Promise<{ data: Ticket[]; total: number }> {
     const {
       page = 1,
       limit = 25,
@@ -63,10 +65,24 @@ export class TicketsService {
       }
     }
 
+    // Apply visibility filter based on user's dataScope FIRST
+    if (user?.dataScope === 'ASSIGNED') {
+      const userId = user._id || user.id;
+      if (userId) {
+        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
+          ? new Types.ObjectId(userId)
+          : userId;
+        // STRICT: Only show tickets explicitly assigned to this user
+        filter.assignedTo = objectId;
+        console.log(`[TICKETS VISIBILITY] Applied STRICT assignedTo filter:`, objectId);
+      }
+    }
+
     if (status) filter.status = status;
     if (priority) filter.priority = priority;
     if (customerId) filter.customerId = customerId;
-    if (assignedTo) filter.assignedTo = assignedTo;
+    // Note: assignedTo query param is IGNORED for ASSIGNED scope users
+    // The visibility filter above takes precedence for dataScope enforcement
 
     if (search) {
       filter.$or = [
@@ -230,7 +246,7 @@ export class TicketsService {
     }
   }
 
-  async getStats(tenantId?: string): Promise<any> {
+  async getStats(tenantId?: string, user?: UserWithVisibility): Promise<any> {
     const filter: any = { isDeleted: { $ne: true } };
 
     if (tenantId) {
@@ -240,6 +256,21 @@ export class TicketsService {
         filter.tenantId = tenantId;
       }
     }
+
+    // Apply visibility filter based on user's dataScope
+    if (user?.dataScope === 'ASSIGNED') {
+      const userId = user._id || user.id;
+      if (userId) {
+        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
+          ? new Types.ObjectId(userId)
+          : userId;
+        // STRICT: Only show tickets explicitly assigned to this user
+        filter.assignedTo = objectId;
+        console.log(`[TICKETS STATS VISIBILITY] Applied assignedTo filter:`, objectId);
+      }
+    }
+
+    console.log(`[TICKETS STATS VISIBILITY] Final filter:`, JSON.stringify(filter));
 
     const [
       totalTickets,

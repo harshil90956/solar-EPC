@@ -22,6 +22,9 @@ export class User {
 
   @Prop({ default: true, index: true })
   isActive!: boolean;
+
+  @Prop({ type: String, default: 'ASSIGNED', enum: ['ALL', 'ASSIGNED'] })
+  dataScope!: string;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

@@ -10,11 +10,16 @@ import {
   Headers,
   HttpCode,
   HttpStatus,
+  Request,
+  UseGuards,
 } from '@nestjs/common';
+import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
+import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
 import { InventoryService } from '../services/inventory.service';
 import { CreateInventoryDto, UpdateInventoryDto, StockInDto, StockOutDto, CreateReservationDto, UpdateReservationDto } from '../dto/inventory.dto';
 
 @Controller('inventory')
+@UseGuards(JwtAuthGuard, TenantGuard)
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
@@ -24,18 +29,22 @@ export class InventoryController {
     @Query('tenantId') queryTenantId: string,
     @Query('category') category?: string,
     @Query('search') search?: string,
+    @Request() req?: any,
   ) {
     const tenantId = headerTenantId || queryTenantId || 'solarcorp';
-    return this.inventoryService.findAll(tenantId, category, search);
+    const user = req?.user;
+    return this.inventoryService.findAll(tenantId, user, category, search);
   }
 
   @Get('stats')
   async getStats(
     @Headers('x-tenant-id') headerTenantId: string,
     @Query('tenantId') queryTenantId: string,
+    @Request() req?: any,
   ) {
     const tenantId = headerTenantId || queryTenantId || 'solarcorp';
-    return this.inventoryService.getStats(tenantId);
+    const user = req?.user;
+    return this.inventoryService.getStats(tenantId, user);
   }
 
   @Get('by-category')
