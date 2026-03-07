@@ -932,7 +932,8 @@ const ProjectPage = () => {
             hiddenCols={hiddenCols}
             onHiddenColsChange={setHiddenCols}
             hideColumnToggle={true}
-            rowActions={ROW_ACTIONS} emptyText="No projects found." />
+            rowActions={ROW_ACTIONS} emptyText="No projects found."
+            onRowClick={setSelected} />
         </>
       )}
 
