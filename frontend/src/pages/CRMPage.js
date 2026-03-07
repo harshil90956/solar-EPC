@@ -2113,7 +2113,7 @@ const CRMPage = () => {
                 </div>
               </div>
             )}
-            onRowClick={(row) => { setTrackerLeadId(row._id); setShowTrackerDrawer(true); }}
+            onRowClick={(row) => { handleViewLead(row); }}
             search={search}
             onSearch={setSearch}
             selectedRows={selected}
@@ -2161,6 +2161,7 @@ const CRMPage = () => {
               ...(can('crm', 'edit') ? [{ label: 'Score', icon: Brain, onClick: handleRecalculateScore }] : []),
               ...(can('crm', 'delete') ? [{ label: 'Delete', icon: Trash2, onClick: handleDeleteLead, danger: true }] : []),
               { label: 'Activity Log', icon: Clock, onClick: handleViewActivity },
+              { label: 'Lead Tracker', icon: GitCommit, onClick: handleViewTracker },
             ]}
           />
         </div>
