@@ -426,6 +426,21 @@ export class ProjectsService {
     return { message: `Project ${projectId} deleted successfully` };
   }
 
+  async restore(tenantCode: string, projectId: string) {
+    const tenantId = await this.getTenantId(tenantCode);
+    const project = await this.projectModel.findOneAndUpdate(
+      { tenantId, projectId, isDeleted: true },
+      { $set: { isDeleted: false, deletedAt: null } },
+      { new: true },
+    ).exec();
+
+    if (!project) {
+      throw new NotFoundException(`Deleted project ${projectId} not found`);
+    }
+
+    return { message: `Project ${projectId} restored successfully`, project };
+  }
+
   async getStats(tenantCode: string) {
     const tenantId = await this.getTenantId(tenantCode);
     const stats = await this.projectModel.aggregate([

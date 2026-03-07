@@ -226,7 +226,8 @@ const ComplianceKanbanBoard = ({ stages, items, CardComponent, onStageChange, on
     return (
         <div className="overflow-x-auto pb-3">
             <div className="flex gap-3 min-w-max">
-                {stages.map(stage => {
+                {stages?.map(stage => {
+                    if (!stage || !stage.id) return null;
                     const cards = items.filter(i => i.status === stage.id);
                     return (
                         <div key={stage.id}
@@ -789,7 +790,8 @@ const CompliancePage = () => {
                         ) : (
                             <DataTable columns={NM_COLUMNS} data={paginatedNM} rowActions={NM_ACTIONS}
                                 pagination={{ page: nmPage, pageSize, total: nmItems.length, onChange: setNmPage }}
-                                emptyMessage="No net metering applications found." />
+                                emptyMessage="No net metering applications found."
+                                onRowClick={(item) => setSelected({ type: 'nm', data: item })} />
                         )}
                     </div>
                 </TabsContent>
@@ -822,7 +824,8 @@ const CompliancePage = () => {
                         ) : (
                             <DataTable columns={SUB_COLUMNS} data={paginatedSub} rowActions={SUB_ACTIONS}
                                 pagination={{ page: subPage, pageSize, total: subItems.length, onChange: setSubPage }}
-                                emptyMessage="No subsidy applications found." />
+                                emptyMessage="No subsidy applications found."
+                                onRowClick={(item) => setSelected({ type: 'sub', data: item })} />
                         )}
                     </div>
                 </TabsContent>
@@ -834,7 +837,8 @@ const CompliancePage = () => {
                         </div>
                         <DataTable columns={INS_COLUMNS} data={paginatedIns} rowActions={INS_ACTIONS}
                             pagination={{ page: insPage, pageSize, total: inspections.length, onChange: setInsPage }}
-                            emptyMessage="No inspections found." />
+                            emptyMessage="No inspections found."
+                            onRowClick={(item) => setSelected({ type: 'ins', data: item })} />
                     </div>
                 </TabsContent>
 
@@ -845,7 +849,8 @@ const CompliancePage = () => {
                         </div>
                         <DataTable columns={DOC_COLUMNS} data={paginatedDoc} rowActions={DOC_ACTIONS}
                             pagination={{ page: docPage, pageSize, total: documents.length, onChange: setDocPage }}
-                            emptyMessage="No documents found." />
+                            emptyMessage="No documents found."
+                            onRowClick={(item) => setSelected({ type: 'doc', data: item })} />
                     </div>
                 </TabsContent>
             </Tabs>
@@ -1062,12 +1067,12 @@ const CompliancePage = () => {
             </Modal>
 
             {/* Detail Modal */}
-            {selected && (
+            {selected && selected.data && (
                 <Modal open={!!selected} onClose={() => setSelected(null)}
-                    title={selected.type === 'nm' ? `Net Metering — ${selected.data.id || selected.data.applicationId || selected.data._id}` :
-                        selected.type === 'sub' ? `Subsidy — ${selected.data.id || selected.data.subsidyId || selected.data._id}` :
-                            selected.type === 'ins' ? `Inspection — ${selected.data.id || selected.data.inspectionId || selected.data._id}` :
-                                `Document — ${selected.data.id || selected.data.documentId || selected.data._id}`}
+                    title={selected.type === 'nm' ? `Net Metering — ${selected.data?.id || selected.data?.applicationId || selected.data?._id}` :
+                        selected.type === 'sub' ? `Subsidy — ${selected.data?.id || selected.data?.subsidyId || selected.data?._id}` :
+                            selected.type === 'ins' ? `Inspection — ${selected.data?.id || selected.data?.inspectionId || selected.data?._id}` :
+                                `Document — ${selected.data?.id || selected.data?.documentId || selected.data?._id}`}
                     footer={
                         <div className="flex gap-2 justify-end">
                             <Button variant="ghost" onClick={() => setSelected(null)}>Close</Button>

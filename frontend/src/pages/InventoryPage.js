@@ -31,9 +31,10 @@ const getStockStatus = (item) => {
     return statusMap[item.status] || item.status;
   }
   // Otherwise calculate from stock values
+  // Priority: Reserved > Out of Stock > Low Stock > In Stock
+  if (item.reserved > 0) return 'reserved';
   if (item.available === 0) return 'out-of-stock';
   if (item.available <= item.minStock) return 'low-stock';
-  if (item.reserved > 0) return 'reserved';
   return 'in-stock';
 };
 
@@ -165,6 +166,7 @@ const InvKanbanBoard = ({ items, onCardClick, onDrop }) => {
 
 /* ── Main Page ── */
 const InventoryPage = () => {
+  const [activeTab, setActiveTab] = useState('inventory'); // 'inventory', 'items', 'category'
   const [view, setView] = useState('kanban');
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('All');
@@ -175,9 +177,17 @@ const InventoryPage = () => {
   const [selected, setSelected] = useState(null);
   const [itemReservations, setItemReservations] = useState([]);
   const [loadingReservations, setLoadingReservations] = useState(false);
-  const [form, setForm] = useState({ name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
+  const [form, setForm] = useState({ itemId: '', name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
   const [stockInForm, setStockInForm] = useState({ itemId: '', quantity: '', poReference: '', receivedDate: '', remarks: '', projectId: '' });
-  const [showEdit, setShowEdit] = useState(false);
+  const [categories, setCategories] = useState(() => {
+    const saved = localStorage.getItem('itemCategories');
+    return saved ? JSON.parse(saved) : ['Panel', 'Inverter', 'BOS', 'Structure', 'Cable', 'Other'];
+  });
+  const [newCategory, setNewCategory] = useState('');
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [editCategoryValue, setEditCategoryValue] = useState('');
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [editForm, setEditForm] = useState({ name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
   const [showStockOut, setShowStockOut] = useState(false);
@@ -190,7 +200,12 @@ const InventoryPage = () => {
   const [stats, setStats] = useState({ totalItems: 0, totalValue: 0, lowStockItems: 0, outOfStockItems: 0 });
   const [inventoryStats, setInventoryStats] = useState(null);
   const [itemsByCategory, setItemsByCategory] = useState([]);
-  const [submitting, setSubmitting] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+
+  // Save categories to localStorage
+  useEffect(() => {
+    localStorage.setItem('itemCategories', JSON.stringify(categories));
+  }, [categories]);
 
   // Fetch inventory stats from backend
   useEffect(() => {
@@ -331,8 +346,8 @@ const InventoryPage = () => {
     setSubmitting(true);
     try {
       const newItem = {
-        itemId: `INV${Date.now().toString().slice(-4)}`,
-        description: form.name,  // items module uses 'description' not 'name'
+        itemId: form.itemId?.trim() || `INV${Date.now().toString().slice(-4)}`,
+        description: form.name,
         category: form.category,
         unit: form.unit,
         stock: 0,
@@ -363,7 +378,7 @@ const InventoryPage = () => {
         available: (itemData.stock || 0) - (itemData.reserved || 0)
       }]);
       setShowAdd(false);
-      setForm({ name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
+      setForm({ itemId: '', name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
       alert('Item added successfully!');
     } catch (err) {
       console.error('Error adding item:', err);
@@ -624,6 +639,45 @@ const InventoryPage = () => {
     }
   };
 
+  // Category CRUD Functions
+  const handleAddCategory = () => {
+    if (!newCategory.trim()) {
+      alert('Please enter a category name');
+      return;
+    }
+    if (categories.includes(newCategory.trim())) {
+      alert('Category already exists');
+      return;
+    }
+    setCategories([...categories, newCategory.trim()]);
+    setNewCategory('');
+    setShowCategoryModal(false);
+    alert('Category added successfully');
+  };
+
+  const handleEditCategory = (oldCategory) => {
+    if (!editCategoryValue.trim()) {
+      alert('Please enter a category name');
+      return;
+    }
+    if (categories.includes(editCategoryValue.trim()) && editCategoryValue.trim() !== oldCategory) {
+      alert('Category already exists');
+      return;
+    }
+    setCategories(categories.map(cat => cat === oldCategory ? editCategoryValue.trim() : cat));
+    setEditingCategory(null);
+    setEditCategoryValue('');
+    alert('Category updated successfully');
+  };
+
+  const handleDeleteCategory = (categoryToDelete) => {
+    if (!window.confirm(`Are you sure you want to delete "${categoryToDelete}" category?`)) {
+      return;
+    }
+    setCategories(categories.filter(cat => cat !== categoryToDelete));
+    alert('Category deleted successfully');
+  };
+
   const ROW_ACTIONS = [
     { label: 'View Details', icon: Package, onClick: row => setSelected(row) },
     { label: 'Edit', icon: Edit2, onClick: row => handleEditClick(row) },
@@ -640,112 +694,321 @@ const InventoryPage = () => {
           <p className="text-xs text-[var(--text-muted)] mt-0.5">Stock levels · reservations · low-stock alerts · warehouses</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="view-toggle-pill">
-            <button onClick={() => setView('kanban')}
-              className={`view-toggle-btn ${view === 'kanban' ? 'active' : ''}`}><LayoutGrid size={14} /></button>
-            <button onClick={() => setView('table')}
-              className={`view-toggle-btn ${view === 'table' ? 'active' : ''}`}><List size={14} /></button>
+          {/* Main Tabs - Now at top right */}
+          <div className="flex items-center gap-1 p-1 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-base)]">
+            <button 
+              onClick={() => setActiveTab('inventory')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${activeTab === 'inventory' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+            >
+              Inventory
+            </button>
+            <button 
+              onClick={() => setActiveTab('items')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${activeTab === 'items' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+            >
+              Item
+            </button>
+            <button 
+              onClick={() => setActiveTab('category')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${activeTab === 'category' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+            >
+              Category
+            </button>
           </div>
-          <Button variant="ghost" onClick={() => setStockIn(true)}><ArrowUp size={13} /> Stock In</Button>
-          <Button variant="ghost" onClick={() => setShowStockOut(true)}><ArrowDown size={13} /> Stock Out</Button>
         </div>
       </div>
 
-      {/* Inventory Overview KPI Cards */}
-      <div className="mb-2">
-        <p className="text-xs text-[var(--text-muted)] mb-2 flex items-center gap-2">
-          <Package size={12} className="text-[var(--accent-light)]" />
-          <span>Inventory Overview - Stock levels and valuation tracking</span>
-        </p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <KPICard title="Total Inventory Items" value={dynamicStats.totalItems} sub={`${dynamicStats.totalItems} SKUs tracked in system`} icon={Package} accentColor="#3b82f6" />
-          <KPICard title="Total Inventory Value" value={fmt(dynamicStats.totalValue)} sub="Total valuation at current rates" icon={Warehouse} accentColor="#f59e0b" />
-          <KPICard title="Total Low Stock Alerts" value={dynamicStats.lowStockItems} sub={`${dynamicStats.lowStockItems} items need reordering`} icon={AlertTriangle} accentColor="#f59e0b" />
-          <KPICard title="Total Out of Stock Items" value={dynamicStats.outOfStockItems} sub={`${dynamicStats.outOfStockItems} items need immediate attention`} icon={AlertTriangle} accentColor="#ef4444" />
-        </div>
-      </div>
-
-      {dynamicStats.lowStockItems > 0 && (
-        <div className="ai-banner border-amber-500/20 bg-amber-500/5">
-          <AlertTriangle size={14} className="text-amber-400 mt-0.5 shrink-0" />
-          <p className="text-xs text-[var(--text-secondary)]">
-            <span className="text-amber-400 font-semibold">Low Stock Alert:</span>{' '}
-            {inventory.filter(i => i.status === 'Low Stock' || ((i.stock || 0) - (i.reserved || 0)) <= (i.minStock || 0) && ((i.stock || 0) - (i.reserved || 0)) > 0).map(i => i.name || i.description).slice(0, 3).join(', ')}{inventory.filter(i => i.status === 'Low Stock' || ((i.stock || 0) - (i.reserved || 0)) <= (i.minStock || 0) && ((i.stock || 0) - (i.reserved || 0)) > 0).length > 3 ? '...' : ''} — reorder immediately to avoid project delays.
-          </p>
-        </div>
-      )}
-
-      <div className="ai-banner">
-        <Zap size={14} className="text-[var(--accent-light)] mt-0.5 shrink-0" />
-        <p className="text-xs text-[var(--text-secondary)]">
-          <span className="text-[var(--accent-light)] font-semibold">AI Insight:</span>{' '}
-          Based on current project pipeline, you need 500 additional panels by Mar 10. PO002 covers 5 inverters — approve immediately. 10kW inverter stock is critically low at 2 units.
-        </p>
-      </div>
-
-      {view === 'table' && (
-        <div className="glass-card p-4">
-          <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3">Inventory by Category</h3>
-          <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={itemsByCategory.map(c => ({ category: c._id, count: c.count, value: c.totalValue / 100000 }))} barSize={20} barGap={3}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-              <XAxis dataKey="category" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)', borderRadius: 8, fontSize: 12 }} />
-              <Bar dataKey="count" fill="#22c55e" radius={[3, 3, 0, 0]} name="Items" />
-              <Bar dataKey="value" fill="#f59e0b" radius={[3, 3, 0, 0]} name="Value (₹ Lakhs)" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      {view === 'table' ? (
+      {/* INVENTORY TAB CONTENT */}
+      {activeTab === 'inventory' && (
         <>
-          <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-xs text-[var(--text-muted)] mr-1">Category:</span>
-            {CATEGORY_FILTERS.map(c => (
-              <button key={c} onClick={() => { setCatFilter(c); setPage(1); }}
-                className={`filter-chip ${catFilter === c ? 'filter-chip-active' : ''}`}>{c}</button>
-            ))}
-            <div className="ml-auto">
-              <Input placeholder="Search inventory…" value={search}
-                onChange={e => { setSearch(e.target.value); setPage(1); }} className="h-8 text-xs w-52" />
+          {/* Inventory Controls Row */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="view-toggle-pill">
+                <button onClick={() => setView('kanban')}
+                  className={`view-toggle-btn ${view === 'kanban' ? 'active' : ''}`}><LayoutGrid size={14} /></button>
+                <button onClick={() => setView('table')}
+                  className={`view-toggle-btn ${view === 'table' ? 'active' : ''}`}><List size={14} /></button>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" onClick={() => setStockIn(true)}><ArrowUp size={13} /> Stock In</Button>
+              <Button variant="ghost" onClick={() => setShowStockOut(true)}><ArrowDown size={13} /> Stock Out</Button>
             </div>
           </div>
-          <DataTable columns={COLUMNS} data={paginated} total={filtered.length}
-            page={page} pageSize={pageSize} onPageChange={setPage}
-            onPageSizeChange={s => { setPageSize(s); setPage(1); }}
-            search={search} onSearch={v => { setSearch(v); setPage(1); }}
-            rowActions={ROW_ACTIONS} emptyText="No inventory items found." />
-        </>
-      ) : (
-        <>
-          <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-xs text-[var(--text-muted)] mr-1">Category:</span>
-            {CATEGORY_FILTERS.map(c => (
-              <button key={c} onClick={() => setCatFilter(c)}
-                className={`filter-chip ${catFilter === c ? 'filter-chip-active' : ''}`}>{c}</button>
-            ))}
-            <div className="ml-auto">
-              <Input placeholder="Search inventory…" value={search} onChange={e => setSearch(e.target.value)} className="h-8 text-xs w-52" />
-            </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <KPICard label="Total Items" value={dynamicStats.totalItems} sub="SKUs tracked" icon={Package} accentColor="#3b82f6" />
+            <KPICard label="Inventory Value" value={fmt(dynamicStats.totalValue)} sub="At current rates" icon={Warehouse} accentColor="#f59e0b" />
+            <KPICard label="Low Stock Alerts" value={dynamicStats.lowStockItems} sub="Items need reorder" icon={AlertTriangle} accentColor="#f59e0b" />
+            <KPICard label="Out of Stock" value={dynamicStats.outOfStockItems} sub="Immediate action needed" icon={AlertTriangle} accentColor="#ef4444" />
           </div>
-          {loading ? (
-            <div className="glass-card p-8 text-center">
-              <div className="animate-pulse text-[var(--text-muted)]">Loading inventory...</div>
+
+          {dynamicStats.lowStockItems > 0 && (
+            <div className="ai-banner border-amber-500/20 bg-amber-500/5">
+              <AlertTriangle size={14} className="text-amber-400 mt-0.5 shrink-0" />
+              <p className="text-xs text-[var(--text-secondary)]">
+                <span className="text-amber-400 font-semibold">Low Stock Alert:</span>{' '}
+                {inventory.filter(i => i.status === 'Low Stock' || ((i.stock || 0) - (i.reserved || 0)) <= (i.minStock || 0) && ((i.stock || 0) - (i.reserved || 0)) > 0).map(i => i.name || i.description).slice(0, 3).join(', ')}{inventory.filter(i => i.status === 'Low Stock' || ((i.stock || 0) - (i.reserved || 0)) <= (i.minStock || 0) && ((i.stock || 0) - (i.reserved || 0)) > 0).length > 3 ? '...' : ''} — reorder immediately to avoid project delays.
+              </p>
             </div>
-          ) : error ? (
-            <div className="glass-card p-8 text-center text-red-500">
-              <p>Error loading inventory: {error}</p>
-              <p className="text-xs mt-2 text-[var(--text-muted)]">Make sure the backend server is running on port 3000</p>
+          )}
+
+          <div className="ai-banner">
+            <Zap size={14} className="text-[var(--accent-light)] mt-0.5 shrink-0" />
+            <p className="text-xs text-[var(--text-secondary)]">
+              <span className="text-[var(--accent-light)] font-semibold">AI Insight:</span>{' '}
+              Based on current project pipeline, you need 500 additional panels by Mar 10. PO002 covers 5 inverters — approve immediately. 10kW inverter stock is critically low at 2 units.
+            </p>
+          </div>
+
+          {view === 'table' && (
+            <div className="glass-card p-4">
+              <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3">Inventory by Category</h3>
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={itemsByCategory.map(c => ({ category: c._id, count: c.count, value: c.totalValue / 100000 }))} barSize={20} barGap={3}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                  <XAxis dataKey="category" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)', borderRadius: 8, fontSize: 12 }} />
+                  <Bar dataKey="count" fill="#22c55e" radius={[3, 3, 0, 0]} name="Items" />
+                  <Bar dataKey="value" fill="#f59e0b" radius={[3, 3, 0, 0]} name="Value (₹ Lakhs)" />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
+          )}
+
+          {view === 'table' ? (
+            <>
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="text-xs text-[var(--text-muted)] mr-1">Category:</span>
+                {CATEGORY_FILTERS.map(c => (
+                  <button key={c} onClick={() => { setCatFilter(c); setPage(1); }}
+                    className={`filter-chip ${catFilter === c ? 'filter-chip-active' : ''}`}>{c}</button>
+                ))}
+                <div className="ml-auto">
+                  <Input placeholder="Search inventory…" value={search}
+                    onChange={e => { setSearch(e.target.value); setPage(1); }} className="h-8 text-xs w-52" />
+                </div>
+              </div>
+              <DataTable columns={COLUMNS} data={paginated} total={filtered.length}
+                page={page} pageSize={pageSize} onPageChange={setPage}
+                onPageSizeChange={s => { setPageSize(s); setPage(1); }}
+                search={search} onSearch={v => { setSearch(v); setPage(1); }}
+                rowActions={ROW_ACTIONS} emptyText="No inventory items found."
+                onRowClick={setSelected} />
+            </>
           ) : (
-            <InvKanbanBoard items={filtered} onCardClick={setSelected} onDrop={handleKanbanDrop} />
+            <>
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="text-xs text-[var(--text-muted)] mr-1">Category:</span>
+                {CATEGORY_FILTERS.map(c => (
+                  <button key={c} onClick={() => setCatFilter(c)}
+                    className={`filter-chip ${catFilter === c ? 'filter-chip-active' : ''}`}>{c}</button>
+                ))}
+                <div className="ml-auto">
+                  <Input placeholder="Search inventory…" value={search} onChange={e => setSearch(e.target.value)} className="h-8 text-xs w-52" />
+                </div>
+              </div>
+              {loading ? (
+                <div className="glass-card p-8 text-center">
+                  <div className="animate-pulse text-[var(--text-muted)]">Loading inventory...</div>
+                </div>
+              ) : error ? (
+                <div className="glass-card p-8 text-center text-red-500">
+                  <p>Error loading inventory: {error}</p>
+                  <p className="text-xs mt-2 text-[var(--text-muted)]">Make sure the backend server is running on port 3000</p>
+                </div>
+              ) : (
+                <InvKanbanBoard items={filtered} onCardClick={setSelected} onDrop={handleKanbanDrop} />
+              )}
+            </>
           )}
         </>
       )}
 
-      {/* Add Item Modal */}
+      {/* ITEMS TAB CONTENT */}
+      {activeTab === 'items' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Input 
+                placeholder="Search items..." 
+                value={search} 
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-9 text-xs w-64"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setShowAdd(true)}>
+                <Plus size={14} /> Add Item
+              </Button>
+            </div>
+          </div>
+
+          {/* Items Table */}
+          <div className="glass-card overflow-hidden">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-b border-[var(--border-base)] bg-[var(--bg-elevated)]">
+                  <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Item ID</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Description</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Category</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Unit</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Rate (₹)</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-8 text-center text-[var(--text-muted)]">
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="w-4 h-4 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+                        Loading items...
+                      </div>
+                    </td>
+                  </tr>
+                ) : inventory.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-8 text-center text-[var(--text-muted)]">
+                      <Package size={32} className="mx-auto mb-2 text-[var(--text-faint)]" />
+                      <p>No items found</p>
+                    </td>
+                  </tr>
+                ) : (
+                  inventory
+                    .filter(item => item.name?.toLowerCase().includes(search.toLowerCase()) || 
+                                   item.itemId?.toLowerCase().includes(search.toLowerCase()))
+                    .map((item) => (
+                    <tr key={item._id || item.itemId} 
+                      onClick={() => setSelected(item)}
+                      className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)] cursor-pointer">
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        <span className="text-xs font-mono text-[var(--accent-light)]">{item.itemId}</span>
+                      </td>
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        <span className="text-xs font-semibold text-[var(--text-primary)]">{item.name || item.description}</span>
+                      </td>
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        <span className="text-xs text-[var(--text-secondary)]">{item.category}</span>
+                      </td>
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        <span className="text-xs text-[var(--text-secondary)]">{item.unit}</span>
+                      </td>
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        <span className="text-xs text-[var(--text-primary)]">₹{item.rate?.toLocaleString('en-IN')}</span>
+                      </td>
+                      <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => { setSelected(item); }}
+                            className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-[var(--primary)] hover:bg-[var(--bg-hover)]"
+                            title="View"
+                          >
+                            <Package size={14} />
+                          </button>
+                          <button
+                            onClick={() => handleEditClick(item)}
+                            className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
+                            title="Edit"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteItem(item.itemId)}
+                            className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-red-500 hover:bg-red-500/10"
+                            title="Delete"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* CATEGORY TAB CONTENT */}
+      {activeTab === 'category' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-[var(--text-primary)]">Category Management</h2>
+            <Button onClick={() => setShowCategoryModal(true)}>
+              <Plus size={14} /> Add Category
+            </Button>
+          </div>
+
+          {/* Categories Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            {categories.map((cat) => (
+              <div
+                key={cat}
+                className="glass-card p-4 flex flex-col items-center justify-center gap-2 hover:border-[var(--primary)]/40 transition-all group"
+              >
+                <div className="w-12 h-12 rounded-xl bg-[var(--bg-elevated)] flex items-center justify-center">
+                  <Package size={24} className="text-[var(--primary)]" />
+                </div>
+                <span className="text-sm font-medium text-[var(--text-primary)] text-center">{cat}</span>
+                <span className="text-xs text-[var(--text-muted)]">
+                  {inventory.filter(i => i.category === cat).length} items
+                </span>
+                <div className="flex gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => { setEditingCategory(cat); setEditCategoryValue(cat); }}
+                    className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--bg-hover)]"
+                  >
+                    <Edit2 size={14} />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteCategory(cat)}
+                    className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-red-500 hover:bg-red-500/10"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Items by Category */}
+          <div className="mt-8">
+            <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3">Items by Category</h3>
+            <div className="glass-card p-4">
+              <div className="space-y-2">
+                {categories.map((cat) => {
+                  const catItems = inventory.filter(i => i.category === cat);
+                  if (catItems.length === 0) return null;
+                  return (
+                    <div key={cat} className="border-b border-[var(--border-base)] last:border-0 pb-2 last:pb-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-medium text-[var(--text-primary)]">{cat}</span>
+                        <span className="text-xs text-[var(--text-muted)]">{catItems.length} items</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {catItems.slice(0, 5).map((item) => (
+                          <span key={item.itemId} className="text-[10px] px-2 py-1 bg-[var(--bg-elevated)] rounded text-[var(--text-secondary)]">
+                            {item.name || item.description}
+                          </span>
+                        ))}
+                        {catItems.length > 5 && (
+                          <span className="text-[10px] px-2 py-1 text-[var(--text-muted)]">
+                            +{catItems.length - 5} more
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Add Inventory Item"
         footer={<div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={() => setShowAdd(false)}>Cancel</Button>
@@ -754,6 +1017,7 @@ const InventoryPage = () => {
           </Button>
         </div>}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <FormField label="Item ID (Optional)"><Input placeholder="e.g. INV001" value={form.itemId} onChange={e => setForm(f => ({ ...f, itemId: e.target.value }))} /></FormField>
           <FormField label="Item Name"><Input placeholder="e.g. 400W Mono PERC Panel" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></FormField>
           <FormField label="Category">
             <Select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
@@ -816,7 +1080,10 @@ const InventoryPage = () => {
           </Button>
         </div>}>
         <div className="space-y-3">
-          <FormField label="Item Name"><Input placeholder="e.g. 400W Mono PERC Panel" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} /></FormField>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Item ID"><Input value={editingItem?.itemId || ''} disabled className="bg-[var(--bg-muted)]" /></FormField>
+            <FormField label="Item Name"><Input placeholder="e.g. 400W Mono PERC Panel" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} /></FormField>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <FormField label="Category">
               <Select value={editForm.category} onChange={e => setEditForm(f => ({ ...f, category: e.target.value }))}>
