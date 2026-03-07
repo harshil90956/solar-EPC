@@ -251,6 +251,20 @@ export const leadsApi = {
     return response.json();
   },
 
+  // Assign lead to user
+  async assignLead(id, assignedTo) {
+    const response = await fetch(`${API_BASE_URL}/leads/${id}/assign`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ assignedTo }),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to assign lead: ${errorText}`);
+    }
+    return response.json();
+  },
+
   // Export leads to CSV
   async exportCSV(ids = null) {
     const params = ids ? `?ids=${ids.join(',')}` : '';

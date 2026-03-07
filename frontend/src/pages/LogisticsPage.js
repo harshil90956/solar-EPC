@@ -1163,13 +1163,10 @@ const LogisticsPage = () => {
   // Fetch projects from backend (same as ProjectPage)
   const fetchProjects = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/projects?tenantId=${TENANT_ID}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch projects');
-      }
-      const data = await response.json();
+      const res = await api.get('/projects', { tenantId: TENANT_ID });
+      const data = res?.data ?? res;
       console.log('Projects API Response:', data);
-      const projectsArray = Array.isArray(data) ? data : (data.data || []);
+      const projectsArray = Array.isArray(data) ? data : (data?.data || []);
       setProjects(projectsArray);
     } catch (err) {
       console.error('Error fetching projects:', err);

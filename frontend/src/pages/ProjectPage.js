@@ -21,10 +21,10 @@ import { usePermissions } from '../hooks/usePermissions';
 import { useAuditLog } from '../hooks/useAuditLog';
 import CanAccess, { CanCreate } from '../components/CanAccess';
 import { toast } from '../components/ui/Toast';
+import { api } from '../lib/apiClient';
 
 const fmt = CURRENCY.format;
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
 const TENANT_ID = 'solarcorp'; // Default tenant for seed data
 
 const KANBAN_STAGES = [
@@ -191,11 +191,9 @@ const ProjectPage = () => {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/projects/stats?tenantId=${TENANT_ID}`);
-        if (response.ok) {
-          const data = await response.json();
-          setProjectStats(data.data || data);
-        }
+        const res = await api.get('/projects/stats', { tenantId: TENANT_ID });
+        const data = res?.data ?? res;
+        setProjectStats(data?.data || data);
       } catch (err) {
         console.error('Error fetching project stats:', err);
       }
@@ -207,11 +205,9 @@ const ProjectPage = () => {
   useEffect(() => {
     const fetchByStage = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/projects/by-stage?tenantId=${TENANT_ID}`);
-        if (response.ok) {
-          const data = await response.json();
-          setProjectsByStage(data.data || data || []);
-        }
+        const res = await api.get('/projects/by-stage', { tenantId: TENANT_ID });
+        const data = res?.data ?? res;
+        setProjectsByStage(data?.data || data || []);
       } catch (err) {
         console.error('Error fetching projects by stage:', err);
       }
@@ -224,13 +220,10 @@ const ProjectPage = () => {
     const fetchProjects = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`${API_BASE_URL}/projects?tenantId=${TENANT_ID}`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch projects');
-        }
-        const data = await response.json();
+        const res = await api.get('/projects', { tenantId: TENANT_ID });
+        const data = res?.data ?? res;
         console.log('API Response:', data); // Debug log
-        const projectsArray = Array.isArray(data) ? data : (data.data || []);
+        const projectsArray = Array.isArray(data) ? data : (data?.data || []);
         const transformedProjects = projectsArray.map(p => ({
           ...p,
           id: p.projectId,
@@ -254,25 +247,23 @@ const ProjectPage = () => {
       setUsersLoading(true);
       try {
         // Fetch all employees from HRM
-        const response = await fetch(`${API_BASE_URL}/hrm/employees?tenantId=${TENANT_ID}`);
-        if (response.ok) {
-          const result = await response.json();
-          const employees = result.data || result || [];
-          // Filter to get project managers - employees with roleId containing 'manager' or designation 'Project Manager'
-          const projectManagers = employees.filter(e => 
-            e.roleId?.toLowerCase().includes('manager') || 
-            e.designation?.toLowerCase().includes('project manager') ||
-            e.department?.toLowerCase().includes('project')
-          );
-          // Map to format needed for dropdown
-          const pmList = projectManagers.map(e => ({
-            id: e._id || e.id,
-            name: `${e.firstName} ${e.lastName}`.trim(),
-            email: e.email,
-            department: e.department
-          }));
-          setUsers(pmList);
-        }
+        const res = await api.get('/hrm/employees', { tenantId: TENANT_ID });
+        const result = res?.data ?? res;
+        const employees = result?.data || result || [];
+        // Filter to get project managers - employees with roleId containing 'manager' or designation 'Project Manager'
+        const projectManagers = employees.filter(e =>
+          e.roleId?.toLowerCase().includes('manager') ||
+          e.designation?.toLowerCase().includes('project manager') ||
+          e.department?.toLowerCase().includes('project')
+        );
+        // Map to format needed for dropdown
+        const pmList = projectManagers.map(e => ({
+          id: e._id || e.id,
+          name: `${e.firstName} ${e.lastName}`.trim(),
+          email: e.email,
+          department: e.department
+        }));
+        setUsers(pmList);
       } catch (err) {
         console.error('Error fetching project managers from HRM:', err);
       } finally {
@@ -287,12 +278,10 @@ const ProjectPage = () => {
     const fetchItems = async () => {
       setItemsLoading(true);
       try {
-        const response = await fetch(`${API_BASE_URL}/items?tenantId=${TENANT_ID}`);
-        if (response.ok) {
-          const result = await response.json();
-          const itemsArray = Array.isArray(result) ? result : (result.data || []);
-          setItems(itemsArray);
-        }
+        const res = await api.get('/items', { tenantId: TENANT_ID });
+        const result = res?.data ?? res;
+        const itemsArray = Array.isArray(result) ? result : (result?.data || []);
+        setItems(itemsArray);
       } catch (err) {
         console.error('Error fetching items:', err);
       } finally {
@@ -311,13 +300,9 @@ const ProjectPage = () => {
       }
       setLoadingProjectReservations(true);
       try {
-        const response = await fetch(`${API_BASE_URL}/inventory/reservations/by-project/${selected.projectId}?tenantId=${TENANT_ID}`);
-        if (response.ok) {
-          const data = await response.json();
-          setProjectReservations(data.data || data || []);
-        } else {
-          setProjectReservations([]);
-        }
+        const res = await api.get(`/inventory/reservations/by-project/${selected.projectId}`, { tenantId: TENANT_ID });
+        const data = res?.data ?? res;
+        setProjectReservations(data?.data || data || []);
       } catch (err) {
         console.error('Error fetching project reservations:', err);
         setProjectReservations([]);
@@ -346,15 +331,7 @@ const ProjectPage = () => {
 
     // API call to update status
     try {
-      const response = await fetch(`${API_BASE_URL}/projects/${id}/status?tenantId=${TENANT_ID}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStage, userRole }),
-      });
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(error);
-      }
+      await api.patch(`/projects/${id}/status?tenantId=${TENANT_ID}`, { status: newStage, userRole });
     } catch (err) {
       console.error('Error updating project status:', err);
       alert(err.message || 'Failed to update project status');
@@ -429,24 +406,12 @@ const ProjectPage = () => {
       else if (milestoneName === 'Installation') newStatus = 'Installation';
       else if (milestoneName === 'Commission') newStatus = 'Commissioned';
 
-      const response = await fetch(`${API_BASE_URL}/projects/${selected.id}/status?tenantId=${TENANT_ID}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: newStatus,
-          progress: newProgress,
-          milestones: updatedMilestones.map(m => ({ name: m.name, status: m.status, date: m.date })),
-          userRole: JSON.parse(localStorage.getItem('user') || '{}')?.role
-        }),
+      await api.patch(`/projects/${selected.id}/status?tenantId=${TENANT_ID}`, {
+        status: newStatus,
+        progress: newProgress,
+        milestones: updatedMilestones.map(m => ({ name: m.name, status: m.status, date: m.date })),
+        userRole: JSON.parse(localStorage.getItem('user') || '{}')?.role
       });
-
-      console.log('Update response status:', response.status, response.ok);
-      const responseData = await response.json();
-      console.log('Update response data:', responseData);
-
-      if (!response.ok) {
-        throw new Error('Failed to update milestone');
-      }
 
       // Update local state
       const updatedProject = {
@@ -471,13 +436,7 @@ const ProjectPage = () => {
     if (!window.confirm('Are you sure you want to delete this project?')) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/projects/${id}?tenantId=${TENANT_ID}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete project');
-      }
+      await api.delete(`/projects/${id}?tenantId=${TENANT_ID}`);
 
       setProjects(prev => prev.filter(p => p.id !== id));
     } catch (err) {
@@ -518,19 +477,8 @@ const ProjectPage = () => {
         }))
       };
 
-      const response = await fetch(`${API_BASE_URL}/projects?tenantId=${TENANT_ID}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newProject),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to create project: ${errorText}`);
-      }
-
-      const createdProject = await response.json();
-      const projectData = createdProject.data || createdProject;
+      const createdProject = await api.post(`/projects?tenantId=${TENANT_ID}`, newProject);
+      const projectData = createdProject?.data ?? createdProject;
       setProjects(prev => [...prev, { ...projectData, id: projectData.projectId }]);
       setShowAdd(false);
       setForm({ customerName: '', site: '', systemSize: '', pm: '', value: '', estEndDate: '', email: '', mobileNumber: '', materials: [] });
@@ -670,19 +618,8 @@ const ProjectPage = () => {
         }))
       };
 
-      const response = await fetch(`${API_BASE_URL}/projects/${editingProject.id}?tenantId=${TENANT_ID}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updateData),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to update project: ${errorText}`);
-      }
-
-      const updatedProject = await response.json();
-      const projectData = updatedProject.data || updatedProject;
+      const updatedProject = await api.patch(`/projects/${editingProject.id}?tenantId=${TENANT_ID}`, updateData);
+      const projectData = updatedProject?.data ?? updatedProject;
 
       setProjects(prev => prev.map(p => p.id === editingProject.id ? { ...p, ...projectData } : p));
       setShowEdit(false);

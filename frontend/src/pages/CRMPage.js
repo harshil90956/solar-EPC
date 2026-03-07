@@ -35,10 +35,43 @@ import ImportExport from '../components/ui/ImportExport';
 import LeadTracker from '../components/LeadTracker';
 import { useAuditLog } from '../hooks/useAuditLog';
 import { usePermissions } from '../hooks/usePermissions';
+import { useAuth } from '../context/AuthContext';
 import { CURRENCY } from '../config/app.config';
 import CanAccess, { CanCreate, CanEdit, CanDelete, CanView } from '../components/CanAccess';
 import { toast } from '../components/ui/Toast';
 import LeadAnalyticsDashboard from '../components/dashboard/LeadAnalyticsDashboard.js';
+
+// UserSelect component for lead assignment
+const UserSelect = ({ value, onChange, placeholder }) => {
+  const { users } = useAuth();
+  
+  return (
+    <Select value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="">{placeholder || 'Select user...'}</option>
+      {(users || []).map(user => (
+        <option key={user.id} value={user.id}>
+          {user.name} ({user.role})
+        </option>
+      ))}
+    </Select>
+  );
+};
+
+// UserSelect component for lead assignment
+const UserSelect = ({ value, onChange, placeholder }) => {
+  const { users } = useAuth();
+  
+  return (
+    <Select value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="">{placeholder || 'Select user...'}</option>
+      {(users || []).map(user => (
+        <option key={user.id} value={user.id}>
+          {user.name} ({user.role})
+        </option>
+      ))}
+    </Select>
+  );
+};
 
 const fmt = CURRENCY.format;
 
@@ -761,6 +794,10 @@ const CRMPage = () => {
 
   const { logCreate, logUpdate, logDelete } = useAuditLog('CRM');
   const { can } = usePermissions();
+  const { user } = useAuth();
+
+  // Get user's data scope for visibility indicator
+  const userDataScope = user?.dataScope || 'ASSIGNED';
 
   const statusMap = useMemo(() => {
     const map = {};
@@ -859,6 +896,12 @@ const CRMPage = () => {
     if (!editingLead) return;
     try {
       setActionLoading(true);
+      
+      // Handle lead assignment if changed
+      if (editingLead.assignedTo && editingLead.assignedTo !== selectedLead?.assignedTo) {
+        await leadsApi.assignLead(editingLead._id, editingLead.assignedTo);
+      }
+      
       // Only send allowed fields to API
       const updateData = {
         name: editingLead.name,
@@ -1589,18 +1632,32 @@ const CRMPage = () => {
   return (
     <div className="animate-fade-in space-y-5">
       {/* ── Header ── */}
-      <PageHeader
-        title="CRM Module"
-        subtitle="Rulebook Compliant Lead Management"
-        tabs={[
-          { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-          { id: 'leads', label: 'Leads', icon: List },
-          { id: 'kanban', label: 'Kanban', icon: LayoutDashboard },
-          { id: 'reports', label: 'Reports', icon: BarChart2 }
-        ]}
-        activeTab={view}
-        onTabChange={setView}
-      />
+      <div className="flex items-center justify-between">
+        <PageHeader
+          title="CRM Module"
+          subtitle="Rulebook Compliant Lead Management"
+          tabs={[
+            { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+            { id: 'leads', label: 'Leads', icon: List },
+            { id: 'kanban', label: 'Kanban', icon: LayoutDashboard },
+            { id: 'reports', label: 'Reports', icon: BarChart2 }
+          ]}
+          activeTab={view}
+          onTabChange={setView}
+        />
+        
+        {/* Data Visibility Indicator */}
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[11px] font-medium ${
+          userDataScope === 'ALL' 
+            ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' 
+            : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+        }`}>
+          <Eye size={12} />
+          <span>
+            {userDataScope === 'ALL' ? 'Showing: All Leads' : 'Showing: Assigned Leads Only'}
+          </span>
+        </div>
+      </div>
 
       {/* ── Date Filters ── */}
       {(view === 'dashboard' || view === 'reports') && (
@@ -1987,7 +2044,9 @@ const CRMPage = () => {
               )}
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={() => setShowAddModal(true)}><Plus size={14} /> Add Lead</Button>
+              {can('crm', 'create') && (
+                <Button variant="outline" onClick={() => setShowAddModal(true)}><Plus size={14} /> Add Lead</Button>
+              )}
               <ImportExport moduleName="Leads" fields={crmFields} onImport={handleImport} onExport={handleExport} />
             </div>
           </div>
@@ -2302,7 +2361,9 @@ const CRMPage = () => {
             footer={
               <div className="flex gap-2 justify-end">
                 <Button variant="ghost" onClick={() => setSelectedLead(null)}>Close</Button>
-                <Button variant="outline" onClick={() => handleEditLead(selectedLead)}><Edit2 size={13} /> Edit</Button>
+                {can('crm', 'edit') && (
+                  <Button variant="outline" onClick={() => handleEditLead(selectedLead)}><Edit2 size={13} /> Edit</Button>
+                )}
                 <Button onClick={() => handleCallLead(selectedLead)}><Phone size={13} /> Call Lead</Button>
               </div>
             }
@@ -2489,6 +2550,17 @@ const CRMPage = () => {
                 onChange={(e) => setEditingLead({ ...editingLead, notes: e.target.value })}
               />
             </FormField>
+
+            {/* Lead Assignment - Only show if user has assign permission */}
+            {can('crm', 'assign') && (
+              <FormField label="Assigned To">
+                <UserSelect
+                  value={editingLead.assignedTo || ''}
+                  onChange={(userId) => setEditingLead({ ...editingLead, assignedTo: userId })}
+                  placeholder="Select user to assign..."
+                />
+              </FormField>
+            )}
           </div>
         </Modal>
       )}

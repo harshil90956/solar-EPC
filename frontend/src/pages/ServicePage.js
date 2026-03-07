@@ -71,10 +71,9 @@ import {
   getVisitStats,
 
 } from '../modules/service-amc/services/serviceAmcApi';
+import { api } from '../lib/apiClient';
 
-
-
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api/v1';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
 
 const TENANT_ID = 'solarcorp';
 
@@ -776,9 +775,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
       const [response, projectsResponse] = await Promise.all([
 
         getAmcContracts({ page: aPage, limit: aPageSize }),
-
-        fetch(`${API_BASE_URL}/projects?tenantId=${TENANT_ID}`)
-
+        api.get('/projects', { tenantId: TENANT_ID })
       ]);
 
 
@@ -806,16 +803,8 @@ const ServicePage = ({ onNavigate, initialTab }) => {
       // Parse projects response
 
       let projectsData = [];
-
-      if (projectsResponse.ok) {
-
-        const projectsJson = await projectsResponse.json();
-
-        projectsData = Array.isArray(projectsJson) ? projectsJson : (projectsJson?.data || []);
-
-      }
-
-
+      const projectsJson = projectsResponse?.data ?? projectsResponse;
+      projectsData = Array.isArray(projectsJson) ? projectsJson : (projectsJson?.data || []);
 
       // Filter out rutvik and prakash agraval permanently
 
@@ -1746,19 +1735,9 @@ const ServicePage = ({ onNavigate, initialTab }) => {
     setLoadingAmcProject(true);
 
     try {
-
-      const response = await fetch(`${API_BASE_URL}/projects?tenantId=${TENANT_ID}`);
-
-      if (!response.ok) {
-
-        throw new Error('Failed to fetch projects');
-
-      }
-
-      const data = await response.json();
-
-      const projectsArray = Array.isArray(data) ? data : (data.data || []);
-
+      const res = await api.get('/projects', { tenantId: TENANT_ID });
+      const data = res?.data ?? res;
+      const projectsArray = Array.isArray(data) ? data : (data?.data || []);
       const transformedProjects = projectsArray.map(p => ({
 
         ...p,
@@ -1826,25 +1805,13 @@ const ServicePage = ({ onNavigate, initialTab }) => {
     setLoadingScheduleVisitProject(true);
 
     try {
-
-      const response = await fetch(`${API_BASE_URL}/projects?tenantId=${TENANT_ID}`);
-
-      if (response.ok) {
-
-        const data = await response.json();
-
-        const projectsArray = Array.isArray(data) ? data : (data.data || []);
-
-        const matchingProject = projectsArray.find(
-
-          p => p.customerName === contract.customer && p.site === contract.site
-
-        );
-
-        setScheduleVisitProjectData(matchingProject || null);
-
-      }
-
+      const res = await api.get('/projects', { tenantId: TENANT_ID });
+      const data = res?.data ?? res;
+      const projectsArray = Array.isArray(data) ? data : (data?.data || []);
+      const matchingProject = projectsArray.find(
+        p => p.customerName === contract.customer && p.site === contract.site
+      );
+      setScheduleVisitProjectData(matchingProject || null);
     } catch (err) {
 
       console.error('Error fetching project for schedule visit:', err);

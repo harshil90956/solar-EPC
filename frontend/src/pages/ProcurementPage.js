@@ -803,14 +803,8 @@ const ProcurementPage = () => {
   const fetchProjects = async () => {
     try {
       const tenantId = localStorage.getItem('tenantId') || 'default';
-      const baseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
-      const response = await fetch(`${baseUrl}/projects?tenantId=${tenantId}`);
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch projects');
-      }
-
-      const data = await response.json();
+      const res = await api.get('/projects', { tenantId });
+      const data = res?.data ?? res;
       console.log('Projects API response:', data);
 
       const projectsData = Array.isArray(data) ? data : (data?.data || []);

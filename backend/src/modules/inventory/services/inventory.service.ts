@@ -1,16 +1,16 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-
 import { InjectModel } from '@nestjs/mongoose';
-
 import { Model, Types } from 'mongoose';
-
 import { Inventory } from '../schemas/inventory.schema';
-
 import { InventoryReservation } from '../schemas/inventory-reservation.schema';
-
 import { Tenant, TenantSchema } from '../../../core/tenant/schemas/tenant.schema';
-
 import { CreateInventoryDto, UpdateInventoryDto, StockInDto, StockOutDto, CreateReservationDto, UpdateReservationDto } from '../dto/inventory.dto';
+
+interface UserWithVisibility {
+  id?: string;
+  _id?: string;
+  dataScope?: 'ALL' | 'ASSIGNED';
+}
 
 
 
@@ -56,32 +56,40 @@ export class InventoryService {
 
 
 
-  async findAll(tenantCode: string, category?: string, search?: string) {
-
+  async findAll(tenantCode: string, user?: UserWithVisibility, category?: string, search?: string) {
     const tenantId = await this.getTenantId(tenantCode);
-
     const query: any = { tenantId, isDeleted: false };
-
-
-
-    if (category && category !== 'All') {
-
-      query.category = category;
-
+    
+    console.log(`[INVENTORY VISIBILITY] user:`, JSON.stringify(user));
+    console.log(`[INVENTORY VISIBILITY] user?.dataScope:`, user?.dataScope);
+    
+    // Apply visibility filter based on user's dataScope
+    if (user?.dataScope === 'ASSIGNED') {
+      const userId = user._id || user.id;
+      console.log(`[INVENTORY VISIBILITY] userId:`, userId);
+      if (userId) {
+        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
+          ? new Types.ObjectId(userId)
+          : userId;
+        // STRICT: Only show items explicitly assigned to this user
+        query.assignedTo = objectId;
+        console.log(`[INVENTORY VISIBILITY] Applied STRICT assignedTo filter:`, objectId);
+      }
+    } else {
+      console.log(`[INVENTORY VISIBILITY] No filter applied - ALL scope or no user`);
     }
-
-
+    
+    if (category && category !== 'All') {
+      query.category = category;
+    }
 
     if (search) {
-
       query.$text = { $search: search };
-
     }
-
-
+    
+    console.log(`[INVENTORY VISIBILITY] Final query:`, JSON.stringify(query));
 
     return this.inventoryModel.find(query).sort({ createdAt: -1 }).exec();
-
   }
 
 
@@ -688,38 +696,44 @@ export class InventoryService {
 
 
 
-  async getStats(tenantCode: string) {
-
+  async getStats(tenantCode: string, user?: UserWithVisibility) {
     const tenantId = await this.getTenantId(tenantCode);
-
     
-
-    const items = await this.inventoryModel.find({ tenantId, isDeleted: false }).exec();
-
+    const query: any = { tenantId, isDeleted: false };
     
-
+    console.log(`[INVENTORY STATS VISIBILITY] user param:`, JSON.stringify(user));
+    console.log(`[INVENTORY STATS VISIBILITY] user?.dataScope:`, user?.dataScope);
+    
+    // Apply visibility filter based on user's dataScope
+    if (user?.dataScope === 'ASSIGNED') {
+      const userId = user._id || user.id;
+      if (userId) {
+        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
+          ? new Types.ObjectId(userId)
+          : userId;
+        // STRICT: Only include items explicitly assigned to this user
+        query.assignedTo = objectId;
+        console.log(`[INVENTORY STATS VISIBILITY] Applied assignedTo filter:`, objectId);
+      }
+    } else {
+      console.log(`[INVENTORY STATS VISIBILITY] SKIPPING filter - dataScope is not ASSIGNED`);
+    }
+    
+    console.log(`[INVENTORY STATS VISIBILITY] Final Query:`, JSON.stringify(query));
+    
+    const items = await this.inventoryModel.find(query).exec();
+    
     const totalItems = items.length;
-
     const totalValue = items.reduce((sum, item) => sum + (item.stock * item.rate), 0);
-
     const lowStockItems = items.filter(item => item.available <= item.minStock && item.available > 0).length;
-
     const outOfStockItems = items.filter(item => item.available === 0).length;
 
-
-
     return {
-
       totalItems,
-
       totalValue,
-
       lowStockItems,
-
       outOfStockItems,
-
     };
-
   }
 
 

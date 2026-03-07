@@ -14,6 +14,7 @@ import { Progress } from '../components/ui/Progress';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/Tabs';
 import DataTable from '../components/ui/DataTable';
 import { generateCompliancePDF } from '../utils/compliancePdfGenerator';
+import { api } from '../lib/apiClient';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api/v1';
 const TENANT_ID = 'solarcorp';
@@ -306,14 +307,17 @@ const CompliancePage = () => {
                     fetch(`${API_BASE_URL}/compliance/inspections?tenantId=${TENANT_ID}`),
                     fetch(`${API_BASE_URL}/compliance/documents?tenantId=${TENANT_ID}`),
                     fetch(`${API_BASE_URL}/compliance/stats?tenantId=${TENANT_ID}`),
-                    fetch(`${API_BASE_URL}/projects?tenantId=${TENANT_ID}`),
+                    api.get('/projects', { tenantId: TENANT_ID }),
                 ]);
                 if (nmRes.ok) { const data = await nmRes.json(); setNmItems(Array.isArray(data) ? data : (data.data || [])); }
                 if (subRes.ok) { const data = await subRes.json(); setSubItems(Array.isArray(data) ? data : (data.data || [])); }
                 if (insRes.ok) { const data = await insRes.json(); setInspections(Array.isArray(data) ? data : (data.data || [])); }
                 if (docRes.ok) { const data = await docRes.json(); setDocuments(Array.isArray(data) ? data : (data.data || [])); }
                 if (statsRes.ok) { const data = await statsRes.json(); setStats(data); }
-                if (projectsRes.ok) { const data = await projectsRes.json(); setProjects(Array.isArray(data) ? data : (data.data || [])); }
+                {
+                    const data = projectsRes?.data ?? projectsRes;
+                    setProjects(Array.isArray(data) ? data : (data?.data || []));
+                }
             } catch (err) { console.error('Error fetching compliance data:', err); }
         };
         fetchComplianceData();

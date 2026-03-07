@@ -13,20 +13,16 @@ import {
   HttpCode,
   HttpStatus,
   Logger,
-  UseInterceptors,
-  UploadedFile,
-  BadRequestException,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
 import { LeadsService } from '../services/leads.service';
 import { CreateLeadDto, UpdateLeadDto, QueryLeadDto, AddActivityDto, BulkActionDto } from '../dto/lead.dto';
 import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
+import { PermissionGuard } from '../../../modules/settings/guards/permission.guard';
+import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
 
 @Controller('leads')
-@UseGuards(JwtAuthGuard, TenantGuard)
+@UseGuards(JwtAuthGuard, TenantGuard, PermissionGuard)
 export class LeadsController {
   private readonly logger = new Logger(LeadsController.name);
   
@@ -34,6 +30,7 @@ export class LeadsController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @RequirePermission('leads', 'create')
   async create(@Body() createLeadDto: CreateLeadDto, @Request() req: any) {
     try {
       const tenantId = req.tenant?.id || 'default';
@@ -47,11 +44,13 @@ export class LeadsController {
   }
 
   @Get()
+  @RequirePermission('leads', 'view')
   async findAll(@Query() query: QueryLeadDto, @Request() req: any) {
     try {
       const tenantId = req.tenant?.id || 'default';
-      this.logger.log(`[DEBUG] findAll leads - tenantId: ${tenantId}`);
-      const result = await this.leadsService.findAll(query, tenantId);
+      const user = req.user;
+      this.logger.log(`[DEBUG] findAll leads - tenantId: ${tenantId}, user: ${user?.id}, dataScope: ${user?.dataScope}`);
+      const result = await this.leadsService.findAll(query, tenantId, user);
       return { success: true, data: result.data, total: result.total };
     } catch (error: any) {
       this.logger.error(`Find all leads failed: ${error?.message || 'Unknown error'}`, error?.stack);
@@ -63,8 +62,9 @@ export class LeadsController {
   async getStats(@Request() req: any) {
     try {
       const tenantId = req.tenant?.id || 'default';
-      this.logger.log(`[DEBUG] getStats leads - tenantId: ${tenantId}`);
-      return await this.leadsService.getStats(tenantId);
+      const user = req.user;
+      this.logger.log(`[DEBUG] getStats leads - tenantId: ${tenantId}, user: ${user?.id}, dataScope: ${user?.dataScope}`);
+      return await this.leadsService.getStats(tenantId, user);
     } catch (error: any) {
       this.logger.error(`Get stats failed: ${error?.message || 'Unknown error'}`, error?.stack);
       throw error;
@@ -78,61 +78,6 @@ export class LeadsController {
       return await this.leadsService.getStatusOptions(tenantId);
     } catch (error: any) {
       this.logger.error(`Get status options failed: ${error?.message || 'Unknown error'}`, error?.stack);
-      throw error;
-    }
-  }
-
-  @Get('dashboard/overview')
-  async getDashboardOverview(@Request() req: any) {
-    try {
-      const tenantId = req.tenant?.id || 'default';
-      return await this.leadsService.getDashboardOverview(tenantId);
-    } catch (error: any) {
-      this.logger.error(`Get dashboard overview failed: ${error?.message || 'Unknown error'}`, error?.stack);
-      throw error;
-    }
-  }
-
-  @Get('dashboard/funnel')
-  async getDashboardFunnel(@Request() req: any) {
-    try {
-      const tenantId = req.tenant?.id || 'default';
-      return await this.leadsService.getDashboardFunnel(tenantId);
-    } catch (error: any) {
-      this.logger.error(`Get dashboard funnel failed: ${error?.message || 'Unknown error'}`, error?.stack);
-      throw error;
-    }
-  }
-
-  @Get('dashboard/source')
-  async getDashboardSource(@Request() req: any) {
-    try {
-      const tenantId = req.tenant?.id || 'default';
-      return await this.leadsService.getDashboardSource(tenantId);
-    } catch (error: any) {
-      this.logger.error(`Get dashboard source failed: ${error?.message || 'Unknown error'}`, error?.stack);
-      throw error;
-    }
-  }
-
-  @Get('dashboard/trend')
-  async getDashboardTrend(@Request() req: any) {
-    try {
-      const tenantId = req.tenant?.id || 'default';
-      return await this.leadsService.getDashboardTrend(tenantId);
-    } catch (error: any) {
-      this.logger.error(`Get dashboard trend failed: ${error?.message || 'Unknown error'}`, error?.stack);
-      throw error;
-    }
-  }
-
-  @Get('dashboard/activity')
-  async getDashboardActivity(@Request() req: any) {
-    try {
-      const tenantId = req.tenant?.id || 'default';
-      return await this.leadsService.getDashboardActivity(tenantId);
-    } catch (error: any) {
-      this.logger.error(`Get dashboard activity failed: ${error?.message || 'Unknown error'}`, error?.stack);
       throw error;
     }
   }
@@ -162,6 +107,7 @@ export class LeadsController {
   }
 
   @Put(':id')
+  @RequirePermission('leads', 'edit')
   async update(@Param('id') id: string, @Body() updateLeadDto: UpdateLeadDto, @Request() req: any) {
     try {
       this.logger.log(`Updating lead ${id} with data: ${JSON.stringify(updateLeadDto)}`);
@@ -176,6 +122,7 @@ export class LeadsController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @RequirePermission('leads', 'delete')
   async remove(@Param('id') id: string, @Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
@@ -263,6 +210,25 @@ export class LeadsController {
     }
   }
 
+  @Patch(':id/assign')
+  @HttpCode(HttpStatus.OK)
+  async assignLead(
+    @Param('id') id: string,
+    @Body('assignedTo') assignedTo: string,
+    @Request() req: any
+  ) {
+    try {
+      const tenantId = req.tenant?.id;
+      const userId = req.user?.id || req.user?._id;
+      this.logger.log(`[DEBUG] assignLead ${id} to ${assignedTo} by ${userId}`);
+      const result = await this.leadsService.assignLead(id, assignedTo, userId, tenantId);
+      return { success: true, data: result };
+    } catch (error: any) {
+      this.logger.error(`Assign lead ${id} failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
   @Patch(':id/stage')
   @HttpCode(HttpStatus.OK)
   async updateStage(@Param('id') id: string, @Body('stage') stage: string, @Request() req: any) {
@@ -314,9 +280,99 @@ export class LeadsController {
   }
 
   // ============================================
-  // LEAD IMPORT ENDPOINT
+  // DASHBOARD ANALYTICS ENDPOINTS
   // ============================================
 
+  @Get('dashboard/overview')
+  async getDashboardOverview(@Request() req: any) {
+    try {
+      const tenantId = req.tenant?.id;
+      const result = await this.leadsService.getDashboardOverview(tenantId);
+      return { success: true, data: result };
+    } catch (error: any) {
+      this.logger.error(`Get dashboard overview failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
+  @Get('dashboard/funnel')
+  async getFunnelData(@Request() req: any) {
+    try {
+      const tenantId = req.tenant?.id;
+      const result = await this.leadsService.getDashboardFunnel(tenantId);
+      return { success: true, data: result };
+    } catch (error: any) {
+      this.logger.error(`Get funnel data failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
+  @Get('dashboard/source')
+  async getSourcePerformance(@Request() req: any) {
+    try {
+      const tenantId = req.tenant?.id;
+      const result = await this.leadsService.getDashboardSource(tenantId);
+      return { success: true, data: result };
+    } catch (error: any) {
+      this.logger.error(`Get source performance failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
+  @Get('dashboard/trend')
+  async getLeadTrend(@Query('months') months: string, @Request() req: any) {
+    try {
+      const tenantId = req.tenant?.id;
+      const result = await this.leadsService.getDashboardTrend(tenantId);
+      return { success: true, data: result };
+    } catch (error: any) {
+      this.logger.error(`Get lead trend failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
+  @Get('dashboard/value-trend')
+  async getValueTrend(@Query('months') months: string, @Request() req: any) {
+    try {
+      const tenantId = req.tenant?.id;
+      // Value trend is included in getDashboardTrend
+      const result = await this.leadsService.getDashboardTrend(tenantId);
+      return { success: true, data: result.months };
+    } catch (error: any) {
+      this.logger.error(`Get value trend failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
+  @Get('dashboard/score-distribution')
+  async getScoreDistribution(@Request() req: any) {
+    try {
+      const tenantId = req.tenant?.id;
+      // Score distribution is included in getDashboardTrend
+      const result = await this.leadsService.getDashboardTrend(tenantId);
+      return { success: true, data: result.scoreBuckets };
+    } catch (error: any) {
+      this.logger.error(`Get score distribution failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
+  @Get('dashboard/activity')
+  async getActivityStats(@Request() req: any) {
+    try {
+      const tenantId = req.tenant?.id;
+      const result = await this.leadsService.getDashboardActivity(tenantId);
+      return { success: true, data: result };
+    } catch (error: any) {
+      this.logger.error(`Get activity stats failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
+  // ============================================
+  // LEAD IMPORT ENDPOINT - TEMPORARILY DISABLED
+  // ============================================
+  /*
   @Post('import')
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(FileInterceptor('file', {
@@ -360,4 +416,5 @@ export class LeadsController {
       throw error;
     }
   }
+  */
 }
