@@ -118,10 +118,19 @@ const FinanceDashboardPage = ({ onNavigate }) => {
       });
 
       const cashFlowSeries = months.map((m) => {
-        const inflow = (payments || []).reduce((sum, p) => {
-          const dt = paymentDate(p);
+        // Inflow: Use invoices.paid instead of payments (like backend getBalance)
+        const inflow = (invoices || []).reduce((sum, inv) => {
+          // For paid invoices, use invoiceDate if paidDate is missing
+          let dt = safeDate(inv?.paidDate);
+          if (!dt && inv?.status === 'Paid') {
+            dt = safeDate(inv?.invoiceDate) || safeDate(inv?.updatedAt) || safeDate(inv?.createdAt);
+          }
           if (!dt || dt < m.start || dt >= m.end) return sum;
-          return sum + Number(p?.amount || p?.amountPaid || 0);
+          // Use paid amount (or amount if status is Paid)
+          const paid = Number(inv?.paid || 0);
+          const amount = Number(inv?.amount || 0);
+          const effectivePaid = (paid === 0 && inv?.status === 'Paid') ? amount : paid;
+          return sum + effectivePaid;
         }, 0);
 
         const outflow = (vendorExpenses || []).reduce((sum, exp) => {
@@ -132,6 +141,19 @@ const FinanceDashboardPage = ({ onNavigate }) => {
         }, 0);
 
         return { month: m.month, inflow, outflow };
+      });
+
+      console.log('CashFlow debug:', { 
+        months: months.map(m => ({ month: m.month, start: m.start.toISOString(), end: m.end.toISOString() })),
+        invoicesCount: invoices?.length || 0,
+        paidInvoices: invoices?.filter(inv => inv?.status === 'Paid').map(inv => ({ 
+          status: inv.status, 
+          amount: inv.amount, 
+          paid: inv.paid,
+          invoiceDate: inv.invoiceDate,
+          paidDate: inv.paidDate 
+        })),
+        cashFlowSeries 
       });
 
       setMonthlyRevenue(revenueCostSeries);

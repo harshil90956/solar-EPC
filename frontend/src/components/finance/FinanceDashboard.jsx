@@ -22,7 +22,24 @@ const fmt = (amount) => {
 
 const formatL = (value) => {
   if (!value || isNaN(value)) return '₹0';
-  return `₹${(value / 100000).toFixed(1)}L`;
+  // Show in Lakhs for large numbers
+  if (value >= 100000) {
+    return `₹${(value / 100000).toFixed(1)}L`;
+  } else if (value >= 1000) {
+    return `₹${(value / 1000).toFixed(0)}K`;
+  } else {
+    return `₹${value}`;
+  }
+};
+
+const formatAxisCurrency = (value) => {
+  if (!value || isNaN(value)) return '₹0';
+  // Always show in thousands (K) for Y-axis
+  if (value >= 1000) {
+    return `₹${(value / 1000).toFixed(0)}K`;
+  } else {
+    return `₹${value}`;
+  }
 };
 
 // Animated Number Counter
@@ -101,12 +118,14 @@ const FinancialOverview = ({ dashboardStats, payablesTotal, manualBalance, onInv
     return (invoices || []).reduce((sum, inv) => sum + getBalance(inv), 0);
   }, [invoices]);
   
-  // Calculate total collected
+  // Calculate collected from invoices - sum of paid amounts
   const totalCollected = useMemo(() => {
     return (invoices || []).reduce((sum, inv) => sum + getPaidAmount(inv), 0);
   }, [invoices]);
   
-  const cashPosition = totalCollected - (dashboardStats?.totalPayables || 0) + manualBalance;
+  // Cash Position is the manualBalance which already includes:
+  // Customer Payments + Credit Adjustments - Debit Adjustments - Vendor Payments
+  const cashPosition = manualBalance;
 
   const cards = [
     {
@@ -343,6 +362,8 @@ const CashFlowTrendChart = ({ cashFlow }) => {
             tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
             axisLine={false}
             tickLine={false}
+            domain={[0, 10000000]}
+            ticks={[0, 2500000, 5000000, 7500000, 10000000]}
           />
           <Tooltip content={<CustomTooltip />} />
           <Legend iconSize={10} wrapperStyle={{ fontSize: 11, paddingTop: 10 }} />

@@ -4,6 +4,8 @@ export { FinancePayment, FinancePaymentSchema, FinancePaymentDocument, PaymentTy
 export { Expense, ExpenseSchema, ExpenseDocument, ExpenseCategory, ExpenseStatus } from './expense.schema';
 export { Transaction, TransactionSchema, TransactionDocument, TransactionType } from './transaction.schema';
 export { ManualAdjustment, ManualAdjustmentSchema, ManualAdjustmentDocument, ManualAdjustmentType } from './manual-adjustment.schema';
+export { AdjustmentCategory, AdjustmentCategorySchema, AdjustmentCategoryDocument, AdjustmentCategoryType } from './adjustment-category.schema';
+export { JournalEntry, JournalEntrySchema, JournalEntryDocument, JournalEntryLine } from './journal-entry.schema';
 export { Project, ProjectSchema, ProjectDocument } from './project.schema';
 export { ReminderLog, ReminderLogSchema, ReminderLogDocument, ReminderType } from './reminder-log.schema';
 export { Activity, ActivitySchema, ActivityDocument, ActivityAction, ActivityModule } from './activity.schema';

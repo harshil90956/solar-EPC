@@ -17,6 +17,9 @@ export class ManualAdjustment {
   @Prop({ required: true, enum: ['credit', 'debit'], index: true })
   type!: ManualAdjustmentType;
 
+  @Prop({ required: false, index: true })
+  category?: string;
+
   @Prop({ required: true })
   amount!: number;
 

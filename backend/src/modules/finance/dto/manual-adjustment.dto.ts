@@ -1,8 +1,13 @@
-import { IsEnum, IsNumber, IsOptional, IsString, IsDateString, Min, MaxLength } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, IsDateString, Min, MaxLength } from 'class-validator';
 
 export class CreateManualAdjustmentDto {
   @IsEnum(['credit', 'debit'])
   type!: 'credit' | 'debit';
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  category!: string;
 
   @IsNumber()
   @Min(0.01)
