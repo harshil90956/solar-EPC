@@ -96,10 +96,13 @@ const Layout = ({ currentPage, onNavigate, children }) => {
 
   // Filter nav based on role permissions AND module enabled flags
   // Uses resolvePermission to support custom roles (User Override → Custom Role → Base RBAC)
+  // Admin always sees all modules
   const visibleSections = NAV_CONFIG.map(section => ({
     ...section,
     items: section.items.filter(item => {
       const hasModuleAccess = isModuleEnabled(item.id);
+      console.log('[DEBUG] Module:', item.id, 'isModuleEnabled:', hasModuleAccess);
+      
       if (!hasModuleAccess) return false;
 
       // Check view permission using resolvePermission (supports custom roles)
@@ -110,6 +113,9 @@ const Layout = ({ currentPage, onNavigate, children }) => {
       return canView;
     }),
   })).filter(s => s.items.length > 0);
+  
+  console.log('[DEBUG] visibleSections:', visibleSections.length, 'sections');
+  console.log('[DEBUG] user:', user?.id, user?.role);
 
   /* ── Derive layout dimensions from customization ── */
   const c = customization || {};
@@ -128,7 +134,8 @@ const Layout = ({ currentPage, onNavigate, children }) => {
     return 220;
   };
   const sidebarW = getSidebarWidth();
-  const showLabels = isOverlay ? sidebarHovered : sidebarW >= 220;
+  // Always show labels unless explicitly in mini/compact mode
+  const showLabels = true;
 
   // Boxed layout
   const isBoxed = c.layoutWidth === 'boxed';

@@ -1,9 +1,14 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, Req, Headers } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, Headers, UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
+import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
+import { PermissionGuard } from '../../../modules/settings/guards/permission.guard';
+import { LoggingGuard } from '../../../common/guards/logging.guard';
 import { ProcurementService } from '../services/procurement.service';
 import { CreateVendorDto, UpdateVendorDto } from '../dto/create-vendor.dto';
 import { CreatePurchaseOrderDto, UpdatePurchaseOrderDto, UpdatePurchaseOrderStatusDto } from '../dto/create-purchase-order.dto';
 
 @Controller('procurement')
+@UseGuards(LoggingGuard, JwtAuthGuard, TenantGuard, PermissionGuard)
 export class ProcurementController {
   constructor(private readonly procurementService: ProcurementService) {}
 
@@ -18,8 +23,14 @@ export class ProcurementController {
 
   @Get('vendors')
   async findAllVendors(@Req() req: any, @Headers('x-tenant-id') headerTenantId: string, @Query('tenantId') queryTenantId: string) {
+    console.log(`[PROCUREMENT CONTROLLER] START findAllVendors`);
+    console.log(`[PROCUREMENT CONTROLLER] req.user =`, JSON.stringify(req.user));
+    console.log(`[PROCUREMENT CONTROLLER] req.headers =`, JSON.stringify(req.headers));
     const tenantId = req.user?.tenantId || headerTenantId || queryTenantId || 'default';
-    const vendors = await this.procurementService.findAllVendors(tenantId);
+    const user = req.user;
+    console.log(`[PROCUREMENT CONTROLLER] Calling service with user:`, JSON.stringify(user));
+    const vendors = await this.procurementService.findAllVendors(tenantId, user);
+    console.log(`[PROCUREMENT CONTROLLER] END findAllVendors`);
     return { success: true, data: vendors };
   }
 
@@ -56,7 +67,8 @@ export class ProcurementController {
   @Get('purchase-orders')
   async findAllPurchaseOrders(@Req() req: any, @Headers('x-tenant-id') headerTenantId: string, @Query('tenantId') queryTenantId: string) {
     const tenantId = req.user?.tenantId || headerTenantId || queryTenantId || 'default';
-    const pos = await this.procurementService.findAllPurchaseOrders(tenantId);
+    const user = req.user;
+    const pos = await this.procurementService.findAllPurchaseOrders(tenantId, user);
     return { success: true, data: pos };
   }
 
@@ -93,7 +105,8 @@ export class ProcurementController {
   @Get('stats')
   async getProcurementStats(@Req() req: any, @Headers('x-tenant-id') headerTenantId: string, @Query('tenantId') queryTenantId: string) {
     const tenantId = req.user?.tenantId || headerTenantId || queryTenantId || 'default';
-    const stats = await this.procurementService.getProcurementStats(tenantId);
+    const user = req.user;
+    const stats = await this.procurementService.getProcurementStats(tenantId, user);
     return { success: true, data: stats };
   }
 }

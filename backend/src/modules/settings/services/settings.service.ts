@@ -123,8 +123,24 @@ export class SettingsService {
 
   async createAuditLog(log: Partial<AuditLog>, tenantId?: string): Promise<AuditLog> {
     const tid = this.toObjectId(tenantId);
+
+    const toSafeString = (value: any): string => {
+      if (value === null || value === undefined) return '';
+      if (typeof value === 'string') return value;
+      try {
+        return JSON.stringify(value);
+      } catch {
+        return String(value);
+      }
+    };
+
     const newLog = new this.auditLogModel({
       ...log,
+      user: toSafeString((log as any).user),
+      action: toSafeString((log as any).action),
+      target: toSafeString((log as any).target),
+      from: toSafeString((log as any).from),
+      to: toSafeString((log as any).to),
       tenantId: tid,
       logId: `a${Date.now()}`,
       ts: new Date().toISOString().replace('T', ' ').slice(0, 16),

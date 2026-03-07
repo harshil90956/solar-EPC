@@ -10,8 +10,20 @@ export class PaymentService {
     @InjectModel(Payment.name) private readonly paymentModel: Model<PaymentDocument>,
   ) {}
 
+  private toObjectId(id: string | undefined): Types.ObjectId | undefined {
+    if (!id) return undefined;
+    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(id);
+    if (!isValidObjectId) return undefined;
+    try {
+      return new Types.ObjectId(id);
+    } catch {
+      return undefined;
+    }
+  }
+
   async findAll(tenantId: string, invoiceId?: string): Promise<Payment[]> {
-    const query: any = { tenantId: new Types.ObjectId(tenantId) };
+    const tid = this.toObjectId(tenantId);
+    const query: any = tid ? { tenantId: tid } : {};
     if (invoiceId) {
       query.invoiceId = new Types.ObjectId(invoiceId);
     }
@@ -19,9 +31,10 @@ export class PaymentService {
   }
 
   async findById(tenantId: string, id: string): Promise<Payment> {
+    const tid = this.toObjectId(tenantId);
     const payment = await this.paymentModel.findOne({
       _id: new Types.ObjectId(id),
-      tenantId: new Types.ObjectId(tenantId),
+      ...(tid ? { tenantId: tid } : {}),
     }).lean();
 
     if (!payment) {
@@ -34,7 +47,7 @@ export class PaymentService {
   async create(tenantId: string, dto: CreatePaymentDto): Promise<Payment> {
     const payment = new this.paymentModel({
       ...dto,
-      tenantId: new Types.ObjectId(tenantId),
+      tenantId: this.toObjectId(tenantId),
       invoiceId: new Types.ObjectId(dto.invoiceId),
       paymentDate: new Date(dto.paymentDate),
     });
@@ -47,7 +60,7 @@ export class PaymentService {
     const existing = await this.findById(tenantId, id);
 
     const updated = await this.paymentModel.findOneAndUpdate(
-      { _id: new Types.ObjectId(id), tenantId: new Types.ObjectId(tenantId) },
+      { _id: new Types.ObjectId(id), tenantId: this.toObjectId(tenantId) },
       {
         ...dto,
         invoiceId: dto.invoiceId ? new Types.ObjectId(dto.invoiceId) : existing.invoiceId,

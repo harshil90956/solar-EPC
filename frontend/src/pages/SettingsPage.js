@@ -508,9 +508,17 @@ const RBACPanel = () => {
     }, [roleList, selectedRole]);
 
     const roleDef = roleList?.find(r => r.id === selectedRole);
+    
+    // Debug: Log MODULE_DEFS
+    console.log('[DEBUG] MODULE_DEFS:', MODULE_DEFS);
+    console.log('[DEBUG] MODULE_DEFS length:', MODULE_DEFS?.length);
+    
     const filteredMods = MODULE_DEFS.filter(m =>
         !modFilter || m.label.toLowerCase().includes(modFilter.toLowerCase())
     );
+    
+    console.log('[DEBUG] filteredMods:', filteredMods);
+    console.log('[DEBUG] filteredMods length:', filteredMods?.length);
 
     const roleStats = useMemo(() => {
         let total = 0, granted = 0;
@@ -1211,9 +1219,13 @@ const RoleBuilderPanel = () => {
     const [labelDraft, setLabelDraft] = useState('');
 
     const selected = selectedId ? customRoles[selectedId] : null;
+    
+    // DEBUG: Check dataScope value
+    console.log('[DEBUG] selected role:', selected?.id, 'dataScope:', selected?.dataScope);
+    
     const filteredMods = MODULE_DEFS.filter(m => !modFilter || m.label.toLowerCase().includes(modFilter.toLowerCase()));
 
-    const handleCreate = () => {
+    const handleCreate = async () => {
         if (!newRole.label.trim()) return;
         const id = createCustomRole(newRole.label, newRole.description, null, user?.name);
         setSelectedId(id);
@@ -1221,9 +1233,9 @@ const RoleBuilderPanel = () => {
         setNewRole({ label: '', description: '', color: '#8b5cf6' });
     };
 
-    const handleClone = () => {
+    const handleClone = async () => {
         if (!cloneSourceId) return;
-        const id = cloneRole(cloneSourceId, cloneLabel || undefined, user?.name);
+        const id = await cloneRole(cloneSourceId, cloneLabel || undefined, user?.name);
         setSelectedId(id);
         setCloneOpen(false);
         setCloneLabel('');
@@ -1330,6 +1342,28 @@ const RoleBuilderPanel = () => {
                                         <Trash2 size={11} />
                                     </button>
                                 </div>
+                            </div>
+
+                            {/* Data Visibility Section */}
+                            <div className="p-3 rounded-xl border border-[var(--border-base)] bg-[var(--bg-elevated)]">
+                                <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider mb-2">Data Visibility</p>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => updateCustomRole(selectedId, { dataScope: 'ALL' }, user?.name)}
+                                        className={`flex-1 px-3 py-2 rounded-lg text-[11px] font-semibold border transition-all ${selected.dataScope === 'ALL' || !selected.dataScope ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]' : 'border-[var(--border-base)] text-[var(--text-faint)] hover:border-[var(--accent)]/40'}`}>
+                                        All Data
+                                    </button>
+                                    <button
+                                        onClick={() => updateCustomRole(selectedId, { dataScope: 'ASSIGNED' }, user?.name)}
+                                        className={`flex-1 px-3 py-2 rounded-lg text-[11px] font-semibold border transition-all ${selected.dataScope === 'ASSIGNED' ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]' : 'border-[var(--border-base)] text-[var(--text-faint)] hover:border-[var(--accent)]/40'}`}>
+                                        Only Assigned
+                                    </button>
+                                </div>
+                                <p className="text-[9px] text-[var(--text-faint)] mt-2">
+                                    {selected.dataScope === 'ASSIGNED' 
+                                        ? 'Users with this role will only see records assigned to them.' 
+                                        : 'Users with this role will see all records in the system.'}
+                                </p>
                             </div>
 
                             {/* Search */}
@@ -1576,6 +1610,22 @@ const UserPermissionsPanel = () => {
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3">
+                                    {/* Data Visibility Override */}
+                                    <div>
+                                        <label className="text-[9px] text-[var(--text-faint)] block mb-1">Data Visibility</label>
+                                        <select
+                                            value={userOvr?.dataScope ?? ''}
+                                            onChange={e => {
+                                                const value = e.target.value;
+                                                setUserPermissionOverride(selectedUserId, 'global', 'dataScope', value || null, adminUser?.name);
+                                            }}
+                                            className="px-2 py-1 rounded-lg border border-[var(--border-base)] bg-[var(--bg-elevated)] text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]">
+                                            <option value="">Use Role Setting</option>
+                                            <option value="ALL">All Data</option>
+                                            <option value="ASSIGNED">Only Assigned Data</option>
+                                        </select>
+                                    </div>
+
                                     {/* Assign custom role */}
                                     <div>
                                         <label className="text-[9px] text-[var(--text-faint)] block mb-1">Custom Role Override</label>

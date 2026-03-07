@@ -264,7 +264,7 @@ export class AmcContractsService {
    * - Removes AMC contracts when project is deleted or no longer commissioned
    */
   async autoGenerateFromProjects(tenantId?: string): Promise<{ created: number; removed: number; contracts: AmcContract[] }> {
-    const projectFilter: any = { progress: 100 };
+    const projectFilter: any = { progress: 100, isDeleted: false };
     const amcFilter: any = { isDeleted: { $ne: true } };
 
     if (tenantId) {
@@ -279,9 +279,9 @@ export class AmcContractsService {
       .lean()
       .exec();
 
-    // Create a map of project identifiers for quick lookup
+    // Create a map of project identifiers for quick lookup (case-insensitive)
     const projectKeys = new Set(
-      commissionedProjects.map(p => `${p.customerName}-${p.site}`)
+      commissionedProjects.map(p => `${p.customerName?.toLowerCase()?.trim()}-${p.site?.toLowerCase()?.trim()}`)
     );
 
     // Find all existing AMC contracts
@@ -293,7 +293,7 @@ export class AmcContractsService {
 
     // Find orphaned AMC contracts (AMC exists but project is gone or not commissioned)
     const contractsToRemove = existingContracts.filter(c => {
-      const key = `${c.customer}-${c.site}`;
+      const key = `${c.customer?.toLowerCase()?.trim()}-${c.site?.toLowerCase()?.trim()}`;
       return !projectKeys.has(key);
     });
 
@@ -309,13 +309,13 @@ export class AmcContractsService {
     }
 
     const existingKeys = new Set(
-      existingContracts.map(c => `${c.customer}-${c.site}`)
+      existingContracts.map(c => `${c.customer?.toLowerCase()?.trim()}-${c.site?.toLowerCase()?.trim()}`)
     );
 
     const createdContracts: AmcContract[] = [];
 
     for (const project of commissionedProjects) {
-      const key = `${project.customerName}-${project.site}`;
+      const key = `${project.customerName?.toLowerCase()?.trim()}-${project.site?.toLowerCase()?.trim()}`;
       
       // Skip if AMC already exists for this customer+site
       if (existingKeys.has(key)) {
@@ -356,13 +356,13 @@ export class AmcContractsService {
       const createdContract = new this.amcContractModel(contractData);
       const saved = await createdContract.save();
       
+      // Add to existingKeys to prevent duplicates in same batch
+      existingKeys.add(key);
+      
       createdContracts.push({
         ...saved.toObject(),
         id: saved.contractId,
       } as AmcContract);
-
-      // Add to existing keys to prevent duplicates within this batch
-      existingKeys.add(key);
     }
 
     return {
@@ -370,5 +370,58 @@ export class AmcContractsService {
       removed: removedCount,
       contracts: createdContracts,
     };
+  }
+
+  /**
+   * Force remove all duplicate AMC contracts
+   * Keeps only one contract per customer-site combination (oldest one)
+   */
+  async forceRemoveDuplicates(): Promise<{ deleted: number; remaining: number }> {
+    try {
+      const contracts = await this.amcContractModel
+        .find({ isDeleted: { $ne: true } })
+        .sort({ createdAt: 1 })
+        .lean()
+        .exec();
+
+      const grouped = new Map<string, any[]>();
+      
+      for (const contract of contracts) {
+        const key = `${contract.customer?.toLowerCase()?.trim()}-${contract.site?.toLowerCase()?.trim()}`;
+        if (!grouped.has(key)) {
+          grouped.set(key, []);
+        }
+        grouped.get(key)?.push(contract);
+      }
+
+      const toDelete: string[] = [];
+      
+      for (const [key, group] of grouped) {
+        if (group.length > 1) {
+          // Keep first (oldest), delete rest
+          for (let i = 1; i < group.length; i++) {
+            const id = group[i]._id?.toString();
+            if (id && Types.ObjectId.isValid(id)) {
+              toDelete.push(id);
+            }
+          }
+        }
+      }
+
+      let deletedCount = 0;
+      if (toDelete.length > 0) {
+        const result = await this.amcContractModel.deleteMany({
+          _id: { $in: toDelete.map(id => new Types.ObjectId(id)) }
+        }).exec();
+        deletedCount = result.deletedCount || 0;
+      }
+
+      const remaining = await this.amcContractModel.countDocuments({ isDeleted: { $ne: true } });
+
+      return { deleted: deletedCount, remaining };
+    } catch (error) {
+      console.error('Error in forceRemoveDuplicates:', error);
+      throw error;
+    }
   }
 }

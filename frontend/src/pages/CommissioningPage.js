@@ -13,6 +13,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { useAuditLog } from '../hooks/useAuditLog';
 import CanAccess, { CanCreate, CanEdit, CanDelete } from '../components/CanAccess';
 import { toast } from '../components/ui/Toast';
+import { api } from '../lib/apiClient';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000/api/v1';
 const TENANT_ID = 'solarcorp'; // Default tenant for seed data
@@ -206,12 +207,9 @@ const CommissioningPage = () => {
     const fetchProjects = async () => {
       try {
         setProjectsLoading(true);
-        const response = await fetch(`${API_BASE_URL}/projects?tenantId=${TENANT_ID}`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch projects');
-        }
-        const data = await response.json();
-        const projectsArray = Array.isArray(data) ? data : (data.data || []);
+        const res = await api.get('/projects', { tenantId: TENANT_ID });
+        const data = res?.data ?? res;
+        const projectsArray = Array.isArray(data) ? data : (data?.data || []);
         // Show all projects in commissioning dropdown (not just Installation stage)
         setProjects(projectsArray);
       } catch (err) {
@@ -354,11 +352,18 @@ const CommissioningPage = () => {
         ]}
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KPICard title="Active Systems" value={active} icon={Sun} trend={+1} trendLabel="commissioned this month" color="solar" />
-        <KPICard title="Total Capacity" value={`${totalKW} kW`} icon={Zap} trend={+80} trendLabel="kW commissioned" color="accent" />
-        <KPICard title="Avg. PR" value={`${avgPR}%`} icon={Cpu} trend={+0.3} trendLabel="above target 78%" color="emerald" />
-        <KPICard title="Pending" value={pending} icon={AlertTriangle} trend={0} trendLabel="awaiting commissioning" color="amber" />
+      {/* Commissioning Overview KPI Cards */}
+      <div className="mb-2">
+        <p className="text-xs text-[var(--text-muted)] mb-2 flex items-center gap-2">
+          <Sun size={12} className="text-[var(--accent-light)]" />
+          <span>Commissioning Overview - System activation and performance tracking</span>
+        </p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <KPICard title="Total Active Systems" value={active} icon={Sun} sub="commissioned and running" color="solar" />
+          <KPICard title="Total Commissioned Capacity" value={`${totalKW} kW`} icon={Zap} sub="active system capacity" color="accent" />
+          <KPICard title="Average Performance Ratio" value={`${avgPR}%`} icon={Cpu} sub="system efficiency metric" color="emerald" />
+          <KPICard title="Total Pending Commissioning" value={pending} icon={AlertTriangle} sub="awaiting activation" color="amber" />
+        </div>
       </div>
 
       <div className="ai-banner">

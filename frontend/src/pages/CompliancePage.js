@@ -14,6 +14,7 @@ import { Progress } from '../components/ui/Progress';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/Tabs';
 import DataTable from '../components/ui/DataTable';
 import { generateCompliancePDF } from '../utils/compliancePdfGenerator';
+import { api } from '../lib/apiClient';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api/v1';
 const TENANT_ID = 'solarcorp';
@@ -226,7 +227,8 @@ const ComplianceKanbanBoard = ({ stages, items, CardComponent, onStageChange, on
     return (
         <div className="overflow-x-auto pb-3">
             <div className="flex gap-3 min-w-max">
-                {stages.map(stage => {
+                {stages?.map(stage => {
+                    if (!stage || !stage.id) return null;
                     const cards = items.filter(i => i.status === stage.id);
                     return (
                         <div key={stage.id}
@@ -305,14 +307,17 @@ const CompliancePage = () => {
                     fetch(`${API_BASE_URL}/compliance/inspections?tenantId=${TENANT_ID}`),
                     fetch(`${API_BASE_URL}/compliance/documents?tenantId=${TENANT_ID}`),
                     fetch(`${API_BASE_URL}/compliance/stats?tenantId=${TENANT_ID}`),
-                    fetch(`${API_BASE_URL}/projects?tenantId=${TENANT_ID}`),
+                    api.get('/projects', { tenantId: TENANT_ID }),
                 ]);
                 if (nmRes.ok) { const data = await nmRes.json(); setNmItems(Array.isArray(data) ? data : (data.data || [])); }
                 if (subRes.ok) { const data = await subRes.json(); setSubItems(Array.isArray(data) ? data : (data.data || [])); }
                 if (insRes.ok) { const data = await insRes.json(); setInspections(Array.isArray(data) ? data : (data.data || [])); }
                 if (docRes.ok) { const data = await docRes.json(); setDocuments(Array.isArray(data) ? data : (data.data || [])); }
                 if (statsRes.ok) { const data = await statsRes.json(); setStats(data); }
-                if (projectsRes.ok) { const data = await projectsRes.json(); setProjects(Array.isArray(data) ? data : (data.data || [])); }
+                {
+                    const data = projectsRes?.data ?? projectsRes;
+                    setProjects(Array.isArray(data) ? data : (data?.data || []));
+                }
             } catch (err) { console.error('Error fetching compliance data:', err); }
         };
         fetchComplianceData();
@@ -789,7 +794,8 @@ const CompliancePage = () => {
                         ) : (
                             <DataTable columns={NM_COLUMNS} data={paginatedNM} rowActions={NM_ACTIONS}
                                 pagination={{ page: nmPage, pageSize, total: nmItems.length, onChange: setNmPage }}
-                                emptyMessage="No net metering applications found." />
+                                emptyMessage="No net metering applications found."
+                                onRowClick={(item) => setSelected({ type: 'nm', data: item })} />
                         )}
                     </div>
                 </TabsContent>
@@ -822,7 +828,8 @@ const CompliancePage = () => {
                         ) : (
                             <DataTable columns={SUB_COLUMNS} data={paginatedSub} rowActions={SUB_ACTIONS}
                                 pagination={{ page: subPage, pageSize, total: subItems.length, onChange: setSubPage }}
-                                emptyMessage="No subsidy applications found." />
+                                emptyMessage="No subsidy applications found."
+                                onRowClick={(item) => setSelected({ type: 'sub', data: item })} />
                         )}
                     </div>
                 </TabsContent>
@@ -834,7 +841,8 @@ const CompliancePage = () => {
                         </div>
                         <DataTable columns={INS_COLUMNS} data={paginatedIns} rowActions={INS_ACTIONS}
                             pagination={{ page: insPage, pageSize, total: inspections.length, onChange: setInsPage }}
-                            emptyMessage="No inspections found." />
+                            emptyMessage="No inspections found."
+                            onRowClick={(item) => setSelected({ type: 'ins', data: item })} />
                     </div>
                 </TabsContent>
 
@@ -845,7 +853,8 @@ const CompliancePage = () => {
                         </div>
                         <DataTable columns={DOC_COLUMNS} data={paginatedDoc} rowActions={DOC_ACTIONS}
                             pagination={{ page: docPage, pageSize, total: documents.length, onChange: setDocPage }}
-                            emptyMessage="No documents found." />
+                            emptyMessage="No documents found."
+                            onRowClick={(item) => setSelected({ type: 'doc', data: item })} />
                     </div>
                 </TabsContent>
             </Tabs>
@@ -1062,12 +1071,12 @@ const CompliancePage = () => {
             </Modal>
 
             {/* Detail Modal */}
-            {selected && (
+            {selected && selected.data && (
                 <Modal open={!!selected} onClose={() => setSelected(null)}
-                    title={selected.type === 'nm' ? `Net Metering — ${selected.data.id || selected.data.applicationId || selected.data._id}` :
-                        selected.type === 'sub' ? `Subsidy — ${selected.data.id || selected.data.subsidyId || selected.data._id}` :
-                            selected.type === 'ins' ? `Inspection — ${selected.data.id || selected.data.inspectionId || selected.data._id}` :
-                                `Document — ${selected.data.id || selected.data.documentId || selected.data._id}`}
+                    title={selected.type === 'nm' ? `Net Metering — ${selected.data?.id || selected.data?.applicationId || selected.data?._id}` :
+                        selected.type === 'sub' ? `Subsidy — ${selected.data?.id || selected.data?.subsidyId || selected.data?._id}` :
+                            selected.type === 'ins' ? `Inspection — ${selected.data?.id || selected.data?.inspectionId || selected.data?._id}` :
+                                `Document — ${selected.data?.id || selected.data?.documentId || selected.data?._id}`}
                     footer={
                         <div className="flex gap-2 justify-end">
                             <Button variant="ghost" onClick={() => setSelected(null)}>Close</Button>

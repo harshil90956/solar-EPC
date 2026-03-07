@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
 import { ReminderProvider } from './context/ReminderContext';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
@@ -17,7 +18,9 @@ import LogisticsPage from './pages/LogisticsPage';
 import InstallationPage from './pages/InstallationPage';
 import CommissioningPage from './pages/CommissioningPage';
 import FinancePage from './pages/FinancePage';
+import FinanceDashboardPage from './pages/FinanceDashboardPage';
 import ServicePage from './pages/ServicePage';
+import ServiceDashboardPage from './pages/ServiceDashboardPage';
 import CompliancePage from './pages/CompliancePage';
 import SettingsPage from './pages/SettingsPage';
 import AdminPage from './pages/AdminPage';
@@ -58,7 +61,9 @@ const PAGE_MAP = {
   installation: { component: InstallationPage, title: 'Installation' },
   commissioning: { component: CommissioningPage, title: 'Commissioning' },
   finance: { component: FinancePage, title: 'Finance' },
+  'finance-dashboard': { component: FinanceDashboardPage, title: 'Finance Dashboard' },
   service: { component: ServicePage, title: 'Service & AMC' },
+  'service-dashboard': { component: ServiceDashboardPage, title: 'Service & AMC Dashboard' },
   compliance: { component: CompliancePage, title: 'Compliance' },
   settings: { component: SettingsPage, title: 'Settings' },
   intelligence: { component: IntelligenceDashboardPage, title: 'AI Intelligence' },
@@ -67,6 +72,16 @@ const PAGE_MAP = {
 };
 
 const APP_NAME = 'Solar OS';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 // ── 404 / Unauthorized Fallback ───────────────────────────────────────────────
 const NotFoundPage = ({ onNavigate, type = '404' }) => (
@@ -105,10 +120,13 @@ const AppInner = () => {
   const { resolvePermission, isModuleEnabled } = useSettings();
   const [currentPage, setCurrentPage] = useState(getInitialPage);
 
+  const [activeTab, setActiveTab] = useState(null);
+
   // ── Sync URL hash on page change ──
-  const navigate = useCallback((page) => {
+  const navigate = useCallback((page, tab = null) => {
     if (!PAGE_MAP[page]) return; // guard unknown routes
     setCurrentPage(page);
+    setActiveTab(tab);
     window.location.hash = `#${page}`;
   }, []);
 
@@ -170,15 +188,17 @@ const AppInner = () => {
 // ── Root ──────────────────────────────────────────────────────────────────────
 function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <SettingsProvider>
-          <ReminderProvider>
-            <AppInner />
-          </ReminderProvider>
-        </SettingsProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <AuthProvider>
+          <SettingsProvider>
+            <ReminderProvider>
+              <AppInner />
+            </ReminderProvider>
+          </SettingsProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 }
 

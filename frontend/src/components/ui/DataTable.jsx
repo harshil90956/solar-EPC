@@ -92,6 +92,8 @@ const DataTable = ({
 
     hideColumnToggle = false,
 
+    hideSearch = false,
+
 }) => {
 
     // Support both flat props and pagination object for backward compatibility
@@ -314,7 +316,7 @@ const DataTable = ({
 
             <div className="flex items-center gap-2 flex-wrap">
 
-                {onSearch !== undefined && (
+                {!hideSearch && onSearch !== undefined && (
 
                     <div className="relative min-w-[200px] flex-1 max-w-xs">
 
@@ -506,7 +508,7 @@ const DataTable = ({
 
                                         )}
 
-                                        {visibleColumns.map(col => (
+                                        {visibleColumns.map(col     => (
 
                                             <td key={`${i}-${col.key}`} className="px-4 py-3.5">
 
@@ -533,13 +535,19 @@ const DataTable = ({
                                     </td>
 
                                 </tr>
-                            ) : (
-                                data.map((row, index) => (
-                                    <tr key={row[rowKey] || index} className="table-row border-b border-[var(--border-base)] last:border-0 group">
 
-                                        {bulkActions.length > 0 && (
+                            ) : data.map((row, index) => {
+                                if (!row) return null;
+                                return (
+                                <tr 
+                                    key={row[rowKey] || index} 
+                                    className="table-row border-b border-[var(--border-base)] last:border-0 group cursor-pointer"
+                                    onClick={() => onRowClick?.(row)}
+                                >
 
-                                            <td className="px-3 py-3.5 sticky left-0 z-10 bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] transition-colors">
+                                    {bulkActions.length > 0 && (
+                                            <td className="px-3 py-3.5 sticky left-0 z-10 bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] transition-colors"
+                                                onClick={e => e.stopPropagation()}>
 
                                                 <input
 
@@ -595,7 +603,8 @@ const DataTable = ({
                                         )}
 
                                     </tr>
-                                )))}
+                                );
+                            })}
                             </tbody>
                         </table>
                     </div>

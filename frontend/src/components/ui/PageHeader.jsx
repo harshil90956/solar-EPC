@@ -8,6 +8,7 @@ export const PageHeader = ({
   activeTab, 
   onTabChange, 
   actions = [],
+  preTabsContent = null,
   className 
 }) => {
   return (
@@ -19,8 +20,15 @@ export const PageHeader = ({
           {subtitle && <p className="text-xs text-[var(--text-muted)] mt-0.5">{subtitle}</p>}
         </div>
 
-        {/* Right Section: Tabs + Actions */}
+        {/* Right Section: Pre-tabs + Tabs + Actions */}
         <div className="flex items-center gap-3 flex-wrap">
+          {/* Pre-tabs content (e.g., view toggle buttons) */}
+          {preTabsContent && (
+            <div className="flex items-center gap-1">
+              {preTabsContent}
+            </div>
+          )}
+          
           {/* Tabs/Pills */}
           {tabs.length > 0 && (
             <div className="flex items-center gap-1 p-1 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-base)]">

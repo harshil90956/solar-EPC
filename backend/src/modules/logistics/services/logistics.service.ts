@@ -1,9 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Dispatch } from '../schemas/dispatch.schema';
 import { Vendor } from '../schemas/vendor.schema';
 import { InventoryService } from '../../inventory/services/inventory.service';
+
+interface UserWithVisibility {
+  id?: string;
+  _id?: string;
+  dataScope?: 'ALL' | 'ASSIGNED';
+}
 
 @Injectable()
 export class LogisticsService {
@@ -14,8 +20,30 @@ export class LogisticsService {
   ) {}
 
   // Dispatch methods
-  async findAll(): Promise<Dispatch[]> {
-    return this.dispatchModel.find({ isActive: true }).exec();
+  async findAll(user?: UserWithVisibility): Promise<Dispatch[]> {
+    const query: any = { isActive: true };
+    
+    console.log(`[LOGISTICS VISIBILITY] user:`, JSON.stringify(user));
+    console.log(`[LOGISTICS VISIBILITY] user?.dataScope:`, user?.dataScope);
+    
+    // Apply visibility filter based on user's dataScope
+    if (user?.dataScope === 'ASSIGNED') {
+      const userId = user._id || user.id;
+      console.log(`[LOGISTICS VISIBILITY] userId:`, userId);
+      if (userId) {
+        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
+          ? new Types.ObjectId(userId)
+          : userId;
+        // STRICT: Only show dispatches explicitly assigned to this user
+        query.assignedTo = objectId;
+        console.log(`[LOGISTICS VISIBILITY] Applied STRICT assignedTo filter:`, objectId);
+      }
+    } else {
+      console.log(`[LOGISTICS VISIBILITY] No filter applied - ALL scope or no user`);
+    }
+    
+    console.log(`[LOGISTICS VISIBILITY] Final query:`, JSON.stringify(query));
+    return this.dispatchModel.find(query).exec();
   }
 
   async findOne(id: string): Promise<Dispatch | null> {
@@ -66,8 +94,24 @@ export class LogisticsService {
     return this.dispatchModel.findOneAndUpdate({ id }, { isActive: false }, { new: true }).exec();
   }
 
-  async getStats() {
-    const dispatches = await this.dispatchModel.find({ isActive: true }).exec();
+  async getStats(user?: UserWithVisibility) {
+    const query: any = { isActive: true };
+    
+    // Apply visibility filter based on user's dataScope
+    if (user?.dataScope === 'ASSIGNED') {
+      const userId = user._id || user.id;
+      if (userId) {
+        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
+          ? new Types.ObjectId(userId)
+          : userId;
+        // STRICT: Only include dispatches explicitly assigned to this user
+        query.assignedTo = objectId;
+        console.log(`[LOGISTICS STATS VISIBILITY] Applied assignedTo filter:`, objectId);
+      }
+    }
+    
+    console.log(`[LOGISTICS STATS VISIBILITY] Query:`, JSON.stringify(query));
+    const dispatches = await this.dispatchModel.find(query).exec();
     return {
       total: dispatches.length,
       delivered: dispatches.filter(d => d.status === 'Delivered').length,
@@ -78,8 +122,31 @@ export class LogisticsService {
   }
 
   // Vendor methods
-  async findAllVendors(): Promise<Vendor[]> {
-    return this.vendorModel.find({ isActive: true }).exec();
+  async findAllVendors(user?: UserWithVisibility): Promise<Vendor[]> {
+    console.log(`[LOGISTICS VENDORS] Called with user:`, JSON.stringify(user));
+    const query: any = { $or: [{ isActive: { $ne: false } }, { isActive: { $exists: false } }] };
+    
+    console.log(`[LOGISTICS VENDORS] user?.dataScope:`, user?.dataScope);
+    // Apply visibility filter based on user's dataScope
+    if (user?.dataScope === 'ASSIGNED') {
+      const userId = user._id || user.id;
+      console.log(`[LOGISTICS VENDORS] userId:`, userId);
+      if (userId) {
+        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
+          ? new Types.ObjectId(userId)
+          : userId;
+        // STRICT: Only show vendors explicitly assigned to this user
+        query.assignedTo = objectId;
+        console.log(`[LOGISTICS VENDORS VISIBILITY] Applied assignedTo filter:`, objectId);
+      }
+    } else {
+      console.log(`[LOGISTICS VENDORS] SKIPPING filter - dataScope is not ASSIGNED`);
+    }
+    
+    console.log(`[LOGISTICS VENDORS] Final query:`, JSON.stringify(query));
+    const results = await this.vendorModel.find(query).exec();
+    console.log(`[LOGISTICS VENDORS] Found:`, results.length, 'records');
+    return results;
   }
 
   async findVendorById(id: string): Promise<Vendor | null> {
@@ -88,11 +155,17 @@ export class LogisticsService {
 
   async createVendor(data: Partial<Vendor>): Promise<Vendor> {
     try {
-      const lastVendor = await this.vendorModel.findOne().sort({ _id: -1 }).exec();
-      const nextId = lastVendor ? this.generateNextVendorId(lastVendor.id) : 'V001';
-      
+      // Find the vendor with highest ID number
+      const allVendors = await this.vendorModel.find().exec();
+      let maxNum = 0;
+      allVendors.forEach(v => {
+        const num = parseInt(v.id?.replace('V', '') || '0');
+        if (num > maxNum) maxNum = num;
+      });
+      const nextId = `V${(maxNum + 1).toString().padStart(3, '0')}`;
+
       console.log('Creating vendor with ID:', nextId, 'Data:', data);
-      
+
       const newVendor = new this.vendorModel({
         ...data,
         id: nextId,
@@ -100,7 +173,7 @@ export class LogisticsService {
         totalOrders: 0,
         rating: data.rating || 5,
       });
-      
+
       const saved = await newVendor.save();
       console.log('Vendor created successfully:', saved.id);
       return saved;
