@@ -25,6 +25,7 @@ const Layout = ({ currentPage, onNavigate, children }) => {
   const { isModuleEnabled, resolvePermission, userOverrides, customRoles } = useSettings();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarHovered, setSidebarHovered] = useState(false);
+  const [expandedMenus, setExpandedMenus] = useState({ hrm: false });
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -100,12 +101,12 @@ const Layout = ({ currentPage, onNavigate, children }) => {
     items: section.items.filter(item => {
       const hasModuleAccess = isModuleEnabled(item.id);
       if (!hasModuleAccess) return false;
-      
+
       // Check view permission using resolvePermission (supports custom roles)
       const userId = user?.id;
       const roleId = user?.role;
       const canView = resolvePermission(userId, roleId, item.id, 'view');
-      
+
       return canView;
     }),
   })).filter(s => s.items.length > 0);
@@ -626,41 +627,92 @@ const Layout = ({ currentPage, onNavigate, children }) => {
                 )}
                 {section.items.map(item => {
                   const Icon = item.icon;
-                  const active = currentPage === item.id;
+                  const hasChildren = item.children && item.children.length > 0;
+                  const isExpanded = expandedMenus[item.id];
+                  const isChildActive = hasChildren && item.children.some(child => child.id === currentPage);
+                  const isActive = currentPage === item.id || isChildActive;
+
                   return (
-                    <button
-                      key={item.id}
-                      onClick={() => { onNavigate(item.id); close(); setSidebarHovered(false); }}
-                      title={!showLabels ? item.label : undefined}
-                      className={cn(
-                        'w-full flex items-center transition-all duration-150',
-                        showLabels ? 'nav-item' : 'justify-center py-2 px-1 rounded-lg my-0.5',
-                        active && showLabels && !sidebarHasCustomColor && 'nav-item-active',
-                        active && showLabels && sidebarHasCustomColor && 'bg-white/15 text-white font-semibold',
-                        active && !showLabels && 'bg-[var(--primary)]/15',
-                        !active && !showLabels && 'hover:bg-[var(--bg-hover)]',
-                        !active && sidebarHasCustomColor && showLabels && 'text-white/60 hover:text-white/90 hover:bg-white/10',
-                      )}
-                    >
-                      <Icon
-                        size={showLabels ? 13 : 16}
+                    <div key={item.id}>
+                      <button
+                        onClick={() => {
+                          if (hasChildren) {
+                            setExpandedMenus(prev => ({ ...prev, [item.id]: !prev[item.id] }));
+                          } else {
+                            onNavigate(item.id);
+                            close();
+                            setSidebarHovered(false);
+                          }
+                        }}
+                        title={!showLabels ? item.label : undefined}
                         className={cn(
-                          'shrink-0',
-                          active
-                            ? (sidebarHasCustomColor ? 'text-white' : 'text-[var(--primary-light)]')
-                            : (sidebarHasCustomColor ? 'text-white/40' : 'text-[var(--text-faint)]')
+                          'w-full flex items-center transition-all duration-150',
+                          showLabels ? 'nav-item' : 'justify-center py-2 px-1 rounded-lg my-0.5',
+                          (isActive || isChildActive) && showLabels && !sidebarHasCustomColor && 'nav-item-active',
+                          (isActive || isChildActive) && showLabels && sidebarHasCustomColor && 'bg-white/15 text-white font-semibold',
+                          (isActive || isChildActive) && !showLabels && 'bg-[var(--primary)]/15',
+                          !isActive && !showLabels && 'hover:bg-[var(--bg-hover)]',
+                          !isActive && sidebarHasCustomColor && showLabels && 'text-white/60 hover:text-white/90 hover:bg-white/10',
                         )}
-                      />
-                      {showLabels && <span className="truncate text-[11px]">{item.label}</span>}
-                      {showLabels && item.badge && (
-                        <span className={cn(
-                          'ml-auto text-[8px] rounded-full px-1.5 py-0.5 font-bold',
-                          item.badgeVariant === 'red' ? 'bg-red-500 text-white' :
-                            item.badgeVariant === 'amber' ? 'bg-amber-500 text-black' :
-                              'bg-[var(--primary)] text-white'
-                        )}>{badgeCounts[item.id]}</span>
+                      >
+                        <Icon
+                          size={showLabels ? 13 : 16}
+                          className={cn(
+                            'shrink-0',
+                            (isActive || isChildActive)
+                              ? (sidebarHasCustomColor ? 'text-white' : 'text-[var(--primary-light)]')
+                              : (sidebarHasCustomColor ? 'text-white/40' : 'text-[var(--text-faint)]')
+                          )}
+                        />
+                        {showLabels && <span className="truncate text-[11px]">{item.label}</span>}
+                        {showLabels && hasChildren && (
+                          <ChevronDown
+                            size={12}
+                            className={cn(
+                              'ml-auto transition-transform duration-200',
+                              isExpanded ? 'rotate-180' : ''
+                            )}
+                          />
+                        )}
+                        {showLabels && item.badge && (
+                          <span className={cn(
+                            'ml-auto text-[8px] rounded-full px-1.5 py-0.5 font-bold',
+                            item.badgeVariant === 'red' ? 'bg-red-500 text-white' :
+                              item.badgeVariant === 'amber' ? 'bg-amber-500 text-black' :
+                                'bg-[var(--primary)] text-white'
+                          )}>{badgeCounts[item.id]}</span>
+                        )}
+                      </button>
+
+                      {/* Dropdown for children */}
+                      {showLabels && hasChildren && isExpanded && (
+                        <div className="ml-4 mt-1 space-y-0.5 border-l border-[var(--border-base)] pl-2">
+                          {item.children.map(child => {
+                            const ChildIcon = child.icon;
+                            const isChildActive = currentPage === child.id;
+                            return (
+                              <button
+                                key={child.id}
+                                onClick={() => {
+                                  onNavigate(child.id);
+                                  close();
+                                  setSidebarHovered(false);
+                                }}
+                                className={cn(
+                                  'w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] transition-all duration-150',
+                                  isChildActive
+                                    ? 'bg-[var(--primary)]/10 text-[var(--primary-light)] font-medium'
+                                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                                )}
+                              >
+                                <ChildIcon size={12} className="shrink-0" />
+                                <span className="truncate">{child.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       )}
-                    </button>
+                    </div>
                   );
                 })}
               </div>

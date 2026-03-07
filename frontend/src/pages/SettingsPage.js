@@ -537,106 +537,106 @@ const RBACPanel = () => {
             {roleList.length > 0 && (
                 <>
 
-            {/* Role selector tabs */}
-            <div className="flex flex-wrap gap-2 mb-5">
-                {roleList?.map(role => (
-                    <button key={role.id} onClick={() => setSelectedRole(role.id)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${selectedRole === role.id ? 'text-white border-transparent' : 'border-[var(--border-base)] text-[var(--text-faint)] hover:text-[var(--text-primary)]'}`}
-                        style={selectedRole === role.id ? { background: role.color, borderColor: role.color } : {}}>
-                        {role.label}
-                    </button>
-                ))}
-            </div>
-
-            {/* Selected role header */}
-            <div className="flex items-center justify-between gap-4 p-4 rounded-xl mb-4"
-                style={{ background: roleDef?.bg, border: `1px solid ${roleDef?.color}30` }}>
-                <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-black"
-                        style={{ background: roleDef?.color }}>
-                        {roleDef?.label.charAt(0)}
-                    </div>
-                    <div>
-                        <p className="text-xs font-extrabold text-[var(--text-primary)]">{roleDef?.label}</p>
-                        <p className="text-[10px] text-[var(--text-faint)]">{roleDef?.description}</p>
-                    </div>
-                </div>
-                <div className="flex items-center gap-3">
-                    <div className="text-right">
-                        <p className="text-lg font-black" style={{ color: roleDef?.color }}>{roleStats.pct}%</p>
-                        <p className="text-[10px] text-[var(--text-faint)]">{roleStats.granted}/{roleStats.total} perms</p>
-                    </div>
-                    {/* Preset buttons */}
-                    <div className="flex flex-col gap-1">
-                        {[['full', 'Full Access'], ['view_only', 'View Only'], ['none', 'No Access']].map(([preset, label]) => (
-                            <button key={preset} onClick={() => setCustomRolePreset(selectedRole, preset, user?.name)}
-                                className="px-2 py-1 rounded text-[9px] font-bold border border-[var(--border-base)] text-[var(--text-faint)] hover:text-[var(--accent)] hover:border-[var(--accent)] transition-colors whitespace-nowrap">
-                                {label}
+                    {/* Role selector tabs */}
+                    <div className="flex flex-wrap gap-2 mb-5">
+                        {roleList?.map(role => (
+                            <button key={role.id} onClick={() => setSelectedRole(role.id)}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${selectedRole === role.id ? 'text-white border-transparent' : 'border-[var(--border-base)] text-[var(--text-faint)] hover:text-[var(--text-primary)]'}`}
+                                style={selectedRole === role.id ? { background: role.color, borderColor: role.color } : {}}>
+                                {role.label}
                             </button>
                         ))}
                     </div>
-                </div>
-            </div>
 
-            {/* Module search */}
-            <div className="relative mb-3">
-                <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" />
-                <input value={modFilter} onChange={e => setModFilter(e.target.value)} placeholder="Filter modules…"
-                    className="w-full pl-7 pr-3 py-1.5 rounded-lg border border-[var(--border-base)] bg-[var(--bg-elevated)] text-xs text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--accent)]" />
-            </div>
+                    {/* Selected role header */}
+                    <div className="flex items-center justify-between gap-4 p-4 rounded-xl mb-4"
+                        style={{ background: roleDef?.bg, border: `1px solid ${roleDef?.color}30` }}>
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-black"
+                                style={{ background: roleDef?.color }}>
+                                {roleDef?.label.charAt(0)}
+                            </div>
+                            <div>
+                                <p className="text-xs font-extrabold text-[var(--text-primary)]">{roleDef?.label}</p>
+                                <p className="text-[10px] text-[var(--text-faint)]">{roleDef?.description}</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <div className="text-right">
+                                <p className="text-lg font-black" style={{ color: roleDef?.color }}>{roleStats.pct}%</p>
+                                <p className="text-[10px] text-[var(--text-faint)]">{roleStats.granted}/{roleStats.total} perms</p>
+                            </div>
+                            {/* Preset buttons */}
+                            <div className="flex flex-col gap-1">
+                                {[['full', 'Full Access'], ['view_only', 'View Only'], ['none', 'No Access']].map(([preset, label]) => (
+                                    <button key={preset} onClick={() => setCustomRolePreset(selectedRole, preset, user?.name)}
+                                        className="px-2 py-1 rounded text-[9px] font-bold border border-[var(--border-base)] text-[var(--text-faint)] hover:text-[var(--accent)] hover:border-[var(--accent)] transition-colors whitespace-nowrap">
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
 
-            {/* Permission Matrix Table */}
-            <div className="glass-card overflow-x-auto">
-                <table className="w-full">
-                    <thead className="bg-[var(--bg-elevated)] border-b border-[var(--border-base)]">
-                        <tr>
-                            <th className="px-4 py-3 text-left text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wide w-40">Module</th>
-                            {ACTION_DEFS.map(act => (
-                                <th key={act.id} className="px-3 py-3 text-center text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wide">
-                                    {act.label}
-                                </th>
-                            ))}
-                            <th className="px-3 py-3 text-center text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wide">Access</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {filteredMods.map((mod, i) => {
-                            const row = roleDef?.permissions?.[mod.id] || {};
-                            const accessCount = ACTION_DEFS.filter(a => row[a.id]).length;
-                            return (
-                                <tr key={mod.id} className={`border-b border-[var(--border-base)] transition-colors hover:bg-[var(--bg-hover)] ${i % 2 === 0 ? '' : 'bg-[var(--bg-elevated)]/40'}`}>
-                                    <td className="px-4 py-3">
-                                        <div className="flex items-center gap-2">
-                                            <ModIcon name={mod.icon} size={12} className="text-[var(--text-faint)]" />
-                                            <span className="text-xs font-semibold text-[var(--text-primary)] whitespace-nowrap">{mod.label}</span>
-                                        </div>
-                                    </td>
-                                    {ACTION_DEFS.map(act => {
-                                        const granted = row[act.id] ?? false;
-                                        return (
-                                            <td key={act.id} className="px-3 py-3 text-center">
-                                                <button onClick={() => toggleCustomRolePermission(selectedRole, mod.id, act.id, user?.name)}
-                                                    title={`${granted ? 'Revoke' : 'Grant'} ${act.label} on ${mod.label}`}
-                                                    className={`w-6 h-6 rounded-md mx-auto flex items-center justify-center border transition-all ${granted ? 'border-[var(--accent)]/40 bg-[var(--accent)]/15 text-[var(--accent)]' : 'border-[var(--border-base)] text-[var(--text-faint)] hover:border-[var(--accent)]/40'}`}>
-                                                    {granted ? <Check size={10} strokeWidth={3} /> : <X size={9} strokeWidth={2} />}
-                                                </button>
-                                            </td>
-                                        );
-                                    })}
-                                    <td className="px-3 py-3 text-center">
-                                        <div className="flex items-center justify-center gap-1">
-                                            <div className="w-16 h-1.5 rounded-full bg-[var(--bg-overlay)] overflow-hidden">
-                                                <div className="h-full rounded-full transition-all" style={{ width: `${(accessCount / ACTION_DEFS.length) * 100}%`, background: roleDef?.color }} />
-                                            </div>
-                                            <span className="text-[9px] font-bold" style={{ color: roleDef?.color }}>{accessCount}</span>
-                                        </div>
-                                    </td>
+                    {/* Module search */}
+                    <div className="relative mb-3">
+                        <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" />
+                        <input value={modFilter} onChange={e => setModFilter(e.target.value)} placeholder="Filter modules…"
+                            className="w-full pl-7 pr-3 py-1.5 rounded-lg border border-[var(--border-base)] bg-[var(--bg-elevated)] text-xs text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--accent)]" />
+                    </div>
+
+                    {/* Permission Matrix Table */}
+                    <div className="glass-card overflow-x-auto">
+                        <table className="w-full">
+                            <thead className="bg-[var(--bg-elevated)] border-b border-[var(--border-base)]">
+                                <tr>
+                                    <th className="px-4 py-3 text-left text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wide w-40">Module</th>
+                                    {ACTION_DEFS.map(act => (
+                                        <th key={act.id} className="px-3 py-3 text-center text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wide">
+                                            {act.label}
+                                        </th>
+                                    ))}
+                                    <th className="px-3 py-3 text-center text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wide">Access</th>
                                 </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
-            </div>
+                            </thead>
+                            <tbody>
+                                {filteredMods.map((mod, i) => {
+                                    const row = roleDef?.permissions?.[mod.id] || {};
+                                    const accessCount = ACTION_DEFS.filter(a => row[a.id]).length;
+                                    return (
+                                        <tr key={mod.id} className={`border-b border-[var(--border-base)] transition-colors hover:bg-[var(--bg-hover)] ${i % 2 === 0 ? '' : 'bg-[var(--bg-elevated)]/40'}`}>
+                                            <td className="px-4 py-3">
+                                                <div className="flex items-center gap-2">
+                                                    <ModIcon name={mod.icon} size={12} className="text-[var(--text-faint)]" />
+                                                    <span className="text-xs font-semibold text-[var(--text-primary)] whitespace-nowrap">{mod.label}</span>
+                                                </div>
+                                            </td>
+                                            {ACTION_DEFS.map(act => {
+                                                const granted = row[act.id] ?? false;
+                                                return (
+                                                    <td key={act.id} className="px-3 py-3 text-center">
+                                                        <button onClick={() => toggleCustomRolePermission(selectedRole, mod.id, act.id, user?.name)}
+                                                            title={`${granted ? 'Revoke' : 'Grant'} ${act.label} on ${mod.label}`}
+                                                            className={`w-6 h-6 rounded-md mx-auto flex items-center justify-center border transition-all ${granted ? 'border-[var(--accent)]/40 bg-[var(--accent)]/15 text-[var(--accent)]' : 'border-[var(--border-base)] text-[var(--text-faint)] hover:border-[var(--accent)]/40'}`}>
+                                                            {granted ? <Check size={10} strokeWidth={3} /> : <X size={9} strokeWidth={2} />}
+                                                        </button>
+                                                    </td>
+                                                );
+                                            })}
+                                            <td className="px-3 py-3 text-center">
+                                                <div className="flex items-center justify-center gap-1">
+                                                    <div className="w-16 h-1.5 rounded-full bg-[var(--bg-overlay)] overflow-hidden">
+                                                        <div className="h-full rounded-full transition-all" style={{ width: `${(accessCount / ACTION_DEFS.length) * 100}%`, background: roleDef?.color }} />
+                                                    </div>
+                                                    <span className="text-[9px] font-bold" style={{ color: roleDef?.color }}>{accessCount}</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
                 </>
             )}
         </div>
@@ -1215,7 +1215,7 @@ const RoleBuilderPanel = () => {
 
     const handleCreate = () => {
         if (!newRole.label.trim()) return;
-        const id = createCustomRole(newRole, user?.name);
+        const id = createCustomRole(newRole.label, newRole.description, null, user?.name);
         setSelectedId(id);
         setCreateOpen(false);
         setNewRole({ label: '', description: '', color: '#8b5cf6' });

@@ -47,8 +47,11 @@ export const attendanceApi = {
   checkOut: (data) => hrmApi.post('/attendance/checkout', data),
   getAll: (params) => hrmApi.get('/attendance', { params }),
   getByEmployee: (employeeId) => hrmApi.get(`/attendance/employee/${employeeId}`),
+  getTodaySummary: () => hrmApi.get('/attendance/today-summary'),
   getMonthlySummary: (employeeId, month, year) =>
     hrmApi.get(`/attendance/summary/${employeeId}`, { params: { month, year } }),
+  update: (id, data) => hrmApi.put(`/attendance/${id}`, data),
+  delete: (id) => hrmApi.delete(`/attendance/${id}`),
 };
 
 // ==================== LEAVE APIs ====================

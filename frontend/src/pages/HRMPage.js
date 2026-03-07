@@ -49,7 +49,7 @@ const LEAVE_TYPES = {
 };
 
 // ==================== MAIN COMPONENT ====================
-const HRMPage = () => {
+const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
   const [activeTab, setActiveTab] = useState('employees');
   const [loading, setLoading] = useState(false);
 
@@ -266,7 +266,7 @@ const HRMPage = () => {
     try {
       const response = await employeeApi.create(employeeForm);
       console.log('[DEBUG] Employee created successfully:', response.data);
-      
+
       // If custom role assigned, update user override in settings
       const employeeId = response.data?.data?._id || response.data?._id;
       if (employeeId && employeeForm.roleId?.startsWith('custom_')) {
@@ -277,7 +277,7 @@ const HRMPage = () => {
           console.error('[DEBUG] Failed to assign custom role:', roleError);
         }
       }
-      
+
       toast.success('Employee created successfully');
       setShowEmployeeModal(false);
       fetchEmployees();
@@ -292,7 +292,7 @@ const HRMPage = () => {
   const handleUpdateEmployee = async () => {
     try {
       await employeeApi.update(selectedEmployee._id, employeeForm);
-      
+
       // If custom role changed, update user override in settings
       const oldRoleId = selectedEmployee.roleId;
       const newRoleId = employeeForm.roleId;
@@ -304,7 +304,7 @@ const HRMPage = () => {
           console.error('[DEBUG] Failed to update custom role:', roleError);
         }
       }
-      
+
       toast.success('Employee updated successfully');
       setShowEmployeeModal(false);
       fetchEmployees();
@@ -655,7 +655,7 @@ const HRMPage = () => {
       header: 'Role',
       render: (val, row) => {
         const fullName = `${row.firstName || ''} ${row.lastName || ''}`.trim();
-        const isProjectManager = projectManagers.some(pm => 
+        const isProjectManager = projectManagers.some(pm =>
           pm === fullName || pm === row.firstName || pm === row.lastName
         );
         if (isProjectManager) {
@@ -1026,399 +1026,460 @@ const HRMPage = () => {
         ))}
       </div>
 
-      {/* ── Tabs ── */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="w-full">
-          <TabsTrigger value="employees" className="flex items-center gap-2">
-            <UserCircle size={14} /> Employees
-          </TabsTrigger>
-          <TabsTrigger value="attendance" className="flex items-center gap-2">
-            <Clock size={14} /> Attendance
-          </TabsTrigger>
-          <TabsTrigger value="leaves" className="flex items-center gap-2">
-            <Calendar size={14} /> Leaves
-          </TabsTrigger>
-          <TabsTrigger value="payroll" className="flex items-center gap-2">
-            <Wallet size={14} /> Payroll
-          </TabsTrigger>
-          <TabsTrigger value="increments" className="flex items-center gap-2">
-            <TrendingUp size={14} /> Increments
-          </TabsTrigger>
-          <TabsTrigger value="departments" className="flex items-center gap-2">
-            <Building size={14} /> Departments
-          </TabsTrigger>
-        </TabsList>
-
-        {/* ── Employees Tab ── */}
-        <TabsContent value="employees" className="space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1 max-w-sm">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-              <Input
-                placeholder="Search employees..."
-                value={employeeSearch}
-                onChange={(e) => setEmployeeSearch(e.target.value)}
-                className="pl-9 h-9"
-              />
-            </div>
-          </div>
-          <DataTable
-            columns={employeeColumns}
-            data={filteredEmployees}
-            emptyText="No employees found."
-            loading={loading}
-          />
-        </TabsContent>
-
-        {/* ── Attendance Tab ── */}
-        <TabsContent value="attendance" className="space-y-4">
-          {/* Simple Date Filter */}
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-2 bg-[var(--bg-elevated)] p-2 rounded-lg">
-              <Calendar size={18} className="text-[var(--text-muted)]" />
-              <Input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="w-36 h-8 border-0 bg-transparent"
-              />
-            </div>
-            <Button
-              variant="outline"
-              onClick={() => setSelectedDate(format(new Date(), 'yyyy-MM-dd'))}
-              className="text-xs"
+      {/* ── Vertical Layout with Sidebar ── */}
+      <div className="flex gap-5">
+        {/* ── Left Sidebar Navigation ── */}
+        <div className="w-56 shrink-0">
+          <div className="p-2 space-y-1 sticky top-4">
+            <button
+              onClick={() => onNavigate ? onNavigate('hrm-employees') : setActiveTab('employees')}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'employees'
+                ? 'bg-[var(--primary)] text-white shadow-lg shadow-[var(--primary)]/20'
+                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]'
+                }`}
             >
-              Today
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setSelectedDate('')}
-              className="text-xs"
+              <UserCircle size={18} />
+              Employees
+            </button>
+            <button
+              onClick={() => onNavigate ? onNavigate('hrm-attendance') : setActiveTab('attendance')}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'attendance'
+                ? 'bg-[var(--primary)] text-white shadow-lg shadow-[var(--primary)]/20'
+                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]'
+                }`}
             >
-              All Dates
-            </Button>
-            <div className="relative flex-1 max-w-xs ml-auto">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-              <Input
-                placeholder="Search employee..."
-                value={attendanceSearch}
-                onChange={(e) => setAttendanceSearch(e.target.value)}
-                className="pl-9 h-9"
+              <Clock size={18} />
+              Attendance
+            </button>
+            <button
+              onClick={() => onNavigate ? onNavigate('hrm-leaves') : setActiveTab('leaves')}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'leaves'
+                ? 'bg-[var(--primary)] text-white shadow-lg shadow-[var(--primary)]/20'
+                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]'
+                }`}
+            >
+              <Calendar size={18} />
+              Leaves
+            </button>
+            <button
+              onClick={() => onNavigate ? onNavigate('hrm-payroll') : setActiveTab('payroll')}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'payroll'
+                ? 'bg-[var(--primary)] text-white shadow-lg shadow-[var(--primary)]/20'
+                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]'
+                }`}
+            >
+              <Wallet size={18} />
+              Payroll
+            </button>
+            <button
+              onClick={() => onNavigate ? onNavigate('hrm-increments') : setActiveTab('increments')}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'increments'
+                ? 'bg-[var(--primary)] text-white shadow-lg shadow-[var(--primary)]/20'
+                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]'
+                }`}
+            >
+              <TrendingUp size={18} />
+              Increments
+            </button>
+            <button
+              onClick={() => onNavigate ? onNavigate('hrm-departments') : setActiveTab('departments')}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'departments'
+                ? 'bg-[var(--primary)] text-white shadow-lg shadow-[var(--primary)]/20'
+                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]'
+                }`}
+            >
+              <Building size={18} />
+              Departments
+            </button>
+          </div>
+        </div>
+
+        {/* ── Main Content Area ── */}
+        <div className="flex-1 min-w-0">
+
+          {/* ── Employees Tab ── */}
+          {activeTab === 'employees' && (
+            <div className="space-y-4 animate-fade-in">
+              <div className="flex items-center gap-3">
+                <div className="relative flex-1 max-w-sm">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+                  <Input
+                    placeholder="Search employees..."
+                    value={employeeSearch}
+                    onChange={(e) => setEmployeeSearch(e.target.value)}
+                    className="pl-9 h-9"
+                  />
+                </div>
+              </div>
+              <DataTable
+                columns={employeeColumns}
+                data={filteredEmployees}
+                emptyText="No employees found."
+                loading={loading}
               />
             </div>
-            <Button variant="outline" onClick={fetchAttendance} className="flex items-center gap-2">
-              <RefreshCw size={14} /> Refresh
-            </Button>
-          </div>
+          )}
 
-          {/* Simple Stats Row */}
-          <div className="grid grid-cols-4 gap-3">
-            <div className="glass-card p-3 text-center border-l-4 border-emerald-500">
-              <p className="text-2xl font-bold text-emerald-500">
-                {attendance.filter(a => {
-                  const date = selectedDate || new Date().toISOString().split('T')[0];
-                  const recordDate = new Date(a.date).toISOString().split('T')[0];
-                  return recordDate === date && a.checkIn;
-                }).length}
-              </p>
-              <p className="text-xs text-[var(--text-muted)]">Present</p>
-            </div>
-            <div className="glass-card p-3 text-center border-l-4 border-red-500">
-              <p className="text-2xl font-bold text-red-500">
-                {employees.length - attendance.filter(a => {
-                  const date = selectedDate || new Date().toISOString().split('T')[0];
-                  const recordDate = new Date(a.date).toISOString().split('T')[0];
-                  return recordDate === date && a.checkIn;
-                }).length}
-              </p>
-              <p className="text-xs text-[var(--text-muted)]">Absent</p>
-            </div>
-            <div className="glass-card p-3 text-center border-l-4 border-blue-500">
-              <p className="text-2xl font-bold text-blue-500">
-                {attendance.filter(a => {
-                  const date = selectedDate || new Date().toISOString().split('T')[0];
-                  const recordDate = new Date(a.date).toISOString().split('T')[0];
-                  return recordDate === date && a.checkOut;
-                }).length}
-              </p>
-              <p className="text-xs text-[var(--text-muted)]">Checked Out</p>
-            </div>
-            <div className="glass-card p-3 text-center border-l-4 border-purple-500">
-              <p className="text-2xl font-bold text-purple-500">
-                {attendance.filter(a => {
-                  const date = selectedDate || new Date().toISOString().split('T')[0];
-                  const recordDate = new Date(a.date).toISOString().split('T')[0];
-                  return recordDate === date && a.checkIn && !a.checkOut;
-                }).length}
-              </p>
-              <p className="text-xs text-[var(--text-muted)]">Working</p>
-            </div>
-          </div>
+          {/* ── Attendance Tab ── */}
+          {activeTab === 'attendance' && (
+            <div className="space-y-4 animate-fade-in">
+              {/* Simple Date Filter */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex items-center gap-2 bg-[var(--bg-elevated)] p-2 rounded-lg">
+                  <Calendar size={18} className="text-[var(--text-muted)]" />
+                  <Input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="w-36 h-8 border-0 bg-transparent"
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => setSelectedDate(format(new Date(), 'yyyy-MM-dd'))}
+                  className="text-xs"
+                >
+                  Today
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setSelectedDate('')}
+                  className="text-xs"
+                >
+                  All Dates
+                </Button>
+                <div className="relative flex-1 max-w-xs ml-auto">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+                  <Input
+                    placeholder="Search employee..."
+                    value={attendanceSearch}
+                    onChange={(e) => setAttendanceSearch(e.target.value)}
+                    className="pl-9 h-9"
+                  />
+                </div>
+                <Button variant="outline" onClick={fetchAttendance} className="flex items-center gap-2">
+                  <RefreshCw size={14} /> Refresh
+                </Button>
+              </div>
 
-          {/* All Employees Attendance List */}
-          <div className="glass-card p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold">
-                {selectedDate ? format(new Date(selectedDate), 'dd MMM yyyy') : 'All Dates'} - Employee Attendance
-              </h3>
-              <p className="text-sm text-[var(--text-muted)]">{filteredAttendance.length} records</p>
-            </div>
+              {/* Simple Stats Row */}
+              <div className="grid grid-cols-4 gap-3">
+                <div className="glass-card p-3 text-center border-l-4 border-emerald-500">
+                  <p className="text-2xl font-bold text-emerald-500">
+                    {attendance.filter(a => {
+                      const date = selectedDate || new Date().toISOString().split('T')[0];
+                      const recordDate = new Date(a.date).toISOString().split('T')[0];
+                      return recordDate === date && a.checkIn;
+                    }).length}
+                  </p>
+                  <p className="text-xs text-[var(--text-muted)]">Present</p>
+                </div>
+                <div className="glass-card p-3 text-center border-l-4 border-red-500">
+                  <p className="text-2xl font-bold text-red-500">
+                    {employees.length - attendance.filter(a => {
+                      const date = selectedDate || new Date().toISOString().split('T')[0];
+                      const recordDate = new Date(a.date).toISOString().split('T')[0];
+                      return recordDate === date && a.checkIn;
+                    }).length}
+                  </p>
+                  <p className="text-xs text-[var(--text-muted)]">Absent</p>
+                </div>
+                <div className="glass-card p-3 text-center border-l-4 border-blue-500">
+                  <p className="text-2xl font-bold text-blue-500">
+                    {attendance.filter(a => {
+                      const date = selectedDate || new Date().toISOString().split('T')[0];
+                      const recordDate = new Date(a.date).toISOString().split('T')[0];
+                      return recordDate === date && a.checkOut;
+                    }).length}
+                  </p>
+                  <p className="text-xs text-[var(--text-muted)]">Checked Out</p>
+                </div>
+                <div className="glass-card p-3 text-center border-l-4 border-purple-500">
+                  <p className="text-2xl font-bold text-purple-500">
+                    {attendance.filter(a => {
+                      const date = selectedDate || new Date().toISOString().split('T')[0];
+                      const recordDate = new Date(a.date).toISOString().split('T')[0];
+                      return recordDate === date && a.checkIn && !a.checkOut;
+                    }).length}
+                  </p>
+                  <p className="text-xs text-[var(--text-muted)]">Working</p>
+                </div>
+              </div>
 
-            <div className="space-y-2">
-              {employees.length === 0 ? (
-                <p className="text-center text-[var(--text-muted)] py-8">No employees found</p>
-              ) : (
-                employees.map(emp => {
-                  const date = selectedDate || new Date().toISOString().split('T')[0];
-                  const record = attendance.find(a => {
-                    const recordDate = new Date(a.date).toISOString().split('T')[0];
-                    return (a.employeeId?._id === emp._id || a.employeeId === emp._id) && recordDate === date;
-                  });
+              {/* All Employees Attendance List */}
+              <div className="glass-card p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold">
+                    {selectedDate ? format(new Date(selectedDate), 'dd MMM yyyy') : 'All Dates'} - Employee Attendance
+                  </h3>
+                  <p className="text-sm text-[var(--text-muted)]">{filteredAttendance.length} records</p>
+                </div>
 
-                  // Status Badge
-                  let statusBadge;
-                  let statusColor;
-                  if (!record) {
-                    statusBadge = <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-500/10 text-red-500 border border-red-500/20">Absent</span>;
-                    statusColor = 'border-l-red-500';
-                  } else if (record.checkOut) {
-                    statusBadge = <span className="px-2 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">Completed</span>;
-                    statusColor = 'border-l-emerald-500';
-                  } else {
-                    statusBadge = <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-500/10 text-blue-500 border border-blue-500/20">Working</span>;
-                    statusColor = 'border-l-blue-500';
-                  }
+                <div className="space-y-2">
+                  {employees.length === 0 ? (
+                    <p className="text-center text-[var(--text-muted)] py-8">No employees found</p>
+                  ) : (
+                    employees.map(emp => {
+                      const date = selectedDate || new Date().toISOString().split('T')[0];
+                      const record = attendance.find(a => {
+                        const recordDate = new Date(a.date).toISOString().split('T')[0];
+                        return (a.employeeId?._id === emp._id || a.employeeId === emp._id) && recordDate === date;
+                      });
 
-                  return (
-                    <div key={emp._id} className={`flex items-center justify-between p-3 bg-[var(--bg-elevated)] rounded-lg border-l-4 ${statusColor}`}>
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--accent)] text-white flex items-center justify-center font-bold text-sm">
-                          {emp.firstName[0]}{emp.lastName[0]}
-                        </div>
-                        <div>
-                          <p className="font-medium">{emp.firstName} {emp.lastName}</p>
-                          <p className="text-xs text-[var(--text-muted)]">{emp.employeeId} • {emp.department || 'No Dept'}</p>
-                        </div>
-                        <div className="ml-2">{statusBadge}</div>
-                      </div>
+                      // Status Badge
+                      let statusBadge;
+                      let statusColor;
+                      if (!record) {
+                        statusBadge = <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-500/10 text-red-500 border border-red-500/20">Absent</span>;
+                        statusColor = 'border-l-red-500';
+                      } else if (record.checkOut) {
+                        statusBadge = <span className="px-2 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">Completed</span>;
+                        statusColor = 'border-l-emerald-500';
+                      } else {
+                        statusBadge = <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-500/10 text-blue-500 border border-blue-500/20">Working</span>;
+                        statusColor = 'border-l-blue-500';
+                      }
 
-                      <div className="flex items-center gap-4">
-                        {record ? (
-                          <div className="text-right">
-                            {record.checkIn && (
-                              <p className="text-sm text-emerald-600 font-medium">
-                                In: {format(new Date(record.checkIn), 'hh:mm a')}
-                              </p>
-                            )}
-                            {record.checkOut && (
-                              <p className="text-sm text-blue-600 font-medium">
-                                Out: {format(new Date(record.checkOut), 'hh:mm a')}
-                              </p>
-                            )}
-                            {record.totalHours > 0 && (
-                              <p className="text-xs text-[var(--text-muted)]">{record.totalHours} hrs</p>
+                      return (
+                        <div key={emp._id} className={`flex items-center justify-between p-3 bg-[var(--bg-elevated)] rounded-lg border-l-4 ${statusColor}`}>
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--accent)] text-white flex items-center justify-center font-bold text-sm">
+                              {emp.firstName[0]}{emp.lastName[0]}
+                            </div>
+                            <div>
+                              <p className="font-medium">{emp.firstName} {emp.lastName}</p>
+                              <p className="text-xs text-[var(--text-muted)]">{emp.employeeId} • {emp.department || 'No Dept'}</p>
+                            </div>
+                            <div className="ml-2">{statusBadge}</div>
+                          </div>
+
+                          <div className="flex items-center gap-4">
+                            {record ? (
+                              <div className="text-right">
+                                {record.checkIn && (
+                                  <p className="text-sm text-emerald-600 font-medium">
+                                    In: {format(new Date(record.checkIn), 'hh:mm a')}
+                                  </p>
+                                )}
+                                {record.checkOut && (
+                                  <p className="text-sm text-blue-600 font-medium">
+                                    Out: {format(new Date(record.checkOut), 'hh:mm a')}
+                                  </p>
+                                )}
+                                {record.totalHours > 0 && (
+                                  <p className="text-xs text-[var(--text-muted)]">{record.totalHours} hrs</p>
+                                )}
+                              </div>
+                            ) : null}
+
+                            {record && !record.checkOut ? (
+                              <Button
+                                variant="outline"
+                                onClick={() => handleCheckOut(emp._id)}
+                                className="text-blue-500 border-blue-500/30 hover:bg-blue-500/10 text-xs flex items-center gap-1"
+                              >
+                                <LogOut size={12} /> Check Out
+                              </Button>
+                            ) : !record ? (
+                              <Button
+                                variant="outline"
+                                onClick={() => {
+                                  setAttendanceForm({ employeeId: emp._id, type: 'office', notes: '' });
+                                  setShowAttendanceModal(true);
+                                }}
+                                className="text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/10 text-xs flex items-center gap-1"
+                              >
+                                <LogIn size={12} /> Check In
+                              </Button>
+                            ) : (
+                              <span className="px-2 py-1 text-xs text-emerald-600 bg-emerald-500/10 rounded">Done</span>
                             )}
                           </div>
-                        ) : null}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
 
-                        {record && !record.checkOut ? (
-                          <Button
-                            variant="outline"
-                            onClick={() => handleCheckOut(emp._id)}
-                            className="text-blue-500 border-blue-500/30 hover:bg-blue-500/10 text-xs flex items-center gap-1"
-                          >
-                            <LogOut size={12} /> Check Out
-                          </Button>
-                        ) : !record ? (
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setAttendanceForm({ employeeId: emp._id, type: 'office', notes: '' });
-                              setShowAttendanceModal(true);
-                            }}
-                            className="text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/10 text-xs flex items-center gap-1"
-                          >
-                            <LogIn size={12} /> Check In
-                          </Button>
-                        ) : (
-                          <span className="px-2 py-1 text-xs text-emerald-600 bg-emerald-500/10 rounded">Done</span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
+              {/* Attendance History Table */}
+              <div className="glass-card p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold">Attendance History</h3>
+                  <p className="text-sm text-[var(--text-muted)]">{filteredAttendance.length} records</p>
+                </div>
+                <DataTable
+                  columns={[
+                    {
+                      key: 'employeeId',
+                      header: 'Employee',
+                      render: (val) => (
+                        <div>
+                          <p className="font-medium text-sm">{val?.firstName} {val?.lastName}</p>
+                          <p className="text-xs text-[var(--text-muted)]">{val?.employeeId}</p>
+                        </div>
+                      ),
+                    },
+                    {
+                      key: 'date',
+                      header: 'Date',
+                      render: (val) => format(new Date(val), 'dd MMM yyyy'),
+                    },
+                    {
+                      key: 'checkIn',
+                      header: 'Check In',
+                      render: (val) => val ? format(new Date(val), 'hh:mm a') : '-',
+                    },
+                    {
+                      key: 'checkOut',
+                      header: 'Check Out',
+                      render: (val) => val ? format(new Date(val), 'hh:mm a') : '-',
+                    },
+                    {
+                      key: 'totalHours',
+                      header: 'Hours',
+                      render: (val) => <span className="font-medium">{val || 0} hrs</span>,
+                    },
+                    {
+                      key: 'type',
+                      header: 'Type',
+                      render: (val) => (
+                        <span className="px-2 py-1 rounded-full text-xs bg-[var(--bg-elevated)] border border-[var(--border-color)]">
+                          {val || 'office'}
+                        </span>
+                      ),
+                    },
+                  ]}
+                  data={filteredAttendance}
+                  emptyText="No attendance records found."
+                />
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Attendance History Table */}
-          <div className="glass-card p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold">Attendance History</h3>
-              <p className="text-sm text-[var(--text-muted)]">{filteredAttendance.length} records</p>
-            </div>
-            <DataTable
-              columns={[
-                {
-                  key: 'employeeId',
-                  header: 'Employee',
-                  render: (val) => (
-                    <div>
-                      <p className="font-medium text-sm">{val?.firstName} {val?.lastName}</p>
-                      <p className="text-xs text-[var(--text-muted)]">{val?.employeeId}</p>
-                    </div>
-                  ),
-                },
-                {
-                  key: 'date',
-                  header: 'Date',
-                  render: (val) => format(new Date(val), 'dd MMM yyyy'),
-                },
-                {
-                  key: 'checkIn',
-                  header: 'Check In',
-                  render: (val) => val ? format(new Date(val), 'hh:mm a') : '-',
-                },
-                {
-                  key: 'checkOut',
-                  header: 'Check Out',
-                  render: (val) => val ? format(new Date(val), 'hh:mm a') : '-',
-                },
-                {
-                  key: 'totalHours',
-                  header: 'Hours',
-                  render: (val) => <span className="font-medium">{val || 0} hrs</span>,
-                },
-                {
-                  key: 'type',
-                  header: 'Type',
-                  render: (val) => (
-                    <span className="px-2 py-1 rounded-full text-xs bg-[var(--bg-elevated)] border border-[var(--border-color)]">
-                      {val || 'office'}
-                    </span>
-                  ),
-                },
-              ]}
-              data={filteredAttendance}
-              emptyText="No attendance records found."
-            />
-          </div>
-        </TabsContent>
-
-        {/* ── Leaves Tab ── */}
-        <TabsContent value="leaves" className="space-y-4">
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="relative flex-1 min-w-[200px] max-w-sm">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-              <Input
-                placeholder="Search leaves..."
-                value={leaveSearch}
-                onChange={(e) => setLeaveSearch(e.target.value)}
-                className="pl-9 h-9"
+          {/* ── Leaves Tab ── */}
+          {activeTab === 'leaves' && (
+            <div className="space-y-4 animate-fade-in">
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="relative flex-1 min-w-[200px] max-w-sm">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+                  <Input
+                    placeholder="Search leaves..."
+                    value={leaveSearch}
+                    onChange={(e) => setLeaveSearch(e.target.value)}
+                    className="pl-9 h-9"
+                  />
+                </div>
+                <Select
+                  value={leaveStatusFilter}
+                  onChange={(e) => setLeaveStatusFilter(e.target.value)}
+                  className="w-32 h-9"
+                >
+                  <option value="all">All Status</option>
+                  <option value="pending">Pending</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                </Select>
+                <p className="text-sm text-[var(--text-muted)]">
+                  {filteredLeaves.length} of {leaves.length} records
+                </p>
+                <Button variant="outline" onClick={fetchLeaves} className="ml-auto">
+                  <RefreshCw size={14} /> Refresh
+                </Button>
+              </div>
+              <DataTable
+                columns={leaveColumns}
+                data={filteredLeaves}
+                emptyText="No leave records found."
               />
             </div>
-            <Select
-              value={leaveStatusFilter}
-              onChange={(e) => setLeaveStatusFilter(e.target.value)}
-              className="w-32 h-9"
-            >
-              <option value="all">All Status</option>
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
-            </Select>
-            <p className="text-sm text-[var(--text-muted)]">
-              {filteredLeaves.length} of {leaves.length} records
-            </p>
-            <Button variant="outline" onClick={fetchLeaves} className="ml-auto">
-              <RefreshCw size={14} /> Refresh
-            </Button>
-          </div>
-          <DataTable
-            columns={leaveColumns}
-            data={filteredLeaves}
-            emptyText="No leave records found."
-          />
-        </TabsContent>
+          )}
 
-        {/* ── Payroll Tab ── */}
-        <TabsContent value="payroll" className="space-y-4">
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="relative flex-1 min-w-[200px] max-w-sm">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-              <Input
-                placeholder="Search payroll..."
-                value={payrollSearch}
-                onChange={(e) => setPayrollSearch(e.target.value)}
-                className="pl-9 h-9"
+          {/* ── Payroll Tab ── */}
+          {activeTab === 'payroll' && (
+            <div className="space-y-4 animate-fade-in">
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="relative flex-1 min-w-[200px] max-w-sm">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+                  <Input
+                    placeholder="Search payroll..."
+                    value={payrollSearch}
+                    onChange={(e) => setPayrollSearch(e.target.value)}
+                    className="pl-9 h-9"
+                  />
+                </div>
+                <p className="text-sm text-[var(--text-muted)]">
+                  {filteredPayrolls.length} of {payrolls.length} records
+                </p>
+                <Button variant="outline" onClick={fetchPayrolls} className="ml-auto">
+                  <RefreshCw size={14} /> Refresh
+                </Button>
+              </div>
+              <DataTable
+                columns={payrollColumns}
+                data={filteredPayrolls}
+                emptyText="No payroll records found."
               />
             </div>
-            <p className="text-sm text-[var(--text-muted)]">
-              {filteredPayrolls.length} of {payrolls.length} records
-            </p>
-            <Button variant="outline" onClick={fetchPayrolls} className="ml-auto">
-              <RefreshCw size={14} /> Refresh
-            </Button>
-          </div>
-          <DataTable
-            columns={payrollColumns}
-            data={filteredPayrolls}
-            emptyText="No payroll records found."
-          />
-        </TabsContent>
+          )}
 
-        {/* ── Increments Tab ── */}
-        <TabsContent value="increments" className="space-y-4">
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="relative flex-1 min-w-[200px] max-w-sm">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-              <Input
-                placeholder="Search increments..."
-                value={incrementSearch}
-                onChange={(e) => setIncrementSearch(e.target.value)}
-                className="pl-9 h-9"
+          {/* ── Increments Tab ── */}
+          {activeTab === 'increments' && (
+            <div className="space-y-4 animate-fade-in">
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="relative flex-1 min-w-[200px] max-w-sm">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+                  <Input
+                    placeholder="Search increments..."
+                    value={incrementSearch}
+                    onChange={(e) => setIncrementSearch(e.target.value)}
+                    className="pl-9 h-9"
+                  />
+                </div>
+                <p className="text-sm text-[var(--text-muted)]">
+                  {filteredIncrements.length} of {increments.length} records
+                </p>
+                <Button variant="outline" onClick={fetchIncrements} className="ml-auto">
+                  <RefreshCw size={14} /> Refresh
+                </Button>
+              </div>
+              <DataTable
+                columns={incrementColumns}
+                data={filteredIncrements}
+                emptyText="No increment records found."
               />
             </div>
-            <p className="text-sm text-[var(--text-muted)]">
-              {filteredIncrements.length} of {increments.length} records
-            </p>
-            <Button variant="outline" onClick={fetchIncrements} className="ml-auto">
-              <RefreshCw size={14} /> Refresh
-            </Button>
-          </div>
-          <DataTable
-            columns={incrementColumns}
-            data={filteredIncrements}
-            emptyText="No increment records found."
-          />
-        </TabsContent>
+          )}
 
-        {/* ── Departments Tab ── */}
-        <TabsContent value="departments" className="space-y-4">
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="relative flex-1 min-w-[200px] max-w-sm">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-              <Input
-                placeholder="Search departments..."
-                value={departmentSearch}
-                onChange={(e) => setDepartmentSearch(e.target.value)}
-                className="pl-9 h-9"
+          {/* ── Departments Tab ── */}
+          {activeTab === 'departments' && (
+            <div className="space-y-4 animate-fade-in">
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="relative flex-1 min-w-[200px] max-w-sm">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+                  <Input
+                    placeholder="Search departments..."
+                    value={departmentSearch}
+                    onChange={(e) => setDepartmentSearch(e.target.value)}
+                    className="pl-9 h-9"
+                  />
+                </div>
+                <p className="text-sm text-[var(--text-muted)]">
+                  {filteredDepartments.length} of {departments.length} departments
+                </p>
+                <Button variant="outline" onClick={fetchDepartments} className="ml-auto flex items-center gap-2">
+                  <RefreshCw size={14} /> Refresh
+                </Button>
+              </div>
+              <DataTable
+                columns={departmentColumns}
+                data={filteredDepartments}
+                emptyText="No departments found."
               />
             </div>
-            <p className="text-sm text-[var(--text-muted)]">
-              {filteredDepartments.length} of {departments.length} departments
-            </p>
-            <Button variant="outline" onClick={fetchDepartments} className="ml-auto flex items-center gap-2">
-              <RefreshCw size={14} /> Refresh
-            </Button>
-          </div>
-          <DataTable
-            columns={departmentColumns}
-            data={filteredDepartments}
-            emptyText="No departments found."
-          />
-        </TabsContent>
-      </Tabs>
+          )}
+        </div>
+      </div>
 
       {/* ── Employee Modal ── */}
       {showEmployeeModal && (
