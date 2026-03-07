@@ -13,6 +13,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { useAuditLog } from '../hooks/useAuditLog';
 import CanAccess, { CanCreate, CanEdit, CanDelete } from '../components/CanAccess';
 import { toast } from '../components/ui/Toast';
+import { api } from '../lib/apiClient';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000/api/v1';
 const TENANT_ID = 'solarcorp'; // Default tenant for seed data
@@ -206,12 +207,9 @@ const CommissioningPage = () => {
     const fetchProjects = async () => {
       try {
         setProjectsLoading(true);
-        const response = await fetch(`${API_BASE_URL}/projects?tenantId=${TENANT_ID}`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch projects');
-        }
-        const data = await response.json();
-        const projectsArray = Array.isArray(data) ? data : (data.data || []);
+        const res = await api.get('/projects', { tenantId: TENANT_ID });
+        const data = res?.data ?? res;
+        const projectsArray = Array.isArray(data) ? data : (data?.data || []);
         // Show all projects in commissioning dropdown (not just Installation stage)
         setProjects(projectsArray);
       } catch (err) {

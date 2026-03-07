@@ -26,8 +26,11 @@ export class Ticket {
   @Prop({ required: true, default: 'Open' })
   status!: string;
 
-  @Prop({ default: '' })
-  assignedTo!: string;
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', index: true })
+  assignedTo?: Types.ObjectId;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', index: true })
+  createdBy?: Types.ObjectId;
 
   @Prop({ default: Date.now })
   created!: Date;
@@ -48,3 +51,5 @@ TicketSchema.index({ ticketId: 1 });
 TicketSchema.index({ status: 1 });
 TicketSchema.index({ priority: 1 });
 TicketSchema.index({ customerId: 1 });
+TicketSchema.index({ assignedTo: 1 });
+TicketSchema.index({ createdBy: 1 });

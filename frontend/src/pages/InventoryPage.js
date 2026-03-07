@@ -19,6 +19,15 @@ const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:300
 const PROJECT_API_BASE_URL = process.env.REACT_APP_PROJECT_API_BASE_URL || 'http://localhost:3000/api/v1';
 const TENANT_ID = 'solarcorp';
 
+// Helper to get auth headers
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('solar_token') || localStorage.getItem('token');
+  return {
+    'Content-Type': 'application/json',
+    ...(token && { Authorization: `Bearer ${token}` }),
+  };
+};
+
 const getStockStatus = (item) => {
   // If explicit status is set, return the stage ID format
   if (item.status) {
@@ -211,7 +220,9 @@ const InventoryPage = () => {
   useEffect(() => {
     const fetchInventoryStats = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/inventory/stats?tenantId=${TENANT_ID}`);
+        const response = await fetch(`${API_BASE_URL}/inventory/stats?tenantId=${TENANT_ID}`, {
+          headers: getAuthHeaders(),
+        });
         if (response.ok) {
           const data = await response.json();
           setInventoryStats(data.data || data);
@@ -227,7 +238,9 @@ const InventoryPage = () => {
   useEffect(() => {
     const fetchByCategory = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/inventory/by-category?tenantId=${TENANT_ID}`);
+        const response = await fetch(`${API_BASE_URL}/inventory/by-category?tenantId=${TENANT_ID}`, {
+          headers: getAuthHeaders(),
+        });
         if (response.ok) {
           const data = await response.json();
           setItemsByCategory(data.data || data || []);
@@ -244,7 +257,9 @@ const InventoryPage = () => {
     const fetchInventory = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`${API_BASE_URL}/items?tenantId=${TENANT_ID}`);
+        const response = await fetch(`${API_BASE_URL}/items?tenantId=${TENANT_ID}`, {
+          headers: getAuthHeaders(),
+        });
         if (!response.ok) {
           throw new Error('Failed to fetch items');
         }
@@ -287,7 +302,9 @@ const InventoryPage = () => {
   useEffect(() => {
     const fetchItems = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/items?tenantId=${TENANT_ID}`);
+        const response = await fetch(`${API_BASE_URL}/items?tenantId=${TENANT_ID}`, {
+          headers: getAuthHeaders(),
+        });
         if (response.ok) {
           const data = await response.json();
           const itemsArray = Array.isArray(data) ? data : (data.data || []);
@@ -305,7 +322,9 @@ const InventoryPage = () => {
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        const response = await fetch(`${PROJECT_API_BASE_URL}/projects?tenantId=${TENANT_ID}`);
+        const response = await fetch(`${PROJECT_API_BASE_URL}/projects?tenantId=${TENANT_ID}`, {
+          headers: getAuthHeaders(),
+        });
         if (response.ok) {
           const data = await response.json();
           const projectsArray = Array.isArray(data) ? data : (data.data || []);
@@ -360,7 +379,7 @@ const InventoryPage = () => {
 
       const response = await fetch(`${API_BASE_URL}/items?tenantId=${TENANT_ID}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(newItem),
       });
 
@@ -395,7 +414,7 @@ const InventoryPage = () => {
     try {
       const response = await fetch(`${API_BASE_URL}/items/${stockInForm.itemId}/stock-in?tenantId=${TENANT_ID}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           quantity: parseInt(stockInForm.quantity),
           poReference: stockInForm.poReference,
@@ -436,7 +455,9 @@ const InventoryPage = () => {
     setLoadingReservations(true);
     try {
       console.log('Fetching reservations for itemId:', itemId);
-      const response = await fetch(`${API_BASE_URL}/inventory/reservations/by-item/${itemId}?tenantId=${TENANT_ID}`);
+      const response = await fetch(`${API_BASE_URL}/inventory/reservations/by-item/${itemId}?tenantId=${TENANT_ID}`, {
+        headers: getAuthHeaders(),
+      });
       if (response.ok) {
         const data = await response.json();
         console.log('Reservation API response:', data);
@@ -482,7 +503,7 @@ const InventoryPage = () => {
 
       const response = await fetch(`${API_BASE_URL}/inventory/${editingItem.itemId}?tenantId=${TENANT_ID}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(updateData),
       });
 
@@ -511,6 +532,7 @@ const InventoryPage = () => {
     try {
       const response = await fetch(`${API_BASE_URL}/inventory/${itemId}?tenantId=${TENANT_ID}`, {
         method: 'DELETE',
+        headers: getAuthHeaders(),
       });
 
       if (!response.ok) {
@@ -532,7 +554,7 @@ const InventoryPage = () => {
     try {
       const response = await fetch(`${API_BASE_URL}/items/${stockOutForm.itemId}/stock-out?tenantId=${TENANT_ID}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           quantity: parseInt(stockOutForm.quantity),
           projectId: stockOutForm.projectId,
@@ -560,7 +582,7 @@ const InventoryPage = () => {
           
           await fetch(`${API_BASE_URL}/inventory/reservations?tenantId=${TENANT_ID}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getAuthHeaders(),
             body: JSON.stringify({
               reservationId: `RES-${Date.now()}`,
               itemId: item?.itemId || stockOutForm.itemId,
@@ -612,7 +634,7 @@ const InventoryPage = () => {
 
       const response = await fetch(`${API_BASE_URL}/items/${item._id || itemId}?tenantId=${TENANT_ID}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ status: newStatus }),
       });
 
@@ -626,7 +648,9 @@ const InventoryPage = () => {
       setInventory(prev => prev.map(i => (i._id || i.itemId) === (itemData._id || itemData.itemId) ? { ...i, status: newStatus } : i));
       
       // Refresh stats
-      const statsResponse = await fetch(`${API_BASE_URL}/inventory/stats?tenantId=${TENANT_ID}`);
+      const statsResponse = await fetch(`${API_BASE_URL}/inventory/stats?tenantId=${TENANT_ID}`, {
+        headers: getAuthHeaders(),
+      });
       if (statsResponse.ok) {
         const statsData = await statsResponse.json();
         setInventoryStats(statsData.data || statsData);

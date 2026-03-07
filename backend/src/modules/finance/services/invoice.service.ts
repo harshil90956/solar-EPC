@@ -11,6 +11,12 @@ import { Activity, ActivityDocument, ActivityAction } from '../schemas/activity.
 import { CreateInvoiceDto, UpdateInvoiceDto, RecordPaymentDto } from '../dto/invoice.dto';
 import { CreatePaymentDto, UpdatePaymentDto } from '../dto/payment.dto';
 
+interface UserWithVisibility {
+  id?: string;
+  _id?: string;
+  dataScope?: 'ALL' | 'ASSIGNED';
+}
+
 // Payment term to project status mapping
 const PAYMENT_TERM_STATUS_MAP: Record<string, string[]> = {
   '30% Advance': ['Procurement'],
@@ -117,14 +123,45 @@ export class InvoiceService {
     return project;
   }
 
-  async findAll(tenantId: string, status?: string): Promise<any[]> {
+  async findAll(tenantId: string, status?: string, user?: UserWithVisibility): Promise<any[]> {
     const query: any = { ...this.tenantOrLegacyMatch(tenantId), ...this.notDeletedMatch() };
+    
+    // Apply visibility filter based on user's dataScope
+    console.log(`[FINANCE VISIBILITY] user:`, JSON.stringify(user));
+    console.log(`[FINANCE VISIBILITY] user?.dataScope:`, user?.dataScope);
+    
     if (status && status !== 'All') {
       query.status = status;
     }
-    const invoices = await this.invoiceModel.find(query).sort({ createdAt: -1 }).lean();
     
-    // Get all unique projectIds from invoices
+    let invoices = await this.invoiceModel.find(query).sort({ createdAt: -1 }).lean();
+    
+    // If ASSIGNED scope, filter by project assignment
+    if (user?.dataScope === 'ASSIGNED') {
+      const userId = user._id || user.id;
+      console.log(`[FINANCE VISIBILITY] userId:`, userId);
+      if (userId) {
+        // Get all projects assigned to this user
+        const assignedProjects = await this.projectModel.find({
+          ...this.tenantOrLegacyMatch(tenantId),
+          ...this.notDeletedMatch(),
+          assignedTo: new Types.ObjectId(userId)
+        }).select('_id').lean();
+        
+        const assignedProjectIds = new Set(assignedProjects.map(p => p._id.toString()));
+        console.log(`[FINANCE VISIBILITY] Assigned project IDs:`, Array.from(assignedProjectIds));
+        
+        // Filter invoices to only those linked to assigned projects
+        invoices = invoices.filter(inv => 
+          inv.projectId && assignedProjectIds.has(inv.projectId.toString())
+        );
+        console.log(`[FINANCE VISIBILITY] Filtered to ${invoices.length} invoices`);
+      }
+    } else {
+      console.log(`[FINANCE VISIBILITY] No filter applied - ALL scope or no user`);
+    }
+    
+    // Get all unique projectIds from filtered invoices
     const projectIds = invoices.map(inv => inv.projectId?.toString()).filter(Boolean);
     const uniqueProjectIds = [...new Set(projectIds)];
     
@@ -418,13 +455,42 @@ export class InvoiceService {
     return { invoice: updatedInvoice, payment: savedPayment.toObject() };
   }
 
-  async getDashboardStats(tenantId: string): Promise<any> {
+  async getDashboardStats(tenantId: string, user?: UserWithVisibility): Promise<any> {
     const tid = this.toObjectId(tenantId);
     const query: any = { isDeleted: false };
     if (tid) {
       query.tenantId = tid;
     }
-    const invoices = await this.invoiceModel.find(query).lean();
+    
+    let invoices = await this.invoiceModel.find(query).lean();
+    
+    // Apply visibility filter based on user's dataScope
+    console.log(`[FINANCE STATS VISIBILITY] user:`, JSON.stringify(user));
+    console.log(`[FINANCE STATS VISIBILITY] user?.dataScope:`, user?.dataScope);
+    
+    // If ASSIGNED scope, filter by project assignment
+    if (user?.dataScope === 'ASSIGNED') {
+      const userId = user._id || user.id;
+      if (userId) {
+        // Get all projects assigned to this user
+        const assignedProjects = await this.projectModel.find({
+          ...this.tenantOrLegacyMatch(tenantId),
+          ...this.notDeletedMatch(),
+          assignedTo: new Types.ObjectId(userId)
+        }).select('_id').lean();
+        
+        const assignedProjectIds = new Set(assignedProjects.map(p => p._id.toString()));
+        console.log(`[FINANCE STATS VISIBILITY] Assigned project IDs:`, Array.from(assignedProjectIds));
+        
+        // Filter invoices to only those linked to assigned projects
+        invoices = invoices.filter(inv => 
+          inv.projectId && assignedProjectIds.has(inv.projectId.toString())
+        );
+        console.log(`[FINANCE STATS VISIBILITY] Filtered to ${invoices.length} invoices`);
+      }
+    } else {
+      console.log(`[FINANCE STATS VISIBILITY] No filter applied - ALL scope or no user`);
+    }
 
     const totalRevenue = invoices.reduce((sum, inv) => sum + inv.amount, 0);
     const totalCollected = invoices.reduce((sum, inv) => sum + inv.paid, 0);

@@ -1,17 +1,24 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Req, UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
+import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
+import { PermissionGuard } from '../../../modules/settings/guards/permission.guard';
+import { LoggingGuard } from '../../../common/guards/logging.guard';
 import { LogisticsService } from '../services/logistics.service';
 import { Dispatch } from '../schemas/dispatch.schema';
 import { Vendor } from '../schemas/vendor.schema';
 import { CreateLogisticsVendorDto, UpdateLogisticsVendorDto } from '../dto/create-vendor.dto';
 
 @Controller('logistics')
+@UseGuards(LoggingGuard, JwtAuthGuard, TenantGuard, PermissionGuard)
 export class LogisticsController {
   constructor(private readonly logisticsService: LogisticsService) {}
 
   // Dispatch routes
   @Get('dispatches')
-  async findAll() {
-    const data = await this.logisticsService.findAll();
+  async findAll(@Req() req: any) {
+    console.log(`[LOGISTICS CTRL] req.user =`, JSON.stringify(req.user));
+    const user = req.user;
+    const data = await this.logisticsService.findAll(user);
     return { success: true, data };
   }
 
@@ -46,15 +53,18 @@ export class LogisticsController {
   }
 
   @Get('stats')
-  async getStats() {
-    const data = await this.logisticsService.getStats();
+  async getStats(@Req() req: any) {
+    const user = req.user;
+    const data = await this.logisticsService.getStats(user);
     return { success: true, data };
   }
 
   // Vendor routes
   @Get('vendors')
-  async findAllVendors() {
-    const data = await this.logisticsService.findAllVendors();
+  async findAllVendors(@Req() req: any) {
+    console.log(`[LOGISTICS CTRL vendors] req.user =`, JSON.stringify(req.user));
+    const user = req.user;
+    const data = await this.logisticsService.findAllVendors(user);
     return { success: true, data };
   }
 
