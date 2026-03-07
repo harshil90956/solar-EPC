@@ -170,10 +170,21 @@ const AppInner = () => {
 
   const PageComponent = entry.component;
 
+  if (!PageComponent) {
+    console.error(`[AppInner] PAGE_MAP component is undefined for key: ${currentPage}`, entry);
+    return (
+      <Layout currentPage="dashboard" onNavigate={navigate}>
+        <NotFoundPage onNavigate={navigate} type="404" />
+      </Layout>
+    );
+  }
+
+  const NotificationComponent = NotificationSystem;
+
   return (
     <Layout currentPage={currentPage} onNavigate={navigate}>
       <PageComponent onNavigate={navigate} {...(entry.props || {})} />
-      <NotificationSystem />
+      {NotificationComponent ? <NotificationComponent /> : null}
     </Layout>
   );
 };

@@ -39,8 +39,6 @@ import { CURRENCY } from '../config/app.config';
 import { cn } from '../lib/utils';
 import { downloadQuotationPDF } from '../lib/pdfTemplate';
 
-const fmt = CURRENCY.format;
-
 // ── Default Solar Items ─────────────────────────────────────────────────────
 const DEFAULT_SOLAR_ITEMS = [
   { name: 'Solar PV Module 550W', description: 'High-efficiency monocrystalline solar panel', quantity: 20, unitPrice: 15000 },

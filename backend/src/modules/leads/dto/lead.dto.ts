@@ -152,6 +152,17 @@ export class QueryLeadDto {
 
   @IsOptional()
   @IsString()
+  @Transform(({ value, obj }) => {
+    // Support legacy query param `stage` by mapping it to statusKey
+    if (value && !obj?.statusKey) {
+      (obj as any).statusKey = value;
+    }
+    return value;
+  })
+  stage?: string;
+
+  @IsOptional()
+  @IsString()
   source?: string;
 
   @IsOptional()
