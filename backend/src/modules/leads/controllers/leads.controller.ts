@@ -13,13 +13,12 @@ import {
   HttpCode,
   HttpStatus,
   Logger,
-  UseInterceptors,
-  UploadedFile,
   BadRequestException,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { extname, join } from 'path';
+import { existsSync, mkdirSync } from 'fs';
+import { createWriteStream } from 'fs';
+import { pipeline } from 'stream/promises';
 import { LeadsService } from '../services/leads.service';
 import { CreateLeadDto, UpdateLeadDto, QueryLeadDto, AddActivityDto, BulkActionDto } from '../dto/lead.dto';
 import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
@@ -319,40 +318,32 @@ export class LeadsController {
 
   @Post('import')
   @HttpCode(HttpStatus.OK)
-  @UseInterceptors(FileInterceptor('file', {
-    storage: diskStorage({
-      destination: './uploads/leads',
-      filename: (req: any, file: any, cb: any) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-        cb(null, `leads-${uniqueSuffix}${extname(file.originalname)}`);
-      }
-    }),
-    fileFilter: (req: any, file: any, cb: any) => {
-      const allowedExt = ['.csv', '.xlsx', '.xls', '.json'];
-      const ext = extname(file.originalname).toLowerCase();
-      if (allowedExt.includes(ext)) {
-        cb(null, true);
-      } else {
-        cb(new BadRequestException('Only CSV, XLSX, XLS, or JSON files are allowed'), false);
-      }
-    },
-    limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
-  }))
-  async importLeads(
-    @UploadedFile() file: any,
-    @Request() req: any
-  ) {
-    if (!file) {
-      throw new BadRequestException('No file uploaded');
+  async importLeads(@Request() req: any) {
+    const file = await req.file?.();
+    if (!file) throw new BadRequestException('No file uploaded');
+
+    const allowedExt = ['.csv', '.xlsx', '.xls', '.json'];
+    const ext = extname(file.filename || '').toLowerCase();
+    if (!allowedExt.includes(ext)) {
+      throw new BadRequestException('Only CSV, XLSX, XLS, or JSON files are allowed');
     }
+
+    const uploadDir = join(process.cwd(), 'uploads', 'leads');
+    if (!existsSync(uploadDir)) mkdirSync(uploadDir, { recursive: true });
+
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const storedFileName = `leads-${uniqueSuffix}${ext}`;
+    const storedPath = join(uploadDir, storedFileName);
+
+    await pipeline(file.file, createWriteStream(storedPath));
 
     try {
       const tenantId = req.tenant?.id;
-      const fileExtension = extname(file.originalname).toLowerCase();
+      const fileExtension = ext;
       
-      this.logger.log(`Importing leads from file: ${file.originalname}, size: ${file.size} bytes, tenant: ${tenantId || 'default'}`);
+      this.logger.log(`Importing leads from file: ${file.filename}, tenant: ${tenantId || 'default'}`);
       
-      const result = await this.leadsService.importLeads(file.path, fileExtension, tenantId);
+      const result = await this.leadsService.importLeads(storedPath, fileExtension, tenantId);
       
       return result;
     } catch (error: any) {

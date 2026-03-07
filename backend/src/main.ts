@@ -1,6 +1,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
+import multipart from '@fastify/multipart';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './shared/filters/global-exception.filter';
 import { SuccessResponseInterceptor } from './shared/interceptors/success-response.interceptor';
@@ -12,6 +13,12 @@ async function bootstrap() {
     AppModule,
     new FastifyAdapter(),
   );
+
+  await app.register(multipart as any, {
+    limits: {
+      fileSize: 5 * 1024 * 1024,
+    },
+  });
 
   app.enableCors({
     origin: true,
