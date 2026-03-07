@@ -11,6 +11,7 @@ import { Leave, LeaveSchema } from './schemas/leave.schema';
 import { Payroll, PayrollSchema } from './schemas/payroll.schema';
 import { SalaryIncrement, SalaryIncrementSchema } from './schemas/salary-increment.schema';
 import { Department, DepartmentSchema } from './schemas/department.schema';
+import { User, UserSchema } from '../../core/auth/schemas/user.schema';
 
 // Services
 import { EmployeeService } from './services/employee.service';
@@ -38,6 +39,7 @@ import { DepartmentController } from './controllers/department.controller';
       { name: Payroll.name, schema: PayrollSchema },
       { name: SalaryIncrement.name, schema: SalaryIncrementSchema },
       { name: Department.name, schema: DepartmentSchema },
+      { name: User.name, schema: UserSchema },
     ]),
   ],
   controllers: [
