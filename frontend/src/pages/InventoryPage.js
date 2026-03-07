@@ -31,9 +31,10 @@ const getStockStatus = (item) => {
     return statusMap[item.status] || item.status;
   }
   // Otherwise calculate from stock values
+  // Priority: Reserved > Out of Stock > Low Stock > In Stock
+  if (item.reserved > 0) return 'reserved';
   if (item.available === 0) return 'out-of-stock';
   if (item.available <= item.minStock) return 'low-stock';
-  if (item.reserved > 0) return 'reserved';
   return 'in-stock';
 };
 

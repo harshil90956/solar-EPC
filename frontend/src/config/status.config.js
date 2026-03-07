@@ -33,7 +33,8 @@ export const STATUS_CONFIG = {
     invoice: {
         Paid: { label: 'Paid', color: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30', dot: 'bg-emerald-400' },
         Partial: { label: 'Partial', color: 'bg-amber-500/15 text-amber-400 border-amber-500/30', dot: 'bg-amber-400' },
-        Pending: { label: 'Sent', color: NEUTRAL, dot: NEUTRAL_DOT },
+        Pending: { label: 'Sent', color: 'bg-blue-500/15 text-blue-400 border-blue-500/30', dot: 'bg-blue-400' },
+        Sent: { label: 'Sent', color: 'bg-blue-500/15 text-blue-400 border-blue-500/30', dot: 'bg-blue-400' },
         Overdue: { label: 'Overdue', color: 'bg-red-500/15 text-red-400 border-red-500/30', dot: 'bg-red-400' },
     },
     inventory: {
