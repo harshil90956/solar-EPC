@@ -1,11 +1,11 @@
 // Professional Solar EPC Estimate Module - Upgraded Version
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
-  Plus, FileText, Send, DollarSign, Download, Copy, Trash2, Search, Filter,
-  User, Building2, Phone, Mail, MapPin, Sun, Zap, Settings, Truck, Wrench,
-  ChevronDown, ChevronUp, Edit, Eye, CheckCircle, XCircle, Clock, MoreHorizontal,
-  Calculator, FileSpreadsheet, TrendingUp, TrendingDown, LayoutGrid, List,
-  ChevronRight, ChevronLeft, Save, Printer, Check, ArrowRight
+  Plus, FileText, Send, DollarSign, Download, Copy, Trash2, Search,
+  User, Building2, MapPin, Sun, Zap,
+  Edit, CheckCircle, XCircle, Clock,
+  Calculator, LayoutGrid, List,
+  ChevronLeft, Save, Printer, Check, ArrowRight
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
