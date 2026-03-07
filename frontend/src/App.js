@@ -34,8 +34,6 @@ import DepartmentsPage from './pages/DepartmentsPage';
 import AttendancePage from './pages/AttendancePage';
 import IntelligenceDashboardPage from './pages/IntelligenceDashboardPage';
 import RemindersPage from './pages/RemindersPage';
-import ItemsPage from './pages/ItemsPage';
-import DocumentPage from './pages/DocumentPage';
 import NotificationSystem from './components/NotificationSystem';
 
 // ── Page Map ──────────────────────────────────────────────────────────────────
@@ -67,8 +65,6 @@ const PAGE_MAP = {
   compliance: { component: CompliancePage, title: 'Compliance' },
   settings: { component: SettingsPage, title: 'Settings' },
   intelligence: { component: IntelligenceDashboardPage, title: 'AI Intelligence' },
-  items: { component: ItemsPage, title: 'Items' },
-  documents: { component: DocumentPage, title: 'Documents' },
 };
 
 const APP_NAME = 'Solar OS';

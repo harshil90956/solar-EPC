@@ -1,7 +1,7 @@
 // Solar OS – EPC Edition — InventoryPage.js
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
-  Package, Plus, AlertTriangle, Warehouse, ArrowUp, ArrowDown, Zap, LayoutGrid, List, Edit2, Trash2
+  Package, Plus, AlertTriangle, Warehouse, ArrowUp, ArrowDown, Zap, LayoutGrid, List, Edit2, Trash2, Eye
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { StatusBadge } from '../components/ui/Badge';
@@ -32,8 +32,10 @@ const getStockStatus = (item) => {
   // If explicit status is set, return the stage ID format
   if (item.status) {
     const statusMap = {
-      'In Stock': 'in-stock',
+      'In Stock': 'available',
       'Reserved': 'reserved',
+      'Partially Reserved': 'reserved',
+      'Available': 'available',
       'Low Stock': 'low-stock',
       'Out of Stock': 'out-of-stock'
     };
@@ -44,13 +46,13 @@ const getStockStatus = (item) => {
   if (item.reserved > 0) return 'reserved';
   if (item.available === 0) return 'out-of-stock';
   if (item.available <= item.minStock) return 'low-stock';
-  return 'in-stock';
+  return 'available';
 };
 
 // ── Kanban columns ─────────────────────────────────────────────────────────────
 const INV_STAGES = [
-  { id: 'in-stock', label: 'In Stock', color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
   { id: 'reserved', label: 'Reserved', color: '#06b6d4', bg: 'rgba(6,182,212,0.12)' },
+  { id: 'available', label: 'Available', color: '#22c55e', bg: 'rgba(34,197,94,0.12)' },
   { id: 'low-stock', label: 'Low Stock', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
   { id: 'out-of-stock', label: 'Out of Stock', color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
 ];
@@ -121,9 +123,50 @@ const InvCard = ({ item, onDragStart, onClick }) => {
 /* ── Kanban Board ── */
 const InvKanbanBoard = ({ items, onCardClick, onDrop }) => {
   const draggingId = useRef(null);
+  const draggingStageId = useRef(null);
   const [dragOver, setDragOver] = useState(null);
+  const [stageOrder, setStageOrder] = useState(() => {
+    try {
+      const saved = localStorage.getItem('invKanbanStageOrder');
+      if (!saved) return INV_STAGES.map(s => s.id);
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed)) return INV_STAGES.map(s => s.id);
+      const valid = parsed.filter(id => INV_STAGES.some(s => s.id === id));
+      const missing = INV_STAGES.map(s => s.id).filter(id => !valid.includes(id));
+      return [...valid, ...missing];
+    } catch {
+      return INV_STAGES.map(s => s.id);
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('invKanbanStageOrder', JSON.stringify(stageOrder));
+    } catch {
+      // ignore
+    }
+  }, [stageOrder]);
 
   const handleDrop = (stageId) => {
+    if (draggingStageId.current) {
+      const from = draggingStageId.current;
+      const to = stageId;
+      if (from !== to) {
+        setStageOrder(prev => {
+          const next = [...prev];
+          const fromIdx = next.indexOf(from);
+          const toIdx = next.indexOf(to);
+          if (fromIdx === -1 || toIdx === -1) return prev;
+          next.splice(fromIdx, 1);
+          next.splice(toIdx, 0, from);
+          return next;
+        });
+      }
+      draggingStageId.current = null;
+      setDragOver(null);
+      return;
+    }
+
     if (draggingId.current && onDrop) {
       onDrop(draggingId.current, stageId);
     }
@@ -133,7 +176,10 @@ const InvKanbanBoard = ({ items, onCardClick, onDrop }) => {
   return (
     <div className="overflow-x-auto pb-3 -mx-2 px-2">
       <div className="flex gap-3 min-w-max">
-        {INV_STAGES.map(stage => {
+        {stageOrder
+          .map(id => INV_STAGES.find(s => s.id === id))
+          .filter(Boolean)
+          .map(stage => {
           const cards = items.filter(i => getStockStatus(i) === stage.id);
           const totalVal = cards.reduce((a, i) => a + i.available * i.rate, 0);
           return (
@@ -142,7 +188,20 @@ const InvKanbanBoard = ({ items, onCardClick, onDrop }) => {
               onDragOver={e => { e.preventDefault(); setDragOver(stage.id); }}
               onDragLeave={() => setDragOver(null)}
               onDrop={() => handleDrop(stage.id)}>
-              <div className="flex items-center justify-between p-3 border-b border-[var(--border-base)]">
+              <div
+                draggable
+                onDragStart={(e) => {
+                  draggingStageId.current = stage.id;
+                  try {
+                    e.dataTransfer.effectAllowed = 'move';
+                  } catch {
+                    // ignore
+                  }
+                }}
+                onDragEnd={() => { draggingStageId.current = null; setDragOver(null); }}
+                className="flex items-center justify-between p-3 border-b border-[var(--border-base)] cursor-grab active:cursor-grabbing"
+                title="Drag to reorder columns"
+              >
                 <div className="flex items-center gap-2">
                   <div className="w-2.5 h-2.5 rounded-full" style={{ background: stage.color }} />
                   <span className="text-xs font-semibold text-[var(--text-primary)]">{stage.label}</span>
@@ -175,7 +234,7 @@ const InvKanbanBoard = ({ items, onCardClick, onDrop }) => {
 
 /* ── Main Page ── */
 const InventoryPage = () => {
-  const [activeTab, setActiveTab] = useState('inventory'); // 'inventory', 'items', 'category'
+  const [activeTab, setActiveTab] = useState('inventory'); // 'inventory', 'warehouse', 'items', 'category'
   const [view, setView] = useState('kanban');
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('All');
@@ -187,7 +246,16 @@ const InventoryPage = () => {
   const [itemReservations, setItemReservations] = useState([]);
   const [loadingReservations, setLoadingReservations] = useState(false);
   const [form, setForm] = useState({ itemId: '', name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
-  const [stockInForm, setStockInForm] = useState({ itemId: '', quantity: '', poReference: '', receivedDate: '', remarks: '', projectId: '' });
+  const [stockInForm, setStockInForm] = useState({ itemId: '', quantity: '', poReference: '', receivedDate: '', remarks: '', warehouse: '' });
+  const [warehouses, setWarehouses] = useState(() => {
+    const saved = localStorage.getItem('warehouses');
+    return saved ? JSON.parse(saved) : ['WH-Ahmedabad', 'WH-Surat', 'WH-Mumbai'];
+  });
+  const [newWarehouse, setNewWarehouse] = useState('');
+  const [showWarehouseModal, setShowWarehouseModal] = useState(false);
+  const [editingWarehouse, setEditingWarehouse] = useState(null);
+  const [editWarehouseValue, setEditWarehouseValue] = useState('');
+  const [viewingWarehouse, setViewingWarehouse] = useState(null);
   const [categories, setCategories] = useState(() => {
     const saved = localStorage.getItem('itemCategories');
     return saved ? JSON.parse(saved) : ['Panel', 'Inverter', 'BOS', 'Structure', 'Cable', 'Other'];
@@ -195,6 +263,7 @@ const InventoryPage = () => {
   const [newCategory, setNewCategory] = useState('');
   const [editingCategory, setEditingCategory] = useState(null);
   const [editCategoryValue, setEditCategoryValue] = useState('');
+  const [viewingCategory, setViewingCategory] = useState(null);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
@@ -215,6 +284,50 @@ const InventoryPage = () => {
   useEffect(() => {
     localStorage.setItem('itemCategories', JSON.stringify(categories));
   }, [categories]);
+
+  useEffect(() => {
+    localStorage.setItem('warehouses', JSON.stringify(warehouses));
+  }, [warehouses]);
+
+  const handleAddWarehouse = () => {
+    const name = newWarehouse.trim();
+    if (!name) {
+      alert('Please enter a warehouse name');
+      return;
+    }
+    if (warehouses.includes(name)) {
+      alert('Warehouse already exists');
+      return;
+    }
+    setWarehouses([...warehouses, name]);
+    setNewWarehouse('');
+    setShowWarehouseModal(false);
+    alert('Warehouse added successfully');
+  };
+
+  const handleEditWarehouse = (oldName) => {
+    const name = editWarehouseValue.trim();
+    if (!name) {
+      alert('Please enter a warehouse name');
+      return;
+    }
+    if (warehouses.includes(name) && name !== oldName) {
+      alert('Warehouse already exists');
+      return;
+    }
+    setWarehouses(warehouses.map(w => (w === oldName ? name : w)));
+    setInventory(prev => prev.map(i => (i.warehouse === oldName ? { ...i, warehouse: name } : i)));
+    setEditingWarehouse(null);
+    setEditWarehouseValue('');
+    alert('Warehouse updated successfully');
+  };
+
+  const handleDeleteWarehouse = (name) => {
+    if (!window.confirm(`Are you sure you want to delete "${name}" warehouse?`)) return;
+    setWarehouses(warehouses.filter(w => w !== name));
+    setInventory(prev => prev.map(i => (i.warehouse === name ? { ...i, warehouse: '' } : i)));
+    alert('Warehouse deleted successfully');
+  };
 
   // Fetch inventory stats from backend
   useEffect(() => {
@@ -348,6 +461,18 @@ const InventoryPage = () => {
     return { totalItems, totalValue, lowStockItems, outOfStockItems };
   }, [inventory]);
 
+  const warehouseItems = useMemo(() => {
+    if (!viewingWarehouse) return [];
+    return inventory
+      .filter(i => i.warehouse === viewingWarehouse)
+      .map(i => ({
+        ...i,
+        name: i.name || i.description,
+        available: (i.available ?? ((i.stock || 0) - (i.reserved || 0))),
+      }))
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [inventory, viewingWarehouse]);
+
   const filtered = useMemo(() =>
     inventory.filter(i =>
       (catFilter === 'All' || i.category === catFilter) &&
@@ -420,6 +545,7 @@ const InventoryPage = () => {
           poReference: stockInForm.poReference,
           receivedDate: stockInForm.receivedDate,
           remarks: stockInForm.remarks,
+          warehouse: stockInForm.warehouse,
         }),
       });
 
@@ -432,7 +558,7 @@ const InventoryPage = () => {
       const itemData = updatedItem.data || updatedItem;
       setInventory(prev => prev.map(i => i._id === stockInForm.itemId ? itemData : i));
       setStockIn(false);
-      setStockInForm({ itemId: '', quantity: '', poReference: '', receivedDate: '', remarks: '' });
+      setStockInForm({ itemId: '', quantity: '', poReference: '', receivedDate: '', remarks: '', warehouse: '' });
       alert('Stock added successfully!');
     } catch (err) {
       console.error('Error adding stock:', err);
@@ -614,8 +740,9 @@ const InventoryPage = () => {
   const handleKanbanDrop = async (itemId, targetStage) => {
     // Map stage IDs to status values
     const stageToStatus = {
-      'in-stock': 'In Stock',
+      'in-stock': 'Available',
       'reserved': 'Reserved',
+      'available': 'Available',
       'low-stock': 'Low Stock',
       'out-of-stock': 'Out of Stock'
     };
@@ -727,6 +854,12 @@ const InventoryPage = () => {
               Inventory
             </button>
             <button 
+              onClick={() => setActiveTab('warehouse')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${activeTab === 'warehouse' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+            >
+              Warehouse
+            </button>
+            <button 
               onClick={() => setActiveTab('items')}
               className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${activeTab === 'items' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
             >
@@ -748,14 +881,15 @@ const InventoryPage = () => {
           {/* Inventory Controls Row */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
+              {/* Left side can have other controls if needed */}
+            </div>
+            <div className="flex items-center gap-2">
               <div className="view-toggle-pill">
                 <button onClick={() => setView('kanban')}
                   className={`view-toggle-btn ${view === 'kanban' ? 'active' : ''}`}><LayoutGrid size={14} /></button>
                 <button onClick={() => setView('table')}
                   className={`view-toggle-btn ${view === 'table' ? 'active' : ''}`}><List size={14} /></button>
               </div>
-            </div>
-            <div className="flex items-center gap-2">
               <Button variant="ghost" onClick={() => setStockIn(true)}><ArrowUp size={13} /> Stock In</Button>
               <Button variant="ghost" onClick={() => setShowStockOut(true)}><ArrowDown size={13} /> Stock Out</Button>
             </div>
@@ -785,22 +919,6 @@ const InventoryPage = () => {
               Based on current project pipeline, you need 500 additional panels by Mar 10. PO002 covers 5 inverters — approve immediately. 10kW inverter stock is critically low at 2 units.
             </p>
           </div>
-
-          {view === 'table' && (
-            <div className="glass-card p-4">
-              <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3">Inventory by Category</h3>
-              <ResponsiveContainer width="100%" height={180}>
-                <BarChart data={itemsByCategory.map(c => ({ category: c._id, count: c.count, value: c.totalValue / 100000 }))} barSize={20} barGap={3}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-                  <XAxis dataKey="category" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)', borderRadius: 8, fontSize: 12 }} />
-                  <Bar dataKey="count" fill="#22c55e" radius={[3, 3, 0, 0]} name="Items" />
-                  <Bar dataKey="value" fill="#f59e0b" radius={[3, 3, 0, 0]} name="Value (₹ Lakhs)" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
 
           {view === 'table' ? (
             <>
@@ -849,6 +967,72 @@ const InventoryPage = () => {
             </>
           )}
         </>
+      )}
+
+      {activeTab === 'warehouse' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-[var(--text-primary)]">Warehouse Management</h2>
+            <Button onClick={() => setShowWarehouseModal(true)}>
+              <Plus size={14} /> Add Warehouse
+            </Button>
+          </div>
+
+          <div className="glass-card overflow-hidden">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-b border-[var(--border-base)] bg-[var(--bg-elevated)]">
+                  <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Warehouse</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Items</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {warehouses.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="px-4 py-8 text-center text-[var(--text-muted)]">No warehouses</td>
+                  </tr>
+                ) : (
+                  warehouses.map((w) => (
+                    <tr key={w} className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)]">
+                      <td className="px-4 py-3">
+                        <span className="text-sm font-medium text-[var(--text-primary)]">{w}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs text-[var(--text-secondary)]">{inventory.filter(i => i.warehouse === w).length} items</span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => setViewingWarehouse(w)}
+                            className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-blue-500 hover:bg-blue-500/10"
+                            title="View"
+                          >
+                            <Eye size={14} />
+                          </button>
+                          <button
+                            onClick={() => { setEditingWarehouse(w); setEditWarehouseValue(w); }}
+                            className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--bg-hover)]"
+                            title="Edit"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteWarehouse(w)}
+                            className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-red-500 hover:bg-red-500/10"
+                            title="Delete"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
       {/* ITEMS TAB CONTENT */}
@@ -967,68 +1151,99 @@ const InventoryPage = () => {
             </Button>
           </div>
 
-          {/* Categories Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {categories.map((cat) => (
-              <div
-                key={cat}
-                className="glass-card p-4 flex flex-col items-center justify-center gap-2 hover:border-[var(--primary)]/40 transition-all group"
-              >
-                <div className="w-12 h-12 rounded-xl bg-[var(--bg-elevated)] flex items-center justify-center">
-                  <Package size={24} className="text-[var(--primary)]" />
+          {/* Items by Category - Now at TOP as colored cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {categories.map((cat, index) => {
+              const catItems = inventory.filter(i => i.category === cat);
+              if (catItems.length === 0) return null;
+              const colors = ['bg-blue-50 border-blue-200', 'bg-amber-50 border-amber-200', 'bg-green-50 border-green-200', 'bg-purple-50 border-purple-200', 'bg-pink-50 border-pink-200', 'bg-cyan-50 border-cyan-200', 'bg-orange-50 border-orange-200', 'bg-teal-50 border-teal-200'];
+              const iconColors = ['text-blue-500', 'text-amber-500', 'text-green-500', 'text-purple-500', 'text-pink-500', 'text-cyan-500', 'text-orange-500', 'text-teal-500'];
+              const bgColors = ['bg-blue-100', 'bg-amber-100', 'bg-green-100', 'bg-purple-100', 'bg-pink-100', 'bg-cyan-100', 'bg-orange-100', 'bg-teal-100'];
+              return (
+                <div key={cat} className={`${colors[index % colors.length]} border rounded-xl p-4 flex flex-col gap-2 hover:shadow-md transition-all`}>
+                  <div className="flex items-center justify-between">
+                    <div className={`w-10 h-10 rounded-lg ${bgColors[index % bgColors.length]} flex items-center justify-center`}>
+                      <Package size={20} className={iconColors[index % iconColors.length]} />
+                    </div>
+                    <span className="text-xs font-medium text-[var(--text-muted)]">{catItems.length} items</span>
+                  </div>
+                  <span className="text-sm font-semibold text-[var(--text-primary)]">{cat}</span>
+                  <div className="flex flex-wrap gap-1">
+                    {catItems.slice(0, 3).map((item) => (
+                      <span key={item.itemId} className="text-[10px] px-2 py-1 bg-white rounded text-[var(--text-secondary)] border border-[var(--border-base)]">
+                        {item.name || item.description}
+                      </span>
+                    ))}
+                    {catItems.length > 3 && (
+                      <span className="text-[10px] px-2 py-1 text-[var(--text-muted)]">
+                        +{catItems.length - 3} more
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <span className="text-sm font-medium text-[var(--text-primary)] text-center">{cat}</span>
-                <span className="text-xs text-[var(--text-muted)]">
-                  {inventory.filter(i => i.category === cat).length} items
-                </span>
-                <div className="flex gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={() => { setEditingCategory(cat); setEditCategoryValue(cat); }}
-                    className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--bg-hover)]"
-                  >
-                    <Edit2 size={14} />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteCategory(cat)}
-                    className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-red-500 hover:bg-red-500/10"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
-          {/* Items by Category */}
+          {/* Categories Table - Now at BOTTOM */}
           <div className="mt-8">
-            <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3">Items by Category</h3>
-            <div className="glass-card p-4">
-              <div className="space-y-2">
-                {categories.map((cat) => {
-                  const catItems = inventory.filter(i => i.category === cat);
-                  if (catItems.length === 0) return null;
-                  return (
-                    <div key={cat} className="border-b border-[var(--border-base)] last:border-0 pb-2 last:pb-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-medium text-[var(--text-primary)]">{cat}</span>
-                        <span className="text-xs text-[var(--text-muted)]">{catItems.length} items</span>
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {catItems.slice(0, 5).map((item) => (
-                          <span key={item.itemId} className="text-[10px] px-2 py-1 bg-[var(--bg-elevated)] rounded text-[var(--text-secondary)]">
-                            {item.name || item.description}
-                          </span>
-                        ))}
-                        {catItems.length > 5 && (
-                          <span className="text-[10px] px-2 py-1 text-[var(--text-muted)]">
-                            +{catItems.length - 5} more
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+            <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3">Categories</h3>
+            <div className="glass-card overflow-hidden">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-[var(--border-base)] bg-[var(--bg-elevated)]">
+                    <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Category Name</th>
+                    <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Items Count</th>
+                    <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {categories.map((cat) => (
+                    <tr 
+                      key={cat} 
+                      className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)] cursor-pointer"
+                      onClick={() => setViewingCategory(cat)}
+                    >
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-lg bg-[var(--bg-elevated)] flex items-center justify-center">
+                            <Package size={16} className="text-[var(--primary)]" />
+                          </div>
+                          <span className="text-sm font-medium text-[var(--text-primary)]">{cat}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs text-[var(--text-secondary)]">{inventory.filter(i => i.category === cat).length} items</span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setViewingCategory(cat); }}
+                            className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-blue-500 hover:bg-blue-500/10"
+                            title="View"
+                          >
+                            <Eye size={14} />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setEditingCategory(cat); setEditCategoryValue(cat); }}
+                            className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--bg-hover)]"
+                            title="Edit"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDeleteCategory(cat); }}
+                            className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-red-500 hover:bg-red-500/10"
+                            title="Delete"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -1060,10 +1275,82 @@ const InventoryPage = () => {
           <FormField label="Warehouse">
             <Select value={form.warehouse} onChange={e => setForm(f => ({ ...f, warehouse: e.target.value }))}>
               <option value="">Select Warehouse</option>
-              <option>WH-Ahmedabad</option><option>WH-Surat</option><option>WH-Mumbai</option>
+              {warehouses.map(w => <option key={w}>{w}</option>)}
             </Select>
           </FormField>
         </div>
+      </Modal>
+
+      <Modal open={!!viewingWarehouse} onClose={() => setViewingWarehouse(null)} title={`Warehouse — ${viewingWarehouse}`}
+        footer={<Button variant="ghost" onClick={() => setViewingWarehouse(null)}>Close</Button>}>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="text-xs text-[var(--text-muted)]">
+              {warehouseItems.length} items
+            </div>
+            <div className="text-xs font-semibold text-[var(--text-primary)]">
+              ₹{warehouseItems.reduce((a, i) => a + (i.stock || 0) * (i.rate || 0), 0).toLocaleString('en-IN')}
+            </div>
+          </div>
+
+          <div className="glass-card overflow-hidden">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-b border-[var(--border-base)] bg-[var(--bg-elevated)]">
+                  <th className="px-3 py-2 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Item</th>
+                  <th className="px-3 py-2 text-[11px] font-semibold text-[var(--text-secondary)] uppercase text-right">Stock</th>
+                  <th className="px-3 py-2 text-[11px] font-semibold text-[var(--text-secondary)] uppercase text-right">Reserved</th>
+                  <th className="px-3 py-2 text-[11px] font-semibold text-[var(--text-secondary)] uppercase text-right">Available</th>
+                </tr>
+              </thead>
+              <tbody>
+                {warehouseItems.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-3 py-8 text-center text-[var(--text-muted)]">No items in this warehouse</td>
+                  </tr>
+                ) : (
+                  warehouseItems.map((i) => (
+                    <tr key={i.itemId} className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)]">
+                      <td className="px-3 py-2">
+                        <div>
+                          <div className="text-xs font-semibold text-[var(--text-primary)]">{i.name}</div>
+                          <div className="text-[10px] text-[var(--text-muted)]">{i.itemId}</div>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-right text-xs font-semibold text-[var(--text-primary)]">{i.stock} {i.unit}</td>
+                      <td className="px-3 py-2 text-right text-xs font-semibold text-amber-400">{i.reserved} {i.unit}</td>
+                      <td className="px-3 py-2 text-right text-xs font-semibold text-emerald-400">{i.available} {i.unit}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={showWarehouseModal} onClose={() => { setShowWarehouseModal(false); setNewWarehouse(''); }} title="Add New Warehouse"
+        footer={<div className="flex gap-2 justify-end">
+          <Button variant="ghost" onClick={() => { setShowWarehouseModal(false); setNewWarehouse(''); }}>Cancel</Button>
+          <Button onClick={handleAddWarehouse} disabled={!newWarehouse.trim()}>Add Warehouse</Button>
+        </div>}>
+        <FormField label="Warehouse Name" required>
+          <Input placeholder="Enter warehouse name (e.g., WH-Baroda)" value={newWarehouse}
+            onChange={(e) => setNewWarehouse(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddWarehouse(); } }} />
+        </FormField>
+      </Modal>
+
+      <Modal open={!!editingWarehouse} onClose={() => { setEditingWarehouse(null); setEditWarehouseValue(''); }} title={`Edit Warehouse — ${editingWarehouse}`}
+        footer={<div className="flex gap-2 justify-end">
+          <Button variant="ghost" onClick={() => { setEditingWarehouse(null); setEditWarehouseValue(''); }}>Cancel</Button>
+          <Button onClick={() => handleEditWarehouse(editingWarehouse)} disabled={!editWarehouseValue.trim()}>Save Changes</Button>
+        </div>}>
+        <FormField label="Warehouse Name" required>
+          <Input placeholder="Enter new warehouse name" value={editWarehouseValue}
+            onChange={(e) => setEditWarehouseValue(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleEditWarehouse(editingWarehouse); } }} />
+        </FormField>
       </Modal>
 
       {/* Stock In Modal */}
@@ -1083,10 +1370,10 @@ const InventoryPage = () => {
           </FormField>
           <div className="grid grid-cols-2 gap-3">
             <FormField label="Quantity Received"><Input type="number" placeholder="100" value={stockInForm.quantity} onChange={e => setStockInForm(f => ({ ...f, quantity: e.target.value }))} /></FormField>
-            <FormField label="Project">
-              <Select value={stockInForm.projectId} onChange={e => setStockInForm(f => ({ ...f, projectId: e.target.value }))}>
-                <option value="">Select Project</option>
-                {projects.map(p => <option key={p._id || p.projectId} value={p.projectId}>{p.customerName || p.name} ({p.projectId})</option>)}
+            <FormField label="Warehouse">
+              <Select value={stockInForm.warehouse} onChange={e => setStockInForm(f => ({ ...f, warehouse: e.target.value }))}>
+                <option value="">Select Warehouse</option>
+                {warehouses.map(w => <option key={w}>{w}</option>)}
               </Select>
             </FormField>
           </div>
@@ -1138,7 +1425,7 @@ const InventoryPage = () => {
           <FormField label="Warehouse">
             <Select value={editForm.warehouse} onChange={e => setEditForm(f => ({ ...f, warehouse: e.target.value }))}>
               <option value="">Select Warehouse</option>
-              <option>WH-Ahmedabad</option><option>WH-Surat</option><option>WH-Mumbai</option>
+              {warehouses.map(w => <option key={w}>{w}</option>)}
             </Select>
           </FormField>
         </div>
@@ -1264,6 +1551,70 @@ const InventoryPage = () => {
           </div>
         </Modal>
       )}
+
+      <Modal open={showCategoryModal} onClose={() => { setShowCategoryModal(false); setNewCategory(''); }} title="Add New Category"
+        footer={<div className="flex gap-2 justify-end">
+          <Button variant="ghost" onClick={() => { setShowCategoryModal(false); setNewCategory(''); }}>Cancel</Button>
+          <Button onClick={handleAddCategory} disabled={!newCategory.trim()}>Add Category</Button>
+        </div>}>
+        <FormField label="Category Name" required>
+          <Input placeholder="Enter category name (e.g., Cables, Connectors)" value={newCategory}
+            onChange={(e) => setNewCategory(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddCategory(); } }} />
+        </FormField>
+      </Modal>
+
+      <Modal open={!!editingCategory} onClose={() => { setEditingCategory(null); setEditCategoryValue(''); }} title={`Edit Category — ${editingCategory}`}
+        footer={<div className="flex gap-2 justify-end">
+          <Button variant="ghost" onClick={() => { setEditingCategory(null); setEditCategoryValue(''); }}>Cancel</Button>
+          <Button onClick={() => handleEditCategory(editingCategory)} disabled={!editCategoryValue.trim()}>Save Changes</Button>
+        </div>}>
+        <FormField label="Category Name" required>
+          <Input placeholder="Enter new category name" value={editCategoryValue}
+            onChange={(e) => setEditCategoryValue(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleEditCategory(editingCategory); } }} />
+        </FormField>
+      </Modal>
+
+      {/* View Category Modal */}
+      <Modal open={!!viewingCategory} onClose={() => setViewingCategory(null)} title={`Category — ${viewingCategory}`}
+        footer={<Button variant="ghost" onClick={() => setViewingCategory(null)}>Close</Button>}>
+        <div className="space-y-4">
+          <div className="glass-card p-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-xl bg-[var(--bg-elevated)] flex items-center justify-center">
+                <Package size={24} className="text-[var(--primary)]" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-[var(--text-primary)]">{viewingCategory}</h3>
+                <p className="text-sm text-[var(--text-muted)]">{inventory.filter(i => i.category === viewingCategory).length} items</p>
+              </div>
+            </div>
+          </div>
+          
+          <div>
+            <h4 className="text-sm font-semibold text-[var(--text-primary)] mb-2">Items in this category</h4>
+            <div className="space-y-2">
+              {inventory.filter(i => i.category === viewingCategory).length === 0 ? (
+                <p className="text-sm text-[var(--text-muted)]">No items in this category</p>
+              ) : (
+                inventory.filter(i => i.category === viewingCategory).map(item => (
+                  <div key={item.itemId} className="glass-card p-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-[var(--text-primary)]">{item.name || item.description}</p>
+                      <p className="text-xs text-[var(--text-muted)]">{item.itemId}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-[var(--text-primary)]">{item.stock} {item.unit}</p>
+                      <p className="text-xs text-[var(--text-muted)]">₹{item.rate?.toLocaleString('en-IN') || 0}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

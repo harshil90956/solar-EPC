@@ -54,7 +54,6 @@ export const NAV_CONFIG = [
             { id: 'inventory', label: 'Inventory', icon: Package, badge: lowStockCount || null, badgeVariant: 'amber' },
             { id: 'procurement', label: 'Procurement', icon: ShoppingCart, badge: null },
             { id: 'logistics', label: 'Logistics', icon: Truck, badge: null },
-            { id: 'items', label: 'Items', icon: List, badge: null },
         ],
     },
     {
