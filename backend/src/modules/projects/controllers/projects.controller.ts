@@ -101,6 +101,16 @@ export class ProjectsController {
     );
   }
 
+  @Patch(':projectId/restore')
+  async restore(
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
+    @Param('projectId') projectId: string,
+  ) {
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
+    return this.projectsService.restore(tenantId, projectId);
+  }
+
   @Delete(':projectId')
   async remove(
     @Headers('x-tenant-id') headerTenantId: string,
