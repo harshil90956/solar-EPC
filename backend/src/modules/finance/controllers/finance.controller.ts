@@ -1223,6 +1223,32 @@ export class FinanceController {
 
 
 
+  @Get('transaction-analytics')
+
+
+
+  async getTransactionAnalytics(@Req() req: RequestWithUser, @Query('months') months?: string) 
+
+
+
+  {
+
+    const tenantId = getTenantId(req);
+
+
+
+    return this.transactionService.getAnalyticsByCategory(tenantId, months ? parseInt(months, 10) : 6);
+
+
+
+  }
+
+
+
+
+
+
+
   // Dashboard stats
 
   @Get('dashboard-stats')

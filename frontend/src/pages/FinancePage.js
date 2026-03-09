@@ -2,6 +2,8 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 
+import * as XLSX from 'xlsx';
+
 import {
 
   DollarSign, TrendingUp, TrendingDown,
@@ -375,7 +377,11 @@ const FinancePage = ({ onNavigate }) => {
 
   const [cashFlow, setCashFlow] = useState([]);
 
+  const [adjustmentTrend, setAdjustmentTrend] = useState([]);
+
   const [payables, setPayables] = useState([]);
+
+  const [transactionAnalytics, setTransactionAnalytics] = useState(null);
 
   const [projects, setProjects] = useState([]);
 
@@ -559,6 +565,9 @@ const FinancePage = ({ onNavigate }) => {
   const [addingCategory, setAddingCategory] = useState(false);
   // Journal entries state
   const [journalEntries, setJournalEntries] = useState([]);
+  const [selectedJournalEntry, setSelectedJournalEntry] = useState(null);
+  const [selectedJournalEntryIndex, setSelectedJournalEntryIndex] = useState(null);
+  const [showJournalEntryModal, setShowJournalEntryModal] = useState(false);
 
   // Fetch data on mount
 
@@ -601,6 +610,7 @@ const FinancePage = ({ onNavigate }) => {
         manualBalanceRes,
         categoriesRes,
         journalEntriesRes,
+        transactionAnalyticsRes,
       ] = await Promise.all([
 
         financeApi.getInvoices(),
@@ -622,6 +632,8 @@ const FinancePage = ({ onNavigate }) => {
         financeApi.getAdjustmentCategories(),
 
         financeApi.getJournalEntries(),
+
+        financeApi.getTransactionAnalytics(),
 
       ]);
 
@@ -646,6 +658,9 @@ const FinancePage = ({ onNavigate }) => {
 
       // Set journal entries
       setJournalEntries(journalEntriesRes || []);
+
+      // Set transaction analytics
+      setTransactionAnalytics(transactionAnalyticsRes || null);
 
       // Vendor Payables (from Procurement Purchase Orders)
       const vendors = Array.isArray(vendorsRes)
@@ -767,6 +782,29 @@ const FinancePage = ({ onNavigate }) => {
       setMonthlyRevenue(revenueCostSeries);
 
       setCashFlow(cashFlowSeries);
+
+      // Calculate monthly income/expense trend from manual adjustments only
+      const adjustmentTrendSeries = months.map((m) => {
+        const income = (manualAdjustmentsRes || [])
+          .filter(adj => adj.type === 'credit')
+          .reduce((sum, adj) => {
+            const dt = safeDate(adj?.date) || safeDate(adj?.createdAt);
+            if (!dt || dt < m.start || dt >= m.end) return sum;
+            return sum + Number(adj?.amount || 0);
+          }, 0);
+
+        const expense = (manualAdjustmentsRes || [])
+          .filter(adj => adj.type === 'debit')
+          .reduce((sum, adj) => {
+            const dt = safeDate(adj?.date) || safeDate(adj?.createdAt);
+            if (!dt || dt < m.start || dt >= m.end) return sum;
+            return sum + Number(adj?.amount || 0);
+          }, 0);
+
+        return { month: m.month, income, expense };
+      });
+
+      setAdjustmentTrend(adjustmentTrendSeries);
 
       const computePaymentStatus = (po) => {
         const total = Number(po?.totalAmount || 0);
@@ -1887,6 +1925,9 @@ const FinancePage = ({ onNavigate }) => {
         setManualBalance(result.balance);
       }
 
+      // Refresh all data to update dashboard charts and transactions tab
+      await fetchData();
+
       toast.success(`Manual ${adjustForm.type} of ${fmt(amountNum)} recorded successfully`);
     } catch (err) {
       setAdjustError(err.message || 'Failed to record adjustment');
@@ -2003,6 +2044,62 @@ const FinancePage = ({ onNavigate }) => {
     a.remove();
     URL.revokeObjectURL(url);
   };
+
+  const exportJournalEntriesCsv = () => {
+    // Prepare data rows
+    const rows = [];
+    
+    journalEntries.forEach(entry => {
+      const date = entry.date ? new Date(entry.date).toISOString().slice(0, 10) : '';
+      const narration = entry.narration || '';
+      const debitLines = entry.lines?.filter(l => l.debitAmount > 0) || [];
+      const creditLines = entry.lines?.filter(l => l.creditAmount > 0) || [];
+      
+      // Add debit lines
+      debitLines.forEach((line, idx) => {
+        rows.push({
+          Date: idx === 0 ? date : '',
+          Particulars: `${line.accountName} Dr.`,
+          'Ledger / Account': line.accountName || '',
+          'Debit Amount (Dr.)': line.debitAmount || 0,
+          'Credit Amount (Cr.)': '',
+          'Narration / Notes': idx === 0 ? narration : ''
+        });
+      });
+      
+      // Add credit lines
+      creditLines.forEach((line) => {
+        rows.push({
+          Date: '',
+          Particulars: `To ${line.accountName}`,
+          'Ledger / Account': line.accountName || '',
+          'Debit Amount (Dr.)': '',
+          'Credit Amount (Cr.)': line.creditAmount || 0,
+          'Narration / Notes': ''
+        });
+      });
+    });
+    
+    // Create worksheet
+    const ws = XLSX.utils.json_to_sheet(rows);
+    
+    // Set column widths
+    ws['!cols'] = [
+      { wch: 12 },  // Date
+      { wch: 35 },  // Particulars
+      { wch: 25 },  // Ledger / Account
+      { wch: 18 },  // Debit Amount
+      { wch: 18 },  // Credit Amount
+      { wch: 40 }   // Narration
+    ];
+    
+    // Create workbook
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Journal Entries');
+    
+    // Download file
+    XLSX.writeFile(wb, `journal_entries_${new Date().toISOString().slice(0,10)}.xlsx`);
+  };
   const INV_ACTIONS = [
     { label: 'View Invoice', icon: FileText, onClick: row => setSelected(row) },
     ...(canFinance('edit') ? [
@@ -2094,10 +2191,11 @@ const FinancePage = ({ onNavigate }) => {
   // Calculate total receivables (outstanding balance only)
   const receivables = (invoices || []).reduce((sum, inv) => sum + getBalance(inv), 0);
 
-  // Cash position includes manual adjustments
-  const cashPosition = totalCollected - (dashboardStats?.totalPayables || 0) + manualBalance;
-
+  // Calculate payables total for display
   const payablesTotal = payables.reduce((sum, p) => sum + (p.outstandingAmount || 0), 0);
+
+  // Cash position is the manualBalance (matches dashboard calculation)
+  const cashPosition = manualBalance;
 
   const isInCurrentMonth = (dt) => {
     if (!dt) return false;
@@ -2294,6 +2392,8 @@ const FinancePage = ({ onNavigate }) => {
           monthlyRevenue={monthlyRevenue}
           cashFlow={cashFlow}
           manualBalance={manualBalance}
+          transactionAnalytics={transactionAnalytics}
+          adjustmentTrend={adjustmentTrend}
           onInvoicesClick={() => {}}
           onStatusClick={() => {}}
         />
@@ -2498,7 +2598,14 @@ const FinancePage = ({ onNavigate }) => {
 
           <div className="glass-card p-4 space-y-3">
 
-            <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4">Journal Entries</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-[var(--text-primary)]">Journal Entries</h3>
+              {canFinance('export') && journalEntries.length > 0 && (
+                <Button size="sm" onClick={exportJournalEntriesCsv}>
+                  <Download size={12} /> Export
+                </Button>
+              )}
+            </div>
 
             {journalEntries.length === 0 ? (
 
@@ -2506,101 +2613,91 @@ const FinancePage = ({ onNavigate }) => {
 
             ) : (
 
-              <div className="space-y-4">
+              <div className="border border-[var(--border-base)] overflow-hidden bg-[var(--bg-elevated)]">
 
                 {/* Table Header - Traditional Accounting Format */}
-                <div className="grid grid-cols-12 gap-1 text-[11px] font-semibold text-[var(--text-primary)] border-b-2 border-[var(--border-base)] pb-2">
-                  <div className="col-span-2">Date</div>
-                  <div className="col-span-5">Particulars</div>
-                  <div className="col-span-1 text-center">L.F.</div>
-                  <div className="col-span-2 text-right">Amount(Dr.)</div>
-                  <div className="col-span-2 text-right">Amount(Cr.)</div>
+                <div className="grid grid-cols-12 text-[13px] font-bold text-[var(--text-primary)] border-b-2 border-[var(--border-base)] pb-2 mt-3">
+                  <div className="col-span-2 border-r-2 border-[var(--border-base)] pr-2">Date</div>
+                  <div className="col-span-6 border-r-2 border-[var(--border-base)] px-2">Particulars</div>
+                  <div className="col-span-1 border-r border-[var(--border-base)] px-1 text-center">L.F.</div>
+                  <div className="col-span-2 border-r border-[var(--border-base)] px-1 text-right">Amount(Dr.)</div>
+                  <div className="col-span-1 pl-1 text-right">Amount(Cr.)</div>
                 </div>
 
-                {journalEntries.map((entry) => (
+                {[...journalEntries].reverse().map((entry, entryIdx) => (
                   <div 
                     key={entry._id || entry.id} 
-                    className="border border-[var(--border-base)] rounded-lg overflow-hidden bg-[var(--bg-elevated)]"
+                    className="relative border-b border-[var(--border-muted)] last:border-b-0 cursor-pointer hover:bg-[var(--bg-hover)] transition-colors"
+                    onClick={() => {
+                      setSelectedJournalEntry(entry);
+                      setSelectedJournalEntryIndex(entryIdx + 1);
+                      setShowJournalEntryModal(true);
+                    }}
                   >
-                    {/* Journal Entry Box - Traditional Format */}
-                    <div className="divide-y divide-[var(--border-muted)]">
+                    {/* Continuous vertical lines using absolute positioned divs */}
+                    <div className="absolute top-0 bottom-0 left-[16.66%] w-[2px] bg-[var(--border-base)] z-10"></div>
+                    <div className="absolute top-0 bottom-0 left-[66.66%] w-[1px] bg-[var(--border-base)] z-10"></div>
+                    <div className="absolute top-0 bottom-0 left-[75%] w-[1px] bg-[var(--border-base)] z-10"></div>
+                    <div className="absolute top-0 bottom-0 left-[91.66%] w-[1px] bg-[var(--border-base)] z-10"></div>
+                    
+                    {/* Journal Entry Content - No internal horizontal lines */}
+                    <div>
                       
-                      {/* First Row with Date */}
                       {(() => {
                         const debitLines = entry.lines?.filter(l => l.debitAmount > 0) || [];
                         const creditLines = entry.lines?.filter(l => l.creditAmount > 0) || [];
-                        const firstDebit = debitLines[0];
-                        const firstCredit = creditLines[0];
                         
                         return (
                           <>
-                            {/* First Debit Line with Date */}
-                            {firstDebit && (
-                              <div className="grid grid-cols-12 gap-1 px-3 py-2 items-start">
-                                <div className="col-span-2 text-xs text-[var(--text-primary)]">
-                                  {new Date(entry.date).toLocaleDateString('en-IN', { 
+                            {debitLines.map((line, idx) => (
+                              <div 
+                                key={`debit-${idx}`}
+                                className="grid grid-cols-12 text-[13px] items-start relative"
+                              >
+                                <div className="col-span-2 px-2 py-2 text-[var(--text-primary)]">
+                                  {idx === 0 ? new Date(entry.date).toLocaleDateString('en-IN', { 
                                     day: '2-digit', 
                                     month: '2-digit', 
                                     year: 'numeric' 
-                                  })}
+                                  }) : ''}
                                 </div>
-                                <div className="col-span-5 text-xs text-[var(--text-primary)]">
-                                  {firstDebit.accountName} <span className="text-[var(--text-muted)]">Dr.</span>
-                                </div>
-                                <div className="col-span-1 text-center text-xs text-[var(--text-muted)]">-</div>
-                                <div className="col-span-2 text-right text-xs font-medium text-[var(--text-primary)]">
-                                  {fmt(firstDebit.debitAmount)}
-                                </div>
-                                <div className="col-span-2 text-right text-xs">-</div>
-                              </div>
-                            )}
-                            
-                            {/* Additional Debit Lines */}
-                            {debitLines.slice(1).map((line, idx) => (
-                              <div 
-                                key={`debit-${idx + 1}`}
-                                className="grid grid-cols-12 gap-1 px-3 py-2 items-start"
-                              >
-                                <div className="col-span-2 text-xs"></div>
-                                <div className="col-span-5 text-xs text-[var(--text-primary)]">
+                                <div className="col-span-6 px-2 py-2 text-[var(--text-primary)]">
                                   {line.accountName} <span className="text-[var(--text-muted)]">Dr.</span>
                                 </div>
-                                <div className="col-span-1 text-center text-xs text-[var(--text-muted)]">-</div>
-                                <div className="col-span-2 text-right text-xs font-medium text-[var(--text-primary)]">
+                                <div className="col-span-1 px-1 py-2 text-center text-[var(--text-muted)] text-[10px]"></div>
+                                <div className="col-span-2 px-2 py-2 text-right font-medium text-[var(--text-primary)]">
                                   {fmt(line.debitAmount)}
                                 </div>
-                                <div className="col-span-2 text-right text-xs">-</div>
+                                <div className="col-span-1 px-1 py-2 text-right"></div>
                               </div>
                             ))}
                             
-                            {/* Credit Lines - Indented with "To" */}
                             {creditLines.map((line, idx) => (
                               <div 
                                 key={`credit-${idx}`}
-                                className="grid grid-cols-12 gap-1 px-3 py-2 items-start"
+                                className="grid grid-cols-12 text-[13px] items-start relative"
                               >
-                                <div className="col-span-2 text-xs"></div>
-                                <div className="col-span-5 text-xs text-[var(--text-primary)] pl-4">
+                                <div className="col-span-2 px-2 py-2"></div>
+                                <div className="col-span-6 px-2 py-2 text-[var(--text-primary)] pl-6">
                                   <span className="text-[var(--text-muted)]">To</span> {line.accountName}
                                 </div>
-                                <div className="col-span-1 text-center text-xs text-[var(--text-muted)]">-</div>
-                                <div className="col-span-2 text-right text-xs">-</div>
-                                <div className="col-span-2 text-right text-xs font-medium text-[var(--text-primary)]">
+                                <div className="col-span-1 px-1 py-2 text-center text-[var(--text-muted)] text-[10px]"></div>
+                                <div className="col-span-2 px-1 py-2 text-right"></div>
+                                <div className="col-span-1 px-1 py-2 text-right font-medium text-[var(--text-primary)]">
                                   {fmt(line.creditAmount)}
                                 </div>
                               </div>
                             ))}
                             
-                            {/* Narration Line */}
                             {entry.narration && (
-                              <div className="grid grid-cols-12 gap-1 px-3 py-2 items-start bg-[var(--bg-surface)]">
-                                <div className="col-span-2"></div>
-                                <div className="col-span-5 text-xs text-[var(--text-muted)] italic">
+                              <div className="grid grid-cols-12 text-[13px] items-start bg-[var(--bg-surface)] relative">
+                                <div className="col-span-2 px-2 py-2"></div>
+                                <div className="col-span-6 px-2 py-2 text-[var(--text-muted)] italic">
                                   ({entry.narration})
                                 </div>
-                                <div className="col-span-1"></div>
-                                <div className="col-span-2"></div>
-                                <div className="col-span-2"></div>
+                                <div className="col-span-1 px-1 py-2"></div>
+                                <div className="col-span-2 px-1 py-2"></div>
+                                <div className="col-span-1 px-1 py-2"></div>
                               </div>
                             )}
                           </>
@@ -4377,6 +4474,153 @@ const FinancePage = ({ onNavigate }) => {
           </FormField>
         </div>
       </Modal>
+
+      {/* Journal Entry Detail Modal */}
+      {showJournalEntryModal && selectedJournalEntry && (
+        <Modal
+          open={showJournalEntryModal}
+          onClose={() => {
+            setShowJournalEntryModal(false);
+            setSelectedJournalEntry(null);
+            setSelectedJournalEntryIndex(null);
+          }}
+          title={`Journal Entry — JE-${String(selectedJournalEntryIndex || 1).padStart(3, '0')}`}
+          footer={
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setShowJournalEntryModal(false);
+                  setSelectedJournalEntry(null);
+                  setSelectedJournalEntryIndex(null);
+                }}
+              >
+                Close
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-4 pb-4">
+            {/* Entry Info */}
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="glass-card p-2">
+                <div className="text-[var(--text-muted)] mb-0.5">Date</div>
+                <div className="font-semibold text-[var(--text-primary)]">
+                  {new Date(selectedJournalEntry.date).toLocaleDateString('en-IN', { 
+                    day: '2-digit', 
+                    month: '2-digit', 
+                    year: 'numeric' 
+                  })}
+                </div>
+              </div>
+              <div className="glass-card p-2">
+                <div className="text-[var(--text-muted)] mb-0.5">Reference</div>
+                <div className="font-semibold text-[var(--text-primary)]">
+                  {selectedJournalEntry.reference || '—'}
+                </div>
+              </div>
+              <div className="glass-card p-2">
+                <div className="text-[var(--text-muted)] mb-0.5">Category</div>
+                <div className="font-semibold text-[var(--text-primary)]">
+                  {selectedJournalEntry.narration 
+                    ? selectedJournalEntry.narration.split(':')[0]?.trim() 
+                    : (selectedJournalEntry.category || '—')}
+                </div>
+              </div>
+              <div className="glass-card p-2">
+                <div className="text-[var(--text-muted)] mb-0.5">Type</div>
+                <div className={`font-semibold ${selectedJournalEntry.type === 'credit' ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {selectedJournalEntry.type === 'credit' ? 'Credit (+)' : 'Debit (-)'}
+                </div>
+              </div>
+            </div>
+
+            {/* Journal Lines Table */}
+            <div className="border border-[var(--border-base)] rounded-lg overflow-hidden">
+              {/* Table Header */}
+              <div className="grid grid-cols-12 text-[11px] font-semibold text-[var(--text-primary)] border-b-2 border-[var(--border-base)] p-2 bg-[var(--bg-surface)]">
+                <div className="col-span-6 border-r-2 border-[var(--border-base)] px-1">Account</div>
+                <div className="col-span-3 border-r-2 border-[var(--border-base)] px-1 text-right">Debit (₹)</div>
+                <div className="col-span-3 pl-1 text-right">Credit (₹)</div>
+              </div>
+              
+              {/* Debit Lines */}
+              {(selectedJournalEntry.lines || [])
+                .filter(l => l.debitAmount > 0)
+                .map((line, idx) => (
+                  <div 
+                    key={`debit-${idx}`}
+                    className="grid grid-cols-12 text-xs border-b border-[var(--border-muted)]"
+                  >
+                    <div className="col-span-6 border-r-2 border-[var(--border-base)] px-3 py-2 text-[var(--text-primary)]">
+                      {line.accountName} <span className="text-[var(--text-muted)]">Dr.</span>
+                    </div>
+                    <div className="col-span-3 border-r-2 border-[var(--border-base)] px-3 py-2 text-right font-medium text-[var(--text-primary)]">
+                      {fmt(line.debitAmount)}
+                    </div>
+                    <div className="col-span-3 px-3 py-2 text-right">-</div>
+                  </div>
+                ))}
+              
+              {/* Credit Lines */}
+              {(selectedJournalEntry.lines || [])
+                .filter(l => l.creditAmount > 0)
+                .map((line, idx) => (
+                  <div 
+                    key={`credit-${idx}`}
+                    className="grid grid-cols-12 text-xs border-b border-[var(--border-muted)]"
+                  >
+                    <div className="col-span-6 border-r-2 border-[var(--border-base)] px-3 py-2 text-[var(--text-primary)] pl-6">
+                      <span className="text-[var(--text-muted)]">To</span> {line.accountName}
+                    </div>
+                    <div className="col-span-3 border-r-2 border-[var(--border-base)] px-3 py-2 text-right">-</div>
+                    <div className="col-span-3 px-3 py-2 text-right font-medium text-[var(--text-primary)]">
+                      {fmt(line.creditAmount)}
+                    </div>
+                  </div>
+                ))}
+              
+              {/* Total Row */}
+              <div className="grid grid-cols-12 text-xs font-semibold bg-[var(--bg-surface)] p-2 border-t-2 border-[var(--border-base)]">
+                <div className="col-span-6 border-r-2 border-[var(--border-base)] px-1">Total</div>
+                <div className="col-span-3 border-r-2 border-[var(--border-base)] px-1 text-right">
+                  {fmt((selectedJournalEntry.lines || [])
+                    .reduce((sum, l) => sum + (l.debitAmount || 0), 0))}
+                </div>
+                <div className="col-span-3 pl-1 text-right">
+                  {fmt((selectedJournalEntry.lines || [])
+                    .reduce((sum, l) => sum + (l.creditAmount || 0), 0))}
+                </div>
+              </div>
+            </div>
+
+            {/* Narration */}
+            {selectedJournalEntry.narration && (
+              <div className="glass-card p-3">
+                <div className="text-[var(--text-muted)] mb-1 text-xs">Narration</div>
+                <div className="text-sm text-[var(--text-primary)] italic">
+                  ({selectedJournalEntry.narration})
+                </div>
+              </div>
+            )}
+
+            {/* Reason */}
+            {selectedJournalEntry.reason && (
+              <div className="glass-card p-3">
+                <div className="text-[var(--text-muted)] mb-1 text-xs">Reason</div>
+                <div className="text-sm text-[var(--text-primary)]">
+                  {selectedJournalEntry.reason}
+                </div>
+              </div>
+            )}
+
+            {/* Created Info */}
+            <div className="text-[10px] text-[var(--text-muted)] text-right">
+              Created: {selectedJournalEntry.createdAt ? new Date(selectedJournalEntry.createdAt).toLocaleString('en-IN') : '—'}
+            </div>
+          </div>
+        </Modal>
+      )}
 
     </div>
 
