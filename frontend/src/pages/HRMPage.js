@@ -1013,17 +1013,23 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
         ]}
       />
 
-      {/* ── KPI Cards ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {kpis.map((kpi, index) => (
-          <KPICard
-            key={index}
-            label={kpi.label}
-            value={kpi.value}
-            icon={kpi.icon}
-            accentColor={kpi.color}
-          />
-        ))}
+      {/* ── HRM Overview KPI Cards ── */}
+      <div className="mb-2">
+        <p className="text-xs text-[var(--text-muted)] mb-2 flex items-center gap-2">
+          <UserCircle size={12} className="text-[var(--accent-light)]" />
+          <span>HRM Overview - Employee statistics and payroll summary</span>
+        </p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {kpis.map((kpi, index) => (
+            <KPICard
+              key={index}
+              title={kpi.label}
+              value={kpi.value}
+              icon={kpi.icon}
+              accentColor={kpi.color}
+            />
+          ))}
+        </div>
       </div>
 
       {/* ── Vertical Layout with Sidebar ── */}
