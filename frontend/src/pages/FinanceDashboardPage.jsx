@@ -18,6 +18,7 @@ const FinanceDashboardPage = ({ onNavigate }) => {
   const [manualBalance, setManualBalance] = useState(0);
   const [monthlyRevenue, setMonthlyRevenue] = useState([]);
   const [cashFlow, setCashFlow] = useState([]);
+  const [transactionAnalytics, setTransactionAnalytics] = useState(null);
 
   useEffect(() => {
     fetchDashboardData();
@@ -37,6 +38,7 @@ const FinanceDashboardPage = ({ onNavigate }) => {
         posRes,
         manualAdjustmentsRes,
         manualBalanceRes,
+        transactionAnalyticsRes,
       ] = await Promise.all([
         financeApi.getInvoices(),
         financeApi.getPayments(),
@@ -46,6 +48,7 @@ const FinanceDashboardPage = ({ onNavigate }) => {
         api.get('/procurement/purchase-orders'),
         financeApi.getManualAdjustments(),
         financeApi.getManualAdjustmentBalance(),
+        financeApi.getTransactionAnalytics(),
       ]);
 
       setInvoices(invoicesRes || []);
@@ -55,6 +58,7 @@ const FinanceDashboardPage = ({ onNavigate }) => {
       setDashboardStats(statsRes);
       setManualAdjustments(manualAdjustmentsRes || []);
       setManualBalance(manualBalanceRes?.balance || 0);
+      setTransactionAnalytics(transactionAnalyticsRes || null);
 
       // Calculate payables and charts
       const vendors = Array.isArray(vendorsRes) ? vendorsRes : (vendorsRes?.data || []);
@@ -286,6 +290,7 @@ const FinanceDashboardPage = ({ onNavigate }) => {
         monthlyRevenue={monthlyRevenue}
         cashFlow={cashFlow}
         manualBalance={manualBalance}
+        transactionAnalytics={transactionAnalytics}
         onInvoicesClick={() => onNavigate('finance')}
         onStatusClick={() => onNavigate('finance')}
       />
