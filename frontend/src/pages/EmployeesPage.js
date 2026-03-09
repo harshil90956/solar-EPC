@@ -53,8 +53,11 @@ const EmployeesPage = () => {
   const fetchEmployees = async () => {
     try {
       setLoading(true);
+      console.log('[DEBUG] Fetching employees...');
       const response = await employeeApi.getAll();
+      console.log('[DEBUG] Employee API response:', response);
       const data = response.data?.data || response.data || [];
+      console.log('[DEBUG] Extracted employee data:', data);
       setEmployees(data);
 
       // Calculate stats
@@ -69,6 +72,8 @@ const EmployeesPage = () => {
         departments: uniqueDepts.length
       });
     } catch (error) {
+      console.error('[DEBUG] Error fetching employees:', error);
+      console.error('[DEBUG] Error response:', error.response);
       toast.error('Failed to fetch employees');
     } finally {
       setLoading(false);

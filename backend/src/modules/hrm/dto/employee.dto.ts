@@ -1,5 +1,5 @@
-import { IsString, IsEmail, IsNotEmpty, IsOptional, IsDate, IsEnum, IsMongoId } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsString, IsEmail, IsNotEmpty, IsOptional, IsDate, IsEnum, IsMongoId, IsNumber, Min } from 'class-validator';
+import { Type, Transform } from 'class-transformer';
 import { EmployeeStatus } from '../schemas/employee.schema';
 
 export class CreateEmployeeDto {
@@ -50,6 +50,20 @@ export class CreateEmployeeDto {
   @IsEnum(EmployeeStatus)
   @IsOptional()
   status?: EmployeeStatus;
+
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  @Transform(({ value }) => value ? Number(value) : undefined)
+  salary?: number;
+
+  @IsString()
+  @IsOptional()
+  emergencyContact?: string;
+
+  @IsString()
+  @IsOptional()
+  emergencyPhone?: string;
 }
 
 export class UpdateEmployeeDto {
@@ -92,4 +106,18 @@ export class UpdateEmployeeDto {
   @IsEnum(EmployeeStatus)
   @IsOptional()
   status?: EmployeeStatus;
+
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  @Transform(({ value }) => value ? Number(value) : undefined)
+  salary?: number;
+
+  @IsString()
+  @IsOptional()
+  emergencyContact?: string;
+
+  @IsString()
+  @IsOptional()
+  emergencyPhone?: string;
 }

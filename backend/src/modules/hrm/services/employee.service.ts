@@ -56,6 +56,16 @@ export class EmployeeService {
       employeeData.tenantId = new Types.ObjectId(tenantId);
     }
 
+    // Convert joiningDate from string to Date if needed
+    if (employeeData.joiningDate && typeof employeeData.joiningDate === 'string') {
+      employeeData.joiningDate = new Date(employeeData.joiningDate);
+    }
+
+    // Convert salary from string to Number if needed
+    if (employeeData.salary && typeof employeeData.salary === 'string') {
+      employeeData.salary = Number(employeeData.salary);
+    }
+
     // Hash password before saving
     if (employeeData.password) {
       console.log('[DEBUG] Hashing password...');
@@ -72,15 +82,19 @@ export class EmployeeService {
   }
 
   async findAll(tenantId?: string): Promise<Employee[]> {
+    console.log('[DEBUG] EmployeeService.findAll called with tenantId:', tenantId);
     const query: any = {};
     if (tenantId && tenantId !== 'default') {
       query.tenantId = new Types.ObjectId(tenantId);
     }
-    return this.employeeModel
+    console.log('[DEBUG] Employee findAll query:', query);
+    const employees = await this.employeeModel
       .find(query)
       .populate('roleId', 'roleId label color')
       .sort({ createdAt: -1 })
       .exec();
+    console.log('[DEBUG] Employee findAll result count:', employees.length);
+    return employees;
   }
 
   async findOne(id: string, tenantId?: string): Promise<Employee> {

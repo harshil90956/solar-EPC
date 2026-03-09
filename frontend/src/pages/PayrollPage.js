@@ -8,7 +8,7 @@ import { Modal } from '../components/ui/Modal';
 import { toast } from '../components/ui/Toast';
 import { Search, RefreshCw, Plus, Wallet } from 'lucide-react';
 import { format } from 'date-fns';
-import { payrollApi } from '../services/hrmApi';
+import { payrollApi, employeeApi } from '../services/hrmApi';
 
 const PayrollPage = () => {
   const [mounted, setMounted] = useState(false);
@@ -30,11 +30,16 @@ const PayrollPage = () => {
   // Functions defined before useEffect
   const fetchEmployees = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/v1/hrm/employees');
-      const data = await response.json();
-      setEmployees(data.data || []);
+      console.log('[DEBUG] Fetching employees from API...');
+      const response = await employeeApi.getAll();
+      console.log('[DEBUG] Employee API response:', response);
+      const data = response.data?.data || response.data || [];
+      console.log('[DEBUG] Setting employees:', data.length, 'employees');
+      setEmployees(data);
     } catch (error) {
-      console.error('Failed to fetch employees');
+      console.error('[DEBUG] Error fetching employees:', error);
+      console.error('[DEBUG] Error details:', error.response?.data || error.message);
+      toast.error('Failed to fetch employees');
     }
   };
 
@@ -94,33 +99,33 @@ const PayrollPage = () => {
   const totalNetSalary = payrolls.reduce((sum, p) => sum + (p.netSalary || 0), 0);
 
   const kpis = [
-    { 
-      label: 'Total Payroll', 
-      value: `₹${totalNetSalary.toLocaleString()}`, 
-      icon: Wallet, 
-      color: '#22c55e' 
+    {
+      label: 'Total Payroll',
+      value: `₹${totalNetSalary.toLocaleString()}`,
+      icon: Wallet,
+      color: '#22c55e'
     },
-    { 
-      label: 'This Month', 
+    {
+      label: 'This Month',
       value: payrolls.filter(p => {
         const payrollMonth = new Date(p.createdAt).getMonth() + 1;
         const payrollYear = new Date(p.createdAt).getFullYear();
         return payrollMonth === new Date().getMonth() + 1 && payrollYear === new Date().getFullYear();
-      }).length, 
-      icon: Wallet, 
-      color: '#3b82f6' 
+      }).length,
+      icon: Wallet,
+      color: '#3b82f6'
     },
-    { 
-      label: 'Employees Paid', 
-      value: new Set(payrolls.map(p => p.employeeId?._id || p.employeeId)).size, 
-      icon: Wallet, 
-      color: '#f59e0b' 
+    {
+      label: 'Employees Paid',
+      value: new Set(payrolls.map(p => p.employeeId?._id || p.employeeId)).size,
+      icon: Wallet,
+      color: '#f59e0b'
     },
-    { 
-      label: 'Total Records', 
-      value: payrolls.length, 
-      icon: Wallet, 
-      color: '#a855f7' 
+    {
+      label: 'Total Records',
+      value: payrolls.length,
+      icon: Wallet,
+      color: '#a855f7'
     },
   ];
 

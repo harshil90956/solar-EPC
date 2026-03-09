@@ -8,7 +8,7 @@ import { Modal } from '../components/ui/Modal';
 import { toast } from '../components/ui/Toast';
 import { Search, RefreshCw, Plus, Building } from 'lucide-react';
 import { format } from 'date-fns';
-import { departmentApi } from '../services/hrmApi';
+import { departmentApi, employeeApi } from '../services/hrmApi';
 
 const DepartmentsPage = () => {
   const [mounted, setMounted] = useState(false);
@@ -27,11 +27,16 @@ const DepartmentsPage = () => {
   // Functions defined before useEffect
   const fetchEmployees = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/v1/hrm/employees');
-      const data = await response.json();
-      setEmployees(data.data || []);
+      console.log('[DEBUG] Fetching employees from API...');
+      const response = await employeeApi.getAll();
+      console.log('[DEBUG] Employee API response:', response);
+      const data = response.data?.data || response.data || [];
+      console.log('[DEBUG] Setting employees:', data.length, 'employees');
+      setEmployees(data);
     } catch (error) {
-      console.error('Failed to fetch employees');
+      console.error('[DEBUG] Error fetching employees:', error);
+      console.error('[DEBUG] Error details:', error.response?.data || error.message);
+      toast.error('Failed to fetch employees');
     }
   };
 

@@ -8,7 +8,7 @@ import { Modal } from '../components/ui/Modal';
 import { toast } from '../components/ui/Toast';
 import { Search, RefreshCw, Plus, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
-import { leaveApi } from '../services/hrmApi';
+import { leaveApi, employeeApi } from '../services/hrmApi';
 
 const LeavesPage = () => {
   const [mounted, setMounted] = useState(false);
@@ -29,11 +29,16 @@ const LeavesPage = () => {
   // Functions defined before useEffect
   const fetchEmployees = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/v1/hrm/employees');
-      const data = await response.json();
-      setEmployees(data.data || []);
+      console.log('[DEBUG] Fetching employees from API...');
+      const response = await employeeApi.getAll();
+      console.log('[DEBUG] Employee API response:', response);
+      const data = response.data?.data || response.data || [];
+      console.log('[DEBUG] Setting employees:', data.length, 'employees');
+      setEmployees(data);
     } catch (error) {
-      console.error('Failed to fetch employees');
+      console.error('[DEBUG] Error fetching employees:', error);
+      console.error('[DEBUG] Error details:', error.response?.data || error.message);
+      toast.error('Failed to fetch employees');
     }
   };
 
@@ -102,36 +107,36 @@ const LeavesPage = () => {
   };
 
   const filteredLeaves = leaves.filter(leave => {
-    const matchesSearch = leaveSearch === '' || 
+    const matchesSearch = leaveSearch === '' ||
       `${leave.employeeId?.firstName || ''} ${leave.employeeId?.lastName || ''}`.toLowerCase().includes(leaveSearch.toLowerCase());
     const matchesStatus = leaveStatusFilter === 'all' || leave.status === leaveStatusFilter;
     return matchesSearch && matchesStatus;
   });
 
   const kpis = [
-    { 
-      label: 'Pending Leaves', 
-      value: leaves.filter(l => l.status === 'pending').length, 
-      icon: Calendar, 
-      color: '#f59e0b' 
+    {
+      label: 'Pending Leaves',
+      value: leaves.filter(l => l.status === 'pending').length,
+      icon: Calendar,
+      color: '#f59e0b'
     },
-    { 
-      label: 'Approved Leaves', 
-      value: leaves.filter(l => l.status === 'approved').length, 
-      icon: Calendar, 
-      color: '#22c55e' 
+    {
+      label: 'Approved Leaves',
+      value: leaves.filter(l => l.status === 'approved').length,
+      icon: Calendar,
+      color: '#22c55e'
     },
-    { 
-      label: 'Rejected Leaves', 
-      value: leaves.filter(l => l.status === 'rejected').length, 
-      icon: Calendar, 
-      color: '#ef4444' 
+    {
+      label: 'Rejected Leaves',
+      value: leaves.filter(l => l.status === 'rejected').length,
+      icon: Calendar,
+      color: '#ef4444'
     },
-    { 
-      label: 'Total Leaves', 
-      value: leaves.length, 
-      icon: Calendar, 
-      color: '#3b82f6' 
+    {
+      label: 'Total Leaves',
+      value: leaves.length,
+      icon: Calendar,
+      color: '#3b82f6'
     },
   ];
 

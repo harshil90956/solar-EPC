@@ -37,6 +37,7 @@ export const payrollApi = {
   getAll: (params) => apiClient.get('/hrm/payroll', { params }),
   getById: (id) => apiClient.get(`/hrm/payroll/${id}`),
   getByEmployee: (employeeId) => apiClient.get(`/hrm/payroll/employee/${employeeId}`),
+  create: (data) => apiClient.post('/hrm/payroll/generate', data),
   generate: (data) => apiClient.post('/hrm/payroll/generate', data),
   generateBulk: (data) => apiClient.post('/hrm/payroll/generate-bulk', data),
   update: (id, data) => apiClient.patch(`/hrm/payroll/${id}`, data),
