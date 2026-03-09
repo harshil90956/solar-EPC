@@ -14,7 +14,7 @@ import { Progress } from '../components/ui/Progress';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/Tabs';
 import DataTable from '../components/ui/DataTable';
 import { generateCompliancePDF } from '../utils/compliancePdfGenerator';
-import { api } from '../lib/apiClient';
+import apiClient, { api } from '../lib/apiClient';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api/v1';
 const TENANT_ID = 'solarcorp';
@@ -302,22 +302,19 @@ const CompliancePage = () => {
         const fetchComplianceData = async () => {
             try {
                 const [nmRes, subRes, insRes, docRes, statsRes, projectsRes] = await Promise.all([
-                    fetch(`${API_BASE_URL}/compliance/net-metering?tenantId=${TENANT_ID}`),
-                    fetch(`${API_BASE_URL}/compliance/subsidies?tenantId=${TENANT_ID}`),
-                    fetch(`${API_BASE_URL}/compliance/inspections?tenantId=${TENANT_ID}`),
-                    fetch(`${API_BASE_URL}/compliance/documents?tenantId=${TENANT_ID}`),
-                    fetch(`${API_BASE_URL}/compliance/stats?tenantId=${TENANT_ID}`),
+                    api.get('/compliance/net-metering', { tenantId: TENANT_ID }),
+                    api.get('/compliance/subsidies', { tenantId: TENANT_ID }),
+                    api.get('/compliance/inspections', { tenantId: TENANT_ID }),
+                    api.get('/compliance/documents', { tenantId: TENANT_ID }),
+                    api.get('/compliance/stats', { tenantId: TENANT_ID }),
                     api.get('/projects', { tenantId: TENANT_ID }),
                 ]);
-                if (nmRes.ok) { const data = await nmRes.json(); setNmItems(Array.isArray(data) ? data : (data.data || [])); }
-                if (subRes.ok) { const data = await subRes.json(); setSubItems(Array.isArray(data) ? data : (data.data || [])); }
-                if (insRes.ok) { const data = await insRes.json(); setInspections(Array.isArray(data) ? data : (data.data || [])); }
-                if (docRes.ok) { const data = await docRes.json(); setDocuments(Array.isArray(data) ? data : (data.data || [])); }
-                if (statsRes.ok) { const data = await statsRes.json(); setStats(data); }
-                {
-                    const data = projectsRes?.data ?? projectsRes;
-                    setProjects(Array.isArray(data) ? data : (data?.data || []));
-                }
+                setNmItems(Array.isArray(nmRes) ? nmRes : (nmRes?.data || []));
+                setSubItems(Array.isArray(subRes) ? subRes : (subRes?.data || []));
+                setInspections(Array.isArray(insRes) ? insRes : (insRes?.data || []));
+                setDocuments(Array.isArray(docRes) ? docRes : (docRes?.data || []));
+                setStats(statsRes);
+                setProjects(Array.isArray(projectsRes) ? projectsRes : (projectsRes?.data || []));
             } catch (err) { console.error('Error fetching compliance data:', err); }
         };
         fetchComplianceData();
@@ -325,29 +322,17 @@ const CompliancePage = () => {
 
     const handleNMStage = async (id, newStatus) => {
         try {
-            const response = await fetch(`${API_BASE_URL}/compliance/net-metering/${id}?tenantId=${TENANT_ID}`, {
-                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: newStatus }),
-            });
-            if (response.ok) {
-                const updated = await response.json();
-                const itemData = updated.data || updated;
-                setNmItems(prev => prev.map(i => i.applicationId === id ? { ...i, ...itemData } : i));
-            }
+            const updated = await api.patch(`/compliance/net-metering/${id}`, { status: newStatus }, { tenantId: TENANT_ID });
+            const itemData = updated.data || updated;
+            setNmItems(prev => prev.map(i => i.applicationId === id ? { ...i, ...itemData } : i));
         } catch (err) { console.error('Error updating NM status:', err); }
     };
 
     const handleSubStage = async (id, newStatus) => {
         try {
-            const response = await fetch(`${API_BASE_URL}/compliance/subsidies/${id}?tenantId=${TENANT_ID}`, {
-                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: newStatus }),
-            });
-            if (response.ok) {
-                const updated = await response.json();
-                const itemData = updated.data || updated;
-                setSubItems(prev => prev.map(i => i.subsidyId === id ? { ...i, ...itemData } : i));
-            }
+            const updated = await api.patch(`/compliance/subsidies/${id}`, { status: newStatus }, { tenantId: TENANT_ID });
+            const itemData = updated.data || updated;
+            setSubItems(prev => prev.map(i => i.subsidyId === id ? { ...i, ...itemData } : i));
         } catch (err) { console.error('Error updating subsidy status:', err); }
     };
 
@@ -372,21 +357,12 @@ const CompliancePage = () => {
                 status: 'Draft',
             };
 
-            const response = await fetch(`${API_BASE_URL}/compliance/net-metering?tenantId=${TENANT_ID}`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
-            if (response.ok) {
-                const data = await response.json();
-                const newItem = data.data || data;
-                setNmItems(prev => [newItem, ...prev]);
-                setShowAddNM(false);
-                setNmForm({ projectId: '', discom: '', applicationDate: '', contactOfficer: '', contactPhone: '' });
-                alert('Net Metering application submitted successfully!');
-            } else {
-                const error = await response.text();
-                alert(`Failed to submit: ${error}`);
-            }
+            const data = await api.post('/compliance/net-metering', payload, { tenantId: TENANT_ID });
+            const newItem = data.data || data;
+            setNmItems(prev => [newItem, ...prev]);
+            setShowAddNM(false);
+            setNmForm({ projectId: '', discom: '', applicationDate: '', contactOfficer: '', contactPhone: '' });
+            alert('Net Metering application submitted successfully!');
         } catch (err) { console.error('Error submitting NM:', err); alert('Failed to submit application'); }
     };
 
@@ -409,21 +385,12 @@ const CompliancePage = () => {
                 status: 'Applied',
             };
 
-            const response = await fetch(`${API_BASE_URL}/compliance/subsidies?tenantId=${TENANT_ID}`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
-            if (response.ok) {
-                const data = await response.json();
-                const newItem = data.data || data;
-                setSubItems(prev => [newItem, ...prev]);
-                setShowAddSub(false);
-                setSubForm({ projectId: '', scheme: '', claimAmount: '', applicationDate: '', referenceNo: '' });
-                alert('Subsidy application submitted successfully!');
-            } else {
-                const error = await response.text();
-                alert(`Failed to submit: ${error}`);
-            }
+            const data = await api.post('/compliance/subsidies', payload, { tenantId: TENANT_ID });
+            const newItem = data.data || data;
+            setSubItems(prev => [newItem, ...prev]);
+            setShowAddSub(false);
+            setSubForm({ projectId: '', scheme: '', claimAmount: '', applicationDate: '', referenceNo: '' });
+            alert('Subsidy application submitted successfully!');
         } catch (err) { console.error('Error submitting Subsidy:', err); alert('Failed to submit application'); }
     };
 
@@ -445,21 +412,12 @@ const CompliancePage = () => {
                 status: 'Scheduled',
             };
 
-            const response = await fetch(`${API_BASE_URL}/compliance/inspections?tenantId=${TENANT_ID}`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
-            if (response.ok) {
-                const data = await response.json();
-                const newItem = data.data || data;
-                setInspections(prev => [newItem, ...prev]);
-                setShowAddIns(false);
-                setInsForm({ projectId: '', type: '', scheduledDate: '', inspector: '', notes: '' });
-                alert('Inspection scheduled successfully!');
-            } else {
-                const error = await response.text();
-                alert(`Failed to submit: ${error}`);
-            }
+            const data = await api.post('/compliance/inspections', payload, { tenantId: TENANT_ID });
+            const newItem = data.data || data;
+            setInspections(prev => [newItem, ...prev]);
+            setShowAddIns(false);
+            setInsForm({ projectId: '', type: '', scheduledDate: '', inspector: '', notes: '' });
+            alert('Inspection scheduled successfully!');
         } catch (err) { console.error('Error submitting Inspection:', err); alert('Failed to schedule inspection'); }
     };
 
@@ -484,23 +442,13 @@ const CompliancePage = () => {
                 mimeType: docFile?.type || null,
             };
 
-            const response = await fetch(`${API_BASE_URL}/compliance/documents?tenantId=${TENANT_ID}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
-            if (response.ok) {
-                const data = await response.json();
-                const newItem = data.data || data;
-                setDocuments(prev => [newItem, ...prev]);
-                setShowUpload(false);
-                setDocForm({ projectId: '', documentType: '', issuingAuthority: '', documentDate: '' });
-                setDocFile(null);
-                alert('Document uploaded successfully!');
-            } else {
-                const error = await response.text();
-                alert(`Failed to upload: ${error}`);
-            }
+            const data = await api.post('/compliance/documents', payload, { tenantId: TENANT_ID });
+            const newItem = data.data || data;
+            setDocuments(prev => [newItem, ...prev]);
+            setShowUpload(false);
+            setDocForm({ projectId: '', documentType: '', issuingAuthority: '', documentDate: '' });
+            setDocFile(null);
+            alert('Document uploaded successfully!');
         } catch (err) { console.error('Error uploading document:', err); alert('Failed to upload document'); }
     };
 
@@ -520,21 +468,12 @@ const CompliancePage = () => {
                 discomOfficer: nmForm.contactOfficer,
                 discomPhone: nmForm.contactPhone,
             };
-            const response = await fetch(`${API_BASE_URL}/compliance/net-metering/${editingNM}?tenantId=${TENANT_ID}`, {
-                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
-            if (response.ok) {
-                const data = await response.json();
-                const updatedItem = data.data || data;
-                setNmItems(prev => prev.map(i => i.applicationId === editingNM ? { ...i, ...updatedItem } : i));
-                setEditingNM(null);
-                setNmForm({ projectId: '', discom: '', status: '', applicationDate: '', contactOfficer: '', contactPhone: '' });
-                alert('Net Metering application updated successfully!');
-            } else {
-                const error = await response.text();
-                alert(`Failed to update: ${error}`);
-            }
+            const data = await api.patch(`/compliance/net-metering/${editingNM}`, payload, { tenantId: TENANT_ID });
+            const updatedItem = data.data || data;
+            setNmItems(prev => prev.map(i => i.applicationId === editingNM ? { ...i, ...updatedItem } : i));
+            setEditingNM(null);
+            setNmForm({ projectId: '', discom: '', status: '', applicationDate: '', contactOfficer: '', contactPhone: '' });
+            alert('Net Metering application updated successfully!');
         } catch (err) { console.error('Error updating NM:', err); alert('Failed to update application'); }
     };
 
@@ -547,21 +486,12 @@ const CompliancePage = () => {
                 appliedDate: subForm.applicationDate,
                 applicationRef: subForm.referenceNo,
             };
-            const response = await fetch(`${API_BASE_URL}/compliance/subsidies/${editingSub}?tenantId=${TENANT_ID}`, {
-                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
-            if (response.ok) {
-                const data = await response.json();
-                const updatedItem = data.data || data;
-                setSubItems(prev => prev.map(i => i.subsidyId === editingSub ? { ...i, ...updatedItem } : i));
-                setEditingSub(null);
-                setSubForm({ projectId: '', scheme: '', status: '', claimAmount: '', applicationDate: '', referenceNo: '' });
-                alert('Subsidy application updated successfully!');
-            } else {
-                const error = await response.text();
-                alert(`Failed to update: ${error}`);
-            }
+            const data = await api.patch(`/compliance/subsidies/${editingSub}`, payload, { tenantId: TENANT_ID });
+            const updatedItem = data.data || data;
+            setSubItems(prev => prev.map(i => i.subsidyId === editingSub ? { ...i, ...updatedItem } : i));
+            setEditingSub(null);
+            setSubForm({ projectId: '', scheme: '', status: '', claimAmount: '', applicationDate: '', referenceNo: '' });
+            alert('Subsidy application updated successfully!');
         } catch (err) { console.error('Error updating Subsidy:', err); alert('Failed to update subsidy'); }
     };
 
@@ -574,21 +504,12 @@ const CompliancePage = () => {
                 scheduledDate: insForm.scheduledDate,
                 inspector: insForm.inspector,
             };
-            const response = await fetch(`${API_BASE_URL}/compliance/inspections/${editingIns}?tenantId=${TENANT_ID}`, {
-                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
-            if (response.ok) {
-                const data = await response.json();
-                const updatedItem = data.data || data;
-                setInspections(prev => prev.map(i => i.inspectionId === editingIns ? { ...i, ...updatedItem } : i));
-                setEditingIns(null);
-                setInsForm({ projectId: '', type: '', status: '', scheduledDate: '', inspector: '', notes: '' });
-                alert('Inspection updated successfully!');
-            } else {
-                const error = await response.text();
-                alert(`Failed to update: ${error}`);
-            }
+            const data = await api.patch(`/compliance/inspections/${editingIns}`, payload, { tenantId: TENANT_ID });
+            const updatedItem = data.data || data;
+            setInspections(prev => prev.map(i => i.inspectionId === editingIns ? { ...i, ...updatedItem } : i));
+            setEditingIns(null);
+            setInsForm({ projectId: '', type: '', status: '', scheduledDate: '', inspector: '', notes: '' });
+            alert('Inspection updated successfully!');
         } catch (err) { console.error('Error updating Inspection:', err); alert('Failed to update inspection'); }
     };
 
@@ -602,21 +523,12 @@ const CompliancePage = () => {
                 issuingAuthority: docForm.issuingAuthority,
                 documentDate: docForm.documentDate,
             };
-            const response = await fetch(`${API_BASE_URL}/compliance/documents/${editingDoc}?tenantId=${TENANT_ID}`, {
-                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
-            if (response.ok) {
-                const data = await response.json();
-                const updatedItem = data.data || data;
-                setDocuments(prev => prev.map(i => i.documentId === editingDoc ? { ...i, ...updatedItem } : i));
-                setEditingDoc(null);
-                setDocForm({ projectId: '', documentType: '', status: '', issuingAuthority: '', documentDate: '' });
-                alert('Document updated successfully!');
-            } else {
-                const error = await response.text();
-                alert(`Failed to update: ${error}`);
-            }
+            const data = await api.patch(`/compliance/documents/${editingDoc}`, payload, { tenantId: TENANT_ID });
+            const updatedItem = data.data || data;
+            setDocuments(prev => prev.map(i => i.documentId === editingDoc ? { ...i, ...updatedItem } : i));
+            setEditingDoc(null);
+            setDocForm({ projectId: '', documentType: '', status: '', issuingAuthority: '', documentDate: '' });
+            alert('Document updated successfully!');
         } catch (err) { console.error('Error updating Document:', err); alert('Failed to update document'); }
     };
 
@@ -624,56 +536,36 @@ const CompliancePage = () => {
     const handleDeleteNM = async (id) => {
         if (!window.confirm('Are you sure you want to delete this application?')) return;
         try {
-            const response = await fetch(`${API_BASE_URL}/compliance/net-metering/${id}?tenantId=${TENANT_ID}`, { method: 'DELETE' });
-            if (response.ok) {
-                setNmItems(prev => prev.filter(i => i.applicationId !== id));
-                alert('Net Metering application deleted successfully!');
-            } else {
-                const error = await response.text();
-                alert(`Failed to delete: ${error}`);
-            }
+            await apiClient.delete(`/compliance/net-metering/${id}`, { params: { tenantId: TENANT_ID } });
+            setNmItems(prev => prev.filter(i => i.applicationId !== id));
+            alert('Net Metering application deleted successfully!');
         } catch (err) { console.error('Error deleting NM:', err); alert('Failed to delete application'); }
     };
 
     const handleDeleteSub = async (id) => {
         if (!window.confirm('Are you sure you want to delete this subsidy?')) return;
         try {
-            const response = await fetch(`${API_BASE_URL}/compliance/subsidies/${id}?tenantId=${TENANT_ID}`, { method: 'DELETE' });
-            if (response.ok) {
-                setSubItems(prev => prev.filter(i => i.subsidyId !== id));
-                alert('Subsidy deleted successfully!');
-            } else {
-                const error = await response.text();
-                alert(`Failed to delete: ${error}`);
-            }
+            await apiClient.delete(`/compliance/subsidies/${id}`, { params: { tenantId: TENANT_ID } });
+            setSubItems(prev => prev.filter(i => i.subsidyId !== id));
+            alert('Subsidy deleted successfully!');
         } catch (err) { console.error('Error deleting Subsidy:', err); alert('Failed to delete subsidy'); }
     };
 
     const handleDeleteIns = async (id) => {
         if (!window.confirm('Are you sure you want to delete this inspection?')) return;
         try {
-            const response = await fetch(`${API_BASE_URL}/compliance/inspections/${id}?tenantId=${TENANT_ID}`, { method: 'DELETE' });
-            if (response.ok) {
-                setInspections(prev => prev.filter(i => i.inspectionId !== id));
-                alert('Inspection deleted successfully!');
-            } else {
-                const error = await response.text();
-                alert(`Failed to delete: ${error}`);
-            }
+            await apiClient.delete(`/compliance/inspections/${id}`, { params: { tenantId: TENANT_ID } });
+            setInspections(prev => prev.filter(i => i.inspectionId !== id));
+            alert('Inspection deleted successfully!');
         } catch (err) { console.error('Error deleting Inspection:', err); alert('Failed to delete inspection'); }
     };
 
     const handleDeleteDoc = async (id) => {
         if (!window.confirm('Are you sure you want to delete this document?')) return;
         try {
-            const response = await fetch(`${API_BASE_URL}/compliance/documents/${id}?tenantId=${TENANT_ID}`, { method: 'DELETE' });
-            if (response.ok) {
-                setDocuments(prev => prev.filter(i => i.documentId !== id));
-                alert('Document deleted successfully!');
-            } else {
-                const error = await response.text();
-                alert(`Failed to delete: ${error}`);
-            }
+            await apiClient.delete(`/compliance/documents/${id}`, { params: { tenantId: TENANT_ID } });
+            setDocuments(prev => prev.filter(i => i.documentId !== id));
+            alert('Document deleted successfully!');
         } catch (err) { console.error('Error deleting Document:', err); alert('Failed to delete document'); }
     };
 
