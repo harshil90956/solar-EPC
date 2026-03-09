@@ -103,7 +103,8 @@ export class LeadsController {
   async findOne(@Param('id') id: string, @Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
-      const result = await this.leadsService.findOne(id, tenantId);
+      const user = req.user;
+      const result = await this.leadsService.findOne(id, tenantId, user);
       return { success: true, data: result };
     } catch (error: any) {
       this.logger.error(`Find one lead failed: ${error?.message || 'Unknown error'}`, error?.stack);
@@ -195,7 +196,8 @@ export class LeadsController {
   async getTimeline(@Param('id') id: string, @Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
-      return await this.leadsService.getTimeline(id, tenantId);
+      const user = req.user;
+      return await this.leadsService.getTimeline(id, tenantId, user);
     } catch (error: any) {
       this.logger.error(`Get timeline for lead ${id} failed: ${error?.message || 'Unknown error'}`, error?.stack);
       throw error;
@@ -207,7 +209,8 @@ export class LeadsController {
   async getTracker(@Param('id') id: string, @Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
-      const result = await this.leadsService.getTracker(id, tenantId);
+      const user = req.user;
+      const result = await this.leadsService.getTracker(id, tenantId, user);
       return { success: true, data: result };
     } catch (error: any) {
       this.logger.error(`Get tracker for lead ${id} failed: ${error?.message || 'Unknown error'}`, error?.stack);
@@ -292,7 +295,8 @@ export class LeadsController {
   async getDashboardOverview(@Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
-      const result = await this.leadsService.getDashboardOverview(tenantId);
+      const user = req.user;
+      const result = await this.leadsService.getDashboardOverview(tenantId, user);
       return { success: true, data: result };
     } catch (error: any) {
       this.logger.error(`Get dashboard overview failed: ${error?.message || 'Unknown error'}`, error?.stack);
@@ -304,7 +308,8 @@ export class LeadsController {
   async getFunnelData(@Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
-      const result = await this.leadsService.getDashboardFunnel(tenantId);
+      const user = req.user;
+      const result = await this.leadsService.getDashboardFunnel(tenantId, user);
       return { success: true, data: result };
     } catch (error: any) {
       this.logger.error(`Get funnel data failed: ${error?.message || 'Unknown error'}`, error?.stack);
@@ -316,7 +321,8 @@ export class LeadsController {
   async getSourcePerformance(@Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
-      const result = await this.leadsService.getDashboardSource(tenantId);
+      const user = req.user;
+      const result = await this.leadsService.getDashboardSource(tenantId, user);
       return { success: true, data: result };
     } catch (error: any) {
       this.logger.error(`Get source performance failed: ${error?.message || 'Unknown error'}`, error?.stack);
@@ -328,7 +334,8 @@ export class LeadsController {
   async getLeadTrend(@Query('months') months: string, @Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
-      const result = await this.leadsService.getDashboardTrend(tenantId);
+      const user = req.user;
+      const result = await this.leadsService.getDashboardTrend(tenantId, user);
       return { success: true, data: result };
     } catch (error: any) {
       this.logger.error(`Get lead trend failed: ${error?.message || 'Unknown error'}`, error?.stack);
@@ -340,8 +347,9 @@ export class LeadsController {
   async getValueTrend(@Query('months') months: string, @Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
+      const user = req.user;
       // Value trend is included in getDashboardTrend
-      const result = await this.leadsService.getDashboardTrend(tenantId);
+      const result = await this.leadsService.getDashboardTrend(tenantId, user);
       return { success: true, data: result.months };
     } catch (error: any) {
       this.logger.error(`Get value trend failed: ${error?.message || 'Unknown error'}`, error?.stack);
@@ -353,8 +361,9 @@ export class LeadsController {
   async getScoreDistribution(@Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
+      const user = req.user;
       // Score distribution is included in getDashboardTrend
-      const result = await this.leadsService.getDashboardTrend(tenantId);
+      const result = await this.leadsService.getDashboardTrend(tenantId, user);
       return { success: true, data: result.scoreBuckets };
     } catch (error: any) {
       this.logger.error(`Get score distribution failed: ${error?.message || 'Unknown error'}`, error?.stack);
@@ -366,7 +375,8 @@ export class LeadsController {
   async getActivityStats(@Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
-      const result = await this.leadsService.getDashboardActivity(tenantId);
+      const user = req.user;
+      const result = await this.leadsService.getDashboardActivity(tenantId, user);
       return { success: true, data: result };
     } catch (error: any) {
       this.logger.error(`Get activity stats failed: ${error?.message || 'Unknown error'}`, error?.stack);
