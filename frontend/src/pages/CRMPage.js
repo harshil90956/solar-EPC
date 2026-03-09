@@ -24,7 +24,7 @@ import {
 } from 'recharts';
 import { USERS } from '../data/mockData';
 import { leadsApi } from '../services/leadsApi';
-import { useQuery } from '@tanstack/react-query';
+import { surveysApi } from '../services/surveysApi';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input, Select, Textarea, FormField } from '../components/ui/Input';
@@ -1081,6 +1081,40 @@ const CRMPage = () => {
       console.error('Failed to update score:', err);
       setScoreEditingLead(null);
       setShowScoreEditModal(false);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Handle Flip action - Move lead to survey stage and create survey
+  const handleFlipToSurvey = async (lead) => {
+    if (!window.confirm(`Flip lead "${lead.name}" to Site Survey Scheduled? This will create a pending survey.`)) return;
+    try {
+      setActionLoading(true);
+      
+      // Update lead stage to 'survey'
+      await leadsApi.update(lead._id || lead.id, { stage: 'survey' });
+      
+      // Create a pending survey for this lead
+      const surveyData = {
+        customerName: lead.name,
+        engineer: lead.assignedTo || 'Unassigned',
+        site: lead.company || lead.city || 'TBD',
+        scheduledDate: lead.nextFollowUp || new Date().toISOString().split('T')[0],
+        estimatedKw: parseInt(lead.kw?.replace('kW', '')) || 0,
+        status: 'pending',
+        sourceLeadId: lead._id || lead.id,
+        notes: `Flipped from CRM. Source: ${lead.source}, City: ${lead.city}, Phone: ${lead.phone}`
+      };
+      
+      await surveysApi.create(surveyData);
+      
+      logUpdate({ ...lead, stage: 'survey' });
+      fetchLeads(); // Refresh list
+      toast.success(`Lead "${lead.name}" flipped to Site Survey Scheduled`);
+    } catch (err) {
+      console.error('Failed to flip lead:', err);
+      toast.error('Failed to flip lead: ' + (err.message || 'Unknown error'));
     } finally {
       setActionLoading(false);
     }
@@ -2464,11 +2498,14 @@ const CRMPage = () => {
             ]}
             rowActions={[
               { label: 'View', icon: Eye, onClick: handleViewLead },
-              ...(can('crm', 'edit') ? [{ label: 'Edit', icon: Edit2, onClick: handleEditLead }] : []),
-              ...(can('crm', 'edit') ? [{ label: 'Score', icon: Brain, onClick: handleRecalculateScore }] : []),
-              ...(can('crm', 'delete') ? [{ label: 'Delete', icon: Trash2, onClick: handleDeleteLead, danger: true }] : []),
-              { label: 'Activity Log', icon: Clock, onClick: handleViewActivity },
-              { label: 'Lead Tracker', icon: GitCommit, onClick: handleViewTracker },
+              { label: 'Edit', icon: Edit2, onClick: handleEditLead },
+              { label: 'Flip to Survey', icon: Zap, onClick: handleFlipToSurvey },
+              { label: 'Duplicate', icon: RefreshCw, onClick: handleDuplicateLead },
+              { label: 'Score', icon: Brain, onClick: handleRecalculateScore },
+              { label: 'Archive', icon: Building2, onClick: handleArchiveLead },
+              { label: 'Delete', icon: Trash2, onClick: handleDeleteLead, danger: true },
+              { label: 'Timeline', icon: Clock, onClick: handleViewTimeline },
+              { label: 'Activity Log', icon: Activity, onClick: handleViewActivity },
             ]}
           />
         </div>
