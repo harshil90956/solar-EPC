@@ -618,10 +618,42 @@ const CompliancePage = () => {
 
             {/* KPIs */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <KPICard title="Net Metering Apps" value={stats.netMetering?.total || 0} icon={Building2} color="accent" />
-                <KPICard title="Subsidy Claimed" value={`₹${(totalSubsidy / 100000).toFixed(1)}L`} icon={IndianRupee} color="solar" />
-                <KPICard title="Subsidy Disbursed" value={`₹${(disbursed / 100000).toFixed(1)}L`} icon={CheckCircle} color="emerald" />
-                <KPICard title="Docs Pending" value={stats.documents?.pending || 0} icon={AlertTriangle} color="amber" />
+                <KPICard
+                    label={<span className="text-xs font-medium text-[var(--text-muted)]">Net Metering Apps</span>}
+                    value={stats.netMetering?.total || 0}
+                    icon={Building2}
+                    color="blue"
+                    style={{ backgroundColor: 'rgba(59, 130, 246, 0.2)' }}
+                    iconBgColor="bg-blue-100"
+                    iconColor="text-blue-600"
+                />
+                <KPICard
+                    label={<span className="text-xs font-medium text-[var(--text-muted)]">Subsidy Claimed</span>}
+                    value={`₹${(totalSubsidy / 100000).toFixed(1)}L`}
+                    icon={IndianRupee}
+                    color="solar"
+                    style={{ backgroundColor: 'rgba(249, 115, 22, 0.2)' }}
+                    iconBgColor="bg-orange-100"
+                    iconColor="text-orange-600"
+                />
+                <KPICard
+                    label={<span className="text-xs font-medium text-[var(--text-muted)]">Subsidy Disbursed</span>}
+                    value={`₹${(disbursed / 100000).toFixed(1)}L`}
+                    icon={CheckCircle}
+                    color="emerald"
+                    style={{ backgroundColor: 'rgba(16, 185, 129, 0.2)' }}
+                    iconBgColor="bg-emerald-100"
+                    iconColor="text-emerald-600"
+                />
+                <KPICard
+                    label={<span className="text-xs font-medium text-[var(--text-muted)]">Docs Pending</span>}
+                    value={stats.documents?.pending || 0}
+                    icon={AlertTriangle}
+                    color="amber"
+                    style={{ backgroundColor: 'rgba(245, 158, 11, 0.2)' }}
+                    iconBgColor="bg-amber-100"
+                    iconColor="text-amber-600"
+                />
             </div>
 
             {/* AI Banner */}
