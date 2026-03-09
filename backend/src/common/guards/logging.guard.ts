@@ -9,12 +9,12 @@ export class LoggingGuard implements CanActivate {
     context: ExecutionContext,
   ): boolean | Promise<boolean> | Observable<boolean> {
     const request = context.switchToHttp().getRequest();
-    const path = request.path;
-    const authHeader = request.headers.authorization;
+    const path = request?.routerPath || request?.raw?.url || request?.url || request?.path;
+    const authHeader = request?.headers?.authorization;
     
     this.logger.log(`[LOGGING GUARD] Path: ${path}`);
     this.logger.log(`[LOGGING GUARD] Auth Header: ${authHeader ? 'Present' : 'MISSING'}`);
-    this.logger.log(`[LOGGING GUARD] req.user: ${JSON.stringify(request.user)}`);
+    this.logger.log(`[LOGGING GUARD] req.user: ${request?.user ? 'Present' : 'undefined'}`);
     
     // Always allow - this is just for logging
     return true;

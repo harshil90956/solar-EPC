@@ -6,7 +6,7 @@ import {
 
   Shield, Zap, Wrench, LayoutGrid, List, Tag, Loader2, Calendar, XCircle,
 
-  FolderOpen, Trash2, Pencil, BarChart3,
+  FolderOpen, Trash2, Pencil, BarChart3, PieChart,
 
 } from 'lucide-react';
 
@@ -468,6 +468,8 @@ const ServicePage = ({ onNavigate, initialTab }) => {
   // UI states
 
   const [view, setView] = useState('kanban');
+
+  const [viewMode, setViewMode] = useState('list'); // 'dashboard' or 'list'
 
   const [ticketSearch, setTicketSearch] = useState('');
 
@@ -984,13 +986,13 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
       console.log('Auto-generate result:', result);
 
-      
+
 
       // Refresh AMC contracts after auto-generation
 
       fetchAmcContracts();
 
-      
+
 
       // Show toast if new contracts were created
 
@@ -1438,7 +1440,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
     if (!editModal.ticket) return;
 
-    
+
 
     setUpdating(true);
 
@@ -1526,7 +1528,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
     if (!serviceTicketModal.contract) return;
 
-    
+
 
     setCreatingServiceTicket(true);
 
@@ -1638,7 +1640,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
     if (!amcEditModal.contract) return;
 
-    
+
 
     setUpdatingAmc(true);
 
@@ -2360,7 +2362,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
               </h3>
 
-              
+
 
               {loadingVisits ? (
 
@@ -2442,19 +2444,17 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
                           <td className="py-3 px-3 text-xs">
 
-                            <span className={`px-2 py-1 rounded-full text-[10px] ${
+                            <span className={`px-2 py-1 rounded-full text-[10px] ${(visit.priority || '').toLowerCase() === 'high'
 
-                              (visit.priority || '').toLowerCase() === 'high' 
+                              ? 'bg-red-500/20 text-red-400'
 
-                                ? 'bg-red-500/20 text-red-400' 
+                              : (visit.priority || '').toLowerCase() === 'medium'
 
-                                : (visit.priority || '').toLowerCase() === 'medium'
+                                ? 'bg-amber-500/20 text-amber-400'
 
-                                  ? 'bg-amber-500/20 text-amber-400'
+                                : 'bg-blue-500/20 text-blue-400'
 
-                                  : 'bg-blue-500/20 text-blue-400'
-
-                            }`}>
+                              }`}>
 
                               {visit.priority || 'Low'}
 
@@ -2464,19 +2464,17 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
                           <td className="py-3 px-3 text-xs">
 
-                            <span className={`px-2 py-1 rounded-full text-[10px] ${
+                            <span className={`px-2 py-1 rounded-full text-[10px] ${(visit.status || '').toLowerCase() === 'completed'
 
-                              (visit.status || '').toLowerCase() === 'completed' 
+                              ? 'bg-emerald-500/20 text-emerald-400'
 
-                                ? 'bg-emerald-500/20 text-emerald-400' 
+                              : (visit.status || '').toLowerCase() === 'scheduled'
 
-                                : (visit.status || '').toLowerCase() === 'scheduled'
+                                ? 'bg-blue-500/20 text-blue-400'
 
-                                  ? 'bg-blue-500/20 text-blue-400'
+                                : 'bg-red-500/20 text-red-400'
 
-                                  : 'bg-red-500/20 text-red-400'
-
-                            }`}>
+                              }`}>
 
                               {visit.status || 'Scheduled'}
 

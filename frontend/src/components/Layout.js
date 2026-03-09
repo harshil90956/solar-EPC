@@ -15,6 +15,7 @@ import ThemeCustomizer from './ThemeCustomizer';
 import ReminderSidebar from './Reminder/ReminderSidebar';
 import { api } from '../lib/apiClient';
 
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api/v1';
 const TENANT_ID = 'solarcorp';
 
 const Layout = ({ currentPage, onNavigate, children }) => {
@@ -48,18 +49,43 @@ const Layout = ({ currentPage, onNavigate, children }) => {
 
   // Fetch dynamic badge counts
   useEffect(() => {
+    const resolveTenantId = () => {
+      try {
+        const savedUser = JSON.parse(localStorage.getItem('solar_user') || '{}');
+        return (
+          savedUser?.tenantId ||
+          savedUser?.tenant?.id ||
+          localStorage.getItem('tenantId') ||
+          TENANT_ID
+        );
+      } catch {
+        return localStorage.getItem('tenantId') || TENANT_ID;
+      }
+    };
+
     const fetchBadgeCounts = async () => {
       try {
-        // Fetch inventory stats (auth headers via apiClient interceptor)
-        const inventoryData = await api.get('/inventory/stats', { tenantId: TENANT_ID }).catch(() => null);
+        const tenantId = resolveTenantId();
 
-        // Fetch projects
-        const projectsData = await api.get('/projects').catch(() => null);
-        const projects = projectsData?.data || projectsData || [];
+        // Fetch inventory stats (via central api client to reuse auth + tenant headers)
+        const inventoryData = await api.get('/inventory/stats', { tenantId }).catch(() => null);
+
+        // Fetch project stats (avoid /projects list which may be permission-gated)
+        const projectsStats = await api.get('/projects/stats', { tenantId }).catch(() => null);
 
         // Calculate counts
-        const lowStockCount = inventoryData?.data?.lowStockItems ?? inventoryData?.lowStockItems ?? 0;
-        const activeProjects = projects.filter(p => p.status !== 'Commissioned').length;
+        const lowStockCount =
+          inventoryData?.data?.lowStockItems ??
+          inventoryData?.lowStockItems ??
+          inventoryData?.data?.lowStock ??
+          inventoryData?.lowStock ??
+          0;
+        const activeProjects =
+          projectsStats?.data?.activeProjects ??
+          projectsStats?.activeProjects ??
+          projectsStats?.data?.active ??
+          projectsStats?.active ??
+          0;
 
         setBadgeCounts({
           inventory: lowStockCount,
@@ -100,7 +126,7 @@ const Layout = ({ currentPage, onNavigate, children }) => {
     items: section.items.filter(item => {
       const hasModuleAccess = isModuleEnabled(item.id);
       console.log('[DEBUG] Module:', item.id, 'isModuleEnabled:', hasModuleAccess);
-      
+
       if (!hasModuleAccess) return false;
 
       // Check view permission using resolvePermission (supports custom roles)
@@ -111,7 +137,7 @@ const Layout = ({ currentPage, onNavigate, children }) => {
       return canView;
     }),
   })).filter(s => s.items.length > 0);
-  
+
   console.log('[DEBUG] visibleSections:', visibleSections.length, 'sections');
   console.log('[DEBUG] user:', user?.id, user?.role);
 
@@ -180,7 +206,7 @@ const Layout = ({ currentPage, onNavigate, children }) => {
       {/* ════════════════ TOP BAR ════════════════ */}
       <header
         className={cn(
-          'fixed top-0 left-0 right-0 z-50 h-14 flex items-center px-4 gap-3 border-b transition-colors duration-300 w-full',
+          ' top-0 left-0 right-0 z-50 h-14 flex items-center px-4 gap-3 border-b transition-colors duration-300 w-full',
           !topbarHasCustomColor && 'topbar-bg border-[var(--border-base)]',
           topbarHasCustomColor && 'border-white/10',
         )}
@@ -553,12 +579,12 @@ const Layout = ({ currentPage, onNavigate, children }) => {
           {/* ════════════════ SIDEBAR LOGO ════════════════ */}
           <div className={cn(
             'relative z-50 flex items-center border-b border-[var(--border-base)] bg-[var(--bg-sidebar)] shrink-0',
-            showLabels ? 'px-4 h-20 gap-3' : 'justify-center h-20'
+            showLabels ? 'px-4 h-14 gap-3' : 'justify-center h-10'
           )}>
             {/* Solar Logo Icon */}
             <div className={cn(
               'relative z-10 shrink-0 rounded-xl flex items-center justify-center',
-              'w-12 h-12'
+              'w-5 h-5'
             )}
               style={{
                 background: 'linear-gradient(135deg, #f59e0b 0%, #f97316 100%)',
@@ -566,7 +592,7 @@ const Layout = ({ currentPage, onNavigate, children }) => {
               }}
             >
               <Sun
-                size={24}
+                size={15}
                 className="relative z-10 text-white"
                 strokeWidth={2}
               />
@@ -679,7 +705,7 @@ const Layout = ({ currentPage, onNavigate, children }) => {
                             )}
                           />
                         )}
-                        {showLabels && item.badge && (
+                        {showLabels && ((badgeCounts[item.id] ?? 0) > 0) && (
                           <span className={cn(
                             'ml-auto text-[8px] rounded-full px-1.5 py-0.5 font-bold',
                             item.badgeVariant === 'red' ? 'bg-red-500 text-white' :

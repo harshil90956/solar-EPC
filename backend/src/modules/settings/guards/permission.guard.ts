@@ -14,14 +14,22 @@ export class PermissionGuard implements CanActivate {
     const tenantId = request.tenant?.id;
     const user = request.user;
 
-    // STEP 1: Check Tenant Context
-    if (!tenantId) {
-      throw new ForbiddenException('Tenant context missing. Access denied.');
-    }
-
-    // STEP 2: Check User Authentication
+    // STEP 1: Check User Authentication
     if (!user) {
       throw new UnauthorizedException('User not authenticated');
+    }
+
+    // Super Admin bypass - can access without tenant context
+    if (user.isSuperAdmin) {
+      // Attach default permissions for Super Admin
+      request.user.effectivePermissions = { permitted: true, reason: 'Super Admin' };
+      request.user.effectiveDataScope = 'ALL';
+      return true;
+    }
+
+    // STEP 2: Check Tenant Context (for non-Super Admin)
+    if (!tenantId) {
+      throw new ForbiddenException('Tenant context missing. Access denied.');
     }
 
     const userId = user.id || user._id;
@@ -42,7 +50,23 @@ export class PermissionGuard implements CanActivate {
     }
 
     // STEP 4: Check Module-Level Permission
-    // Hierarchy: Feature Flag → User Override → Custom Role → Base RBAC
+    // Priority 1: Use cached permissions from JWT (O(1) lookup)
+    const cachedPermissions = user.permissions;
+    if (cachedPermissions && 
+        cachedPermissions[requiredModule] && 
+        cachedPermissions[requiredModule][requiredAction] === true) {
+      // O(1) permission granted from cache
+      request.user.effectivePermissions = { 
+        permitted: true, 
+        source: 'cached',
+        reason: 'Permission granted from cached matrix' 
+      };
+      request.user.effectiveDataScope = dataScope;
+      return true;
+    }
+
+    // Priority 2: Fallback to permissionService for complex resolution
+    // This handles cases where cache doesn't have the permission or it's false
     const result = await this.permissionService.resolvePermission(
       tenantId,
       userId,

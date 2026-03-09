@@ -3,24 +3,26 @@ import { X } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 /**
- * Generic Modal — controlled by `open` prop
+ * Generic Modal — controlled by `open` or `isOpen` prop
  * Sizes: sm (400px) | md (560px) | lg (720px) | xl (900px) | full
  */
-export const Modal = ({ isOpen, onClose, title, description, size = 'md', children, footer }) => {
+export const Modal = ({ open, isOpen, onClose, title, description, size = 'md', children, footer }) => {
+  // Support both 'open' and 'isOpen' for backward compatibility
+  const modalOpen = open ?? isOpen ?? false;
   const overlayRef = useRef(null);
   useEffect(() => {
-    if (isOpen) document.body.style.overflow = 'hidden';
+    if (modalOpen) document.body.style.overflow = 'hidden';
     else document.body.style.overflow = '';
     return () => { document.body.style.overflow = ''; };
-  }, [isOpen]);
+  }, [modalOpen]);
 
   useEffect(() => {
-    const handle = (e) => { if (e.key === 'Escape' && isOpen) onClose?.(); };
+    const handle = (e) => { if (e.key === 'Escape' && modalOpen) onClose?.(); };
     window.addEventListener('keydown', handle);
     return () => window.removeEventListener('keydown', handle);
-  }, [isOpen, onClose]);
+  }, [modalOpen, onClose]);
 
-  if (!isOpen) return null;
+  if (!modalOpen) return null;
 
   const widths = { sm: 'max-w-sm', md: 'max-w-lg md:max-w-md', lg: 'max-w-2xl md:max-w-xl', xl: 'max-w-4xl md:max-w-2xl', full: 'max-w-[95vw]' };
 

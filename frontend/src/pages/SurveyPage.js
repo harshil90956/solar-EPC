@@ -758,11 +758,7 @@ const SurveyPage = () => {
                 crmLeads.filter(l => !surveyCreatedLeadIds.includes(l.id)).map(lead => (
                 <div
                   key={lead.id}
-                  onClick={() => {
-                    setSelectedLead(lead);
-                    setShowAdd(true);
-                  }}
-                  className="p-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] hover:border-[var(--accent)]/50 cursor-pointer hover:scale-[1.02] transition-all group"
+                  className="p-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] hover:border-[var(--accent)]/50 transition-all group"
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center font-bold text-sm">
@@ -782,7 +778,56 @@ const SurveyPage = () => {
                       <Calendar size={10} />
                       <span>Due: {lead.nextFollowUp}</span>
                     </div>
-                    <span className="text-[9px] text-[var(--accent)] font-medium">Click to Schedule →</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          // Quick move to pending - create survey with minimal data
+                          try {
+                            const surveyData = {
+                              customerName: lead.name,
+                              engineer: lead.assignedTo || 'Priya Patel',
+                              site: lead.company || lead.city || 'TBD',
+                              scheduledDate: lead.nextFollowUp || new Date().toISOString().split('T')[0],
+                              estimatedKw: parseInt(lead.kw?.replace('kW', '')) || 0,
+                              status: 'pending',
+                              sourceLeadId: lead.id,
+                              notes: `Quick moved from CRM. Source: ${lead.source}, City: ${lead.city}`
+                            };
+                            await surveysApi.create(surveyData);
+                            toast.success(`${lead.name} moved to Pending`);
+                            // Refresh data
+                            const surveysResult = await surveysApi.getAll({ limit: 100 });
+                            const surveysData = surveysResult.data?.data || surveysResult.data || [];
+                            setPendingSurveys(surveysData.filter(s => s.status === 'pending').map(s => ({
+                              id: s.surveyId || s._id,
+                              customerName: s.customerName,
+                              engineer: s.engineer,
+                              site: s.site,
+                              scheduledDate: s.scheduledDate,
+                              estimatedKw: s.estimatedKw,
+                              status: s.status,
+                              shadowPct: s.shadowPct,
+                              roofArea: s.roofArea,
+                              sourceLeadId: s.sourceLeadId,
+                              notes: s.notes
+                            })));
+                            setSurveyCreatedLeadIds(prev => [...prev, lead.id]);
+                          } catch (err) {
+                            toast.error('Failed to move lead');
+                          }
+                        }}
+                        className="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white text-[9px] font-bold rounded transition-colors"
+                      >
+                        Move to Pending
+                      </button>
+                      <span 
+                        onClick={() => setSelectedLead(lead)}
+                        className="text-[9px] text-[var(--accent)] font-medium cursor-pointer hover:underline"
+                      >
+                        Schedule →
+                      </span>
+                    </div>
                   </div>
                 </div>
               ))
@@ -807,7 +852,8 @@ const SurveyPage = () => {
               {pendingSurveys.map(survey => (
                 <div
                   key={survey.id}
-                  className="p-3 rounded-xl bg-[var(--bg-elevated)] border border-amber-500/30 hover:border-amber-500/60 transition-all"
+                  onClick={() => setSelectedSurvey(survey)}
+                  className="p-3 rounded-xl bg-[var(--bg-elevated)] border border-amber-500/30 hover:border-amber-500/60 transition-all cursor-pointer"
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center font-bold text-sm">
@@ -828,7 +874,7 @@ const SurveyPage = () => {
                       <span>Scheduled: {survey.scheduledDate}</span>
                     </div>
                     <button
-                      onClick={() => handleSubmitSurveyForm(survey)}
+                      onClick={() => setSelectedSurvey(survey)}
                       className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold rounded-lg transition-colors flex items-center gap-1"
                     >
                       <Edit2 size={10} />
@@ -1190,7 +1236,7 @@ const SurveyPage = () => {
                 }
               }
             }}>
-              {isScheduling ? 'Scheduling...' : <><Plus size={14} /> {selectedLead ? 'Schedule from Lead' : 'Schedule Visit'}</>}
+              {isScheduling ? 'Scheduling...' : (<><Plus size={14} /> {selectedLead ? 'Schedule from Lead' : 'Schedule Visit'}</>)}
             </Button>
           </div>
         }
@@ -1269,20 +1315,45 @@ const SurveyPage = () => {
         footer={
           <div className="flex gap-2 justify-end">
             <Button variant="ghost" onClick={() => setSelectedSurvey(null)}>Close</Button>
-            <Button variant="outline"><Download size={14} /> Report</Button>
-            <Button
-              onClick={() => {
-                const analysis = SITE_ANALYSIS[selectedSurvey.id];
-                setStudioSurvey({
-                  projectName: selectedSurvey.customerName,
-                  lat: parseFloat(analysis?.gpsLat || 23),
-                  lng: parseFloat(analysis?.gpsLng || 72),
-                });
-                setSelectedSurvey(null);
-              }}
-            >
-              <Box size={14} /> 3D Studio
-            </Button>
+            
+            {/* PENDING: Submit Survey Form button */}
+            {selectedSurvey?.status === 'pending' && (
+              <Button
+                onClick={() => {
+                  handleSubmitSurveyForm(selectedSurvey);
+                  setSelectedSurvey(null);
+                }}
+                className="bg-amber-500 hover:bg-amber-600"
+              >
+                <CheckCircle size={14} /> Submit Survey
+              </Button>
+            )}
+            
+            {/* ACTIVE: Complete Survey button */}
+            {selectedSurvey?.status === 'active' && (
+              <Button
+                onClick={() => {
+                  handleCompleteSurvey(selectedSurvey);
+                  setSelectedSurvey(null);
+                }}
+                className="bg-emerald-500 hover:bg-emerald-600"
+              >
+                <CheckCircle size={14} /> Complete Survey
+              </Button>
+            )}
+            
+            {/* COMPLETED: Generate Proposal button */}
+            {selectedSurvey?.status === 'completed' && (
+              <Button
+                onClick={() => {
+                  handleGenerateProposal(selectedSurvey);
+                  setSelectedSurvey(null);
+                }}
+                className="bg-blue-500 hover:bg-blue-600"
+              >
+                <FileText size={14} /> Generate Proposal
+              </Button>
+            )}
           </div>
         }
       >

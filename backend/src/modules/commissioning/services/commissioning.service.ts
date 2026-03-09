@@ -245,4 +245,156 @@ export class CommissioningService {
       cancelled,
     };
   }
+
+  async getDashboardStats(tenantCode: string, startDate?: string, endDate?: string, projectType?: string) {
+    const tenantId = await this.getTenantId(tenantCode);
+    
+    // Build date filter
+    const dateFilter: any = {};
+    if (startDate) {
+      dateFilter.$gte = new Date(startDate);
+    }
+    if (endDate) {
+      dateFilter.$lte = new Date(endDate);
+    }
+
+    // Base query
+    const baseQuery: any = {
+      tenantId,
+      isDeleted: false,
+    };
+    if (Object.keys(dateFilter).length > 0) {
+      baseQuery.createdAt = dateFilter;
+    }
+
+    // Status distribution
+    const statusDistribution = await this.commissioningModel.aggregate([
+      { $match: baseQuery },
+      { $group: { _id: '$status', count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
+    ]);
+
+    // Monthly trends (last 6 months)
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    
+    const monthlyTrends = await this.commissioningModel.aggregate([
+      { 
+        $match: { 
+          tenantId, 
+          isDeleted: false,
+          createdAt: { $gte: sixMonthsAgo }
+        } 
+      },
+      {
+        $group: {
+          _id: { 
+            year: { $year: '$createdAt' },
+            month: { $month: '$createdAt' }
+          },
+          completed: { 
+            $sum: { $cond: [{ $eq: ['$status', 'Completed'] }, 1, 0] }
+          },
+          pending: { 
+            $sum: { $cond: [{ $eq: ['$status', 'Pending'] }, 1, 0] }
+          },
+          total: { $sum: 1 }
+        }
+      },
+      { $sort: { '_id.year': 1, '_id.month': 1 } }
+    ]);
+
+    // Performance metrics
+    const performanceMetrics = await this.commissioningModel.aggregate([
+      { $match: { ...baseQuery, status: 'Completed' } },
+      {
+        $group: {
+          _id: null,
+          avgPR: { $avg: '$percentage' },
+          maxPR: { $max: '$percentage' },
+          minPR: { $min: '$percentage' },
+          totalCapacity: { $sum: '$projectId.systemSize' }
+        }
+      }
+    ]);
+
+    // Recent activity (last 10 records)
+    const recentActivity = await this.commissioningModel
+      .find(baseQuery)
+      .populate('projectId', 'projectId customerName site systemSize')
+      .sort({ updatedAt: -1 })
+      .limit(10)
+      .exec();
+
+    // Employee performance
+    const employeeStats = await this.commissioningModel.aggregate([
+      { $match: { ...baseQuery, status: 'Completed' } },
+      {
+        $group: {
+          _id: '$employee',
+          totalProjects: { $sum: 1 },
+          avgPR: { $avg: '$percentage' }
+        }
+      },
+      { $match: { _id: { $ne: null } } },
+      { $sort: { totalProjects: -1 } },
+      { $limit: 5 }
+    ]);
+
+    // Project type distribution (if project type field exists)
+    const projectTypeDistribution = await this.commissioningModel.aggregate([
+      { $match: baseQuery },
+      {
+        $lookup: {
+          from: 'projects',
+          localField: 'projectId',
+          foreignField: '_id',
+          as: 'project'
+        }
+      },
+      { $unwind: '$project' },
+      {
+        $group: {
+          _id: { $ifNull: ['$project.type', 'Standard'] },
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Warranty expiring soon (next 3 months)
+    const threeMonthsFromNow = new Date();
+    threeMonthsFromNow.setMonth(threeMonthsFromNow.getMonth() + 3);
+    
+    const warrantyAlerts = await this.commissioningModel
+      .find({
+        tenantId,
+        isDeleted: false,
+        $or: [
+          { panelWarranty: { $lte: threeMonthsFromNow.toISOString(), $gte: new Date().toISOString() } },
+          { inverterWarranty: { $lte: threeMonthsFromNow.toISOString(), $gte: new Date().toISOString() } },
+          { installWarranty: { $lte: threeMonthsFromNow.toISOString(), $gte: new Date().toISOString() } }
+        ]
+      })
+      .populate('projectId', 'projectId customerName site')
+      .limit(10)
+      .exec();
+
+    return {
+      summary: {
+        total: await this.commissioningModel.countDocuments(baseQuery),
+        pending: await this.commissioningModel.countDocuments({ ...baseQuery, status: 'Pending' }),
+        completed: await this.commissioningModel.countDocuments({ ...baseQuery, status: 'Completed' }),
+        inProgress: await this.commissioningModel.countDocuments({ ...baseQuery, status: 'In Progress' }),
+        cancelled: await this.commissioningModel.countDocuments({ ...baseQuery, status: 'Cancelled' }),
+      },
+      statusDistribution,
+      monthlyTrends,
+      performanceMetrics: performanceMetrics[0] || { avgPR: 0, maxPR: 0, minPR: 0, totalCapacity: 0 },
+      recentActivity,
+      employeeStats,
+      projectTypeDistribution,
+      warrantyAlerts,
+      dateRange: { startDate, endDate }
+    };
+  }
 }

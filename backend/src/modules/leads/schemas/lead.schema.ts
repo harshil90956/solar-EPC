@@ -161,6 +161,14 @@ export class Lead {
 
 export const LeadSchema = SchemaFactory.createForClass(Lead);
 
+// Multi-tenant security indexes
+LeadSchema.index({ tenantId: 1, createdBy: 1 }); // For AGENT role queries
+LeadSchema.index({ tenantId: 1, assignedTo: 1 }); // For AGENT/MANAGER role queries
+LeadSchema.index({ tenantId: 1, createdBy: 1, assignedTo: 1 }); // Compound index for visibility queries
+LeadSchema.index({ tenantId: 1, statusKey: 1 }); // For dashboard analytics
+LeadSchema.index({ tenantId: 1, createdAt: -1 }); // For recent leads queries
+
+// Existing indexes
 LeadSchema.index({ email: 1, tenantId: 1 }, { unique: true, sparse: true });
 LeadSchema.index({ statusKey: 1 });
 LeadSchema.index({ source: 1 });

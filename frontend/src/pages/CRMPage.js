@@ -24,6 +24,7 @@ import {
 } from 'recharts';
 import { USERS } from '../data/mockData';
 import { leadsApi } from '../services/leadsApi';
+import { surveysApi } from '../services/surveysApi';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
@@ -459,13 +460,32 @@ const ActivityHeatmap = () => {
 
 // ── Comprehensive Reports Components ───────────────────────────────────────────
 const PerformanceReport = () => {
+  const { data: overviewRaw } = useQuery({
+    queryKey: ['leads-dashboard-overview', 'reports'],
+    queryFn: async () => {
+      const res = await leadsApi.getDashboardOverview();
+      return res?.data?.data || res?.data || res;
+    },
+    refetchInterval: 30000,
+    staleTime: 10000,
+  });
+
+  const overview = overviewRaw;
+  const totalLeads = Number(overview?.totalLeads || 0);
+  const conversionRate = Number(overview?.conversionRate || 0);
+  const pipelineValue = Number(overview?.pipelineValue || 0);
+  const convertedLeads = Number(overview?.convertedLeads || 0);
+
+  const avgDealSize = totalLeads > 0 ? Math.round(pipelineValue / totalLeads) : 0;
+  const winRate = totalLeads > 0 ? Math.round((convertedLeads / totalLeads) * 100) : 0;
+
   const data = [
-    { metric: 'Total Leads', current: 450, previous: 380, change: 18.4, target: 500 },
-    { metric: 'Conversion Rate', current: 24.5, previous: 22.1, change: 10.9, target: 30 },
-    { metric: 'Avg Deal Size', current: 285000, previous: 262000, change: 8.8, target: 350000 },
-    { metric: 'Pipeline Value', current: 12800000, previous: 9800000, change: 30.6, target: 15000000 },
-    { metric: 'Sales Cycle', current: 45, previous: 52, change: -13.5, target: 35 },
-    { metric: 'Win Rate', current: 28.3, previous: 25.7, change: 10.1, target: 35 }
+    { metric: 'Total Leads', current: totalLeads, previous: totalLeads, change: 0, target: Math.max(totalLeads, 1) },
+    { metric: 'Conversion Rate', current: conversionRate, previous: conversionRate, change: 0, target: 30 },
+    { metric: 'Avg Deal Size', current: avgDealSize, previous: avgDealSize, change: 0, target: Math.max(avgDealSize, 1) },
+    { metric: 'Pipeline Value', current: pipelineValue, previous: pipelineValue, change: 0, target: Math.max(pipelineValue, 1) },
+    { metric: 'Sales Cycle', current: 0, previous: 0, change: 0, target: 35 },
+    { metric: 'Win Rate', current: winRate, previous: winRate, change: 0, target: 35 }
   ];
 
   return (
@@ -547,14 +567,22 @@ const ScoreBadge = ({ score }) => (
 );
 
 const LeadTrendReport = () => {
-  const monthlyData = [
-    { month: 'Jan', leads: 45, converted: 12, value: 2400000 },
-    { month: 'Feb', leads: 52, converted: 15, value: 3200000 },
-    { month: 'Mar', leads: 48, converted: 11, value: 2800000 },
-    { month: 'Apr', leads: 61, converted: 18, value: 4100000 },
-    { month: 'May', leads: 58, converted: 16, value: 3800000 },
-    { month: 'Jun', leads: 72, converted: 22, value: 5200000 }
-  ];
+  const { data: trendRaw } = useQuery({
+    queryKey: ['leads-dashboard-trend', 'reports'],
+    queryFn: async () => {
+      const res = await leadsApi.getDashboardTrend();
+      return res?.data?.data || res?.data || res;
+    },
+    refetchInterval: 30000,
+    staleTime: 10000,
+  });
+
+  const monthlyData = (trendRaw?.months || []).map((m) => ({
+    month: m.month,
+    leads: m.leads || 0,
+    converted: 0,
+    value: m.value || 0,
+  }));
 
   return (
     <div className="glass-card p-5">
@@ -586,14 +614,23 @@ const LeadTrendReport = () => {
 };
 
 const SourcePerformanceReport = () => {
-  const data = [
-    { source: 'Website', leads: 145, conversion: 18.2, cost: 285000, roi: 742 },
-    { source: 'Referral', leads: 89, conversion: 32.1, cost: 45000, roi: 3890 },
-    { source: 'Campaign', leads: 76, conversion: 12.4, cost: 180000, roi: 267 },
-    { source: 'Ads', leads: 65, conversion: 8.3, cost: 220000, roi: 98 },
-    { source: 'Partner', leads: 42, conversion: 28.6, cost: 85000, roi: 1653 },
-    { source: 'Event', leads: 33, conversion: 22.1, cost: 120000, roi: 423 }
-  ];
+  const { data: sourceRaw } = useQuery({
+    queryKey: ['leads-dashboard-source', 'reports'],
+    queryFn: async () => {
+      const res = await leadsApi.getDashboardSource();
+      return res?.data?.data || res?.data || res;
+    },
+    refetchInterval: 30000,
+    staleTime: 10000,
+  });
+
+  const data = (sourceRaw?.sources || []).map((s) => ({
+    source: s.source,
+    leads: s.leads || 0,
+    conversion: 0,
+    cost: 0,
+    roi: 0,
+  }));
 
   return (
     <div className="glass-card p-5">
@@ -639,13 +676,23 @@ const SourcePerformanceReport = () => {
 };
 
 const SalesTeamReport = () => {
-  const teamData = [
-    { name: 'Rahul Sharma', leads: 45, converted: 12, value: 2400000, score: 85 },
-    { name: 'Priya Patel', leads: 38, converted: 14, value: 1800000, score: 92 },
-    { name: 'Amit Kumar', leads: 32, converted: 8, value: 1500000, score: 78 },
-    { name: 'Sneha Reddy', leads: 28, converted: 10, value: 1200000, score: 88 },
-    { name: 'Vikram Singh', leads: 25, converted: 6, value: 980000, score: 72 }
-  ];
+  const { data: trendRaw } = useQuery({
+    queryKey: ['leads-dashboard-trend', 'reports', 'agents'],
+    queryFn: async () => {
+      const res = await leadsApi.getDashboardTrend();
+      return res?.data?.data || res?.data || res;
+    },
+    refetchInterval: 30000,
+    staleTime: 10000,
+  });
+
+  const teamData = (trendRaw?.agents || []).map((a) => ({
+    name: a.name,
+    leads: a.leadsAssigned || 0,
+    converted: a.leadsConverted || 0,
+    value: 0,
+    score: Math.round(a.conversionRate || 0),
+  }));
 
   return (
     <div className="glass-card p-5">
@@ -702,6 +749,50 @@ const CRMPage = () => {
   const [trackerLeadId, setTrackerLeadId] = useState(null);
   const [timelineData, setTimelineData] = useState([]);
   const [activityData, setActivityData] = useState([]);
+
+  const normalizeStageKey = (lead) => (lead?.statusKey || lead?.status || 'new').toString().toLowerCase();
+  const getLeadId = (lead) => String(lead?._id || lead?.id || '');
+  const dragRef = useRef(null);
+  const removeById = (arr, id) => {
+    const targetId = String(id);
+    let removed = null;
+    const next = [];
+    for (const item of arr || []) {
+      if (!removed && getLeadId(item) === targetId) {
+        removed = item;
+        continue;
+      }
+      next.push(item);
+    }
+    return { next, removed };
+  };
+  const insertAt = (arr, index, item) => {
+    const list = Array.isArray(arr) ? arr : [];
+    const i = Math.max(0, Math.min(Number.isFinite(index) ? index : list.length, list.length));
+    return [...list.slice(0, i), item, ...list.slice(i)];
+  };
+  const reorderLeadInActiveLeads = ({ prev, leadId, destStageKey, destIndex, destStageLeadIds }) => {
+    const { next: withoutDragged, removed } = removeById(prev || [], leadId);
+    if (!removed) return prev;
+
+    const updated = { ...removed, statusKey: destStageKey, status: destStageKey };
+
+    const ids = Array.isArray(destStageLeadIds) ? destStageLeadIds : [];
+    const beforeId = ids[destIndex];
+
+    if (beforeId) {
+      const insertBeforeIdx = withoutDragged.findIndex((l) => getLeadId(l) === String(beforeId));
+      if (insertBeforeIdx !== -1) {
+        return insertAt(withoutDragged, insertBeforeIdx, updated);
+      }
+    }
+
+    let lastIdxInStage = -1;
+    for (let i = 0; i < withoutDragged.length; i++) {
+      if (normalizeStageKey(withoutDragged[i]) === String(destStageKey).toLowerCase()) lastIdxInStage = i;
+    }
+    return insertAt(withoutDragged, lastIdxInStage === -1 ? withoutDragged.length : lastIdxInStage + 1, updated);
+  };
   const [actionLoading, setActionLoading] = useState(false);
   const [showScoreEditModal, setShowScoreEditModal] = useState(false);
   const [scoreEditingLead, setScoreEditingLead] = useState(null);
@@ -1086,6 +1177,40 @@ const CRMPage = () => {
     }
   };
 
+  // Handle Flip action - Move lead to survey stage and create survey
+  const handleFlipToSurvey = async (lead) => {
+    if (!window.confirm(`Flip lead "${lead.name}" to Site Survey Scheduled? This will create a pending survey.`)) return;
+    try {
+      setActionLoading(true);
+      
+      // Update lead stage to 'survey'
+      await leadsApi.update(lead._id || lead.id, { stage: 'survey' });
+      
+      // Create a pending survey for this lead
+      const surveyData = {
+        customerName: lead.name,
+        engineer: lead.assignedTo || 'Unassigned',
+        site: lead.company || lead.city || 'TBD',
+        scheduledDate: lead.nextFollowUp || new Date().toISOString().split('T')[0],
+        estimatedKw: parseInt(lead.kw?.replace('kW', '')) || 0,
+        status: 'pending',
+        sourceLeadId: lead._id || lead.id,
+        notes: `Flipped from CRM. Source: ${lead.source}, City: ${lead.city}, Phone: ${lead.phone}`
+      };
+      
+      await surveysApi.create(surveyData);
+      
+      logUpdate({ ...lead, stage: 'survey' });
+      fetchLeads(); // Refresh list
+      toast.success(`Lead "${lead.name}" flipped to Site Survey Scheduled`);
+    } catch (err) {
+      console.error('Failed to flip lead:', err);
+      toast.error('Failed to flip lead: ' + (err.message || 'Unknown error'));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleViewTimeline = async (lead) => {
     try {
       setActionLoading(true);
@@ -1164,7 +1289,6 @@ const CRMPage = () => {
   };
 
   const handleBulkDelete = async (selectedIds) => {
-    if (!window.confirm(`Are you sure you want to delete ${selectedIds.length} leads?`)) return;
     try {
       setActionLoading(true);
       await leadsApi.bulkDelete(selectedIds);
@@ -1365,7 +1489,11 @@ const CRMPage = () => {
 
   // Enhanced leads with scores and automation
   const enhancedLeads = useMemo(() => {
-    return activeLeads.map(lead => ({
+    const unique = new Map();
+    for (const lead of activeLeads || []) {
+      unique.set(String(lead._id || lead.id), lead);
+    }
+    return Array.from(unique.values()).map(lead => ({
       ...lead,
       // Ensure statusKey is set - use backend statusKey, status, or default to 'new'
       statusKey: lead.statusKey || lead.status || 'new',
@@ -1979,47 +2107,68 @@ const CRMPage = () => {
                 // Filter leads that match this stage's key - handle both statusKey and status fields
                 // Use case-insensitive comparison to handle status value mismatches
                 const stageLeads = enhancedLeads.filter(lead => {
-                  const leadStatus = (lead.statusKey || lead.status || 'new').toString().toLowerCase();
+                  const leadStatus = normalizeStageKey(lead);
                   return leadStatus === stage.key.toLowerCase();
                 });
                 const totalValue = stageLeads.reduce((sum, lead) => sum + (lead.value || 0), 0);
+                const stageLeadIds = stageLeads.map(l => getLeadId(l));
 
                 return (
                   <div key={stage.key}
                     className={`flex flex-col w-64 rounded-xl border transition-colors`}
                     onDragOver={e => { e.preventDefault(); }}
+                    onDragEnter={() => {
+                      if (!dragRef.current) return;
+                      dragRef.current.destStageKey = stage.key;
+                      dragRef.current.destIndex = stageLeadIds.length;
+                    }}
                     onDrop={(e) => {
                       if (!can('crm', 'edit')) {
                         toast.error('Permission denied: Cannot change lead status');
                         return;
                       }
-                      const leadId = e.dataTransfer.getData('leadId');
-                      if (leadId) {
-                        const lead = enhancedLeads.find(l => String(l._id || l.id) === String(leadId));
-                        if (lead) {
-                          // Optimistically update UI
-                          const newLeads = activeLeads.map(l => 
-                            String(l._id || l.id) === String(leadId) 
-                              ? { ...l, statusKey: stage.key, status: stage.key } 
-                              : l
-                          );
-                          setActiveLeads(newLeads);
-                          // Update backend with both statusKey and status for compatibility
-                          leadsApi.update(lead._id || lead.id, { 
-                            statusKey: stage.key,
-                            status: stage.key 
-                          })
-                            .then(() => {
-                              logUpdate({ id: leadId, statusKey: stage.key });
-                              fetchLeads();
-                            })
-                            .catch((err) => {
-                              // Silently handle error and refresh to get correct state
-                              console.error('Status update failed:', err);
-                              fetchLeads();
-                            });
+                      const drag = dragRef.current;
+                      const fallbackId = e.dataTransfer.getData('leadId');
+                      const leadId = drag?.leadId || fallbackId;
+                      if (!leadId) return;
+
+                      const targetStageKey = drag?.destStageKey || stage.key;
+                      let destIndex = Number.isFinite(drag?.destIndex) ? drag.destIndex : stageLeadIds.length;
+                      destIndex = Math.max(0, Math.min(destIndex, stageLeadIds.length));
+
+                      const sourceStageKey = drag?.sourceStageKey;
+                      const sourceIndex = drag?.sourceIndex;
+                      if (sourceStageKey && String(sourceStageKey).toLowerCase() === String(targetStageKey).toLowerCase()) {
+                        if (Number.isFinite(sourceIndex) && sourceIndex < destIndex) {
+                          destIndex = Math.max(0, destIndex - 1);
                         }
                       }
+
+                      const snapshot = drag?.originalActiveLeads || activeLeads;
+                      setActiveLeads((prev) =>
+                        reorderLeadInActiveLeads({
+                          prev,
+                          leadId,
+                          destStageKey: targetStageKey,
+                          destIndex,
+                          destStageLeadIds: stageLeadIds.filter((id) => String(id) !== String(leadId)),
+                        })
+                      );
+
+                      const apiStage = String(targetStageKey).toUpperCase();
+                      leadsApi
+                        .update(leadId, { stage: apiStage })
+                        .then(() => {
+                          logUpdate({ id: leadId, statusKey: targetStageKey });
+                          dragRef.current = null;
+                        })
+                        .catch((err) => {
+                          console.error('Stage update failed:', err);
+                          toast.error('Stage update failed');
+                          setActiveLeads(snapshot);
+                          dragRef.current = null;
+                          fetchLeads();
+                        });
                     }}
                   >
                     <div className="p-2.5 border-b border-[var(--border-base)]">
@@ -2035,12 +2184,60 @@ const CRMPage = () => {
                         <span>{stageLeads.length} leads</span><span>·</span><span>{fmt(totalValue)}</span>
                       </div>
                     </div>
-                    <div className="flex flex-col gap-2 p-2 flex-1 min-h-[120px]">
-                      {stageLeads.map((lead) => (
+                    <div
+                      className="flex flex-col gap-2 p-2 flex-1 min-h-[120px]"
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        if (!dragRef.current) return;
+                        dragRef.current.destStageKey = stage.key;
+
+                        const cards = Array.from(e.currentTarget.querySelectorAll('[data-kanban-card="true"]'));
+                        const y = e.clientY;
+
+                        let nextIndex = cards.length;
+                        for (let i = 0; i < cards.length; i++) {
+                          const rect = cards[i].getBoundingClientRect();
+                          const midpoint = rect.top + rect.height / 2;
+                          if (y < midpoint) {
+                            nextIndex = i;
+                            break;
+                          }
+                        }
+
+                        dragRef.current.destIndex = nextIndex;
+                      }}
+                    >
+                      {stageLeads.map((lead, idx) => (
                         <div
                           key={lead._id || lead.id || `lead-${Math.random()}`}
+                          data-kanban-card="true"
                           draggable
-                          onDragStart={(e) => { e.dataTransfer.setData('leadId', lead._id || lead.id); }}
+                          onDragStart={(e) => {
+                            const leadId = getLeadId(lead);
+                            dragRef.current = {
+                              leadId,
+                              sourceStageKey: stage.key,
+                              sourceIndex: idx,
+                              destStageKey: stage.key,
+                              destIndex: idx,
+                              originalActiveLeads: activeLeads,
+                            };
+                            e.dataTransfer.setData('leadId', leadId);
+                          }}
+                          onDragEnter={() => {
+                            if (!dragRef.current) return;
+                            dragRef.current.destStageKey = stage.key;
+                            dragRef.current.destIndex = idx;
+                          }}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            if (!dragRef.current) return;
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const midpoint = rect.top + rect.height / 2;
+                            const insertAfter = e.clientY > midpoint;
+                            dragRef.current.destStageKey = stage.key;
+                            dragRef.current.destIndex = insertAfter ? (idx + 1) : idx;
+                          }}
                           className="glass-card p-3 cursor-grab active:cursor-grabbing hover:border-[var(--primary)]/40 transition-all"
                           onClick={() => { setTrackerLeadId(lead._id || lead.id); setShowTrackerDrawer(true); }}
                         >
@@ -2460,15 +2657,18 @@ const CRMPage = () => {
                 }
               }}] : []),
               ...(can('crm', 'edit') ? [{ label: 'Score Boost', icon: Brain, onClick: (rows) => { if (guardEdit()) console.log('Boosting scores', rows); } }] : []),
-              ...(can('crm', 'delete') ? [{ label: 'Delete', icon: Trash2, onClick: (rows) => { if (guardDelete()) console.log('Soft Deleting', rows); }, danger: true }] : []),
+              ...(can('crm', 'delete') ? [{ label: 'Delete', icon: Trash2, onClick: (selectedIds) => { if (guardDelete()) handleBulkDelete(selectedIds); }, danger: true }] : []),
             ]}
             rowActions={[
               { label: 'View', icon: Eye, onClick: handleViewLead },
-              ...(can('crm', 'edit') ? [{ label: 'Edit', icon: Edit2, onClick: handleEditLead }] : []),
-              ...(can('crm', 'edit') ? [{ label: 'Score', icon: Brain, onClick: handleRecalculateScore }] : []),
-              ...(can('crm', 'delete') ? [{ label: 'Delete', icon: Trash2, onClick: handleDeleteLead, danger: true }] : []),
-              { label: 'Activity Log', icon: Clock, onClick: handleViewActivity },
-              { label: 'Lead Tracker', icon: GitCommit, onClick: handleViewTracker },
+              { label: 'Edit', icon: Edit2, onClick: handleEditLead },
+              { label: 'Flip to Survey', icon: Zap, onClick: handleFlipToSurvey },
+              { label: 'Duplicate', icon: RefreshCw, onClick: handleDuplicateLead },
+              { label: 'Score', icon: Brain, onClick: handleRecalculateScore },
+              { label: 'Archive', icon: Building2, onClick: handleArchiveLead },
+              { label: 'Delete', icon: Trash2, onClick: handleDeleteLead, danger: true },
+              { label: 'Timeline', icon: Clock, onClick: handleViewTimeline },
+              { label: 'Activity Log', icon: Activity, onClick: handleViewActivity },
             ]}
           />
         </div>
@@ -2865,7 +3065,7 @@ const CRMPage = () => {
         <>
           {/* Backdrop */}
           <div 
-            className="fixed inset-0 bg-black/50 z-40 transition-opacity"
+            className="fixed inset-0 bg-black/1 z-40 transition-opacity"
             onClick={() => { setShowTrackerDrawer(false); setTrackerLeadId(null); }}
           />
           {/* Sidebar Drawer */}

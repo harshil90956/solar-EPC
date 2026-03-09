@@ -6,7 +6,7 @@ import {
   Plus, FileText, Send, DollarSign, Download, Copy, Trash2, Search, Filter,
   User, Building2, Phone, Mail, MapPin, Sun, Zap, CheckCircle, XCircle, Clock,
   ChevronDown, ChevronUp, Edit, Eye, MoreHorizontal, Calculator, TrendingUp,
-  TrendingDown, LayoutGrid, List, ChevronRight, ChevronLeft, Save, Printer,
+  TrendingDown, LayoutGrid, List, Kanban, ChevronRight, ChevronLeft, Save, Printer,
   Check, ArrowRight, FileSpreadsheet, RefreshCw, EyeIcon, CheckSquare,
   XSquare, FileSignature, ArrowLeftRight, BadgeCheck, FileCheck, MailOpen,
   Sparkles, Shield, Leaf, Battery, Gauge, Settings
@@ -334,7 +334,7 @@ const DocumentHeader = ({
 // ── Main Proposal Page Component ─────────────────────────────────────────────
 const ProposalPage = () => {
   const [proposals, setProposals] = useState(MOCK_PROPOSALS);
-  const [viewMode, setViewMode] = useState('grid');
+  const [viewMode, setViewMode] = useState('list'); // 'list' | 'grid' | 'kanban' 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -495,6 +495,11 @@ const ProposalPage = () => {
     ));
   };
 
+  // Debug viewMode changes
+  useEffect(() => {
+    console.log('[ProposalPage] viewMode changed to:', viewMode);
+  }, [viewMode]);
+
   // ── Table Columns ─────────────────────────────────────────────────────────
   const tableColumns = [
     {
@@ -639,22 +644,34 @@ const ProposalPage = () => {
         <div className="flex items-center gap-2">
           <div className="flex items-center p-1 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-base)]">
             <button
-              onClick={() => setViewMode('grid')}
-              className={cn(
-                'p-1.5 rounded-lg transition-colors',
-                viewMode === 'grid' ? 'bg-[var(--primary)] text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-              )}
-            >
-              <LayoutGrid size={16} />
-            </button>
-            <button
               onClick={() => setViewMode('list')}
               className={cn(
                 'p-1.5 rounded-lg transition-colors',
                 viewMode === 'list' ? 'bg-[var(--primary)] text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
               )}
+              title="List View"
             >
               <List size={16} />
+            </button>
+            <button
+              onClick={() => setViewMode('grid')}
+              className={cn(
+                'p-1.5 rounded-lg transition-colors',
+                viewMode === 'grid' ? 'bg-[var(--primary)] text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+              )}
+              title="Grid View"
+            >
+              <LayoutGrid size={16} />
+            </button>
+            <button
+              onClick={() => setViewMode('kanban')}
+              className={cn(
+                'p-1.5 rounded-lg transition-colors',
+                viewMode === 'kanban' ? 'bg-[var(--primary)] text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+              )}
+              title="Kanban View"
+            >
+              <Kanban size={16} />
             </button>
           </div>
 
@@ -710,13 +727,48 @@ const ProposalPage = () => {
             />
           ))}
         </div>
+      ) : viewMode === 'kanban' ? (
+        <KanbanView proposals={filteredProposals} onCardClick={setSelectedProposal} />
       ) : (
-        <div className="glass-card overflow-hidden">
-          <DataTable
-            columns={tableColumns}
-            data={filteredProposals}
-            onRowClick={(row) => setSelectedProposal(row)}
-          />
+        <div className="glass-card overflow-hidden p-4">
+          <div style={{ minHeight: '200px', background: 'var(--bg-surface)' }}>
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="border-b border-[var(--border-base)]">
+                  <th className="text-left py-2 px-3 text-xs font-medium text-[var(--text-muted)]">Proposal #</th>
+                  <th className="text-left py-2 px-3 text-xs font-medium text-[var(--text-muted)]">Customer</th>
+                  <th className="text-left py-2 px-3 text-xs font-medium text-[var(--text-muted)]">Project</th>
+                  <th className="text-right py-2 px-3 text-xs font-medium text-[var(--text-muted)]">Total</th>
+                  <th className="text-left py-2 px-3 text-xs font-medium text-[var(--text-muted)]">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredProposals.map((proposal) => (
+                  <tr 
+                    key={proposal.id} 
+                    className="border-b border-[var(--border-base)]/50 hover:bg-[var(--bg-hover)] cursor-pointer"
+                    onClick={() => setSelectedProposal(proposal)}
+                  >
+                    <td className="py-2 px-3 text-xs font-mono text-[var(--primary)]">{proposal.proposalNumber}</td>
+                    <td className="py-2 px-3 text-xs">{proposal.customerName}</td>
+                    <td className="py-2 px-3 text-xs text-[var(--text-muted)]">{proposal.projectName}</td>
+                    <td className="py-2 px-3 text-xs text-right font-bold text-emerald-500">{(proposal.total / 100000).toFixed(1)}L</td>
+                    <td className="py-2 px-3 text-xs">
+                      <span 
+                        className="px-2 py-0.5 rounded-full text-[10px] font-medium"
+                        style={{ 
+                          background: PROPOSAL_STATUS[proposal.status]?.bg || '#e5e7eb',
+                          color: PROPOSAL_STATUS[proposal.status]?.color || '#374151'
+                        }}
+                      >
+                        {PROPOSAL_STATUS[proposal.status]?.label || proposal.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -1923,6 +1975,54 @@ const ProposalDetail = ({ proposal, onEdit, onDelete, onDownload, onCustomizePDF
           Delete
         </button>
       </div>
+    </div>
+  );
+};
+
+// ── Kanban View Component ───────────────────────────────────────────────────
+const KanbanView = ({ proposals, onCardClick }) => {
+  const columns = [
+    { id: 'draft', label: 'Draft', color: '#64748b' },
+    { id: 'sent', label: 'Sent', color: '#3b82f6' },
+    { id: 'viewed', label: 'Viewed', color: '#8b5cf6' },
+    { id: 'accepted', label: 'Accepted', color: '#22c55e' },
+    { id: 'rejected', label: 'Rejected', color: '#ef4444' },
+  ];
+
+  const getProposalsByStatus = (status) => proposals.filter(p => p.status === status);
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      {columns.map(column => (
+        <div key={column.id} className="glass-card p-3 space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b border-[var(--border-base)]">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full" style={{ background: column.color }} />
+              <span className="text-sm font-bold text-[var(--text-primary)]">{column.label}</span>
+            </div>
+            <span className="text-xs text-[var(--text-muted)] bg-[var(--bg-elevated)] px-2 py-0.5 rounded-full">
+              {getProposalsByStatus(column.id).length}
+            </span>
+          </div>
+          <div className="space-y-2 max-h-[600px] overflow-y-auto">
+            {getProposalsByStatus(column.id).map(proposal => (
+              <div
+                key={proposal.id}
+                onClick={() => onCardClick(proposal)}
+                className="p-3 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] hover:border-[var(--primary)] cursor-pointer transition-all hover:shadow-md"
+              >
+                <p className="text-xs font-mono text-[var(--primary)]">{proposal.proposalNumber}</p>
+                <p className="text-xs font-medium text-[var(--text-primary)] line-clamp-1">{proposal.projectName}</p>
+                <p className="text-[10px] text-[var(--text-muted)]">{proposal.customerName}</p>
+                <div className="flex items-center justify-between mt-2">
+                  <span className="text-xs font-bold text-emerald-500">{(proposal.total / 100000).toFixed(1)}L</span>
+                  <span className="text-[10px] text-[var(--text-muted)]">{proposal.systemCapacity} kW</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 };

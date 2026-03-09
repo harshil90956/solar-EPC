@@ -177,12 +177,12 @@ export const ReminderProvider = ({ children }) => {
             });
         };
 
-        // Check immediately and then every minute
+        // Check immediately and then every 5 minutes (reduced from 1 minute to prevent refresh loops)
         checkReminders();
-        const interval = setInterval(checkReminders, 60 * 1000);
+        const interval = setInterval(checkReminders, 5 * 60 * 1000);
 
         return () => clearInterval(interval);
-    }, [reminders, settings.reminderInterval]);
+    }, [settings.reminderInterval]);
 
     // Trigger notification for a reminder
     const triggerNotification = useCallback((reminder) => {

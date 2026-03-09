@@ -1,3 +1,4 @@
+import multipart from '@fastify/multipart';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -26,17 +27,23 @@ async function bootstrap() {
     new FastifyAdapter(),
   );
 
-  await app.register(multipart as any, {
-    limits: {
-      fileSize: 5 * 1024 * 1024,
-    },
-  });
+  try {
+    const { default: multipart } = await import('@fastify/multipart');
+    await app.register(multipart as any, {
+      limits: {
+        fileSize: 5 * 1024 * 1024,
+      },
+    });
+  } catch (err: any) {
+    // Optional dependency - skip if not installed
+    console.warn('[bootstrap] @fastify/multipart not available, skipping multipart registration');
+  }
 
   app.enableCors({
     origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:8000', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001', 'http://127.0.0.1:8000'],
     credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-    allowedHeaders: 'Content-Type,Authorization',
+    allowedHeaders: 'Content-Type,Authorization,x-tenant-id,tenant-id',
   });
 
   app.setGlobalPrefix('api/v1');

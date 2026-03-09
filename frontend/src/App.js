@@ -34,6 +34,7 @@ import DepartmentsPage from './pages/DepartmentsPage';
 import AttendancePage from './pages/AttendancePage';
 import IntelligenceDashboardPage from './pages/IntelligenceDashboardPage';
 import RemindersPage from './pages/RemindersPage';
+import DocumentsPage from './pages/DocumentPage';
 import NotificationSystem from './components/NotificationSystem';
 
 // ── Page Map ──────────────────────────────────────────────────────────────────
@@ -64,6 +65,7 @@ const PAGE_MAP = {
   'service-dashboard': { component: ServiceDashboardPage, title: 'Service & AMC Dashboard' },
   compliance: { component: CompliancePage, title: 'Compliance' },
   settings: { component: SettingsPage, title: 'Settings' },
+  documents: { component: DocumentsPage, title: 'Documents' },
   intelligence: { component: IntelligenceDashboardPage, title: 'AI Intelligence' },
 };
 
@@ -114,7 +116,7 @@ const getInitialPage = () => {
 const AppInner = () => {
   const { user } = useAuth();
   const { resolvePermission, isModuleEnabled } = useSettings();
-  const [currentPage, setCurrentPage] = useState(getInitialPage);
+  const [currentPage, setCurrentPage] = useState(() => getInitialPage());
 
   // ── Sync URL pathname on page change ──
   const navigate = useCallback((page) => {
@@ -170,10 +172,21 @@ const AppInner = () => {
 
   const PageComponent = entry.component;
 
+  if (!PageComponent) {
+    console.error(`[AppInner] PAGE_MAP component is undefined for key: ${currentPage}`, entry);
+    return (
+      <Layout currentPage="dashboard" onNavigate={navigate}>
+        <NotFoundPage onNavigate={navigate} type="404" />
+      </Layout>
+    );
+  }
+
+  const NotificationComponent = NotificationSystem;
+
   return (
     <Layout currentPage={currentPage} onNavigate={navigate}>
       <PageComponent onNavigate={navigate} {...(entry.props || {})} />
-      <NotificationSystem />
+      {NotificationComponent ? <NotificationComponent /> : null}
     </Layout>
   );
 };

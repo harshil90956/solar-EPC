@@ -55,7 +55,7 @@ export const SettingsProvider = ({ children }) => {
                 const settings = response.data || response;
 
                 // Transform flags from API format (object with moduleId keys)
-                if (settings?.flags) {
+                if (settings?.flags && Object.keys(settings.flags).length > 0) {
                     const flagsObj = {};
                     // Handle both object and array formats
                     const flagsArray = Array.isArray(settings.flags)
@@ -73,15 +73,17 @@ export const SettingsProvider = ({ children }) => {
                     });
                     setFlagsState(flagsObj);
                 } else {
-                    setFlagsState({});
+                    // Use defaults if API returns empty flags
+                    setFlagsState(buildDefaultFlags());
                 }
 
                 // Transform RBAC from API format (object format from backend)
-                if (settings?.rbac) {
+                if (settings?.rbac && Object.keys(settings.rbac).length > 0) {
                     // Backend returns object directly, use as-is
                     setRBACState(settings.rbac);
                 } else {
-                    setRBACState({});
+                    // Use defaults if API returns empty RBAC
+                    setRBACState(buildDefaultRBAC());
                 }
 
                 // Set workflows
@@ -158,8 +160,8 @@ export const SettingsProvider = ({ children }) => {
             } catch (error) {
                 console.error('Failed to load settings from API:', error);
                 // Fall back to defaults on API failure
-                setFlagsState({});
-                setRBACState({});
+                setFlagsState(buildDefaultFlags());
+                setRBACState(buildDefaultRBAC());
                 setWorkflowsState([]);
                 setAuditLogsState([]);
                 setCustomRoles({});
@@ -819,6 +821,9 @@ export const SettingsProvider = ({ children }) => {
 
     // ── Derived lists ─────────────────────────────────────────────────────────
     const allRoles = useMemo(() => [
+        // Base system roles
+        ...ROLE_DEFS.map(r => ({ ...r, isBaseRole: true })),
+        // Custom roles from settings
         ...Object.values(customRoles || {}),
     ], [customRoles]);
 
