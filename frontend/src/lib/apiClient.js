@@ -27,7 +27,10 @@ const getTenantId = () => {
 // ── Request Interceptor: attach auth token ──
 apiClient.interceptors.request.use(
     (config) => {
-        const token = localStorage.getItem('solar_token');
+        const token =
+            localStorage.getItem('solar_token') ||
+            localStorage.getItem('accessToken') ||
+            localStorage.getItem('token');
         if (token) config.headers.Authorization = `Bearer ${token}`;
         const tenantId = getTenantId();
         if (tenantId) config.headers['x-tenant-id'] = tenantId;

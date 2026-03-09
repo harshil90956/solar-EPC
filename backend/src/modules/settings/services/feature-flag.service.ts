@@ -153,7 +153,8 @@ export class FeatureFlagService {
     const filter = tid ? { tenantId: tid, moduleId } : { moduleId };
     
     const flag = await this.featureFlagModel.findOne(filter).exec();
-    const enabled = flag?.actions?.get(actionId) ?? false; // Default to false for actions
+    // Default to true when not explicitly set, so new actions don't break existing tenants
+    const enabled = flag?.actions?.get(actionId) ?? true;
 
     this.setCache(cacheKey, enabled);
     return enabled;
