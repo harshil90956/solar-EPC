@@ -8,11 +8,14 @@ import {
   Param,
   Query,
   Headers,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { CommissioningService } from '../services/commissioning.service';
 import { CreateCommissioningDto, UpdateCommissioningDto, UpdateCommissioningStatusDto } from '../dto/commissioning.dto';
 
 @Controller('commissioning')
+@UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 export class CommissioningController {
   constructor(private readonly commissioningService: CommissioningService) {}
 
@@ -34,6 +37,18 @@ export class CommissioningController {
   ) {
     const tenantId = headerTenantId || queryTenantId;
     return this.commissioningService.getStats(tenantId);
+  }
+
+  @Get('dashboard')
+  async getDashboardStats(
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('projectType') projectType?: string,
+  ) {
+    const tenantId = headerTenantId || queryTenantId;
+    return this.commissioningService.getDashboardStats(tenantId, startDate, endDate, projectType);
   }
 
   @Get('by-project/:projectId')

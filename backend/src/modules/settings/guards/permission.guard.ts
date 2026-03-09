@@ -14,14 +14,22 @@ export class PermissionGuard implements CanActivate {
     const tenantId = request.tenant?.id;
     const user = request.user;
 
-    // STEP 1: Check Tenant Context
-    if (!tenantId) {
-      throw new ForbiddenException('Tenant context missing. Access denied.');
-    }
-
-    // STEP 2: Check User Authentication
+    // STEP 1: Check User Authentication
     if (!user) {
       throw new UnauthorizedException('User not authenticated');
+    }
+
+    // Super Admin bypass - can access without tenant context
+    if (user.isSuperAdmin) {
+      // Attach default permissions for Super Admin
+      request.user.effectivePermissions = { permitted: true, reason: 'Super Admin' };
+      request.user.effectiveDataScope = 'ALL';
+      return true;
+    }
+
+    // STEP 2: Check Tenant Context (for non-Super Admin)
+    if (!tenantId) {
+      throw new ForbiddenException('Tenant context missing. Access denied.');
     }
 
     const userId = user.id || user._id;
