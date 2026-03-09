@@ -23,7 +23,9 @@ export class ItemsService {
   }
 
   async findAll(tenantId: string, search?: string, itemGroupId?: string) {
-    const query: any = { tenantId, isDeleted: false };
+    // Resolve tenant code to actual ObjectId
+    const actualTenantId = await this.getTenantId(tenantId);
+    const query: any = { tenantId: actualTenantId, isDeleted: false };
     
     if (search) {
       query.$text = { $search: search };
