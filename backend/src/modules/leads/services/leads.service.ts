@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ForbiddenException, Logger, forwardRef, Inject } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import * as fs from 'fs';
@@ -7,13 +7,15 @@ import { Lead, LeadDocument } from '../schemas/lead.schema';
 import { CreateLeadDto, UpdateLeadDto, QueryLeadDto, AddActivityDto } from '../dto/lead.dto';
 import { LeadStatus, LeadStatusDocument } from '../../settings/schemas/lead-status.schema';
 import { buildVisibilityFilter, applyVisibilityFilter, UserWithVisibility } from '../../../common/utils/visibility-filter';
-import { buildCompleteFilter } from '../../../common/utils/visibility-filter';
+import { SiteSurveysService } from '../../survey/services/site-surveys.service';
 
 @Injectable()
 export class LeadsService {
   constructor(
     @InjectModel(Lead.name) private leadModel: Model<LeadDocument>,
     @InjectModel(LeadStatus.name) private leadStatusModel: Model<LeadStatusDocument>,
+    @Inject(forwardRef(() => SiteSurveysService))
+    private readonly siteSurveysService: SiteSurveysService,
   ) {}
 
   private readonly dashboardCache = new Map<string, { ts: number; data: any }>();
@@ -383,39 +385,18 @@ export class LeadsService {
     return lead as Lead;
   }
 
-  /**
-   * Check if user can access a specific lead based on role
-   */
-  private canAccessLead(user: UserWithVisibility, lead: any): boolean {
-    // SUPER_ADMIN can access everything
-    if (user.isSuperAdmin || user.role?.toLowerCase() === 'superadmin') {
-      return true;
-    }
+  // Find lead by ID without tenant restrictions (for internal use)
+  async findOneById(id: string): Promise<Lead | null> {
+    const filter: any = { 
+      $or: [
+        { _id: Types.ObjectId.isValid(id) ? new Types.ObjectId(id) : undefined },
+        { leadId: id }
+      ].filter(Boolean),
+      isDeleted: { $ne: true } 
+    };
 
-    const userRole = user.role?.toLowerCase() || '';
-    const userId = user._id?.toString() || user.id;
-
-    // ADMIN can access all leads in their tenant
-    if (userRole === 'admin') {
-      return true;
-    }
-
-    if (!userId) {
-      return false;
-    }
-
-    const leadAssignedTo = lead.assignedTo?.toString();
-    const leadCreatedBy = lead.createdBy?.toString();
-
-    // MANAGER can access leads created by or assigned to team members
-    if (userRole === 'manager') {
-      const teamIds = user.teamMemberIds || [];
-      const teamSet = new Set([...teamIds, userId]);
-      return teamSet.has(leadAssignedTo || '') || teamSet.has(leadCreatedBy || '');
-    }
-
-    // AGENT can access leads they created OR leads assigned to them
-    return leadAssignedTo === userId || leadCreatedBy === userId;
+    const lead = await this.leadModel.findOne(filter).lean().exec();
+    return lead as Lead | null;
   }
 
   async update(id: string, updateLeadDto: UpdateLeadDto, tenantId?: string): Promise<Lead> {
@@ -479,6 +460,22 @@ export class LeadsService {
       
       // Push new activity to existing array
       updateData.$push = { activities: activity };
+
+      // Auto-create site survey when stage changes to 'site_survey' or 'survey'
+      if (updateData.statusKey === 'site_survey' || updateData.statusKey === 'survey') {
+        try {
+          await this.siteSurveysService.createFromLead({
+            leadId: existingLead._id.toString(),
+            clientName: existingLead.name,
+            city: existingLead.city || 'Unknown',
+            projectCapacity: existingLead.kw ? `${existingLead.kw} kW` : 'To be determined',
+            engineer: existingLead.assignedTo?.toString() || 'Unassigned',
+          });
+          Logger.log(`Auto-created site survey for lead ${existingLead.leadId}`, 'LeadsService');
+        } catch (error: any) {
+          Logger.error(`Failed to auto-create site survey for lead ${existingLead.leadId}: ${error.message}`, 'LeadsService');
+        }
+      }
     }
 
     Object.assign(existingLead, updateLeadDto);
@@ -713,6 +710,22 @@ export class LeadsService {
       lead.score = this.calculateScore(lead);
       lead.slaBreached = this.checkSlaBreached(lead);
       lead.activeAutomation = this.applyAutomation(lead);
+
+      // Auto-create site survey when stage changes to 'site_survey' or 'survey'
+      if (stage === 'site_survey' || stage === 'survey') {
+        try {
+          await this.siteSurveysService.createFromLead({
+            leadId: (lead as any)._id.toString(),
+            clientName: lead.name,
+            city: lead.city || 'Unknown',
+            projectCapacity: lead.kw ? `${lead.kw} kW` : 'To be determined',
+            engineer: lead.assignedTo?.toString() || 'Unassigned',
+          });
+          Logger.log(`Auto-created site survey for lead ${lead.leadId} via bulkUpdateStage`, 'LeadsService');
+        } catch (error: any) {
+          Logger.error(`Failed to auto-create site survey for lead ${lead.leadId}: ${error.message}`, 'LeadsService');
+        }
+      }
       
       await lead.save();
       modified++;
@@ -1201,6 +1214,23 @@ export class LeadsService {
     updateData.score = this.calculateScore(mergedData);
     updateData.slaBreached = this.checkSlaBreached(mergedData);
     updateData.activeAutomation = this.applyAutomation(mergedData);
+
+    // Auto-create site survey when stage changes to 'site_survey' or 'survey'
+    const normalizedStage = stage.toLowerCase().replace(/\s+/g, '_');
+    if (normalizedStage === 'site_survey' || stage === 'survey') {
+      try {
+        await this.siteSurveysService.createFromLead({
+          leadId: (lead as any)._id.toString(),
+          clientName: lead.name,
+          city: lead.city || 'Unknown',
+          projectCapacity: lead.kw ? `${lead.kw} kW` : 'To be determined',
+          engineer: lead.assignedTo?.toString() || 'Unassigned',
+        });
+        Logger.log(`Auto-created site survey for lead ${lead.leadId} via updateStage`, 'LeadsService');
+      } catch (error: any) {
+        Logger.error(`Failed to auto-create site survey for lead ${lead.leadId}: ${error.message}`, 'LeadsService');
+      }
+    }
 
     // Update lead
     const filter: any = { 
