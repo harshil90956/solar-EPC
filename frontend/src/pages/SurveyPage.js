@@ -1237,7 +1237,7 @@ const SurveyPage = () => {
                 }
               }
             }}>
-              {isScheduling ? 'Scheduling...' : <><Plus size={14} /> {selectedLead ? 'Schedule from Lead' : 'Schedule Visit'}</>}
+              {isScheduling ? 'Scheduling...' : (<><Plus size={14} /> {selectedLead ? 'Schedule from Lead' : 'Schedule Visit'}</>)}
             </Button>
           </div>
         }
