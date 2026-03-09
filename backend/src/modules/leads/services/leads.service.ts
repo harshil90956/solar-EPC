@@ -694,10 +694,10 @@ export class LeadsService {
     const now = new Date();
     
     for (const lead of leads) {
-      const oldStage = lead.statusKey;
+      const oldStage = (lead as any).statusKey;
       
       // Update stage
-      lead.statusKey = stage;
+      (lead as any).statusKey = stage;
       lead.lastContact = now;
       
       // Add stage change activity

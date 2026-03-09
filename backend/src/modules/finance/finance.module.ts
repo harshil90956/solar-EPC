@@ -7,6 +7,10 @@ import { InvoiceService, PaymentService, ExpenseService, TransactionService, Fin
 
 import { Invoice, InvoiceSchema, Payment, PaymentSchema, Expense, ExpenseSchema, Transaction, TransactionSchema, Project, ProjectSchema, ReminderLog, ReminderLogSchema, Activity, ActivitySchema, FinancePayment, FinancePaymentSchema, ManualAdjustment, ManualAdjustmentSchema, AdjustmentCategory, AdjustmentCategorySchema, JournalEntry, JournalEntrySchema } from './schemas';
 
+import { SettingsModule } from '../settings/settings.module';
+
+
+
 @Module({
   imports: [
     MongooseModule.forFeature([
