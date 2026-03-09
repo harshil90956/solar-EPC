@@ -278,7 +278,7 @@ export class RBACService {
   ): Promise<void> {
     const tid = this.toObjectId(tenantId);
     const modules = ['dashboard', 'crm', 'projects', 'inventory', 'procurement', 'finance', 
-                     'installation', 'commissioning', 'service', 'logistics', 'settings'];
+                     'installation', 'commissioning', 'service', 'logistics', 'settings', 'tickets'];
     
     const presets: Record<string, Record<string, boolean>> = {
       full: {

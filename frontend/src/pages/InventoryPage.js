@@ -13,20 +13,12 @@ import { KPICard } from '../components/ui/KPICard';
 import { Progress } from '../components/ui/Progress';
 import DataTable from '../components/ui/DataTable';
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
+import apiClient, { api } from '../lib/apiClient';
 
 const fmt = CURRENCY.format;
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
 const PROJECT_API_BASE_URL = process.env.REACT_APP_PROJECT_API_BASE_URL || 'http://localhost:3000/api/v1';
 const TENANT_ID = 'solarcorp';
-
-// Helper to get auth headers
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('solar_token') || localStorage.getItem('token');
-  return {
-    'Content-Type': 'application/json',
-    ...(token && { Authorization: `Bearer ${token}` }),
-  };
-};
 
 const getStockStatus = (item) => {
   // If explicit status is set, return the stage ID format
@@ -333,13 +325,8 @@ const InventoryPage = () => {
   useEffect(() => {
     const fetchInventoryStats = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/inventory/stats?tenantId=${TENANT_ID}`, {
-          headers: getAuthHeaders(),
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setInventoryStats(data.data || data);
-        }
+        const data = await api.get('/inventory/stats', { tenantId: TENANT_ID });
+        setInventoryStats(data.data || data);
       } catch (err) {
         console.error('Error fetching inventory stats:', err);
       }
@@ -351,13 +338,8 @@ const InventoryPage = () => {
   useEffect(() => {
     const fetchByCategory = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/inventory/by-category?tenantId=${TENANT_ID}`, {
-          headers: getAuthHeaders(),
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setItemsByCategory(data.data || data || []);
-        }
+        const data = await api.get('/inventory/by-category', { tenantId: TENANT_ID });
+        setItemsByCategory(data.data || data || []);
       } catch (err) {
         console.error('Error fetching items by category:', err);
       }
@@ -370,13 +352,7 @@ const InventoryPage = () => {
     const fetchInventory = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`${API_BASE_URL}/items?tenantId=${TENANT_ID}`, {
-          headers: getAuthHeaders(),
-        });
-        if (!response.ok) {
-          throw new Error('Failed to fetch items');
-        }
-        const data = await response.json();
+        const data = await api.get('/items', { tenantId: TENANT_ID });
         console.log('Items API Response:', data);
 
         // Parse items array from response
@@ -415,14 +391,9 @@ const InventoryPage = () => {
   useEffect(() => {
     const fetchItems = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/items?tenantId=${TENANT_ID}`, {
-          headers: getAuthHeaders(),
-        });
-        if (response.ok) {
-          const data = await response.json();
-          const itemsArray = Array.isArray(data) ? data : (data.data || []);
-          setItems(itemsArray);
-        }
+        const data = await api.get('/items', { tenantId: TENANT_ID });
+        const itemsArray = Array.isArray(data) ? data : (data.data || []);
+        setItems(itemsArray);
       } catch (err) {
         console.error('Error fetching items:', err);
       }
@@ -435,14 +406,9 @@ const InventoryPage = () => {
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        const response = await fetch(`${PROJECT_API_BASE_URL}/projects?tenantId=${TENANT_ID}`, {
-          headers: getAuthHeaders(),
-        });
-        if (response.ok) {
-          const data = await response.json();
-          const projectsArray = Array.isArray(data) ? data : (data.data || []);
-          setProjects(projectsArray);
-        }
+        const data = await api.get('/projects', { tenantId: TENANT_ID });
+        const projectsArray = Array.isArray(data) ? data : (data.data || []);
+        setProjects(projectsArray);
       } catch (err) {
         console.error('Error fetching projects:', err);
       }
@@ -502,18 +468,7 @@ const InventoryPage = () => {
         status: 'In Stock',
       };
 
-      const response = await fetch(`${API_BASE_URL}/items?tenantId=${TENANT_ID}`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(newItem),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to create item: ${errorText}`);
-      }
-
-      const createdItem = await response.json();
+      const createdItem = await api.post('/items', newItem);
       const itemData = createdItem.data || createdItem;
       // Map to inventory format
       setInventory(prev => [...prev, {
@@ -537,24 +492,13 @@ const InventoryPage = () => {
 
     setSubmitting(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/items/${stockInForm.itemId}/stock-in?tenantId=${TENANT_ID}`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          quantity: parseInt(stockInForm.quantity),
-          poReference: stockInForm.poReference,
-          receivedDate: stockInForm.receivedDate,
-          remarks: stockInForm.remarks,
-          warehouse: stockInForm.warehouse,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to stock in: ${errorText}`);
-      }
-
-      const updatedItem = await response.json();
+      const updatedItem = await api.post(`/items/${stockInForm.itemId}/stock-in`, {
+        quantity: parseInt(stockInForm.quantity),
+        poReference: stockInForm.poReference,
+        receivedDate: stockInForm.receivedDate,
+        remarks: stockInForm.remarks,
+        warehouse: stockInForm.warehouse,
+      }, { tenantId: TENANT_ID });
       const itemData = updatedItem.data || updatedItem;
       setInventory(prev => prev.map(i => i._id === stockInForm.itemId ? itemData : i));
       setStockIn(false);
@@ -581,17 +525,10 @@ const InventoryPage = () => {
     setLoadingReservations(true);
     try {
       console.log('Fetching reservations for itemId:', itemId);
-      const response = await fetch(`${API_BASE_URL}/inventory/reservations/by-item/${itemId}?tenantId=${TENANT_ID}`, {
-        headers: getAuthHeaders(),
-      });
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Reservation API response:', data);
-        console.log('Reservations count:', (data.data || data || []).length);
-        setItemReservations(data.data || data || []);
-      } else {
-        console.error('Reservation API error:', response.status, await response.text());
-      }
+      const data = await api.get(`/inventory/reservations/by-item/${itemId}`, { tenantId: TENANT_ID });
+      console.log('Reservation API response:', data);
+      console.log('Reservations count:', (data.data || data || []).length);
+      setItemReservations(data.data || data || []);
     } catch (err) {
       console.error('Error fetching reservations:', err);
     } finally {
@@ -627,18 +564,7 @@ const InventoryPage = () => {
         status: editForm.status || undefined
       };
 
-      const response = await fetch(`${API_BASE_URL}/inventory/${editingItem.itemId}?tenantId=${TENANT_ID}`, {
-        method: 'PATCH',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(updateData),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to update item: ${errorText}`);
-      }
-
-      const updatedItem = await response.json();
+      const updatedItem = await apiClient.patch(`/inventory/${editingItem.itemId}`, updateData, { params: { tenantId: TENANT_ID } });
       const itemData = updatedItem.data || updatedItem;
       setInventory(prev => prev.map(i => i.itemId === editingItem.itemId ? itemData : i));
       setShowEdit(false);
@@ -656,14 +582,7 @@ const InventoryPage = () => {
   const handleDeleteItem = async (itemId) => {
     if (!window.confirm('Are you sure you want to delete this item?')) return;
     try {
-      const response = await fetch(`${API_BASE_URL}/inventory/${itemId}?tenantId=${TENANT_ID}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders(),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete item');
-      }
+      await apiClient.delete(`/inventory/${itemId}`, { params: { tenantId: TENANT_ID } });
 
       setInventory(prev => prev.filter(i => i.itemId !== itemId));
       alert('Item deleted successfully!');
@@ -678,23 +597,12 @@ const InventoryPage = () => {
 
     setSubmitting(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/items/${stockOutForm.itemId}/stock-out?tenantId=${TENANT_ID}`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          quantity: parseInt(stockOutForm.quantity),
-          projectId: stockOutForm.projectId,
-          issuedDate: stockOutForm.issuedDate,
-          remarks: stockOutForm.remarks,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to stock out: ${errorText}`);
-      }
-
-      const updatedItem = await response.json();
+      const updatedItem = await api.post(`/items/${stockOutForm.itemId}/stock-out`, {
+        quantity: parseInt(stockOutForm.quantity),
+        projectId: stockOutForm.projectId,
+        issuedDate: stockOutForm.issuedDate,
+        remarks: stockOutForm.remarks,
+      }, { tenantId: TENANT_ID });
       const itemData = updatedItem.data || updatedItem;
 
       // Create reservation record for the project
@@ -706,18 +614,14 @@ const InventoryPage = () => {
           const project = projects.find(p => p.projectId === stockOutForm.projectId);
           const projectName = project?.customerName || project?.name || 'Unknown Project';
           
-          await fetch(`${API_BASE_URL}/inventory/reservations?tenantId=${TENANT_ID}`, {
-            method: 'POST',
-            headers: getAuthHeaders(),
-            body: JSON.stringify({
-              reservationId: `RES-${Date.now()}`,
-              itemId: item?.itemId || stockOutForm.itemId,
-              projectId: stockOutForm.projectId,
-              projectName: projectName,
-              quantity: parseInt(stockOutForm.quantity),
-              notes: stockOutForm.remarks || `Stock issued on ${stockOutForm.issuedDate || new Date().toISOString().split('T')[0]}`,
-            }),
-          });
+          await apiClient.post('/inventory/reservations', {
+            reservationId: `RES-${Date.now()}`,
+            itemId: item?.itemId || stockOutForm.itemId,
+            projectId: stockOutForm.projectId,
+            projectName: projectName,
+            quantity: parseInt(stockOutForm.quantity),
+            notes: stockOutForm.remarks || `Stock issued on ${stockOutForm.issuedDate || new Date().toISOString().split('T')[0]}`,
+          }, { params: { tenantId: TENANT_ID } });
         } catch (resErr) {
           console.error('Error creating reservation record:', resErr);
           // Don't fail the whole operation if reservation creation fails
@@ -759,29 +663,13 @@ const InventoryPage = () => {
         return;
       }
 
-      const response = await fetch(`${API_BASE_URL}/items/${item._id || itemId}?tenantId=${TENANT_ID}`, {
-        method: 'PATCH',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ status: newStatus }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to update status: ${errorText}`);
-      }
-
-      const updatedItem = await response.json();
+      const updatedItem = await api.patch(`/items/${item._id || itemId}`, { status: newStatus }, { tenantId: TENANT_ID });
       const itemData = updatedItem.data || updatedItem;
       setInventory(prev => prev.map(i => (i._id || i.itemId) === (itemData._id || itemData.itemId) ? { ...i, status: newStatus } : i));
       
       // Refresh stats
-      const statsResponse = await fetch(`${API_BASE_URL}/inventory/stats?tenantId=${TENANT_ID}`, {
-        headers: getAuthHeaders(),
-      });
-      if (statsResponse.ok) {
-        const statsData = await statsResponse.json();
-        setInventoryStats(statsData.data || statsData);
-      }
+      const statsData = await api.get('/inventory/stats', { tenantId: TENANT_ID });
+      setInventoryStats(statsData.data || statsData);
     } catch (err) {
       console.error('Error updating stock status:', err);
       alert(err.message || 'Failed to update stock status. Please try again.');

@@ -1,22 +1,24 @@
 import { Injectable, NestMiddleware, Logger } from '@nestjs/common';
-import { Request, Response, NextFunction } from 'express';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 
 @Injectable()
 export class RequestLoggingMiddleware implements NestMiddleware {
   private readonly logger = new Logger(RequestLoggingMiddleware.name);
 
-  use(req: Request, res: Response, next: NextFunction) {
-    const path = req.path;
-    const method = req.method;
-    const authHeader = req.headers.authorization;
+  use(req: FastifyRequest, res: FastifyReply, next: () => void) {
+    const path = (req as any).routerPath || (req as any).raw?.url || req.url;
+    const method = (req as any).raw?.method || req.method;
+    const authHeader = (req.headers as any)?.authorization;
     
     this.logger.log(`[REQUEST MIDDLEWARE] ${method} ${path}`);
     this.logger.log(`[REQUEST MIDDLEWARE] Auth: ${authHeader ? 'YES' : 'NO'}`);
-    this.logger.log(`[REQUEST MIDDLEWARE] req.user: ${JSON.stringify((req as any).user)}`);
+    this.logger.log(`[REQUEST MIDDLEWARE] req.user: ${((req as any).user ? 'Present' : 'undefined')}`);
     
     // Log response status
-    res.on('finish', () => {
-      this.logger.log(`[REQUEST MIDDLEWARE] ${method} ${path} - Status: ${res.statusCode}`);
+    const rawRes: any = (res as any).raw || res;
+    rawRes?.on?.('finish', () => {
+      const statusCode = rawRes?.statusCode ?? (res as any).statusCode;
+      this.logger.log(`[REQUEST MIDDLEWARE] ${method} ${path} - Status: ${statusCode}`);
     });
     
     next();

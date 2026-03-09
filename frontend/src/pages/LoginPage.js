@@ -21,6 +21,7 @@ const LoginPage = () => {
     setLoading(true);
     try {
       const result = await login(email, password);
+      console.log(result, "::::::");
       if (result) {
         // Redirect based on role
         window.location.href = '/dashboard';

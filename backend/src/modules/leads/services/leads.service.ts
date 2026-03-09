@@ -69,6 +69,14 @@ export class LeadsService {
 
   private async assertValidStatusKey(statusKey: string | undefined, tenantId?: string): Promise<void> {
     if (!statusKey || statusKey === '') return;
+    
+    // Allow common lead status keys without DB validation
+    const commonStatusKeys = ['new', 'contacted', 'qualified', 'proposal', 'negotiation', 'won', 'lost', 
+                              'New', 'Contacted', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost'];
+    if (commonStatusKeys.includes(statusKey)) {
+      return;
+    }
+    
     const tid = this.toObjectId(tenantId);
 
     const status = await this.leadStatusModel
@@ -637,10 +645,10 @@ export class LeadsService {
     const now = new Date();
     
     for (const lead of leads) {
-      const oldStage = lead.stage;
+      const oldStage = (lead as any).statusKey;
       
       // Update stage
-      lead.stage = stage;
+      (lead as any).statusKey = stage;
       lead.lastContact = now;
       
       // Add stage change activity

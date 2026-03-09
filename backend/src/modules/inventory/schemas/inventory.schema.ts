@@ -56,6 +56,12 @@ export class Inventory extends Document {
 
   @Prop(BaseSchemaDefinition.isDeleted)
   isDeleted!: boolean;
+
+  @Prop({ type: Types.ObjectId, ref: 'User', index: true, required: false })
+  assignedTo?: Types.ObjectId;
+
+  @Prop({ type: Types.ObjectId, ref: 'User', required: false })
+  createdBy?: Types.ObjectId;
 }
 
 export const InventorySchema = SchemaFactory.createForClass(Inventory);
@@ -64,3 +70,4 @@ export const InventorySchema = SchemaFactory.createForClass(Inventory);
 InventorySchema.index({ tenantId: 1, category: 1 });
 InventorySchema.index({ tenantId: 1, itemId: 1 });
 InventorySchema.index({ tenantId: 1, name: 'text', category: 'text' });
+InventorySchema.index({ tenantId: 1, assignedTo: 1 });

@@ -1324,14 +1324,6 @@ const CRMPage = () => {
     return true;
   };
 
-  const guardEdit = () => {
-    if (!can('crm', 'edit')) {
-      toast.error('Permission denied: Cannot edit leads');
-      return false;
-    }
-    return true;
-  };
-
   // Apply automation rules
   const applyAutomationRules = useCallback((lead) => {
     const results = [];

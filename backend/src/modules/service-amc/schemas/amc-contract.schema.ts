@@ -11,6 +11,9 @@ export class AmcContract {
   @Prop({ required: true })
   customer!: string;
 
+  @Prop({ type: String, default: '—' })
+  employee?: string;
+
   @Prop({ required: true })
   site!: string;
 

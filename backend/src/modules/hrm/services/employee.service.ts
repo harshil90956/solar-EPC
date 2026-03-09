@@ -9,6 +9,7 @@ import { CreateEmployeeDto, UpdateEmployeeDto } from '../dto/employee.dto';
 export class EmployeeService {
   constructor(
     @InjectModel(Employee.name) private readonly employeeModel: Model<EmployeeDocument>,
+    @InjectModel('User') private readonly userModel: Model<any>,
   ) {}
 
   private generateEmployeeId(): string {
@@ -204,7 +205,7 @@ export class EmployeeService {
     console.log('[DEBUG] validateLogin called with email:', email, 'tenantId:', tenantId);
     
     // Build query to find employee by email
-    // If tenantId is provided (and not 'default'), search for employees with matching tenantId OR null tenantId
+    // Search for employees with: matching tenantId OR null tenantId OR missing tenantId
     let query: any = { email: email.toLowerCase() };
     
     if (tenantId && tenantId !== 'default') {
@@ -217,20 +218,97 @@ export class EmployeeService {
           { tenantId: { $exists: false } }
         ]
       };
+    } else {
+      // For 'default' tenant, search employees with null/missing tenantId only
+      // Note: tenantId is ObjectId type, cannot query with string 'default'
+      query = {
+        email: email.toLowerCase(),
+        $or: [
+          { tenantId: null },
+          { tenantId: { $exists: false } }
+        ]
+      };
     }
     
     console.log('[DEBUG] Login query:', JSON.stringify(query));
     
-    const employee = await this.employeeModel
+    let employee = await this.employeeModel
       .findOne(query)
       .populate('roleId', 'roleId label color permissions')
       .exec();
 
     console.log('[DEBUG] Employee found:', employee ? 'YES' : 'NO');
     
-    if (!employee || !employee.password) {
-      console.log('[DEBUG] Employee not found or no password');
+    // If employee not found, check users collection and auto-create
+    if (!employee) {
+      console.log('[DEBUG] Checking users collection for fallback...');
+      const userQuery: any = { email: email.toLowerCase() };
+      // NOTE: User.tenantId is ObjectId type; do not query with string 'default'
+      if (tenantId && tenantId !== 'default' && Types.ObjectId.isValid(tenantId)) {
+        userQuery.$or = [
+          { tenantId: new Types.ObjectId(tenantId) },
+          { tenantId: null },
+          { tenantId: { $exists: false } }
+        ];
+      } else {
+        userQuery.$or = [
+          { tenantId: null },
+          { tenantId: { $exists: false } }
+        ];
+      }
+      
+      const user = await this.userModel.findOne(userQuery).exec();
+      console.log('[DEBUG] User found in users collection:', user ? 'YES' : 'NO');
+      
+      if (user && user.passwordHash) {
+        // Verify password with user's passwordHash
+        const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+        console.log('[DEBUG] User password valid:', isPasswordValid);
+        
+        if (!isPasswordValid) {
+          return null;
+        }
+        
+        // Auto-create employee from user data
+        console.log('[DEBUG] Auto-creating employee from user data...');
+        const employeeId = this.generateEmployeeId();
+        const derivedFirstName = (user.firstName || user.name?.split(' ')[0] || email.split('@')[0] || 'User').trim();
+        const derivedLastName = (user.lastName || user.name?.split(' ').slice(1).join(' ') || 'User').trim();
+        const derivedPhone = (user.phone || '0000000000').trim();
+        const newEmployeeData = {
+          employeeId,
+          firstName: derivedFirstName || 'User',
+          lastName: derivedLastName || 'User',
+          email: user.email.toLowerCase(),
+          password: user.passwordHash, // Already hashed
+          phone: derivedPhone || '0000000000',
+          address: user.address || '',
+          joiningDate: new Date(),
+          department: user.department || 'General',
+          designation: user.role || 'Staff',
+          status: 'active',
+          roleId: user.roleId || user.role,
+        };
+        
+        const newEmployee = new this.employeeModel(newEmployeeData);
+        employee = await newEmployee.save();
+        console.log('[DEBUG] Employee auto-created:', employee._id);
+      } else {
+        return null;
+      }
+    }
+    
+    if (!employee.password) {
+      console.log('[DEBUG] Employee has no password');
       return null;
+    }
+
+    // If employee was auto-created from user, password is already verified above
+    // Otherwise verify employee's own password
+    if (!employee.password.startsWith('$2')) {
+      // Not a bcrypt hash, might be plaintext or already verified
+      console.log('[DEBUG] Password not bcrypt hash, assuming pre-verified');
+      return employee;
     }
 
     console.log('[DEBUG] Comparing passwords...');

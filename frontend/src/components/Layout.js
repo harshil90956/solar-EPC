@@ -100,7 +100,7 @@ const Layout = ({ currentPage, onNavigate, children }) => {
     items: section.items.filter(item => {
       const hasModuleAccess = isModuleEnabled(item.id);
       console.log('[DEBUG] Module:', item.id, 'isModuleEnabled:', hasModuleAccess);
-      
+
       if (!hasModuleAccess) return false;
 
       // Check view permission using resolvePermission (supports custom roles)
@@ -111,7 +111,7 @@ const Layout = ({ currentPage, onNavigate, children }) => {
       return canView;
     }),
   })).filter(s => s.items.length > 0);
-  
+
   console.log('[DEBUG] visibleSections:', visibleSections.length, 'sections');
   console.log('[DEBUG] user:', user?.id, user?.role);
 
@@ -180,7 +180,7 @@ const Layout = ({ currentPage, onNavigate, children }) => {
       {/* ════════════════ TOP BAR ════════════════ */}
       <header
         className={cn(
-          'fixed top-0 left-0 right-0 z-50 h-14 flex items-center px-4 gap-3 border-b transition-colors duration-300 w-full',
+          ' top-0 left-0 right-0 z-50 h-14 flex items-center px-4 gap-3 border-b transition-colors duration-300 w-full',
           !topbarHasCustomColor && 'topbar-bg border-[var(--border-base)]',
           topbarHasCustomColor && 'border-white/10',
         )}
@@ -553,12 +553,12 @@ const Layout = ({ currentPage, onNavigate, children }) => {
           {/* ════════════════ SIDEBAR LOGO ════════════════ */}
           <div className={cn(
             'relative z-50 flex items-center border-b border-[var(--border-base)] bg-[var(--bg-sidebar)] shrink-0',
-            showLabels ? 'px-4 h-20 gap-3' : 'justify-center h-20'
+            showLabels ? 'px-4 h-14 gap-3' : 'justify-center h-10'
           )}>
             {/* Solar Logo Icon */}
             <div className={cn(
               'relative z-10 shrink-0 rounded-xl flex items-center justify-center',
-              'w-12 h-12'
+              'w-5 h-5'
             )}
               style={{
                 background: 'linear-gradient(135deg, #f59e0b 0%, #f97316 100%)',
@@ -566,7 +566,7 @@ const Layout = ({ currentPage, onNavigate, children }) => {
               }}
             >
               <Sun
-                size={24}
+                size={15}
                 className="relative z-10 text-white"
                 strokeWidth={2}
               />

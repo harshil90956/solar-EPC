@@ -96,12 +96,15 @@ export class Project extends Document {
 
   @Prop({ type: Types.ObjectId, ref: 'User', required: false })
   cancelledBy?: Types.ObjectId;
+
+  @Prop({ type: Types.ObjectId, ref: 'User', required: false })
+  createdBy?: Types.ObjectId;
 }
 
 export const ProjectSchema = SchemaFactory.createForClass(Project);
 
 // Index for efficient querying
 ProjectSchema.index({ tenantId: 1, status: 1 });
+ProjectSchema.index({ tenantId: 1, assignedTo: 1 });
 ProjectSchema.index({ tenantId: 1, projectId: 1 });
 ProjectSchema.index({ tenantId: 1, customerName: 'text', site: 'text' });
-ProjectSchema.index({ assignedTo: 1 });

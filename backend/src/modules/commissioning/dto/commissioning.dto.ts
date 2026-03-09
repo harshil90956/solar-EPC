@@ -5,6 +5,10 @@ export class CreateCommissioningDto {
   @IsString()
   projectId!: string;
 
+  @IsOptional()
+  @IsString()
+  employee?: string;
+
   @IsString()
   date!: string;
 
@@ -53,6 +57,10 @@ export class UpdateCommissioningStatusDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @IsString()
+  employee?: string;
 
   @IsOptional()
   @IsString()
