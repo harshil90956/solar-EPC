@@ -116,7 +116,7 @@ const getInitialPage = () => {
 const AppInner = () => {
   const { user } = useAuth();
   const { resolvePermission, isModuleEnabled } = useSettings();
-  const [currentPage, setCurrentPage] = useState(getInitialPage);
+  const [currentPage, setCurrentPage] = useState(() => getInitialPage());
 
   // ── Sync URL pathname on page change ──
   const navigate = useCallback((page) => {
