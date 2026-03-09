@@ -34,6 +34,7 @@ import DepartmentsPage from './pages/DepartmentsPage';
 import AttendancePage from './pages/AttendancePage';
 import IntelligenceDashboardPage from './pages/IntelligenceDashboardPage';
 import RemindersPage from './pages/RemindersPage';
+import DocumentsPage from './pages/DocumentPage';
 import NotificationSystem from './components/NotificationSystem';
 
 // ── Page Map ──────────────────────────────────────────────────────────────────
@@ -64,6 +65,7 @@ const PAGE_MAP = {
   'service-dashboard': { component: ServiceDashboardPage, title: 'Service & AMC Dashboard' },
   compliance: { component: CompliancePage, title: 'Compliance' },
   settings: { component: SettingsPage, title: 'Settings' },
+  documents: { component: DocumentsPage, title: 'Documents' },
   intelligence: { component: IntelligenceDashboardPage, title: 'AI Intelligence' },
 };
 

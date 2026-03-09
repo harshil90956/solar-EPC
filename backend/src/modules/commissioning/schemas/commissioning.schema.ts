@@ -10,6 +10,9 @@ export class Commissioning extends Document {
   @Prop({ required: true })
   projectIdString!: string;
 
+  @Prop({ type: String, default: '—' })
+  employee?: string;
+
   @Prop({ required: true })
   date!: string;
 

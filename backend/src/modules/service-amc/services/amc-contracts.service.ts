@@ -275,7 +275,7 @@ export class AmcContractsService {
     // Find all commissioned projects
     const commissionedProjects = await this.projectModel
       .find(projectFilter)
-      .select('_id projectId customerName site systemSize startDate value tenantId')
+      .select('_id projectId customerName site systemSize startDate value tenantId pm')
       .lean()
       .exec();
 
@@ -336,6 +336,7 @@ export class AmcContractsService {
 
       const contractData: any = {
         customer: project.customerName,
+        employee: project.pm || 'Unassigned',
         site: project.site,
         systemSize: project.systemSize || 0,
         startDate: startDate,

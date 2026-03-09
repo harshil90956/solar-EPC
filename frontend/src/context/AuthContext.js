@@ -24,7 +24,8 @@ export const AuthProvider = ({ children }) => {
       console.log('Attempting login...', { email });
       const res = await api.post('/auth/login', { email, password });
       console.log('Login API response:', res);
-      const { accessToken, user: userData } = res || {};
+      const { success, data } = res || {};
+      const { accessToken, user: userData } = data || {};
       if (!accessToken) {
         console.error('Invalid response structure:', res);
         throw new Error('Invalid response from server');
