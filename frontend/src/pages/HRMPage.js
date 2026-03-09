@@ -1575,13 +1575,6 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
                 ))}
               </Select>
             </FormField>
-            <FormField label="Designation">
-              <Input
-                value={employeeForm.designation}
-                onChange={(e) => setEmployeeForm({ ...employeeForm, designation: e.target.value })}
-                placeholder="Software Engineer"
-              />
-            </FormField>
             <FormField label="Role *">
               <Select
                 value={employeeForm.roleId}
