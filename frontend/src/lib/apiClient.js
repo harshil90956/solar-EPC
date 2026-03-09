@@ -18,9 +18,9 @@ const getTenantId = () => {
             return user?.tenantId || user?.tenant?.id;
         }
         // Fallback to tenantId stored separately (for pre-login requests)
-        return localStorage.getItem('tenantId') || null;
+        return localStorage.getItem('tenantId') || 'solarcorp';
     } catch {
-        return localStorage.getItem('tenantId') || null;
+        return localStorage.getItem('tenantId') || 'solarcorp';
     }
 };
 
@@ -64,10 +64,10 @@ apiClient.interceptors.response.use(
 // ── Generic CRUD helpers ──
 export const api = {
     get: (url, params = {}) => apiClient.get(url, { params }),
-    post: (url, data) => apiClient.post(url, data),
-    put: (url, data) => apiClient.put(url, data),
-    patch: (url, data) => apiClient.patch(url, data),
-    delete: (url) => apiClient.delete(url),
+    post: (url, data, config = {}) => apiClient.post(url, data, config),
+    put: (url, data, config = {}) => apiClient.put(url, data, config),
+    patch: (url, data, config = {}) => apiClient.patch(url, data, config),
+    delete: (url, config = {}) => apiClient.delete(url, config),
 };
 
 export default apiClient;

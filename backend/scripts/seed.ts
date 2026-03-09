@@ -7,6 +7,7 @@ import { Tenant, TenantSchema } from '../src/core/tenant/schemas/tenant.schema';
 import { User, UserSchema } from '../src/core/auth/schemas/user.schema';
 import { Vendor, VendorSchema } from '../src/modules/procurement/schemas/vendor.schema';
 import { PurchaseOrder, PurchaseOrderSchema } from '../src/modules/procurement/schemas/purchase-order.schema';
+import { Item, ItemSchema } from '../src/modules/items/schemas/item.schema';
 
 dotenv.config();
 
@@ -14,6 +15,7 @@ type TenantModel = Model<Tenant>;
 type UserModel = Model<User>;
 type VendorModel = Model<Vendor>;
 type PurchaseOrderModel = Model<PurchaseOrder>;
+type ItemModel = Model<Item>;
 
 const VENDORS_SEED = [
   { name: 'Adani Solar', category: 'Panel', contact: 'Rajesh Kumar', phone: '9876543210', email: 'sales@adani-solar.com', city: 'Ahmedabad', rating: 5 },
@@ -21,6 +23,19 @@ const VENDORS_SEED = [
   { name: 'SMA India', category: 'Inverter', contact: 'Anil Verma', phone: '9876543212', email: 'info@sma-india.com', city: 'Bangalore', rating: 5 },
   { name: 'Waaree Energies', category: 'Structure', contact: 'Sunil Patel', phone: '9876543213', email: 'sales@waaree.com', city: 'Surat', rating: 4 },
   { name: 'Havells India', category: 'Cable', contact: 'Vikram Singh', phone: '9876543214', email: 'epc@havells.com', city: 'Delhi', rating: 4 },
+];
+
+const ITEMS_SEED = [
+  { itemId: 'INV001', description: '400W Mono PERC Solar Panel', category: 'Panel', unit: 'pcs', stock: 500, reserved: 50, minStock: 100, rate: 14500, warehouse: 'WH-Ahmedabad', status: 'In Stock' },
+  { itemId: 'INV002', description: '500W Mono PERC Solar Panel', category: 'Panel', unit: 'pcs', stock: 300, reserved: 30, minStock: 50, rate: 16200, warehouse: 'WH-Surat', status: 'In Stock' },
+  { itemId: 'INV003', description: '50kW SMA Sunny Central Inverter', category: 'Inverter', unit: 'pcs', stock: 20, reserved: 5, minStock: 5, rate: 850000, warehouse: 'WH-Mumbai', status: 'In Stock' },
+  { itemId: 'INV004', description: '25kW Delta Inverter', category: 'Inverter', unit: 'pcs', stock: 15, reserved: 3, minStock: 5, rate: 420000, warehouse: 'WH-Ahmedabad', status: 'In Stock' },
+  { itemId: 'INV005', description: '10kW Residential Inverter', category: 'Inverter', unit: 'pcs', stock: 8, reserved: 6, minStock: 10, rate: 95000, warehouse: 'WH-Surat', status: 'Low Stock' },
+  { itemId: 'INV006', description: 'Solar Mounting Structure', category: 'Structure', unit: 'sets', stock: 200, reserved: 40, minStock: 50, rate: 18000, warehouse: 'WH-Mumbai', status: 'In Stock' },
+  { itemId: 'INV007', description: 'MC4 Connectors (Pack of 10)', category: 'BOS', unit: 'packs', stock: 1000, reserved: 200, minStock: 300, rate: 850, warehouse: 'WH-Ahmedabad', status: 'In Stock' },
+  { itemId: 'INV008', description: 'DC Cable 4mm (1 meter)', category: 'Cable', unit: 'm', stock: 5000, reserved: 1000, minStock: 2000, rate: 45, warehouse: 'WH-Surat', status: 'In Stock' },
+  { itemId: 'INV009', description: 'AC Cable 6mm (1 meter)', category: 'Cable', unit: 'm', stock: 3000, reserved: 500, minStock: 1000, rate: 62, warehouse: 'WH-Mumbai', status: 'In Stock' },
+  { itemId: 'INV010', description: 'Lightning Arrestor', category: 'BOS', unit: 'pcs', stock: 0, reserved: 0, minStock: 20, rate: 3500, warehouse: 'WH-Ahmedabad', status: 'Out of Stock' },
 ];
 
 async function main() {
@@ -40,6 +55,7 @@ async function main() {
   const UserM: UserModel = mongoose.model(User.name, UserSchema);
   const VendorM: VendorModel = mongoose.model(Vendor.name, VendorSchema);
   const PurchaseOrderM: PurchaseOrderModel = mongoose.model(PurchaseOrder.name, PurchaseOrderSchema);
+  const ItemM: ItemModel = mongoose.model(Item.name, ItemSchema);
 
   const tenantCode = 'solarcorp';
   const tenantName = 'SolarCorp India Pvt. Ltd.';
@@ -146,11 +162,29 @@ async function main() {
     console.log(`Created/Updated PO: ${poId} - ${vendor.name}`);
   }
 
+  // Seed Items (Inventory)
+  console.log('Seeding items...');
+  for (const itemData of ITEMS_SEED) {
+    await ItemM.findOneAndUpdate(
+      { itemId: itemData.itemId },
+      {
+        $set: {
+          ...itemData,
+          tenantId: tenant._id,
+          isDeleted: false,
+        },
+      },
+      { upsert: true, new: true },
+    );
+    console.log(`Created/Updated item: ${itemData.itemId} - ${itemData.description}`);
+  }
+
   // Ensure indexes
   await UserM.syncIndexes();
   await TenantM.syncIndexes();
   await VendorM.syncIndexes();
   await PurchaseOrderM.syncIndexes();
+  await ItemM.syncIndexes();
 
   await mongoose.disconnect();
 }

@@ -1,7 +1,7 @@
 // Solar OS – EPC Edition — InventoryPage.js
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
-  Package, Plus, AlertTriangle, Warehouse, ArrowUp, ArrowDown, Zap, LayoutGrid, List, Edit2, Trash2, Eye
+  Package, Plus, AlertTriangle, Warehouse, ArrowUp, ArrowDown, Zap, LayoutGrid, List, Edit2, Trash2, Eye, ArrowRightLeft
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { StatusBadge } from '../components/ui/Badge';
@@ -271,6 +271,12 @@ const InventoryPage = () => {
   const [inventoryStats, setInventoryStats] = useState(null);
   const [itemsByCategory, setItemsByCategory] = useState([]);
   const [showEdit, setShowEdit] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferFromWarehouse, setTransferFromWarehouse] = useState('');
+  const [transferToWarehouse, setTransferToWarehouse] = useState('');
+  const [transferItem, setTransferItem] = useState('');
+  const [transferQuantity, setTransferQuantity] = useState('');
+  const [transferRemarks, setTransferRemarks] = useState('');
 
   // Save categories to localStorage
   useEffect(() => {
@@ -321,14 +327,110 @@ const InventoryPage = () => {
     alert('Warehouse deleted successfully');
   };
 
+  const handleTransfer = async () => {
+    if (!transferItem || !transferQuantity || !transferToWarehouse) {
+      alert('Please fill all required fields');
+      return;
+    }
+    if (transferFromWarehouse === transferToWarehouse) {
+      alert('Source and destination warehouse cannot be the same');
+      return;
+    }
+
+    const qty = parseInt(transferQuantity);
+    if (isNaN(qty) || qty <= 0) {
+      alert('Please enter a valid quantity');
+      return;
+    }
+
+    const item = inventory.find(i => i.itemId === transferItem && i.warehouse === transferFromWarehouse);
+    if (!item) {
+      alert('Item not found in source warehouse');
+      return;
+    }
+
+    if ((item.available || 0) < qty) {
+      alert(`Insufficient stock. Available: ${item.available} ${item.unit}`);
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      // First, check if item exists in destination warehouse
+      const existingItemInDest = inventory.find(i => i.itemId === transferItem && i.warehouse === transferToWarehouse);
+
+      if (existingItemInDest) {
+        // Transfer between existing items - stock out from source, stock in to dest
+        // Use itemId for API calls since backend looks up by ID
+        await api.post(`/items/${item._id || item.itemId}/stock-out`, {
+          quantity: qty,
+          remarks: `Transferred to ${transferToWarehouse}: ${transferRemarks || 'Stock transfer'}`,
+        }, { headers: { 'x-tenant-id': TENANT_ID } });
+
+        await api.post(`/items/${existingItemInDest._id || existingItemInDest.itemId}/stock-in`, {
+          quantity: qty,
+          warehouse: transferToWarehouse,
+          remarks: `Transferred from ${transferFromWarehouse}: ${transferRemarks || 'Stock transfer'}`,
+        }, { headers: { 'x-tenant-id': TENANT_ID } });
+      } else {
+        // Create new item in destination warehouse
+        const newItemData = {
+          itemId: item.itemId,
+          description: item.name || item.description,
+          category: item.category,
+          unit: item.unit,
+          stock: qty,
+          reserved: 0,
+          minStock: item.minStock || 0,
+          rate: item.rate || 0,
+          warehouse: transferToWarehouse,
+          status: 'In Stock',
+        };
+
+        // Create new item in destination warehouse
+        const createdItem = await api.post('/items', newItemData, { headers: { 'x-tenant-id': TENANT_ID } });
+        
+        // Stock out from source warehouse
+        await api.post(`/items/${item._id || item.itemId}/stock-out`, {
+          quantity: qty,
+          remarks: `Transferred to ${transferToWarehouse} (new item created): ${transferRemarks || 'Stock transfer'}`,
+        }, { headers: { 'x-tenant-id': TENANT_ID } });
+      }
+
+      // Refresh inventory
+      const data = await api.get('/items');
+      const itemsArray = Array.isArray(data) ? data : (data.data || []);
+      const inventoryData = itemsArray.map(item => ({
+        ...item,
+        name: item.description || item.name || 'Unnamed Item',
+        reserved: item.reserved || 0,
+        available: (item.stock || 0) - (item.reserved || 0),
+        lastUpdated: item.updatedAt || new Date().toISOString().split('T')[0]
+      }));
+      setInventory(inventoryData);
+
+      setShowTransferModal(false);
+      setTransferToWarehouse('');
+      setTransferItem('');
+      setTransferQuantity('');
+      setTransferRemarks('');
+      alert(`Successfully transferred ${qty} ${item.unit} of ${item.name || item.description} from ${transferFromWarehouse} to ${transferToWarehouse}`);
+    } catch (err) {
+      // Error logged silently
+      alert(err.message || 'Failed to transfer stock. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   // Fetch inventory stats from backend
   useEffect(() => {
     const fetchInventoryStats = async () => {
       try {
-        const data = await api.get('/inventory/stats', { tenantId: TENANT_ID });
+        const data = await api.get('/inventory/stats');
         setInventoryStats(data.data || data);
       } catch (err) {
-        console.error('Error fetching inventory stats:', err);
+        // Error fetching stats
       }
     };
     fetchInventoryStats();
@@ -338,10 +440,10 @@ const InventoryPage = () => {
   useEffect(() => {
     const fetchByCategory = async () => {
       try {
-        const data = await api.get('/inventory/by-category', { tenantId: TENANT_ID });
+        const data = await api.get('/inventory/by-category');
         setItemsByCategory(data.data || data || []);
       } catch (err) {
-        console.error('Error fetching items by category:', err);
+        // Error fetching by category
       }
     };
     fetchByCategory();
@@ -352,8 +454,7 @@ const InventoryPage = () => {
     const fetchInventory = async () => {
       try {
         setLoading(true);
-        const data = await api.get('/items', { tenantId: TENANT_ID });
-        console.log('Items API Response:', data);
+        const data = await api.get('/items');
 
         // Parse items array from response
         let itemsArray = [];
@@ -377,7 +478,6 @@ const InventoryPage = () => {
         setInventory(inventoryData);
         setError(null);
       } catch (err) {
-        console.error('Error fetching items:', err);
         setError(err.message);
       } finally {
         setLoading(false);
@@ -391,11 +491,11 @@ const InventoryPage = () => {
   useEffect(() => {
     const fetchItems = async () => {
       try {
-        const data = await api.get('/items', { tenantId: TENANT_ID });
+        const data = await api.get('/items');
         const itemsArray = Array.isArray(data) ? data : (data.data || []);
         setItems(itemsArray);
       } catch (err) {
-        console.error('Error fetching items:', err);
+        // Error fetching items
       }
     };
 
@@ -406,11 +506,11 @@ const InventoryPage = () => {
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        const data = await api.get('/projects', { tenantId: TENANT_ID });
+        const data = await api.get('/projects');
         const projectsArray = Array.isArray(data) ? data : (data.data || []);
         setProjects(projectsArray);
       } catch (err) {
-        console.error('Error fetching projects:', err);
+        // Error fetching projects
       }
     };
 
@@ -480,7 +580,6 @@ const InventoryPage = () => {
       setForm({ itemId: '', name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
       alert('Item added successfully!');
     } catch (err) {
-      console.error('Error adding item:', err);
       alert(err.message || 'Failed to add item. Please try again.');
     } finally {
       setSubmitting(false);
@@ -498,14 +597,13 @@ const InventoryPage = () => {
         receivedDate: stockInForm.receivedDate,
         remarks: stockInForm.remarks,
         warehouse: stockInForm.warehouse,
-      }, { tenantId: TENANT_ID });
+      }, { headers: { 'x-tenant-id': TENANT_ID } });
       const itemData = updatedItem.data || updatedItem;
       setInventory(prev => prev.map(i => i._id === stockInForm.itemId ? itemData : i));
       setStockIn(false);
       setStockInForm({ itemId: '', quantity: '', poReference: '', receivedDate: '', remarks: '', warehouse: '' });
       alert('Stock added successfully!');
     } catch (err) {
-      console.error('Error adding stock:', err);
       alert(err.message || 'Failed to add stock. Please try again.');
     } finally {
       setSubmitting(false);
@@ -524,13 +622,10 @@ const InventoryPage = () => {
   const fetchItemReservations = async (itemId) => {
     setLoadingReservations(true);
     try {
-      console.log('Fetching reservations for itemId:', itemId);
-      const data = await api.get(`/inventory/reservations/by-item/${itemId}`, { tenantId: TENANT_ID });
-      console.log('Reservation API response:', data);
-      console.log('Reservations count:', (data.data || data || []).length);
+      const data = await api.get(`/inventory/reservations/by-item/${itemId}`);
       setItemReservations(data.data || data || []);
     } catch (err) {
-      console.error('Error fetching reservations:', err);
+      // Error fetching reservations
     } finally {
       setLoadingReservations(false);
     }
@@ -572,7 +667,6 @@ const InventoryPage = () => {
       setEditForm({ name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
       alert('Item updated successfully!');
     } catch (err) {
-      console.error('Error updating item:', err);
       alert(err.message || 'Failed to update item. Please try again.');
     } finally {
       setSubmitting(false);
@@ -587,7 +681,6 @@ const InventoryPage = () => {
       setInventory(prev => prev.filter(i => i.itemId !== itemId));
       alert('Item deleted successfully!');
     } catch (err) {
-      console.error('Error deleting item:', err);
       alert(err.message || 'Failed to delete item. Please try again.');
     }
   };
@@ -602,7 +695,7 @@ const InventoryPage = () => {
         projectId: stockOutForm.projectId,
         issuedDate: stockOutForm.issuedDate,
         remarks: stockOutForm.remarks,
-      }, { tenantId: TENANT_ID });
+      }, { headers: { 'x-tenant-id': TENANT_ID } });
       const itemData = updatedItem.data || updatedItem;
 
       // Create reservation record for the project
@@ -623,7 +716,6 @@ const InventoryPage = () => {
             notes: stockOutForm.remarks || `Stock issued on ${stockOutForm.issuedDate || new Date().toISOString().split('T')[0]}`,
           }, { params: { tenantId: TENANT_ID } });
         } catch (resErr) {
-          console.error('Error creating reservation record:', resErr);
           // Don't fail the whole operation if reservation creation fails
         }
       }
@@ -633,7 +725,6 @@ const InventoryPage = () => {
       setStockOutForm({ itemId: '', quantity: '', projectId: '', issuedDate: '', remarks: '' });
       alert('Stock issued successfully! Project reservation recorded.');
     } catch (err) {
-      console.error('Error issuing stock:', err);
       alert(err.message || 'Failed to issue stock. Please try again.');
     } finally {
       setSubmitting(false);
@@ -663,15 +754,14 @@ const InventoryPage = () => {
         return;
       }
 
-      const updatedItem = await api.patch(`/items/${item._id || itemId}`, { status: newStatus }, { tenantId: TENANT_ID });
+      const updatedItem = await api.patch(`/items/${item._id || itemId}`, { status: newStatus }, { headers: { 'x-tenant-id': TENANT_ID } });
       const itemData = updatedItem.data || updatedItem;
       setInventory(prev => prev.map(i => (i._id || i.itemId) === (itemData._id || itemData.itemId) ? { ...i, status: newStatus } : i));
       
       // Refresh stats
-      const statsData = await api.get('/inventory/stats', { tenantId: TENANT_ID });
+      const statsData = await api.get('/inventory/stats', { headers: { 'x-tenant-id': TENANT_ID } });
       setInventoryStats(statsData.data || statsData);
     } catch (err) {
-      console.error('Error updating stock status:', err);
       alert(err.message || 'Failed to update stock status. Please try again.');
     } finally {
       setSubmitting(false);
@@ -783,11 +873,59 @@ const InventoryPage = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <KPICard label="Total Items" value={dynamicStats.totalItems} sub="SKUs tracked" icon={Package} accentColor="#3b82f6" />
-            <KPICard label="Inventory Value" value={fmt(dynamicStats.totalValue)} sub="At current rates" icon={Warehouse} accentColor="#f59e0b" />
-            <KPICard label="Low Stock Alerts" value={dynamicStats.lowStockItems} sub="Items need reorder" icon={AlertTriangle} accentColor="#f59e0b" />
-            <KPICard label="Out of Stock" value={dynamicStats.outOfStockItems} sub="Immediate action needed" icon={AlertTriangle} accentColor="#ef4444" />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 to-blue-400 rounded-2xl p-5 shadow-lg shadow-blue-500/20">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+              <div className="relative flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-blue-50 uppercase tracking-wider">Total Items</p>
+                  <p className="text-3xl font-bold text-white mt-2">{dynamicStats.totalItems}</p>
+                  <p className="text-xs text-blue-100/80 mt-1">SKUs tracked</p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                  <Package size={24} className="text-white" />
+                </div>
+              </div>
+            </div>
+            <div className="relative overflow-hidden bg-gradient-to-br from-emerald-600 to-emerald-400 rounded-2xl p-5 shadow-lg shadow-emerald-500/20">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+              <div className="relative flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-emerald-50 uppercase tracking-wider">Inventory Value</p>
+                  <p className="text-xl font-bold text-white mt-2">₹{(dynamicStats.totalValue / 100000).toFixed(1)}L</p>
+                  <p className="text-xs text-emerald-100/80 mt-1">At current rates</p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                  <Warehouse size={24} className="text-white" />
+                </div>
+              </div>
+            </div>
+            <div className="relative overflow-hidden bg-gradient-to-br from-amber-500 to-orange-400 rounded-2xl p-5 shadow-lg shadow-amber-500/20">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+              <div className="relative flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-amber-50 uppercase tracking-wider">Low Stock</p>
+                  <p className="text-3xl font-bold text-white mt-2">{dynamicStats.lowStockItems}</p>
+                  <p className="text-xs text-amber-100/80 mt-1">Items need reorder</p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                  <AlertTriangle size={24} className="text-white" />
+                </div>
+              </div>
+            </div>
+            <div className="relative overflow-hidden bg-gradient-to-br from-red-600 to-rose-500 rounded-2xl p-5 shadow-lg shadow-red-500/20">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+              <div className="relative flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-red-50 uppercase tracking-wider">Out of Stock</p>
+                  <p className="text-3xl font-bold text-white mt-2">{dynamicStats.outOfStockItems}</p>
+                  <p className="text-xs text-red-100/80 mt-1">Immediate action needed</p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                  <AlertTriangle size={24} className="text-white" />
+                </div>
+              </div>
+            </div>
           </div>
 
           {dynamicStats.lowStockItems > 0 && (
@@ -882,7 +1020,11 @@ const InventoryPage = () => {
                   </tr>
                 ) : (
                   warehouses.map((w) => (
-                    <tr key={w} className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)]">
+                    <tr
+                      key={w}
+                      className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)] cursor-pointer"
+                      onClick={() => setViewingWarehouse(w)}
+                    >
                       <td className="px-4 py-3">
                         <span className="text-sm font-medium text-[var(--text-primary)]">{w}</span>
                       </td>
@@ -892,21 +1034,28 @@ const InventoryPage = () => {
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
                           <button
-                            onClick={() => setViewingWarehouse(w)}
+                            onClick={(e) => { e.stopPropagation(); setViewingWarehouse(w); }}
                             className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-blue-500 hover:bg-blue-500/10"
                             title="View"
                           >
                             <Eye size={14} />
                           </button>
                           <button
-                            onClick={() => { setEditingWarehouse(w); setEditWarehouseValue(w); }}
+                            onClick={(e) => { e.stopPropagation(); setTransferFromWarehouse(w); setShowTransferModal(true); }}
+                            className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-purple-500 hover:bg-purple-500/10"
+                            title="Transfer Stock"
+                          >
+                            <ArrowRightLeft size={14} />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setEditingWarehouse(w); setEditWarehouseValue(w); }}
                             className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--bg-hover)]"
                             title="Edit"
                           >
                             <Edit2 size={14} />
                           </button>
                           <button
-                            onClick={() => handleDeleteWarehouse(w)}
+                            onClick={(e) => { e.stopPropagation(); handleDeleteWarehouse(w); }}
                             className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-red-500 hover:bg-red-500/10"
                             title="Delete"
                           >
@@ -980,39 +1129,39 @@ const InventoryPage = () => {
                     <tr key={item._id || item.itemId} 
                       onClick={() => setSelected(item)}
                       className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)] cursor-pointer">
-                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-4 py-3">
                         <span className="text-xs font-mono text-[var(--accent-light)]">{item.itemId}</span>
                       </td>
-                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-4 py-3">
                         <span className="text-xs font-semibold text-[var(--text-primary)]">{item.name || item.description}</span>
                       </td>
-                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-4 py-3">
                         <span className="text-xs text-[var(--text-secondary)]">{item.category}</span>
                       </td>
-                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-4 py-3">
                         <span className="text-xs text-[var(--text-secondary)]">{item.unit}</span>
                       </td>
-                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-4 py-3">
                         <span className="text-xs text-[var(--text-primary)]">₹{item.rate?.toLocaleString('en-IN')}</span>
                       </td>
-                      <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
                           <button
-                            onClick={() => { setSelected(item); }}
+                            onClick={(e) => { e.stopPropagation(); setSelected(item); }}
                             className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-[var(--primary)] hover:bg-[var(--bg-hover)]"
                             title="View"
                           >
                             <Package size={14} />
                           </button>
                           <button
-                            onClick={() => handleEditClick(item)}
+                            onClick={(e) => { e.stopPropagation(); handleEditClick(item); }}
                             className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
                             title="Edit"
                           >
                             <Edit2 size={14} />
                           </button>
                           <button
-                            onClick={() => handleDeleteItem(item.itemId)}
+                            onClick={(e) => { e.stopPropagation(); handleDeleteItem(item.itemId); }}
                             className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-red-500 hover:bg-red-500/10"
                             title="Delete"
                           >
@@ -1239,6 +1388,65 @@ const InventoryPage = () => {
             onChange={(e) => setEditWarehouseValue(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleEditWarehouse(editingWarehouse); } }} />
         </FormField>
+      </Modal>
+
+      {/* Warehouse Stock Transfer Modal */}
+      <Modal open={showTransferModal} onClose={() => { setShowTransferModal(false); setTransferToWarehouse(''); setTransferItem(''); setTransferQuantity(''); setTransferRemarks(''); }} 
+        title={`Transfer Stock — ${transferFromWarehouse}`}
+        footer={<div className="flex gap-2 justify-end">
+          <Button variant="ghost" onClick={() => { setShowTransferModal(false); setTransferToWarehouse(''); setTransferItem(''); setTransferQuantity(''); setTransferRemarks(''); }}>Cancel</Button>
+          <Button onClick={handleTransfer} disabled={submitting || !transferItem || !transferQuantity || !transferToWarehouse}>
+            {submitting ? 'Transferring...' : <><ArrowRightLeft size={13} /> Transfer Stock</>}
+          </Button>
+        </div>}>
+        <div className="space-y-3">
+          <FormField label="From Warehouse">
+            <Input value={transferFromWarehouse} disabled className="bg-[var(--bg-muted)]" />
+          </FormField>
+          <FormField label="To Warehouse" required>
+            <Select value={transferToWarehouse} onChange={e => setTransferToWarehouse(e.target.value)}>
+              <option value="">Select Destination Warehouse</option>
+              {warehouses.filter(w => w !== transferFromWarehouse).map(w => <option key={w} value={w}>{w}</option>)}
+            </Select>
+          </FormField>
+          <FormField label="Item" required>
+            <Select value={transferItem} onChange={e => { setTransferItem(e.target.value); }}>
+              <option value="">Select Item to Transfer</option>
+              {inventory.filter(i => i.warehouse === transferFromWarehouse).map(i => (
+                <option key={i.itemId} value={i.itemId}>
+                  {i.name || i.description} ({i.itemId}) — Available: {i.available} {i.unit}
+                </option>
+              ))}
+            </Select>
+          </FormField>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Quantity to Transfer" required>
+              <Input type="number" placeholder="Enter quantity" value={transferQuantity} 
+                onChange={e => setTransferQuantity(e.target.value)} 
+                min="1"
+                max={inventory.find(i => i.itemId === transferItem && i.warehouse === transferFromWarehouse)?.available || ''}
+              />
+            </FormField>
+            <FormField label="Available Stock">
+              <Input 
+                value={transferItem ? `${inventory.find(i => i.itemId === transferItem && i.warehouse === transferFromWarehouse)?.available || 0} ${inventory.find(i => i.itemId === transferItem && i.warehouse === transferFromWarehouse)?.unit || ''}` : '—'} 
+                disabled 
+                className="bg-[var(--bg-muted)]" 
+              />
+            </FormField>
+          </div>
+          <FormField label="Remarks">
+            <Input placeholder="Optional notes about this transfer..." value={transferRemarks} onChange={e => setTransferRemarks(e.target.value)} />
+          </FormField>
+          {transferItem && (
+            <div className="text-[11px] text-[var(--text-muted)] bg-[var(--bg-elevated)] p-2 rounded-lg">
+              <p className="font-medium mb-1">Item Details:</p>
+              <p>Stock: {inventory.find(i => i.itemId === transferItem && i.warehouse === transferFromWarehouse)?.stock || 0}</p>
+              <p>Reserved: {inventory.find(i => i.itemId === transferItem && i.warehouse === transferFromWarehouse)?.reserved || 0}</p>
+              <p>Available: {inventory.find(i => i.itemId === transferItem && i.warehouse === transferFromWarehouse)?.available || 0}</p>
+            </div>
+          )}
+        </div>
       </Modal>
 
       {/* Stock In Modal */}
