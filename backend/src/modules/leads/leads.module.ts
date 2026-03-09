@@ -1,10 +1,11 @@
-﻿import { Module } from '@nestjs/common';
+﻿import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Lead, LeadSchema } from './schemas/lead.schema';
 import { LeadStatus, LeadStatusSchema } from '../settings/schemas/lead-status.schema';
 import { LeadsService } from './services/leads.service';
 import { LeadsController } from './controllers/leads.controller';
 import { SettingsModule } from '../settings/settings.module';
+import { SurveyModule } from '../survey/survey.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { SettingsModule } from '../settings/settings.module';
       { name: LeadStatus.name, schema: LeadStatusSchema },
     ]),
     SettingsModule,
+    forwardRef(() => SurveyModule),
   ],
   controllers: [LeadsController],
   providers: [LeadsService],
