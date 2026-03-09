@@ -8,6 +8,9 @@ import { User, UserSchema } from '../src/core/auth/schemas/user.schema';
 import { Vendor, VendorSchema } from '../src/modules/procurement/schemas/vendor.schema';
 import { PurchaseOrder, PurchaseOrderSchema } from '../src/modules/procurement/schemas/purchase-order.schema';
 import { Item, ItemSchema } from '../src/modules/items/schemas/item.schema';
+import { Warehouse, WarehouseSchema } from '../src/modules/items/schemas/warehouse.schema';
+import { Category, CategorySchema } from '../src/modules/items/schemas/category.schema';
+import { Unit, UnitSchema } from '../src/modules/items/schemas/unit.schema';
 
 dotenv.config();
 
@@ -16,6 +19,36 @@ type UserModel = Model<User>;
 type VendorModel = Model<Vendor>;
 type PurchaseOrderModel = Model<PurchaseOrder>;
 type ItemModel = Model<Item>;
+type WarehouseModel = Model<Warehouse>;
+type CategoryModel = Model<Category>;
+type UnitModel = Model<Unit>;
+
+const WAREHOUSES_SEED = [
+  { code: 'WH-AHM', name: 'Ahmedabad Warehouse', location: 'Ahmedabad, Gujarat' },
+  { code: 'WH-SRT', name: 'Surat Warehouse', location: 'Surat, Gujarat' },
+  { code: 'WH-MUM', name: 'Mumbai Warehouse', location: 'Mumbai, Maharashtra' },
+  { code: 'WH-BLR', name: 'Bangalore Warehouse', location: 'Bangalore, Karnataka' },
+];
+
+const CATEGORIES_SEED = [
+  { code: 'PANEL', name: 'Panel', description: 'Solar panels and modules', color: 'bg-blue-500' },
+  { code: 'INVERTER', name: 'Inverter', description: 'Solar inverters and power conditioning units', color: 'bg-amber-500' },
+  { code: 'BOS', name: 'BOS', description: 'Balance of System components', color: 'bg-green-500' },
+  { code: 'STRUCTURE', name: 'Structure', description: 'Mounting structures and hardware', color: 'bg-purple-500' },
+  { code: 'CABLE', name: 'Cable', description: 'AC/DC cables and connectors', color: 'bg-pink-500' },
+  { code: 'OTHER', name: 'Other', description: 'Other miscellaneous items', color: 'bg-gray-500' },
+];
+
+const UNITS_SEED = [
+  { code: 'NOS', name: 'Nos', description: 'Number/Count' },
+  { code: 'MTR', name: 'Mtr', description: 'Meters' },
+  { code: 'KG', name: 'Kg', description: 'Kilograms' },
+  { code: 'SET', name: 'Set', description: 'Complete set' },
+  { code: 'PAIRS', name: 'Pairs', description: 'Pair of items' },
+  { code: 'BOX', name: 'Box', description: 'Box quantity' },
+  { code: 'PCS', name: 'Pcs', description: 'Pieces' },
+  { code: 'PKT', name: 'Pkt', description: 'Packet' },
+];
 
 const VENDORS_SEED = [
   { name: 'Adani Solar', category: 'Panel', contact: 'Rajesh Kumar', phone: '9876543210', email: 'sales@adani-solar.com', city: 'Ahmedabad', rating: 5 },
@@ -56,6 +89,9 @@ async function main() {
   const VendorM: VendorModel = mongoose.model(Vendor.name, VendorSchema);
   const PurchaseOrderM: PurchaseOrderModel = mongoose.model(PurchaseOrder.name, PurchaseOrderSchema);
   const ItemM: ItemModel = mongoose.model(Item.name, ItemSchema);
+  const WarehouseM: WarehouseModel = mongoose.model(Warehouse.name, WarehouseSchema);
+  const CategoryM: CategoryModel = mongoose.model(Category.name, CategorySchema);
+  const UnitM: UnitModel = mongoose.model(Unit.name, UnitSchema);
 
   const tenantCode = 'solarcorp';
   const tenantName = 'SolarCorp India Pvt. Ltd.';
@@ -97,6 +133,60 @@ async function main() {
     },
     { upsert: true },
   );
+
+  // Seed Warehouses
+  console.log('Seeding warehouses...');
+  for (const whData of WAREHOUSES_SEED) {
+    await WarehouseM.findOneAndUpdate(
+      { code: whData.code },
+      {
+        $set: {
+          ...whData,
+          tenantId: tenant._id.toString(),
+          isActive: true,
+          isDeleted: false,
+        },
+      },
+      { upsert: true, new: true },
+    );
+    console.log(`Created/Updated warehouse: ${whData.code} - ${whData.name}`);
+  }
+
+  // Seed Categories
+  console.log('Seeding categories...');
+  for (const catData of CATEGORIES_SEED) {
+    await CategoryM.findOneAndUpdate(
+      { code: catData.code },
+      {
+        $set: {
+          ...catData,
+          tenantId: tenant._id.toString(),
+          isActive: true,
+          isDeleted: false,
+        },
+      },
+      { upsert: true, new: true },
+    );
+    console.log(`Created/Updated category: ${catData.code} - ${catData.name}`);
+  }
+
+  // Seed Units
+  console.log('Seeding units...');
+  for (const unitData of UNITS_SEED) {
+    await UnitM.findOneAndUpdate(
+      { code: unitData.code },
+      {
+        $set: {
+          ...unitData,
+          tenantId: tenant._id.toString(),
+          isActive: true,
+          isDeleted: false,
+        },
+      },
+      { upsert: true, new: true },
+    );
+    console.log(`Created/Updated unit: ${unitData.code} - ${unitData.name}`);
+  }
 
   // Seed Vendors
   console.log('Seeding vendors...');
@@ -170,7 +260,7 @@ async function main() {
       {
         $set: {
           ...itemData,
-          tenantId: tenant._id,
+          tenantId: tenant._id.toString(),
           isDeleted: false,
         },
       },
@@ -185,6 +275,9 @@ async function main() {
   await VendorM.syncIndexes();
   await PurchaseOrderM.syncIndexes();
   await ItemM.syncIndexes();
+  await WarehouseM.syncIndexes();
+  await CategoryM.syncIndexes();
+  await UnitM.syncIndexes();
 
   await mongoose.disconnect();
 }

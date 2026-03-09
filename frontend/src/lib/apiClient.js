@@ -14,13 +14,22 @@ const getTenantId = () => {
     try {
         // First try to get from user object
         const user = JSON.parse(localStorage.getItem('solar_user') || '{}');
-        if (user?.tenantId || user?.tenant?.id) {
-            return user?.tenantId || user?.tenant?.id;
+        const userTenantId = user?.tenantId || user?.tenant?.id;
+        if (userTenantId && userTenantId !== 'default') {
+            return userTenantId;
         }
         // Fallback to tenantId stored separately (for pre-login requests)
-        return localStorage.getItem('tenantId') || 'solarcorp';
+        const storedTenantId = localStorage.getItem('tenantId');
+        if (storedTenantId && storedTenantId !== 'default') {
+            return storedTenantId;
+        }
+        return 'solarcorp';
     } catch {
-        return localStorage.getItem('tenantId') || 'solarcorp';
+        const storedTenantId = localStorage.getItem('tenantId');
+        if (storedTenantId && storedTenantId !== 'default') {
+            return storedTenantId;
+        }
+        return 'solarcorp';
     }
 };
 

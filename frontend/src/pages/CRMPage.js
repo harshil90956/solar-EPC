@@ -1,6 +1,7 @@
 
 // Solar OS – Lead Management Module (Premium Enterprise Edition)
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   Plus, Phone, Mail, MapPin, TrendingUp, Users, Zap, Eye,
   BarChart2, Search, Download, Filter, MoreVertical, AlertCircle,
