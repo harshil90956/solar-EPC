@@ -156,6 +156,7 @@ const ProjectPage = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setFilter] = useState('All');
   const [progressFilter, setProgressFilter] = useState('all');
+  const [showNonCompletedOnly, setShowNonCompletedOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(APP_CONFIG.defaultPageSize);
   const [showAdd, setShowAdd] = useState(false);
@@ -186,6 +187,20 @@ const ProjectPage = () => {
   const [colToggleOpen, setColToggleOpen] = useState(false);
   const [projectStats, setProjectStats] = useState(null);
   const [projectsByStage, setProjectsByStage] = useState([]);
+
+  // Month filter state
+  const [monthFilter, setMonthFilter] = useState('all');
+
+  // Month options for filter
+  const monthOptions = [
+    { value: 'all', label: 'All Time' },
+    { value: '2026-03', label: 'March 2026' },
+    { value: '2026-02', label: 'February 2026' },
+    { value: '2026-01', label: 'January 2026' },
+    { value: '2025-12', label: 'December 2025' },
+    { value: '2025-11', label: 'November 2025' },
+    { value: '2025-10', label: 'October 2025' },
+  ];
 
   // Fetch projects stats from backend
   useEffect(() => {
@@ -340,6 +355,27 @@ const ProjectPage = () => {
     }
   };
 
+  // Define the correct stage order
+  const STAGE_ORDER = ['Survey', 'Design', 'Quotation', 'Procurement', 'Installation', 'Commissioned', 'On Hold'];
+
+  // Sort projects by stage according to the defined order
+  const sortedProjectsByStage = useMemo(() => {
+    const ordered = [];
+    STAGE_ORDER.forEach(stageName => {
+      const stageData = projectsByStage.find(s => s._id === stageName);
+      if (stageData) {
+        ordered.push(stageData);
+      }
+    });
+    // Add any stages not in the defined order at the end
+    projectsByStage.forEach(s => {
+      if (!STAGE_ORDER.includes(s._id)) {
+        ordered.push(s);
+      }
+    });
+    return ordered;
+  }, [projectsByStage]);
+
   // Filter out cancelled projects from calculations and kanban view
   const activeProjects = useMemo(() =>
     projects.filter(p => p.status !== 'Cancelled'),
@@ -348,7 +384,11 @@ const ProjectPage = () => {
 
   const filtered = useMemo(() =>
     projects.filter(p => {
-      const matchesStatus = statusFilter === 'All' || p.status === statusFilter;
+      let matchesStatus = statusFilter === 'All' || p.status === statusFilter;
+      // If showNonCompletedOnly is true, exclude Commissioned projects
+      if (showNonCompletedOnly && p.status === 'Commissioned') {
+        matchesStatus = false;
+      }
       const matchesSearch = p.customerName.toLowerCase().includes(search.toLowerCase());
       let matchesProgress = true;
       if (progressFilter !== 'all') {
@@ -356,7 +396,7 @@ const ProjectPage = () => {
         matchesProgress = p.progress >= min && p.progress <= max;
       }
       return matchesStatus && matchesSearch && matchesProgress;
-    }), [search, statusFilter, progressFilter, projects]);
+    }), [search, statusFilter, progressFilter, projects, showNonCompletedOnly]);
 
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
 
@@ -656,60 +696,81 @@ const ProjectPage = () => {
         <>
           {/* Summary Cards with Light Colors */}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <div className="p-4 rounded-xl bg-gradient-to-br from-violet-50 to-purple-50 border border-violet-100">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] uppercase tracking-wider text-violet-600 font-semibold">TOTAL PROJECTS</span>
-            <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center">
-              <Layers size={16} className="text-violet-600" />
+            <div 
+              className="p-4 rounded-xl bg-gradient-to-br from-violet-100 to-purple-200 border border-violet-200 cursor-pointer hover:shadow-md transition-all"
+              onClick={() => { 
+                setView('table'); 
+                setFilter('All');
+                setShowNonCompletedOnly(false);
+              }}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] uppercase tracking-wider text-violet-700 font-semibold">TOTAL PROJECTS</span>
+                <div className="w-8 h-8 rounded-lg bg-violet-200 flex items-center justify-center">
+                  <Layers size={16} className="text-violet-700" />
+                </div>
+              </div>
+              <div className="text-2xl font-bold text-gray-800">{projectStats?.totalProjects ?? projects.length}</div>
+              <div className="text-xs text-gray-500 mt-1">All projects</div>
             </div>
-          </div>
-          <div className="text-2xl font-bold text-gray-800">{projectStats?.totalProjects ?? projects.length}</div>
-          <div className="text-xs text-gray-500 mt-1">All projects</div>
-        </div>
 
-        <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50 to-sky-50 border border-blue-100">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] uppercase tracking-wider text-blue-600 font-semibold">ACTIVE PROJECTS</span>
-            <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-              <FolderOpen size={16} className="text-blue-600" />
+            <div 
+              className="p-4 rounded-xl bg-gradient-to-br from-blue-100 to-sky-200 border border-blue-200 cursor-pointer hover:shadow-md transition-all"
+              onClick={() => { 
+                setView('table'); 
+                setFilter('All');
+                setShowNonCompletedOnly(true);
+              }}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] uppercase tracking-wider text-blue-700 font-semibold">ACTIVE PROJECTS</span>
+                <div className="w-8 h-8 rounded-lg bg-blue-200 flex items-center justify-center">
+                  <FolderOpen size={16} className="text-blue-700" />
+                </div>
+              </div>
+              <div className="text-2xl font-bold text-gray-800">{projectStats?.active ?? active}</div>
+              <div className="text-xs text-gray-500 mt-1">Currently executing</div>
             </div>
-          </div>
-          <div className="text-2xl font-bold text-gray-800">{projectStats?.active ?? active}</div>
-          <div className="text-xs text-gray-500 mt-1">Currently executing</div>
-        </div>
 
-        <div className="p-4 rounded-xl bg-gradient-to-br from-cyan-50 to-teal-50 border border-cyan-100">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] uppercase tracking-wider text-cyan-600 font-semibold">COMPLETED</span>
-            <div className="w-8 h-8 rounded-lg bg-cyan-100 flex items-center justify-center">
-              <CheckCircle size={16} className="text-cyan-600" />
+            <div 
+              className="p-4 rounded-xl bg-gradient-to-br from-cyan-100 to-teal-200 border border-cyan-200 cursor-pointer hover:shadow-md transition-all"
+              onClick={() => { 
+                setView('table'); 
+                setFilter('Commissioned');
+                setShowNonCompletedOnly(false);
+              }}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] uppercase tracking-wider text-cyan-700 font-semibold">COMPLETED</span>
+                <div className="w-8 h-8 rounded-lg bg-cyan-200 flex items-center justify-center">
+                  <CheckCircle size={16} className="text-cyan-700" />
+                </div>
+              </div>
+              <div className="text-2xl font-bold text-gray-800">{projectStats?.commissioned ?? commissioned}</div>
+              <div className="text-xs text-gray-500 mt-1">Finished projects</div>
             </div>
-          </div>
-          <div className="text-2xl font-bold text-gray-800">{projectStats?.commissioned ?? commissioned}</div>
-          <div className="text-xs text-gray-500 mt-1">Finished projects</div>
-        </div>
 
-        <div className="p-4 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] uppercase tracking-wider text-amber-600 font-semibold">TOTAL CAPACITY</span>
-            <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
-              <Zap size={16} className="text-amber-600" />
+            <div className="p-4 rounded-xl bg-gradient-to-br from-amber-100 to-orange-200 border border-amber-200">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] uppercase tracking-wider text-amber-700 font-semibold">TOTAL CAPACITY</span>
+                <div className="w-8 h-8 rounded-lg bg-amber-200 flex items-center justify-center">
+                  <Zap size={16} className="text-amber-700" />
+                </div>
+              </div>
+              <div className="text-2xl font-bold text-gray-800">{Math.round(projectStats?.totalCapacity ?? totalKW)} <span className="text-sm font-normal text-gray-600">kW</span></div>
+              <div className="text-xs text-gray-500 mt-1">Pipeline capacity</div>
             </div>
-          </div>
-          <div className="text-2xl font-bold text-gray-800">{Math.round(projectStats?.totalCapacity ?? totalKW)} <span className="text-sm font-normal text-gray-600">kW</span></div>
-          <div className="text-xs text-gray-500 mt-1">Pipeline capacity</div>
-        </div>
 
-        <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-50 to-green-50 border border-emerald-100">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] uppercase tracking-wider text-emerald-600 font-semibold">CURRENT PROGRESS</span>
-            <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
-              <TrendingUp size={16} className="text-emerald-600" />
+            <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-100 to-green-200 border border-emerald-200">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] uppercase tracking-wider text-emerald-700 font-semibold">CURRENT PROGRESS</span>
+                <div className="w-8 h-8 rounded-lg bg-emerald-200 flex items-center justify-center">
+                  <TrendingUp size={16} className="text-emerald-700" />
+                </div>
+              </div>
+              <div className="text-2xl font-bold text-gray-800">{Math.round(projectStats?.avgProgress ?? avgProgress)}%</div>
+              <div className="text-xs text-gray-500 mt-1">Across all projects</div>
             </div>
-          </div>
-          <div className="text-2xl font-bold text-gray-800">{Math.round(projectStats?.avgProgress ?? avgProgress)}%</div>
-          <div className="text-xs text-gray-500 mt-1">Across all projects</div>
-        </div>
           </div>
 
           <div className="ai-banner">
@@ -729,12 +790,24 @@ const ProjectPage = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Projects by Stage Bar Chart */}
             <div className="glass-card p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <BarChart2 size={15} className="text-[var(--accent)]" />
-                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Projects by Stage</h3>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <BarChart2 size={15} className="text-[var(--accent)]" />
+                  <h3 className="text-sm font-semibold text-[var(--text-primary)]">Projects by Stage</h3>
+                </div>
+                {/* Month Filter */}
+                <select 
+                  value={monthFilter} 
+                  onChange={(e) => setMonthFilter(e.target.value)}
+                  className="text-xs px-2 py-1 rounded-lg border border-[var(--border-base)] bg-[var(--bg-elevated)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                >
+                  {monthOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
               </div>
               <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={projectsByStage.map(s => ({ stage: s._id, count: s.count, capacity: Math.round(s.capacity || 0) }))} barSize={20} barGap={3}>
+                <BarChart data={sortedProjectsByStage.map(s => ({ stage: s._id, count: s.count, capacity: Math.round(s.capacity || 0) }))} barSize={20} barGap={3}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                   <XAxis dataKey="stage" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
@@ -1020,7 +1093,7 @@ const ProjectPage = () => {
           <div className="flex flex-wrap gap-2 items-center mb-2">
             <span className="text-xs text-[var(--text-muted)] mr-1">Status:</span>
             {STATUS_FILTERS.map(s => (
-              <button key={s} onClick={() => { setFilter(s); setPage(1); }}
+              <button key={s} onClick={() => { setFilter(s); setPage(1); setShowNonCompletedOnly(false); }}
                 className={`filter-chip ${statusFilter === s ? 'filter-chip-active' : ''}`}>{s}</button>
             ))}
           </div>
@@ -1079,7 +1152,7 @@ const ProjectPage = () => {
           <div className="flex flex-wrap gap-2 items-center">
             <span className="text-xs text-[var(--text-muted)] mr-1">Status:</span>
             {STATUS_FILTERS.map(s => (
-              <button key={s} onClick={() => setFilter(s)}
+              <button key={s} onClick={() => { setFilter(s); setShowNonCompletedOnly(false); }}
                 className={`filter-chip ${statusFilter === s ? 'filter-chip-active' : ''}`}>{s}</button>
             ))}
             <div className="ml-auto">

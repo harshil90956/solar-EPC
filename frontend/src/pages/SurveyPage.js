@@ -657,7 +657,6 @@ const SurveyPage = () => {
             </button>
           </div>
         </div>
-
       </div>
 
       {/* ── Search & Filter Bar ── */}
@@ -726,237 +725,6 @@ const SurveyPage = () => {
               subtitle="Finished surveys"
               trend="up"
             />
-          </div>
-
-          {/* CRM Leads - Site Survey Scheduled */}
-          <div className="glass-card p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-sm font-bold text-[var(--text-primary)]">Site Survey Scheduled (From CRM)</h3>
-                <p className="text-[11px] text-[var(--text-muted)]">Leads ready for site survey scheduling</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="px-2 py-1 rounded-full bg-amber-500/10 text-amber-500 text-[10px] font-bold">
-                  {crmLeads.filter(l => !surveyCreatedLeadIds.includes(l.id)).length} Pending
-                </span>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {leadsLoading ? (
-                <div className="col-span-full p-8 text-center">
-                  <div className="animate-spin w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full mx-auto mb-3"></div>
-                  <p className="text-[11px] text-[var(--text-muted)]">Loading leads from CRM...</p>
-                </div>
-              ) : leadsError ? (
-                <div className="col-span-full p-8 text-center">
-                  <p className="text-[11px] text-red-500">{leadsError}</p>
-                </div>
-              ) : crmLeads.filter(l => !surveyCreatedLeadIds.includes(l.id)).length === 0 ? (
-                <div className="col-span-full p-8 text-center">
-                  <p className="text-[11px] text-[var(--text-muted)]">No leads in "Site Survey Scheduled" stage</p>
-                </div>
-              ) : (
-                crmLeads.filter(l => !surveyCreatedLeadIds.includes(l.id)).map(lead => (
-                <div
-                  key={lead.id}
-                  onClick={() => {
-                    setSelectedLead(lead);
-                    setShowAdd(true);
-                  }}
-                  className="p-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] hover:border-[var(--accent)]/50 cursor-pointer hover:scale-[1.02] transition-all group"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center font-bold text-sm">
-                      {lead.name.split(' ').map(n => n[0]).join('')}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-[var(--text-primary)] truncate group-hover:text-[var(--accent)] transition-colors">{lead.name}</p>
-                      <p className="text-[10px] text-[var(--text-muted)] truncate">{lead.company}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[10px] font-bold text-amber-500">{lead.kw}</p>
-                      <p className="text-[9px] text-[var(--text-muted)]">{lead.city}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-[var(--border-subtle)]">
-                    <div className="flex items-center gap-1 text-[9px] text-[var(--text-muted)]">
-                      <Calendar size={10} />
-                      <span>Due: {lead.nextFollowUp}</span>
-                    </div>
-                    <span className="text-[9px] text-[var(--accent)] font-medium">Click to Schedule →</span>
-                  </div>
-                </div>
-              ))
-              )}
-            </div>
-          </div>
-
-          {/* PENDING Surveys - Form not yet submitted */}
-          <div className="glass-card p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-sm font-bold text-[var(--text-primary)]">PENDING Surveys (Form Required)</h3>
-                <p className="text-[11px] text-[var(--text-muted)]">Scheduled but form not yet submitted</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="px-2 py-1 rounded-full bg-amber-500/10 text-amber-500 text-[10px] font-bold">
-                  {pendingSurveys.length} Pending
-                </span>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {pendingSurveys.map(survey => (
-                <div
-                  key={survey.id}
-                  className="p-3 rounded-xl bg-[var(--bg-elevated)] border border-amber-500/30 hover:border-amber-500/60 transition-all"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center font-bold text-sm">
-                      {survey.customerName?.split(' ').map(n => n[0]).join('')}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-[var(--text-primary)] truncate">{survey.customerName}</p>
-                      <p className="text-[10px] text-[var(--text-muted)] truncate">{survey.site}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[10px] font-bold text-amber-500">{survey.estimatedKw}kW</p>
-                      <StatusBadge domain="survey" value="pending" />
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-[var(--border-subtle)]">
-                    <div className="flex items-center gap-1 text-[9px] text-[var(--text-muted)]">
-                      <Calendar size={10} />
-                      <span>Scheduled: {survey.scheduledDate}</span>
-                    </div>
-                    <button
-                      onClick={() => handleSubmitSurveyForm(survey)}
-                      className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold rounded-lg transition-colors flex items-center gap-1"
-                    >
-                      <Edit2 size={10} />
-                      Fill Survey Form
-                    </button>
-                  </div>
-                </div>
-              ))}
-              {pendingSurveys.length === 0 && (
-                <div className="col-span-full p-8 text-center">
-                  <p className="text-[11px] text-[var(--text-muted)]">No pending surveys</p>
-                  <p className="text-[9px] text-[var(--text-muted)] mt-1">Schedule from CRM leads above</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* ACTIVE Surveys */}
-          <div className="glass-card p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-sm font-bold text-[var(--text-primary)]">ACTIVE Surveys (Running)</h3>
-                <p className="text-[11px] text-[var(--text-muted)]">Scheduled site surveys in progress</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-[10px] font-bold">
-                  {activeSurveys.length} Active
-                </span>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {activeSurveys.map(survey => (
-                <div
-                  key={survey.id}
-                  className="p-3 rounded-xl bg-[var(--bg-elevated)] border border-emerald-500/30 hover:border-emerald-500/60 transition-all"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-green-500 text-white flex items-center justify-center font-bold text-sm">
-                      {survey.customerName?.split(' ').map(n => n[0]).join('')}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-[var(--text-primary)] truncate">{survey.customerName}</p>
-                      <p className="text-[10px] text-[var(--text-muted)] truncate">{survey.site}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[10px] font-bold text-emerald-500">{survey.estimatedKw}kW</p>
-                      <StatusBadge domain="survey" value="active" />
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-[var(--border-subtle)]">
-                    <div className="flex items-center gap-1 text-[9px] text-[var(--text-muted)]">
-                      <Calendar size={10} />
-                      <span>Scheduled: {survey.scheduledDate}</span>
-                    </div>
-                    <button
-                      onClick={() => handleCompleteSurvey(survey)}
-                      className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold rounded-lg transition-colors flex items-center gap-1"
-                    >
-                      <CheckCircle size={10} />
-                      Complete Survey
-                    </button>
-                  </div>
-                </div>
-              ))}
-              {activeSurveys.length === 0 && (
-                <div className="col-span-full p-8 text-center">
-                  <p className="text-[11px] text-[var(--text-muted)]">No active surveys</p>
-                  <p className="text-[9px] text-[var(--text-muted)] mt-1">Submit form from Pending section to activate</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* COMPLETED Surveys */}
-          <div className="glass-card p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-sm font-bold text-[var(--text-primary)]">COMPLETED Surveys</h3>
-                <p className="text-[11px] text-[var(--text-muted)]">Survey completed, lead ready for proposal</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="px-2 py-1 rounded-full bg-blue-500/10 text-blue-500 text-[10px] font-bold">
-                  {completedSurveys.length} Completed
-                </span>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {completedSurveys.map(survey => (
-                <div
-                  key={survey.id}
-                  className="p-3 rounded-xl bg-[var(--bg-elevated)] border border-blue-500/30 hover:border-blue-500/60 transition-all"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 text-white flex items-center justify-center font-bold text-sm">
-                      {survey.customerName?.split(' ').map(n => n[0]).join('')}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-[var(--text-primary)] truncate">{survey.customerName}</p>
-                      <p className="text-[10px] text-[var(--text-muted)] truncate">{survey.site}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[10px] font-bold text-blue-500">{survey.estimatedKw}kW</p>
-                      <StatusBadge domain="survey" value="completed" />
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-[var(--border-subtle)]">
-                    <div className="flex items-center gap-1 text-[9px] text-[var(--text-muted)]">
-                      <Calendar size={10} />
-                      <span>Completed: {survey.scheduledDate}</span>
-                    </div>
-                    <button
-                      onClick={() => handleGenerateProposal(survey)}
-                      className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-[10px] font-bold rounded-lg transition-colors flex items-center gap-1"
-                    >
-                      <FileText size={10} />
-                      Generate Proposal
-                    </button>
-                  </div>
-                </div>
-              ))}
-              {completedSurveys.length === 0 && (
-                <div className="col-span-full p-8 text-center">
-                  <p className="text-[11px] text-[var(--text-muted)]">No completed surveys yet</p>
-                  <p className="text-[9px] text-[var(--text-muted)] mt-1">Complete surveys from Active section</p>
-                </div>
-              )}
-            </div>
           </div>
         </div>
       )}
@@ -1191,7 +959,7 @@ const SurveyPage = () => {
                 }
               }
             }}>
-              {isScheduling ? 'Scheduling...' : <><Plus size={14} /> {selectedLead ? 'Schedule from Lead' : 'Schedule Visit'}</>}
+              {isScheduling ? 'Scheduling...' : (<><Plus size={14} /> {selectedLead ? 'Schedule from Lead' : 'Schedule Visit'}</>)}
             </Button>
           </div>
         }
@@ -1270,20 +1038,45 @@ const SurveyPage = () => {
         footer={
           <div className="flex gap-2 justify-end">
             <Button variant="ghost" onClick={() => setSelectedSurvey(null)}>Close</Button>
-            <Button variant="outline"><Download size={14} /> Report</Button>
-            <Button
-              onClick={() => {
-                const analysis = SITE_ANALYSIS[selectedSurvey.id];
-                setStudioSurvey({
-                  projectName: selectedSurvey.customerName,
-                  lat: parseFloat(analysis?.gpsLat || 23),
-                  lng: parseFloat(analysis?.gpsLng || 72),
-                });
-                setSelectedSurvey(null);
-              }}
-            >
-              <Box size={14} /> 3D Studio
-            </Button>
+            
+            {/* PENDING: Submit Survey Form button */}
+            {selectedSurvey?.status === 'pending' && (
+              <Button
+                onClick={() => {
+                  handleSubmitSurveyForm(selectedSurvey);
+                  setSelectedSurvey(null);
+                }}
+                className="bg-amber-500 hover:bg-amber-600"
+              >
+                <CheckCircle size={14} /> Submit Survey
+              </Button>
+            )}
+            
+            {/* ACTIVE: Complete Survey button */}
+            {selectedSurvey?.status === 'active' && (
+              <Button
+                onClick={() => {
+                  handleCompleteSurvey(selectedSurvey);
+                  setSelectedSurvey(null);
+                }}
+                className="bg-emerald-500 hover:bg-emerald-600"
+              >
+                <CheckCircle size={14} /> Complete Survey
+              </Button>
+            )}
+            
+            {/* COMPLETED: Generate Proposal button */}
+            {selectedSurvey?.status === 'completed' && (
+              <Button
+                onClick={() => {
+                  handleGenerateProposal(selectedSurvey);
+                  setSelectedSurvey(null);
+                }}
+                className="bg-blue-500 hover:bg-blue-600"
+              >
+                <FileText size={14} /> Generate Proposal
+              </Button>
+            )}
           </div>
         }
       >

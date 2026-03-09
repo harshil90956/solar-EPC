@@ -4,7 +4,7 @@ import {
   Plus, FileText, Send, DollarSign, Download, Copy, Trash2, Search,
   User, Building2, MapPin, Sun, Zap,
   Edit, CheckCircle, XCircle, Clock,
-  Calculator, LayoutGrid, List,
+  Calculator, LayoutGrid, List, Kanban,
   ChevronLeft, Save, Printer, Check, ArrowRight
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
@@ -193,7 +193,7 @@ const MOCK_ESTIMATES = [
 // ── Main Estimate Page Component ──────────────────────────────────────────────
 const EstimatePage = () => {
   const [estimates, setEstimates] = useState(MOCK_ESTIMATES);
-  const [viewMode, setViewMode] = useState('grid');
+  const [viewMode, setViewMode] = useState('list'); // 'list' | 'grid' | 'kanban'
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -300,6 +300,11 @@ const EstimatePage = () => {
     };
   }, []);
 
+  // Debug viewMode changes
+  useEffect(() => {
+    console.log('[EstimatePage] viewMode changed to:', viewMode);
+  }, [viewMode]);
+
   // ── Table Columns ───────────────────────────────────────────────────────────
   const tableColumns = [
     {
@@ -376,18 +381,6 @@ const EstimatePage = () => {
 
         <div className="glass-card p-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-              <DollarSign size={20} className="text-emerald-500" />
-            </div>
-            <div>
-              <p className="text-lg font-bold text-[var(--text-primary)]">{(stats.totalValue / 100000).toFixed(1)}L</p>
-              <p className="text-[10px] text-[var(--text-muted)] uppercase">Total Value</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="glass-card p-4">
-          <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
               <CheckCircle size={20} className="text-green-500" />
             </div>
@@ -440,22 +433,34 @@ const EstimatePage = () => {
         <div className="flex items-center gap-2">
           <div className="flex items-center p-1 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-base)]">
             <button
-              onClick={() => setViewMode('grid')}
-              className={cn(
-                'p-1.5 rounded-lg transition-colors',
-                viewMode === 'grid' ? 'bg-[var(--primary)] text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-              )}
-            >
-              <LayoutGrid size={16} />
-            </button>
-            <button
               onClick={() => setViewMode('list')}
               className={cn(
                 'p-1.5 rounded-lg transition-colors',
                 viewMode === 'list' ? 'bg-[var(--primary)] text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
               )}
+              title="List View"
             >
               <List size={16} />
+            </button>
+            <button
+              onClick={() => setViewMode('grid')}
+              className={cn(
+                'p-1.5 rounded-lg transition-colors',
+                viewMode === 'grid' ? 'bg-[var(--primary)] text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+              )}
+              title="Grid View"
+            >
+              <LayoutGrid size={16} />
+            </button>
+            <button
+              onClick={() => setViewMode('kanban')}
+              className={cn(
+                'p-1.5 rounded-lg transition-colors',
+                viewMode === 'kanban' ? 'bg-[var(--primary)] text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+              )}
+              title="Kanban View"
+            >
+              <Kanban size={16} />
             </button>
           </div>
 
@@ -495,13 +500,48 @@ const EstimatePage = () => {
             />
           ))}
         </div>
+      ) : viewMode === 'kanban' ? (
+        <KanbanView estimates={filteredEstimates} onCardClick={setSelectedEstimate} />
       ) : (
-        <div className="glass-card overflow-hidden">
-          <DataTable
-            columns={tableColumns}
-            data={filteredEstimates}
-            onRowClick={(row) => setSelectedEstimate(row)}
-          />
+        <div className="glass-card overflow-hidden p-4">
+          <div style={{ minHeight: '200px', background: 'var(--bg-surface)' }}>
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="border-b border-[var(--border-base)]">
+                  <th className="text-left py-2 px-3 text-xs font-medium text-[var(--text-muted)]">Estimate #</th>
+                  <th className="text-left py-2 px-3 text-xs font-medium text-[var(--text-muted)]">Customer</th>
+                  <th className="text-left py-2 px-3 text-xs font-medium text-[var(--text-muted)]">Project</th>
+                  <th className="text-right py-2 px-3 text-xs font-medium text-[var(--text-muted)]">Total</th>
+                  <th className="text-left py-2 px-3 text-xs font-medium text-[var(--text-muted)]">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredEstimates.map((estimate) => (
+                  <tr 
+                    key={estimate.id} 
+                    className="border-b border-[var(--border-base)]/50 hover:bg-[var(--bg-hover)] cursor-pointer"
+                    onClick={() => setSelectedEstimate(estimate)}
+                  >
+                    <td className="py-2 px-3 text-xs font-mono text-[var(--primary)]">{estimate.estimateNumber}</td>
+                    <td className="py-2 px-3 text-xs">{estimate.customerName}</td>
+                    <td className="py-2 px-3 text-xs text-[var(--text-muted)]">{estimate.projectName}</td>
+                    <td className="py-2 px-3 text-xs text-right font-bold text-emerald-500">{(estimate.total / 100000).toFixed(1)}L</td>
+                    <td className="py-2 px-3 text-xs">
+                      <span 
+                        className="px-2 py-0.5 rounded-full text-[10px] font-medium"
+                        style={{ 
+                          background: ESTIMATE_STATUS[estimate.status]?.bg || '#e5e7eb',
+                          color: ESTIMATE_STATUS[estimate.status]?.color || '#374151'
+                        }}
+                      >
+                        {ESTIMATE_STATUS[estimate.status]?.label || estimate.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -1459,6 +1499,53 @@ const EstimateDetail = ({ estimate, onEdit, onDelete, onDownload, onDownloadProp
           Delete
         </button>
       </div>
+    </div>
+  );
+};
+
+// ── Kanban View Component ───────────────────────────────────────────────────
+const KanbanView = ({ estimates, onCardClick }) => {
+  const columns = [
+    { id: 'draft', label: 'Draft', color: '#64748b' },
+    { id: 'sent', label: 'Sent', color: '#3b82f6' },
+    { id: 'accepted', label: 'Accepted', color: '#22c55e' },
+    { id: 'rejected', label: 'Rejected', color: '#ef4444' },
+  ];
+
+  const getEstimatesByStatus = (status) => estimates.filter(e => e.status === status);
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {columns.map(column => (
+        <div key={column.id} className="glass-card p-3 space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b border-[var(--border-base)]">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full" style={{ background: column.color }} />
+              <span className="text-sm font-bold text-[var(--text-primary)]">{column.label}</span>
+            </div>
+            <span className="text-xs text-[var(--text-muted)] bg-[var(--bg-elevated)] px-2 py-0.5 rounded-full">
+              {getEstimatesByStatus(column.id).length}
+            </span>
+          </div>
+          <div className="space-y-2 max-h-[600px] overflow-y-auto">
+            {getEstimatesByStatus(column.id).map(estimate => (
+              <div
+                key={estimate.id}
+                onClick={() => onCardClick(estimate)}
+                className="p-3 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] hover:border-[var(--primary)] cursor-pointer transition-all hover:shadow-md"
+              >
+                <p className="text-xs font-mono text-[var(--primary)]">{estimate.estimateNumber}</p>
+                <p className="text-xs font-medium text-[var(--text-primary)] line-clamp-1">{estimate.projectName}</p>
+                <p className="text-[10px] text-[var(--text-muted)]">{estimate.customerName}</p>
+                <div className="flex items-center justify-between mt-2">
+                  <span className="text-xs font-bold text-emerald-500">{(estimate.total / 100000).toFixed(1)}L</span>
+                  <span className="text-[10px] text-[var(--text-muted)]">{estimate.systemCapacity} kW</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 };

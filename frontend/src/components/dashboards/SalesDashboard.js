@@ -1,204 +1,490 @@
-// FinanceDashboard.js — Finance role dashboard (redesigned)
-import React from 'react';
+// SalesDashboard.js — Sales role dashboard with lead status cards and workflow
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-    AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
-    XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
-} from 'recharts';
-import {
-    DollarSign, TrendingUp, TrendingDown, FileText, CheckCircle,
-    AlertTriangle, Clock, Shield, BarChart3, ArrowUpRight
+    Users, Activity, CheckCircle, MapPin, ArrowRight,
+    TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight,
+    Calendar, Zap, Target, RefreshCw
 } from 'lucide-react';
 import { useRoleDashboard } from './RoleDashboardProvider';
 import {
-    StatCard, ChartCard, SectionHeader, ActivityItem, ProgressRow,
-    DashTable, Grid4, Grid2, Grid3,
-    DashboardLoading, DashTooltip,
-    fmtCurrency, fmtPct, CHART_COLORS, chartAxisStyle, ROLE_COLORS
+    ChartCard, SectionHeader,
+    DashTable, Grid4,
+    DashboardLoading,
+    fmtCurrency, ROLE_COLORS
 } from './DashboardShell';
+import { leadsApi } from '../../services/leadsApi';
+import { surveysApi } from '../../services/surveysApi';
+import { toast } from '../../components/ui/Toast';
 
-const C = ROLE_COLORS.finance;
+const C = ROLE_COLORS.sales;
 
-const FinanceDashboard = () => {
+// ── Lead Status KPI Card ───────────────────────────────────────────────────────
+const LeadStatusCard = ({ title, value, change, icon: Icon, color, subtitle, trend, onClick }) => (
+    <div 
+        onClick={onClick}
+        className="glass-card p-4 flex items-center gap-3 hover:scale-[1.02] transition-transform cursor-pointer"
+    >
+        <div className="w-12 h-12 rounded-xl flex items-center justify-center" 
+            style={{ background: `linear-gradient(135deg, ${color}20, ${color}10)` }}>
+            <Icon size={20} style={{ color }} />
+        </div>
+        <div className="flex-1">
+            <p className="text-[11px] text-[var(--text-muted)] font-medium uppercase tracking-wider">{title}</p>
+            <p className="text-2xl font-black text-[var(--text-primary)]">{value}</p>
+            {subtitle && <p className="text-[9px] text-[var(--text-muted)]">{subtitle}</p>}
+            <div className="flex items-center gap-1 mt-1">
+                {change !== undefined && (
+                    <p className={`text-[10px] font-bold ${change >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                        {change >= 0 ? <ArrowUpRight size={10} className="inline" /> : <ArrowDownRight size={10} className="inline" />}
+                        {Math.abs(change)}%
+                    </p>
+                )}
+                {trend && (
+                    <div className="flex items-center gap-0.5">
+                        {trend === 'up' && <TrendingUp size={10} className="text-emerald-500" />}
+                        {trend === 'down' && <TrendingDown size={10} className="text-red-500" />}
+                        {trend === 'stable' && <ArrowRight size={10} className="text-amber-500" />}
+                    </div>
+                )}
+            </div>
+        </div>
+    </div>
+);
+
+// ── CRM Lead Card (for Site Survey Scheduled section) ─────────────────────────
+const CRMLeadCard = ({ lead, onMoveToPending }) => (
+    <div 
+        onClick={() => onMoveToPending(lead)}
+        className="p-3 rounded-xl bg-[var(--bg-elevated)] border border-amber-500/30 hover:border-amber-500/60 transition-all cursor-pointer hover:scale-[1.02]"
+    >
+        <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center font-bold text-sm">
+                {lead.name?.split(' ').map(n => n[0]).join('') || '?'}
+            </div>
+            <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-[var(--text-primary)] truncate">{lead.name}</p>
+                <p className="text-[10px] text-[var(--text-muted)] truncate">{lead.company || 'Individual'}</p>
+            </div>
+            <div className="text-right">
+                <p className="text-[10px] font-bold text-amber-500">{lead.kw || '0kW'}</p>
+                <p className="text-[9px] text-[var(--text-muted)]">{lead.city || '—'}</p>
+            </div>
+        </div>
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-[var(--border-subtle)]">
+            <div className="flex items-center gap-1 text-[9px] text-[var(--text-muted)]">
+                <Calendar size={10} />
+                <span>Due: {lead.nextFollowUp || '—'}</span>
+            </div>
+            <span className="text-[9px] text-amber-500 font-medium flex items-center gap-1">
+                Click to Move Pending <ArrowRight size={10} />
+            </span>
+        </div>
+    </div>
+);
+
+// ── Survey Card (for Active/In Progress section) ──────────────────────────────
+const SurveyCard = ({ survey, onComplete, onFillForm }) => (
+    <div className="p-3 rounded-xl bg-[var(--bg-elevated)] border border-emerald-500/30 hover:border-emerald-500/60 transition-all">
+        <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-green-500 text-white flex items-center justify-center font-bold text-sm">
+                {survey.customerName?.split(' ').map(n => n[0]).join('') || '?'}
+            </div>
+            <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-[var(--text-primary)] truncate">{survey.customerName}</p>
+                <p className="text-[10px] text-[var(--text-muted)] truncate">{survey.site || '—'}</p>
+            </div>
+            <div className="text-right">
+                <p className="text-[10px] font-bold text-emerald-500">{survey.estimatedKw}kW</p>
+                <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${
+                    survey.status === 'pending' ? 'bg-amber-500/10 text-amber-500' :
+                    survey.status === 'active' ? 'bg-emerald-500/10 text-emerald-500' :
+                    'bg-blue-500/10 text-blue-500'
+                }`}>
+                    {survey.status}
+                </span>
+            </div>
+        </div>
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-[var(--border-subtle)]">
+            <div className="flex items-center gap-1 text-[9px] text-[var(--text-muted)]">
+                <Calendar size={10} />
+                <span>{survey.scheduledDate || '—'}</span>
+            </div>
+            {survey.status === 'pending' && onFillForm && (
+                <button
+                    onClick={() => onFillForm(survey)}
+                    className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold rounded-lg transition-colors flex items-center gap-1"
+                >
+                    <Activity size={10} />
+                    Fill Form
+                </button>
+            )}
+            {survey.status === 'active' && onComplete && (
+                <button
+                    onClick={() => onComplete(survey)}
+                    className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold rounded-lg transition-colors flex items-center gap-1"
+                >
+                    <CheckCircle size={10} />
+                    Complete
+                </button>
+            )}
+        </div>
+    </div>
+);
+
+// ── Main Dashboard Component ───────────────────────────────────────────────────
+const SalesDashboard = () => {
     const { data, loading } = useRoleDashboard();
+    const [crmLeads, setCrmLeads] = useState([]);
+    const [surveys, setSurveys] = useState([]);
+    const [leadsLoading, setLeadsLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+
+    // Fetch leads and surveys data
+    const fetchData = useCallback(async () => {
+        try {
+            setLeadsLoading(true);
+            
+            // Fetch all leads from CRM
+            const leadsResult = await leadsApi.getAll({ limit: 100 });
+            const leadsData = leadsResult.data?.data || leadsResult.data || [];
+            setCrmLeads(leadsData);
+            
+            // Fetch all surveys
+            const surveysResult = await surveysApi.getAll({ limit: 100 });
+            const surveysData = surveysResult.data?.data || surveysResult.data || [];
+            setSurveys(surveysData);
+        } catch (err) {
+            console.error('Failed to fetch data:', err);
+            toast.error('Failed to load dashboard data');
+        } finally {
+            setLeadsLoading(false);
+            setRefreshing(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
+
+    // Handle refresh
+    const handleRefresh = async () => {
+        setRefreshing(true);
+        await fetchData();
+        toast.success('Dashboard refreshed');
+    };
+
+    // Handle Move to Pending - Move lead to survey stage and create pending survey
+    const handleMoveToPending = async (lead) => {
+        try {
+            // First update lead stage to 'survey'
+            await leadsApi.update(lead._id || lead.id, { stage: 'survey' });
+            
+            // Create a pending survey for this lead
+            const surveyData = {
+                customerName: lead.name,
+                engineer: lead.assignedTo || 'Unassigned',
+                site: lead.company || lead.city || 'TBD',
+                scheduledDate: lead.nextFollowUp || new Date().toISOString().split('T')[0],
+                estimatedKw: parseInt(lead.kw?.replace('kW', '')) || 0,
+                status: 'pending',
+                sourceLeadId: lead._id || lead.id,
+                notes: `Moved to Pending from CRM. Source: ${lead.source}, City: ${lead.city}, Phone: ${lead.phone}`
+            };
+            
+            await surveysApi.create(surveyData);
+            
+            toast.success(`Lead "${lead.name}" moved to Pending`);
+            
+            // Refresh data to show updated state
+            await fetchData();
+        } catch (err) {
+            console.error('Failed to move lead to pending:', err);
+            toast.error('Failed to move lead: ' + (err.message || 'Unknown error'));
+        }
+    };
+
+    // Handle survey form submission
+    const handleFillForm = async (survey) => {
+        try {
+            await surveysApi.update(survey._id || survey.id, { status: 'active' });
+            toast.success('Survey form submitted! Moved to Active.');
+            await fetchData();
+        } catch (err) {
+            console.error('Failed to submit survey form:', err);
+            toast.error('Failed to submit survey form');
+        }
+    };
+
+    // Handle survey completion
+    const handleCompleteSurvey = async (survey) => {
+        try {
+            await surveysApi.update(survey._id || survey.id, { status: 'completed' });
+            
+            // Update lead stage to proposal
+            if (survey.sourceLeadId) {
+                await leadsApi.update(survey.sourceLeadId, { stage: 'proposal' });
+            }
+            
+            toast.success('Survey completed! Lead moved to Proposal stage.');
+            await fetchData();
+        } catch (err) {
+            console.error('Failed to complete survey:', err);
+            toast.error('Failed to complete survey');
+        }
+    };
+
     if (loading) return <DashboardLoading />;
 
-    const { invoices = {}, cashFlow = {}, payables = {}, receivables = {}, compliance = {} } = data || {};
+    // Calculate lead status counts
+    const activeLeads = crmLeads.filter(l => l.stage === 'new' || l.stage === 'contacted' || l.stage === 'qualified').length;
+    const inProgressLeads = crmLeads.filter(l => l.stage === 'proposal' || l.stage === 'negotiation' || l.stage === 'survey').length;
+    const completedLeads = crmLeads.filter(l => l.stage === 'won').length;
 
-    const cashFlowData = (cashFlow?.monthly || []).map(m => ({ ...m }));
+    // Calculate percentages (mock - in real app, compare with previous period)
+    const activeChange = 12.5;
+    const inProgressChange = -5.2;
+    const completedChange = 8.7;
 
-    const invoiceStatusPie = [
-        { name: 'Paid', value: invoices.paid || 0, color: '#10b981' },
-        { name: 'Pending', value: invoices.pending || 0, color: '#f59e0b' },
-        { name: 'Overdue', value: invoices.overdue || 0, color: '#ef4444' },
-    ];
+    // Get leads ready for survey (qualified stage)
+    const readyForSurveyLeads = crmLeads.filter(l => l.stage === 'qualified' && !surveys.find(s => s.sourceLeadId === (l._id || l.id)));
 
-    const arData = [
-        { name: 'Current', value: receivables.current || 0, fill: '#10b981' },
-        { name: 'Overdue', value: receivables.overdue || 0, fill: '#ef4444' },
-    ];
+    // Get site survey scheduled leads (survey stage without survey created)
+    const surveyScheduledLeads = crmLeads.filter(l => l.stage === 'survey' && !surveys.find(s => s.sourceLeadId === (l._id || l.id)));
 
-    const apData = [
-        { name: 'Current', value: payables.current || 0, fill: '#10b981' },
-        { name: 'Overdue', value: payables.overdue || 0, fill: '#ef4444' },
-        { name: 'Upcoming', value: payables.upcoming || 0, fill: '#f59e0b' },
-    ];
+    // Get pending surveys (survey scheduled, form not submitted)
+    const pendingSurveys = surveys.filter(s => s.status === 'pending');
+
+    // Get active surveys (form submitted, in progress)
+    const activeSurveys = surveys.filter(s => s.status === 'active');
+
+    // Get completed surveys
+    const completedSurveys = surveys.filter(s => s.status === 'completed');
 
     return (
         <div className="space-y-6 p-6">
-            <SectionHeader
-                title="Finance Dashboard"
-                subtitle="Cash flow · Invoicing · Payables · Compliance"
-                icon={DollarSign}
-                accent={C.primary}
-                badge="Financial Hub"
-            />
+            <div className="flex items-center justify-between">
+                <SectionHeader
+                    title="Sales Dashboard"
+                    subtitle="Lead management · Pipeline tracking · Site surveys"
+                    icon={Target}
+                    accent={C.primary}
+                    badge="Sales Hub"
+                />
+                <button
+                    onClick={handleRefresh}
+                    disabled={refreshing || leadsLoading}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] text-[var(--text-muted)] hover:text-[var(--primary)] transition-colors"
+                >
+                    <RefreshCw size={14} className={refreshing || leadsLoading ? 'animate-spin' : ''} />
+                    <span className="text-xs">Refresh</span>
+                </button>
+            </div>
 
-            {/* KPIs */}
+            {/* ── Lead Status Cards ─────────────────────────────────────────── */}
             <Grid4>
-                <StatCard label="Invoice Value" value={fmtCurrency(invoices.totalValue || 0)} icon={FileText} accent={C.primary} />
-                <StatCard label="Cash Inflow (Proj)" value={fmtCurrency(cashFlow.projected || 0)} icon={TrendingUp} accent="#10b981" trend="+9.2% MoM" trendUp />
-                <StatCard label="Overdue Invoices" value={invoices.overdue || 0} icon={AlertTriangle} accent="#ef4444" sub="Needs follow-up" />
-                <StatCard label="Collection Rate" value={fmtPct(receivables.collections)} icon={CheckCircle} accent={C.secondary} trend="+1.5% this month" trendUp />
+                <LeadStatusCard
+                    title="Active Leads"
+                    value={activeLeads}
+                    change={activeChange}
+                    icon={Users}
+                    color="#3b82f6"
+                    subtitle="New, contacted, qualified"
+                    trend="up"
+                />
+                <LeadStatusCard
+                    title="In Progress"
+                    value={inProgressLeads}
+                    change={inProgressChange}
+                    icon={Activity}
+                    color="#f59e0b"
+                    subtitle="Proposal, negotiation, survey"
+                    trend="stable"
+                />
+                <LeadStatusCard
+                    title="Completed"
+                    value={completedLeads}
+                    change={completedChange}
+                    icon={CheckCircle}
+                    color="#22c55e"
+                    subtitle="Won deals"
+                    trend="up"
+                />
+                <LeadStatusCard
+                    title="Site Survey"
+                    value={pendingSurveys.length + activeSurveys.length}
+                    change={0}
+                    icon={MapPin}
+                    color="#a855f7"
+                    subtitle="Pending & active surveys"
+                    trend="stable"
+                />
             </Grid4>
 
-            {/* Cash flow chart + Invoice pie */}
-            <Grid2>
-                <ChartCard title="Cash Flow Analysis" subtitle="Monthly inflow vs outflow vs net (INR)">
-                    <ResponsiveContainer width="100%" height={260}>
-                        <AreaChart data={cashFlowData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                            <defs>
-                                <linearGradient id="finIn" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stopColor={C.primary} stopOpacity={0.4} />
-                                    <stop offset="100%" stopColor={C.primary} stopOpacity={0} />
-                                </linearGradient>
-                                <linearGradient id="finOut" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stopColor="#ef4444" stopOpacity={0.3} />
-                                    <stop offset="100%" stopColor="#ef4444" stopOpacity={0} />
-                                </linearGradient>
-                                <linearGradient id="finNet" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.25} />
-                                    <stop offset="100%" stopColor="#f59e0b" stopOpacity={0} />
-                                </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-                            <XAxis dataKey="month" {...chartAxisStyle} />
-                            <YAxis tickFormatter={fmtCurrency} {...chartAxisStyle} width={52} />
-                            <Tooltip content={<DashTooltip formatter={(v) => fmtCurrency(v)} />} />
-                            <Legend wrapperStyle={{ fontSize: 11 }} />
-                            <Area type="monotone" dataKey="inflow" name="Inflow" stroke={C.primary} strokeWidth={2.5} fill="url(#finIn)" />
-                            <Area type="monotone" dataKey="outflow" name="Outflow" stroke="#ef4444" strokeWidth={2} fill="url(#finOut)" />
-                            <Area type="monotone" dataKey="net" name="Net" stroke="#f59e0b" strokeWidth={2} fill="url(#finNet)" strokeDasharray="4 3" />
-                        </AreaChart>
-                    </ResponsiveContainer>
-                </ChartCard>
-
-                <ChartCard title="Invoice Status" subtitle="Billing portfolio breakdown">
-                    <ResponsiveContainer width="100%" height={210}>
-                        <PieChart>
-                            <Pie data={invoiceStatusPie} cx="50%" cy="50%" outerRadius={85} innerRadius={48}
-                                dataKey="value" paddingAngle={3}
-                                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                                labelLine={false}
-                            >
-                                {invoiceStatusPie.map((e, i) => <Cell key={i} fill={e.color} />)}
-                            </Pie>
-                            <Tooltip content={<DashTooltip />} />
-                        </PieChart>
-                    </ResponsiveContainer>
-                    <div className="grid grid-cols-3 gap-1.5 mt-2">
-                        {invoiceStatusPie.map(({ name, value, color }) => (
-                            <div key={name} className="text-center p-2 rounded-lg border border-[var(--border-base)]">
-                                <p className="text-[16px] font-extrabold tabular-nums" style={{ color }}>{value}</p>
-                                <p className="text-[9px] text-[var(--text-muted)] mt-0.5 font-bold uppercase tracking-wide leading-tight">{name}</p>
-                            </div>
-                        ))}
+            {/* ── Site Survey Scheduled (From CRM) Section ───────────────────── */}
+            <div className="glass-card p-5">
+                <div className="flex items-center justify-between mb-4">
+                    <div>
+                        <h3 className="text-sm font-bold text-[var(--text-primary)]">Site Survey Scheduled (From CRM)</h3>
+                        <p className="text-[11px] text-[var(--text-muted)]">
+                            Leads ready to be flipped from CRM to survey workflow
+                        </p>
                     </div>
-                </ChartCard>
-            </Grid2>
-
-            {/* AR + AP + Compliance */}
-            <Grid3>
-                <ChartCard title="Accounts Receivable" subtitle="Outstanding collections">
-                    <ResponsiveContainer width="100%" height={180}>
-                        <BarChart data={arData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
-                            <XAxis dataKey="name" {...chartAxisStyle} />
-                            <YAxis tickFormatter={fmtCurrency} {...chartAxisStyle} width={52} />
-                            <Tooltip content={<DashTooltip formatter={(v) => fmtCurrency(v)} />} />
-                            <Bar dataKey="value" name="Amount" radius={[6, 6, 0, 0]}>
-                                {arData.map((e, i) => <Cell key={i} fill={e.fill} fillOpacity={0.85} />)}
-                            </Bar>
-                        </BarChart>
-                    </ResponsiveContainer>
-                    <div className="mt-3 pt-3 border-t border-[var(--border-base)] flex justify-between text-[12px]">
-                        <span className="text-[var(--text-muted)]">Collection Rate</span>
-                        <span className="font-bold" style={{ color: '#10b981' }}>{fmtPct(receivables.collections)}</span>
+                    <div className="flex items-center gap-2">
+                        <span className="px-2 py-1 rounded-full bg-amber-500/10 text-amber-500 text-[10px] font-bold">
+                            {readyForSurveyLeads.length + surveyScheduledLeads.length} Pending
+                        </span>
                     </div>
-                </ChartCard>
+                </div>
 
-                <ChartCard title="Accounts Payable" subtitle="Vendor payment obligations">
-                    <div className="space-y-3 mt-1">
-                        {apData.map((a) => (
-                            <div key={a.name} className="flex items-center justify-between p-3 rounded-xl border border-[var(--border-base)]">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: a.fill }} />
-                                    <span className="text-[12px] text-[var(--text-secondary)]">{a.name}</span>
-                                </div>
-                                <span className="text-[15px] font-extrabold tabular-nums" style={{ color: a.fill }}>{fmtCurrency(a.value)}</span>
-                            </div>
-                        ))}
-                    </div>
-                    <ProgressRow
-                        className="mt-3"
-                        label="Budget variance"
-                        value={Math.abs(cashFlow.projected - cashFlow.actual || 0) / (cashFlow.projected || 1) * 100}
-                        accent={C.primary}
-                    />
-                </ChartCard>
-
-                <ChartCard title="Compliance Status" subtitle="GST · TDS · Audit filings">
-                    <div className="space-y-3 mt-1">
-                        {[
-                            { label: 'GST Returns Filed', v: compliance?.gstReturns?.filed || 0, total: (compliance?.gstReturns?.filed || 0) + (compliance?.gstReturns?.pending || 0), pending: compliance?.gstReturns?.pending || 0, color: '#10b981' },
-                            { label: 'TDS Returns Filed', v: compliance?.tdsReturns?.filed || 0, total: (compliance?.tdsReturns?.filed || 0) + (compliance?.tdsReturns?.pending || 0), pending: compliance?.tdsReturns?.pending || 0, color: '#10b981' },
-                        ].map(({ label, v, total, pending, color }) => (
-                            <div key={label} className="p-3 rounded-xl border border-[var(--border-base)]">
-                                <div className="flex justify-between items-center mb-1.5">
-                                    <span className="text-[12px] font-medium text-[var(--text-secondary)]">{label}</span>
-                                    <span className="text-[12px] font-bold text-[var(--text-primary)] tabular-nums">{v}/{total}</span>
-                                </div>
-                                <div className="h-1.5 rounded-full bg-[var(--bg-overlay)] overflow-hidden">
-                                    <div className="h-full rounded-full" style={{ width: total ? `${(v / total) * 100}%` : '100%', backgroundColor: pending > 0 ? '#f59e0b' : color }} />
-                                </div>
-                                {pending > 0 && <p className="text-[10px] text-amber-400 mt-1">{pending} pending</p>}
-                            </div>
-                        ))}
-                        <div className="flex items-center gap-3 p-3 rounded-xl border border-[var(--border-base)]">
-                            <Shield size={16} style={{ color: compliance?.auditStatus === 'Completed' ? '#10b981' : '#f59e0b' }} />
-                            <div className="flex-1">
-                                <p className="text-[12px] font-medium text-[var(--text-secondary)]">Audit Status</p>
-                                <p className="text-[11px] font-bold" style={{ color: compliance?.auditStatus === 'Completed' ? '#10b981' : '#f59e0b' }}>
-                                    {compliance?.auditStatus || 'Unknown'}
-                                </p>
-                            </div>
+                {/* Ready for Flip (Qualified leads) */}
+                {readyForSurveyLeads.length > 0 && (
+                    <div className="mb-4">
+                        <p className="text-[11px] font-medium text-[var(--text-muted)] uppercase tracking-wider mb-2">
+                            Ready for Survey (Qualified)
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {readyForSurveyLeads.map(lead => (
+                                <CRMLeadCard key={lead._id || lead.id} lead={lead} onMoveToPending={handleMoveToPending} />
+                            ))}
                         </div>
                     </div>
-                </ChartCard>
-            </Grid3>
+                )}
 
-            {/* Cash flow summary table */}
-            <ChartCard title="Cash Flow Summary" subtitle="Month-by-month breakdown">
+                {/* Survey Scheduled but no survey created yet */}
+                {surveyScheduledLeads.length > 0 && (
+                    <div className="mb-4">
+                        <p className="text-[11px] font-medium text-[var(--text-muted)] uppercase tracking-wider mb-2">
+                            Survey Scheduled (Awaiting Form)
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {surveyScheduledLeads.map(lead => (
+                                <CRMLeadCard key={lead._id || lead.id} lead={lead} onMoveToPending={handleMoveToPending} />
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Empty state */}
+                {readyForSurveyLeads.length === 0 && surveyScheduledLeads.length === 0 && (
+                    <div className="p-8 text-center">
+                        <p className="text-[11px] text-[var(--text-muted)]">
+                            No leads ready for site survey. Move leads to &quot;Qualified&quot; stage in CRM.
+                        </p>
+                    </div>
+                )}
+            </div>
+
+            {/* ── Survey Workflow Sections ───────────────────────────────────── */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Pending Surveys */}
+                <div className="glass-card p-5">
+                    <div className="flex items-center justify-between mb-4">
+                        <div>
+                            <h3 className="text-sm font-bold text-[var(--text-primary)]">PENDING</h3>
+                            <p className="text-[11px] text-[var(--text-muted)]">Form not submitted</p>
+                        </div>
+                        <span className="px-2 py-1 rounded-full bg-amber-500/10 text-amber-500 text-[10px] font-bold">
+                            {pendingSurveys.length}
+                        </span>
+                    </div>
+                    <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                        {pendingSurveys.map(survey => (
+                            <SurveyCard 
+                                key={survey._id || survey.id} 
+                                survey={survey} 
+                                onFillForm={handleFillForm}
+                            />
+                        ))}
+                        {pendingSurveys.length === 0 && (
+                            <p className="text-[11px] text-[var(--text-muted)] text-center py-4">
+                                No pending surveys
+                            </p>
+                        )}
+                    </div>
+                </div>
+
+                {/* Active Surveys */}
+                <div className="glass-card p-5">
+                    <div className="flex items-center justify-between mb-4">
+                        <div>
+                            <h3 className="text-sm font-bold text-[var(--text-primary)]">IN PROGRESS</h3>
+                            <p className="text-[11px] text-[var(--text-muted)]">Active surveys</p>
+                        </div>
+                        <span className="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-[10px] font-bold">
+                            {activeSurveys.length}
+                        </span>
+                    </div>
+                    <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                        {activeSurveys.map(survey => (
+                            <SurveyCard 
+                                key={survey._id || survey.id} 
+                                survey={survey} 
+                                onComplete={handleCompleteSurvey}
+                            />
+                        ))}
+                        {activeSurveys.length === 0 && (
+                            <p className="text-[11px] text-[var(--text-muted)] text-center py-4">
+                                No active surveys
+                            </p>
+                        )}
+                    </div>
+                </div>
+
+                {/* Completed Surveys */}
+                <div className="glass-card p-5">
+                    <div className="flex items-center justify-between mb-4">
+                        <div>
+                            <h3 className="text-sm font-bold text-[var(--text-primary)]">COMPLETED</h3>
+                            <p className="text-[11px] text-[var(--text-muted)]">Ready for proposal</p>
+                        </div>
+                        <span className="px-2 py-1 rounded-full bg-blue-500/10 text-blue-500 text-[10px] font-bold">
+                            {completedSurveys.length}
+                        </span>
+                    </div>
+                    <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                        {completedSurveys.map(survey => (
+                            <SurveyCard 
+                                key={survey._id || survey.id} 
+                                survey={survey}
+                            />
+                        ))}
+                        {completedSurveys.length === 0 && (
+                            <p className="text-[11px] text-[var(--text-muted)] text-center py-4">
+                                No completed surveys
+                            </p>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* ── Recent Leads Table ────────────────────────────────────────── */}
+            <ChartCard title="Recent Leads" subtitle="Latest lead activity">
                 <DashTable
-                    columns={['Month', 'Inflow', 'Outflow', 'Net', 'Status']}
-                    rows={cashFlowData.map(m => [
-                        <span className="font-medium text-[var(--text-primary)]">{m.month}</span>,
-                        <span className="font-bold tabular-nums" style={{ color: C.primary }}>{fmtCurrency(m.inflow)}</span>,
-                        <span className="font-bold tabular-nums" style={{ color: '#ef4444' }}>{fmtCurrency(m.outflow)}</span>,
-                        <span className="font-bold tabular-nums" style={{ color: m.net >= 0 ? '#10b981' : '#ef4444' }}>{fmtCurrency(m.net)}</span>,
-                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md border"
-                            style={{ color: m.net >= 0 ? '#10b981' : '#ef4444', borderColor: (m.net >= 0 ? '#10b981' : '#ef4444') + '40', backgroundColor: (m.net >= 0 ? '#10b981' : '#ef4444') + '12' }}>
-                            {m.net >= 0 ? 'Positive' : 'Deficit'}
+                    columns={['Lead', 'Company', 'Stage', 'Value', 'Status']}
+                    rows={crmLeads.slice(0, 5).map(lead => [
+                        <div key={`name-${lead._id || lead.id}`} className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center font-bold text-[11px]">
+                                {lead.name?.[0] || '?'}
+                            </div>
+                            <span className="font-medium text-[var(--text-primary)]">{lead.name}</span>
+                        </div>,
+                        <span key={`comp-${lead._id || lead.id}`} className="text-[var(--text-secondary)]">{lead.company || '—'}</span>,
+                        <span key={`stage-${lead._id || lead.id}`} className={`text-[10px] px-2 py-0.5 rounded-full ${
+                            lead.stage === 'won' ? 'bg-emerald-500/10 text-emerald-500' :
+                            lead.stage === 'lost' ? 'bg-red-500/10 text-red-500' :
+                            lead.stage === 'survey' ? 'bg-amber-500/10 text-amber-500' :
+                            'bg-blue-500/10 text-blue-500'
+                        }`}>
+                            {lead.stage}
                         </span>,
+                        <span key={`val-${lead._id || lead.id}`} className="font-bold text-[var(--accent)]">{fmtCurrency(lead.value || 0)}</span>,
+                        <span key={`status-${lead._id || lead.id}`} className={`text-[10px] ${
+                            lead.stage === 'won' ? 'text-emerald-500' : 
+                            lead.stage === 'lost' ? 'text-red-500' : 
+                            'text-[var(--text-muted)]'
+                        }`}>
+                            {lead.stage === 'won' ? 'Closed Won' : lead.stage === 'lost' ? 'Closed Lost' : 'Open'}
+                        </span>
                     ])}
                 />
             </ChartCard>
@@ -206,4 +492,4 @@ const FinanceDashboard = () => {
     );
 };
 
-export default FinanceDashboard;
+export default SalesDashboard;

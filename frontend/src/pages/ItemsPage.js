@@ -4,6 +4,7 @@ import {
   List, Plus, Search, Download, Trash2, Package, Tag,
   ChevronDown, X, Check, MoreHorizontal, Edit2, Copy, Eye
 } from 'lucide-react';
+import apiClient, { api } from '../lib/apiClient';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input, FormField, Select, Textarea } from '../components/ui/Input';
@@ -137,13 +138,7 @@ const ItemsPage = () => {
   const fetchItems = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/items?tenantId=${TENANT_ID}`);
-      if (!response.ok) {
-        const errText = await response.text();
-        console.error('API Error:', response.status, errText);
-        throw new Error(`Failed to fetch items: ${response.status}`);
-      }
-      const data = await response.json();
+      const data = await api.get('/items', { tenantId: TENANT_ID });
       console.log('Raw API response:', data);
 
       // Handle different response formats
@@ -201,15 +196,7 @@ const ItemsPage = () => {
         tax2: Number(newItem.tax2) || 0,
       };
 
-      const response = await fetch(`${API_BASE_URL}/items?tenantId=${TENANT_ID}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) throw new Error('Failed to create item');
-
-      const created = await response.json();
+      const created = await api.post('/items', payload);
       console.log('Created item:', created);
       // Refetch all items to ensure consistency
       await fetchItems();
@@ -272,19 +259,7 @@ const ItemsPage = () => {
 
       console.log('Updating item:', editingItem._id, payload);
 
-      const response = await fetch(`${API_BASE_URL}/items/${editingItem._id}?tenantId=${TENANT_ID}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Update failed:', response.status, errorText);
-        throw new Error(`Failed to update item: ${response.status}`);
-      }
-
-      const updated = await response.json();
+      const updated = await api.patch(`/items/${editingItem._id}`, payload);
       console.log('Updated item:', updated);
 
       setItems(prev => prev.map(item =>
@@ -309,11 +284,7 @@ const ItemsPage = () => {
     if (!window.confirm(`Are you sure you want to delete "${item.description}"?`)) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/items/${item._id}?tenantId=${TENANT_ID}`, {
-        method: 'DELETE'
-      });
-
-      if (!response.ok) throw new Error('Failed to delete item');
+      await api.delete(`/items/${item._id}`);
 
       setItems(prev => prev.filter(i => i._id !== item._id));
       toast.success('Item deleted successfully');
@@ -328,13 +299,7 @@ const ItemsPage = () => {
 
     try {
       const ids = Array.from(selectedRows);
-      const response = await fetch(`${API_BASE_URL}/items/bulk/delete?tenantId=${TENANT_ID}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids })
-      });
-
-      if (!response.ok) throw new Error('Failed to delete items');
+      await apiClient.delete('/items/bulk/delete', { data: { ids }, params: { tenantId: TENANT_ID } });
 
       setItems(prev => prev.filter(item => !selectedRows.has(item._id)));
       setSelectedRows(new Set());

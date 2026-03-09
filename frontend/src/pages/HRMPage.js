@@ -70,7 +70,6 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
     address: '',
     joiningDate: '',
     department: '',
-    designation: '',
     roleId: '',
     status: 'active',
   });
@@ -336,7 +335,6 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
       address: '',
       joiningDate: '',
       department: '',
-      designation: '',
       roleId: '',
       status: 'active',
     });
@@ -353,7 +351,6 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
       address: employee.address || '',
       joiningDate: employee.joiningDate ? format(new Date(employee.joiningDate), 'yyyy-MM-dd') : '',
       department: employee.department || '',
-      designation: employee.designation || '',
       roleId: employee.roleId || '',
       status: employee.status,
     });
@@ -649,7 +646,6 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
     { key: 'email', header: 'Email' },
     { key: 'phone', header: 'Phone' },
     { key: 'department', header: 'Department' },
-    { key: 'designation', header: 'Designation' },
     {
       key: 'roleId',
       header: 'Role',
@@ -1013,17 +1009,23 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
         ]}
       />
 
-      {/* ── KPI Cards ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {kpis.map((kpi, index) => (
-          <KPICard
-            key={index}
-            label={kpi.label}
-            value={kpi.value}
-            icon={kpi.icon}
-            accentColor={kpi.color}
-          />
-        ))}
+      {/* ── HRM Overview KPI Cards ── */}
+      <div className="mb-2">
+        <p className="text-xs text-[var(--text-muted)] mb-2 flex items-center gap-2">
+          <UserCircle size={12} className="text-[var(--accent-light)]" />
+          <span>HRM Overview - Employee statistics and payroll summary</span>
+        </p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {kpis.map((kpi, index) => (
+            <KPICard
+              key={index}
+              title={kpi.label}
+              value={kpi.value}
+              icon={kpi.icon}
+              accentColor={kpi.color}
+            />
+          ))}
+        </div>
       </div>
 
       {/* ── Vertical Layout with Sidebar ── */}
@@ -1575,21 +1577,14 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
                 ))}
               </Select>
             </FormField>
-            <FormField label="Designation">
-              <Input
-                value={employeeForm.designation}
-                onChange={(e) => setEmployeeForm({ ...employeeForm, designation: e.target.value })}
-                placeholder="Software Engineer"
-              />
-            </FormField>
-            <FormField label="Role *">
+            <FormField label="Roles *">
               <Select
                 value={employeeForm.roleId}
                 onChange={(e) => setEmployeeForm({ ...employeeForm, roleId: e.target.value })}
                 required
               >
                 <option value="">Select Role</option>
-                {allRoles.map((role) => (
+                {Object.values(customRoles || {}).map((role) => (
                   <option key={role._id || role.id} value={role._id || role.id}>
                     {role.label || role.name}
                   </option>

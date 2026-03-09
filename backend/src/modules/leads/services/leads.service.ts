@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ForbiddenException, Logger, forwardRef, Inject } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import * as fs from 'fs';
@@ -7,12 +7,15 @@ import { Lead, LeadDocument } from '../schemas/lead.schema';
 import { CreateLeadDto, UpdateLeadDto, QueryLeadDto, AddActivityDto } from '../dto/lead.dto';
 import { LeadStatus, LeadStatusDocument } from '../../settings/schemas/lead-status.schema';
 import { buildVisibilityFilter, applyVisibilityFilter, UserWithVisibility } from '../../../common/utils/visibility-filter';
+import { SiteSurveysService } from '../../survey/services/site-surveys.service';
 
 @Injectable()
 export class LeadsService {
   constructor(
     @InjectModel(Lead.name) private leadModel: Model<LeadDocument>,
     @InjectModel(LeadStatus.name) private leadStatusModel: Model<LeadStatusDocument>,
+    @Inject(forwardRef(() => SiteSurveysService))
+    private readonly siteSurveysService: SiteSurveysService,
   ) {}
 
   private readonly dashboardCache = new Map<string, { ts: number; data: any }>();
@@ -69,18 +72,20 @@ export class LeadsService {
 
   private async assertValidStatusKey(statusKey: string | undefined, tenantId?: string): Promise<void> {
     if (!statusKey || statusKey === '') return;
+
+    const normalizedStatusKey = statusKey.toString().trim().toLowerCase();
+    if (!normalizedStatusKey) return;
     
     // Allow common lead status keys without DB validation
-    const commonStatusKeys = ['new', 'contacted', 'qualified', 'proposal', 'negotiation', 'won', 'lost', 
-                              'New', 'Contacted', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost'];
-    if (commonStatusKeys.includes(statusKey)) {
+    const commonStatusKeys = ['new', 'contacted', 'qualified', 'proposal', 'negotiation', 'won', 'lost', 'estimate'];
+    if (commonStatusKeys.includes(normalizedStatusKey)) {
       return;
     }
     
     const tid = this.toObjectId(tenantId);
 
     const status = await this.leadStatusModel
-      .findOne({ tenantId: tid, entity: 'lead', key: statusKey, isActive: true })
+      .findOne({ tenantId: tid, entity: 'lead', key: normalizedStatusKey, isActive: true })
       .lean()
       .exec();
 
@@ -244,36 +249,10 @@ export class LeadsService {
       endDate,
     } = query;
 
-    const filter: any = { isDeleted: { $ne: true } };
+    // Build complete filter with tenant and visibility
+    const filter = buildCompleteFilter(tenantId, user, {});
 
-    const tid = this.toObjectId(tenantId);
-    if (tid) {
-      filter.$or = [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }];
-    }
-
-    // Apply visibility filter based on user's dataScope
-    console.log(`[VISIBILITY DEBUG] user:`, JSON.stringify(user));
-    console.log(`[VISIBILITY DEBUG] user?.dataScope:`, user?.dataScope);
-    
-    if (user?.dataScope === 'ASSIGNED') {
-      const userId = user._id || user.id;
-      console.log(`[VISIBILITY DEBUG] userId:`, userId);
-      if (userId) {
-        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
-          ? new Types.ObjectId(userId)
-          : userId;
-        
-        // STRICT: Only show leads explicitly assigned to this user
-        // Do NOT show unassigned leads to users with ASSIGNED scope
-        filter.assignedTo = objectId;
-        
-        console.log(`[VISIBILITY DEBUG] Applied STRICT assignedTo filter:`, objectId);
-      }
-    } else {
-      console.log(`[VISIBILITY DEBUG] No filter applied - user has ALL scope or no user`);
-    }
-
-    // Quick filters
+    // Apply quick filters
     if (quickFilter) {
       switch (quickFilter) {
         case 'highScore':
@@ -302,7 +281,7 @@ export class LeadsService {
     if (city) filter.city = { $regex: city, $options: 'i' };
 
     if (minScore !== undefined || maxScore !== undefined) {
-      filter.score = {};
+      filter.score = filter.score || {};
       if (minScore !== undefined) filter.score.$gte = minScore;
       if (maxScore !== undefined) filter.score.$lte = maxScore;
     }
@@ -345,17 +324,11 @@ export class LeadsService {
         orConditions.push({ value: { $gte: searchNum, $lt: searchNum + 1 } });
       }
       
-      // IMPORTANT: Combine search $or with visibility filter using $and
-      // This ensures assignedTo filter is NOT overwritten
-      if (filter.$or) {
-        // If there's already an $or (tenant filter), wrap everything in $and
-        filter.$and = [
-          { $or: filter.$or },
-          { $or: orConditions }
-        ];
-        delete filter.$or;
+      // Combine search $or with existing filter using $and
+      if (filter.$and) {
+        filter.$and.push({ $or: orConditions });
       } else {
-        filter.$or = orConditions;
+        filter.$and = [{ $or: orConditions }];
       }
     }
 
@@ -365,7 +338,7 @@ export class LeadsService {
 
     const skip = (page - 1) * limit;
 
-    console.log(`[VISIBILITY DEBUG] Final filter:`, JSON.stringify(filter));
+    Logger.log(`[findAll] Final filter: ${JSON.stringify(filter)}`, 'LeadsService');
 
     const [data, total] = await Promise.all([
       this.leadModel
@@ -381,7 +354,7 @@ export class LeadsService {
     return { data, total };
   }
 
-  async findOne(id: string, tenantId?: string): Promise<Lead> {
+  async findOne(id: string, tenantId?: string, user?: UserWithVisibility): Promise<Lead> {
     const filter: any = { 
       $or: [
         { _id: Types.ObjectId.isValid(id) ? new Types.ObjectId(id) : undefined },
@@ -401,7 +374,29 @@ export class LeadsService {
       throw new NotFoundException('Lead not found');
     }
     
+    // Check if user can access this specific lead
+    if (user) {
+      const canAccess = this.canAccessLead(user, lead);
+      if (!canAccess) {
+        throw new ForbiddenException('You do not have permission to access this lead');
+      }
+    }
+    
     return lead as Lead;
+  }
+
+  // Find lead by ID without tenant restrictions (for internal use)
+  async findOneById(id: string): Promise<Lead | null> {
+    const filter: any = { 
+      $or: [
+        { _id: Types.ObjectId.isValid(id) ? new Types.ObjectId(id) : undefined },
+        { leadId: id }
+      ].filter(Boolean),
+      isDeleted: { $ne: true } 
+    };
+
+    const lead = await this.leadModel.findOne(filter).lean().exec();
+    return lead as Lead | null;
   }
 
   async update(id: string, updateLeadDto: UpdateLeadDto, tenantId?: string): Promise<Lead> {
@@ -433,6 +428,14 @@ export class LeadsService {
     ];
     
     const dtoAny = updateLeadDto as any;
+    // Accept legacy/required alias: { stage: "..." } maps to statusKey
+    if (dtoAny.stage !== undefined && dtoAny.statusKey === undefined) {
+      dtoAny.statusKey = dtoAny.stage;
+    }
+    // Normalize statusKey/stage values so API can send e.g. "CONTACTED" while DB stores "contacted"
+    if (typeof dtoAny.statusKey === 'string') {
+      dtoAny.statusKey = dtoAny.statusKey.trim().toLowerCase();
+    }
     for (const field of allowedFields) {
       if (dtoAny[field] !== undefined) {
         updateData[field] = dtoAny[field];
@@ -457,6 +460,22 @@ export class LeadsService {
       
       // Push new activity to existing array
       updateData.$push = { activities: activity };
+
+      // Auto-create site survey when stage changes to 'site_survey' or 'survey'
+      if (updateData.statusKey === 'site_survey' || updateData.statusKey === 'survey') {
+        try {
+          await this.siteSurveysService.createFromLead({
+            leadId: existingLead._id.toString(),
+            clientName: existingLead.name,
+            city: existingLead.city || 'Unknown',
+            projectCapacity: existingLead.kw ? `${existingLead.kw} kW` : 'To be determined',
+            engineer: existingLead.assignedTo?.toString() || 'Unassigned',
+          });
+          Logger.log(`Auto-created site survey for lead ${existingLead.leadId}`, 'LeadsService');
+        } catch (error: any) {
+          Logger.error(`Failed to auto-create site survey for lead ${existingLead.leadId}: ${error.message}`, 'LeadsService');
+        }
+      }
     }
 
     Object.assign(existingLead, updateLeadDto);
@@ -468,11 +487,11 @@ export class LeadsService {
     existingLead.slaBreached = this.checkSlaBreached(existingLead);
     existingLead.activeAutomation = this.applyAutomation(existingLead);
 
-    // Use atomic update
+    // Use atomic update - only validate modified fields
     const updatedLead = await this.leadModel.findOneAndUpdate(
       filter,
       updateData,
-      { new: true, runValidators: true }
+      { new: true, validateModifiedOnly: true }
     ).exec();
 
     if (!updatedLead) {
@@ -483,11 +502,15 @@ export class LeadsService {
   }
 
   async remove(id: string, tenantId?: string): Promise<void> {
+    const orConditions: any[] = [];
+    
+    if (Types.ObjectId.isValid(id)) {
+      orConditions.push({ _id: new Types.ObjectId(id) });
+    }
+    orConditions.push({ leadId: id });
+    
     const filter: any = { 
-      $or: [
-        { _id: Types.ObjectId.isValid(id) ? new Types.ObjectId(id) : undefined },
-        { leadId: id }
-      ].filter(Boolean),
+      $or: orConditions,
       isDeleted: { $ne: true } 
     };
     
@@ -571,8 +594,8 @@ export class LeadsService {
     return lead.save();
   }
 
-  async getTimeline(id: string, tenantId?: string): Promise<any[]> {
-    const lead = await this.findOne(id, tenantId);
+  async getTimeline(id: string, tenantId?: string, user?: UserWithVisibility): Promise<any[]> {
+    const lead = await this.findOne(id, tenantId, user);
     return lead.activities.sort((a: any, b: any) => {
       return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
     });
@@ -601,12 +624,35 @@ export class LeadsService {
   }
 
   async bulkDelete(ids: string[], tenantId?: string): Promise<{ modified: number }> {
-    const objectIds = ids.filter(id => Types.ObjectId.isValid(id)).map(id => new Types.ObjectId(id));
+    if (!ids || ids.length === 0) {
+      return { modified: 0 };
+    }
+    
+    const objectIds: Types.ObjectId[] = [];
+    const leadIds: string[] = [];
+    
+    for (const id of ids) {
+      if (Types.ObjectId.isValid(id)) {
+        objectIds.push(new Types.ObjectId(id));
+      } else {
+        leadIds.push(id);
+      }
+    }
+    
+    const orConditions: any[] = [];
+    if (objectIds.length > 0) {
+      orConditions.push({ _id: { $in: objectIds } });
+    }
+    if (leadIds.length > 0) {
+      orConditions.push({ leadId: { $in: leadIds } });
+    }
+    
+    if (orConditions.length === 0) {
+      return { modified: 0 };
+    }
+    
     const filter: any = { 
-      $or: [
-        { _id: { $in: objectIds } },
-        { leadId: { $in: ids } }
-      ]
+      $or: orConditions
     };
     
     const tid = this.toObjectId(tenantId);
@@ -664,6 +710,22 @@ export class LeadsService {
       lead.score = this.calculateScore(lead);
       lead.slaBreached = this.checkSlaBreached(lead);
       lead.activeAutomation = this.applyAutomation(lead);
+
+      // Auto-create site survey when stage changes to 'site_survey' or 'survey'
+      if (stage === 'site_survey' || stage === 'survey') {
+        try {
+          await this.siteSurveysService.createFromLead({
+            leadId: (lead as any)._id.toString(),
+            clientName: lead.name,
+            city: lead.city || 'Unknown',
+            projectCapacity: lead.kw ? `${lead.kw} kW` : 'To be determined',
+            engineer: lead.assignedTo?.toString() || 'Unassigned',
+          });
+          Logger.log(`Auto-created site survey for lead ${lead.leadId} via bulkUpdateStage`, 'LeadsService');
+        } catch (error: any) {
+          Logger.error(`Failed to auto-create site survey for lead ${lead.leadId}: ${error.message}`, 'LeadsService');
+        }
+      }
       
       await lead.save();
       modified++;
@@ -673,27 +735,10 @@ export class LeadsService {
   }
 
   async getStats(tenantId?: string, user?: UserWithVisibility): Promise<any> {
-    const filter: any = { isDeleted: { $ne: true } };
-    
-    const tid = this.toObjectId(tenantId);
-    if (tid) {
-      filter.$or = [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }];
-    }
+    // Build complete filter with tenant and visibility
+    const filter = buildCompleteFilter(tenantId, user, {});
 
-    // Apply visibility filter based on user's dataScope
-    if (user?.dataScope === 'ASSIGNED') {
-      const userId = user._id || user.id;
-      if (userId) {
-        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
-          ? new Types.ObjectId(userId)
-          : userId;
-        
-        // STRICT: Only show leads explicitly assigned to this user
-        filter.assignedTo = objectId;
-      }
-    }
-
-    console.log(`[LEADS STATS VISIBILITY] Final filter:`, JSON.stringify(filter));
+    Logger.log(`[getStats] tenantId: ${tenantId}, filter: ${JSON.stringify(filter)}`, 'LeadsService');
 
     const [
       totalLeads,
@@ -755,6 +800,7 @@ export class LeadsService {
 
   async getDashboardOverview(
     tenantId?: string,
+    user?: UserWithVisibility
   ): Promise<{
     totalLeads: number;
     newLeadsThisMonth: number;
@@ -767,8 +813,8 @@ export class LeadsService {
     activeLeads: number;
   }> {
     return this.withDashboardCache(tenantId, 'overview', async () => {
-      const filter = this.buildTenantFilter(tenantId);
-      Logger.log(`[DEBUG] getDashboardOverview - tenantId: ${tenantId}, filter: ${JSON.stringify(filter)}`, 'LeadsService');
+      const filter = buildCompleteFilter(tenantId, user, {});
+      Logger.log(`[getDashboardOverview] tenantId: ${tenantId}, filter: ${JSON.stringify(filter)}`, 'LeadsService');
       
       const now = new Date();
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -792,7 +838,7 @@ export class LeadsService {
         ]),
       ]);
       
-      Logger.log(`[DEBUG] getDashboardOverview - totalLeads: ${totalLeads}, newLeadsThisMonth: ${newLeadsThisMonth}`, 'LeadsService');
+      Logger.log(`[getDashboardOverview] totalLeads: ${totalLeads}, newLeadsThisMonth: ${newLeadsThisMonth}`, 'LeadsService');
 
       const pipelineValue = pipelineAgg?.[0]?.total || 0;
       const conversionRate = totalLeads > 0 ? Math.round((wonCount / totalLeads) * 100) : 0;
@@ -813,9 +859,9 @@ export class LeadsService {
     });
   }
 
-  async getDashboardFunnel(tenantId?: string): Promise<{ stages: Array<{ stage: string; count: number }> }> {
+  async getDashboardFunnel(tenantId?: string, user?: UserWithVisibility): Promise<{ stages: Array<{ stage: string; count: number }> }> {
     return this.withDashboardCache(tenantId, 'funnel', async () => {
-      const filter = this.buildTenantFilter(tenantId);
+      const filter = buildCompleteFilter(tenantId, user, {});
       const stageOrder = ['new', 'contacted', 'qualified', 'proposal', 'negotiation', 'won', 'lost'];
 
       const stageAgg = await this.leadModel.aggregate([
@@ -833,9 +879,9 @@ export class LeadsService {
     });
   }
 
-  async getDashboardSource(tenantId?: string): Promise<{ sources: Array<{ source: string; leads: number; value: number }> }> {
+  async getDashboardSource(tenantId?: string, user?: UserWithVisibility): Promise<{ sources: Array<{ source: string; leads: number; value: number }> }> {
     return this.withDashboardCache(tenantId, 'source', async () => {
-      const filter = this.buildTenantFilter(tenantId);
+      const filter = buildCompleteFilter(tenantId, user, {});
 
       const agg = await this.leadModel.aggregate([
         { $match: filter },
@@ -855,9 +901,10 @@ export class LeadsService {
 
   async getDashboardTrend(
     tenantId?: string,
+    user?: UserWithVisibility
   ): Promise<{ months: Array<{ month: string; leads: number; value: number }>; scoreBuckets: Array<{ bucket: string; count: number }>; agents: Array<{ id: string; name: string; leadsAssigned: number; leadsConverted: number; conversionRate: number; rank: number }> }> {
     return this.withDashboardCache(tenantId, 'trend', async () => {
-      const filter = this.buildTenantFilter(tenantId);
+      const filter = buildCompleteFilter(tenantId, user, {});
 
       const start = new Date();
       start.setMonth(start.getMonth() - 11);
@@ -956,9 +1003,10 @@ export class LeadsService {
 
   async getDashboardActivity(
     tenantId?: string,
+    user?: UserWithVisibility
   ): Promise<{ last30Days: Array<{ date: string; count: number }>; byType: Array<{ type: string; count: number }> }> {
     return this.withDashboardCache(tenantId, 'activity', async () => {
-      const filter = this.buildTenantFilter(tenantId);
+      const filter = buildCompleteFilter(tenantId, user, {});
       const start = new Date();
       start.setDate(start.getDate() - 30);
       start.setHours(0, 0, 0, 0);
@@ -1035,8 +1083,8 @@ export class LeadsService {
   // LEAD TRACKER / STATUS PROGRESS
   // ============================================
 
-  async getTracker(id: string, tenantId?: string): Promise<{ stages: any[]; currentStage: string; progress: number }> {
-    const lead = await this.findOne(id, tenantId);
+  async getTracker(id: string, tenantId?: string, user?: UserWithVisibility): Promise<{ stages: any[]; currentStage: string; progress: number }> {
+    const lead = await this.findOne(id, tenantId, user);
     
     // Get all available status options ordered
     const tid = this.toObjectId(tenantId);
@@ -1166,6 +1214,23 @@ export class LeadsService {
     updateData.score = this.calculateScore(mergedData);
     updateData.slaBreached = this.checkSlaBreached(mergedData);
     updateData.activeAutomation = this.applyAutomation(mergedData);
+
+    // Auto-create site survey when stage changes to 'site_survey' or 'survey'
+    const normalizedStage = stage.toLowerCase().replace(/\s+/g, '_');
+    if (normalizedStage === 'site_survey' || stage === 'survey') {
+      try {
+        await this.siteSurveysService.createFromLead({
+          leadId: (lead as any)._id.toString(),
+          clientName: lead.name,
+          city: lead.city || 'Unknown',
+          projectCapacity: lead.kw ? `${lead.kw} kW` : 'To be determined',
+          engineer: lead.assignedTo?.toString() || 'Unassigned',
+        });
+        Logger.log(`Auto-created site survey for lead ${lead.leadId} via updateStage`, 'LeadsService');
+      } catch (error: any) {
+        Logger.error(`Failed to auto-create site survey for lead ${lead.leadId}: ${error.message}`, 'LeadsService');
+      }
+    }
 
     // Update lead
     const filter: any = { 

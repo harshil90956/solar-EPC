@@ -15,6 +15,7 @@ import ThemeCustomizer from './ThemeCustomizer';
 import ReminderSidebar from './Reminder/ReminderSidebar';
 import { api } from '../lib/apiClient';
 
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api/v1';
 const TENANT_ID = 'solarcorp';
 
 const Layout = ({ currentPage, onNavigate, children }) => {
@@ -48,18 +49,43 @@ const Layout = ({ currentPage, onNavigate, children }) => {
 
   // Fetch dynamic badge counts
   useEffect(() => {
+    const resolveTenantId = () => {
+      try {
+        const savedUser = JSON.parse(localStorage.getItem('solar_user') || '{}');
+        return (
+          savedUser?.tenantId ||
+          savedUser?.tenant?.id ||
+          localStorage.getItem('tenantId') ||
+          TENANT_ID
+        );
+      } catch {
+        return localStorage.getItem('tenantId') || TENANT_ID;
+      }
+    };
+
     const fetchBadgeCounts = async () => {
       try {
-        // Fetch inventory stats (auth headers via apiClient interceptor)
-        const inventoryData = await api.get('/inventory/stats', { tenantId: TENANT_ID }).catch(() => null);
+        const tenantId = resolveTenantId();
 
-        // Fetch projects
-        const projectsData = await api.get('/projects').catch(() => null);
-        const projects = projectsData?.data || projectsData || [];
+        // Fetch inventory stats (via central api client to reuse auth + tenant headers)
+        const inventoryData = await api.get('/inventory/stats', { tenantId }).catch(() => null);
+
+        // Fetch project stats (avoid /projects list which may be permission-gated)
+        const projectsStats = await api.get('/projects/stats', { tenantId }).catch(() => null);
 
         // Calculate counts
-        const lowStockCount = inventoryData?.data?.lowStockItems ?? inventoryData?.lowStockItems ?? 0;
-        const activeProjects = projects.filter(p => p.status !== 'Commissioned').length;
+        const lowStockCount =
+          inventoryData?.data?.lowStockItems ??
+          inventoryData?.lowStockItems ??
+          inventoryData?.data?.lowStock ??
+          inventoryData?.lowStock ??
+          0;
+        const activeProjects =
+          projectsStats?.data?.activeProjects ??
+          projectsStats?.activeProjects ??
+          projectsStats?.data?.active ??
+          projectsStats?.active ??
+          0;
 
         setBadgeCounts({
           inventory: lowStockCount,
@@ -99,7 +125,6 @@ const Layout = ({ currentPage, onNavigate, children }) => {
     ...section,
     items: section.items.filter(item => {
       const hasModuleAccess = isModuleEnabled(item.id);
-      console.log('[DEBUG] Module:', item.id, 'isModuleEnabled:', hasModuleAccess);
 
       if (!hasModuleAccess) return false;
 
@@ -111,9 +136,6 @@ const Layout = ({ currentPage, onNavigate, children }) => {
       return canView;
     }),
   })).filter(s => s.items.length > 0);
-
-  console.log('[DEBUG] visibleSections:', visibleSections.length, 'sections');
-  console.log('[DEBUG] user:', user?.id, user?.role);
 
   /* ── Derive layout dimensions from customization ── */
   const c = customization || {};
@@ -679,7 +701,7 @@ const Layout = ({ currentPage, onNavigate, children }) => {
                             )}
                           />
                         )}
-                        {showLabels && item.badge && (
+                        {showLabels && ((badgeCounts[item.id] ?? 0) > 0) && (
                           <span className={cn(
                             'ml-auto text-[8px] rounded-full px-1.5 py-0.5 font-bold',
                             item.badgeVariant === 'red' ? 'bg-red-500 text-white' :

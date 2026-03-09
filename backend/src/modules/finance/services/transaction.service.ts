@@ -2,12 +2,14 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Transaction, TransactionDocument } from '../schemas/transaction.schema';
+import { ManualAdjustment, ManualAdjustmentDocument } from '../schemas/manual-adjustment.schema';
 import { CreateTransactionDto, UpdateTransactionDto } from '../dto/transaction.dto';
 
 @Injectable()
 export class TransactionService {
   constructor(
     @InjectModel(Transaction.name) private readonly transactionModel: Model<TransactionDocument>,
+    @InjectModel(ManualAdjustment.name) private readonly manualAdjustmentModel: Model<ManualAdjustmentDocument>,
   ) {}
 
   private toObjectId(id: string | undefined): Types.ObjectId | undefined {
@@ -159,5 +161,80 @@ export class TransactionService {
         revenue: monthlyData[key].revenue,
         cost: monthlyData[key].cost,
       }));
+  }
+
+  async getAnalyticsByCategory(tenantId: string, months: number = 6): Promise<any> {
+    const tid = this.toObjectId(tenantId);
+    const query: any = {};
+    if (tid) {
+      query.tenantId = tid;
+    }
+
+    // Fetch all manual adjustments (journal entries) - no date filter
+    const adjustments = await this.manualAdjustmentModel.find(query).lean();
+
+    // Predefined Income categories (must all appear in chart)
+    const INCOME_CATEGORIES = [
+      'Adjustment Credit',
+      'Bank Interest',
+      'Customer Advance',
+      'Extra Payment Received',
+      'Misc Income',
+      'Refund Received'
+    ];
+
+    // Predefined Expense categories (must all appear in chart)
+    const EXPENSE_CATEGORIES = [
+      'Adjustment Debit',
+      'Bank Charges',
+      'Correction Entry',
+      'Misc Expense',
+      'Office Expense',
+      'Refund to Customer'
+    ];
+
+    // Initialize all income categories with 0
+    const incomeByCategory: { [key: string]: number } = {};
+    INCOME_CATEGORIES.forEach(cat => incomeByCategory[cat] = 0);
+
+    // Add credit adjustments grouped by category
+    adjustments.forEach(adj => {
+      if (adj.type === 'credit') {
+        // Only count if it's a predefined income category
+        if (adj.category && INCOME_CATEGORIES.includes(adj.category)) {
+          incomeByCategory[adj.category] = (incomeByCategory[adj.category] || 0) + adj.amount;
+        }
+      }
+    });
+
+    // Initialize all expense categories with 0
+    const expenseByCategory: { [key: string]: number } = {};
+    EXPENSE_CATEGORIES.forEach(cat => expenseByCategory[cat] = 0);
+
+    // Add debit adjustments grouped by category
+    adjustments.forEach(adj => {
+      if (adj.type === 'debit') {
+        // Only count if it's a predefined expense category
+        if (adj.category && EXPENSE_CATEGORIES.includes(adj.category)) {
+          expenseByCategory[adj.category] = (expenseByCategory[adj.category] || 0) + adj.amount;
+        }
+      }
+    });
+
+    // Convert to arrays and sort by amount descending
+    const incomeData = Object.entries(incomeByCategory)
+      .map(([category, amount]) => ({ category, amount }))
+      .sort((a, b) => b.amount - a.amount);
+
+    const expenseData = Object.entries(expenseByCategory)
+      .map(([category, amount]) => ({ category, amount }))
+      .sort((a, b) => b.amount - a.amount);
+
+    return {
+      incomeByCategory: incomeData,
+      expenseByCategory: expenseData,
+      totalIncome: incomeData.reduce((sum, item) => sum + item.amount, 0),
+      totalExpense: expenseData.reduce((sum, item) => sum + item.amount, 0),
+    };
   }
 }

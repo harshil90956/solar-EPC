@@ -10,6 +10,7 @@ import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
 import CRMPage from './pages/CRMPage';
 import SurveyPage from './pages/SurveyPage';
+import SiteSurveyPage from './pages/SiteSurveyPage';
 import DesignPage from './pages/DesignPage';
 import ProjectPage from './pages/ProjectPage';
 import InventoryPage from './pages/InventoryPage';
@@ -51,7 +52,7 @@ const PAGE_MAP = {
   attendance: { component: AttendancePage, title: 'Attendance Management' },
   reminders: { component: RemindersPage, title: 'Reminder Center' },
   crm: { component: CRMPage, title: 'CRM & Sales' },
-  survey: { component: SurveyPage, title: 'Survey Management' },
+  survey: { component: SiteSurveyPage, title: 'Site Survey Management' },
   design: { component: DesignPage, title: 'Design & BOQ' },
   project: { component: ProjectPage, title: 'Projects' },
   inventory: { component: InventoryPage, title: 'Inventory' },
@@ -116,7 +117,7 @@ const getInitialPage = () => {
 const AppInner = () => {
   const { user } = useAuth();
   const { resolvePermission, isModuleEnabled } = useSettings();
-  const [currentPage, setCurrentPage] = useState(getInitialPage);
+  const [currentPage, setCurrentPage] = useState(() => getInitialPage());
 
   // ── Sync URL pathname on page change ──
   const navigate = useCallback((page) => {

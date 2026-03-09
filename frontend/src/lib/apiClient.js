@@ -14,20 +14,32 @@ const getTenantId = () => {
     try {
         // First try to get from user object
         const user = JSON.parse(localStorage.getItem('solar_user') || '{}');
-        if (user?.tenantId || user?.tenant?.id) {
-            return user?.tenantId || user?.tenant?.id;
+        const userTenantId = user?.tenantId || user?.tenant?.id;
+        if (userTenantId && userTenantId !== 'default') {
+            return userTenantId;
         }
         // Fallback to tenantId stored separately (for pre-login requests)
-        return localStorage.getItem('tenantId') || null;
+        const storedTenantId = localStorage.getItem('tenantId');
+        if (storedTenantId && storedTenantId !== 'default') {
+            return storedTenantId;
+        }
+        return 'solarcorp';
     } catch {
-        return localStorage.getItem('tenantId') || null;
+        const storedTenantId = localStorage.getItem('tenantId');
+        if (storedTenantId && storedTenantId !== 'default') {
+            return storedTenantId;
+        }
+        return 'solarcorp';
     }
 };
 
 // ── Request Interceptor: attach auth token ──
 apiClient.interceptors.request.use(
     (config) => {
-        const token = localStorage.getItem('solar_token');
+        const token =
+            localStorage.getItem('solar_token') ||
+            localStorage.getItem('accessToken') ||
+            localStorage.getItem('token');
         if (token) config.headers.Authorization = `Bearer ${token}`;
         const tenantId = getTenantId();
         if (tenantId) config.headers['x-tenant-id'] = tenantId;
@@ -61,10 +73,10 @@ apiClient.interceptors.response.use(
 // ── Generic CRUD helpers ──
 export const api = {
     get: (url, params = {}) => apiClient.get(url, { params }),
-    post: (url, data) => apiClient.post(url, data),
-    put: (url, data) => apiClient.put(url, data),
-    patch: (url, data) => apiClient.patch(url, data),
-    delete: (url) => apiClient.delete(url),
+    post: (url, data, config = {}) => apiClient.post(url, data, config),
+    put: (url, data, config = {}) => apiClient.put(url, data, config),
+    patch: (url, data, config = {}) => apiClient.patch(url, data, config),
+    delete: (url, config = {}) => apiClient.delete(url, config),
 };
 
 export default apiClient;

@@ -7,6 +7,33 @@ import { Model, Types } from 'mongoose';
 import { User, UserDocument } from '../schemas/user.schema';
 import { CustomRole, CustomRoleDocument } from '../../../modules/settings/schemas/custom-role.schema';
 import { UserOverride, UserOverrideDocument } from '../../../modules/settings/schemas/user-override.schema';
+import { PermissionCacheService } from '../../../common/services/permission-cache.service';
+
+const jwtExtractor = (logger: Logger) =>
+  ExtractJwt.fromExtractors([
+    ExtractJwt.fromAuthHeaderAsBearerToken(),
+    (req: any) => {
+      const token = req?.headers?.['x-access-token'];
+      if (typeof token === 'string' && token.trim() !== '') return token;
+      return null;
+    },
+    (req: any) => {
+      const token = req?.cookies?.accessToken;
+      if (typeof token === 'string' && token.trim() !== '') return token;
+      return null;
+    },
+    (req: any) => {
+      // Minimal diagnostics for "random 401" reports
+      // Only logs when request has no recognizable token.
+      const auth = req?.headers?.authorization;
+      const xToken = req?.headers?.['x-access-token'];
+      const cToken = req?.cookies?.accessToken;
+      if (!auth && !xToken && !cToken) {
+        logger.debug('JWT Extract - no token found on request (authorization/x-access-token/cookie)');
+      }
+      return null;
+    },
+  ]);
 
 export interface JwtPayload {
   sub?: string;
@@ -25,9 +52,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     @InjectModel(CustomRole.name) private readonly customRoleModel: Model<CustomRoleDocument>,
     @InjectModel(UserOverride.name) private readonly userOverrideModel: Model<UserOverrideDocument>,
+    private readonly permissionCacheService: PermissionCacheService,
   ) {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: jwtExtractor(new Logger(JwtStrategy.name)),
       ignoreExpiration: false,
       secretOrKey: configService.getOrThrow<string>('JWT_SECRET'),
     });
@@ -85,10 +113,29 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     this.logger.debug(`JWT Validate - userId: ${userId}, dataScope: ${effectiveDataScope}, isAdminLike: ${isAdminLike}`);
     
     const dataScope: 'ALL' | 'ASSIGNED' = effectiveDataScope === 'ALL' ? 'ALL' : 'ASSIGNED';
+
+    // Get permissions matrix from cache service (O(1) ready)
+    let permissions: Record<string, Record<string, boolean>> = {};
+    if (userId && roleIdString) {
+      try {
+        permissions = await this.permissionCacheService.getAllPermissions(
+          tenantId,
+          userId,
+          roleIdString,
+        );
+        this.logger.debug(`JWT Validate - loaded permissions matrix for user ${userId}`);
+      } catch (error: any) {
+        this.logger.warn(`JWT Validate - failed to load permissions for user ${userId}: ${error?.message || error}`);
+        // Continue without permissions - they'll be checked on-demand
+      }
+    }
+
     return {
       ...payload,
       id: userId,
       dataScope,
+      permissions, // O(1) permission matrix included
+      customRoleId: customRoleId || undefined,
     };
   }
 }

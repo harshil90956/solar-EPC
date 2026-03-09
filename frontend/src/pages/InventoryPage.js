@@ -1,7 +1,7 @@
 // Solar OS – EPC Edition — InventoryPage.js
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
-  Package, Plus, AlertTriangle, Warehouse, ArrowUp, ArrowDown, Zap, LayoutGrid, List, Edit2, Trash2, Eye
+  Package, Plus, AlertTriangle, Warehouse, ArrowUp, ArrowDown, Zap, LayoutGrid, List, Edit2, Trash2, Eye, ArrowRightLeft
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { StatusBadge } from '../components/ui/Badge';
@@ -13,20 +13,12 @@ import { KPICard } from '../components/ui/KPICard';
 import { Progress } from '../components/ui/Progress';
 import DataTable from '../components/ui/DataTable';
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
+import apiClient, { api } from '../lib/apiClient';
 
 const fmt = CURRENCY.format;
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
 const PROJECT_API_BASE_URL = process.env.REACT_APP_PROJECT_API_BASE_URL || 'http://localhost:3000/api/v1';
 const TENANT_ID = 'solarcorp';
-
-// Helper to get auth headers
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('solar_token') || localStorage.getItem('token');
-  return {
-    'Content-Type': 'application/json',
-    ...(token && { Authorization: `Bearer ${token}` }),
-  };
-};
 
 const getStockStatus = (item) => {
   // If explicit status is set, return the stage ID format
@@ -115,6 +107,9 @@ const InvCard = ({ item, onDragStart, onClick }) => {
       )}
       <div className="mt-1.5 text-[10px] font-bold text-[var(--text-secondary)]">
         ₹{(item.available * item.rate).toLocaleString('en-IN')}
+      </div>
+      <div className="mt-1 text-[9px] text-[var(--text-faint)]">
+        Min: {item.minStock || 0} {item.unit}
       </div>
     </div>
   );
@@ -234,7 +229,7 @@ const InvKanbanBoard = ({ items, onCardClick, onDrop }) => {
 
 /* ── Main Page ── */
 const InventoryPage = () => {
-  const [activeTab, setActiveTab] = useState('inventory'); // 'inventory', 'warehouse', 'items', 'category'
+  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'inventory', 'warehouse', 'items', 'category', 'unit'
   const [view, setView] = useState('kanban');
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('All');
@@ -247,24 +242,24 @@ const InventoryPage = () => {
   const [loadingReservations, setLoadingReservations] = useState(false);
   const [form, setForm] = useState({ itemId: '', name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
   const [stockInForm, setStockInForm] = useState({ itemId: '', quantity: '', poReference: '', receivedDate: '', remarks: '', warehouse: '' });
-  const [warehouses, setWarehouses] = useState(() => {
-    const saved = localStorage.getItem('warehouses');
-    return saved ? JSON.parse(saved) : ['WH-Ahmedabad', 'WH-Surat', 'WH-Mumbai'];
-  });
+  const [warehouses, setWarehouses] = useState([]);
   const [newWarehouse, setNewWarehouse] = useState('');
   const [showWarehouseModal, setShowWarehouseModal] = useState(false);
   const [editingWarehouse, setEditingWarehouse] = useState(null);
   const [editWarehouseValue, setEditWarehouseValue] = useState('');
   const [viewingWarehouse, setViewingWarehouse] = useState(null);
-  const [categories, setCategories] = useState(() => {
-    const saved = localStorage.getItem('itemCategories');
-    return saved ? JSON.parse(saved) : ['Panel', 'Inverter', 'BOS', 'Structure', 'Cable', 'Other'];
-  });
+  const [categories, setCategories] = useState([]);
+  const [units, setUnits] = useState([]);
   const [newCategory, setNewCategory] = useState('');
+  const [newUnit, setNewUnit] = useState('');
   const [editingCategory, setEditingCategory] = useState(null);
+  const [editingUnit, setEditingUnit] = useState(null);
   const [editCategoryValue, setEditCategoryValue] = useState('');
+  const [editUnitValue, setEditUnitValue] = useState('');
   const [viewingCategory, setViewingCategory] = useState(null);
+  const [viewingUnit, setViewingUnit] = useState(null);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [showUnitModal, setShowUnitModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [editForm, setEditForm] = useState({ name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
@@ -279,17 +274,59 @@ const InventoryPage = () => {
   const [inventoryStats, setInventoryStats] = useState(null);
   const [itemsByCategory, setItemsByCategory] = useState([]);
   const [showEdit, setShowEdit] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferFromWarehouse, setTransferFromWarehouse] = useState('');
+  const [transferToWarehouse, setTransferToWarehouse] = useState('');
+  const [transferItem, setTransferItem] = useState('');
+  const [transferQuantity, setTransferQuantity] = useState('');
+  const [transferRemarks, setTransferRemarks] = useState('');
 
-  // Save categories to localStorage
+  // Fetch warehouses from API
   useEffect(() => {
-    localStorage.setItem('itemCategories', JSON.stringify(categories));
-  }, [categories]);
+    const fetchWarehouses = async () => {
+      try {
+        const data = await api.get('/lookups/warehouses');
+        const warehousesArray = Array.isArray(data) ? data : (data.data || []);
+        setWarehouses(warehousesArray.map(w => w.name));
+      } catch (err) {
+        // Fallback to default if API fails
+        setWarehouses(['WH-Ahmedabad', 'WH-Surat', 'WH-Mumbai']);
+      }
+    };
+    fetchWarehouses();
+  }, []);
 
+  // Fetch categories from API
   useEffect(() => {
-    localStorage.setItem('warehouses', JSON.stringify(warehouses));
-  }, [warehouses]);
+    const fetchCategories = async () => {
+      try {
+        const data = await api.get('/lookups/categories');
+        const categoriesArray = Array.isArray(data) ? data : (data.data || []);
+        setCategories(categoriesArray.map(c => c.name));
+      } catch (err) {
+        // Fallback to default if API fails
+        setCategories(['Panel', 'Inverter', 'BOS', 'Structure', 'Cable', 'Other']);
+      }
+    };
+    fetchCategories();
+  }, []);
 
-  const handleAddWarehouse = () => {
+  // Fetch units from API
+  useEffect(() => {
+    const fetchUnits = async () => {
+      try {
+        const data = await api.get('/lookups/units');
+        const unitsArray = Array.isArray(data) ? data : (data.data || []);
+        setUnits(unitsArray.map(u => u.name));
+      } catch (err) {
+        // Fallback to default if API fails
+        setUnits(['Nos', 'Mtr', 'Kg', 'Set', 'Pairs', 'Box']);
+      }
+    };
+    fetchUnits();
+  }, []);
+
+  const handleAddWarehouse = async () => {
     const name = newWarehouse.trim();
     if (!name) {
       alert('Please enter a warehouse name');
@@ -299,13 +336,27 @@ const InventoryPage = () => {
       alert('Warehouse already exists');
       return;
     }
-    setWarehouses([...warehouses, name]);
-    setNewWarehouse('');
-    setShowWarehouseModal(false);
-    alert('Warehouse added successfully');
+    
+    setSubmitting(true);
+    try {
+      const code = name.toUpperCase().replace(/\s+/g, '-');
+      await api.post('/lookups/warehouses', {
+        code,
+        name,
+        location: name,
+      }, { headers: { 'x-tenant-id': TENANT_ID } });
+      setWarehouses([...warehouses, name]);
+      setNewWarehouse('');
+      setShowWarehouseModal(false);
+      alert('Warehouse added successfully');
+    } catch (err) {
+      alert(err.message || 'Failed to add warehouse');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleEditWarehouse = (oldName) => {
+  const handleEditWarehouse = async (oldName) => {
     const name = editWarehouseValue.trim();
     if (!name) {
       alert('Please enter a warehouse name');
@@ -315,33 +366,147 @@ const InventoryPage = () => {
       alert('Warehouse already exists');
       return;
     }
-    setWarehouses(warehouses.map(w => (w === oldName ? name : w)));
-    setInventory(prev => prev.map(i => (i.warehouse === oldName ? { ...i, warehouse: name } : i)));
-    setEditingWarehouse(null);
-    setEditWarehouseValue('');
-    alert('Warehouse updated successfully');
+    
+    setSubmitting(true);
+    try {
+      const oldCode = oldName.toUpperCase().replace(/\s+/g, '-');
+      await api.patch(`/lookups/warehouses/${oldCode}`, {
+        name,
+      }, { headers: { 'x-tenant-id': TENANT_ID } });
+      setWarehouses(warehouses.map(w => (w === oldName ? name : w)));
+      setInventory(prev => prev.map(i => (i.warehouse === oldName ? { ...i, warehouse: name } : i)));
+      setEditingWarehouse(null);
+      setEditWarehouseValue('');
+      alert('Warehouse updated successfully');
+    } catch (err) {
+      alert(err.message || 'Failed to update warehouse');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleDeleteWarehouse = (name) => {
+  const handleDeleteWarehouse = async (name) => {
     if (!window.confirm(`Are you sure you want to delete "${name}" warehouse?`)) return;
-    setWarehouses(warehouses.filter(w => w !== name));
-    setInventory(prev => prev.map(i => (i.warehouse === name ? { ...i, warehouse: '' } : i)));
-    alert('Warehouse deleted successfully');
+    
+    setSubmitting(true);
+    try {
+      const code = name.toUpperCase().replace(/\s+/g, '-');
+      await api.delete(`/lookups/warehouses/${code}`, { headers: { 'x-tenant-id': TENANT_ID } });
+      setWarehouses(warehouses.filter(w => w !== name));
+      setInventory(prev => prev.map(i => (i.warehouse === name ? { ...i, warehouse: '' } : i)));
+      alert('Warehouse deleted successfully');
+    } catch (err) {
+      alert(err.message || 'Failed to delete warehouse');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleTransfer = async () => {
+    if (!transferItem || !transferQuantity || !transferToWarehouse) {
+      alert('Please fill all required fields');
+      return;
+    }
+    if (transferFromWarehouse === transferToWarehouse) {
+      alert('Source and destination warehouse cannot be the same');
+      return;
+    }
+
+    const qty = parseInt(transferQuantity);
+    if (isNaN(qty) || qty <= 0) {
+      alert('Please enter a valid quantity');
+      return;
+    }
+
+    const item = inventory.find(i => i.itemId === transferItem && i.warehouse === transferFromWarehouse);
+    if (!item) {
+      alert('Item not found in source warehouse');
+      return;
+    }
+
+    if ((item.available || 0) < qty) {
+      alert(`Insufficient stock. Available: ${item.available} ${item.unit}`);
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      // First, check if item exists in destination warehouse
+      const existingItemInDest = inventory.find(i => i.itemId === transferItem && i.warehouse === transferToWarehouse);
+
+      if (existingItemInDest) {
+        // Transfer between existing items - stock out from source, stock in to dest
+        // Use itemId for API calls since backend looks up by ID
+        await api.post(`/items/${item._id || item.itemId}/stock-out`, {
+          quantity: qty,
+          remarks: `Transferred to ${transferToWarehouse}: ${transferRemarks || 'Stock transfer'}`,
+        }, { headers: { 'x-tenant-id': TENANT_ID } });
+
+        await api.post(`/items/${existingItemInDest._id || existingItemInDest.itemId}/stock-in`, {
+          quantity: qty,
+          warehouse: transferToWarehouse,
+          remarks: `Transferred from ${transferFromWarehouse}: ${transferRemarks || 'Stock transfer'}`,
+        }, { headers: { 'x-tenant-id': TENANT_ID } });
+      } else {
+        // Create new item in destination warehouse
+        const newItemData = {
+          itemId: item.itemId,
+          description: item.name || item.description,
+          category: item.category,
+          unit: item.unit,
+          stock: qty,
+          reserved: 0,
+          minStock: item.minStock || 0,
+          rate: item.rate || 0,
+          warehouse: transferToWarehouse,
+          status: 'In Stock',
+        };
+
+        // Create new item in destination warehouse
+        const createdItem = await api.post('/items', newItemData, { headers: { 'x-tenant-id': TENANT_ID } });
+        
+        // Stock out from source warehouse
+        await api.post(`/items/${item._id || item.itemId}/stock-out`, {
+          quantity: qty,
+          remarks: `Transferred to ${transferToWarehouse} (new item created): ${transferRemarks || 'Stock transfer'}`,
+        }, { headers: { 'x-tenant-id': TENANT_ID } });
+      }
+
+      // Refresh inventory
+      const data = await api.get('/items');
+      const itemsArray = Array.isArray(data) ? data : (data.data || []);
+      const inventoryData = itemsArray.map(item => ({
+        ...item,
+        _id: item._id || item.id, // Ensure _id is preserved
+        name: item.description || item.name || 'Unnamed Item',
+        reserved: item.reserved || 0,
+        available: (item.stock || 0) - (item.reserved || 0),
+        lastUpdated: item.updatedAt || new Date().toISOString().split('T')[0]
+      }));
+      setInventory(inventoryData);
+
+      setShowTransferModal(false);
+      setTransferToWarehouse('');
+      setTransferItem('');
+      setTransferQuantity('');
+      setTransferRemarks('');
+      alert(`Successfully transferred ${qty} ${item.unit} of ${item.name || item.description} from ${transferFromWarehouse} to ${transferToWarehouse}`);
+    } catch (err) {
+      // Error logged silently
+      alert(err.message || 'Failed to transfer stock. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // Fetch inventory stats from backend
   useEffect(() => {
     const fetchInventoryStats = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/inventory/stats?tenantId=${TENANT_ID}`, {
-          headers: getAuthHeaders(),
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setInventoryStats(data.data || data);
-        }
+        const data = await api.get('/inventory/stats');
+        setInventoryStats(data.data || data);
       } catch (err) {
-        console.error('Error fetching inventory stats:', err);
+        // Error fetching stats
       }
     };
     fetchInventoryStats();
@@ -351,15 +516,10 @@ const InventoryPage = () => {
   useEffect(() => {
     const fetchByCategory = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/inventory/by-category?tenantId=${TENANT_ID}`, {
-          headers: getAuthHeaders(),
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setItemsByCategory(data.data || data || []);
-        }
+        const data = await api.get('/inventory/by-category');
+        setItemsByCategory(data.data || data || []);
       } catch (err) {
-        console.error('Error fetching items by category:', err);
+        // Error fetching by category
       }
     };
     fetchByCategory();
@@ -370,14 +530,7 @@ const InventoryPage = () => {
     const fetchInventory = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`${API_BASE_URL}/items?tenantId=${TENANT_ID}`, {
-          headers: getAuthHeaders(),
-        });
-        if (!response.ok) {
-          throw new Error('Failed to fetch items');
-        }
-        const data = await response.json();
-        console.log('Items API Response:', data);
+        const data = await api.get('/items');
 
         // Parse items array from response
         let itemsArray = [];
@@ -392,6 +545,7 @@ const InventoryPage = () => {
         // Map items to inventory format (description -> name, add reserved/available)
         const inventoryData = itemsArray.map(item => ({
           ...item,
+          _id: item._id || item.id, // Ensure _id is preserved
           name: item.description || item.name || 'Unnamed Item',
           reserved: item.reserved || 0,
           available: (item.stock || 0) - (item.reserved || 0),
@@ -401,7 +555,6 @@ const InventoryPage = () => {
         setInventory(inventoryData);
         setError(null);
       } catch (err) {
-        console.error('Error fetching items:', err);
         setError(err.message);
       } finally {
         setLoading(false);
@@ -415,16 +568,11 @@ const InventoryPage = () => {
   useEffect(() => {
     const fetchItems = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/items?tenantId=${TENANT_ID}`, {
-          headers: getAuthHeaders(),
-        });
-        if (response.ok) {
-          const data = await response.json();
-          const itemsArray = Array.isArray(data) ? data : (data.data || []);
-          setItems(itemsArray);
-        }
+        const data = await api.get('/items');
+        const itemsArray = Array.isArray(data) ? data : (data.data || []);
+        setItems(itemsArray);
       } catch (err) {
-        console.error('Error fetching items:', err);
+        // Error fetching items
       }
     };
 
@@ -435,16 +583,11 @@ const InventoryPage = () => {
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        const response = await fetch(`${PROJECT_API_BASE_URL}/projects?tenantId=${TENANT_ID}`, {
-          headers: getAuthHeaders(),
-        });
-        if (response.ok) {
-          const data = await response.json();
-          const projectsArray = Array.isArray(data) ? data : (data.data || []);
-          setProjects(projectsArray);
-        }
+        const data = await api.get('/projects');
+        const projectsArray = Array.isArray(data) ? data : (data.data || []);
+        setProjects(projectsArray);
       } catch (err) {
-        console.error('Error fetching projects:', err);
+        // Error fetching projects
       }
     };
 
@@ -457,8 +600,9 @@ const InventoryPage = () => {
     const totalValue = inventory.reduce((a, i) => a + (i.stock || 0) * (i.rate || 0), 0);
     const lowStockItems = inventory.filter(i => ((i.stock || 0) - (i.reserved || 0)) <= (i.minStock || 0) && ((i.stock || 0) - (i.reserved || 0)) > 0).length;
     const outOfStockItems = inventory.filter(i => (i.stock || 0) === 0).length;
+    const reservedItems = inventory.reduce((a, i) => a + (i.reserved || 0), 0);
 
-    return { totalItems, totalValue, lowStockItems, outOfStockItems };
+    return { totalItems, totalValue, lowStockItems, outOfStockItems, reservedItems };
   }, [inventory]);
 
   const warehouseItems = useMemo(() => {
@@ -502,18 +646,7 @@ const InventoryPage = () => {
         status: 'In Stock',
       };
 
-      const response = await fetch(`${API_BASE_URL}/items?tenantId=${TENANT_ID}`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(newItem),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to create item: ${errorText}`);
-      }
-
-      const createdItem = await response.json();
+      const createdItem = await api.post('/items', newItem);
       const itemData = createdItem.data || createdItem;
       // Map to inventory format
       setInventory(prev => [...prev, {
@@ -525,7 +658,6 @@ const InventoryPage = () => {
       setForm({ itemId: '', name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
       alert('Item added successfully!');
     } catch (err) {
-      console.error('Error adding item:', err);
       alert(err.message || 'Failed to add item. Please try again.');
     } finally {
       setSubmitting(false);
@@ -537,31 +669,27 @@ const InventoryPage = () => {
 
     setSubmitting(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/items/${stockInForm.itemId}/stock-in?tenantId=${TENANT_ID}`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          quantity: parseInt(stockInForm.quantity),
-          poReference: stockInForm.poReference,
-          receivedDate: stockInForm.receivedDate,
-          remarks: stockInForm.remarks,
-          warehouse: stockInForm.warehouse,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to stock in: ${errorText}`);
+      // Find item by itemId to get _id
+      const item = inventory.find(i => i.itemId === stockInForm.itemId || i._id === stockInForm.itemId);
+      if (!item || !item._id) {
+        alert('Item not found');
+        setSubmitting(false);
+        return;
       }
-
-      const updatedItem = await response.json();
+      
+      const updatedItem = await api.post(`/items/${item._id}/stock-in`, {
+        quantity: parseInt(stockInForm.quantity),
+        poReference: stockInForm.poReference,
+        receivedDate: stockInForm.receivedDate,
+        remarks: stockInForm.remarks,
+        warehouse: stockInForm.warehouse,
+      }, { headers: { 'x-tenant-id': TENANT_ID } });
       const itemData = updatedItem.data || updatedItem;
-      setInventory(prev => prev.map(i => i._id === stockInForm.itemId ? itemData : i));
+      setInventory(prev => prev.map(i => i._id === item._id ? itemData : i));
       setStockIn(false);
       setStockInForm({ itemId: '', quantity: '', poReference: '', receivedDate: '', remarks: '', warehouse: '' });
       alert('Stock added successfully!');
     } catch (err) {
-      console.error('Error adding stock:', err);
       alert(err.message || 'Failed to add stock. Please try again.');
     } finally {
       setSubmitting(false);
@@ -580,20 +708,10 @@ const InventoryPage = () => {
   const fetchItemReservations = async (itemId) => {
     setLoadingReservations(true);
     try {
-      console.log('Fetching reservations for itemId:', itemId);
-      const response = await fetch(`${API_BASE_URL}/inventory/reservations/by-item/${itemId}?tenantId=${TENANT_ID}`, {
-        headers: getAuthHeaders(),
-      });
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Reservation API response:', data);
-        console.log('Reservations count:', (data.data || data || []).length);
-        setItemReservations(data.data || data || []);
-      } else {
-        console.error('Reservation API error:', response.status, await response.text());
-      }
+      const data = await api.get(`/inventory/reservations/by-item/${itemId}`);
+      setItemReservations(data.data || data || []);
     } catch (err) {
-      console.error('Error fetching reservations:', err);
+      // Error fetching reservations
     } finally {
       setLoadingReservations(false);
     }
@@ -627,18 +745,7 @@ const InventoryPage = () => {
         status: editForm.status || undefined
       };
 
-      const response = await fetch(`${API_BASE_URL}/inventory/${editingItem.itemId}?tenantId=${TENANT_ID}`, {
-        method: 'PATCH',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(updateData),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to update item: ${errorText}`);
-      }
-
-      const updatedItem = await response.json();
+      const updatedItem = await apiClient.patch(`/inventory/${editingItem.itemId}`, updateData, { params: { tenantId: TENANT_ID } });
       const itemData = updatedItem.data || updatedItem;
       setInventory(prev => prev.map(i => i.itemId === editingItem.itemId ? itemData : i));
       setShowEdit(false);
@@ -646,7 +753,6 @@ const InventoryPage = () => {
       setEditForm({ name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
       alert('Item updated successfully!');
     } catch (err) {
-      console.error('Error updating item:', err);
       alert(err.message || 'Failed to update item. Please try again.');
     } finally {
       setSubmitting(false);
@@ -656,19 +762,11 @@ const InventoryPage = () => {
   const handleDeleteItem = async (itemId) => {
     if (!window.confirm('Are you sure you want to delete this item?')) return;
     try {
-      const response = await fetch(`${API_BASE_URL}/inventory/${itemId}?tenantId=${TENANT_ID}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders(),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete item');
-      }
+      await apiClient.delete(`/inventory/${itemId}`, { params: { tenantId: TENANT_ID } });
 
       setInventory(prev => prev.filter(i => i.itemId !== itemId));
       alert('Item deleted successfully!');
     } catch (err) {
-      console.error('Error deleting item:', err);
       alert(err.message || 'Failed to delete item. Please try again.');
     }
   };
@@ -678,58 +776,47 @@ const InventoryPage = () => {
 
     setSubmitting(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/items/${stockOutForm.itemId}/stock-out?tenantId=${TENANT_ID}`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          quantity: parseInt(stockOutForm.quantity),
-          projectId: stockOutForm.projectId,
-          issuedDate: stockOutForm.issuedDate,
-          remarks: stockOutForm.remarks,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to stock out: ${errorText}`);
+      // Find item by itemId to get _id
+      const item = inventory.find(i => i.itemId === stockOutForm.itemId || i._id === stockOutForm.itemId);
+      if (!item || !item._id) {
+        alert('Item not found');
+        setSubmitting(false);
+        return;
       }
-
-      const updatedItem = await response.json();
+      
+      const updatedItem = await api.post(`/items/${item._id}/stock-out`, {
+        quantity: parseInt(stockOutForm.quantity),
+        projectId: stockOutForm.projectId,
+        issuedDate: stockOutForm.issuedDate,
+        remarks: stockOutForm.remarks,
+      }, { headers: { 'x-tenant-id': TENANT_ID } });
       const itemData = updatedItem.data || updatedItem;
 
       // Create reservation record for the project
       if (stockOutForm.projectId) {
         try {
-          // Find the item by itemId (not _id since stockOutForm.itemId now contains itemId)
-          const item = inventory.find(i => i.itemId === stockOutForm.itemId);
           // Find project name
           const project = projects.find(p => p.projectId === stockOutForm.projectId);
           const projectName = project?.customerName || project?.name || 'Unknown Project';
           
-          await fetch(`${API_BASE_URL}/inventory/reservations?tenantId=${TENANT_ID}`, {
-            method: 'POST',
-            headers: getAuthHeaders(),
-            body: JSON.stringify({
-              reservationId: `RES-${Date.now()}`,
-              itemId: item?.itemId || stockOutForm.itemId,
-              projectId: stockOutForm.projectId,
-              projectName: projectName,
-              quantity: parseInt(stockOutForm.quantity),
-              notes: stockOutForm.remarks || `Stock issued on ${stockOutForm.issuedDate || new Date().toISOString().split('T')[0]}`,
-            }),
-          });
+          await apiClient.post('/inventory/reservations', {
+            reservationId: `RES-${Date.now()}`,
+            itemId: item?.itemId || stockOutForm.itemId,
+            projectId: stockOutForm.projectId,
+            projectName: projectName,
+            quantity: parseInt(stockOutForm.quantity),
+            notes: stockOutForm.remarks || `Stock issued on ${stockOutForm.issuedDate || new Date().toISOString().split('T')[0]}`,
+          }, { params: { tenantId: TENANT_ID } });
         } catch (resErr) {
-          console.error('Error creating reservation record:', resErr);
           // Don't fail the whole operation if reservation creation fails
         }
       }
 
-      setInventory(prev => prev.map(i => i.itemId === stockOutForm.itemId ? itemData : i));
+      setInventory(prev => prev.map(i => i._id === item._id ? itemData : i));
       setShowStockOut(false);
       setStockOutForm({ itemId: '', quantity: '', projectId: '', issuedDate: '', remarks: '' });
       alert('Stock issued successfully! Project reservation recorded.');
     } catch (err) {
-      console.error('Error issuing stock:', err);
       alert(err.message || 'Failed to issue stock. Please try again.');
     } finally {
       setSubmitting(false);
@@ -759,31 +846,14 @@ const InventoryPage = () => {
         return;
       }
 
-      const response = await fetch(`${API_BASE_URL}/items/${item._id || itemId}?tenantId=${TENANT_ID}`, {
-        method: 'PATCH',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ status: newStatus }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to update status: ${errorText}`);
-      }
-
-      const updatedItem = await response.json();
+      const updatedItem = await api.patch(`/items/${item._id || itemId}`, { status: newStatus }, { headers: { 'x-tenant-id': TENANT_ID } });
       const itemData = updatedItem.data || updatedItem;
       setInventory(prev => prev.map(i => (i._id || i.itemId) === (itemData._id || itemData.itemId) ? { ...i, status: newStatus } : i));
       
       // Refresh stats
-      const statsResponse = await fetch(`${API_BASE_URL}/inventory/stats?tenantId=${TENANT_ID}`, {
-        headers: getAuthHeaders(),
-      });
-      if (statsResponse.ok) {
-        const statsData = await statsResponse.json();
-        setInventoryStats(statsData.data || statsData);
-      }
+      const statsData = await api.get('/inventory/stats', { headers: { 'x-tenant-id': TENANT_ID } });
+      setInventoryStats(statsData.data || statsData);
     } catch (err) {
-      console.error('Error updating stock status:', err);
       alert(err.message || 'Failed to update stock status. Please try again.');
     } finally {
       setSubmitting(false);
@@ -791,7 +861,7 @@ const InventoryPage = () => {
   };
 
   // Category CRUD Functions
-  const handleAddCategory = () => {
+  const handleAddCategory = async () => {
     if (!newCategory.trim()) {
       alert('Please enter a category name');
       return;
@@ -800,13 +870,27 @@ const InventoryPage = () => {
       alert('Category already exists');
       return;
     }
-    setCategories([...categories, newCategory.trim()]);
-    setNewCategory('');
-    setShowCategoryModal(false);
-    alert('Category added successfully');
+    
+    setSubmitting(true);
+    try {
+      const code = newCategory.trim().toUpperCase().replace(/\s+/g, '-');
+      await api.post('/lookups/categories', {
+        code,
+        name: newCategory.trim(),
+        description: `${newCategory.trim()} category`,
+      }, { headers: { 'x-tenant-id': TENANT_ID } });
+      setCategories([...categories, newCategory.trim()]);
+      setNewCategory('');
+      setShowCategoryModal(false);
+      alert('Category added successfully');
+    } catch (err) {
+      alert(err.message || 'Failed to add category');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleEditCategory = (oldCategory) => {
+  const handleEditCategory = async (oldCategory) => {
     if (!editCategoryValue.trim()) {
       alert('Please enter a category name');
       return;
@@ -815,18 +899,115 @@ const InventoryPage = () => {
       alert('Category already exists');
       return;
     }
-    setCategories(categories.map(cat => cat === oldCategory ? editCategoryValue.trim() : cat));
-    setEditingCategory(null);
-    setEditCategoryValue('');
-    alert('Category updated successfully');
+    
+    setSubmitting(true);
+    try {
+      const oldCode = oldCategory.toUpperCase().replace(/\s+/g, '-');
+      await api.patch(`/lookups/categories/${oldCode}`, {
+        name: editCategoryValue.trim(),
+      }, { headers: { 'x-tenant-id': TENANT_ID } });
+      setCategories(categories.map(cat => cat === oldCategory ? editCategoryValue.trim() : cat));
+      setEditingCategory(null);
+      setEditCategoryValue('');
+      alert('Category updated successfully');
+    } catch (err) {
+      alert(err.message || 'Failed to update category');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleDeleteCategory = (categoryToDelete) => {
+  const handleDeleteCategory = async (categoryToDelete) => {
     if (!window.confirm(`Are you sure you want to delete "${categoryToDelete}" category?`)) {
       return;
     }
-    setCategories(categories.filter(cat => cat !== categoryToDelete));
-    alert('Category deleted successfully');
+    
+    setSubmitting(true);
+    try {
+      const code = categoryToDelete.toUpperCase().replace(/\s+/g, '-');
+      await api.delete(`/lookups/categories/${code}`, { headers: { 'x-tenant-id': TENANT_ID } });
+      setCategories(categories.filter(cat => cat !== categoryToDelete));
+      alert('Category deleted successfully');
+    } catch (err) {
+      alert(err.message || 'Failed to delete category');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Unit CRUD Functions
+  const handleAddUnit = async () => {
+    if (!newUnit.trim()) {
+      alert('Please enter a unit name');
+      return;
+    }
+    if (units.includes(newUnit.trim())) {
+      alert('Unit already exists');
+      return;
+    }
+    
+    setSubmitting(true);
+    try {
+      const code = newUnit.trim().toUpperCase().replace(/\s+/g, '-');
+      await api.post('/lookups/units', {
+        code,
+        name: newUnit.trim(),
+        description: `${newUnit.trim()} unit`,
+      }, { headers: { 'x-tenant-id': TENANT_ID } });
+      setUnits([...units, newUnit.trim()]);
+      setNewUnit('');
+      setShowUnitModal(false);
+      alert('Unit added successfully');
+    } catch (err) {
+      alert(err.message || 'Failed to add unit');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleEditUnit = async (oldUnit) => {
+    if (!editUnitValue.trim()) {
+      alert('Please enter a unit name');
+      return;
+    }
+    if (units.includes(editUnitValue.trim()) && editUnitValue.trim() !== oldUnit) {
+      alert('Unit already exists');
+      return;
+    }
+    
+    setSubmitting(true);
+    try {
+      const oldCode = oldUnit.toUpperCase().replace(/\s+/g, '-');
+      await api.patch(`/lookups/units/${oldCode}`, {
+        name: editUnitValue.trim(),
+      }, { headers: { 'x-tenant-id': TENANT_ID } });
+      setUnits(units.map(u => u === oldUnit ? editUnitValue.trim() : u));
+      setEditingUnit(null);
+      setEditUnitValue('');
+      alert('Unit updated successfully');
+    } catch (err) {
+      alert(err.message || 'Failed to update unit');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteUnit = async (unitToDelete) => {
+    if (!window.confirm(`Are you sure you want to delete "${unitToDelete}" unit?`)) {
+      return;
+    }
+    
+    setSubmitting(true);
+    try {
+      const code = unitToDelete.toUpperCase().replace(/\s+/g, '-');
+      await api.delete(`/lookups/units/${code}`, { headers: { 'x-tenant-id': TENANT_ID } });
+      setUnits(units.filter(u => u !== unitToDelete));
+      alert('Unit deleted successfully');
+    } catch (err) {
+      alert(err.message || 'Failed to delete unit');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const ROW_ACTIONS = [
@@ -847,6 +1028,12 @@ const InventoryPage = () => {
         <div className="flex items-center gap-2 flex-wrap">
           {/* Main Tabs - Now at top right */}
           <div className="flex items-center gap-1 p-1 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-base)]">
+            <button 
+              onClick={() => setActiveTab('dashboard')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${activeTab === 'dashboard' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+            >
+              Dashboard
+            </button>
             <button 
               onClick={() => setActiveTab('inventory')}
               className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${activeTab === 'inventory' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
@@ -870,6 +1057,12 @@ const InventoryPage = () => {
               className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${activeTab === 'category' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
             >
               Category
+            </button>
+            <button 
+              onClick={() => setActiveTab('unit')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${activeTab === 'unit' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+            >
+              Unit
             </button>
           </div>
         </div>
@@ -895,11 +1088,77 @@ const InventoryPage = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <KPICard label="Total Items" value={dynamicStats.totalItems} sub="SKUs tracked" icon={Package} accentColor="#3b82f6" />
-            <KPICard label="Inventory Value" value={fmt(dynamicStats.totalValue)} sub="At current rates" icon={Warehouse} accentColor="#f59e0b" />
-            <KPICard label="Low Stock Alerts" value={dynamicStats.lowStockItems} sub="Items need reorder" icon={AlertTriangle} accentColor="#f59e0b" />
-            <KPICard label="Out of Stock" value={dynamicStats.outOfStockItems} sub="Immediate action needed" icon={AlertTriangle} accentColor="#ef4444" />
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 to-blue-400 rounded-2xl p-5 shadow-lg shadow-blue-500/20">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+              <div className="relative flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-blue-50 uppercase tracking-wider">Total Items</p>
+                  <p className="text-3xl font-bold text-white mt-2">{dynamicStats.totalItems}</p>
+                  <p className="text-xs text-blue-100/80 mt-1">SKUs tracked</p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                  <Package size={24} className="text-white" />
+                </div>
+              </div>
+            </div>
+            {/* Card 2: Reserved Items - Swapped to position 2 */}
+            <div className="relative overflow-hidden bg-gradient-to-br from-violet-600 to-purple-500 rounded-2xl p-5 shadow-lg shadow-violet-500/20">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+              <div className="relative flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-violet-50 uppercase tracking-wider">Reserved Items</p>
+                  <p className="text-3xl font-bold text-white mt-2">{dynamicStats.reservedItems}</p>
+                  <p className="text-xs text-violet-100/80 mt-1">Allocated to projects</p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                  <Package size={24} className="text-white" />
+                </div>
+              </div>
+            </div>
+
+            <div className="relative overflow-hidden bg-gradient-to-br from-amber-500 to-orange-400 rounded-2xl p-5 shadow-lg shadow-amber-500/20">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+              <div className="relative flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-amber-50 uppercase tracking-wider">Low Stock</p>
+                  <p className="text-3xl font-bold text-white mt-2">{dynamicStats.lowStockItems}</p>
+                  <p className="text-xs text-amber-100/80 mt-1">Items need reorder</p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                  <AlertTriangle size={24} className="text-white" />
+                </div>
+              </div>
+            </div>
+
+            <div className="relative overflow-hidden bg-gradient-to-br from-red-600 to-rose-500 rounded-2xl p-5 shadow-lg shadow-red-500/20">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+              <div className="relative flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-red-50 uppercase tracking-wider">Out of Stock</p>
+                  <p className="text-3xl font-bold text-white mt-2">{dynamicStats.outOfStockItems}</p>
+                  <p className="text-xs text-red-100/80 mt-1">Immediate action needed</p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                  <AlertTriangle size={24} className="text-white" />
+                </div>
+              </div>
+            </div>
+
+            {/* Card 5: Inventory Value - Swapped to position 5 */}
+            <div className="relative overflow-hidden bg-gradient-to-br from-emerald-600 to-emerald-400 rounded-2xl p-5 shadow-lg shadow-emerald-500/20">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+              <div className="relative flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-emerald-50 uppercase tracking-wider">Inventory Value</p>
+                  <p className="text-xl font-bold text-white mt-2">₹{(dynamicStats.totalValue / 100000).toFixed(1)}L</p>
+                  <p className="text-xs text-emerald-100/80 mt-1">At current rates</p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                  <Warehouse size={24} className="text-white" />
+                </div>
+              </div>
+            </div>
           </div>
 
           {dynamicStats.lowStockItems > 0 && (
@@ -994,7 +1253,11 @@ const InventoryPage = () => {
                   </tr>
                 ) : (
                   warehouses.map((w) => (
-                    <tr key={w} className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)]">
+                    <tr
+                      key={w}
+                      className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)] cursor-pointer"
+                      onClick={() => setViewingWarehouse(w)}
+                    >
                       <td className="px-4 py-3">
                         <span className="text-sm font-medium text-[var(--text-primary)]">{w}</span>
                       </td>
@@ -1004,21 +1267,28 @@ const InventoryPage = () => {
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
                           <button
-                            onClick={() => setViewingWarehouse(w)}
+                            onClick={(e) => { e.stopPropagation(); setViewingWarehouse(w); }}
                             className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-blue-500 hover:bg-blue-500/10"
                             title="View"
                           >
                             <Eye size={14} />
                           </button>
                           <button
-                            onClick={() => { setEditingWarehouse(w); setEditWarehouseValue(w); }}
+                            onClick={(e) => { e.stopPropagation(); setTransferFromWarehouse(w); setShowTransferModal(true); }}
+                            className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-purple-500 hover:bg-purple-500/10"
+                            title="Transfer Stock"
+                          >
+                            <ArrowRightLeft size={14} />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setEditingWarehouse(w); setEditWarehouseValue(w); }}
                             className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--bg-hover)]"
                             title="Edit"
                           >
                             <Edit2 size={14} />
                           </button>
                           <button
-                            onClick={() => handleDeleteWarehouse(w)}
+                            onClick={(e) => { e.stopPropagation(); handleDeleteWarehouse(w); }}
                             className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-red-500 hover:bg-red-500/10"
                             title="Delete"
                           >
@@ -1092,39 +1362,39 @@ const InventoryPage = () => {
                     <tr key={item._id || item.itemId} 
                       onClick={() => setSelected(item)}
                       className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)] cursor-pointer">
-                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-4 py-3">
                         <span className="text-xs font-mono text-[var(--accent-light)]">{item.itemId}</span>
                       </td>
-                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-4 py-3">
                         <span className="text-xs font-semibold text-[var(--text-primary)]">{item.name || item.description}</span>
                       </td>
-                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-4 py-3">
                         <span className="text-xs text-[var(--text-secondary)]">{item.category}</span>
                       </td>
-                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-4 py-3">
                         <span className="text-xs text-[var(--text-secondary)]">{item.unit}</span>
                       </td>
-                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-4 py-3">
                         <span className="text-xs text-[var(--text-primary)]">₹{item.rate?.toLocaleString('en-IN')}</span>
                       </td>
-                      <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
                           <button
-                            onClick={() => { setSelected(item); }}
+                            onClick={(e) => { e.stopPropagation(); setSelected(item); }}
                             className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-[var(--primary)] hover:bg-[var(--bg-hover)]"
                             title="View"
                           >
                             <Package size={14} />
                           </button>
                           <button
-                            onClick={() => handleEditClick(item)}
+                            onClick={(e) => { e.stopPropagation(); handleEditClick(item); }}
                             className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
                             title="Edit"
                           >
                             <Edit2 size={14} />
                           </button>
                           <button
-                            onClick={() => handleDeleteItem(item.itemId)}
+                            onClick={(e) => { e.stopPropagation(); handleDeleteItem(item.itemId); }}
                             className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-red-500 hover:bg-red-500/10"
                             title="Delete"
                           >
@@ -1248,6 +1518,114 @@ const InventoryPage = () => {
           </div>
         </div>
       )}
+
+      {/* UNIT TAB CONTENT */}
+      {activeTab === 'unit' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-[var(--text-primary)]">Unit Management</h2>
+            <Button onClick={() => setShowUnitModal(true)}>
+              <Plus size={14} /> Add Unit
+            </Button>
+          </div>
+
+          {/* Items by Unit - Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {units.map((unit, index) => {
+              const unitItems = inventory.filter(i => i.unit === unit);
+              if (unitItems.length === 0) return null;
+              const colors = ['bg-blue-50 border-blue-200', 'bg-amber-50 border-amber-200', 'bg-green-50 border-green-200', 'bg-purple-50 border-purple-200', 'bg-pink-50 border-pink-200', 'bg-cyan-50 border-cyan-200', 'bg-orange-50 border-orange-200', 'bg-teal-50 border-teal-200'];
+              const iconColors = ['text-blue-500', 'text-amber-500', 'text-green-500', 'text-purple-500', 'text-pink-500', 'text-cyan-500', 'text-orange-500', 'text-teal-500'];
+              const bgColors = ['bg-blue-100', 'bg-amber-100', 'bg-green-100', 'bg-purple-100', 'bg-pink-100', 'bg-cyan-100', 'bg-orange-100', 'bg-teal-100'];
+              return (
+                <div key={unit} className={`${colors[index % colors.length]} border rounded-xl p-4 flex flex-col gap-2 hover:shadow-md transition-all`}>
+                  <div className="flex items-center justify-between">
+                    <div className={`w-10 h-10 rounded-lg ${bgColors[index % bgColors.length]} flex items-center justify-center`}>
+                      <Package size={20} className={iconColors[index % iconColors.length]} />
+                    </div>
+                    <span className="text-xs font-medium text-[var(--text-muted)]">{unitItems.length} items</span>
+                  </div>
+                  <span className="text-sm font-semibold text-[var(--text-primary)]">{unit}</span>
+                  <div className="flex flex-wrap gap-1">
+                    {unitItems.slice(0, 3).map((item) => (
+                      <span key={item.itemId} className="text-[10px] px-2 py-1 bg-white rounded text-[var(--text-secondary)] border border-[var(--border-base)]">
+                        {item.name || item.description}
+                      </span>
+                    ))}
+                    {unitItems.length > 3 && (
+                      <span className="text-[10px] px-2 py-1 text-[var(--text-muted)]">
+                        +{unitItems.length - 3} more
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Units Table */}
+          <div className="mt-8">
+            <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3">Units</h3>
+            <div className="glass-card overflow-hidden">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-[var(--border-base)] bg-[var(--bg-elevated)]">
+                    <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Unit Name</th>
+                    <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Items Count</th>
+                    <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {units.map((unit) => (
+                    <tr 
+                      key={unit} 
+                      className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)] cursor-pointer"
+                      onClick={() => setViewingUnit(unit)}
+                    >
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-lg bg-[var(--bg-elevated)] flex items-center justify-center">
+                            <Package size={16} className="text-[var(--primary)]" />
+                          </div>
+                          <span className="text-sm font-medium text-[var(--text-primary)]">{unit}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs text-[var(--text-secondary)]">{inventory.filter(i => i.unit === unit).length} items</span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setViewingUnit(unit); }}
+                            className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-blue-500 hover:bg-blue-500/10"
+                            title="View"
+                          >
+                            <Eye size={14} />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setEditingUnit(unit); setEditUnitValue(unit); }}
+                            className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--bg-hover)]"
+                            title="Edit"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDeleteUnit(unit); }}
+                            className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-red-500 hover:bg-red-500/10"
+                            title="Delete"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Add Inventory Item"
         footer={<div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={() => setShowAdd(false)}>Cancel</Button>
@@ -1351,6 +1729,65 @@ const InventoryPage = () => {
             onChange={(e) => setEditWarehouseValue(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleEditWarehouse(editingWarehouse); } }} />
         </FormField>
+      </Modal>
+
+      {/* Warehouse Stock Transfer Modal */}
+      <Modal open={showTransferModal} onClose={() => { setShowTransferModal(false); setTransferToWarehouse(''); setTransferItem(''); setTransferQuantity(''); setTransferRemarks(''); }} 
+        title={`Transfer Stock — ${transferFromWarehouse}`}
+        footer={<div className="flex gap-2 justify-end">
+          <Button variant="ghost" onClick={() => { setShowTransferModal(false); setTransferToWarehouse(''); setTransferItem(''); setTransferQuantity(''); setTransferRemarks(''); }}>Cancel</Button>
+          <Button onClick={handleTransfer} disabled={submitting || !transferItem || !transferQuantity || !transferToWarehouse}>
+            {submitting ? 'Transferring...' : <><ArrowRightLeft size={13} /> Transfer Stock</>}
+          </Button>
+        </div>}>
+        <div className="space-y-3">
+          <FormField label="From Warehouse">
+            <Input value={transferFromWarehouse} disabled className="bg-[var(--bg-muted)]" />
+          </FormField>
+          <FormField label="To Warehouse" required>
+            <Select value={transferToWarehouse} onChange={e => setTransferToWarehouse(e.target.value)}>
+              <option value="">Select Destination Warehouse</option>
+              {warehouses.filter(w => w !== transferFromWarehouse).map(w => <option key={w} value={w}>{w}</option>)}
+            </Select>
+          </FormField>
+          <FormField label="Item" required>
+            <Select value={transferItem} onChange={e => { setTransferItem(e.target.value); }}>
+              <option value="">Select Item to Transfer</option>
+              {inventory.filter(i => i.warehouse === transferFromWarehouse).map(i => (
+                <option key={i.itemId} value={i.itemId}>
+                  {i.name || i.description} ({i.itemId}) — Available: {i.available} {i.unit}
+                </option>
+              ))}
+            </Select>
+          </FormField>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Quantity to Transfer" required>
+              <Input type="number" placeholder="Enter quantity" value={transferQuantity} 
+                onChange={e => setTransferQuantity(e.target.value)} 
+                min="1"
+                max={inventory.find(i => i.itemId === transferItem && i.warehouse === transferFromWarehouse)?.available || ''}
+              />
+            </FormField>
+            <FormField label="Available Stock">
+              <Input 
+                value={transferItem ? `${inventory.find(i => i.itemId === transferItem && i.warehouse === transferFromWarehouse)?.available || 0} ${inventory.find(i => i.itemId === transferItem && i.warehouse === transferFromWarehouse)?.unit || ''}` : '—'} 
+                disabled 
+                className="bg-[var(--bg-muted)]" 
+              />
+            </FormField>
+          </div>
+          <FormField label="Remarks">
+            <Input placeholder="Optional notes about this transfer..." value={transferRemarks} onChange={e => setTransferRemarks(e.target.value)} />
+          </FormField>
+          {transferItem && (
+            <div className="text-[11px] text-[var(--text-muted)] bg-[var(--bg-elevated)] p-2 rounded-lg">
+              <p className="font-medium mb-1">Item Details:</p>
+              <p>Stock: {inventory.find(i => i.itemId === transferItem && i.warehouse === transferFromWarehouse)?.stock || 0}</p>
+              <p>Reserved: {inventory.find(i => i.itemId === transferItem && i.warehouse === transferFromWarehouse)?.reserved || 0}</p>
+              <p>Available: {inventory.find(i => i.itemId === transferItem && i.warehouse === transferFromWarehouse)?.available || 0}</p>
+            </div>
+          )}
+        </div>
       </Modal>
 
       {/* Stock In Modal */}
@@ -1614,6 +2051,71 @@ const InventoryPage = () => {
             </div>
           </div>
         </div>
+      </Modal>
+      {/* View Unit Modal */}
+      <Modal open={!!viewingUnit} onClose={() => setViewingUnit(null)} title={`Unit — ${viewingUnit}`}
+        footer={<Button variant="ghost" onClick={() => setViewingUnit(null)}>Close</Button>}>
+        <div className="space-y-4">
+          <div className="glass-card p-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-xl bg-[var(--bg-elevated)] flex items-center justify-center">
+                <Package size={24} className="text-[var(--primary)]" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-[var(--text-primary)]">{viewingUnit}</h3>
+                <p className="text-sm text-[var(--text-muted)]">{inventory.filter(i => i.unit === viewingUnit).length} items</p>
+              </div>
+            </div>
+          </div>
+          
+          <div>
+            <h4 className="text-sm font-semibold text-[var(--text-primary)] mb-2">Items using this unit</h4>
+            <div className="space-y-2">
+              {inventory.filter(i => i.unit === viewingUnit).length === 0 ? (
+                <p className="text-sm text-[var(--text-muted)]">No items using this unit</p>
+              ) : (
+                inventory.filter(i => i.unit === viewingUnit).map(item => (
+                  <div key={item.itemId} className="glass-card p-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-[var(--text-primary)]">{item.name || item.description}</p>
+                      <p className="text-xs text-[var(--text-muted)]">{item.itemId}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-[var(--text-primary)]">{item.stock} {item.unit}</p>
+                      <p className="text-xs text-[var(--text-muted)]">₹{item.rate?.toLocaleString('en-IN') || 0}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Add Unit Modal */}
+      <Modal open={showUnitModal} onClose={() => { setShowUnitModal(false); setNewUnit(''); }} title="Add New Unit"
+        footer={<div className="flex gap-2 justify-end">
+          <Button variant="ghost" onClick={() => { setShowUnitModal(false); setNewUnit(''); }}>Cancel</Button>
+          <Button onClick={handleAddUnit} disabled={!newUnit.trim()}>Add Unit</Button>
+        </div>}>
+        <FormField label="Unit Name" required>
+          <Input placeholder="Enter unit name (e.g., Liters, Pieces)" value={newUnit}
+            onChange={(e) => setNewUnit(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddUnit(); } }} />
+        </FormField>
+      </Modal>
+
+      {/* Edit Unit Modal */}
+      <Modal open={!!editingUnit} onClose={() => { setEditingUnit(null); setEditUnitValue(''); }} title={`Edit Unit — ${editingUnit}`}
+        footer={<div className="flex gap-2 justify-end">
+          <Button variant="ghost" onClick={() => { setEditingUnit(null); setEditUnitValue(''); }}>Cancel</Button>
+          <Button onClick={() => handleEditUnit(editingUnit)} disabled={!editUnitValue.trim()}>Save Changes</Button>
+        </div>}>
+        <FormField label="Unit Name" required>
+          <Input placeholder="Enter new unit name" value={editUnitValue}
+            onChange={(e) => setEditUnitValue(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleEditUnit(editingUnit); } }} />
+        </FormField>
       </Modal>
     </div>
   );
