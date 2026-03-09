@@ -192,6 +192,8 @@ export const financeApi = {
 
   getMonthlyRevenue: (months) => api.get('/finance/monthly-revenue', { months }).then(extractData).catch(handleError),
 
+  getTransactionAnalytics: (months) => api.get('/finance/transaction-analytics', { months }).then(extractData).catch(handleError),
+
   // Manual Adjustments
 
   getManualAdjustments: () => api.get('/finance/manual-adjustments').then(extractData).catch(handleError),

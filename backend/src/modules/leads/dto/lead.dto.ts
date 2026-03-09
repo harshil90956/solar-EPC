@@ -143,7 +143,121 @@ export class CreateLeadDto {
   notes?: string;
 }
 
-export class UpdateLeadDto extends CreateLeadDto {}
+export class UpdateLeadDto {
+  @IsOptional()
+  @IsString()
+  leadId?: string;
+
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  company?: string;
+
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @IsOptional()
+  @IsString()
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  source?: string;
+
+  @IsOptional()
+  @IsString()
+  statusKey?: string;
+
+  @IsOptional()
+  @IsString()
+  stage?: string;
+
+  @IsOptional()
+  @IsString()
+  status?: string;
+
+  @IsOptional()
+  @IsNumber()
+  score?: number;
+
+  @IsOptional()
+  @IsString()
+  assignedTo?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  kw?: number;
+
+  @IsOptional()
+  @IsNumber()
+  value?: number;
+
+  @IsOptional()
+  @IsNumber()
+  age?: number;
+
+  @IsOptional()
+  @IsString()
+  city?: string;
+
+  @IsOptional()
+  @IsString()
+  state?: string;
+
+  @IsOptional()
+  @IsNumber()
+  monthlyBill?: number;
+
+  @IsOptional()
+  @IsNumber()
+  roofArea?: number;
+
+  @IsOptional()
+  @IsString()
+  roofType?: string;
+
+  @IsOptional()
+  @IsNumber()
+  budget?: number;
+
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  tags?: string[];
+
+  @IsOptional()
+  @IsArray()
+  activities?: ActivityDto[];
+
+  @IsOptional()
+  @IsString()
+  nextFollowUp?: string;
+
+  @IsOptional()
+  @IsNumber()
+  slaHours?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  slaBreached?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  archived?: boolean;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
 
 export class QueryLeadDto {
   @IsOptional()

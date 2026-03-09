@@ -8,8 +8,10 @@ import { Input, FormField, Select, Textarea } from '../components/ui/Input';
 import { KPICard } from '../components/ui/KPICard';
 import { toast } from '../components/ui/Toast';
 import { employeeApi, departmentApi } from '../services/hrmApi';
+import { useSettings } from '../context/SettingsContext';
 
 const EmployeesPage = () => {
+  const { customRoles } = useSettings();
   const [employees, setEmployees] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -28,7 +30,7 @@ const EmployeesPage = () => {
     password: '',
     employeeId: '',
     department: '',
-    designation: '',
+    roleId: '',
     joiningDate: '',
     salary: '',
     status: 'active',
@@ -115,7 +117,7 @@ const EmployeesPage = () => {
       password: '',
       employeeId: employee.employeeId || '',
       department: employee.department || '',
-      designation: employee.designation || '',
+      roleId: employee.roleId || '',
       joiningDate: employee.joiningDate ? employee.joiningDate.split('T')[0] : '',
       salary: employee.salary || '',
       status: employee.status || 'active',
@@ -147,7 +149,7 @@ const EmployeesPage = () => {
       password: '',
       employeeId: '',
       department: '',
-      designation: '',
+      roleId: '',
       joiningDate: '',
       salary: '',
       status: 'active',
@@ -171,14 +173,14 @@ const EmployeesPage = () => {
   });
 
   const exportToCSV = () => {
-    const headers = ['Employee ID', 'Name', 'Email', 'Phone', 'Department', 'Designation', 'Join Date', 'Status', 'Salary'];
+    const headers = ['Employee ID', 'Name', 'Email', 'Phone', 'Department', 'Role', 'Join Date', 'Status', 'Salary'];
     const rows = filteredEmployees.map(emp => [
       emp.employeeId,
       `${emp.firstName} ${emp.lastName}`,
       emp.email,
       emp.phone,
       emp.department,
-      emp.designation,
+      emp.roleId,
       emp.joinDate ? new Date(emp.joinDate).toLocaleDateString() : '',
       emp.status,
       emp.salary
@@ -238,9 +240,12 @@ const EmployeesPage = () => {
       ),
     },
     {
-      key: 'designation',
-      header: 'Designation',
-      render: (val) => <span className="text-sm">{val || '-'}</span>,
+      key: 'roleId',
+      header: 'Role',
+      render: (val) => {
+        const role = Object.values(customRoles || {}).find(r => (r._id || r.id) === val);
+        return <span className="text-sm">{role?.label || role?.name || val || '-'}</span>;
+      },
     },
     {
       key: 'joinDate',
@@ -492,12 +497,19 @@ const EmployeesPage = () => {
             </Select>
           </FormField>
 
-          <FormField label="Designation">
-            <Input
-              value={formData.designation}
-              onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
-              placeholder="e.g., Software Engineer"
-            />
+          <FormField label="Role *">
+            <Select
+              value={formData.roleId}
+              onChange={(e) => setFormData({ ...formData, roleId: e.target.value })}
+              required
+            >
+              <option value="">Select Role</option>
+              {Object.values(customRoles || {}).map((role) => (
+                <option key={role._id || role.id} value={role._id || role.id}>
+                  {role.label || role.name}
+                </option>
+              ))}
+            </Select>
           </FormField>
 
           <FormField label="Join Date *">

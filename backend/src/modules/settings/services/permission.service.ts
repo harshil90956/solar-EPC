@@ -35,6 +35,7 @@ export class PermissionService {
    * 2. User Override Check (Hard Override) - User-specific override takes precedence
    * 3. Custom Role Check (User-Assigned Role) - Custom role permissions
    * 4. Base RBAC Check (Default Role Permissions) - System role defaults
+   * 5. Admin Fallback - Admin roles get full permissions if no RBAC config
    */
   async resolvePermission(
     tenantId: string | undefined,
@@ -43,6 +44,14 @@ export class PermissionService {
     moduleId: string,
     actionId: string,
   ): Promise<PermissionResult> {
+    // Check if this is an admin-like role (for fallback)
+    const roleLower = baseRoleId.toLowerCase();
+    const isAdminLike = roleLower === 'admin' 
+      || roleLower === 'superadmin' 
+      || roleLower === 'super-admin'
+      || roleLower === 'manager'
+      || roleLower === 'supervisor';
+
     // ─────────────────────────────────────────────────────────────────────
     // STEP 1: Feature Flag Check (Global Kill Switch)
     // ─────────────────────────────────────────────────────────────────────
@@ -106,10 +115,32 @@ export class PermissionService {
     // ─────────────────────────────────────────────────────────────────────
     const basePerm = await this.rbacService.getPermission(tenantId, baseRoleId, moduleId, actionId);
     
+    // If RBAC config exists, use it
+    if (basePerm !== undefined) {
+      return {
+        permitted: basePerm,
+        source: 'base_rbac',
+        reason: `Base role ${baseRoleId} sets ${actionId}=${basePerm}`,
+      };
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // STEP 5: Admin Fallback (No RBAC config found)
+    // Admin roles get full permissions by default if no explicit config
+    // ─────────────────────────────────────────────────────────────────────
+    if (isAdminLike) {
+      return {
+        permitted: true,
+        source: 'default',
+        reason: `Admin role ${baseRoleId} granted permission by default (no RBAC config)`,
+      };
+    }
+
+    // Non-admin roles denied by default
     return {
-      permitted: basePerm,
-      source: 'base_rbac',
-      reason: `Base role ${baseRoleId} sets ${actionId}=${basePerm}`,
+      permitted: false,
+      source: 'default',
+      reason: `No permission config found for role ${baseRoleId}`,
     };
   }
 

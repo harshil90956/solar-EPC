@@ -132,6 +132,7 @@ export class PermissionCacheService {
   /**
    * Generate complete permission matrix for a user
    * This combines: Feature Flags -> User Overrides -> Custom Role -> Base RBAC
+   * Admin roles get full permissions by default if no RBAC config exists
    */
   private async generatePermissionMatrix(
     tenantId: string | undefined,
@@ -141,6 +142,14 @@ export class PermissionCacheService {
     const matrix: PermissionMatrix = new Map();
     
     const tid = this.toObjectId(tenantId);
+    
+    // Check if this is an admin-like role
+    const roleLower = baseRoleId.toLowerCase();
+    const isAdminLike = roleLower === 'admin' 
+      || roleLower === 'superadmin' 
+      || roleLower === 'super-admin'
+      || roleLower === 'manager'
+      || roleLower === 'supervisor';
     
     // Get all feature flags to know available modules
     const featureFlags = await this.featureFlagModel.find(
@@ -180,6 +189,9 @@ export class PermissionCacheService {
     for (const config of rbacConfigs) {
       baseRbacPerms.set(config.moduleId, this.convertMapToMap(config.permissions));
     }
+    
+    // Check if any RBAC config exists for this role
+    const hasRbacConfig = baseRbacPerms.size > 0;
 
     // Build final matrix using hierarchy
     for (const flag of featureFlags) {
@@ -215,8 +227,14 @@ export class PermissionCacheService {
             if (customPerm !== undefined) {
               permitted = customPerm;
             } else {
-              // 4. Fall back to base RBAC
-              permitted = baseRbacPerms.get(moduleId)?.get(action) ?? false;
+              // 4. Check base RBAC
+              const rbacPerm = baseRbacPerms.get(moduleId)?.get(action);
+              if (rbacPerm !== undefined) {
+                permitted = rbacPerm;
+              } else {
+                // 5. Admin fallback - grant full permissions if no RBAC config
+                permitted = isAdminLike && hasRbacConfig === false;
+              }
             }
           }
         }

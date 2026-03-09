@@ -821,6 +821,9 @@ export const SettingsProvider = ({ children }) => {
 
     // ── Derived lists ─────────────────────────────────────────────────────────
     const allRoles = useMemo(() => [
+        // Base system roles
+        ...ROLE_DEFS.map(r => ({ ...r, isBaseRole: true })),
+        // Custom roles from settings
         ...Object.values(customRoles || {}),
     ], [customRoles]);
 

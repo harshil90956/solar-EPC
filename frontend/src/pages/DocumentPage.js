@@ -248,7 +248,7 @@ const DocumentCard = ({ document, onClick, onSend, onDuplicate, onDelete }) => {
 // ── Main Document Page Component ─────────────────────────────────────────────
 const DocumentPage = () => {
   const [activeTab, setActiveTab] = useState('estimate');
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'list'
+  const [viewMode, setViewMode] = useState('list'); // 'grid' | 'list'
   const [searchQuery, setSearchQuery] = useState('');
   const [scoringEnabled, setScoringEnabled] = useState(true);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -508,23 +508,6 @@ const DocumentPage = () => {
             <div className="flex items-center gap-1 mt-2">
               <TrendingUp size={10} className="text-emerald-500" />
               <span className="text-[10px] text-emerald-500">+12%</span>
-              <span className="text-[10px] text-[var(--text-muted)]">vs last month</span>
-            </div>
-          </div>
-
-          <div className="glass-card p-3">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                <DollarSign size={16} className="text-emerald-500" />
-              </div>
-              <div>
-                <p className="text-lg font-bold text-[var(--text-primary)]">{(stats.total.value / 100000).toFixed(1)}L</p>
-                <p className="text-[10px] text-[var(--text-muted)] uppercase">Total Value</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1 mt-2">
-              <TrendingUp size={10} className="text-emerald-500" />
-              <span className="text-[10px] text-emerald-500">+8%</span>
               <span className="text-[10px] text-[var(--text-muted)]">vs last month</span>
             </div>
           </div>
@@ -852,36 +835,12 @@ const DocumentPage = () => {
                 <Sun size={14} />
                 Solar Quote
               </TabsTrigger>
-              <TabsTrigger value="equipment" className="flex items-center gap-1.5">
-                <Hammer size={14} />
-                Equipment
-              </TabsTrigger>
               <TabsTrigger value="all" className="flex items-center gap-1.5">
                 <FolderOpen size={14} />
                 All
               </TabsTrigger>
             </TabsList>
           </Tabs>
-
-          {/* Scoring Toggle - Like Screenshot */}
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-base)]">
-            <Brain size={16} className="text-[var(--text-muted)]" />
-            <span className="text-xs font-medium text-[var(--text-secondary)]">Scoring</span>
-            <button
-              onClick={() => setScoringEnabled(!scoringEnabled)}
-              className={cn(
-                'relative w-10 h-5 rounded-full transition-colors',
-                scoringEnabled ? 'bg-emerald-500' : 'bg-[var(--text-muted)]/30'
-              )}
-            >
-              <span
-                className={cn(
-                  'absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all',
-                  scoringEnabled ? 'left-5' : 'left-0.5'
-                )}
-              />
-            </button>
-          </div>
 
           {/* Add Button - Context Aware */}
           {activeTab === 'estimate' ? (
@@ -912,14 +871,6 @@ const DocumentPage = () => {
               <Plus size={16} />
               Create Solar Quote
             </button>
-          ) : activeTab === 'equipment' ? (
-            <button
-              onClick={() => window.location.hash = '#/equipment'}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium transition-colors"
-            >
-              <Plus size={16} />
-              Add Equipment
-            </button>
           ) : (
             <button
               onClick={() => setIsCreateModalOpen(true)}
@@ -937,7 +888,6 @@ const DocumentPage = () => {
       {activeTab === 'estimate' && <EstimatePage />}
       {activeTab === 'proposal' && <ProposalPage />}
       {activeTab === 'quotation' && <SolarQuotationPage />}
-      {activeTab === 'equipment' && <EquipmentPage />}
       {activeTab === 'all' && <DocumentListView />}
 
       {/* Create Document Modal */}

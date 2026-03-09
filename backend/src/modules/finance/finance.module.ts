@@ -1,14 +1,11 @@
 ﻿import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { SettingsModule } from '../settings/settings.module';
 import { FinanceController } from './controllers/finance.controller';
 
 import { InvoiceService, PaymentService, ExpenseService, TransactionService, FinancePaymentService, ManualAdjustmentService, AdjustmentCategoryService, JournalEntryService } from './services';
 
 import { Invoice, InvoiceSchema, Payment, PaymentSchema, Expense, ExpenseSchema, Transaction, TransactionSchema, Project, ProjectSchema, ReminderLog, ReminderLogSchema, Activity, ActivitySchema, FinancePayment, FinancePaymentSchema, ManualAdjustment, ManualAdjustmentSchema, AdjustmentCategory, AdjustmentCategorySchema, JournalEntry, JournalEntrySchema } from './schemas';
-
-import { SettingsModule } from '../settings/settings.module';
-
-
 
 @Module({
   imports: [

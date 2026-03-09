@@ -21,15 +21,9 @@ const fmt = (amount) => {
 };
 
 const formatL = (value) => {
-  if (!value || isNaN(value)) return '₹0';
-  // Show in Lakhs for large numbers
-  if (value >= 100000) {
-    return `₹${(value / 100000).toFixed(1)}L`;
-  } else if (value >= 1000) {
-    return `₹${(value / 1000).toFixed(0)}K`;
-  } else {
-    return `₹${value}`;
-  }
+  if (!value || isNaN(value)) return '₹0L';
+  // Always show in Lakhs with ₹ symbol
+  return `₹${Math.round(value / 100000)}L`;
 };
 
 const formatAxisCurrency = (value) => {
@@ -648,6 +642,217 @@ const MonthlyCollectionChart = ({ monthlyRevenue, cashFlow }) => {
   );
 };
 
+// Chart 7: Income by Category (Donut Chart)
+const IncomeByCategoryChart = ({ transactionAnalytics }) => {
+  const data = useMemo(() => {
+    if (!transactionAnalytics?.incomeByCategory?.length) return [];
+    return transactionAnalytics.incomeByCategory.map((item, index) => ({
+      name: item.category,
+      value: item.amount,
+      color: ['#22c55e', '#10b981', '#34d399', '#6ee7b7', '#a7f3d0', '#059669'][index % 6],
+    }));
+  }, [transactionAnalytics]);
+
+  const total = data.reduce((sum, item) => sum + item.value, 0);
+
+  if (data.length === 0) {
+    return (
+      <div className="glass-card p-5 rounded-2xl shadow-lg h-[320px] flex items-center justify-center">
+        <p className="text-sm text-[var(--text-muted)]">No income data available</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="glass-card p-5 rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 animate-fade-in" style={{ animationDelay: '500ms' }}>
+      <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-2 flex items-center gap-2">
+        <TrendingUp size={16} className="text-emerald-400" />
+        Income by Category
+        <span className="text-[10px] text-[var(--text-muted)] font-normal ml-auto">{fmt(total)}</span>
+      </h3>
+      <ResponsiveContainer width="100%" height={220}>
+        <RePieChart>
+          <Pie
+            data={data}
+            cx="50%"
+            cy="50%"
+            innerRadius={55}
+            outerRadius={80}
+            paddingAngle={3}
+            dataKey="value"
+            animationDuration={1500}
+            animationBegin={0}
+          >
+            {data.map((entry, index) => (
+              <Cell key={`cell-${index}`} fill={entry.color} stroke="var(--bg-surface)" strokeWidth={2} />
+            ))}
+          </Pie>
+          <Tooltip content={<CustomTooltip />} />
+        </RePieChart>
+      </ResponsiveContainer>
+      <div className="grid grid-cols-2 gap-1 mt-2 max-h-[80px] overflow-y-auto">
+        {data.map((item) => (
+          <div key={item.name} className="flex items-center gap-1.5 text-[10px]">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+            <span className="text-[var(--text-muted)] truncate">{item.name}</span>
+            <span className="font-semibold text-[var(--text-primary)]">{fmt(item.value)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// Chart 8: Expense by Category (Bar Chart)
+const ExpenseByCategoryChart = ({ transactionAnalytics }) => {
+  const data = useMemo(() => {
+    if (!transactionAnalytics?.expenseByCategory?.length) return [];
+    return transactionAnalytics.expenseByCategory.map((item) => ({
+        category: item.category.length > 15 ? item.category.substring(0, 15) + '...' : item.category,
+        amount: item.amount,
+      }));
+  }, [transactionAnalytics]);
+
+  const total = useMemo(() => {
+    return transactionAnalytics?.expenseByCategory?.reduce((sum, item) => sum + item.amount, 0) || 0;
+  }, [transactionAnalytics]);
+
+  if (data.length === 0) {
+    return (
+      <div className="glass-card p-5 rounded-2xl shadow-lg h-[320px] flex items-center justify-center">
+        <p className="text-sm text-[var(--text-muted)]">No expense data available</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="glass-card p-5 rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 animate-fade-in" style={{ animationDelay: '600ms' }}>
+      <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2">
+        <TrendingDown size={16} className="text-red-400" />
+        Expense by Category
+        <span className="text-[10px] text-[var(--text-muted)] font-normal ml-auto">{fmt(total)}</span>
+      </h3>
+      <ResponsiveContainer width="100%" height={220}>
+        <BarChart data={data} layout="vertical" margin={{ top: 5, right: 30, left: 80, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" horizontal={false} />
+          <XAxis
+            type="number"
+            tickFormatter={formatL}
+            tick={{ fill: 'var(--text-muted)', fontSize: 10 }}
+            axisLine={false}
+            tickLine={false}
+            domain={[0, 4000000]}
+            ticks={[0, 1000000, 2000000, 3000000, 4000000]}
+          />
+          <YAxis
+            type="category"
+            dataKey="category"
+            tick={{ fill: 'var(--text-muted)', fontSize: 10 }}
+            axisLine={false}
+            tickLine={false}
+            width={75}
+          />
+          <Tooltip content={<CustomTooltip />} />
+          <Bar
+            dataKey="amount"
+            fill="#ef4444"
+            radius={[0, 4, 4, 0]}
+            animationDuration={1500}
+            animationBegin={200}
+          />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+};
+
+// Chart 9: Monthly Income vs Expense Trend
+const IncomeExpenseTrendChart = ({ adjustmentTrend }) => {
+  const data = useMemo(() => {
+    // Build last 6 months with actual adjustment data
+    const months = [];
+    const now = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push({
+        key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+        label: d.toLocaleString('en-IN', { month: 'short' }),
+        income: 0,
+        expense: 0,
+      });
+    }
+    
+    // Populate with actual data from adjustmentTrend
+    if (adjustmentTrend && adjustmentTrend.length > 0) {
+      adjustmentTrend.forEach((trendItem) => {
+        const monthData = months.find(month => month.label === trendItem.month);
+        if (monthData) {
+          monthData.income = trendItem.income || 0;
+          monthData.expense = trendItem.expense || 0;
+        }
+      });
+    }
+    
+    return months;
+  }, [adjustmentTrend]);
+
+  if (!adjustmentTrend || adjustmentTrend.length === 0) {
+    return (
+      <div className="glass-card p-5 rounded-2xl shadow-lg h-[320px] flex items-center justify-center">
+        <p className="text-sm text-[var(--text-muted)]">No trend data available</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="glass-card p-5 rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 animate-fade-in" style={{ animationDelay: '700ms' }}>
+      <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2">
+        <Activity size={16} className="text-blue-400" />
+        Monthly Income vs Expense
+      </h3>
+      <ResponsiveContainer width="100%" height={220}>
+        <LineChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+          <XAxis
+            dataKey="label"
+            tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+            axisLine={false}
+            tickLine={false}
+          />
+          <YAxis
+            tickFormatter={formatL}
+            tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+            axisLine={false}
+            tickLine={false}
+          />
+          <Tooltip content={<CustomTooltip />} />
+          <Legend iconSize={10} wrapperStyle={{ fontSize: 11, paddingTop: 10 }} />
+          <Line
+            type="monotone"
+            dataKey="income"
+            stroke="#22c55e"
+            strokeWidth={3}
+            dot={{ fill: '#22c55e', r: 4 }}
+            name="Income"
+            animationDuration={2000}
+            animationBegin={0}
+          />
+          <Line
+            type="monotone"
+            dataKey="expense"
+            stroke="#ef4444"
+            strokeWidth={3}
+            dot={{ fill: '#ef4444', r: 4 }}
+            name="Expense"
+            animationDuration={2000}
+            animationBegin={300}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+};
+
 // Section 8: Recent Finance Activity
 const RecentActivity = ({ invoices, payments, manualAdjustments }) => {
   const activities = useMemo(() => {
@@ -758,6 +963,8 @@ const FinanceDashboard = ({
   monthlyRevenue,
   cashFlow,
   manualBalance,
+  transactionAnalytics,
+  adjustmentTrend,
   onInvoicesClick,
   onStatusClick,
 }) => {
@@ -820,6 +1027,18 @@ const FinanceDashboard = ({
           collectionRate={collectionRate}
           invoices={invoices}
         />
+      </section>
+
+      {/* Section 3: Financial Analytics (Income vs Expense) */}
+      <section className="animate-fade-in" style={{ animationDelay: '150ms' }}>
+        <h2 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-3">
+          Financial Analytics
+        </h2>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <IncomeByCategoryChart transactionAnalytics={transactionAnalytics} />
+          <ExpenseByCategoryChart transactionAnalytics={transactionAnalytics} />
+          <IncomeExpenseTrendChart adjustmentTrend={adjustmentTrend} />
+        </div>
       </section>
 
       {/* Charts Grid - Row 1 */}
