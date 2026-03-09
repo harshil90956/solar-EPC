@@ -1414,6 +1414,15 @@ const CRMPage = () => {
     return true;
   };
 
+  const rowSelectionActions = [() => {
+    if (!can('crm', 'export')) {
+      toast.error('Permission denied: Cannot export leads');
+      return false;
+    }
+    return true;
+  }];
+
+  // Apply automation rules
   const applyAutomationRules = useCallback((lead) => {
     const results = [];
 
