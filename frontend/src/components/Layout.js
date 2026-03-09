@@ -125,7 +125,6 @@ const Layout = ({ currentPage, onNavigate, children }) => {
     ...section,
     items: section.items.filter(item => {
       const hasModuleAccess = isModuleEnabled(item.id);
-      console.log('[DEBUG] Module:', item.id, 'isModuleEnabled:', hasModuleAccess);
 
       if (!hasModuleAccess) return false;
 
@@ -137,9 +136,6 @@ const Layout = ({ currentPage, onNavigate, children }) => {
       return canView;
     }),
   })).filter(s => s.items.length > 0);
-
-  console.log('[DEBUG] visibleSections:', visibleSections.length, 'sections');
-  console.log('[DEBUG] user:', user?.id, user?.role);
 
   /* ── Derive layout dimensions from customization ── */
   const c = customization || {};
