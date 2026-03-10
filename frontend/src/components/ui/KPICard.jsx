@@ -23,8 +23,13 @@ export const KPICard = ({
     style,
     iconBgColor = 'bg-gray-100',
     iconColor = 'text-gray-600',
+    onClick,
 }) => (
-    <div className={cn('p-4 flex flex-col gap-2 group cursor-default rounded-xl border border-gray-200/50 backdrop-blur-sm', className)} style={style}>
+    <div 
+        onClick={onClick}
+        className={cn('p-4 flex flex-col gap-2 group cursor-default rounded-xl border border-gray-200/50 backdrop-blur-sm', onClick && 'cursor-pointer', className)} 
+        style={style}
+    >
         <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
                 <p className="label-muted mb-1">{label}</p>

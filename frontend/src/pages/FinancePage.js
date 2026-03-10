@@ -90,10 +90,11 @@ import { format, subMonths } from 'date-fns';
 
 import FinanceDashboard from '../components/finance/FinanceDashboard';
 
+import CalendarFilter from '../components/finance/CalendarFilter';
+
 
 
 const fmt = CURRENCY.format;
-
 
 
 /* ── Invoice stage definitions ──────────────────────────────────────────────── */
@@ -662,11 +663,15 @@ const FinancePage = ({ onNavigate }) => {
 
   const [mainView, setMainView] = useState('dashboard');
 
+  // Active tab in table view: 'invoices', 'payables', 'transactions'
+
+  const [activeTab, setActiveTab] = useState('invoices');
+
 
 
   // Table view summary cards visibility (default hidden)
 
-  const [showSummaryCards, setShowSummaryCards] = useState(false);
+  const [showSummaryCards, setShowSummaryCards] = useState(true);
 
 
 
@@ -711,6 +716,11 @@ const FinancePage = ({ onNavigate }) => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+
+  // Calendar filter year state - for filtering data by year
+  const [calendarFilterYear, setCalendarFilterYear] = useState('all');
+  // Calendar filter month state - for displaying selected month in calendar
+  const [calendarFilterMonth, setCalendarFilterMonth] = useState(undefined);
 
   const [showInvoice, setShowInvoice] = useState(false);
 
@@ -1169,6 +1179,58 @@ const FinancePage = ({ onNavigate }) => {
     return { debitTotal, creditTotal };
 
   }, [journalEntries]);
+
+  // Filtered data by selected year from calendar
+  const filteredInvoicesByYear = useMemo(() => {
+    if (calendarFilterYear === 'all') return invoices;
+    return invoices.filter(inv => {
+      const invoiceDate = new Date(inv.invoiceDate || inv.createdAt);
+      return invoiceDate.getFullYear().toString() === calendarFilterYear;
+    });
+  }, [invoices, calendarFilterYear]);
+
+  const filteredJournalEntriesByYear = useMemo(() => {
+    if (calendarFilterYear === 'all') return journalEntries;
+    return journalEntries.filter(entry => {
+      const entryDate = new Date(entry.date || entry.createdAt);
+      return entryDate.getFullYear().toString() === calendarFilterYear;
+    });
+  }, [journalEntries, calendarFilterYear]);
+
+  const filteredManualAdjustmentsByYear = useMemo(() => {
+    if (calendarFilterYear === 'all') return manualAdjustments;
+    return manualAdjustments.filter(adj => {
+      const adjDate = new Date(adj.date || adj.createdAt);
+      return adjDate.getFullYear().toString() === calendarFilterYear;
+    });
+  }, [manualAdjustments, calendarFilterYear]);
+
+  const filteredPayablesByYear = useMemo(() => {
+    if (calendarFilterYear === 'all') return payables;
+    return payables.filter(p => {
+      if (!p.lastPurchaseOrderDate) return false;
+      const poDate = new Date(p.lastPurchaseOrderDate);
+      return poDate.getFullYear().toString() === calendarFilterYear;
+    });
+  }, [payables, calendarFilterYear]);
+
+  // Extract unique years from invoice data for the calendar filter
+  const availableYears = useMemo(() => {
+    const years = new Set();
+    (invoices || []).forEach(inv => {
+      const date = new Date(inv.invoiceDate || inv.createdAt);
+      if (!isNaN(date.getTime())) {
+        years.add(date.getFullYear());
+      }
+    });
+    (journalEntries || []).forEach(entry => {
+      const date = new Date(entry.date || entry.createdAt);
+      if (!isNaN(date.getTime())) {
+        years.add(date.getFullYear());
+      }
+    });
+    return Array.from(years).sort((a, b) => b - a); // Sort descending
+  }, [invoices, journalEntries]);
 
 
 
@@ -3966,13 +4028,17 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-    invoices.filter(inv =>
+    (filteredInvoicesByYear || []).filter(inv =>
 
 
 
       (invStatus === 'All' || 
 
+
+
         inv.status === invStatus || 
+
+
 
         // Handle Pending status showing as Sent in UI
 
@@ -3986,7 +4052,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-    ), [invoices, invSearch, invStatus]);
+    ), [filteredInvoicesByYear, invSearch, invStatus]);
 
 
 
@@ -4672,6 +4738,21 @@ const FinancePage = ({ onNavigate }) => {
 
         <div className="flex items-center gap-2">
 
+          <CalendarFilter 
+            onDateChange={(dateInfo) => {
+              if (dateInfo) {
+                setCalendarFilterYear(dateInfo.year.toString());
+                setCalendarFilterMonth(dateInfo.month); // undefined for full year
+              } else {
+                setCalendarFilterYear('all');
+                setCalendarFilterMonth(undefined);
+              }
+            }}
+            initialYear={calendarFilterYear !== 'all' ? parseInt(calendarFilterYear) : undefined}
+            initialMonth={calendarFilterMonth}
+            availableYears={availableYears}
+          />
+
           <div className="h-6 w-px bg-[var(--border-base)] mx-1" />
 
 
@@ -4791,7 +4872,22 @@ const FinancePage = ({ onNavigate }) => {
       {/* Dashboard View */}
 
       {mainView === 'dashboard' && (
-
+        <>
+          {calendarFilterYear !== 'all' && filteredInvoicesByYear.length === 0 && filteredJournalEntriesByYear.length === 0 && filteredManualAdjustmentsByYear.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 px-4">
+              <div className="text-6xl mb-4">📅</div>
+              <h3 className="text-lg font-semibold text-gray-700 mb-2">No data available for the selected period</h3>
+              <p className="text-sm text-gray-500 text-center max-w-md mb-4">
+                There are no invoices, journal entries, or transactions recorded for {calendarFilterYear}.
+              </p>
+              <button
+                onClick={() => { setCalendarFilterYear('all'); setCalendarFilterMonth(undefined); }}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                Show All Data
+              </button>
+            </div>
+          ) : (
         <FinanceDashboard
 
           isOpen={true}
@@ -4802,11 +4898,11 @@ const FinancePage = ({ onNavigate }) => {
 
           payables={payables}
 
-          invoices={invoices}
+          invoices={calendarFilterYear === 'all' ? invoices : filteredInvoicesByYear}
 
           payments={payments}
 
-          manualAdjustments={manualAdjustments}
+          manualAdjustments={calendarFilterYear === 'all' ? manualAdjustments : filteredManualAdjustmentsByYear}
 
           monthlyRevenue={monthlyRevenue}
 
@@ -4818,11 +4914,15 @@ const FinancePage = ({ onNavigate }) => {
 
           adjustmentTrend={adjustmentTrend}
 
-          onInvoicesClick={() => {}}
+          onInvoicesClick={() => { setMainView('table'); setActiveTab('invoices'); }}
+          onPayablesClick={() => { setMainView('table'); setActiveTab('payables'); }}
+          onCollectedClick={() => { setMainView('table'); setActiveTab('invoices'); setInvStatus('Paid'); setPage(1); }}
 
           onStatusClick={() => {}}
 
         />
+          )}
+        </>
 
       )}
 
@@ -4875,10 +4975,33 @@ const FinancePage = ({ onNavigate }) => {
       {showSummaryCards && (
 
         <>
-
+      {calendarFilterYear !== 'all' && filteredInvoicesByYear.length === 0 && filteredPayablesByYear.length === 0 && filteredJournalEntriesByYear.length === 0 && filteredManualAdjustmentsByYear.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 px-4">
+          <div className="text-6xl mb-4">📅</div>
+          <h3 className="text-lg font-semibold text-gray-700 mb-2">No data available for the selected period</h3>
+          <p className="text-sm text-gray-500 text-center max-w-md mb-4">
+            There are no invoices, payables, or transactions recorded for {calendarFilterYear}.
+          </p>
+          <button
+            onClick={() => { setCalendarFilterYear('all'); setCalendarFilterMonth(undefined); }}
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+          >
+            Show All Data
+          </button>
+        </div>
+      ) : (
+      <>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
 
-        <KPICard className="glass-card bg-white" label="Total Revenue" value={fmt(revenueCurrent)} sub="From invoices" icon={TrendingUp} accentColor="#22c55e" />
+        <KPICard 
+          className="glass-card bg-white cursor-pointer hover:shadow-md transition-shadow" 
+          label="Total Revenue" 
+          value={fmt(revenueCurrent)} 
+          sub="From invoices" 
+          icon={TrendingUp} 
+          accentColor="#22c55e"
+          onClick={() => { setMainView('table'); setActiveTab('invoices'); }}
+        />
 
         <KPICard className="glass-card bg-white" label="Cash Position" value={fmt(cashPosition)} sub="Collected - Payables" icon={IndianRupee} accentColor="#3b82f6" />
 
@@ -4898,24 +5021,30 @@ const FinancePage = ({ onNavigate }) => {
 
           {[
 
-            { label: 'Total Invoiced', value: fmt(currentMonthInvoiced), color: 'text-[var(--text-primary)]' },
-
-            { label: 'Collected', value: fmt(currentMonthCollected), color: 'text-emerald-400' },
-
+            { label: 'Total Invoiced', value: fmt(currentMonthInvoiced), color: 'text-[var(--text-primary)]', clickable: true, action: 'invoices' },
+            { label: 'Collected', value: fmt(currentMonthCollected), color: 'text-emerald-400', clickable: true, action: 'paid' },
             { label: 'Outstanding', value: fmt(currentMonthOutstanding), color: 'text-amber-400' },
-
             { label: 'Collection Rate', value: `${currentMonthCollectionRate}%`, color: 'text-cyan-400' },
 
           ].map(stat => (
-
-            <div key={stat.label} className="glass-card p-3 text-center bg-white">
-
+            <div 
+              key={stat.label} 
+              className={`glass-card p-3 text-center bg-white ${stat.clickable ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}
+              onClick={stat.clickable ? () => { 
+                setMainView('table'); 
+                setActiveTab('invoices'); 
+                if (stat.action === 'paid') {
+                  setInvStatus('Paid');
+                  setPage(1);
+                } else {
+                  setInvStatus('All');
+                  setPage(1);
+                }
+              } : undefined}
+            >
               <p className="text-[11px] text-[var(--text-muted)] mb-1">{stat.label}</p>
-
               <p className={`text-base font-black ${stat.color}`}>{stat.value}</p>
-
             </div>
-
           ))}
 
         </div>
@@ -4932,7 +5061,13 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-      <Tabs defaultValue="invoices">
+      </>
+
+      )}
+
+
+
+      <Tabs defaultValue="invoices" value={activeTab} onValueChange={setActiveTab}>
 
 
 
@@ -4940,15 +5075,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-          <TabsTrigger value="invoices">Invoices ({invoices.length})</TabsTrigger>
+          <TabsTrigger value="invoices">Invoices ({filteredInvoicesByYear.length})</TabsTrigger>
 
 
 
-          <TabsTrigger value="payables">Payables Summary</TabsTrigger>
+          <TabsTrigger value="payables">Payables Summary ({filteredPayablesByYear.length})</TabsTrigger>
 
 
 
-          <TabsTrigger value="transactions">Transactions ({manualAdjustments.length})</TabsTrigger>
+          <TabsTrigger value="transactions">Transactions ({filteredManualAdjustmentsByYear.length})</TabsTrigger>
 
 
 
@@ -5132,7 +5267,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-            {payables.length === 0 ? (
+            {filteredPayablesByYear.length === 0 ? (
 
 
 
@@ -5168,7 +5303,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-                {payables.map((p) => (
+                {filteredPayablesByYear.map((p) => (
 
                   <div
 
@@ -5244,7 +5379,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-            {journalEntries.length === 0 ? (
+            {filteredJournalEntriesByYear.length === 0 ? (
 
 
 
@@ -5278,7 +5413,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-                {[...journalEntries].reverse().map((entry, entryIdx) => (
+                {[...filteredJournalEntriesByYear].reverse().map((entry, entryIdx) => (
 
                   <div 
 
@@ -5496,7 +5631,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-      <Modal open={showInvoice} onClose={() => { setShowInvoice(false); setError(null); setNewInvoiceErrors({}); }} title="Create Invoice"
+      <Modal isOpen={showInvoice} onClose={() => { setShowInvoice(false); setError(null); setNewInvoiceErrors({}); }} title="Create Invoice"
 
 
 
@@ -5964,7 +6099,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-        <Modal open={!!selected} onClose={() => setSelected(null)} title={`Invoice — ${selected.invoiceNumber || selected.id}`}
+        <Modal isOpen={!!selected} onClose={() => setSelected(null)} title={`Invoice — ${selected.invoiceNumber || selected.id}`}
 
 
 
@@ -7772,7 +7907,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-        open={showRecordPayment} 
+        isOpen={showRecordPayment} 
 
 
 
@@ -8548,7 +8683,7 @@ const FinancePage = ({ onNavigate }) => {
 
       <Modal
 
-        open={showAdjustModal}
+        isOpen={showAdjustModal}
 
         onClose={() => {
 
@@ -8830,7 +8965,7 @@ const FinancePage = ({ onNavigate }) => {
 
       <Modal
 
-        open={showAddCategoryModal}
+        isOpen={showAddCategoryModal}
 
         onClose={() => {
 
@@ -8998,7 +9133,7 @@ const FinancePage = ({ onNavigate }) => {
 
         <Modal
 
-          open={showJournalEntryModal}
+          isOpen={showJournalEntryModal}
 
           onClose={() => {
 
