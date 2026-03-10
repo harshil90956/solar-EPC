@@ -223,21 +223,8 @@ const InvKanbanBoard = ({ items, onCardClick, onDrop }) => {
                   )}
                 </div>
               </div>
-              <div className="flex flex-col gap-2 p-2 flex-1 min-h-[180px]">
-                {cards.map(i => (
-                  <InvCard key={`${i.itemId}-${i.warehouse}`} item={i}
-                    onDragStart={() => { draggingId.current = i.itemId; }}
-                    onClick={() => onCardClick(i)} />
-                ))}
-                {cards.length === 0 && (
-                  <div className="flex-1 flex items-center justify-center">
-                    <p className="text-[11px] text-[var(--text-faint)]">Drop here</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
+            );
+          })}
       </div>
     </div>
   );
