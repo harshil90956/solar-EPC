@@ -1149,18 +1149,19 @@ const LogisticsPage = () => {
         api.get('/logistics/stats'),
       ]);
 
-      // Handle API response
+      // Handle API response - interceptor returns data directly
       let dispatchesData = [];
-      let statsData = { delivered: 0, inTransit: 0, scheduled: 0, totalFreight: 0 };
 
-      if (Array.isArray(dispatchesRes.data)) {
-        dispatchesData = dispatchesRes.data;
-      } else if (dispatchesRes.data && typeof dispatchesRes.data === 'object') {
-        dispatchesData = dispatchesRes.data.data || [];
+      if (Array.isArray(dispatchesRes)) {
+        dispatchesData = dispatchesRes;
+      } else if (dispatchesRes && typeof dispatchesRes === 'object') {
+        dispatchesData = dispatchesRes.data || [];
       }
 
-      if (statsRes.data && typeof statsRes.data === 'object') {
-        statsData = statsRes.data.data || statsRes.data;
+      let statsData = { delivered: 0, inTransit: 0, scheduled: 0, totalFreight: 0 };
+
+      if (statsRes && typeof statsRes === 'object') {
+        statsData = statsRes.data || statsRes;
       }
 
       setDispatches(dispatchesData);
@@ -1229,12 +1230,13 @@ const LogisticsPage = () => {
   const fetchVendors = async () => {
     try {
       const response = await api.get('/logistics/vendors');
-      console.log('fetchVendors response:', response.data);
+      console.log('fetchVendors response:', response);
+      // Response interceptor returns data directly, not wrapped in response object
       let vendorsData = [];
-      if (Array.isArray(response.data)) {
-        vendorsData = response.data;
-      } else if (response.data && typeof response.data === 'object') {
-        vendorsData = response.data.data || [];
+      if (Array.isArray(response)) {
+        vendorsData = response;
+      } else if (response && typeof response === 'object') {
+        vendorsData = response.data || [];
       }
       console.log('Setting vendors:', vendorsData.length, 'records');
       setVendors(vendorsData);

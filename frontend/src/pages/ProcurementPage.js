@@ -793,7 +793,8 @@ const ProcurementPage = () => {
     try {
       const res = await api.get('/procurement/vendors');
       console.log('Vendors API response:', res);
-      const vendorsData = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      // Response interceptor returns data directly, not wrapped in response object
+      const vendorsData = Array.isArray(res) ? res : (res?.data || []);
       console.log('Parsed vendors:', vendorsData);
       setVendors(vendorsData);
     } catch (error) {

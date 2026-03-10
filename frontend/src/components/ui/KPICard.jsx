@@ -11,37 +11,18 @@ import { cn } from '../../lib/utils';
  *  icon       — Lucide icon component
  *  trend      — string (e.g. "+23% YoY")
  *  trendUp    — bool
- *  accentColor— hex | CSS var
- *  glowClass  — tailwind shadow class
- *  sparkData  — [number] (mini sparkline — future)
- *  gradient   — string (tailwind gradient class for background)
- *  iconBgColor— string (tailwind bg class for icon container)
- *  iconColor  — string (tailwind text class for icon)
+ *  variant    — string (emerald | blue | amber | red | purple | indigo)
+ *  className  — string
+ *  style      — object
+ *  onClick    — function
  */
 export const KPICard = ({
     label, value, sub, icon: Icon,
     trend, trendUp,
-    variant = 'emerald', // emerald | blue | amber | red | purple | indigo
+    variant = 'emerald',
     className,
     style,
-    gradient,
-    iconBgColor = 'bg-gray-100',
-    iconColor = 'text-gray-600',
     onClick,
-}) => (
-    <div 
-        onClick={onClick}
-        className={cn('p-4 flex flex-col gap-2 group cursor-default rounded-xl border border-gray-200/50 backdrop-blur-sm', onClick && 'cursor-pointer', className)} 
-        style={style}
-    >
-        <div className="flex items-start justify-between gap-2">
-            <div className="flex-1 min-w-0">
-                <p className="label-muted mb-1">{label}</p>
-                <p className="text-2xl font-extrabold text-[var(--text-primary)] tabular-nums leading-none tracking-tight">
-                    {value}
-                </p>
-                {sub && <p className="text-[11px] text-[var(--text-muted)] mt-1">{sub}</p>}
-=======
 }) => {
     // Unified color palette - same across all modules
     const variants = {
@@ -87,6 +68,7 @@ export const KPICard = ({
 
     return (
         <div
+            onClick={onClick}
             className={cn(
                 'relative overflow-hidden rounded-2xl p-5 bg-gradient-to-br',
                 v.gradient,
@@ -123,16 +105,13 @@ export const KPICard = ({
                     </div>
                 )}
             </div>
-            {Icon && (
-                <div
-                    className={cn('w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110 border border-white/50 shadow-sm', iconBgColor)}
-                >
-                    <Icon size={18} className={iconColor} />
-                </div>
-                <div className="text-sm font-medium text-[var(--text-primary)] mb-0.5">
-                    {label}
-                </div>
-                {sub && <div className="text-xs text-[var(--text-muted)]">{sub}</div>}
+
+            <div className="relative z-10">
+                <p className="label-muted mb-1">{label}</p>
+                <p className="text-2xl font-extrabold text-[var(--text-primary)] tabular-nums leading-none tracking-tight">
+                    {value}
+                </p>
+                {sub && <p className="text-[11px] text-[var(--text-muted)] mt-1">{sub}</p>}
             </div>
         </div>
     );
