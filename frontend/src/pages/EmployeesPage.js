@@ -88,13 +88,15 @@ const EmployeesPage = () => {
   };
 
   const handleSubmit = async () => {
-    console.log('[DEBUG] Submitting employee data:', formData);
+    // Strip fields not in backend DTO
+    const { salary, emergencyContact, emergencyPhone, ...validData } = formData;
+    console.log('[DEBUG] Submitting employee data:', validData);
     try {
       if (editingEmployee) {
-        await employeeApi.update(editingEmployee._id, formData);
+        await employeeApi.update(editingEmployee._id, validData);
         toast.success('Employee updated successfully');
       } else {
-        await employeeApi.create(formData);
+        await employeeApi.create(validData);
         toast.success('Employee created successfully');
       }
       setShowModal(false);

@@ -6,6 +6,12 @@ import { InventoryReservation } from '../../inventory/schemas/inventory-reservat
 import { Tenant } from '../../../core/tenant/schemas/tenant.schema';
 import { CreateItemDto, UpdateItemDto } from '../dto/item.dto';
 
+interface UserWithVisibility {
+  id?: string;
+  _id?: string;
+  dataScope?: 'ALL' | 'ASSIGNED';
+}
+
 @Injectable()
 export class ItemsService {
   constructor(
@@ -32,10 +38,26 @@ export class ItemsService {
     throw new NotFoundException(`Tenant ${tenantCode} not found`);
   }
 
-  async findAll(tenantId: string, search?: string, itemGroupId?: string) {
+  async findAll(tenantId: string, user?: UserWithVisibility, search?: string, itemGroupId?: string) {
     // Resolve tenant code to actual ObjectId
     const actualTenantId = await this.getTenantId(tenantId);
     const query: any = { tenantId: actualTenantId, isDeleted: false };
+    
+    console.log(`[ITEMS VISIBILITY] user?.dataScope:`, user?.dataScope);
+    
+    // Apply visibility filter based on user's dataScope
+    if (user?.dataScope === 'ASSIGNED') {
+      const userId = user._id || user.id;
+      if (userId) {
+        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
+          ? new Types.ObjectId(userId)
+          : userId;
+        query.assignedTo = objectId;
+        console.log(`[ITEMS VISIBILITY] Applied STRICT assignedTo filter:`, objectId);
+      }
+    } else {
+      console.log(`[ITEMS VISIBILITY] No filter - ALL scope or no user`);
+    }
     
     if (search) {
       query.$text = { $search: search };

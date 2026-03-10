@@ -189,15 +189,12 @@ const CommissioningPage = () => {
   const fetchDashboardData = async () => {
     try {
       setDashboardLoading(true);
-      const params = new URLSearchParams({ tenantId: TENANT_ID });
-      if (dateRange.start) params.append('startDate', dateRange.start);
-      if (dateRange.end) params.append('endDate', dateRange.end);
-      if (projectTypeFilter !== 'All') params.append('projectType', projectTypeFilter);
+      const params = { tenantId: TENANT_ID };
+      if (dateRange.start) params.startDate = dateRange.start;
+      if (dateRange.end) params.endDate = dateRange.end;
+      if (projectTypeFilter !== 'All') params.projectType = projectTypeFilter;
 
-      const response = await fetch(`${API_BASE_URL}/commissioning/dashboard?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch dashboard data');
-
-      const data = await response.json();
+      const data = await api.get('/commissioning/dashboard', params);
 
       // Always use calculated data from systems as primary source
       if (systems.length > 0) {
@@ -342,10 +339,7 @@ const CommissioningPage = () => {
   const fetchCommissioningData = async () => {
     try {
       setCommissioningLoading(true);
-      const response = await fetch(`${API_BASE_URL}/commissioning?tenantId=${TENANT_ID}`);
-      if (!response.ok) throw new Error('Failed to fetch commissioning data');
-
-      const data = await response.json();
+      const data = await api.get('/commissioning', { tenantId: TENANT_ID });
       const commissioningArray = Array.isArray(data) ? data : (data.data || []);
 
       const transformedData = commissioningArray.map(c => ({

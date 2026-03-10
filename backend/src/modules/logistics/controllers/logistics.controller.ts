@@ -41,8 +41,9 @@ export class LogisticsController {
   }
 
   @Patch('dispatches/:id/status')
-  async updateStatus(@Param('id') id: string, @Body('status') status: string) {
-    const data = await this.logisticsService.updateStatus(id, status);
+  async updateStatus(@Param('id') id: string, @Body('status') status: string, @Req() req: any) {
+    const user = req.user;
+    const data = await this.logisticsService.updateStatus(id, status, user);
     return { success: true, data, message: 'Status updated successfully' };
   }
 

@@ -738,21 +738,38 @@ export class InventoryService {
 
 
 
-  async getItemsByCategory(tenantCode: string) {
+  async getItemsByCategory(tenantCode: string, user?: UserWithVisibility) {
 
     const tenantId = await this.getTenantId(tenantCode);
+    
+    console.log(`[INVENTORY CATEGORY VISIBILITY] user:`, JSON.stringify(user));
+    console.log(`[INVENTORY CATEGORY VISIBILITY] user?.dataScope:`, user?.dataScope);
+    
+    // Build match query with dataScope filter
+    const matchQuery: any = {
+      tenantId,
+      isDeleted: false,
+    };
+    
+    // Apply visibility filter based on user's dataScope
+    if (user?.dataScope === 'ASSIGNED') {
+      const userId = user._id || user.id;
+      if (userId) {
+        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
+          ? new Types.ObjectId(userId)
+          : userId;
+        matchQuery.assignedTo = objectId;
+        console.log(`[INVENTORY CATEGORY VISIBILITY] Applied assignedTo filter:`, objectId);
+      }
+    } else {
+      console.log(`[INVENTORY CATEGORY VISIBILITY] No filter - ALL scope or no user`);
+    }
 
     return this.inventoryModel.aggregate([
 
       {
 
-        $match: {
-
-          tenantId,
-
-          isDeleted: false,
-
-        },
+        $match: matchQuery,
 
       },
 

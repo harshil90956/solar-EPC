@@ -1,10 +1,10 @@
 // CENTRAL API CLIENT — All API calls route through here. No direct fetch/axios in components.
 import axios from 'axios';
 
-const BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
+const BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api/v1';
 const TIMEOUT = parseInt(process.env.REACT_APP_API_TIMEOUT || '30000', 10);
 
-const apiClient = axios.create({
+export const apiClient = axios.create({
     baseURL: BASE_URL,
     timeout: TIMEOUT,
     headers: { 'Content-Type': 'application/json' },

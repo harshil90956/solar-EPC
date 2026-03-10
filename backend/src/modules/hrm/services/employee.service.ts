@@ -208,7 +208,10 @@ export class EmployeeService {
     // Search for employees with: matching tenantId OR null tenantId OR missing tenantId
     let query: any = { email: email.toLowerCase() };
     
-    if (tenantId && tenantId !== 'default') {
+    // Only use tenantId in query if it's a valid ObjectId
+    const isValidTenantId = tenantId && tenantId !== 'default' && Types.ObjectId.isValid(tenantId);
+    
+    if (isValidTenantId) {
       // Search for employees with matching tenantId OR null/undefined tenantId
       query = {
         email: email.toLowerCase(),
@@ -219,8 +222,7 @@ export class EmployeeService {
         ]
       };
     } else {
-      // For 'default' tenant, search employees with null/missing tenantId only
-      // Note: tenantId is ObjectId type, cannot query with string 'default'
+      // For 'default' tenant or invalid tenantId strings, search employees with null/missing tenantId only
       query = {
         email: email.toLowerCase(),
         $or: [
