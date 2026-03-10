@@ -101,7 +101,7 @@ const IncrementsPage = () => {
       label: 'Total Increments',
       value: increments.length,
       icon: TrendingUp,
-      color: '#22c55e'
+      variant: 'emerald'
     },
     {
       label: 'This Month',
@@ -111,19 +111,19 @@ const IncrementsPage = () => {
         return incMonth === new Date().getMonth() + 1 && incYear === new Date().getFullYear();
       }).length,
       icon: TrendingUp,
-      color: '#3b82f6'
+      variant: 'blue'
     },
     {
       label: 'Avg Increase',
       value: `${increments.length > 0 ? Math.round(increments.reduce((sum, inc) => sum + inc.incrementPercentage, 0) / increments.length) : 0}%`,
       icon: TrendingUp,
-      color: '#f59e0b'
+      variant: 'amber'
     },
     {
       label: 'Total Amount',
       value: `₹${totalIncrementAmount.toLocaleString()}`,
       icon: TrendingUp,
-      color: '#a855f7'
+      variant: 'purple'
     },
   ];
 
@@ -211,7 +211,7 @@ const IncrementsPage = () => {
             label={kpi.label}
             value={kpi.value}
             icon={kpi.icon}
-            accentColor={kpi.color}
+            variant={kpi.variant}
           />
         ))}
       </div>

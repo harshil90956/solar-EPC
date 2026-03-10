@@ -33,6 +33,7 @@ import PayrollPage from './pages/PayrollPage';
 import IncrementsPage from './pages/IncrementsPage';
 import DepartmentsPage from './pages/DepartmentsPage';
 import AttendancePage from './pages/AttendancePage';
+import AttendancePageV3 from './pages/AttendancePageV3';
 import IntelligenceDashboardPage from './pages/IntelligenceDashboardPage';
 import RemindersPage from './pages/RemindersPage';
 import DocumentsPage from './pages/DocumentPage';
@@ -44,12 +45,12 @@ const PAGE_MAP = {
   admin: { component: AdminPage, title: 'Admin Dashboard' },
   hrm: { component: HRMPage, title: 'Human Resource Management' },
   'hrm-employees': { component: EmployeesPage, title: 'Employees' },
-  'hrm-attendance': { component: AttendancePage, title: 'Attendance' },
+  'hrm-attendance': { component: AttendancePageV3, title: 'Attendance V3.0' },
   'hrm-leaves': { component: LeavesPage, title: 'Leaves' },
   'hrm-payroll': { component: PayrollPage, title: 'Payroll' },
   'hrm-increments': { component: IncrementsPage, title: 'Increments' },
   'hrm-departments': { component: DepartmentsPage, title: 'Departments' },
-  attendance: { component: AttendancePage, title: 'Attendance Management' },
+  attendance: { component: AttendancePageV3, title: 'Attendance Management V3.0' },
   reminders: { component: RemindersPage, title: 'Reminder Center' },
   crm: { component: CRMPage, title: 'CRM & Sales' },
   survey: { component: SiteSurveyPage, title: 'Site Survey Management' },

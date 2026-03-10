@@ -30,6 +30,7 @@ export const NAV_CONFIG = [
                 children: [
                     { id: 'hrm-employees', label: 'Employees', icon: UserCircle },
                     { id: 'hrm-leaves', label: 'Leaves', icon: Calendar },
+                    { id: 'hrm-attendance', label: 'Attendance', icon: Clock },
                     { id: 'hrm-payroll', label: 'Payroll', icon: Wallet },
                     { id: 'hrm-increments', label: 'Increments', icon: TrendingUp },
                     { id: 'hrm-departments', label: 'Departments', icon: Building2 },

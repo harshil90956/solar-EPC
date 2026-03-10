@@ -39,6 +39,9 @@ const PayrollPage = () => {
     } catch (error) {
       console.error('[DEBUG] Error fetching employees:', error);
       console.error('[DEBUG] Error details:', error.response?.data || error.message);
+      console.error('[DEBUG] Error response:', error.response);
+      console.error('[DEBUG] Error config:', error.config);
+      console.error('[DEBUG] Error request:', error.request);
       toast.error('Failed to fetch employees');
     }
   };
@@ -70,8 +73,24 @@ const PayrollPage = () => {
       toast.error('Please fill all required fields');
       return;
     }
+    console.log('[DEBUG] Generating payroll with data:', payrollForm);
+
+    // Ensure all numeric values are proper numbers
+    const data = {
+      employeeId: payrollForm.employeeId,
+      month: Number(payrollForm.month),
+      year: Number(payrollForm.year),
+      baseSalary: Number(payrollForm.baseSalary),
+      allowances: Number(payrollForm.allowances),
+      deductions: Number(payrollForm.deductions),
+      bonus: Number(payrollForm.bonus),
+    };
+
+    console.log('[DEBUG] Cleaned data:', data);
+
     try {
-      await payrollApi.create(payrollForm);
+      const response = await payrollApi.create(data);
+      console.log('[DEBUG] Payroll created:', response);
       toast.success('Payroll generated successfully');
       setShowPayrollModal(false);
       fetchPayrolls();
@@ -85,7 +104,9 @@ const PayrollPage = () => {
         bonus: 0,
       });
     } catch (error) {
-      toast.error('Failed to generate payroll');
+      console.error('[DEBUG] Payroll error:', error);
+      console.error('[DEBUG] Error response:', error.response);
+      toast.error(error.response?.data?.message || error.message || 'Failed to generate payroll');
     }
   };
 
@@ -103,7 +124,7 @@ const PayrollPage = () => {
       label: 'Total Payroll',
       value: `₹${totalNetSalary.toLocaleString()}`,
       icon: Wallet,
-      color: '#22c55e'
+      variant: 'emerald'
     },
     {
       label: 'This Month',
@@ -113,19 +134,19 @@ const PayrollPage = () => {
         return payrollMonth === new Date().getMonth() + 1 && payrollYear === new Date().getFullYear();
       }).length,
       icon: Wallet,
-      color: '#3b82f6'
+      variant: 'blue'
     },
     {
       label: 'Employees Paid',
       value: new Set(payrolls.map(p => p.employeeId?._id || p.employeeId)).size,
       icon: Wallet,
-      color: '#f59e0b'
+      variant: 'amber'
     },
     {
       label: 'Total Records',
       value: payrolls.length,
       icon: Wallet,
-      color: '#a855f7'
+      variant: 'purple'
     },
   ];
 
@@ -223,7 +244,7 @@ const PayrollPage = () => {
             label={kpi.label}
             value={kpi.value}
             icon={kpi.icon}
-            accentColor={kpi.color}
+            variant={kpi.variant}
           />
         ))}
       </div>

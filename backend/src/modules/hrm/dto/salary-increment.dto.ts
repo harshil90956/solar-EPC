@@ -8,14 +8,17 @@ export class CreateIncrementDto {
 
   @IsNumber()
   @Min(0)
+  @Type(() => Number)
   previousSalary!: number;
 
   @IsNumber()
   @Min(0)
+  @Type(() => Number)
   incrementPercentage!: number;
 
   @IsNumber()
   @Min(0)
+  @Type(() => Number)
   newSalary!: number;
 
   @IsDate()

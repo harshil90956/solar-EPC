@@ -26,11 +26,11 @@ import {
 import { USERS } from '../data/mockData';
 import { leadsApi } from '../services/leadsApi';
 import { surveysApi } from '../services/surveysApi';
-import { useQuery } from '@tanstack/react-query';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input, Select, Textarea, FormField } from '../components/ui/Input';
 import { PageHeader } from '../components/ui/PageHeader';
+import { KPICard } from '../components/ui/KPICard';
 import DataTable from '../components/ui/DataTable';
 import { format, subMonths } from 'date-fns';
 import FilterSystem from '../components/ui/FilterSystem';
@@ -47,7 +47,7 @@ import LeadAnalyticsDashboard from '../components/dashboard/LeadAnalyticsDashboa
 // UserSelect component for lead assignment
 const UserSelect = ({ value, onChange, placeholder }) => {
   const { users } = useAuth();
-  
+
   return (
     <Select value={value} onChange={(e) => onChange(e.target.value)}>
       <option value="">{placeholder || 'Select user...'}</option>
@@ -97,32 +97,31 @@ const EmptyState = ({ onAddLead }) => (
   </div>
 );
 
-const DashboardKPI = ({ title, value, change, icon: Icon, color, subtitle, trend }) => (
-  <div className="glass-card p-4 flex items-center gap-3 hover:scale-[1.02] transition-transform cursor-pointer">
-    <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${color}20, ${color}10)` }}>
-      <Icon size={20} style={{ color }} />
-    </div>
-    <div className="flex-1">
-      <p className="text-[11px] text-[var(--text-muted)] font-medium uppercase tracking-wider">{title}</p>
-      <p className="text-xl font-black text-[var(--text-primary)]">{value}</p>
-      {subtitle && <p className="text-[9px] text-[var(--text-muted)]">{subtitle}</p>}
-      <div className="flex items-center gap-1 mt-1">
-        {change !== undefined && (
-          <p className={`text-[10px] font-bold ${change >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-            {change >= 0 ? '↑' : '↓'} {Math.abs(change)}%
-          </p>
-        )}
-        {trend && (
-          <div className="flex items-center gap-0.5">
-            {trend === 'up' && <TrendingUp size={10} className="text-emerald-500" />}
-            {trend === 'down' && <TrendingDown size={10} className="text-red-500" />}
-            {trend === 'stable' && <ArrowRight size={10} className="text-amber-500" />}
-          </div>
-        )}
-      </div>
-    </div>
-  </div>
-);
+// ── Standardized KPI Card using KPICard component ─────────────────────────────
+const DashboardKPI = ({ title, value, change, icon: Icon, color, subtitle, trend }) => {
+  // Map color hex to variant names
+  const colorMap = {
+    '#22c55e': 'emerald',
+    '#3b82f6': 'blue',
+    '#f59e0b': 'amber',
+    '#ef4444': 'red',
+    '#8b5cf6': 'purple',
+    '#06b6d4': 'indigo'
+  };
+  const variant = colorMap[color] || 'blue';
+
+  return (
+    <KPICard
+      label={title}
+      value={value}
+      sub={subtitle}
+      icon={Icon}
+      variant={variant}
+      trend={change !== undefined ? `${Math.abs(change)}%` : undefined}
+      trendUp={change >= 0}
+    />
+  );
+};
 
 const ScoreDistributionChart = ({ buckets }) => {
   const data = (buckets || []).map(b => ({ score: b.bucket, count: b.count }));
@@ -860,13 +859,13 @@ const CRMPage = () => {
 
   const [activeFilters, setActiveFilters] = useState([]);
   const [quickFilter, setQuickFilter] = useState(null);
-  
+
   // Advanced filter states - arrays for multiple values
   const [filterStages, setFilterStages] = useState([]); // multiple stages
   const [filterScoreRanges, setFilterScoreRanges] = useState([]); // multiple score ranges
   const [filterValueRanges, setFilterValueRanges] = useState([]); // multiple value ranges
   const [filterSources, setFilterSources] = useState([]); // multiple sources
-  
+
   // Temp states for adding new values
   const [tempStage, setTempStage] = useState('');
   const [tempScoreMin, setTempScoreMin] = useState('');
@@ -874,9 +873,9 @@ const CRMPage = () => {
   const [tempValueMin, setTempValueMin] = useState('');
   const [tempValueMax, setTempValueMax] = useState('');
   const [tempSource, setTempSource] = useState('');
-  
+
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  
+
   const [visibleColumns, setVisibleColumns] = useState({
     name: true,
     email: true,
@@ -1005,14 +1004,14 @@ const CRMPage = () => {
         limit: pageSize,
         search,
       };
-      
+
       // Add date range filter
       const { startDate, endDate } = getDateRangeFromPreset(dateRangeFilter.type);
       if (startDate && endDate) {
         params.startDate = startDate.toISOString();
         params.endDate = endDate.toISOString();
       }
-      
+
       // Only add sort params if sort key is valid
       if (sort.key) {
         params.sortBy = sort.key;
@@ -1061,12 +1060,12 @@ const CRMPage = () => {
     if (!editingLead) return;
     try {
       setActionLoading(true);
-      
+
       // Handle lead assignment if changed
       if (editingLead.assignedTo && editingLead.assignedTo !== selectedLead?.assignedTo) {
         await leadsApi.assignLead(editingLead._id, editingLead.assignedTo);
       }
-      
+
       // Only send allowed fields to API
       const updateData = {
         name: editingLead.name,
@@ -1154,7 +1153,7 @@ const CRMPage = () => {
       setActionLoading(true);
       const scoreValue = parseInt(newScore) || 0;
       // Include all required fields for MongoDB validation
-      const response = await leadsApi.update(scoreEditingLead._id, { 
+      const response = await leadsApi.update(scoreEditingLead._id, {
         score: scoreValue,
         name: scoreEditingLead.name,
         leadId: scoreEditingLead.leadId,
@@ -1183,10 +1182,10 @@ const CRMPage = () => {
     if (!window.confirm(`Flip lead "${lead.name}" to Site Survey Scheduled? This will create a pending survey.`)) return;
     try {
       setActionLoading(true);
-      
+
       // Update lead stage to 'survey'
       await leadsApi.update(lead._id || lead.id, { stage: 'survey' });
-      
+
       // Create a pending survey for this lead
       const surveyData = {
         customerName: lead.name,
@@ -1198,9 +1197,9 @@ const CRMPage = () => {
         sourceLeadId: lead._id || lead.id,
         notes: `Flipped from CRM. Source: ${lead.source}, City: ${lead.city}, Phone: ${lead.phone}`
       };
-      
+
       await surveysApi.create(surveyData);
-      
+
       logUpdate({ ...lead, stage: 'survey' });
       fetchLeads(); // Refresh list
       toast.success(`Lead "${lead.name}" flipped to Site Survey Scheduled`);
@@ -1571,8 +1570,8 @@ const CRMPage = () => {
 
     // Multiple Source filters (OR logic)
     if (filterSources.length > 0) {
-      result = result.filter(lead => 
-        filterSources.some(source => 
+      result = result.filter(lead =>
+        filterSources.some(source =>
           lead.source?.toLowerCase() === source.toLowerCase()
         )
       );
@@ -1746,21 +1745,21 @@ const CRMPage = () => {
   const handleImport = async ({ file, mapping }) => {
     try {
       setActionLoading(true);
-      
+
       // Parse CSV file
       const Papa = await import('papaparse');
       const text = await file.text();
-      
+
       const { data } = Papa.parse(text, {
         header: true,
         skipEmptyLines: true,
         dynamicTyping: true
       });
-      
+
       let successCount = 0;
       let errorCount = 0;
       const errors = [];
-      
+
       // Process each row
       for (let i = 0; i < data.length; i++) {
         const row = data[i];
@@ -1769,7 +1768,7 @@ const CRMPage = () => {
           const firstName = row[mapping.firstName] || row.firstName || row.firstname || row['First Name'] || row.first_name || '';
           const lastName = row[mapping.lastName] || row.lastName || row.lastname || row['Last Name'] || row.last_name || '';
           const fullName = `${firstName} ${lastName}`.trim();
-          
+
           // Map CSV columns to lead fields based on mapping
           const leadData = {
             name: fullName || row.name || row.Name || row.NAME || '',
@@ -1781,14 +1780,14 @@ const CRMPage = () => {
             statusKey: 'new',
             value: parseInt(row[mapping.value] || row.value || row.Value || row.VALUE || 0),
           };
-          
+
           // Skip if name is missing
           if (!leadData.name) {
             errorCount++;
             errors.push(`Row ${i + 1}: Missing name`);
             continue;
           }
-          
+
           // Create lead via API
           await leadsApi.create(leadData);
           successCount++;
@@ -1797,10 +1796,10 @@ const CRMPage = () => {
           errors.push(`Row ${i + 1}: ${err.message}`);
         }
       }
-      
+
       // Log import activity
       logCreate({ id: 'import', name: `Imported ${successCount} leads from ${file.name}` });
-      
+
       // Show result
       if (errorCount === 0) {
         // Success - no alert
@@ -1808,7 +1807,7 @@ const CRMPage = () => {
         // Errors occurred but don't show alert
         console.log(`Import completed: ${successCount} leads created, ${errorCount} errors.`);
       }
-      
+
       fetchLeads(); // Refresh list
     } catch (err) {
       console.error('Import failed:', err);
@@ -1875,13 +1874,12 @@ const CRMPage = () => {
           activeTab={view}
           onTabChange={setView}
         />
-        
+
         {/* Data Visibility Indicator */}
-        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[11px] font-medium ${
-          userDataScope === 'ALL' 
-            ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' 
-            : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
-        }`}>
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[11px] font-medium ${userDataScope === 'ALL'
+          ? 'bg-blue-500/10 border-blue-500/30 text-blue-400'
+          : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+          }`}>
           <Eye size={12} />
           <span>
             {userDataScope === 'ALL' ? 'Showing: All Leads' : 'Showing: Assigned Leads Only'}
@@ -2086,7 +2084,7 @@ const CRMPage = () => {
       {/* ── Kanban Board View ── */}
       {view === 'kanban' && (
         <div className="space-y-4">
-          {(() => { console.log('[KANBAN DEBUG] statusOptions:', statusOptions); console.log('[KANBAN DEBUG] enhancedLeads first 3:', enhancedLeads.slice(0, 3).map(l => ({name: l.name, statusKey: l.statusKey, status: l.status}))); return null; })()}
+          {(() => { console.log('[KANBAN DEBUG] statusOptions:', statusOptions); console.log('[KANBAN DEBUG] enhancedLeads first 3:', enhancedLeads.slice(0, 3).map(l => ({ name: l.name, statusKey: l.statusKey, status: l.status }))); return null; })()}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <h3 className="text-lg font-bold text-[var(--text-primary)]">Pipeline Kanban Board</h3>
@@ -2325,15 +2323,15 @@ const CRMPage = () => {
           {/* Action Buttons & Filter Toggle */}
           <div className="flex items-center justify-between gap-2 mb-4">
             <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
                 className={showAdvancedFilters ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : ''}
               >
-                <Filter size={14} className="mr-1" /> 
+                <Filter size={14} className="mr-1" />
                 {showAdvancedFilters ? 'Hide Filters' : 'Advanced Filters'}
               </Button>
-              
+
               {/* Date Range Picker */}
               <div className="relative" ref={dateRangeRef}>
                 <Button
@@ -2345,7 +2343,7 @@ const CRMPage = () => {
                   {getDateRangeLabel()}
                   <ChevronDown size={12} className="ml-1" />
                 </Button>
-                
+
                 {showDateRangeDropdown && (
                   <div className="absolute left-0 top-full mt-2 w-56 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] shadow-lg z-50">
                     <div className="p-2">
@@ -2365,17 +2363,16 @@ const CRMPage = () => {
                               setPage(1); // Reset pagination
                             }
                           }}
-                          className={`w-full text-left px-3 py-2 rounded text-xs flex items-center justify-between hover:bg-[var(--bg-hovered)] ${
-                            dateRangeFilter.type === option.id 
-                              ? 'text-[var(--primary)] font-bold bg-[var(--primary)]/10' 
-                              : 'text-[var(--text-secondary)]'
-                          }`}
+                          className={`w-full text-left px-3 py-2 rounded text-xs flex items-center justify-between hover:bg-[var(--bg-hovered)] ${dateRangeFilter.type === option.id
+                            ? 'text-[var(--primary)] font-bold bg-[var(--primary)]/10'
+                            : 'text-[var(--text-secondary)]'
+                            }`}
                         >
                           {option.label}
                           {dateRangeFilter.type === option.id && <CheckCircle2 size={12} />}
                         </button>
                       ))}
-                      
+
                       {/* Custom Range Inputs */}
                       {dateRangeFilter.type === 'custom' && (
                         <div className="mt-2 pt-2 border-t border-[var(--border-base)] px-2">
@@ -2419,7 +2416,7 @@ const CRMPage = () => {
                   </div>
                 )}
               </div>
-              
+
               {/* Reset Filter Button */}
               {dateRangeFilter.type !== 'last7days' && (
                 <button
@@ -2429,7 +2426,7 @@ const CRMPage = () => {
                   <RefreshCw size={12} /> Reset
                 </button>
               )}
-              
+
               {(filterStages.length > 0 || filterScoreRanges.length > 0 || filterValueRanges.length > 0 || filterSources.length > 0) && (
                 <button
                   onClick={clearAllFilters}
@@ -2452,7 +2449,7 @@ const CRMPage = () => {
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs text-blue-600">
               <Info size={14} />
               <span>
-                Showing leads from the <strong>{getDateRangeLabel()}</strong>. 
+                Showing leads from the <strong>{getDateRangeLabel()}</strong>.
                 Use the date filter to view older leads.
               </span>
             </div>
@@ -2624,39 +2621,41 @@ const CRMPage = () => {
             selectedRows={selected}
             onSelectRows={setSelected}
             bulkActions={[
-              ...(can('crm', 'export') ? [{ label: 'Export', icon: Download, onClick: (selectedIds) => { 
-                if (guardExport()) {
-                  const selectedIdSet = new Set(selectedIds.map(id => String(id)));
-                  const dataToExport = selectedIds.length > 0 
-                    ? sortedLeads.filter(lead => selectedIdSet.has(String(lead._id)))
-                    : sortedLeads;
-                  const headers = ['Name', 'Company', 'Email', 'Phone', 'Stage', 'Source', 'Value', 'Score', 'City'];
-                  const csvContent = [
-                    headers.join(','),
-                    ...dataToExport.map(lead => [
-                      `"${lead.name || ''}"`,
-                      `"${lead.company || ''}"`,
-                      `"${lead.email || ''}"`,
-                      `"${lead.phone || ''}"`,
-                      `"${statusMap?.[lead.statusKey]?.label || lead.statusKey || ''}"`,
-                      `"${lead.source || ''}"`,
-                      lead.value || 0,
-                      lead.score || 0,
-                      `"${lead.city || ''}"`
-                    ].join(','))
-                  ].join('\n');
-                  
-                  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                  const link = document.createElement('a');
-                  const url = URL.createObjectURL(blob);
-                  link.setAttribute('href', url);
-                  link.setAttribute('download', `leads_export_${new Date().toISOString().split('T')[0]}.csv`);
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
-                  alert(`Exported ${dataToExport.length} leads to CSV!`);
+              ...(can('crm', 'export') ? [{
+                label: 'Export', icon: Download, onClick: (selectedIds) => {
+                  if (guardExport()) {
+                    const selectedIdSet = new Set(selectedIds.map(id => String(id)));
+                    const dataToExport = selectedIds.length > 0
+                      ? sortedLeads.filter(lead => selectedIdSet.has(String(lead._id)))
+                      : sortedLeads;
+                    const headers = ['Name', 'Company', 'Email', 'Phone', 'Stage', 'Source', 'Value', 'Score', 'City'];
+                    const csvContent = [
+                      headers.join(','),
+                      ...dataToExport.map(lead => [
+                        `"${lead.name || ''}"`,
+                        `"${lead.company || ''}"`,
+                        `"${lead.email || ''}"`,
+                        `"${lead.phone || ''}"`,
+                        `"${statusMap?.[lead.statusKey]?.label || lead.statusKey || ''}"`,
+                        `"${lead.source || ''}"`,
+                        lead.value || 0,
+                        lead.score || 0,
+                        `"${lead.city || ''}"`
+                      ].join(','))
+                    ].join('\n');
+
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement('a');
+                    const url = URL.createObjectURL(blob);
+                    link.setAttribute('href', url);
+                    link.setAttribute('download', `leads_export_${new Date().toISOString().split('T')[0]}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    alert(`Exported ${dataToExport.length} leads to CSV!`);
+                  }
                 }
-              }}] : []),
+              }] : []),
               ...(can('crm', 'edit') ? [{ label: 'Score Boost', icon: Brain, onClick: (rows) => { if (guardEdit()) console.log('Boosting scores', rows); } }] : []),
               ...(can('crm', 'delete') ? [{ label: 'Delete', icon: Trash2, onClick: (selectedIds) => { if (guardDelete()) handleBulkDelete(selectedIds); }, danger: true }] : []),
             ]}
@@ -2761,7 +2760,7 @@ const CRMPage = () => {
           <FormField label="Status">
             <Select
               value={newLead.statusKey}
-              onChange={(e) => setNewLead({...newLead, statusKey: e.target.value})}
+              onChange={(e) => setNewLead({ ...newLead, statusKey: e.target.value })}
             >
               {(statusOptions || []).map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
             </Select>
@@ -2987,7 +2986,7 @@ const CRMPage = () => {
       {showActivityModal && (
         <>
           {/* Backdrop */}
-          <div 
+          <div
             className="fixed inset-0 bg-black/50 z-40 transition-opacity"
             onClick={() => { setShowActivityModal(false); setNewActivityNote(''); setActivityLeadId(null); }}
           />
@@ -2996,14 +2995,14 @@ const CRMPage = () => {
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-[var(--border-base)]">
               <h3 className="text-lg font-bold text-[var(--text-primary)]">Activity Log</h3>
-              <button 
+              <button
                 onClick={() => { setShowActivityModal(false); setNewActivityNote(''); setActivityLeadId(null); }}
                 className="p-2 hover:bg-[var(--bg-elevated)] rounded-lg transition-colors"
               >
                 <X size={20} className="text-[var(--text-muted)]" />
               </button>
             </div>
-            
+
             {/* Activity Timeline */}
             <div className="flex-1 overflow-y-auto p-4">
               <div className="space-y-3">
@@ -3028,7 +3027,7 @@ const CRMPage = () => {
                 )}
               </div>
             </div>
-            
+
             {/* Add New Activity Input */}
             <div className="border-t border-[var(--border-base)] p-4 bg-[var(--bg-elevated)]">
               <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-3">Add Activity</p>
@@ -3048,8 +3047,8 @@ const CRMPage = () => {
                 />
               </div>
               <div className="flex justify-end mt-3">
-                <Button 
-                  onClick={handleSaveActivity} 
+                <Button
+                  onClick={handleSaveActivity}
                   disabled={actionLoading || !newActivityNote.trim()}
                   size="sm"
                 >
@@ -3065,7 +3064,7 @@ const CRMPage = () => {
       {showTrackerDrawer && trackerLeadId && (
         <>
           {/* Backdrop */}
-          <div 
+          <div
             className="fixed inset-0 bg-black/1 z-40 transition-opacity"
             onClick={() => { setShowTrackerDrawer(false); setTrackerLeadId(null); }}
           />
@@ -3074,18 +3073,18 @@ const CRMPage = () => {
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-[var(--border-base)]">
               <h3 className="text-lg font-bold text-[var(--text-primary)]">Lead Tracker</h3>
-              <button 
+              <button
                 onClick={() => { setShowTrackerDrawer(false); setTrackerLeadId(null); }}
                 className="p-2 hover:bg-[var(--bg-elevated)] rounded-lg transition-colors"
               >
                 <X size={20} className="text-[var(--text-muted)]" />
               </button>
             </div>
-            
+
             {/* Lead Tracker Content */}
             <div className="flex-1 overflow-y-auto p-4">
-              <LeadTracker 
-                leadId={trackerLeadId} 
+              <LeadTracker
+                leadId={trackerLeadId}
                 statusOptions={statusOptions}
                 onStageChange={fetchLeads}
               />

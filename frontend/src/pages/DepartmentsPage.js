@@ -131,25 +131,25 @@ const DepartmentsPage = () => {
       label: 'Total Departments',
       value: departments.length,
       icon: Building,
-      color: '#22c55e'
+      variant: 'emerald'
     },
     {
       label: 'Active Departments',
       value: departments.filter(d => d.isActive !== false).length,
       icon: Building,
-      color: '#3b82f6'
+      variant: 'blue'
     },
     {
       label: 'Employees in Depts',
       value: Object.keys(deptStats).length,
       icon: Building,
-      color: '#f59e0b'
+      variant: 'amber'
     },
     {
       label: 'Avg Team Size',
       value: departments.length > 0 ? Math.round(employees.length / departments.length) : 0,
       icon: Building,
-      color: '#a855f7'
+      variant: 'purple'
     },
   ];
 
@@ -284,7 +284,7 @@ const DepartmentsPage = () => {
             label={kpi.label}
             value={kpi.value}
             icon={kpi.icon}
-            accentColor={kpi.color}
+            variant={kpi.variant}
           />
         ))}
       </div>
