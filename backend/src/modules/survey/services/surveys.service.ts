@@ -1,14 +1,24 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Survey, SurveyDocument } from '../schemas/survey.schema';
 import { CreateSurveyDto, UpdateSurveyDto, QuerySurveyDto } from '../dto/survey.dto';
+import { Lead, LeadDocument } from '../../leads/schemas/lead.schema';
 
 @Injectable()
 export class SurveysService {
   constructor(
     @InjectModel(Survey.name) private surveyModel: Model<SurveyDocument>,
+    @InjectModel(Lead.name) private leadModel: Model<LeadDocument>,
   ) {}
+
+  private toObjectId(id: string | undefined): Types.ObjectId | undefined {
+    if (!id) return undefined;
+    if (Types.ObjectId.isValid(id)) {
+      return new Types.ObjectId(id);
+    }
+    return undefined;
+  }
 
   private generateSurveyId(): string {
     const timestamp = Date.now().toString(36).toUpperCase();
@@ -37,30 +47,78 @@ export class SurveysService {
     return newSurvey.save();
   }
 
-  async findAll(query: QuerySurveyDto): Promise<{ data: Survey[]; total: number }> {
-    const { status, engineer, search, page = 1, limit = 100 } = query;
-    
-    const filter: any = {};
-    
-    if (status) filter.status = status;
-    if (engineer) filter.engineer = engineer;
-    
-    if (search) {
-      filter.$or = [
-        { customerName: { $regex: search, $options: 'i' } },
-        { surveyId: { $regex: search, $options: 'i' } },
-        { site: { $regex: search, $options: 'i' } },
-      ];
+  async findAll(
+    query: QuerySurveyDto,
+    tenantId?: string,
+    _user?: any,
+  ): Promise<{ data: any[]; total: number; surveys: any[] }> {
+    const { page = 1, limit = 100 } = query;
+
+    const tid = this.toObjectId(tenantId);
+    if (!tid) {
+      return { data: [], total: 0, surveys: [] };
     }
+    const filter: any = {
+      isDeleted: { $ne: true },
+      // Leads store the stage in `statusKey` and are normalized to lowercase with underscores.
+      // Accept both the normalized form and the raw "SITE_SURVEY" string to match expectations.
+      statusKey: { $in: ['site_survey', 'SITE_SURVEY'] },
+    };
+
+    filter.tenantId = tid;
 
     const skip = (page - 1) * limit;
-    
-    const [data, total] = await Promise.all([
-      this.surveyModel.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).exec(),
-      this.surveyModel.countDocuments(filter),
+
+    const [leads, total] = await Promise.all([
+      this.leadModel
+        .find(filter)
+        .sort({ updatedAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean()
+        .exec(),
+      this.leadModel.countDocuments(filter),
     ]);
 
-    return { data, total };
+    const surveys = (leads || []).map((lead: any) => {
+      const leadId = lead._id?.toString?.() || lead.id;
+      const capacityKw = typeof lead.kw === 'number' ? lead.kw : Number(lead.kw);
+      const capacity = Number.isFinite(capacityKw) ? capacityKw : undefined;
+      const engineer = typeof lead.assignedTo === 'string' ? lead.assignedTo : (lead.assignedTo?.toString?.() || '');
+      const createdAt = lead.updatedAt || lead.updated_at || lead.updatedAt;
+
+      return {
+        // Required contract
+        id: leadId,
+        leadId,
+        clientName: lead.name,
+        city: lead.city,
+        capacity,
+        engineer,
+        status: 'pending',
+        statusCode: 'PENDING',
+        createdAt,
+
+        // Backward-compatible aliases for existing survey pages
+        _id: leadId,
+        surveyId: leadId,
+        customerName: lead.name,
+        estimatedKw: capacity || 0,
+        projectCapacity: capacity ? `${capacity} kW` : 'To be determined',
+        site: lead.company || '',
+        scheduledDate: lead.nextFollowUp || '',
+        sourceLeadId: leadId,
+        shadowPct: 0,
+        roofArea: typeof lead.roofArea === 'number' ? lead.roofArea : 0,
+        notes: lead.notes || '',
+      };
+    });
+
+    return {
+      data: surveys,
+      total,
+      surveys,
+    };
   }
 
   async getStats(): Promise<{ total: number; scheduled: number; completed: number; pending: number; totalKw: number }> {
