@@ -20,12 +20,22 @@ export class ItemsService {
     @InjectModel(Tenant.name) private readonly tenantModel: Model<Tenant>,
   ) {}
 
-  private async getTenantId(tenantCode: string): Promise<Types.ObjectId> {
-    const tenant = await this.tenantModel.findOne({ code: tenantCode });
-    if (!tenant) {
-      throw new NotFoundException(`Tenant ${tenantCode} not found`);
+  private async getTenantId(tenantCode: string): Promise<string> {
+    // First, try to find by code
+    const tenantByCode = await this.tenantModel.findOne({ code: tenantCode });
+    if (tenantByCode) {
+      return tenantByCode._id.toString();
     }
-    return tenant._id as Types.ObjectId;
+    
+    // If not found by code, and input looks like ObjectId, try to find by _id
+    if (Types.ObjectId.isValid(tenantCode)) {
+      const tenantById = await this.tenantModel.findById(tenantCode);
+      if (tenantById) {
+        return tenantById._id.toString();
+      }
+    }
+    
+    throw new NotFoundException(`Tenant ${tenantCode} not found`);
   }
 
   async findAll(tenantId: string, user?: UserWithVisibility, search?: string, itemGroupId?: string) {
@@ -61,8 +71,10 @@ export class ItemsService {
   }
 
   async findOne(tenantId: string, id: string) {
+    // Resolve tenant code to actual ObjectId
+    const actualTenantId = await this.getTenantId(tenantId);
     const item = await this.itemModel.findOne({
-      tenantId,
+      tenantId: actualTenantId,
       _id: new Types.ObjectId(id),
       isDeleted: false,
     }).exec();
@@ -83,8 +95,10 @@ export class ItemsService {
   }
 
   async update(tenantId: string, id: string, updateItemDto: UpdateItemDto) {
+    // Resolve tenant code to actual ObjectId
+    const actualTenantId = await this.getTenantId(tenantId);
     const item = await this.itemModel.findOneAndUpdate(
-      { tenantId, _id: new Types.ObjectId(id) },
+      { tenantId: actualTenantId, _id: new Types.ObjectId(id) },
       { $set: updateItemDto },
       { new: true },
     ).exec();
@@ -97,17 +111,25 @@ export class ItemsService {
   }
 
   async remove(tenantId: string, id: string) {
-    const item = await this.itemModel.findOneAndUpdate(
-      { tenantId, _id: new Types.ObjectId(id) },
-      { $set: { isDeleted: true } },
-      { new: true },
-    ).exec();
+    // Resolve tenant code to actual ObjectId
+    const actualTenantId = await this.getTenantId(tenantId);
+    const item = await this.itemModel.findOne({
+      tenantId: actualTenantId,
+      _id: new Types.ObjectId(id),
+      isDeleted: false,
+    }).exec();
 
     if (!item) {
       throw new NotFoundException(`Item ${id} not found`);
     }
 
-    return { message: `Item ${id} deleted successfully` };
+    await this.itemModel.findOneAndUpdate(
+      { tenantId: actualTenantId, _id: new Types.ObjectId(id) },
+      { isDeleted: true, deletedAt: new Date() },
+      { new: true },
+    ).exec();
+
+    return { data: null, message: 'Item deleted successfully' };
   }
 
   async bulkDelete(tenantId: string, ids: string[]) {
@@ -120,22 +142,34 @@ export class ItemsService {
   }
 
   async stockIn(tenantId: string, id: string, quantity: number, poReference?: string, receivedDate?: string, remarks?: string) {
-    const item = await this.itemModel.findOneAndUpdate(
-      { tenantId, _id: new Types.ObjectId(id), isDeleted: false },
-      { $inc: { stock: quantity } },
-      { new: true },
-    ).exec();
+    // Resolve tenant code to actual ObjectId
+    const actualTenantId = await this.getTenantId(tenantId);
+    const item = await this.itemModel.findOne({
+      tenantId: actualTenantId,
+      _id: new Types.ObjectId(id),
+      isDeleted: false,
+    }).exec();
 
     if (!item) {
       throw new NotFoundException(`Item ${id} not found`);
     }
 
-    return { data: item, message: `Stock in successful. Added ${quantity} units.` };
+    const updated = await this.itemModel.findOneAndUpdate(
+      { tenantId: actualTenantId, _id: new Types.ObjectId(id) },
+      { 
+        $inc: { stock: quantity },
+      },
+      { new: true },
+    ).exec();
+
+    return { data: updated, message: `Stock in successful. Added ${quantity} units.` };
   }
 
   async stockOut(tenantId: string, id: string, quantity: number, projectId?: string, issuedDate?: string, remarks?: string) {
+    // Resolve tenant code to actual ObjectId
+    const actualTenantId = await this.getTenantId(tenantId);
     const item = await this.itemModel.findOne({
-      tenantId,
+      tenantId: actualTenantId,
       _id: new Types.ObjectId(id),
       isDeleted: false,
     }).exec();
@@ -149,7 +183,7 @@ export class ItemsService {
     }
 
     const updated = await this.itemModel.findOneAndUpdate(
-      { tenantId, _id: new Types.ObjectId(id) },
+      { tenantId: actualTenantId, _id: new Types.ObjectId(id) },
       { 
         $inc: { stock: -quantity, reserved: quantity },
       },
