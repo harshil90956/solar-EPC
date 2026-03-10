@@ -1,400 +1,556 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../lib/apiClient';
-
-// Solar OS – EPC Edition — InstallationPage.js
-import React, { useState, useMemo, useRef } from 'react';
-import {
-  Wrench, Plus, Camera, CheckCircle, Clock,
-  Zap, Upload, LayoutGrid, List, User
-} from 'lucide-react';
-import { Button } from '../components/ui/Button';
-import { Modal } from '../components/ui/Modal';
-import { Input, FormField, Select, Textarea } from '../components/ui/Input';
+import { useSettings } from '../context/SettingsContext';
+import { usePermissions } from '../hooks/usePermissions';
+import { useAuditLog } from '../hooks/useAuditLog';
 import { PageHeader } from '../components/ui/PageHeader';
+import { Input, FormField, Textarea } from '../components/ui/Input';
+import { Modal } from '../components/ui/Modal';
+import { Button } from '../components/ui/Button';
 import { KPICard } from '../components/ui/KPICard';
 import { Progress } from '../components/ui/Progress';
 import DataTable from '../components/ui/DataTable';
-import { APP_CONFIG } from '../config/app.config';
-import { usePermissions } from '../hooks/usePermissions';
-import { useAuditLog } from '../hooks/useAuditLog';
-import CanAccess, { CanCreate, CanEdit, CanDelete } from '../components/CanAccess';
 import { toast } from '../components/ui/Toast';
+import CanAccess, { CanCreate, CanEdit, CanDelete } from '../components/CanAccess';
+import { Wrench, Plus, LayoutGrid, List, CalendarDays, CheckCircle, Camera, User, MapPin, Clock } from 'lucide-react';
+import { APP_CONFIG } from '../config/app.config';
 
-const NEUTRAL = 'bg-[var(--bg-elevated)] text-[var(--text-muted)] border-[var(--border-muted)]';
-const STATUS_MAP = {
-  'In Progress': { label: 'In Progress', color: 'bg-amber-500/15 text-amber-400 border-amber-500/30' },
-  Completed: { label: 'Completed', color: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' },
-  Pending: { label: 'Pending', color: NEUTRAL },
-  Delayed: { label: 'Delayed', color: 'bg-red-500/15 text-red-400 border-red-500/30' },
-};
-
-const InstallBadge = ({ value }) => {
-  const meta = STATUS_MAP[value] ?? { label: value, color: NEUTRAL };
-  return <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-medium ${meta.color}`}>{meta.label}</span>;
-};
-
-// ── Kanban stage defs ─────────────────────────────────────────────────────────
+// ── Kanban columns ─────────────────────────────────────────────────────────────
 const INSTALL_STAGES = [
-  { id: 'Pending', label: 'Pending', color: 'var(--text-faint)', bg: 'var(--bg-elevated)' },
+  { id: 'Pending', label: 'Pending', color: '#6366f1', bg: 'rgba(99,102,241,0.12)' },
   { id: 'In Progress', label: 'In Progress', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
   { id: 'Delayed', label: 'Delayed', color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
-  { id: 'Completed', label: 'Completed', color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
+  { id: 'Completed', label: 'Completed', color: '#22c55e', bg: 'rgba(34,197,94,0.12)' },
 ];
 
-const COLUMNS = [
-  { key: 'installationId', header: 'Log ID', render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span> },
-  { key: 'projectId', header: 'Project', render: v => <span className="text-xs font-mono text-[var(--text-secondary)]">{v?.toString ? v.toString() : v}</span> },
-  { key: 'customerName', header: 'Customer', sortable: true, render: v => <span className="text-xs font-semibold text-[var(--text-primary)]">{v}</span> },
-  { key: 'siteAddress', header: 'Site', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
-  { key: 'technicianName', header: 'Technician', render: v => <span className="text-xs text-[var(--text-secondary)]">{v}</span> },
-  { key: 'scheduledDate', header: 'Date', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
-  {
-    key: 'progress', header: 'Progress', sortable: true, render: v => (
-      <div className="flex items-center gap-2 min-w-[80px]">
-        <Progress value={v} className="h-1.5 flex-1" />
-        <span className="text-xs text-[var(--text-muted)] w-8 text-right">{v}%</span>
-      </div>
-    )
-  },
-  { key: 'status', header: 'Status', render: v => <InstallBadge value={v} /> },
-];
+// Small badge renderer
+const InstallBadge = ({ value }) => {
+  const map = {
+    'Pending': 'bg-indigo-100 text-indigo-600',
+    'In Progress': 'bg-amber-100 text-amber-600',
+    'Delayed': 'bg-red-100 text-red-600',
+    'Completed': 'bg-emerald-100 text-emerald-600',
+  };
+  return <span className={`inline-block px-2 py-0.5 rounded text-xs ${map[value]||''}`}>{value}</span>;
+};
 
-const STATUS_FILTERS = ['All', 'Pending', 'In Progress', 'Completed', 'Delayed'];
+// Local cache for settings tasks (keeps stable shape)
+let _installationTasksCache = [];
+export const setTasksCache = (tasks) => { _installationTasksCache = tasks || []; };
+export const getTasksFromSettings = () => _installationTasksCache || [];
 
-/* ── Install Kanban Card ── */
+// Merge settings tasks with saved tasks to ensure current settings are shown
+const mergeWithSettingsTasks = (savedTasks = []) => {
+  const settingsTasks = getTasksFromSettings();
+  if (!settingsTasks.length) return savedTasks;
+  
+  return settingsTasks.map(st => {
+    const saved = savedTasks.find(t => t.name === st.name);
+    return {
+      name: st.name,
+      photoRequired: !!st.photoRequired,
+      done: saved?.done || false
+    };
+  });
+};
+const calculateProgress = (tasks=[]) => {
+  if (!tasks || tasks.length === 0) return 0;
+  const done = tasks.filter(t => !!t.done).length;
+  return Math.round((done / tasks.length) * 100);
+};
+
+// ── Installation Kanban Card ──
 const InstallCard = ({ log, onDragStart, onClick }) => {
-  const doneTasks = log.tasks.filter(t => t.done).length;
+  const tasks = mergeWithSettingsTasks(log.tasks);
+  const done = tasks.filter(t=>t.done).length;
+  const progress = calculateProgress(tasks);
+  const stage = INSTALL_STAGES.find(s => s.id === log.status);
   return (
     <div draggable onDragStart={onDragStart} onClick={onClick}
       className="glass-card p-3 cursor-grab active:cursor-grabbing hover:border-[var(--primary)]/40 transition-all">
-      <div className="flex items-start justify-between mb-1.5">
-        <span className="text-[10px] font-mono text-[var(--accent-light)]">{log.id}</span>
-        <span className="text-[10px] font-mono text-[var(--text-secondary)]">{log.projectId}</span>
+      <div className="flex items-start justify-between mb-1">
+        <span className="text-[10px] font-mono text-[var(--accent-light)]">{log.installationId || log.id}</span>
+        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: stage?.bg, color: stage?.color }}>{progress}%</span>
       </div>
-      <p className="text-xs font-semibold text-[var(--text-primary)] mb-0.5">{log.customer}</p>
-      <p className="text-[10px] text-[var(--text-muted)] mb-2 truncate">{log.site}</p>
-      <Progress value={log.progress} className="h-1 mb-2" />
-      <div className="flex items-center justify-between text-[10px]">
-        <span className="flex items-center gap-1 text-[var(--text-muted)]"><User size={9} />{log.technician}</span>
-        <span className="text-[var(--text-muted)]">{log.progress}%</span>
+      <p className="text-xs font-semibold text-[var(--text-primary)] mb-0.5 leading-tight">{log.customerName || log.customer}</p>
+      <div className="flex items-center gap-1.5 mb-2">
+        <MapPin size={12} className="text-[var(--accent-light)]" />
+        <span className="text-[11px] font-medium text-[var(--accent-light)]">{log.siteAddress || log.site}</span>
       </div>
-      {log.tasks.length > 0 && (
-        <div className="mt-1.5 text-[10px] text-[var(--text-faint)]">
-          ✓ {doneTasks}/{log.tasks.length} tasks
+      <Progress value={progress} className="h-1 mb-2" />
+      <div className="grid grid-cols-2 gap-1 text-center">
+        <div>
+          <p className="text-[9px] text-[var(--text-faint)]">Tasks</p>
+          <p className="text-[11px] font-bold text-[var(--text-primary)]">{done}/{tasks.length}</p>
+        </div>
+        <div>
+          <p className="text-[9px] text-[var(--text-faint)]">Technician</p>
+          <p className="text-[11px] font-bold text-[var(--text-primary)] truncate">{log.technicianName || log.technician || '-'}</p>
+        </div>
+      </div>
+      {log.scheduledDate && (
+        <div className="flex items-center gap-1 mt-1.5 text-[10px] text-[var(--text-muted)]">
+          <Clock size={9} /> {new Date(log.scheduledDate).toLocaleDateString()}
         </div>
       )}
-      <div className="mt-1 text-[10px] text-[var(--text-faint)]">{log.date}</div>
     </div>
   );
 };
 
 /* ── Kanban Board ── */
-const InstallKanbanBoard = ({ logs, onStageChange, onCardClick }) => {
+const InstallKanbanBoard = ({ items, onCardClick, onDrop }) => {
   const draggingId = useRef(null);
+  const draggingStageId = useRef(null);
   const [dragOver, setDragOver] = useState(null);
+  const [stageOrder, setStageOrder] = useState(() => {
+    try {
+      const saved = localStorage.getItem('installKanbanStageOrder');
+      if (!saved) return INSTALL_STAGES.map(s => s.id);
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed)) return INSTALL_STAGES.map(s => s.id);
+      const valid = parsed.filter(id => INSTALL_STAGES.some(s => s.id === id));
+      const missing = INSTALL_STAGES.map(s => s.id).filter(id => !valid.includes(id));
+      return [...valid, ...missing];
+    } catch {
+      return INSTALL_STAGES.map(s => s.id);
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('installKanbanStageOrder', JSON.stringify(stageOrder));
+    } catch {
+      // ignore
+    }
+  }, [stageOrder]);
+
+  const handleDrop = (stageId) => {
+    if (draggingStageId.current) {
+      const from = draggingStageId.current;
+      const to = stageId;
+      if (from !== to) {
+        setStageOrder(prev => {
+          const next = [...prev];
+          const fromIdx = next.indexOf(from);
+          const toIdx = next.indexOf(to);
+          if (fromIdx === -1 || toIdx === -1) return prev;
+          next.splice(fromIdx, 1);
+          next.splice(toIdx, 0, from);
+          return next;
+        });
+      }
+      draggingStageId.current = null;
+      setDragOver(null);
+      return;
+    }
+
+    if (draggingId.current && onDrop) {
+      onDrop(draggingId.current, stageId);
+    }
+    draggingId.current = null; setDragOver(null);
+  };
+
   return (
-    <div className="overflow-x-auto pb-3">
+    <div className="overflow-x-auto pb-3 -mx-2 px-2">
       <div className="flex gap-3 min-w-max">
-        {INSTALL_STAGES.map(stage => {
-          const cards = logs.filter(l => l.status === stage.id);
-          const avgProg = cards.length ? Math.round(cards.reduce((a, l) => a + l.progress, 0) / cards.length) : 0;
-          return (
-            <div key={stage.id}
-              className={`flex flex-col w-60 rounded-xl border transition-colors ${dragOver === stage.id ? 'border-[var(--primary)]/50 bg-[var(--primary)]/5' : 'border-[var(--border-base)] bg-[var(--bg-surface)]'}`}
-              onDragOver={e => { e.preventDefault(); setDragOver(stage.id); }}
-              onDragLeave={() => setDragOver(null)}
-              onDrop={() => { if (draggingId.current) onStageChange(draggingId.current, stage.id); draggingId.current = null; setDragOver(null); }}>
-              <div className="flex items-center justify-between p-3 border-b border-[var(--border-base)]">
-                <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full" style={{ background: stage.color }} />
-                  <span className="text-xs font-semibold text-[var(--text-primary)]">{stage.label}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  {cards.length > 0 && <span className="text-[10px] text-[var(--text-muted)]">{avgProg}% avg</span>}
-                  <span className="min-w-[20px] h-5 rounded-full text-[10px] font-bold flex items-center justify-center"
-                    style={{ background: stage.bg, color: stage.color }}>{cards.length}</span>
-                </div>
-              </div>
-              <div className="flex flex-col gap-2 p-2 flex-1 min-h-[160px]">
-                {cards.map(l => (
-                  <InstallCard key={l.id} log={l}
-                    onDragStart={() => { draggingId.current = l.id; }}
-                    onClick={() => onCardClick(l)} />
-                ))}
-                {cards.length === 0 && (
-                  <div className="flex-1 flex items-center justify-center">
-                    <p className="text-[11px] text-[var(--text-faint)]">Drop here</p>
+        {stageOrder
+          .map(id => INSTALL_STAGES.find(s => s.id === id))
+          .filter(Boolean)
+          .map(stage => {
+            const cards = items.filter(i => i.status === stage.id);
+            const avgProgress = cards.length ? Math.round(cards.reduce((a, i) => a + calculateProgress(i.tasks), 0) / cards.length) : 0;
+            return (
+              <div key={stage.id}
+                className={`flex flex-col w-72 sm:w-60 rounded-xl border transition-colors ${dragOver === stage.id ? 'border-[var(--primary)]/50 bg-[var(--primary)]/5' : 'border-[var(--border-base)] bg-[var(--bg-surface)]'}`}
+                onDragOver={e => { e.preventDefault(); setDragOver(stage.id); }}
+                onDragLeave={() => setDragOver(null)}
+                onDrop={() => handleDrop(stage.id)}>
+                <div
+                  draggable
+                  onDragStart={(e) => {
+                    draggingStageId.current = stage.id;
+                    try {
+                      e.dataTransfer.effectAllowed = 'move';
+                    } catch {
+                      // ignore
+                    }
+                  }}
+                  onDragEnd={() => { draggingStageId.current = null; setDragOver(null); }}
+                  className="flex items-center justify-between p-3 border-b border-[var(--border-base)] cursor-grab active:cursor-grabbing"
+                  title="Drag to reorder columns"
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ background: stage.color }} />
+                    <span className="text-xs font-semibold text-[var(--text-primary)]">{stage.label}</span>
                   </div>
-                )}
+                  <div className="flex items-center gap-1.5">
+                    {avgProgress > 0 && <span className="text-[10px] text-[var(--text-muted)] hidden sm:inline">{avgProgress}%</span>}
+                    <span className="min-w-[20px] h-5 rounded-full text-[10px] font-bold flex items-center justify-center"
+                      style={{ background: stage.bg, color: stage.color }}>{cards.length}</span>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2 p-2 flex-1 min-h-[180px]">
+                  {cards.map(i => (
+                    <InstallCard key={i.installationId || i.id} log={i}
+                      onDragStart={() => { draggingId.current = i.installationId || i.id; }}
+                      onClick={() => onCardClick(i)} />
+                  ))}
+                  {cards.length === 0 && (
+                    <div className="flex-1 flex items-center justify-center">
+                      <p className="text-[11px] text-[var(--text-faint)]">Drop here</p>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
       </div>
     </div>
   );
 };
 
-/* ── Main Page ── */
+const COLUMNS = [
+  { key: 'installationId', header: 'Installation ID', render: v => <span className="font-mono text-xs">{v}</span> },
+  { key: 'projectId', header: 'Project', render: v => <span className="text-xs">{typeof v === 'object' ? (v?.projectId || v?.id || '-') : (v || '-')}</span> },
+  { key: 'customerName', header: 'Customer', render: v => <span className="text-xs font-semibold">{v}</span> },
+  { key: 'siteAddress', header: 'Site', render: v => <span className="text-xs">{v}</span> },
+  { key: 'technicianName', header: 'Technician', render: v => <span className="text-xs">{v}</span> },
+  { key: 'status', header: 'Status', render: v => <InstallBadge value={v} /> },
+  { key: 'progress', header: 'Progress', render: v => <Progress value={v} className="h-1.5" /> },
+  { key: 'scheduledDate', header: 'Start Date', render: v => <span className="text-xs">{v}</span> },
+];
+
 const InstallationPage = () => {
   const { can } = usePermissions();
-  const { logCreate, logUpdate, logDelete, logStatusChange } = useAuditLog('installation');
-
-  // Fetch installations from API
-  const { data: installations, isLoading, error } = useQuery({
-    queryKey: ['installations'],
-    queryFn: async () => {
-      const response = await apiClient.get('/installations');
-      return response.data || [];
-    },
-  });
-
-  // Permission guard helpers
-  const guardCreate = () => {
-    if (!can('installation', 'create')) {
-      toast.error('Permission denied: Cannot create installation logs');
-      return false;
-    }
-    return true;
-  };
-
-  const guardEdit = () => {
-    if (!can('installation', 'edit')) {
-      toast.error('Permission denied: Cannot edit installation');
-      return false;
-    }
-    return true;
-  };
-
-  const guardDelete = () => {
-    if (!can('installation', 'delete')) {
-      toast.error('Permission denied: Cannot delete installation logs');
-      return false;
-    }
-    return true;
-  };
-
+  const { logCreate, logUpdate, logStatusChange } = useAuditLog('installation');
+  const { installationTasks } = useSettings();
   const [view, setView] = useState('kanban');
-  const [search, setSearch] = useState('');
-  const [statusFilter, setFilter] = useState('All');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(APP_CONFIG.defaultPageSize);
   const [showAdd, setShowAdd] = useState(false);
   const [selected, setSelected] = useState(null);
-  
-  // Use API data or fallback to empty array
-  const logs = installations || [];
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(APP_CONFIG.defaultPageSize || 20);
 
-  const handleStageChange = (id, newStatus) => {
-    if (!can('installation', 'edit')) {
-      toast.error('Permission denied: Cannot change installation status');
-      return;
+  // sync settings cache
+  useEffect(()=>{ setTasksCache(installationTasks || []); }, [installationTasks]);
+
+  // fetch installations
+  const { data: installationsRaw=[], refetch } = useQuery({
+    queryKey: ['installations'],
+    queryFn: async () => { const r = await apiClient.get('/installations'); return r.data || []; }
+  });
+
+  // derive logs with normalized fields and progress
+  const logs = useMemo(() => (installationsRaw || []).map(l => ({
+    ...l,
+    installationId: l.installationId || l.id || l._id,
+    customerName: l.customerName || l.customer,
+    siteAddress: l.siteAddress || l.site,
+    technicianName: l.technicianName || l.technician,
+    tasks: (l.tasks && l.tasks.length) ? l.tasks : (getTasksFromSettings().map(t=>({ ...t, done:false }))),
+    progress: calculateProgress(l.tasks || getTasksFromSettings()),
+  })), [installationsRaw]);
+
+  // simple KPIs
+  const active = logs.filter(l=>l.status==='In Progress').length;
+  const completed = logs.filter(l=>l.status==='Completed').length;
+  const pending = logs.filter(l=>l.status==='Pending').length;
+  const avgProg = logs.length ? Math.round(logs.reduce((a,b)=>a+b.progress,0)/logs.length) : 0;
+
+  // Kanban helpers
+  const handleMove = async (id, toStatus) => {
+    if (!can('installation','edit')) return toast.error('Permission denied');
+    const log = logs.find(x => x.installationId === id || x.id === id || x._id === id);
+    if (!log) return;
+    // enforce completion rule
+    if (toStatus === 'Completed') {
+      const allTasksDone = (log.tasks || []).every(t => !!t.done);
+      const allPhotos = (log.tasks || []).filter(t=>t.photoRequired).length === 0 || (log.photos && log.photos.length >= (log.tasks || []).filter(t=>t.photoRequired).length);
+      if (!allTasksDone || !allPhotos) {
+        return toast.error('Cannot mark completed: ensure all tasks done and required photos uploaded');
+      }
     }
-    const log = logs.find(l => l.id === id);
-    // TODO: Add API call to update status
-    logStatusChange(log, log?.status, newStatus);
+    try {
+      await apiClient.patch(`/installations/${log._id || log.id}/status`, { status: toStatus });
+      refetch();
+      logStatusChange(log, log.status, toStatus);
+    } catch (err) {
+      toast.error(err.message || 'Failed to move');
+    }
   };
 
-  // Transform API data to match Kanban component expected format
-  const transformedLogs = useMemo(() => {
-    return logs.map(log => ({
-      ...log,
-      id: log.installationId || log.id,
-      customer: log.customerName || log.customer,
-      site: log.siteAddress || log.site,
-      technician: log.technicianName || log.technician,
-      date: log.scheduledDate || log.date,
-    }));
+  // table pagination/filter
+  const filtered = logs.filter(l => {
+    if (!search) return true;
+    const s = search.toLowerCase();
+    return (l.installationId||'').toString().toLowerCase().includes(s) || (l.customerName||'').toLowerCase().includes(s) || (l.siteAddress||'').toLowerCase().includes(s);
+  });
+  const paginated = filtered.slice((page-1)*pageSize, page*pageSize).map(l => ({ ...l, progress: calculateProgress(l.tasks) }));
+
+  // Detail modal: toggle task with photo rule
+  const handleToggleTask = async (index) => {
+    if (!selected) return;
+    if (!can('installation','edit')) return toast.error('Permission denied');
+    
+    // Get merged tasks (settings + saved status)
+    const currentTasks = mergeWithSettingsTasks(selected.tasks);
+    const t = currentTasks[index];
+    if (!t) return;
+    
+    if (!t.done && t.photoRequired && (!selected.photos || selected.photos.length===0)) {
+      return toast.error('Photo required before marking this task complete');
+    }
+    
+    // Toggle the task - ensure proper data types for backend
+    const updatedTasks = currentTasks.map((x,i)=> i===index ? { 
+      ...x, 
+      done: !x.done,
+      name: x.name,
+      photoRequired: !!x.photoRequired
+    } : {
+      ...x,
+      done: !!x.done,
+      name: x.name,
+      photoRequired: !!x.photoRequired
+    });
+    
+    try {
+      const resp = await apiClient.patch(`/installations/${selected._id || selected.id}/tasks`, { tasks: updatedTasks });
+      setSelected(resp.data);
+      refetch();
+      logUpdate(selected, { tasks: selected.tasks }, { tasks: resp.data.tasks });
+    } catch (err) { 
+      console.error('Task update error:', err.response?.data || err.message);
+      toast.error(err.response?.data?.message || err.message || 'Failed'); 
+    }
+  };
+
+  // Calendar data derived from installation events (server stores events array)
+  const calendarEvents = useMemo(() => {
+    const ev = [];
+    logs.forEach(l => {
+      (l.events || []).forEach(e => ev.push({ installationId: l.installationId, timestamp: e.timestamp, eventType: e.eventType, metadata: e.metadata }));
+      // ensure a created event exists
+      if (!l.events || !l.events.some(x=>x.eventType==='Installation Created')) {
+        ev.push({ installationId: l.installationId, timestamp: l.createdAt || l._created || null, eventType: 'Installation Created', metadata: {} });
+      }
+    });
+    return ev.sort((a,b)=> new Date(b.timestamp||0) - new Date(a.timestamp||0));
   }, [logs]);
 
-  const filtered = useMemo(() =>
-    transformedLogs.filter(l =>
-      (statusFilter === 'All' || l.status === statusFilter) &&
-      (l.customer || '').toLowerCase().includes(search.toLowerCase())
-    ), [search, statusFilter, transformedLogs]);
-
-  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
-  const activeInstallations = logs.filter(l => l.status === 'In Progress');
-  const completedInstallations = logs.filter(l => l.status === 'Completed');
-  const pendingInstallations = logs.filter(l => l.status === 'Pending');
-  const active = activeInstallations.length;
-  const completed = completedInstallations.length;
-  const pending = pendingInstallations.length;
-  const avgProg = Math.round(logs.reduce((a, l) => a + l.progress, 0) / logs.length);
-
-  const ROW_ACTIONS = [
-    { label: 'View Log', icon: Camera, onClick: row => setSelected(row) },
-    { label: 'Add Photo', icon: Camera, onClick: (row) => { if (guardEdit()) console.log('Add Photo', row); } },
-    { label: 'Mark Complete', icon: CheckCircle, onClick: (row) => { if (guardEdit()) console.log('Mark Complete', row); } },
-  ];
+  // New installation creation uses settings tasks as template
+  const [newForm, setNewForm] = useState({ department:'', technicianId:'', technicianName:'', customerName:'', siteAddress:'', scheduledDate:'', notes:'' });
+  const [selectedDept, setSelectedDept] = useState('');
+  
+  // Fetch employees from HRM
+  const { data: employees=[] } = useQuery({
+    queryKey: ['employees'],
+    queryFn: async () => { 
+      try {
+        const r = await apiClient.get('/hrm/employees'); 
+        console.log('Raw API response:', r);
+        console.log('Type:', typeof r, 'Is Array:', Array.isArray(r));
+        
+        // Handle wrapped response { success: true, data: [...] }
+        let empList = [];
+        if (Array.isArray(r)) {
+          empList = r;
+        } else if (r && typeof r === 'object') {
+          empList = r.data || [];
+        }
+        
+        console.log('Extracted employee list:', empList);
+        console.log('Employee count:', empList.length);
+        return empList;
+      } catch(err) {
+        console.error('Employees fetch error:', err);
+        return [];
+      }
+    },
+    enabled: showAdd
+  });
+  
+  // Get unique departments from employees
+  const departments = useMemo(() => {
+    console.log('Extracting departments from employees:', employees);
+    console.log('Employee count:', employees.length);
+    if (employees.length > 0) {
+      console.log('First employee:', employees[0]);
+      console.log('First employee department:', employees[0].department);
+    }
+    const depts = [...new Set(employees.map(e => {
+      console.log('Employee:', e.name || e.firstName, 'Department:', e.department);
+      return e.department;
+    }).filter(Boolean))];
+    console.log('Unique departments found:', depts);
+    return depts;
+  }, [employees]);
+  
+  // Filter technicians by selected department
+  const technicians = useMemo(() => {
+    if (!selectedDept) return employees;
+    return employees.filter(e => e.department === selectedDept);
+  }, [employees, selectedDept]);
+  const createInstallation = async () => {
+    if (!can('installation','create')) return toast.error('Permission denied');
+    try {
+      await apiClient.post('/installations', { ...newForm, tasks: getTasksFromSettings().map(t=>({ name: t.name, photoRequired: !!t.photoRequired, done:false })) });
+      setShowAdd(false);
+      refetch();
+      toast.success('Installation created');
+    } catch (err) { toast.error(err.message || 'Create failed'); }
+  };
 
   return (
-    <div className="animate-fade-in space-y-5">
-      <PageHeader
-        title="Installation"
-        subtitle="Site installation logs · task checklist · photo documentation"
-        tabs={[
-          { id: 'kanban', label: 'Kanban', icon: LayoutGrid },
-          { id: 'table', label: 'Table', icon: List }
-        ]}
-        activeTab={view}
-        onTabChange={setView}
-        actions={[
-          { type: 'button', label: 'New Log', icon: Plus, variant: 'primary', onClick: () => setShowAdd(true) }
-        ]}
-      />
+    <div className="space-y-5 animate-fade-in">
+      <PageHeader title="Installation" subtitle="Site installation logs, checklist and photos" tabs={[{id:'kanban',label:'Kanban',icon:LayoutGrid},{id:'table',label:'Table',icon:List},{id:'calendar',label:'Calendar',icon:CalendarDays}]} activeTab={view} onTabChange={setView} actions={[{ type:'button', label:'New Log', icon:Plus, variant:'primary', onClick:() => setShowAdd(true)}]} />
 
-      {/* Installation Overview KPI Cards */}
-      <div className="mb-2">
-        <p className="text-xs text-[var(--text-muted)] mb-2 flex items-center gap-2">
-          <Wrench size={12} className="text-[var(--accent-light)]" />
-          <span>Installation Overview - Site installation tracking and progress</span>
-        </p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <KPICard title="Total Active Installations" value={active} icon={Wrench} sub="currently in progress" color="amber" />
-          <KPICard title="Total Completed Installations" value={completed} icon={CheckCircle} sub="finished this month" color="emerald" />
-          <KPICard title="Total Pending Installations" value={pending} icon={Clock} sub="awaiting start" color="accent" />
-          <KPICard title="Average Installation Progress" value={`${avgProg}%`} icon={Zap} sub="across all active sites" color="solar" />
-        </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <KPICard title="Total Active Installations" value={active} icon={Wrench} sub="currently in progress" color="amber" />
+        <KPICard title="Total Completed Installations" value={completed} icon={CheckCircle} sub="finished" color="emerald" />
+        <KPICard title="Total Pending Installations" value={pending} icon={Wrench} sub="awaiting start" color="accent" />
+        <KPICard title="Average Installation Progress" value={`${avgProg}%`} icon={Wrench} sub="across sites" color="solar" />
       </div>
 
-      <div className="ai-banner">
-        <Zap size={14} className="text-[var(--accent-light)] mt-0.5 shrink-0" />
-        <p className="text-xs text-[var(--text-secondary)]">
-          <span className="text-[var(--accent-light)] font-semibold">AI Insight:</span>{' '}
-          IL001 (Joshi Industries) is 60% complete. DC wiring and inverter installation remain — estimated 2 more days. IL004 (Suresh Bhatt) is delayed — coordinate with site team.
-        </p>
+      <div className="flex items-center justify-between">
+        <Input placeholder="Search installations…" value={search} onChange={e=>setSearch(e.target.value)} className="w-80" />
       </div>
 
-      {/* Active site progress cards — shown in both views */}
-      {logs.filter(l => l.status === 'In Progress').map(log => (
-        <div key={log.id} className="glass-card p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-amber-500/15 flex items-center justify-center">
-                <Wrench size={16} className="text-amber-400" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-[var(--text-primary)]">{log.id} — {log.customer}</p>
-                <p className="text-xs text-[var(--text-muted)]">{log.site} · {log.technician}</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <InstallBadge value={log.status} />
-              <p className="text-xs text-[var(--text-muted)] mt-1">{log.progress}% complete</p>
-            </div>
-          </div>
-          <Progress value={log.progress} className="h-2 mb-3" />
-          <div className="grid grid-cols-2 gap-2">
-            {log.tasks.map((t, i) => (
-              <div key={i} className={`flex items-center gap-2 text-[11px] ${t.done ? 'text-emerald-400' : 'text-[var(--text-muted)]'}`}>
-                <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${t.done ? 'border-emerald-500 bg-emerald-500/20' : 'border-[var(--border-base)]'}`}>
-                  {t.done && <CheckCircle size={9} />}
-                </div>
-                {t.name}
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
+      {view === 'kanban' && (
+        <InstallKanbanBoard items={logs} onCardClick={setSelected} onDrop={handleMove} />
+      )}
 
-      {view === 'kanban' ? (
-        <>
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-[var(--text-muted)]">Drag installation logs between columns to update status</p>
-            <Input placeholder="Search installations…" value={search}
-              onChange={e => setSearch(e.target.value)} className="h-8 text-xs w-52" />
-          </div>
-          <InstallKanbanBoard logs={transformedLogs} onStageChange={handleStageChange} onCardClick={setSelected} />
-        </>
-      ) : (
-        <>
-          <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-xs text-[var(--text-muted)] mr-1">Filter:</span>
-            {STATUS_FILTERS.map(s => (
-              <button key={s} onClick={() => { setFilter(s); setPage(1); }}
-                className={`filter-chip ${statusFilter === s ? 'filter-chip-active' : ''}`}>{s}</button>
-            ))}
-            <div className="ml-auto">
-              <Input placeholder="Search installations…" value={search}
-                onChange={e => { setSearch(e.target.value); setPage(1); }} className="h-8 text-xs w-52" />
-            </div>
-          </div>
-          <DataTable columns={COLUMNS} data={paginated} rowActions={ROW_ACTIONS}
-            pagination={{ page, pageSize, total: filtered.length, onChange: setPage, onPageSizeChange: setPageSize }}
-            emptyMessage="No installation logs found." />
-        </>
+      {view === 'table' && (
+        <DataTable 
+          columns={COLUMNS} 
+          data={paginated.map(r=>({ ...r, progress: calculateProgress(r.tasks) }))} 
+          pagination={{ page, pageSize, total: filtered.length, onChange: setPage, onPageSizeChange: setPageSize }} 
+          emptyMessage="No installation logs found."
+          onRowClick={(row) => setSelected(row)}
+        />
+      )}
+
+      {view === 'calendar' && (
+        <div className="overflow-auto max-h-[60vh]">
+          <table className="w-full text-xs">
+            <thead>
+              <tr>
+                <th className="px-2 py-1">Date</th>
+                <th className="px-2 py-1">Installation</th>
+                <th className="px-2 py-1">Event</th>
+                <th className="px-2 py-1">Details</th>
+              </tr>
+            </thead>
+            <tbody>
+              {calendarEvents.map((e,i)=> (
+                <tr key={i} className="border-t"><td className="px-2 py-1">{e.timestamp?new Date(e.timestamp).toLocaleString():'-'}</td><td className="px-2 py-1">{e.installationId}</td><td className="px-2 py-1">{e.eventType}</td><td className="px-2 py-1">{e.metadata?JSON.stringify(e.metadata):''}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {/* New Log Modal */}
-      <Modal open={showAdd} onClose={() => setShowAdd(false)} title="New Installation Log"
-        footer={<div className="flex gap-2 justify-end">
-          <Button variant="ghost" onClick={() => setShowAdd(false)}>Cancel</Button>
-          <CanCreate module="installation">
-            <Button onClick={() => { if (guardCreate()) setShowAdd(true); }}><Plus size={13} /> New Log</Button>
-          </CanCreate>
-        </div>}>
+      <Modal open={showAdd} onClose={()=>{setShowAdd(false); setSelectedDept('');}} title="New Installation Log" footer={<div className="flex gap-2 justify-end"><Button variant="ghost" onClick={()=>{setShowAdd(false); setSelectedDept('');}}>Cancel</Button><Button onClick={createInstallation}><Plus size={12} /> Create</Button></div>}>
         <div className="space-y-3">
-          <FormField label="Project">
-            <Select>
-              <option value="">Select Project</option>
-              {pendingInstallations.map(installation => (
-                <option key={installation.id} value={installation.projectId}>
-                  {installation.projectId} – {installation.customer}
+          <div className="grid grid-cols-2 gap-2">
+            {/* Department Dropdown */}
+            <select 
+              className="w-full px-3 py-2 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-base)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)]"
+              value={selectedDept}
+              onChange={e=>{
+                setSelectedDept(e.target.value);
+                setNewForm(p=>({...p, department: e.target.value, technicianId:'', technicianName:''}));
+              }}
+            >
+              <option value="">Select Department</option>
+              {departments.map(dept => (
+                <option key={dept} value={dept}>{dept}</option>
+              ))}
+            </select>
+            
+            {/* Technician Dropdown */}
+            <select 
+              className="w-full px-3 py-2 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-base)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)] disabled:opacity-50"
+              value={newForm.technicianId}
+              disabled={!selectedDept}
+              onChange={e=>{
+                const emp = employees.find(emp => emp._id === e.target.value || emp.id === e.target.value);
+                setNewForm(p=>({...p, technicianId: e.target.value, technicianName: emp?.name || emp?.firstName + ' ' + emp?.lastName || ''}));
+              }}
+            >
+              <option value="">{selectedDept ? 'Select Technician' : 'Select Department First'}</option>
+              {technicians.map(tech => (
+                <option key={tech._id || tech.id} value={tech._id || tech.id}>
+                  {tech.name || `${tech.firstName || ''} ${tech.lastName || ''}`.trim()}
                 </option>
               ))}
-            </Select>
-          </FormField>
-          <div className="grid grid-cols-2 gap-3">
-            <FormField label="Technician">
-              <Select><option value="">Assign Technician</option><option>Kiran Tech</option></Select>
-            </FormField>
-            <FormField label="Start Date"><Input type="date" /></FormField>
+            </select>
+            
+            <Input placeholder="Customer Name" value={newForm.customerName} onChange={e=>setNewForm(p=>({...p,customerName:e.target.value}))} />
+            <Input placeholder="Site Address" value={newForm.siteAddress} onChange={e=>setNewForm(p=>({...p,siteAddress:e.target.value}))} />
+            <Input type="date" placeholder="Start Date" value={newForm.scheduledDate} onChange={e=>setNewForm(p=>({...p,scheduledDate:e.target.value}))} />
+            <Input placeholder="Notes (Optional)" value={newForm.notes} onChange={e=>setNewForm(p=>({...p,notes:e.target.value}))} />
           </div>
-          <FormField label="Notes"><Textarea placeholder="Site observations, special requirements…" rows={2} /></FormField>
+          {getTasksFromSettings().length>0 && (
+            <div>
+              <div className="text-xs font-semibold">Default Task Checklist</div>
+              <ul className="list-disc list-inside text-[12px] mt-1">
+                {getTasksFromSettings().map((t,i)=>(<li key={i}>{t.name}{t.photoRequired?' (photo required)':''}</li>))}
+              </ul>
+            </div>
+          )}
         </div>
       </Modal>
 
       {/* Detail Modal */}
       {selected && (
-        <Modal open={!!selected} onClose={() => setSelected(null)} title={`Installation Log — ${selected.installationId || selected.id}`}
-          footer={<div className="flex gap-2 justify-end">
-            <Button variant="ghost" onClick={() => setSelected(null)}>Close</Button>
-            <Button><Upload size={13} /> Upload Photos</Button>
-          </div>}>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              {[['Log ID', selected.installationId || selected.id], ['Project', selected.projectId?.projectId || selected.projectId], ['Customer', selected.customerName || selected.customer],
-              ['Site', selected.siteAddress || selected.site], ['Technician', selected.technicianName || selected.technician], ['Date', selected.scheduledDate || selected.date]
-              ].map(([k, v]) => (
-                <div key={k} className="glass-card p-2">
-                  <div className="text-[var(--text-muted)] mb-0.5">{k}</div>
-                  <div className="font-semibold text-[var(--text-primary)]">{v || '-'}</div>
-                </div>
-              ))}
+        <Modal open={!!selected} onClose={()=>setSelected(null)} title={`Installation — ${selected.installationId || selected.id}`} footer={<div className="flex gap-2 justify-end"><Button variant="ghost" onClick={()=>setSelected(null)}>Close</Button></div>}>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="glass-card p-2"><div className="text-[var(--text-muted)]">Installation ID</div><div className="font-semibold">{selected.installationId || selected.id}</div></div>
+              <div className="glass-card p-2"><div className="text-[var(--text-muted)]">Project</div><div className="font-semibold">{typeof selected.projectId === 'object' ? (selected.projectId?.projectId || selected.projectId?.id || '-') : (selected.projectId || '-')}</div></div>
+              <div className="glass-card p-2"><div className="text-[var(--text-muted)]">Customer</div><div className="font-semibold">{selected.customerName || '-'}</div></div>
+              <div className="glass-card p-2"><div className="text-[var(--text-muted)]">Site</div><div className="font-semibold">{selected.siteAddress || '-'}</div></div>
             </div>
+
             <div>
-              <div className="flex items-center justify-between text-xs mb-2">
-                <span className="font-semibold text-[var(--text-primary)]">Progress</span>
-                <span className="text-[var(--text-muted)]">{selected.progress}%</span>
-              </div>
-              <Progress value={selected.progress} className="h-2" />
-            </div>
-            {selected.tasks.length > 0 && (
-              <div>
-                <div className="text-xs font-semibold text-[var(--text-primary)] mb-2">Task Checklist</div>
-                <div className="space-y-1.5">
-                  {selected.tasks.map((t, i) => (
-                    <div key={i} className={`flex items-center gap-2 text-xs ${t.done ? 'text-emerald-400' : 'text-[var(--text-muted)]'}`}>
-                      <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${t.done ? 'bg-emerald-500/20 border-emerald-500' : 'border-[var(--border-base)]'}`}>
-                        {t.done && <CheckCircle size={10} />}
+              <div className="text-xs font-semibold">Task Checklist</div>
+              <div className="space-y-2 mt-2">
+                {(mergeWithSettingsTasks(selected.tasks) || []).map((t,i)=> (
+                  <div key={i} className="flex items-center justify-between py-2 border-b border-[var(--border-base)]">
+                    <div className="flex items-center gap-3">
+                      <div 
+                        onClick={()=>handleToggleTask(i)}
+                        className={`w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer ${t.done?'bg-emerald-500 border-emerald-500':'border-[var(--border-base)]'}`}
+                      >
+                        {t.done && <CheckCircle size={14} className="text-white" />}
                       </div>
-                      {t.name}
+                      <span className={`text-sm ${t.done?'text-[var(--text-muted)] line-through':''}`}>{t.name}</span>
                     </div>
-                  ))}
-                </div>
+                    <div className="flex items-center gap-2">
+                      <label className="flex items-center gap-1 text-[11px] text-[var(--text-muted)]">
+                        <div className={`w-3 h-3 rounded border ${t.photoRequired?'bg-emerald-500 border-emerald-500':'border-[var(--border-base)]'}`} />
+                        Photo
+                      </label>
+                    </div>
+                  </div>
+                ))}
               </div>
-            )}
+            </div>
+
+            <div>
+              <div className="text-xs font-semibold">Photos</div>
+              <div className="text-[12px] mt-2">{(selected.photos||[]).length} uploaded</div>
+            </div>
+
+            <div>
+              <div className="text-xs font-semibold">Timeline</div>
+              <div className="space-y-2 mt-2 text-[12px] max-h-40 overflow-auto">
+                {(selected.events||[]).slice().sort((a,b)=> new Date(b.timestamp||0)-new Date(a.timestamp||0)).map((e,i)=>(<div key={i} className="glass-card p-2"><div className="flex justify-between"><div>{e.eventType}</div><div className="text-[10px] text-[var(--text-muted)]">{e.timestamp?new Date(e.timestamp).toLocaleString():'-'}</div></div>{e.metadata && <pre className="text-xs mt-1">{JSON.stringify(e.metadata)}</pre>}</div>))}
+              </div>
+            </div>
           </div>
         </Modal>
       )}

@@ -209,6 +209,24 @@ export const settingsApi = {
     }
   },
 
+  // ── Installation Task Checklist Builder ─────────────────────────────────
+  async getInstallationTasks() {
+    try {
+      return await apiClient.get('/settings/installation/tasks');
+    } catch (error) {
+      return { data: [] };
+    }
+  },
+
+  async updateInstallationTasks(tasks) {
+    try {
+      return await apiClient.put('/settings/installation/tasks', { tasks });
+    } catch (error) {
+      console.warn('Failed to update installation tasks:', error.message);
+      return { success: false };
+    }
+  },
+
   async updateProjectTypeConfig(typeId, config) {
     try {
       return await apiClient.put(`/settings/project-types/${typeId}`, config);

@@ -216,4 +216,39 @@ export class InstallationController {
     await this.installationService.deleteInstallation(id, this.getUserContext(req));
     return { message: 'Installation deleted successfully' };
   }
+
+  /**
+   * Get timeline events for a single installation
+   */
+  @Get(':id/timeline')
+  @RequirePermission('installation', 'view')
+  async getTimeline(
+    @Param('id') id: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.installationService.getTimeline(id, this.getUserContext(req));
+  }
+
+  /**
+   * Calendar view events across installations
+   * Accepts query params: from,to,technicianId,projectId,status
+   */
+  @Get('calendar')
+  @RequirePermission('installation', 'view')
+  async getCalendar(
+    @Request() req: AuthenticatedRequest,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('technicianId') technicianId?: string,
+    @Query('projectId') projectId?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.installationService.getCalendarEvents(this.getUserContext(req), {
+      from,
+      to,
+      technicianId,
+      projectId,
+      status,
+    });
+  }
 }
