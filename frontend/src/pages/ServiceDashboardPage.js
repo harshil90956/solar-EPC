@@ -182,7 +182,14 @@ const ServiceDashboardPage = ({ onNavigate }) => {
       setVisitStats(vStats || { totalVisits: 0, scheduled: 0, completed: 0, cancelled: 0 });
 
       // Process engineers
-      const engineersData = Array.isArray(engineersRes) ? engineersRes : engineersRes?.data || [];
+      let engineersData = [];
+      if (Array.isArray(engineersRes)) {
+        engineersData = engineersRes;
+      } else if (engineersRes?.data && Array.isArray(engineersRes.data)) {
+        engineersData = engineersRes.data;
+      } else if (engineersRes?.data?.data && Array.isArray(engineersRes.data.data)) {
+        engineersData = engineersRes.data.data;
+      }
       setEngineers(engineersData);
 
       // Process customers
@@ -258,11 +265,22 @@ const ServiceDashboardPage = ({ onNavigate }) => {
       ? aiInsight.recommendations.join(' ')
       : 'No insights available at this time.');
 
-  // Recent items (sorted by date)
+  // Recent items (sorted by date) - Show ALL tickets without limit
   const recentTickets = useMemo(() => {
-    return [...tickets]
-      .sort((a, b) => new Date(b.created || b.createdAt) - new Date(a.created || a.createdAt))
-      .slice(0, 5);
+    const allTickets = [...tickets]
+      .sort((a, b) => {
+        const dateA = a.created || a.createdAt || a.date;
+        const dateB = b.created || b.createdAt || b.date;
+        // Handle missing dates - put items with valid dates first
+        if (!dateA && !dateB) return 0;
+        if (!dateA) return 1;
+        if (!dateB) return -1;
+        return new Date(dateB) - new Date(dateA);
+      });
+    console.log('DEBUG - Total tickets:', tickets.length);
+    console.log('DEBUG - Recent tickets count:', allTickets.length);
+    console.log('DEBUG - All ticket IDs:', allTickets.map(t => ({id: t.id, status: t.status, customer: t.customerName})));
+    return allTickets;
   }, [tickets]);
 
   const recentVisits = useMemo(() => {
@@ -479,7 +497,7 @@ const ServiceDashboardPage = ({ onNavigate }) => {
               View All
             </Button>
           </div>
-          <div className="space-y-2 max-h-[250px] overflow-y-auto">
+          <div className="space-y-2 max-h-[300px] overflow-y-auto">
             {recentTickets.map((ticket) => (
               <div key={ticket.id} className="p-2 rounded-lg bg-[var(--bg-tertiary)] text-xs">
                 <div className="flex items-center justify-between">
@@ -510,7 +528,7 @@ const ServiceDashboardPage = ({ onNavigate }) => {
               View All
             </Button>
           </div>
-          <div className="space-y-2 max-h-[250px] overflow-y-auto">
+          <div className="space-y-2 max-h-[300px] overflow-y-auto">
             {recentVisits.map((visit) => (
               <div key={visit.id || visit.visitId} className="p-2 rounded-lg bg-[var(--bg-tertiary)] text-xs">
                 <div className="flex items-center justify-between">
@@ -538,7 +556,7 @@ const ServiceDashboardPage = ({ onNavigate }) => {
             </h3>
             <span className="text-xs text-[var(--text-muted)]">{engineers.length} Engineers</span>
           </div>
-          <div className="space-y-2 max-h-[250px] overflow-y-auto">
+          <div className="space-y-2 max-h-[300px] overflow-y-auto">
             {engineers.slice(0, 8).map((engineer) => (
               <div key={engineer.id} className="flex items-center gap-2 p-2 rounded-lg bg-[var(--bg-tertiary)]">
                 <Avatar name={engineer.name} size="sm" />
