@@ -770,44 +770,29 @@ const CommissioningPage = () => {
 
     return (
       <div className="space-y-5">
-        {/* White KPI Cards - Only 3 cards now */}
+        {/* Standardized KPI Cards */}
         <div className="grid grid-cols-3 gap-3">
-          <div className="p-4 rounded-xl bg-white border border-gray-200 shadow-sm hover:shadow-md transition-all group">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] uppercase tracking-wider text-blue-500">Total Systems</p>
-                <h3 className="text-2xl font-bold text-gray-800 mt-1">{summaryData.total || 0}</h3>
-                <p className="text-xs text-blue-400 mt-0.5">{summaryData.completed || 0} completed</p>
-              </div>
-              <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Sun size={24} className="text-blue-500" />
-              </div>
-            </div>
-          </div>
-          <div className="p-4 rounded-xl bg-white border border-gray-200 shadow-sm hover:shadow-md transition-all group">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] uppercase tracking-wider text-amber-500">Capacity</p>
-                <h3 className="text-2xl font-bold text-gray-800 mt-1">{totalKW} <span className="text-sm">kW</span></h3>
-                <p className="text-xs text-amber-400 mt-0.5">Pipeline</p>
-              </div>
-              <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Gauge size={24} className="text-amber-500" />
-              </div>
-            </div>
-          </div>
-          <div className="p-4 rounded-xl bg-white border border-gray-200 shadow-sm hover:shadow-md transition-all group">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] uppercase tracking-wider text-cyan-500">Avg PR</p>
-                <h3 className="text-2xl font-bold text-gray-800 mt-1">{avgPR}<span className="text-sm">%</span></h3>
-                <p className="text-xs text-cyan-400 mt-0.5">Performance</p>
-              </div>
-              <div className="w-12 h-12 rounded-xl bg-cyan-100 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Activity size={24} className="text-cyan-500" />
-              </div>
-            </div>
-          </div>
+          <KPICard
+            label="Total Systems"
+            value={summaryData.total || 0}
+            sub={`${summaryData.completed || 0} completed`}
+            icon={Sun}
+            variant="blue"
+          />
+          <KPICard
+            label="Capacity"
+            value={`${totalKW} kW`}
+            sub="Pipeline"
+            icon={Gauge}
+            variant="amber"
+          />
+          <KPICard
+            label="Avg PR"
+            value={`${avgPR}%`}
+            sub="Performance"
+            icon={Activity}
+            variant="indigo"
+          />
         </div>
 
         {/* Compact Charts Row - Area + Stacked Funnel */}

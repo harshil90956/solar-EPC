@@ -787,8 +787,8 @@ const Layout = ({ currentPage, onNavigate, children }) => {
       {/* ════════════════ MAIN CONTENT ════════════════ */}
       <main
         className={cn(
-          'min-h-[calc(100vh-56px)] bg-[var(--bg-page)] transition-all duration-300',
-          isHorizontal ? 'mt-[100px]' : 'mt-14',
+          'min-h-[calc(100vh-56px)] p-5 bg-[var(--bg-page)] transition-all duration-300',
+          isHorizontal ? 'mt-[100px]' : '',
         )}
         style={{
           marginLeft: isOverlay ? 0 : (windowWidth >= 1024 ? `${sidebarW}px` : 0),

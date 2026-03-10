@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
 import { PageHeader } from '../components/ui/PageHeader';
 import { KPICard } from '../components/ui/KPICard';
 import DataTable from '../components/ui/DataTable';
@@ -6,11 +7,12 @@ import { Button } from '../components/ui/Button';
 import { Input, FormField, Select } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { toast } from '../components/ui/Toast';
-import { Search, RefreshCw, Plus, Calendar } from 'lucide-react';
+import { Search, RefreshCw, Plus, Calendar, TrendingUp, PieChart } from 'lucide-react';
 import { format } from 'date-fns';
-import { leaveApi } from '../services/hrmApi';
+import { leaveApi, employeeApi } from '../services/hrmApi';
 
 const LeavesPage = () => {
+  const { user } = useAuth();
   const [mounted, setMounted] = useState(false);
   const [employees, setEmployees] = useState([]);
   const [leaves, setLeaves] = useState([]);
@@ -18,6 +20,8 @@ const LeavesPage = () => {
   const [leaveSearch, setLeaveSearch] = useState('');
   const [leaveStatusFilter, setLeaveStatusFilter] = useState('all');
   const [showLeaveModal, setShowLeaveModal] = useState(false);
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
+  const [calendarDate, setCalendarDate] = useState(new Date());
   const [leaveForm, setLeaveForm] = useState({
     employeeId: '',
     leaveType: 'paid',
@@ -29,11 +33,16 @@ const LeavesPage = () => {
   // Functions defined before useEffect
   const fetchEmployees = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/v1/hrm/employees');
-      const data = await response.json();
-      setEmployees(data.data || []);
+      console.log('[DEBUG] Fetching employees from API...');
+      const response = await employeeApi.getAll();
+      console.log('[DEBUG] Employee API response:', response);
+      const data = response.data?.data || response.data || [];
+      console.log('[DEBUG] Setting employees:', data.length, 'employees');
+      setEmployees(data);
     } catch (error) {
-      console.error('Failed to fetch employees');
+      console.error('[DEBUG] Error fetching employees:', error);
+      console.error('[DEBUG] Error details:', error.response?.data || error.message);
+      toast.error('Failed to fetch employees');
     }
   };
 
@@ -82,56 +91,75 @@ const LeavesPage = () => {
   };
 
   const handleApproveLeave = async (leaveId) => {
+    console.log('[DEBUG] Approving leave:', leaveId);
+    console.log('[DEBUG] User:', user);
+
+    const approverId = user?._id || user?.id;
+    if (!approverId) {
+      toast.error('User not authenticated. Please login again.');
+      return;
+    }
+
     try {
-      await leaveApi.update(leaveId, { status: 'approved' });
-      toast.success('Leave approved');
+      const response = await leaveApi.approve(leaveId, approverId);
+      console.log('[DEBUG] Approve response:', response);
+      toast.success('Leave approved successfully');
       fetchLeaves();
     } catch (error) {
-      toast.error('Failed to approve leave');
+      console.error('[DEBUG] Approve error:', error);
+      console.error('[DEBUG] Error response:', error.response);
+      toast.error(error.response?.data?.message || error.message || 'Failed to approve leave');
     }
   };
 
   const handleRejectLeave = async (leaveId) => {
+    console.log('[DEBUG] Rejecting leave:', leaveId);
     try {
-      await leaveApi.update(leaveId, { status: 'rejected' });
-      toast.success('Leave rejected');
+      const response = await leaveApi.reject(leaveId, {
+        status: 'rejected',
+        rejectionReason: 'Rejected by admin'
+      });
+      console.log('[DEBUG] Reject response:', response);
+      toast.success('Leave rejected successfully');
       fetchLeaves();
     } catch (error) {
-      toast.error('Failed to reject leave');
+      console.error('[DEBUG] Reject error:', error);
+      console.error('[DEBUG] Error response:', error.response);
+      toast.error(error.response?.data?.message || error.message || 'Failed to reject leave');
     }
   };
 
   const filteredLeaves = leaves.filter(leave => {
-    const matchesSearch = leaveSearch === '' || 
+    const matchesSearch = leaveSearch === '' ||
       `${leave.employeeId?.firstName || ''} ${leave.employeeId?.lastName || ''}`.toLowerCase().includes(leaveSearch.toLowerCase());
     const matchesStatus = leaveStatusFilter === 'all' || leave.status === leaveStatusFilter;
     return matchesSearch && matchesStatus;
   });
 
   const kpis = [
-    { 
-      label: 'Pending Leaves', 
-      value: leaves.filter(l => l.status === 'pending').length, 
-      icon: Calendar, 
-      color: '#f59e0b' 
+    {
+      label: 'Pending Leaves',
+      value: leaves.filter(l => l.status === 'pending').length,
+      icon: Calendar,
+      color: '#f59e0b'
     },
-    { 
-      label: 'Approved Leaves', 
-      value: leaves.filter(l => l.status === 'approved').length, 
-      icon: Calendar, 
-      color: '#22c55e' 
+    {
+      label: 'Approved Leaves',
+      value: leaves.filter(l => l.status === 'approved').length,
+      icon: Calendar,
+      color: '#22c55e'
     },
-    { 
-      label: 'Rejected Leaves', 
-      value: leaves.filter(l => l.status === 'rejected').length, 
-      icon: Calendar, 
-      color: '#ef4444' 
+    {
+      label: 'Rejected Leaves',
+      value: leaves.filter(l => l.status === 'rejected').length,
+      icon: Calendar,
+      color: '#ef4444'
     },
-    { 
-      label: 'Total Leaves', 
-      value: leaves.length, 
-      icon: Calendar, 
-      color: '#3b82f6' 
+    {
+      label: 'Total Leaves',
+      value: leaves.length,
+      icon: Calendar,
+      color: '#3b82f6'
     },
   ];
 
@@ -201,7 +229,10 @@ const LeavesPage = () => {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => handleApproveLeave(row._id)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleApproveLeave(row._id);
+                }}
                 className="text-emerald-600 border-emerald-600/30 hover:bg-emerald-600/10"
               >
                 Approve
@@ -209,7 +240,10 @@ const LeavesPage = () => {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => handleRejectLeave(row._id)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRejectLeave(row._id);
+                }}
                 className="text-red-600 border-red-600/30 hover:bg-red-600/10"
               >
                 Reject
@@ -228,16 +262,23 @@ const LeavesPage = () => {
 
   return (
     <div className="animate-fade-in space-y-5">
-      <PageHeader
-        title="Leave Management"
-        subtitle="Manage employee leave applications and approvals"
-        actions={[
-          {
-            type: 'button',
-            label: 'Apply Leave',
-            icon: Plus,
-            variant: 'primary',
-            onClick: () => {
+      {/* Header with Apply Leave + Calendar Button */}
+      <div className="flex items-center justify-between">
+        <PageHeader
+          title="Leave Management"
+          subtitle="Manage employee leave applications and approvals"
+        />
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setShowCalendarModal(true)}
+            className="h-9 px-3"
+          >
+            <Calendar size={16} className="mr-1.5" /> View Calendar
+          </Button>
+          <Button
+            variant="primary"
+            onClick={() => {
               setLeaveForm({
                 employeeId: '',
                 leaveType: 'paid',
@@ -246,10 +287,12 @@ const LeavesPage = () => {
                 reason: '',
               });
               setShowLeaveModal(true);
-            },
-          },
-        ]}
-      />
+            }}
+          >
+            <Plus size={16} className="mr-1.5" /> Apply Leave
+          </Button>
+        </div>
+      </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -263,6 +306,111 @@ const LeavesPage = () => {
           />
         ))}
       </div>
+
+      {/* Calendar Modal */}
+      {showCalendarModal && (
+        <Modal
+          open={showCalendarModal}
+          onClose={() => setShowCalendarModal(false)}
+          title="Leave Calendar"
+          size="lg"
+        >
+          <div className="p-4">
+            <div className="mb-4 flex items-center justify-between">
+              <button
+                onClick={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() - 1))}
+                className="w-10 h-10 rounded-lg hover:bg-[var(--bg-hover)] flex items-center justify-center text-lg"
+              >
+                ‹
+              </button>
+              <span className="text-lg font-bold">{format(calendarDate, 'MMMM yyyy')}</span>
+              <button
+                onClick={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1))}
+                className="w-10 h-10 rounded-lg hover:bg-[var(--bg-hover)] flex items-center justify-center text-lg"
+              >
+                ›
+              </button>
+            </div>
+            <div className="grid grid-cols-7 gap-2 mb-2">
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                <div key={day} className="text-center py-2 bg-[var(--bg-elevated)] rounded-lg">
+                  <p className="text-sm font-bold text-[var(--text-muted)]">{day}</p>
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-2">
+              {Array.from({ length: 35 }, (_, i) => {
+                const dayNum = (i % 31) + 1;
+                const dateStr = format(new Date(calendarDate.getFullYear(), calendarDate.getMonth(), dayNum), 'yyyy-MM-dd');
+
+                const dayLeaves = leaves.filter(leave => {
+                  const start = new Date(leave.startDate);
+                  const end = new Date(leave.endDate);
+                  const current = new Date(calendarDate.getFullYear(), calendarDate.getMonth(), dayNum);
+                  return current >= start && current <= end;
+                });
+
+                const hasLeave = dayLeaves.length > 0;
+                const isToday = dayNum === new Date().getDate() && calendarDate.getMonth() === new Date().getMonth();
+                const leaveStatus = dayLeaves[0]?.status;
+
+                let statusColor = 'from-amber-400 to-orange-500';
+                if (leaveStatus === 'approved') statusColor = 'from-emerald-400 to-emerald-600';
+                if (leaveStatus === 'rejected') statusColor = 'from-red-400 to-red-600';
+
+                return (
+                  <div
+                    key={i}
+                    className={`
+                      aspect-square rounded-xl p-2 flex flex-col items-center justify-center transition-all
+                      ${isToday ? 'ring-2 ring-blue-500 ring-offset-2' : ''}
+                      ${hasLeave
+                        ? `bg-gradient-to-br ${statusColor} text-white shadow-md`
+                        : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)]'}
+                    `}
+                  >
+                    <span className="text-lg font-semibold">{dayNum > 31 ? '' : dayNum}</span>
+                    {hasLeave && (
+                      <span className="text-[10px] font-medium mt-1">
+                        {dayLeaves.length} leave{dayLeaves.length > 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Selected Date Leaves List */}
+            <div className="mt-6 border-t border-[var(--border-base)] pt-4">
+              <h4 className="text-sm font-bold mb-3">Leaves this month</h4>
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {leaves.filter(leave => {
+                  const start = new Date(leave.startDate);
+                  return start.getMonth() === calendarDate.getMonth() && start.getFullYear() === calendarDate.getFullYear();
+                }).map((leave, idx) => (
+                  <div key={idx} className="flex items-center gap-3 p-3 bg-[var(--bg-elevated)] rounded-lg">
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-bold">
+                      {leave.employeeId?.firstName?.[0]}{leave.employeeId?.lastName?.[0]}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-bold">{leave.employeeId?.firstName} {leave.employeeId?.lastName}</p>
+                      <p className="text-xs text-[var(--text-muted)]">
+                        {format(new Date(leave.startDate), 'dd MMM')} - {format(new Date(leave.endDate), 'dd MMM')} • {leave.leaveType}
+                      </p>
+                    </div>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${leave.status === 'approved' ? 'bg-emerald-100 text-emerald-600' :
+                      leave.status === 'rejected' ? 'bg-red-100 text-red-600' :
+                        'bg-amber-100 text-amber-600'
+                      }`}>
+                      {leave.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* Filters */}
       <div className="flex items-center gap-3 flex-wrap">

@@ -262,13 +262,13 @@ const DataTable = ({
 
         const menuWidth = 176;
 
-        
+
 
         let left = rect.left - menuWidth - 8;
 
         let top = rect.top;
 
-        
+
 
         if (left < 8) left = rect.right + 8;
 
@@ -276,7 +276,7 @@ const DataTable = ({
 
         if (top < 8) top = 8;
 
-        
+
 
         setMenuPosition({ top, left });
 
@@ -361,53 +361,53 @@ const DataTable = ({
 
                     {/* Column visibility toggle */}
                     {!hideColumnToggle && (
-                    <div className="relative">
+                        <div className="relative">
 
-                        <Button size="sm" variant="secondary" onClick={() => setColToggleOpen(p => !p)}>
+                            <Button size="sm" variant="secondary" onClick={() => setColToggleOpen(p => !p)}>
 
-                            <Eye size={12} /> Columns
+                                <Eye size={12} /> Columns
 
-                        </Button>
+                            </Button>
 
-                        {colToggleOpen && (
+                            {colToggleOpen && (
 
-                            <>
+                                <>
 
-                                <div className="fixed inset-0 z-30" onClick={() => setColToggleOpen(false)} />
+                                    <div className="fixed inset-0 z-30" onClick={() => setColToggleOpen(false)} />
 
-                                <div className="absolute right-0 top-9 z-40 w-44 glass-card shadow-2xl shadow-black/40 py-1.5 animate-slide-up">
+                                    <div className="absolute right-0 top-9 z-40 w-44 glass-card shadow-2xl shadow-black/40 py-1.5 animate-slide-up">
 
-                                    {columns.map(col => (
+                                        {columns.map(col => (
 
-                                        <button
+                                            <button
 
-                                            key={col.key}
+                                                key={col.key}
 
-                                            onClick={() => toggleCol(col.key)}
+                                                onClick={() => toggleCol(col.key)}
 
-                                            className="flex items-center justify-between w-full px-3 py-2 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+                                                className="flex items-center justify-between w-full px-3 py-2 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
 
-                                        >
+                                            >
 
-                                            {col.header}
+                                                {col.header}
 
-                                            {!hiddenCols.has(col.key)
+                                                {!hiddenCols.has(col.key)
 
-                                                ? <Check size={11} className="text-[var(--primary)]" />
+                                                    ? <Check size={11} className="text-[var(--primary)]" />
 
-                                                : <EyeOff size={11} className="text-[var(--text-faint)]" />}
+                                                    : <EyeOff size={11} className="text-[var(--text-faint)]" />}
 
-                                        </button>
+                                            </button>
 
-                                    ))}
+                                        ))}
 
-                                </div>
+                                    </div>
 
-                            </>
+                                </>
 
-                        )}
+                            )}
 
-                    </div>
+                        </div>
                     )}
 
                 </div>
@@ -422,7 +422,7 @@ const DataTable = ({
 
                 <div className="overflow-x-auto">
 
-                    <table className="w-full border-collapse">
+                    <table className="w-full !whitespace-nowrap border-collapse">
 
                         <thead>
 
@@ -508,7 +508,7 @@ const DataTable = ({
 
                                         )}
 
-                                        {visibleColumns.map(col     => (
+                                        {visibleColumns.map(col => (
 
                                             <td key={`${i}-${col.key}`} className="px-4 py-3.5">
 
@@ -539,13 +539,13 @@ const DataTable = ({
                             ) : data.map((row, index) => {
                                 if (!row) return null;
                                 return (
-                                <tr 
-                                    key={row[rowKey] || index} 
-                                    className="table-row border-b border-[var(--border-base)] last:border-0 group cursor-pointer"
-                                    onClick={() => onRowClick?.(row)}
-                                >
+                                    <tr
+                                        key={row[rowKey] || index}
+                                        className="table-row border-b border-[var(--border-base)] last:border-0 group cursor-pointer"
+                                        onClick={() => onRowClick?.(row)}
+                                    >
 
-                                    {bulkActions.length > 0 && (
+                                        {bulkActions.length > 0 && (
                                             <td className="px-3 py-3.5 sticky left-0 z-10 bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] transition-colors"
                                                 onClick={e => e.stopPropagation()}>
 
@@ -577,7 +577,7 @@ const DataTable = ({
 
                                         {allRowActions.length > 0 && (
 
-                                            <td 
+                                            <td
 
                                                 className="px-2 py-2 sticky right-0 z-10 bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] transition-colors border-l border-[var(--border-base)]"
 
@@ -605,50 +605,50 @@ const DataTable = ({
                                     </tr>
                                 );
                             })}
-                            </tbody>
-                        </table>
-                    </div>
+                        </tbody>
+                    </table>
                 </div>
+            </div>
 
-                {/* ── Floating Menu ── */}
+            {/* ── Floating Menu ── */}
 
-                {openMenuIndex !== null && data[openMenuIndex] && (
+            {openMenuIndex !== null && data[openMenuIndex] && (
 
-                    <>
+                <>
 
-                        <div className="fixed inset-0 z-40" onClick={handleMenuClose} />
+                    <div className="fixed inset-0 z-40" onClick={handleMenuClose} />
 
-                        <div 
+                    <div
 
-                            ref={menuRef}
+                        ref={menuRef}
 
-                            className="fixed z-50 w-44 glass-card shadow-2xl shadow-black/50 py-1.5 animate-slide-up"
+                        className="fixed z-50 w-44 glass-card shadow-2xl shadow-black/50 py-1.5 animate-slide-up"
 
-                            style={{ 
+                        style={{
 
-                                top: `${menuPosition.top}px`,
+                            top: `${menuPosition.top}px`,
 
-                                left: `${menuPosition.left}px`,
+                            left: `${menuPosition.left}px`,
 
-                            }}
+                        }}
 
-                        >
+                    >
 
-                            {allRowActions
+                        {allRowActions
 
-                                .filter((a) => (typeof a.show === 'function' ? a.show(data[openMenuIndex]) : true))
+                            .filter((a) => (typeof a.show === 'function' ? a.show(data[openMenuIndex]) : true))
 
-                                .map((a, actionIdx) => (
+                            .map((a, actionIdx) => (
 
                                 <button
 
                                     key={`menu-${openMenuIndex}-${a.label}-${actionIdx}`}
 
-                                    onClick={() => { 
+                                    onClick={() => {
 
-                                        a.onClick(data[openMenuIndex]); 
+                                        a.onClick(data[openMenuIndex]);
 
-                                        handleMenuClose(); 
+                                        handleMenuClose();
 
                                     }}
 
@@ -672,129 +672,129 @@ const DataTable = ({
 
                             ))}
 
-                        </div>
+                    </div>
 
-                    </>
+                </>
 
-                )}
+            )}
 
 
 
-                {/* ── Pagination ── */}
+            {/* ── Pagination ── */}
 
-                <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
 
-                    <div className="flex items-center gap-4 text-[11px] text-[var(--text-faint)]">
+                <div className="flex items-center gap-4 text-[11px] text-[var(--text-faint)]">
 
-                        <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2">
 
-                            <span>Rows per page:</span>
+                        <span className='whitespace-nowrap'>Rows per page:</span>
 
-                            <select
+                        <select
 
-                                value={pageSize}
+                            value={pageSize}
 
-                                onChange={e => onPageSizeChange?.(Number(e.target.value))}
+                            onChange={e => onPageSizeChange?.(Number(e.target.value))}
 
-                                className="h-7 px-2 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] text-[var(--text-secondary)] text-[11px] cursor-pointer focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                            className="h-7 px-2 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] text-[var(--text-secondary)] text-[11px] cursor-pointer focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+
+                        >
+
+                            {PAGE_SIZE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+
+                        </select>
+
+                    </div>
+
+
+
+                    <div className="flex items-center gap-2">
+
+                        <span>Jump to:</span>
+
+                        <input
+
+                            type="number"
+
+                            value={jumpPage}
+
+                            onChange={e => setJumpPage(e.target.value)}
+
+                            onKeyDown={handleJump}
+
+                            placeholder="Page…"
+
+                            className="w-12 h-7 px-2 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] text-[var(--text-secondary)] text-[11px] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] transition-all"
+
+                        />
+
+                    </div>
+
+
+
+                    <span>
+
+                        {total === 0 ? '0' : `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)}`} of {total}
+
+                    </span>
+
+                </div>
+
+
+
+                <div className="flex items-center gap-1">
+
+                    <Button size="xs" variant="secondary" disabled={page <= 1} onClick={() => onPageChange?.(page - 1)}>
+
+                        <ChevronLeft size={12} />
+
+                    </Button>
+
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+
+                        let p;
+
+                        if (totalPages <= 5) {
+
+                            p = i + 1;
+
+                        } else {
+
+                            p = Math.max(1, Math.min(totalPages - 4, page - 2)) + i;
+
+                        }
+
+                        return (
+
+                            <Button
+
+                                key={p} size="xs"
+
+                                variant={p === page ? 'primary' : 'secondary'}
+
+                                onClick={() => onPageChange?.(p)}
 
                             >
 
-                                {PAGE_SIZE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                                {p}
 
-                            </select>
+                            </Button>
 
-                        </div>
+                        );
 
+                    })}
 
+                    <Button size="xs" variant="secondary" disabled={page >= totalPages} onClick={() => onPageChange?.(page + 1)}>
 
-                        <div className="flex items-center gap-2">
+                        <ChevronRight size={12} />
 
-                            <span>Jump to:</span>
-
-                            <input
-
-                                type="number"
-
-                                value={jumpPage}
-
-                                onChange={e => setJumpPage(e.target.value)}
-
-                                onKeyDown={handleJump}
-
-                                placeholder="Page…"
-
-                                className="w-12 h-7 px-2 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] text-[var(--text-secondary)] text-[11px] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] transition-all"
-
-                            />
-
-                        </div>
-
-
-
-                        <span>
-
-                            {total === 0 ? '0' : `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)}`} of {total}
-
-                        </span>
-
-                    </div>
-
-
-
-                    <div className="flex items-center gap-1">
-
-                        <Button size="xs" variant="secondary" disabled={page <= 1} onClick={() => onPageChange?.(page - 1)}>
-
-                            <ChevronLeft size={12} />
-
-                        </Button>
-
-                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-
-                            let p;
-
-                            if (totalPages <= 5) {
-
-                                p = i + 1;
-
-                            } else {
-
-                                p = Math.max(1, Math.min(totalPages - 4, page - 2)) + i;
-
-                            }
-
-                            return (
-
-                                <Button
-
-                                    key={p} size="xs"
-
-                                    variant={p === page ? 'primary' : 'secondary'}
-
-                                    onClick={() => onPageChange?.(p)}
-
-                                >
-
-                                    {p}
-
-                                </Button>
-
-                            );
-
-                        })}
-
-                        <Button size="xs" variant="secondary" disabled={page >= totalPages} onClick={() => onPageChange?.(page + 1)}>
-
-                            <ChevronRight size={12} />
-
-                        </Button>
-
-                    </div>
+                    </Button>
 
                 </div>
 
             </div>
+
+        </div>
 
 
     );
