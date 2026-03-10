@@ -90,10 +90,11 @@ import { format, subMonths } from 'date-fns';
 
 import FinanceDashboard from '../components/finance/FinanceDashboard';
 
+import CalendarFilter from '../components/finance/CalendarFilter';
+
 
 
 const fmt = CURRENCY.format;
-
 
 
 /* ── Invoice stage definitions ──────────────────────────────────────────────── */
@@ -664,11 +665,15 @@ const FinancePage = ({ onNavigate }) => {
 
   const [mainView, setMainView] = useState('dashboard');
 
+  // Active tab in table view: 'invoices', 'payables', 'transactions'
+
+  const [activeTab, setActiveTab] = useState('invoices');
+
 
 
   // Table view summary cards visibility (default hidden)
 
-  const [showSummaryCards, setShowSummaryCards] = useState(false);
+  const [showSummaryCards, setShowSummaryCards] = useState(true);
 
 
 
@@ -713,6 +718,11 @@ const FinancePage = ({ onNavigate }) => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+
+  // Calendar filter year state - for filtering data by year
+  const [calendarFilterYear, setCalendarFilterYear] = useState('all');
+  // Calendar filter month state - for displaying selected month in calendar
+  const [calendarFilterMonth, setCalendarFilterMonth] = useState(undefined);
 
   const [showInvoice, setShowInvoice] = useState(false);
 
@@ -1171,6 +1181,58 @@ const FinancePage = ({ onNavigate }) => {
     return { debitTotal, creditTotal };
 
   }, [journalEntries]);
+
+  // Filtered data by selected year from calendar
+  const filteredInvoicesByYear = useMemo(() => {
+    if (calendarFilterYear === 'all') return invoices;
+    return invoices.filter(inv => {
+      const invoiceDate = new Date(inv.invoiceDate || inv.createdAt);
+      return invoiceDate.getFullYear().toString() === calendarFilterYear;
+    });
+  }, [invoices, calendarFilterYear]);
+
+  const filteredJournalEntriesByYear = useMemo(() => {
+    if (calendarFilterYear === 'all') return journalEntries;
+    return journalEntries.filter(entry => {
+      const entryDate = new Date(entry.date || entry.createdAt);
+      return entryDate.getFullYear().toString() === calendarFilterYear;
+    });
+  }, [journalEntries, calendarFilterYear]);
+
+  const filteredManualAdjustmentsByYear = useMemo(() => {
+    if (calendarFilterYear === 'all') return manualAdjustments;
+    return manualAdjustments.filter(adj => {
+      const adjDate = new Date(adj.date || adj.createdAt);
+      return adjDate.getFullYear().toString() === calendarFilterYear;
+    });
+  }, [manualAdjustments, calendarFilterYear]);
+
+  const filteredPayablesByYear = useMemo(() => {
+    if (calendarFilterYear === 'all') return payables;
+    return payables.filter(p => {
+      if (!p.lastPurchaseOrderDate) return false;
+      const poDate = new Date(p.lastPurchaseOrderDate);
+      return poDate.getFullYear().toString() === calendarFilterYear;
+    });
+  }, [payables, calendarFilterYear]);
+
+  // Extract unique years from invoice data for the calendar filter
+  const availableYears = useMemo(() => {
+    const years = new Set();
+    (invoices || []).forEach(inv => {
+      const date = new Date(inv.invoiceDate || inv.createdAt);
+      if (!isNaN(date.getTime())) {
+        years.add(date.getFullYear());
+      }
+    });
+    (journalEntries || []).forEach(entry => {
+      const date = new Date(entry.date || entry.createdAt);
+      if (!isNaN(date.getTime())) {
+        years.add(date.getFullYear());
+      }
+    });
+    return Array.from(years).sort((a, b) => b - a); // Sort descending
+  }, [invoices, journalEntries]);
 
 
 
@@ -3968,13 +4030,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-    invoices.filter(inv =>
+    (filteredInvoicesByYear || []).filter(inv =>
 
 
 
       (invStatus === 'All' ||
 
         inv.status === invStatus ||
+
+
 
         // Handle Pending status showing as Sent in UI
 
@@ -3988,7 +4052,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-    ), [invoices, invSearch, invStatus]);
+    ), [filteredInvoicesByYear, invSearch, invStatus]);
 
 
 
@@ -4674,6 +4738,21 @@ const FinancePage = ({ onNavigate }) => {
 
         <div className="flex items-center gap-2">
 
+          <CalendarFilter 
+            onDateChange={(dateInfo) => {
+              if (dateInfo) {
+                setCalendarFilterYear(dateInfo.year.toString());
+                setCalendarFilterMonth(dateInfo.month); // undefined for full year
+              } else {
+                setCalendarFilterYear('all');
+                setCalendarFilterMonth(undefined);
+              }
+            }}
+            initialYear={calendarFilterYear !== 'all' ? parseInt(calendarFilterYear) : undefined}
+            initialMonth={calendarFilterMonth}
+            availableYears={availableYears}
+          />
+
           <div className="h-6 w-px bg-[var(--border-base)] mx-1" />
 
 
@@ -4787,7 +4866,22 @@ const FinancePage = ({ onNavigate }) => {
       {/* Dashboard View */}
 
       {mainView === 'dashboard' && (
-
+        <>
+          {calendarFilterYear !== 'all' && filteredInvoicesByYear.length === 0 && filteredJournalEntriesByYear.length === 0 && filteredManualAdjustmentsByYear.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 px-4">
+              <div className="text-6xl mb-4">📅</div>
+              <h3 className="text-lg font-semibold text-gray-700 mb-2">No data available for the selected period</h3>
+              <p className="text-sm text-gray-500 text-center max-w-md mb-4">
+                There are no invoices, journal entries, or transactions recorded for {calendarFilterYear}.
+              </p>
+              <button
+                onClick={() => { setCalendarFilterYear('all'); setCalendarFilterMonth(undefined); }}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                Show All Data
+              </button>
+            </div>
+          ) : (
         <FinanceDashboard
 
           isOpen={true}
@@ -4798,11 +4892,11 @@ const FinancePage = ({ onNavigate }) => {
 
           payables={payables}
 
-          invoices={invoices}
+          invoices={calendarFilterYear === 'all' ? invoices : filteredInvoicesByYear}
 
           payments={payments}
 
-          manualAdjustments={manualAdjustments}
+          manualAdjustments={calendarFilterYear === 'all' ? manualAdjustments : filteredManualAdjustmentsByYear}
 
           monthlyRevenue={monthlyRevenue}
 
@@ -4819,6 +4913,8 @@ const FinancePage = ({ onNavigate }) => {
           onStatusClick={() => { }}
 
         />
+          )}
+        </>
 
       )}
 
@@ -5492,7 +5588,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-      <Modal open={showInvoice} onClose={() => { setShowInvoice(false); setError(null); setNewInvoiceErrors({}); }} title="Create Invoice"
+      <Modal isOpen={showInvoice} onClose={() => { setShowInvoice(false); setError(null); setNewInvoiceErrors({}); }} title="Create Invoice"
 
 
 
@@ -5960,7 +6056,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-        <Modal open={!!selected} onClose={() => setSelected(null)} title={`Invoice — ${selected.invoiceNumber || selected.id}`}
+        <Modal isOpen={!!selected} onClose={() => setSelected(null)} title={`Invoice — ${selected.invoiceNumber || selected.id}`}
 
 
 
@@ -8544,7 +8640,7 @@ const FinancePage = ({ onNavigate }) => {
 
       <Modal
 
-        open={showAdjustModal}
+        isOpen={showAdjustModal}
 
         onClose={() => {
 
@@ -8826,7 +8922,7 @@ const FinancePage = ({ onNavigate }) => {
 
       <Modal
 
-        open={showAddCategoryModal}
+        isOpen={showAddCategoryModal}
 
         onClose={() => {
 
@@ -8994,7 +9090,7 @@ const FinancePage = ({ onNavigate }) => {
 
         <Modal
 
-          open={showJournalEntryModal}
+          isOpen={showJournalEntryModal}
 
           onClose={() => {
 

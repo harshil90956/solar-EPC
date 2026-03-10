@@ -160,7 +160,7 @@ const KanbanColumn = ({ status, items, onDrop, onCardClick }) => {
 
 // Main Kanban Board - CRM Style Horizontal Scroll
 export const DraggableKanban = ({ data, onStatusChange, onCardClick }) => {
-  const columns = ['Pending', 'In Progress', 'Active', 'Flagged'];
+  const columns = ['Pending', 'In Progress', 'Delayed', 'Completed'];
 
   const handleDrop = (cardId, newStatus) => {
     onStatusChange(cardId, newStatus);

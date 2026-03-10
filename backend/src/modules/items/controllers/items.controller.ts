@@ -1,23 +1,32 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Headers, UseGuards, Req } from '@nestjs/common';
 import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
+import { PermissionGuard } from '../../settings/guards/permission.guard';
 import { ItemsService } from '../services/items.service';
 import { CreateItemDto, UpdateItemDto } from '../dto/item.dto';
 
 @Controller('items')
-@UseGuards(JwtAuthGuard, TenantGuard)
+@UseGuards(JwtAuthGuard, TenantGuard, PermissionGuard)
 export class ItemsController {
   constructor(private readonly itemsService: ItemsService) {}
 
   @Get()
-  findAll(
+  async findAll(
     @Headers('x-tenant-id') headerTenantId: string,
     @Query('tenantId') queryTenantId: string,
     @Query('search') search?: string,
     @Query('itemGroupId') itemGroupId?: string,
+    @Req() req?: any,
   ) {
     const tenantId = headerTenantId || queryTenantId;
-    return this.itemsService.findAll(tenantId, search, itemGroupId);
+    // Extract user with dataScope from JWT (same pattern as Finance controller)
+    const user = req?.user ? {
+      id: String(req.user.id || req.user._id),
+      _id: String(req.user.id || req.user._id),
+      dataScope: (req.user.dataScope as 'ALL' | 'ASSIGNED') || 'ASSIGNED',
+    } : undefined;
+    console.log(`[ITEMS CTRL] user.dataScope:`, user?.dataScope);
+    return this.itemsService.findAll(tenantId, user, search, itemGroupId);
   }
 
   @Get(':id')

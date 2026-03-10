@@ -1,3 +1,6 @@
+import { useQuery } from '@tanstack/react-query';
+import { apiClient } from '../lib/apiClient';
+
 // Solar OS – EPC Edition — InstallationPage.js
 import React, { useState, useMemo, useRef } from 'react';
 import {
@@ -16,50 +19,6 @@ import { usePermissions } from '../hooks/usePermissions';
 import { useAuditLog } from '../hooks/useAuditLog';
 import CanAccess, { CanCreate, CanEdit, CanDelete } from '../components/CanAccess';
 import { toast } from '../components/ui/Toast';
-
-// Local installation data
-const INSTALLATION_LOGS = [
-  {
-    id: 'IL001', projectId: 'P001', customer: 'Ramesh Joshi', site: 'GIDC Ahmedabad',
-    technician: 'Kiran Tech', date: '2026-02-26', status: 'In Progress', progress: 60,
-    tasks: [
-      { name: 'Mounting Structure Installed', done: true },
-      { name: 'Panel Mounting (Row 1–5)', done: true },
-      { name: 'Panel Mounting (Row 6–10)', done: true },
-      { name: 'DC Wiring', done: false },
-      { name: 'Inverter Installation', done: false },
-      { name: 'AC Wiring & DB', done: false },
-      { name: 'Earthing', done: false },
-    ],
-  },
-  {
-    id: 'IL002', projectId: 'P003', customer: 'Prakash Agarwal', site: 'Ahmedabad Plant',
-    technician: 'Kiran Tech', date: '2025-12-28', status: 'Completed', progress: 100,
-    tasks: [
-      { name: 'Mounting Structure Installed', done: true },
-      { name: 'Panel Mounting', done: true },
-      { name: 'DC Wiring', done: true },
-      { name: 'Inverter Installation', done: true },
-      { name: 'AC Wiring & DB', done: true },
-      { name: 'Earthing', done: true },
-    ],
-  },
-  {
-    id: 'IL003', projectId: 'P004', customer: 'Dinesh Trivedi', site: 'Nadiad Plant',
-    technician: 'TBD', date: '2026-03-10', status: 'Pending', progress: 0,
-    tasks: [],
-  },
-  {
-    id: 'IL004', projectId: 'P002', customer: 'Suresh Bhatt', site: 'Vapi GIDC',
-    technician: 'Kiran Tech', date: '2026-03-15', status: 'Delayed', progress: 20,
-    tasks: [
-      { name: 'Mounting Structure Installed', done: true },
-      { name: 'Panel Mounting (Partial)', done: false },
-      { name: 'DC Wiring', done: false },
-      { name: 'Inverter Installation', done: false },
-    ],
-  },
-];
 
 const NEUTRAL = 'bg-[var(--bg-elevated)] text-[var(--text-muted)] border-[var(--border-muted)]';
 const STATUS_MAP = {
@@ -83,12 +42,12 @@ const INSTALL_STAGES = [
 ];
 
 const COLUMNS = [
-  { key: 'id', header: 'Log ID', render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span> },
-  { key: 'projectId', header: 'Project', render: v => <span className="text-xs font-mono text-[var(--text-secondary)]">{v}</span> },
-  { key: 'customer', header: 'Customer', sortable: true, render: v => <span className="text-xs font-semibold text-[var(--text-primary)]">{v}</span> },
-  { key: 'site', header: 'Site', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
-  { key: 'technician', header: 'Technician', render: v => <span className="text-xs text-[var(--text-secondary)]">{v}</span> },
-  { key: 'date', header: 'Date', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
+  { key: 'installationId', header: 'Log ID', render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span> },
+  { key: 'projectId', header: 'Project', render: v => <span className="text-xs font-mono text-[var(--text-secondary)]">{v?.toString ? v.toString() : v}</span> },
+  { key: 'customerName', header: 'Customer', sortable: true, render: v => <span className="text-xs font-semibold text-[var(--text-primary)]">{v}</span> },
+  { key: 'siteAddress', header: 'Site', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
+  { key: 'technicianName', header: 'Technician', render: v => <span className="text-xs text-[var(--text-secondary)]">{v}</span> },
+  { key: 'scheduledDate', header: 'Date', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
   {
     key: 'progress', header: 'Progress', sortable: true, render: v => (
       <div className="flex items-center gap-2 min-w-[80px]">
@@ -181,6 +140,15 @@ const InstallationPage = () => {
   const { can } = usePermissions();
   const { logCreate, logUpdate, logDelete, logStatusChange } = useAuditLog('installation');
 
+  // Fetch installations from API
+  const { data: installations, isLoading, error } = useQuery({
+    queryKey: ['installations'],
+    queryFn: async () => {
+      const response = await apiClient.get('/installations');
+      return response.data || [];
+    },
+  });
+
   // Permission guard helpers
   const guardCreate = () => {
     if (!can('installation', 'create')) {
@@ -213,7 +181,9 @@ const InstallationPage = () => {
   const [pageSize, setPageSize] = useState(APP_CONFIG.defaultPageSize);
   const [showAdd, setShowAdd] = useState(false);
   const [selected, setSelected] = useState(null);
-  const [logs, setLogs] = useState(INSTALLATION_LOGS);
+  
+  // Use API data or fallback to empty array
+  const logs = installations || [];
 
   const handleStageChange = (id, newStatus) => {
     if (!can('installation', 'edit')) {
@@ -221,20 +191,35 @@ const InstallationPage = () => {
       return;
     }
     const log = logs.find(l => l.id === id);
-    setLogs(prev => prev.map(l => l.id === id ? { ...l, status: newStatus } : l));
-    logStatusChange(log, log.status, newStatus);
+    // TODO: Add API call to update status
+    logStatusChange(log, log?.status, newStatus);
   };
 
+  // Transform API data to match Kanban component expected format
+  const transformedLogs = useMemo(() => {
+    return logs.map(log => ({
+      ...log,
+      id: log.installationId || log.id,
+      customer: log.customerName || log.customer,
+      site: log.siteAddress || log.site,
+      technician: log.technicianName || log.technician,
+      date: log.scheduledDate || log.date,
+    }));
+  }, [logs]);
+
   const filtered = useMemo(() =>
-    logs.filter(l =>
+    transformedLogs.filter(l =>
       (statusFilter === 'All' || l.status === statusFilter) &&
-      l.customer.toLowerCase().includes(search.toLowerCase())
-    ), [search, statusFilter, logs]);
+      (l.customer || '').toLowerCase().includes(search.toLowerCase())
+    ), [search, statusFilter, transformedLogs]);
 
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
-  const active = logs.filter(l => l.status === 'In Progress').length;
-  const completed = logs.filter(l => l.status === 'Completed').length;
-  const pending = logs.filter(l => l.status === 'Pending').length;
+  const activeInstallations = logs.filter(l => l.status === 'In Progress');
+  const completedInstallations = logs.filter(l => l.status === 'Completed');
+  const pendingInstallations = logs.filter(l => l.status === 'Pending');
+  const active = activeInstallations.length;
+  const completed = completedInstallations.length;
+  const pending = pendingInstallations.length;
   const avgProg = Math.round(logs.reduce((a, l) => a + l.progress, 0) / logs.length);
 
   const ROW_ACTIONS = [
@@ -320,7 +305,7 @@ const InstallationPage = () => {
             <Input placeholder="Search installations…" value={search}
               onChange={e => setSearch(e.target.value)} className="h-8 text-xs w-52" />
           </div>
-          <InstallKanbanBoard logs={filtered} onStageChange={handleStageChange} onCardClick={setSelected} />
+          <InstallKanbanBoard logs={transformedLogs} onStageChange={handleStageChange} onCardClick={setSelected} />
         </>
       ) : (
         <>
@@ -351,8 +336,13 @@ const InstallationPage = () => {
         </div>}>
         <div className="space-y-3">
           <FormField label="Project">
-            <Select><option value="">Select Project</option>
-              <option>P001 – Joshi Industries</option><option>P004 – Trivedi Foods</option>
+            <Select>
+              <option value="">Select Project</option>
+              {pendingInstallations.map(installation => (
+                <option key={installation.id} value={installation.projectId}>
+                  {installation.projectId} – {installation.customer}
+                </option>
+              ))}
             </Select>
           </FormField>
           <div className="grid grid-cols-2 gap-3">
@@ -367,19 +357,19 @@ const InstallationPage = () => {
 
       {/* Detail Modal */}
       {selected && (
-        <Modal open={!!selected} onClose={() => setSelected(null)} title={`Installation Log — ${selected.id}`}
+        <Modal open={!!selected} onClose={() => setSelected(null)} title={`Installation Log — ${selected.installationId || selected.id}`}
           footer={<div className="flex gap-2 justify-end">
             <Button variant="ghost" onClick={() => setSelected(null)}>Close</Button>
             <Button><Upload size={13} /> Upload Photos</Button>
           </div>}>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3 text-xs">
-              {[['Log ID', selected.id], ['Project', selected.projectId], ['Customer', selected.customer],
-              ['Site', selected.site], ['Technician', selected.technician], ['Date', selected.date]
+              {[['Log ID', selected.installationId || selected.id], ['Project', selected.projectId?.projectId || selected.projectId], ['Customer', selected.customerName || selected.customer],
+              ['Site', selected.siteAddress || selected.site], ['Technician', selected.technicianName || selected.technician], ['Date', selected.scheduledDate || selected.date]
               ].map(([k, v]) => (
                 <div key={k} className="glass-card p-2">
                   <div className="text-[var(--text-muted)] mb-0.5">{k}</div>
-                  <div className="font-semibold text-[var(--text-primary)]">{v}</div>
+                  <div className="font-semibold text-[var(--text-primary)]">{v || '-'}</div>
                 </div>
               ))}
             </div>

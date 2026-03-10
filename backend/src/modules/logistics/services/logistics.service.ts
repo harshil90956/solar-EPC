@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Dispatch } from '../schemas/dispatch.schema';
 import { Vendor } from '../schemas/vendor.schema';
 import { InventoryService } from '../../inventory/services/inventory.service';
+import { InstallationService } from '../../installation/services/installation.service';
 
 interface UserWithVisibility {
   id?: string;
@@ -17,6 +18,7 @@ export class LogisticsService {
     @InjectModel(Dispatch.name) private dispatchModel: Model<Dispatch>,
     @InjectModel(Vendor.name) private vendorModel: Model<Vendor>,
     private readonly inventoryService: InventoryService,
+    private readonly installationService: InstallationService,
   ) {}
 
   // Dispatch methods
@@ -54,20 +56,38 @@ export class LogisticsService {
     const lastDispatch = await this.dispatchModel.findOne().sort({ _id: -1 }).exec();
     const nextId = lastDispatch ? this.generateNextId(lastDispatch.id) : 'DS001';
     
+    // Set default dispatchDate if not provided
+    const dispatchDate = data.dispatchDate || new Date().toISOString().split('T')[0];
+    
     const newDispatch = new this.dispatchModel({
       ...data,
       id: nextId,
+      dispatchDate,
     });
     return newDispatch.save();
   }
 
   async update(id: string, data: Partial<Dispatch>): Promise<Dispatch | null> {
+    // Check if status is being changed to Delivered
+    if (data.status === 'Delivered') {
+      return this.updateStatus(id, 'Delivered');
+    }
     return this.dispatchModel.findOneAndUpdate({ id }, data, { new: true }).exec();
   }
 
-  async updateStatus(id: string, status: string): Promise<Dispatch | null> {
+  async updateStatus(id: string, status: string, user?: any): Promise<Dispatch | null> {
     const dispatch = await this.dispatchModel.findOne({ id }).exec();
-    if (!dispatch) return null;
+    if (!dispatch) {
+      console.log(`[LOGISTICS] Dispatch ${id} not found`);
+      return null;
+    }
+
+    console.log(`[LOGISTICS] Updating dispatch ${id} status to: ${status}`);
+    console.log(`[LOGISTICS] Dispatch tenantId: ${dispatch.tenantId}`);
+
+    // Use JWT tenantId if dispatch doesn't have one
+    const effectiveTenantId = dispatch.tenantId?.toString() || user?.tenantId;
+    console.log(`[LOGISTICS] Effective tenantId: ${effectiveTenantId}`);
 
     const updateData: any = { status };
     if (status === 'Delivered') {
@@ -77,13 +97,41 @@ export class LogisticsService {
       try {
         await this.inventoryService.removeStock(
           dispatch.items,
-          1, // Default quantity, can be enhanced to parse from items string
+          1,
           `Customer delivery - Dispatch ${id}`,
           id
         );
       } catch (error: any) {
-        console.log(`Inventory not updated for dispatch ${id}: ${error.message}`);
-        // Don't throw - delivery should still be marked even if inventory fails
+        console.log(`[LOGISTICS] Inventory not updated for dispatch ${id}: ${error.message}`);
+      }
+
+      // Auto-create installation record when materials are delivered
+      console.log(`[LOGISTICS] INSTALLATION TRIGGERED for dispatch ${id}`);
+      console.log(`[LOGISTICS] Triggering installation creation for dispatch ${id}`);
+      
+      try {
+        // Allow null tenantId for Super Admin - installation service handles it
+        const effectiveTenantId = dispatch.tenantId?.toString() || user?.tenantId || null;
+        
+        await this.installationService.createInstallationFromDispatch(
+          {
+            projectId: dispatch.projectId,
+            dispatchId: dispatch.id,
+            customerName: dispatch.customer,
+            site: dispatch.to,
+            tenantId: effectiveTenantId,
+            items: dispatch.items,
+          },
+          {
+            userId: user?.id || 'system',
+            tenantId: effectiveTenantId,
+            dataScope: 'ALL',
+            role: user?.role || 'system',
+          },
+        );
+        console.log(`[LOGISTICS] SUCCESS: Installation auto-created for dispatch ${id}`);
+      } catch (installError: any) {
+        console.error(`[LOGISTICS] ERROR: Installation creation failed for dispatch ${id}:`, installError.message);
       }
     }
     

@@ -6,7 +6,7 @@ import * as xlsx from 'xlsx';
 import { Lead, LeadDocument } from '../schemas/lead.schema';
 import { CreateLeadDto, UpdateLeadDto, QueryLeadDto, AddActivityDto } from '../dto/lead.dto';
 import { LeadStatus, LeadStatusDocument } from '../../settings/schemas/lead-status.schema';
-import { buildVisibilityFilter, applyVisibilityFilter, UserWithVisibility } from '../../../common/utils/visibility-filter';
+import { buildVisibilityFilter, applyVisibilityFilter, buildCompleteFilter, canAccessRecord, UserWithVisibility } from '../../../common/utils/visibility-filter';
 import { SiteSurveysService } from '../../survey/services/site-surveys.service';
 
 @Injectable()
@@ -426,7 +426,7 @@ export class LeadsService {
     
     // Check if user can access this specific lead
     if (user) {
-      const canAccess = this.canAccessLead(user, lead);
+      const canAccess = canAccessRecord(user, lead);
       if (!canAccess) {
         throw new ForbiddenException('You do not have permission to access this lead');
       }

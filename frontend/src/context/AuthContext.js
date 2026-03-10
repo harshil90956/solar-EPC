@@ -22,9 +22,50 @@ export const AuthProvider = ({ children }) => {
     setError('');
     try {
       console.log('Attempting login...', { email });
-      const res = await api.post('/auth/login', { email, password });
+      let res;
+      let isEmployee = false;
+      
+      // Try main auth first
+      try {
+        res = await api.post('/auth/login', { email, password });
+      } catch (authErr) {
+        // If main auth fails, try employee login
+        console.log('Main auth failed, trying employee login...');
+        const empRes = await api.post('/hrm/employees/login', { email, password });
+        res = empRes;
+        isEmployee = true;
+      }
+      
       console.log('Login API response:', res);
       const { success, data } = res || {};
+      
+      if (isEmployee) {
+        // Employee login response structure
+        const { token, id, employeeId, firstName, lastName, roleId } = data || {};
+        if (!token) {
+          console.error('Invalid employee response:', res);
+          throw new Error('Invalid response from server');
+        }
+        const authedUser = { 
+          id, 
+          employeeId, 
+          firstName, 
+          lastName, 
+          email,
+          role: 'Employee',
+          roleId,
+          isEmployee: true,
+          permissions: {}, 
+          token 
+        };
+        localStorage.setItem(TOKEN_KEY, token);
+        localStorage.setItem(USER_KEY, JSON.stringify(authedUser));
+        setUser(authedUser);
+        setError('');
+        return true;
+      }
+      
+      // Regular user login
       const { accessToken, user: userData } = data || {};
       if (!accessToken) {
         console.error('Invalid response structure:', res);

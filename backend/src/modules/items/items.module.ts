@@ -10,16 +10,20 @@ import { ItemsController } from './controllers/items.controller';
 import { LookupController } from './controllers/lookup.controller';
 import { ItemsService } from './services/items.service';
 import { LookupService } from './services/lookup.service';
+import { SettingsModule } from '../settings/settings.module';
 
 @Module({
-  imports: [MongooseModule.forFeature([
-    { name: Item.name, schema: ItemSchema },
-    { name: Warehouse.name, schema: WarehouseSchema },
-    { name: Category.name, schema: CategorySchema },
-    { name: Unit.name, schema: UnitSchema },
-    { name: InventoryReservation.name, schema: InventoryReservationSchema },
-    { name: Tenant.name, schema: TenantSchema }
-  ])],
+  imports: [
+    MongooseModule.forFeature([
+      { name: Item.name, schema: ItemSchema },
+      { name: Warehouse.name, schema: WarehouseSchema },
+      { name: Category.name, schema: CategorySchema },
+      { name: Unit.name, schema: UnitSchema },
+      { name: InventoryReservation.name, schema: InventoryReservationSchema },
+      { name: Tenant.name, schema: TenantSchema }
+    ]),
+    SettingsModule,
+  ],
   controllers: [ItemsController, LookupController],
   providers: [ItemsService, LookupService],
   exports: [ItemsService, LookupService],

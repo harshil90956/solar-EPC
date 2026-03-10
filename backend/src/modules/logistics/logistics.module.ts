@@ -6,6 +6,7 @@ import { Dispatch, DispatchSchema } from './schemas/dispatch.schema';
 import { Vendor, VendorSchema } from './schemas/vendor.schema';
 import { InventoryModule } from '../inventory/inventory.module';
 import { SettingsModule } from '../settings/settings.module';
+import { InstallationModule } from '../installation/installation.module';
 import { RequestLoggingMiddleware } from '../../common/middleware/request-logging.middleware';
 import { LoggingGuard } from '../../common/guards/logging.guard';
 
@@ -17,6 +18,7 @@ import { LoggingGuard } from '../../common/guards/logging.guard';
     ]),
     InventoryModule,
     SettingsModule,
+    InstallationModule,
   ],
   controllers: [LogisticsController],
   providers: [LogisticsService, LoggingGuard],

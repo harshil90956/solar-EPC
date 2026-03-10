@@ -52,6 +52,10 @@ export class PermissionGuard implements CanActivate {
     // STEP 4: Check Module-Level Permission
     // Priority 1: Use cached permissions from JWT (O(1) lookup)
     const cachedPermissions = user.permissions;
+    
+    // Check if user has a custom role (employees with custom_ role IDs)
+    const hasCustomRole = baseRoleId && baseRoleId.startsWith('custom_');
+    
     if (cachedPermissions && 
         cachedPermissions[requiredModule] && 
         cachedPermissions[requiredModule][requiredAction] === true) {
@@ -60,6 +64,17 @@ export class PermissionGuard implements CanActivate {
         permitted: true, 
         source: 'cached',
         reason: 'Permission granted from cached matrix' 
+      };
+      request.user.effectiveDataScope = dataScope;
+      return true;
+    }
+
+    // Priority 1b: If user has custom role, allow access (permissions checked at service level)
+    if (hasCustomRole) {
+      request.user.effectivePermissions = { 
+        permitted: true, 
+        source: 'custom_role',
+        reason: 'Permission granted via custom role' 
       };
       request.user.effectiveDataScope = dataScope;
       return true;

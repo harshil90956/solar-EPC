@@ -14,6 +14,7 @@ import { cn } from '../lib/utils';
 import ThemeCustomizer from './ThemeCustomizer';
 import ReminderSidebar from './Reminder/ReminderSidebar';
 import { api } from '../lib/apiClient';
+import DataScopeBanner from './DataScopeBanner';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api/v1';
 const TENANT_ID = 'solarcorp';
@@ -121,6 +122,7 @@ const Layout = ({ currentPage, onNavigate, children }) => {
   // Filter nav based on role permissions AND module enabled flags
   // Uses resolvePermission to support custom roles (User Override → Custom Role → Base RBAC)
   // Admin always sees all modules
+  // Employees with valid customRoleId see modules based on their role
   const visibleSections = NAV_CONFIG.map(section => ({
     ...section,
     items: section.items.filter(item => {
@@ -130,10 +132,14 @@ const Layout = ({ currentPage, onNavigate, children }) => {
 
       // Check view permission using resolvePermission (supports custom roles)
       const userId = user?.id;
-      const roleId = user?.role;
+      const roleId = user?.roleId || user?.role;
       const canView = resolvePermission(userId, roleId, item.id, 'view');
+      
+      // For employees with custom roles, if no explicit permission but has roleId, allow view
+      const hasCustomRole = user?.roleId && user?.roleId.startsWith('custom_');
+      const effectiveCanView = canView || (hasCustomRole && !user?.permissions?.[item.id]);
 
-      return canView;
+      return effectiveCanView;
     }),
   })).filter(s => s.items.length > 0);
 
@@ -789,7 +795,10 @@ const Layout = ({ currentPage, onNavigate, children }) => {
         }}
         onClick={() => { if (userMenuOpen) setUserMenuOpen(false); if (themeMenuOpen) setThemeMenuOpen(false); if (notifOpen) setNotifOpen(false); }}
       >
-        {children}
+        <DataScopeBanner />
+        <div className="p-5">
+          {children}
+        </div>
       </main>
 
       {/* ════════════════ REMINDER SIDEBAR ════════════════ */}

@@ -353,9 +353,13 @@ export class FinanceController {
 
     const tenantId = getTenantId(req);
 
+    const user = req.user ? {
+      id: String(req.user.id || req.user._id),
+      _id: String(req.user.id || req.user._id),
+      dataScope: (req.user.dataScope as 'ALL' | 'ASSIGNED') || 'ASSIGNED',
+    } : undefined;
 
-
-    return this.invoiceService.findAll(tenantId, status);
+    return this.invoiceService.findAll(tenantId, status, user);
 
 
 
@@ -1261,9 +1265,13 @@ export class FinanceController {
 
     const tenantId = getTenantId(req);
 
+    const user = req.user ? {
+      id: String(req.user.id || req.user._id),
+      _id: String(req.user.id || req.user._id),
+      dataScope: (req.user.dataScope as 'ALL' | 'ASSIGNED') || 'ASSIGNED',
+    } : undefined;
 
-
-    return this.invoiceService.getDashboardStats(tenantId);
+    return this.invoiceService.getDashboardStats(tenantId, user);
 
 
 

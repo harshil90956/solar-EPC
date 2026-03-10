@@ -20,7 +20,7 @@ import { SettingsModule } from '../settings/settings.module';
   ],
   controllers: [ProjectsController],
   providers: [ProjectsService],
-  exports: [ProjectsService],
+  exports: [ProjectsService, MongooseModule],
 })
 export class ProjectsModule {}
 
