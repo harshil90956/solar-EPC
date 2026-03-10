@@ -559,7 +559,7 @@ const StagePill = ({ stageId, stageMap }) => {
 };
 
 const SourceBadge = ({ source }) => (
-  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[var(--bg-elevated)] text-[var(--text-muted)] border border-[var(--border-subtle)]">{source}</span>
+  <span className="px-1.5 py-0.5 rounded-md text-[11px] font-normal bg-[#F3F4F6] text-[#374151]">{source}</span>
 );
 
 const ScoreBadge = ({ score }) => (
@@ -1869,7 +1869,6 @@ const CRMPage = () => {
             { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
             { id: 'leads', label: 'Leads', icon: List },
             { id: 'kanban', label: 'Kanban', icon: LayoutDashboard },
-            { id: 'reports', label: 'Reports', icon: BarChart2 }
           ]}
           activeTab={view}
           onTabChange={setView}
@@ -1888,7 +1887,7 @@ const CRMPage = () => {
       </div>
 
       {/* ── Date Filters ── */}
-      {(view === 'dashboard' || view === 'reports') && (
+      {view === 'dashboard' && (
         <div className="glass-card p-3">
           <div className="flex flex-wrap gap-3 items-center">
             <div className="flex items-center gap-2">
@@ -1970,117 +1969,6 @@ const CRMPage = () => {
         <LeadAnalyticsDashboard />
       )}
 
-      {/* ── Comprehensive Reports View ── */}
-      {view === 'reports' && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-bold text-[var(--text-primary)]">CRM Analytics & Reports</h3>
-              <p className="text-xs text-[var(--text-muted)]">Comprehensive insights and performance metrics</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button className="px-3 py-1 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] text-[10px] font-medium text-[var(--text-muted)] hover:bg-[var(--bg-hovered)] transition-colors">
-                <Download size={10} className="inline mr-1" /> Export PDF
-              </button>
-              <button className="px-3 py-1 rounded-lg bg-[var(--primary)] text-white text-[10px] font-medium hover:opacity-90 transition-opacity">
-                <CalendarDays size={10} className="inline mr-1" /> Schedule Report
-              </button>
-            </div>
-          </div>
-
-          {/* Performance Overview */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <PerformanceReport />
-            <LeadTrendReport />
-          </div>
-
-          {/* Detailed Analytics */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <SourcePerformanceReport />
-            <SalesTeamReport />
-          </div>
-
-          {/* Additional Metrics */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="glass-card p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Target size={16} className="text-emerald-500" />
-                <h3 className="text-sm font-bold text-[var(--text-primary)]">Conversion Funnel</h3>
-              </div>
-              <div className="space-y-3">
-                {[
-                  { stage: 'Lead → Qualified', rate: 62, trend: 'up' },
-                  { stage: 'Qualified → Proposal', rate: 59, trend: 'stable' },
-                  { stage: 'Proposal → Negotiation', rate: 58, trend: 'down' },
-                  { stage: 'Negotiation → Closed', rate: 61, trend: 'up' }
-                ].map((item) => (
-                  <div key={item.stage} className="flex items-center justify-between">
-                    <span className="text-xs text-[var(--text-muted)]">{item.stage}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-[var(--text-primary)]">{item.rate}%</span>
-                      {item.trend === 'up' && <TrendingUp size={10} className="text-emerald-500" />}
-                      {item.trend === 'down' && <TrendingDown size={10} className="text-red-500" />}
-                      {item.trend === 'stable' && <ArrowRight size={10} className="text-amber-500" />}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="glass-card p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Clock size={16} className="text-amber-500" />
-                <h3 className="text-sm font-bold text-[var(--text-primary)]">Response Times</h3>
-              </div>
-              <div className="space-y-3">
-                {[
-                  { metric: 'First Response', current: '2.3 hrs', target: '1 hr', status: 'warning' },
-                  { metric: 'Quote Delivery', current: '18 hrs', target: '24 hrs', status: 'good' },
-                  { metric: 'Follow-up', current: '4.2 days', target: '3 days', status: 'warning' },
-                  { metric: 'Closing Time', current: '45 days', target: '35 days', status: 'critical' }
-                ].map((item) => (
-                  <div key={item.metric} className="flex items-center justify-between">
-                    <span className="text-xs text-[var(--text-muted)]">{item.metric}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-[var(--text-primary)]">{item.current}</span>
-                      <span className={`text-[9px] px-2 py-0.5 rounded-full ${item.status === 'good' ? 'bg-emerald-500/10 text-emerald-500' :
-                        item.status === 'warning' ? 'bg-amber-500/10 text-amber-500' :
-                          'bg-red-500/10 text-red-500'
-                        }`}>
-                        {item.status}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="glass-card p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Award size={16} className="text-purple-500" />
-                <h3 className="text-sm font-bold text-[var(--text-primary)]">Top Achievements</h3>
-              </div>
-              <div className="space-y-3">
-                {[
-                  { achievement: 'Highest Deal Size', value: fmt(2400000), person: 'Rahul Sharma' },
-                  { achievement: 'Best Conversion', value: '32.1%', person: 'Priya Patel' },
-                  { achievement: 'Most Leads', value: '45', person: 'Rahul Sharma' },
-                  { achievement: 'Fast Response', value: '1.2 hrs', person: 'Sneha Reddy' }
-                ].map((item) => (
-                  <div key={item.achievement} className="p-2 rounded-lg bg-[var(--bg-elevated)]">
-                    <p className="text-xs font-medium text-[var(--text-primary)]">{item.achievement}</p>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="text-xs font-bold text-[var(--accent)]">{item.value}</span>
-                      <span className="text-[9px] text-[var(--text-muted)]">{item.person}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ── Kanban Board View ── */}
       {view === 'kanban' && (
         <div className="space-y-4">
@@ -2101,7 +1989,7 @@ const CRMPage = () => {
           </div>
 
           <div className="overflow-x-auto pb-3">
-            <div className="flex gap-3 min-w-max">
+            <div className="flex gap-4 min-w-max">
               {(statusOptions || []).map((stage) => {
                 // Filter leads that match this stage's key - handle both statusKey and status fields
                 // Use case-insensitive comparison to handle status value mismatches
@@ -2114,7 +2002,7 @@ const CRMPage = () => {
 
                 return (
                   <div key={stage.key}
-                    className={`flex flex-col w-64 rounded-xl border transition-colors`}
+                    className={`flex flex-col w-64 rounded-[14px] border border-[#F1F5F9] bg-[#F8FAFC] p-2.5 transition-colors`}
                     onDragOver={e => { e.preventDefault(); }}
                     onDragEnter={() => {
                       if (!dragRef.current) return;
@@ -2170,21 +2058,20 @@ const CRMPage = () => {
                         });
                     }}
                   >
-                    <div className="p-2.5 border-b border-[var(--border-base)]">
-                      <div className="flex items-center justify-between mb-0.5">
+                    <div className="pb-2.5 mb-2 border-b border-[#F1F5F9]">
+                      <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2">
                           <div className="w-2.5 h-2.5 rounded-full" style={{ background: stage.color }} />
-                          <span className="text-xs font-semibold text-[var(--text-primary)]">{stage.label}</span>
+                          <span className="text-[13px] font-semibold text-[#374151]">{stage.label}</span>
                         </div>
-                        <span className="min-w-[20px] h-5 rounded-full text-[10px] font-bold flex items-center justify-center"
-                          style={{ background: `${stage.color}20`, color: stage.color }}>{stageLeads.length}</span>
+                        <span className="rounded-full bg-[#F3F4F6] text-[11px] px-2 py-0.5 text-[#374151] font-medium">{stageLeads.length}</span>
                       </div>
-                      <div className="flex items-center gap-2 text-[9px] text-[var(--text-muted)] pl-4">
+                      <div className="flex items-center gap-2 text-[11px] text-[#9CA3AF] pl-4">
                         <span>{stageLeads.length} leads</span><span>·</span><span>{fmt(totalValue)}</span>
                       </div>
                     </div>
                     <div
-                      className="flex flex-col gap-2 p-2 flex-1 min-h-[120px]"
+                      className="flex flex-col gap-2.5 flex-1 min-h-[120px]"
                       onDragOver={(e) => {
                         e.preventDefault();
                         if (!dragRef.current) return;
@@ -2213,6 +2100,7 @@ const CRMPage = () => {
                           draggable
                           onDragStart={(e) => {
                             const leadId = getLeadId(lead);
+                            e.currentTarget.classList.add('opacity-95', 'scale-[1.02]');
                             dragRef.current = {
                               leadId,
                               sourceStageKey: stage.key,
@@ -2222,6 +2110,9 @@ const CRMPage = () => {
                               originalActiveLeads: activeLeads,
                             };
                             e.dataTransfer.setData('leadId', leadId);
+                          }}
+                          onDragEnd={(e) => {
+                            e.currentTarget.classList.remove('opacity-95', 'scale-[1.02]');
                           }}
                           onDragEnter={() => {
                             if (!dragRef.current) return;
@@ -2237,18 +2128,18 @@ const CRMPage = () => {
                             dragRef.current.destStageKey = stage.key;
                             dragRef.current.destIndex = insertAfter ? (idx + 1) : idx;
                           }}
-                          className="glass-card p-3 cursor-grab active:cursor-grabbing hover:border-[var(--primary)]/40 transition-all"
+                          className="rounded-xl bg-white border border-[#E5E7EB] shadow-[0_1px_2px_rgba(0,0,0,0.05)] p-3 cursor-grab active:cursor-grabbing transition-all hover:shadow-[0_6px_12px_rgba(0,0,0,0.08)] hover:border-[#D1D5DB]"
                           onClick={() => { setTrackerLeadId(lead._id || lead.id); setShowTrackerDrawer(true); }}
                         >
                           {/* Lead Header */}
-                          <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-start justify-between mb-1.5">
                             <div className="flex items-center gap-2">
-                              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 text-white flex items-center justify-center font-bold text-[10px]">
+                              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 text-white flex items-center justify-center font-semibold text-[12px]">
                                 {lead.name[0]}
                               </div>
                               <div>
-                                <p className="text-xs font-bold text-[var(--text-primary)]">{lead.name}</p>
-                                <p className="text-[9px] text-[var(--text-muted)]">{lead.company || 'Individual'}</p>
+                                <p className="text-[14px] font-semibold text-[#111827]">{lead.name}</p>
+                                <p className="text-[12px] font-normal text-[#6B7280]">{lead.company || 'Individual'}</p>
                               </div>
                             </div>
                             <div className="flex flex-col items-end gap-1">
@@ -2262,26 +2153,23 @@ const CRMPage = () => {
                           </div>
 
                           {/* Lead Details */}
-                          <div className="space-y-2">
+                          <div className="space-y-1.5">
                             <div className="flex items-center justify-between">
-                              <span className="text-xs font-bold text-[var(--accent)]">{fmt(lead.value || 0)}</span>
+                              <span className="text-[13px] font-semibold text-[#F97316]">{fmt(lead.value || 0)}</span>
                               <div className="flex items-center gap-1">
                                 <Brain size={8} className="text-[var(--text-muted)]" />
-                                <span className={`text-[9px] font-black ${lead.score >= 75 ? 'text-red-500' :
-                                  lead.score >= 50 ? 'text-amber-500' :
-                                    'text-emerald-500'
-                                  }`}>{lead.score || 0}pts</span>
+                                <span className="text-[12px] font-medium text-[#10B981]">{lead.score || 0}pts</span>
                               </div>
                             </div>
 
                             <div className="flex items-center gap-1">
                               <SourceBadge source={lead.source} />
-                              <span className="text-[9px] text-[var(--text-muted)]">•</span>
-                              <span className="text-[9px] text-[var(--text-muted)]">{lead.kw || lead.systemSize || '0'}kW</span>
+                              <span className="text-[11px] text-[#9CA3AF]">•</span>
+                              <span className="text-[11px] text-[#9CA3AF]">{lead.kw || lead.systemSize || '0'}kW</span>
                             </div>
 
                             {lead.activities && lead.activities.length > 0 && (
-                              <div className="flex items-center gap-1 text-[9px] text-[var(--text-muted)]">
+                              <div className="flex items-center gap-1 text-[11px] text-[#9CA3AF]">
                                 <Clock size={8} />
                                 <span>Last: {lead.activities[lead.activities.length - 1].ts}</span>
                               </div>
@@ -2661,13 +2549,11 @@ const CRMPage = () => {
             ]}
             rowActions={[
               { label: 'View', icon: Eye, onClick: handleViewLead },
+              { label: 'Lead Tracker', icon: Target, onClick: handleViewTracker },
               { label: 'Edit', icon: Edit2, onClick: handleEditLead },
               { label: 'Flip to Survey', icon: Zap, onClick: handleFlipToSurvey },
-              { label: 'Duplicate', icon: RefreshCw, onClick: handleDuplicateLead },
               { label: 'Score', icon: Brain, onClick: handleRecalculateScore },
-              { label: 'Archive', icon: Building2, onClick: handleArchiveLead },
               { label: 'Delete', icon: Trash2, onClick: handleDeleteLead, danger: true },
-              { label: 'Timeline', icon: Clock, onClick: handleViewTimeline },
               { label: 'Activity Log', icon: Activity, onClick: handleViewActivity },
             ]}
           />

@@ -25,6 +25,7 @@ import { DocumentModule } from './modules/document/document.module';
 import { EmailModule } from './modules/email/email.module';
 import { ItemsModule } from './modules/items/items.module';
 import { EstimatesModule } from './modules/estimates/estimates.module';
+import { SuperadminModule } from './modules/superadmin';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { EstimatesModule } from './modules/estimates/estimates.module';
     ComplianceModule,
     SettingsModule,
     HrmModule,
+    SuperadminModule,
   ],
 })
 export class AppModule {}

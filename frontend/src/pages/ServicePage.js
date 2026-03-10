@@ -3,21 +3,9 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 
 
 import {
-
-
-
-  Headphones, Plus, Clock, CheckCircle, AlertTriangle,
-
-
-
+  Headphones, Plus, Clock, CheckCircle, AlertTriangle, Ticket,
   Shield, Zap, Wrench, LayoutGrid, List, Tag, Loader2, Calendar, XCircle,
-
-
-
-  FolderOpen, Trash2, Pencil, BarChart3, PieChart,
-
-
-
+  FolderOpen, Trash2, Pencil, BarChart3, PieChart, Activity, Stethoscope, Users
 } from 'lucide-react';
 
 
@@ -252,7 +240,7 @@ const AMC_MAP = {
 
 
 
-  Active: { label: 'Active', color: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' },
+  Active: { label: 'Active', color: 'bg-emerald-1000/15 text-emerald-400 border-emerald-500/30' },
 
 
 
@@ -1021,6 +1009,9 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
   const [activeTab, setActiveTab] = useState('tickets');
+
+  // Main view state: 'dashboard' | 'kanban' | 'table'
+  const [buttonView, setButtonView] = useState('dashboard');
 
 
 
@@ -2157,41 +2148,15 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
   useEffect(() => {
-
-
-
     fetchTickets();
-
-
-
     // First remove duplicates, then auto-generate contracts from 100% projects
-
-
-
     removeDuplicateContracts().then(() => {
-
-
-
       autoGenerateContractsFromProjects();
-
-
-
     });
-
-
-
     fetchStats();
-
-
-
     fetchAiInsight();
-
-
-
     fetchVisits();
-
-
-
+    fetchEngineers(); // Load engineers for Team Overview card
   }, []);
 
 
@@ -2288,7 +2253,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-      
+
 
 
 
@@ -2316,7 +2281,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-    
+
 
 
 
@@ -2917,6 +2882,42 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
   }, [amcContracts]);
+
+
+
+  const dynamicVisitStats = useMemo(() => {
+
+
+
+    const visitsArray = Array.isArray(visits) ? visits : [];
+
+
+
+    return {
+
+
+
+      total: visitsArray.length,
+
+
+
+      scheduled: visitsArray.filter(v => v.status === 'Scheduled').length,
+
+
+
+      completed: visitsArray.filter(v => v.status === 'Completed').length,
+
+
+
+      cancelled: visitsArray.filter(v => v.status === 'Cancelled').length,
+
+
+
+    };
+
+
+
+  }, [visits]);
 
 
 
@@ -4148,7 +4149,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-    
+
 
 
 
@@ -4160,7 +4161,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-    
+
 
 
 
@@ -4200,7 +4201,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-    
+
 
 
 
@@ -4216,7 +4217,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-    
+
 
 
 
@@ -4228,7 +4229,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-    
+
 
 
 
@@ -4268,7 +4269,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-    
+
 
 
 
@@ -4398,20 +4399,20 @@ const ServicePage = ({ onNavigate, initialTab }) => {
         preTabsContent={
           <div className="flex items-center gap-1 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-base)] p-1">
             <button
-              onClick={() => onNavigate('service-dashboard')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+              onClick={() => setButtonView('dashboard')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 ${buttonView === 'dashboard' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}`}
             >
               <BarChart3 size={14} /> Dashboard
             </button>
             <button
-              onClick={() => { setActiveTab('tickets'); setView('kanban'); }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 bg-[var(--primary)] text-white shadow-sm"
+              onClick={() => { setButtonView('kanban'); setActiveTab('tickets'); }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 ${buttonView === 'kanban' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}`}
             >
               <LayoutGrid size={14} /> Kanban
             </button>
             <button
-              onClick={() => { setActiveTab('tickets'); setView('table'); }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+              onClick={() => { setButtonView('table'); setActiveTab('tickets'); }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 ${buttonView === 'table' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}`}
             >
               <List size={14} /> Table
             </button>
@@ -4421,156 +4422,6 @@ const ServicePage = ({ onNavigate, initialTab }) => {
           { type: 'button', label: 'New Ticket', icon: Plus, variant: 'primary', onClick: () => setShowAdd(true) }
         ]}
       />
-
-
-
-
-
-
-
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-
-
-
-        <KPICard
-
-          label={<span className="text-sm font-semibold text-[var(--text-primary)]">Open Tickets</span>}
-
-          value={dynamicTicketStats.openTickets}
-
-          icon={AlertTriangle}
-
-          color="red"
-
-          loading={loadingStats}
-
-          style={{ backgroundColor: 'rgba(252 165 165 / 0.3)' }}
-
-          iconBgColor="bg-red-100"
-
-          iconColor="text-red-600"
-
-        />
-
-
-
-        <KPICard
-
-          label={<span className="text-sm font-semibold text-[var(--text-primary)]">Scheduled</span>}
-
-          value={dynamicTicketStats.scheduled}
-
-          icon={Calendar}
-
-          color="blue"
-
-          loading={loadingStats}
-
-          style={{ backgroundColor: 'rgba(147 197 253 / 0.3)' }}
-
-          iconBgColor="bg-blue-100"
-
-          iconColor="text-blue-600"
-
-        />
-
-
-
-        <KPICard
-
-          label={<span className="text-sm font-semibold text-[var(--text-primary)]">In Progress</span>}
-
-          value={dynamicTicketStats.inProgress}
-
-          icon={Wrench}
-
-          color="amber"
-
-          loading={loadingStats}
-
-          style={{ backgroundColor: 'rgba(252 211 77 / 0.3)' }}
-
-          iconBgColor="bg-amber-100"
-
-          iconColor="text-amber-600"
-
-        />
-
-
-
-        <KPICard
-
-          label={<span className="text-sm font-semibold text-[var(--text-primary)]">Resolved</span>}
-
-          value={dynamicTicketStats.resolved}
-
-          icon={CheckCircle}
-
-          color="emerald"
-
-          loading={loadingStats}
-
-          style={{ backgroundColor: 'rgba(110 231 183 / 0.3)' }}
-
-          iconBgColor="bg-emerald-100"
-
-          iconColor="text-emerald-600"
-
-        />
-
-
-
-        <KPICard
-
-          label={<span className="text-sm font-semibold text-[var(--text-primary)]">Closed</span>}
-
-          value={dynamicTicketStats.closed}
-
-          icon={XCircle}
-
-          color="slate"
-
-          loading={loadingStats}
-
-          style={{ backgroundColor: 'rgba(148 163 184 / 0.3)' }}
-
-          iconBgColor="bg-slate-100"
-
-          iconColor="text-slate-600"
-
-        />
-
-
-
-        <KPICard
-
-          label={<span className="text-sm font-semibold text-[var(--text-primary)]">AMC Contracts</span>}
-
-          value={dynamicAmcStats.activeContracts}
-
-          icon={Shield}
-
-          color="accent"
-
-          loading={loadingStats}
-
-          style={{ backgroundColor: 'rgba(167 139 250 / 0.3)' }}
-
-          iconBgColor="bg-violet-100"
-
-          iconColor="text-violet-600"
-
-        />
-
-
-
-      </div>
-
-
-
-
-
-
 
       <div className="ai-banner">
 
@@ -4604,189 +4455,516 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="tickets">
-
-
-
-        <TabsList>
-
-
-
-          <TabsTrigger value="tickets">Support Tickets ({tickets.length})</TabsTrigger>
-
-
-
-          <TabsTrigger value="amc">AMC Contracts ({amcContracts.length})</TabsTrigger>
-
-
-
-          <TabsTrigger value="schedule-visit">Schedule Visit ({visits.length})</TabsTrigger>
-
-
-
-        </TabsList>
-
-
-
-
-
-
-
-        <TabsContent value="tickets">
-
-
-
-          <div className="space-y-3">
-
-
-
-            <div className="flex flex-wrap gap-2 items-center">
-
-
-
-              <span className="text-xs text-[var(--text-muted)] mr-1">Status:</span>
-
-
-
-              {TICKET_STATUS_FILTERS.map(s => (
-
-
-
-                <button key={s} onClick={() => { setTicketStatus(s); setTPage(1); }}
-
-
-
-                  className={`filter-chip ${ticketStatus === s ? 'filter-chip-active' : ''}`}>{s}</button>
-
-
-
-              ))}
-
-
-
-              <div className="flex items-center gap-2 ml-auto">
-
-
-
-                <Input placeholder="Search tickets..." value={ticketSearch}
-
-
-
-                  onChange={e => { setTicketSearch(e.target.value); setTPage(1); }}
-
-
-
-                  className="h-8 text-xs w-44" />
-
-
-
-                <div className="view-toggle-pill">
-
-
-
-                  <button onClick={() => setView('kanban')} className={`view-toggle-btn ${view === 'kanban' ? 'active' : ''}`} title="Kanban"><LayoutGrid size={13} /></button>
-
-
-
-                  <button onClick={() => setView('table')} className={`view-toggle-btn ${view === 'table' ? 'active' : ''}`} title="Table"><List size={13} /></button>
-
-
-
+      {/* Main Content Based on buttonView */}
+      {buttonView === 'dashboard' && (
+        <>
+          {/* Dashboard View - Exactly as per screenshot */}
+          <div className="grid grid-cols-4 gap-4 mb-6">
+            {/* Row 1 */}
+            <div className="bg-blue-200/70 rounded-xl p-4 border border-blue-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setButtonView('table'); setActiveTab('tickets'); }}>
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs font-medium text-blue-600 mb-1">TOTAL TICKETS</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{tickets.length}</h3>
+                  <p className="text-[10px] text-blue-500 mt-1">6 total tickets</p>
                 </div>
-
-
-
+                <div className="bg-blue-100 p-2 rounded-lg">
+                  <Headphones size={18} className="text-blue-600" />
+                </div>
               </div>
-
-
-
             </div>
 
+            <div className="bg-orange-200/70 rounded-xl p-4 border border-orange-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setButtonView('table'); setActiveTab('tickets'); }}>
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs font-medium text-orange-600 mb-1">OPEN TICKETS</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{dynamicTicketStats.openTickets}</h3>
+                  <p className="text-[10px] text-orange-500 mt-1">4 need attention</p>
+                </div>
+                <div className="bg-orange-100 p-2 rounded-lg">
+                  <AlertTriangle size={18} className="text-orange-600" />
+                </div>
+              </div>
+            </div>
 
+            <div className="bg-purple-200/70 rounded-xl p-4 border border-purple-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setButtonView('table'); setActiveTab('tickets'); }}>
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs font-medium text-purple-600 mb-1">SCHEDULED</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{dynamicTicketStats.scheduled}</h3>
+                  <p className="text-[10px] text-purple-500 mt-1">4 total visits</p>
+                </div>
+                <div className="bg-purple-100 p-2 rounded-lg">
+                  <Calendar size={18} className="text-purple-600" />
+                </div>
+              </div>
+            </div>
 
+            <div className="bg-yellow-200/70 rounded-xl p-4 border border-yellow-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setButtonView('table'); setActiveTab('tickets'); }}>
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs font-medium text-yellow-600 mb-1">IN PROGRESS</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{dynamicTicketStats.inProgress}</h3>
+                  <p className="text-[10px] text-yellow-500 mt-1">Being handled</p>
+                </div>
+                <div className="bg-yellow-100 p-2 rounded-lg">
+                  <Clock size={18} className="text-yellow-600" />
+                </div>
+              </div>
+            </div>
 
+            {/* Row 2 */}
+            <div className="bg-emerald-200/70 rounded-xl p-4 border border-emerald-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setButtonView('table'); setActiveTab('tickets'); }}>
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs font-medium text-emerald-600 mb-1">RESOLVED</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{dynamicTicketStats.resolved}</h3>
+                  <p className="text-[10px] text-emerald-500 mt-1">This month</p>
+                </div>
+                <div className="bg-emerald-100 p-2 rounded-lg">
+                  <CheckCircle size={18} className="text-emerald-600" />
+                </div>
+              </div>
+            </div>
 
+            <div className="bg-gray-200/70 rounded-xl p-4 border border-gray-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setButtonView('table'); setActiveTab('tickets'); }}>
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs font-medium text-gray-600 mb-1">CLOSED</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{dynamicTicketStats.closed}</h3>
+                  <p className="text-[10px] text-gray-500 mt-1">Completed</p>
+                </div>
+                <div className="bg-gray-200 p-2 rounded-lg">
+                  <XCircle size={18} className="text-gray-600" />
+                </div>
+              </div>
+            </div>
 
+            <div className="bg-indigo-200/70 rounded-xl p-4 border border-indigo-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setButtonView('table'); setActiveTab('amc'); }}>
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs font-medium text-indigo-600 mb-1">AMC CONTRACTS</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{dynamicAmcStats.activeContracts}</h3>
+                  <p className="text-[10px] text-indigo-500 mt-1">3 total contracts</p>
+                </div>
+                <div className="bg-indigo-100 p-2 rounded-lg">
+                  <Shield size={18} className="text-indigo-600" />
+                </div>
+              </div>
+            </div>
 
-            {loadingTickets ? (
-
-
-
-              <LoadingState />
-
-
-
-            ) : error ? (
-
-
-
-              <ErrorState message={error} />
-
-
-
-            ) : view === 'kanban' ? (
-
-
-
-              <TicketKanbanBoard tickets={filteredTickets} onStageChange={handleStageChange} onCardClick={setSelected} />
-
-
-
-            ) : (
-
-
-
-              <DataTable
-
-
-
-                columns={TICKET_COLUMNS}
-
-
-
-                data={paginatedTickets}
-
-
-
-                rowActions={TICKET_ACTIONS}
-
-
-
-                pagination={{ page: tPage, pageSize: tPageSize, total: filteredTickets.length, onChange: setTPage, onPageSizeChange: setTPageSize }}
-
-
-
-                emptyMessage="No tickets found."
-
-
-
-                onRowClick={row => setSelected(row)}
-
-
-
-              />
-
-
-
-            )}
-
-
-
+            <div className="bg-cyan-200/70 rounded-xl p-4 border border-cyan-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setButtonView('table'); setActiveTab('schedule-visit'); }}>
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs font-medium text-cyan-600 mb-1">TOTAL VISITS</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{dynamicVisitStats.total}</h3>
+                  <p className="text-[10px] text-cyan-500 mt-1">4 scheduled</p>
+                </div>
+                <div className="bg-cyan-100 p-2 rounded-lg">
+                  <Stethoscope size={18} className="text-cyan-600" />
+                </div>
+              </div>
+            </div>
           </div>
 
+          {/* Breakdown Sections Row */}
+          <div className="grid grid-cols-2 gap-4 mb-6">
+            {/* Ticket Status Breakdown */}
+            <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
+              <div className="flex items-center gap-2 mb-4">
+                <Activity size={18} className="text-orange-500" />
+                <h3 className="text-sm font-semibold text-gray-700">Ticket Status Breakdown</h3>
+                <span className="ml-auto text-xs text-gray-400">Total: {dynamicTicketStats.total}</span>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-gray-500 w-20">Open</span>
+                  <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-red-500 rounded-full" style={{ width: `${tickets.length > 0 ? (dynamicTicketStats.openTickets / tickets.length) * 100 : 0}%` }} />
+                  </div>
+                  <span className="text-xs font-medium text-gray-700 w-6 text-right">{dynamicTicketStats.openTickets}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-gray-500 w-20">Scheduled</span>
+                  <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-blue-500 rounded-full" style={{ width: `${tickets.length > 0 ? (dynamicTicketStats.scheduled / tickets.length) * 100 : 0}%` }} />
+                  </div>
+                  <span className="text-xs font-medium text-gray-700 w-6 text-right">{dynamicTicketStats.scheduled}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-gray-500 w-20">In Progress</span>
+                  <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-amber-500 rounded-full" style={{ width: `${tickets.length > 0 ? (dynamicTicketStats.inProgress / tickets.length) * 100 : 0}%` }} />
+                  </div>
+                  <span className="text-xs font-medium text-gray-700 w-6 text-right">{dynamicTicketStats.inProgress}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-gray-500 w-20">Resolved</span>
+                  <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${tickets.length > 0 ? (dynamicTicketStats.resolved / tickets.length) * 100 : 0}%` }} />
+                  </div>
+                  <span className="text-xs font-medium text-gray-700 w-6 text-right">{dynamicTicketStats.resolved}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-gray-500 w-20">Closed</span>
+                  <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-gray-600 rounded-full" style={{ width: `${tickets.length > 0 ? (dynamicTicketStats.closed / tickets.length) * 100 : 0}%` }} />
+                  </div>
+                  <span className="text-xs font-medium text-gray-700 w-6 text-right">{dynamicTicketStats.closed}</span>
+                </div>
+              </div>
+            </div>
 
+            {/* Visit Statistics */}
+            <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
+              <div className="flex items-center gap-2 mb-4">
+                <Calendar size={18} className="text-orange-500" />
+                <h3 className="text-sm font-semibold text-gray-700">Visit Statistics</h3>
+                <span className="ml-auto text-xs text-gray-400">Total: {dynamicVisitStats.total}</span>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-gray-500 w-20">Scheduled</span>
+                  <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-blue-500 rounded-full" style={{ width: `${dynamicVisitStats.total > 0 ? (dynamicVisitStats.scheduled / dynamicVisitStats.total) * 100 : 0}%` }} />
+                  </div>
+                  <span className="text-xs font-medium text-gray-700 w-6 text-right">{dynamicVisitStats.scheduled}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-gray-500 w-20">Completed</span>
+                  <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${dynamicVisitStats.total > 0 ? (dynamicVisitStats.completed / dynamicVisitStats.total) * 100 : 0}%` }} />
+                  </div>
+                  <span className="text-xs font-medium text-gray-700 w-6 text-right">{dynamicVisitStats.completed}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-gray-500 w-20">Cancelled</span>
+                  <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-red-500 rounded-full" style={{ width: `${dynamicVisitStats.total > 0 ? (dynamicVisitStats.cancelled / dynamicVisitStats.total) * 100 : 0}%` }} />
+                  </div>
+                  <span className="text-xs font-medium text-gray-700 w-6 text-right">{dynamicVisitStats.cancelled}</span>
+                </div>
+              </div>
+            </div>
+          </div>
 
-        </TabsContent>
+          {/* Recent Sections Row */}
+          <div className="grid grid-cols-4 gap-4">
+            {/* Recent Tickets */}
+            <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                  <Ticket size={16} className="text-orange-500" />
+                  Recent Tickets
+                </h3>
+                <button className="text-xs text-gray-400 hover:text-gray-600" onClick={() => { setButtonView('kanban'); }}>View All</button>
+              </div>
+              <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                {tickets.map((ticket, idx) => (
+                  <div key={ticket.id || idx} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+                    <div>
+                      <p className="text-xs font-medium text-gray-700">{ticket.id}</p>
+                      <p className="text-[10px] text-gray-400">{ticket.customerName || ticket.customer}</p>
+                    </div>
+                    <span className={`text-[10px] px-2 py-1 rounded-full ${
+                      ticket.status === 'Open' ? 'bg-red-100 text-red-600' :
+                      ticket.status === 'Scheduled' ? 'bg-blue-100 text-blue-600' :
+                      ticket.status === 'In Progress' ? 'bg-amber-100 text-amber-600' :
+                      ticket.status === 'Resolved' ? 'bg-emerald-100 text-emerald-600' :
+                      'bg-gray-100 text-gray-600'
+                    }`}>{ticket.status}</span>
+                  </div>
+                ))}
+                {tickets.length === 0 && (
+                  <p className="text-xs text-gray-400 text-center py-4">No tickets available</p>
+                )}
+              </div>
+            </div>
 
+            {/* Recent Visits */}
+            <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                  <Calendar size={16} className="text-orange-500" />
+                  Recent Visits
+                </h3>
+                <button className="text-xs text-gray-400 hover:text-gray-600" onClick={() => { setButtonView('table'); setActiveTab('schedule-visit'); }}>View All</button>
+              </div>
+              <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                {visits.map((visit, idx) => (
+                  <div key={visit.id || idx} className="py-2 border-b border-gray-50 last:border-0">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-medium text-gray-700">{visit.id || `V${String(idx + 1).padStart(3, '0')}`}</p>
+                      <span className={`text-[10px] px-2 py-1 rounded-full ${
+                        visit.status === 'Completed' ? 'bg-emerald-100 text-emerald-600' :
+                        visit.status === 'Scheduled' ? 'bg-blue-100 text-blue-600' :
+                        'bg-red-100 text-red-600'
+                      }`}>{visit.status || 'Scheduled'}</span>
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-1">{visit.customer || '—'}</p>
+                    <p className="text-[10px] text-gray-400">{visit.scheduled_date || visit.scheduledDate || '—'}</p>
+                  </div>
+                ))}
+                {visits.length === 0 && (
+                  <p className="text-xs text-gray-400 text-center py-4">No visits scheduled</p>
+                )}
+              </div>
+            </div>
 
+            {/* Recent AMC Contracts */}
+            <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                  <Shield size={16} className="text-orange-500" />
+                  Recent AMC Contracts
+                </h3>
+                <button className="text-xs text-gray-400 hover:text-gray-600" onClick={() => { setButtonView('table'); setActiveTab('amc'); }}>View All</button>
+              </div>
+              <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                {amcContracts.map((contract, idx) => (
+                  <div key={contract.id || idx} className="py-2 border-b border-gray-50 last:border-0">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-medium text-gray-700">{contract.id || `AMC${String(idx + 1).padStart(3, '0')}`}</p>
+                      <span className={`text-[10px] px-2 py-1 rounded-full ${
+                        contract.status === 'Active' ? 'bg-emerald-100 text-emerald-600' :
+                        contract.status === 'Expired' ? 'bg-red-100 text-red-600' :
+                        'bg-amber-100 text-amber-600'
+                      }`}>{contract.status || 'Active'}</span>
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-1">{contract.customer || '—'}</p>
+                    <p className="text-[10px] text-gray-400">{contract.site || '—'}</p>
+                  </div>
+                ))}
+                {amcContracts.length === 0 && (
+                  <p className="text-xs text-gray-400 text-center py-4">No AMC contracts available</p>
+                )}
+              </div>
+            </div>
 
+            {/* Team Overview */}
+            <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                  <Users size={16} className="text-orange-500" />
+                  Team Overview
+                </h3>
+                <span className="text-xs text-gray-400">{engineers.length} Engineers</span>
+              </div>
+              <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                {engineers.map((engineer, idx) => (
+                  <div key={engineer.id || idx} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
+                    <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center">
+                      <span className="text-xs font-medium text-orange-600">{engineer.name?.charAt(0) || 'E'}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-gray-700 truncate">{engineer.name || engineer.email}</p>
+                      <p className="text-[10px] text-gray-400 truncate">{engineer.email || 'No email'}</p>
+                    </div>
+                    <span className="text-[10px] text-emerald-500">●</span>
+                  </div>
+                ))}
+                {engineers.length === 0 && (
+                  <p className="text-xs text-gray-400 text-center py-4">0 tickets</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
+      {buttonView === 'kanban' && (
+        <>
+          {/* Status Summary Cards */}
+          <div className="grid grid-cols-6 gap-3 mb-4">
+            <div className="bg-red-100 rounded-xl p-4 border border-red-200">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs font-medium text-red-600 mb-1">OPEN TICKETS</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{dynamicTicketStats.openTickets}</h3>
+                </div>
+                <div className="bg-red-200 p-2 rounded-lg">
+                  <AlertTriangle size={18} className="text-red-600" />
+                </div>
+              </div>
+            </div>
+            <div className="bg-blue-100 rounded-xl p-4 border border-blue-200">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs font-medium text-blue-600 mb-1">SCHEDULED</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{dynamicTicketStats.scheduled}</h3>
+                </div>
+                <div className="bg-blue-200 p-2 rounded-lg">
+                  <Calendar size={18} className="text-blue-600" />
+                </div>
+              </div>
+            </div>
+            <div className="bg-yellow-100 rounded-xl p-4 border border-yellow-200">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs font-medium text-yellow-600 mb-1">IN PROGRESS</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{dynamicTicketStats.inProgress}</h3>
+                </div>
+                <div className="bg-yellow-200 p-2 rounded-lg">
+                  <Wrench size={18} className="text-yellow-600" />
+                </div>
+              </div>
+            </div>
+            <div className="bg-emerald-100 rounded-xl p-4 border border-emerald-200">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs font-medium text-emerald-600 mb-1">RESOLVED</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{dynamicTicketStats.resolved}</h3>
+                </div>
+                <div className="bg-emerald-200 p-2 rounded-lg">
+                  <CheckCircle size={18} className="text-emerald-600" />
+                </div>
+              </div>
+            </div>
+            <div className="bg-gray-100 rounded-xl p-4 border border-gray-200">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs font-medium text-gray-600 mb-1">CLOSED</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{dynamicTicketStats.closed}</h3>
+                </div>
+                <div className="bg-gray-200 p-2 rounded-lg">
+                  <XCircle size={18} className="text-gray-600" />
+                </div>
+              </div>
+            </div>
+            <div className="bg-indigo-100 rounded-xl p-4 border border-indigo-200">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs font-medium text-indigo-600 mb-1">AMC CONTRACTS</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{dynamicAmcStats.activeContracts}</h3>
+                </div>
+                <div className="bg-indigo-200 p-2 rounded-lg">
+                  <Shield size={18} className="text-indigo-600" />
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-2 items-center">
+              <span className="text-xs text-[var(--text-muted)] mr-1">Status:</span>
+              {TICKET_STATUS_FILTERS.map(s => (
+                <button key={s} onClick={() => { setTicketStatus(s); setTPage(1); }}
+                  className={`filter-chip ${ticketStatus === s ? 'filter-chip-active' : ''}`}>{s}</button>
+              ))}
+            </div>
+            {loadingTickets ? (
+              <LoadingState />
+            ) : (
+              <TicketKanbanBoard tickets={filteredTickets} onStageChange={handleStageChange} onCardClick={setSelected} />
+            )}
+          </div>
+        </>
+      )}
 
+      {buttonView === 'table' && (
+        <>
+          {/* Status Summary Cards */}
+          <div className="grid grid-cols-6 gap-3 mb-4">
+            <div className="bg-red-100 rounded-xl p-4 border border-red-200">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs font-medium text-red-600 mb-1">OPEN TICKETS</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{dynamicTicketStats.openTickets}</h3>
+                </div>
+                <div className="bg-red-200 p-2 rounded-lg">
+                  <AlertTriangle size={18} className="text-red-600" />
+                </div>
+              </div>
+            </div>
+            <div className="bg-blue-100 rounded-xl p-4 border border-blue-200">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs font-medium text-blue-600 mb-1">SCHEDULED</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{dynamicTicketStats.scheduled}</h3>
+                </div>
+                <div className="bg-blue-200 p-2 rounded-lg">
+                  <Calendar size={18} className="text-blue-600" />
+                </div>
+              </div>
+            </div>
+            <div className="bg-yellow-100 rounded-xl p-4 border border-yellow-200">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs font-medium text-yellow-600 mb-1">IN PROGRESS</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{dynamicTicketStats.inProgress}</h3>
+                </div>
+                <div className="bg-yellow-200 p-2 rounded-lg">
+                  <Wrench size={18} className="text-yellow-600" />
+                </div>
+              </div>
+            </div>
+            <div className="bg-emerald-100 rounded-xl p-4 border border-emerald-200">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs font-medium text-emerald-600 mb-1">RESOLVED</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{dynamicTicketStats.resolved}</h3>
+                </div>
+                <div className="bg-emerald-200 p-2 rounded-lg">
+                  <CheckCircle size={18} className="text-emerald-600" />
+                </div>
+              </div>
+            </div>
+            <div className="bg-gray-100 rounded-xl p-4 border border-gray-200">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs font-medium text-gray-600 mb-1">CLOSED</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{dynamicTicketStats.closed}</h3>
+                </div>
+                <div className="bg-gray-200 p-2 rounded-lg">
+                  <XCircle size={18} className="text-gray-600" />
+                </div>
+              </div>
+            </div>
+            <div className="bg-indigo-100 rounded-xl p-4 border border-indigo-200">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs font-medium text-indigo-600 mb-1">AMC CONTRACTS</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{dynamicAmcStats.activeContracts}</h3>
+                </div>
+                <div className="bg-indigo-200 p-2 rounded-lg">
+                  <Shield size={18} className="text-indigo-600" />
+                </div>
+              </div>
+            </div>
+          </div>
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList>
+            <TabsTrigger value="tickets">Support Tickets ({tickets.length})</TabsTrigger>
+            <TabsTrigger value="amc">AMC Contracts ({amcContracts.length})</TabsTrigger>
+            <TabsTrigger value="schedule-visit">Schedule Visit ({visits.length})</TabsTrigger>
+          </TabsList>
 
+          <TabsContent value="tickets" className="!p-0 !m-0">
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="text-xs text-[var(--text-muted)] mr-1">Status:</span>
+                {TICKET_STATUS_FILTERS.map(s => (
+                  <button key={s} onClick={() => { setTicketStatus(s); setTPage(1); }}
+                    className={`filter-chip ${ticketStatus === s ? 'filter-chip-active' : ''}`}>{s}</button>
+                ))}
+              </div>
+              {loadingTickets ? (
+                <LoadingState />
+              ) : error ? (
+                <ErrorState message={error} />
+              ) : (
+                <DataTable
+                  columns={TICKET_COLUMNS}
+                  data={paginatedTickets}
+                  rowActions={TICKET_ACTIONS}
+                  pagination={{ page: tPage, pageSize: tPageSize, total: filteredTickets.length, onChange: setTPage, onPageSizeChange: setTPageSize }}
+                  emptyMessage="No tickets found."
+                  onRowClick={row => setSelected(row)}
+                />
+              )}
+            </div>
+          </TabsContent>
 
-        <TabsContent value="amc" className="!p-0 !m-0">
-
-
+          <TabsContent value="amc" className="!p-0 !m-0">
 
           {loadingAmc ? (
 
@@ -5188,7 +5366,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-                                : 'bg-blue-500/20 text-blue-400'
+                                : 'bg-blue-1000/20 text-blue-400'
 
 
 
@@ -5216,7 +5394,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-                              ? 'bg-emerald-500/20 text-emerald-400'
+                              ? 'bg-emerald-1000/20 text-emerald-400'
 
 
 
@@ -5224,7 +5402,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-                                ? 'bg-blue-500/20 text-blue-400'
+                                ? 'bg-blue-1000/20 text-blue-400'
 
 
 
@@ -5288,11 +5466,12 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+      </>)
 
 
 
-
-      {/* New Ticket Modal */}
+            }
+            {/* New Ticket Modal */}
 
 
 
@@ -6770,14 +6949,70 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
             </div>
 
+
+
             <FormField label="Start Date">
+
+
+
               <Input
+
+
+
                 type="date"
+
+
+
                 value={amcEditForm.startDate}
+
+
+
                 onChange={e => setAmcEditForm(prev => ({ ...prev, startDate: e.target.value }))}
+
+
+
                 className="h-8 text-xs"
+
+
+
               />
+
+
+
             </FormField>
+
+
+
+            <FormField label="End Date">
+
+
+
+              <Input
+
+
+
+                type="date"
+
+
+
+                value={amcEditForm.endDate}
+
+
+
+                onChange={e => setAmcEditForm(prev => ({ ...prev, endDate: e.target.value }))}
+
+
+
+                className="h-8 text-xs"
+
+
+
+              />
+
+
+
+            </FormField>
+
 
             <FormField label="End Date">
               <Input
@@ -6801,7 +7036,8 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-      )}
+      )
+      }
 
 
 
@@ -6813,275 +7049,52 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-      {assignModal.open && assignModal.ticket && (
+      {
+        assignModal.open && assignModal.ticket && (
 
 
 
-        <Modal
+          <Modal
 
 
 
-          open={assignModal.open}
+            open={assignModal.open}
 
 
 
-          onClose={closeAssignModal}
+            onClose={closeAssignModal}
 
 
 
-          title="Assign Engineer"
+            title="Assign Engineer"
 
 
 
-          footer={
+            footer={
 
 
 
-            <div className="flex gap-2 justify-end">
+              <div className="flex gap-2 justify-end">
 
 
 
-              <Button variant="ghost" onClick={closeAssignModal}>Cancel</Button>
+                <Button variant="ghost" onClick={closeAssignModal}>Cancel</Button>
 
 
 
-              <Button onClick={handleAssignEngineer} disabled={!selectedEngineer || assigning}>
+                <Button onClick={handleAssignEngineer} disabled={!selectedEngineer || assigning}>
 
 
 
-                {assigning ? <Loader2 size={13} className="animate-spin" /> : <Wrench size={13} />}
+                  {assigning ? <Loader2 size={13} className="animate-spin" /> : <Wrench size={13} />}
 
 
 
-                {assigning ? 'Assigning...' : 'Assign'}
+                  {assigning ? 'Assigning...' : 'Assign'}
 
 
 
-              </Button>
-
-
-
-            </div>
-
-
-
-          }
-
-
-
-        >
-
-
-
-          <div className="space-y-3">
-
-
-
-            <div className="text-xs text-[var(--text-muted)] mb-2">
-
-
-
-              Ticket: <span className="font-mono text-[var(--accent-light)]">{assignModal.ticket.id}</span>
-
-
-
-            </div>
-
-
-
-            <FormField label="Select Engineer">
-
-
-
-              <Select
-
-
-
-                value={selectedEngineer}
-
-
-
-                onChange={e => setSelectedEngineer(e.target.value)}
-
-
-
-              >
-
-
-
-                <option value="">Select an engineer...</option>
-
-
-
-                {engineers.map(engineer => (
-
-
-
-                  <option key={engineer.id} value={engineer.name}>
-
-
-
-                    {engineer.name} {engineer.email ? `(${engineer.email})` : ''}
-
-
-
-                  </option>
-
-
-
-                ))}
-
-
-
-              </Select>
-
-
-
-            </FormField>
-
-
-
-            {engineers.length === 0 && (
-
-
-
-              <p className="text-xs text-[var(--text-muted)]">No engineers found.</p>
-
-
-
-            )}
-
-
-
-          </div>
-
-
-
-        </Modal>
-
-
-
-      )}
-
-
-
-
-
-
-
-      {/* AMC Project View Modal - Shows project details like Project Module View Details */}
-
-
-
-      {amcProjectView && (
-
-
-
-        <Modal
-
-
-
-          open={!!amcProjectView}
-
-
-
-          onClose={() => { setAmcProjectView(null); setAmcProjectData(null); }}
-
-
-
-          title={amcProjectData ? `Project — ${amcProjectData.id}` : 'Project Details'}
-
-
-
-          footer={
-
-
-
-            <div className="flex gap-2 justify-end">
-
-
-
-              <Button variant="ghost" onClick={() => { setAmcProjectView(null); setAmcProjectData(null); }}>Close</Button>
-
-
-
-            </div>
-
-
-
-          }
-
-
-
-        >
-
-
-
-          {loadingAmcProject ? (
-
-
-
-            <div className="flex items-center justify-center py-8">
-
-
-
-              <Loader2 size={24} className="animate-spin text-[var(--primary)]" />
-
-
-
-              <span className="ml-2 text-sm text-[var(--text-muted)]">Loading project...</span>
-
-
-
-            </div>
-
-
-
-          ) : amcProjectData ? (
-
-
-
-            <div className="space-y-4">
-
-
-
-              {/* Project Info Grid - Same as ProjectPage View Details */}
-
-
-
-              <div className="grid grid-cols-2 gap-3 text-xs">
-
-
-
-                {[['Customer', amcProjectData.customerName], ['Email', amcProjectData.email || '—'], ['Mobile', amcProjectData.mobileNumber || '—'], ['Site', amcProjectData.site], ['System Size', `${amcProjectData.systemSize} kW`], ['Project Manager', amcProjectData.pm],
-
-
-
-                ['Status', <StatusBadge domain="project" value={amcProjectData.status} />], ['Value', `₹${(amcProjectData.value / 100000).toFixed(1)}L`],
-
-
-
-                ].map(([k, v]) => (
-
-
-
-                  <div key={k} className="glass-card p-2">
-
-
-
-                    <div className="text-[var(--text-muted)] mb-0.5">{k}</div>
-
-
-
-                    <div className="font-semibold text-[var(--text-primary)]">{v}</div>
-
-
-
-                  </div>
-
-
-
-                ))}
+                </Button>
 
 
 
@@ -7089,451 +7102,11 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+            }
 
 
 
-
-              {/* Progress Bar - Same as ProjectPage */}
-
-
-
-              <div>
-
-
-
-                <div className="text-xs flex items-center justify-between mb-1">
-
-
-
-                  <span className="font-semibold text-[var(--text-primary)]">Overall Progress</span>
-
-
-
-                  <span className="text-[var(--text-muted)]">{amcProjectData.progress}%</span>
-
-
-
-                </div>
-
-
-
-                <Progress value={amcProjectData.progress} className="h-2" />
-
-
-
-              </div>
-
-
-
-
-
-
-
-              {/* Milestone Tracker - Same as ProjectPage View Details */}
-
-
-
-              <div>
-
-
-
-                <div className="text-xs font-semibold text-[var(--text-primary)] mb-3">Milestone Tracker</div>
-
-
-
-                <Stepper steps={amcProjectData.milestones?.map(m => ({ name: m.name, status: m.status, date: m.date })) ?? [
-
-
-
-                  { name: 'Material Ready', status: 'Pending', date: null },
-
-
-
-                  { name: 'Installation', status: 'Pending', date: null },
-
-
-
-                  { name: 'Commission', status: 'Pending', date: null },
-
-
-
-                  { name: 'Billing', status: 'Pending', date: null },
-
-
-
-                  { name: 'Closure', status: 'Pending', date: null }
-
-
-
-                ]} />
-
-
-
-              </div>
-
-
-
-
-
-
-
-              {/* Reserved Materials - Same as ProjectPage */}
-
-
-
-              {amcProjectData.materials && amcProjectData.materials.length > 0 && (
-
-
-
-                <div>
-
-
-
-                  <div className="text-xs font-semibold text-[var(--text-primary)] mb-3">Reserved Materials</div>
-
-
-
-                  <div className="space-y-2">
-
-
-
-                    {amcProjectData.materials.map((m, idx) => (
-
-
-
-                      <div key={`mat-${idx}`} className="glass-card p-2 flex items-center justify-between">
-
-
-
-                        <div>
-
-
-
-                          <div className="text-xs font-medium text-[var(--text-primary)]">{m.itemName}</div>
-
-
-
-                          <div className="text-[10px] text-[var(--text-muted)]">Qty: {m.quantity} | Issued: {m.issuedDate || '—'}</div>
-
-
-
-                        </div>
-
-
-
-                        {m.remarks && (
-
-
-
-                          <div className="text-[10px] text-[var(--text-faint)] max-w-[150px] truncate" title={m.remarks}>
-
-
-
-                            {m.remarks}
-
-
-
-                          </div>
-
-
-
-                        )}
-
-
-
-                      </div>
-
-
-
-                    ))}
-
-
-
-                  </div>
-
-
-
-                </div>
-
-
-
-              )}
-
-
-
-            </div>
-
-
-
-          ) : (
-
-
-
-            <div className="text-center py-8">
-
-
-
-              <AlertTriangle size={32} className="mx-auto text-amber-400 mb-2" />
-
-
-
-              <p className="text-sm text-[var(--text-muted)]">No matching project found for this AMC contract.</p>
-
-
-
-              <p className="text-xs text-[var(--text-faint)] mt-1">Customer: {amcProjectView.customer}, Site: {amcProjectView.site}</p>
-
-
-
-            </div>
-
-
-
-          )}
-
-
-
-        </Modal>
-
-
-
-      )}
-
-
-
-
-
-
-
-      {/* Schedule Visit Modal */}
-
-
-
-      {scheduleVisitModal.open && scheduleVisitModal.contract && (
-
-
-
-        <Modal
-
-
-
-          open={scheduleVisitModal.open}
-
-
-
-          onClose={closeScheduleVisitModal}
-
-
-
-          title="Schedule Visit"
-
-
-
-          footer={
-
-
-
-            <div className="flex gap-2 justify-end">
-
-
-
-              <Button variant="ghost" onClick={closeScheduleVisitModal}>Cancel</Button>
-
-
-
-              <Button onClick={handleScheduleVisit} disabled={schedulingVisit}>
-
-
-
-                {schedulingVisit ? <Loader2 size={13} className="animate-spin" /> : <Clock size={13} />}
-
-
-
-                {schedulingVisit ? 'Scheduling...' : 'Schedule Visit'}
-
-
-
-              </Button>
-
-
-
-            </div>
-
-
-
-          }
-
-
-
-        >
-
-
-
-          <div className="space-y-4">
-
-
-
-            {/* Auto-filled Read-only Fields */}
-
-
-
-            <div className="grid grid-cols-2 gap-3 text-xs">
-
-
-
-              <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
-
-
-
-                <div className="text-[var(--text-muted)] mb-0.5">Contract ID</div>
-
-
-
-                <div className="font-semibold text-[var(--text-primary)]">{scheduleVisitModal.contract.id}</div>
-
-
-
-              </div>
-
-
-
-              <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
-
-
-
-                <div className="text-[var(--text-muted)] mb-0.5">Email ID</div>
-
-
-
-                <div className="font-semibold text-[var(--text-primary)]">
-
-
-
-                  {loadingScheduleVisitProject ? (
-
-
-
-                    <span className="text-[var(--text-muted)]">Loading...</span>
-
-
-
-                  ) : (
-
-
-
-                    scheduleVisitProjectData?.email || '—'
-
-
-
-                  )}
-
-
-
-                </div>
-
-
-
-              </div>
-
-
-
-              <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
-
-
-
-                <div className="text-[var(--text-muted)] mb-0.5">Mobile Number</div>
-
-
-
-                <div className="font-semibold text-[var(--text-primary)]">
-
-
-
-                  {loadingScheduleVisitProject ? (
-
-
-
-                    <span className="text-[var(--text-muted)]">Loading...</span>
-
-
-
-                  ) : (
-
-
-
-                    scheduleVisitProjectData?.mobileNumber || '—'
-
-
-
-                  )}
-
-
-
-                </div>
-
-
-
-              </div>
-
-
-
-              <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
-
-
-
-                <div className="text-[var(--text-muted)] mb-0.5">Site</div>
-
-
-
-                <div className="font-semibold text-[var(--text-primary)]">{scheduleVisitModal.contract.site}</div>
-
-
-
-              </div>
-
-
-
-              <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
-
-
-
-                <div className="text-[var(--text-muted)] mb-0.5">Customer Name</div>
-
-
-
-                <div className="font-semibold text-[var(--text-primary)]">{scheduleVisitModal.contract.customer}</div>
-
-
-
-              </div>
-
-
-
-              <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
-
-
-
-                <div className="text-[var(--text-muted)] mb-0.5">Size (kW)</div>
-
-
-
-                <div className="font-semibold text-[var(--text-primary)]">{scheduleVisitModal.contract.systemSize} kW</div>
-
-
-
-              </div>
-
-
-
-            </div>
-
-
-
-
-
-
-
-            {/* Input Fields */}
+          >
 
 
 
@@ -7541,119 +7114,11 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-              <FormField label="Visit Type">
+              <div className="text-xs text-[var(--text-muted)] mb-2">
 
 
 
-                <Select
-
-
-
-                  value={visitForm.visitType}
-
-
-
-                  onChange={e => setVisitForm(prev => ({ ...prev, visitType: e.target.value }))}
-
-
-
-                >
-
-
-
-                  <option value="Routine Maintenance">Routine Maintenance</option>
-
-
-
-                  <option value="Breakdown">Breakdown</option>
-
-
-
-                  <option value="Emergency">Emergency</option>
-
-
-
-                  <option value="Follow-up">Follow-up</option>
-
-
-
-                </Select>
-
-
-
-              </FormField>
-
-
-
-
-
-
-
-              <div className="grid grid-cols-2 gap-3">
-
-
-
-                <FormField label="Scheduled Date *">
-
-
-
-                  <Input
-
-
-
-                    type="date"
-
-
-
-                    value={visitForm.scheduledDate}
-
-
-
-                    onChange={e => setVisitForm(prev => ({ ...prev, scheduledDate: e.target.value }))}
-
-
-
-                    className="h-8 text-xs"
-
-
-
-                  />
-
-
-
-                </FormField>
-
-
-
-                <FormField label="Scheduled Time *">
-
-
-
-                  <Input
-
-
-
-                    type="time"
-
-
-
-                    value={visitForm.scheduledTime}
-
-
-
-                    onChange={e => setVisitForm(prev => ({ ...prev, scheduledTime: e.target.value }))}
-
-
-
-                    className="h-8 text-xs"
-
-
-
-                  />
-
-
-
-                </FormField>
+                Ticket: <span className="font-mono text-[var(--accent-light)]">{assignModal.ticket.id}</span>
 
 
 
@@ -7661,11 +7126,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-
-
-
-
-              <FormField label="Engineer Assign *">
+              <FormField label="Select Engineer">
 
 
 
@@ -7673,11 +7134,11 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-                  value={visitForm.engineerId}
+                  value={selectedEngineer}
 
 
 
-                  onChange={e => setVisitForm(prev => ({ ...prev, engineerId: e.target.value }))}
+                  onChange={e => setSelectedEngineer(e.target.value)}
 
 
 
@@ -7685,7 +7146,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-                  <option value="">Select Engineer</option>
+                  <option value="">Select an engineer...</option>
 
 
 
@@ -7693,7 +7154,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-                    <option key={engineer.id} value={engineer.id}>
+                    <option key={engineer.id} value={engineer.name}>
 
 
 
@@ -7713,99 +7174,19 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-                {engineers.length === 0 && (
-
-
-
-                  <p className="text-xs text-[var(--text-muted)] mt-1">Loading engineers...</p>
-
-
-
-                )}
-
-
-
               </FormField>
 
 
 
+              {engineers.length === 0 && (
 
 
 
-
-              <FormField label="Priority">
-
-
-
-                <Select
+                <p className="text-xs text-[var(--text-muted)]">No engineers found.</p>
 
 
 
-                  value={visitForm.priority}
-
-
-
-                  onChange={e => setVisitForm(prev => ({ ...prev, priority: e.target.value }))}
-
-
-
-                >
-
-
-
-                  <option value="Low">Low</option>
-
-
-
-                  <option value="Medium">Medium</option>
-
-
-
-                  <option value="High">High</option>
-
-
-
-                </Select>
-
-
-
-              </FormField>
-
-
-
-
-
-
-
-              <FormField label="Notes (Optional)">
-
-
-
-                <Textarea
-
-
-
-                  placeholder="Add any additional notes or instructions..."
-
-
-
-                  rows={3}
-
-
-
-                  value={visitForm.notes}
-
-
-
-                  onChange={e => setVisitForm(prev => ({ ...prev, notes: e.target.value }))}
-
-
-
-                />
-
-
-
-              </FormField>
+              )}
 
 
 
@@ -7813,15 +7194,876 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-          </div>
+          </Modal>
 
 
 
-        </Modal>
+        )
+      }
 
 
 
-      )}
+
+
+
+
+      {/* AMC Project View Modal - Shows project details like Project Module View Details */}
+
+
+
+      {
+        amcProjectView && (
+
+
+
+          <Modal
+
+
+
+            open={!!amcProjectView}
+
+
+
+            onClose={() => { setAmcProjectView(null); setAmcProjectData(null); }}
+
+
+
+            title={amcProjectData ? `Project — ${amcProjectData.id}` : 'Project Details'}
+
+
+
+            footer={
+
+
+
+              <div className="flex gap-2 justify-end">
+
+
+
+                <Button variant="ghost" onClick={() => { setAmcProjectView(null); setAmcProjectData(null); }}>Close</Button>
+
+
+
+              </div>
+
+
+
+            }
+
+
+
+          >
+
+
+
+            {loadingAmcProject ? (
+
+
+
+              <div className="flex items-center justify-center py-8">
+
+
+
+                <Loader2 size={24} className="animate-spin text-[var(--primary)]" />
+
+
+
+                <span className="ml-2 text-sm text-[var(--text-muted)]">Loading project...</span>
+
+
+
+              </div>
+
+
+
+            ) : amcProjectData ? (
+
+
+
+              <div className="space-y-4">
+
+
+
+                {/* Project Info Grid - Same as ProjectPage View Details */}
+
+
+
+                <div className="grid grid-cols-2 gap-3 text-xs">
+
+
+
+                  {[['Customer', amcProjectData.customerName], ['Email', amcProjectData.email || '—'], ['Mobile', amcProjectData.mobileNumber || '—'], ['Site', amcProjectData.site], ['System Size', `${amcProjectData.systemSize} kW`], ['Project Manager', amcProjectData.pm],
+
+
+
+                  ['Status', <StatusBadge domain="project" value={amcProjectData.status} />], ['Value', `₹${(amcProjectData.value / 100000).toFixed(1)}L`],
+
+
+
+                  ].map(([k, v]) => (
+
+
+
+                    <div key={k} className="glass-card p-2">
+
+
+
+                      <div className="text-[var(--text-muted)] mb-0.5">{k}</div>
+
+
+
+                      <div className="font-semibold text-[var(--text-primary)]">{v}</div>
+
+
+
+                    </div>
+
+
+
+                  ))}
+
+
+
+                </div>
+
+
+
+
+
+
+
+                {/* Progress Bar - Same as ProjectPage */}
+
+
+
+                <div>
+
+
+
+                  <div className="text-xs flex items-center justify-between mb-1">
+
+
+
+                    <span className="font-semibold text-[var(--text-primary)]">Overall Progress</span>
+
+
+
+                    <span className="text-[var(--text-muted)]">{amcProjectData.progress}%</span>
+
+
+
+                  </div>
+
+
+
+                  <Progress value={amcProjectData.progress} className="h-2" />
+
+
+
+                </div>
+
+
+
+
+
+
+
+                {/* Milestone Tracker - Same as ProjectPage View Details */}
+
+
+
+                <div>
+
+
+
+                  <div className="text-xs font-semibold text-[var(--text-primary)] mb-3">Milestone Tracker</div>
+
+
+
+                  <Stepper steps={amcProjectData.milestones?.map(m => ({ name: m.name, status: m.status, date: m.date })) ?? [
+
+
+
+                    { name: 'Material Ready', status: 'Pending', date: null },
+
+
+
+                    { name: 'Installation', status: 'Pending', date: null },
+
+
+
+                    { name: 'Commission', status: 'Pending', date: null },
+
+
+
+                    { name: 'Billing', status: 'Pending', date: null },
+
+
+
+                    { name: 'Closure', status: 'Pending', date: null }
+
+
+
+                  ]} />
+
+
+
+                </div>
+
+
+
+
+
+
+
+                {/* Reserved Materials - Same as ProjectPage */}
+
+
+
+                {amcProjectData.materials && amcProjectData.materials.length > 0 && (
+
+
+
+                  <div>
+
+
+
+                    <div className="text-xs font-semibold text-[var(--text-primary)] mb-3">Reserved Materials</div>
+
+
+
+                    <div className="space-y-2">
+
+
+
+                      {amcProjectData.materials.map((m, idx) => (
+
+
+
+                        <div key={`mat-${idx}`} className="glass-card p-2 flex items-center justify-between">
+
+
+
+                          <div>
+
+
+
+                            <div className="text-xs font-medium text-[var(--text-primary)]">{m.itemName}</div>
+
+
+
+                            <div className="text-[10px] text-[var(--text-muted)]">Qty: {m.quantity} | Issued: {m.issuedDate || '—'}</div>
+
+
+
+                          </div>
+
+
+
+                          {m.remarks && (
+
+
+
+                            <div className="text-[10px] text-[var(--text-faint)] max-w-[150px] truncate" title={m.remarks}>
+
+
+
+                              {m.remarks}
+
+
+
+                            </div>
+
+
+
+                          )}
+
+
+
+                        </div>
+
+
+
+                      ))}
+
+
+
+                    </div>
+
+
+
+                  </div>
+
+
+
+                )}
+
+
+
+              </div>
+
+
+
+            ) : (
+
+
+
+              <div className="text-center py-8">
+
+
+
+                <AlertTriangle size={32} className="mx-auto text-amber-400 mb-2" />
+
+
+
+                <p className="text-sm text-[var(--text-muted)]">No matching project found for this AMC contract.</p>
+
+
+
+                <p className="text-xs text-[var(--text-faint)] mt-1">Customer: {amcProjectView.customer}, Site: {amcProjectView.site}</p>
+
+
+
+              </div>
+
+
+
+            )}
+
+
+
+          </Modal>
+
+
+
+        )
+      }
+
+
+
+
+
+
+
+      {/* Schedule Visit Modal */}
+
+
+
+      {
+        scheduleVisitModal.open && scheduleVisitModal.contract && (
+
+
+
+          <Modal
+
+
+
+            open={scheduleVisitModal.open}
+
+
+
+            onClose={closeScheduleVisitModal}
+
+
+
+            title="Schedule Visit"
+
+
+
+            footer={
+
+
+
+              <div className="flex gap-2 justify-end">
+
+
+
+                <Button variant="ghost" onClick={closeScheduleVisitModal}>Cancel</Button>
+
+
+
+                <Button onClick={handleScheduleVisit} disabled={schedulingVisit}>
+
+
+
+                  {schedulingVisit ? <Loader2 size={13} className="animate-spin" /> : <Clock size={13} />}
+
+
+
+                  {schedulingVisit ? 'Scheduling...' : 'Schedule Visit'}
+
+
+
+                </Button>
+
+
+
+              </div>
+
+
+
+            }
+
+
+
+          >
+
+
+
+            <div className="space-y-4">
+
+
+
+              {/* Auto-filled Read-only Fields */}
+
+
+
+              <div className="grid grid-cols-2 gap-3 text-xs">
+
+
+
+                <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
+
+
+
+                  <div className="text-[var(--text-muted)] mb-0.5">Contract ID</div>
+
+
+
+                  <div className="font-semibold text-[var(--text-primary)]">{scheduleVisitModal.contract.id}</div>
+
+
+
+                </div>
+
+
+
+                <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
+
+
+
+                  <div className="text-[var(--text-muted)] mb-0.5">Email ID</div>
+
+
+
+                  <div className="font-semibold text-[var(--text-primary)]">
+
+
+
+                    {loadingScheduleVisitProject ? (
+
+
+
+                      <span className="text-[var(--text-muted)]">Loading...</span>
+
+
+
+                    ) : (
+
+
+
+                      scheduleVisitProjectData?.email || '—'
+
+
+
+                    )}
+
+
+
+                  </div>
+
+
+
+                </div>
+
+
+
+                <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
+
+
+
+                  <div className="text-[var(--text-muted)] mb-0.5">Mobile Number</div>
+
+
+
+                  <div className="font-semibold text-[var(--text-primary)]">
+
+
+
+                    {loadingScheduleVisitProject ? (
+
+
+
+                      <span className="text-[var(--text-muted)]">Loading...</span>
+
+
+
+                    ) : (
+
+
+
+                      scheduleVisitProjectData?.mobileNumber || '—'
+
+
+
+                    )}
+
+
+
+                  </div>
+
+
+
+                </div>
+
+
+
+                <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
+
+
+
+                  <div className="text-[var(--text-muted)] mb-0.5">Site</div>
+
+
+
+                  <div className="font-semibold text-[var(--text-primary)]">{scheduleVisitModal.contract.site}</div>
+
+
+
+                </div>
+
+
+
+                <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
+
+
+
+                  <div className="text-[var(--text-muted)] mb-0.5">Customer Name</div>
+
+
+
+                  <div className="font-semibold text-[var(--text-primary)]">{scheduleVisitModal.contract.customer}</div>
+
+
+
+                </div>
+
+
+
+                <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
+
+
+
+                  <div className="text-[var(--text-muted)] mb-0.5">Size (kW)</div>
+
+
+
+                  <div className="font-semibold text-[var(--text-primary)]">{scheduleVisitModal.contract.systemSize} kW</div>
+
+
+
+                </div>
+
+
+
+              </div>
+
+
+
+
+
+
+
+              {/* Input Fields */}
+
+
+
+              <div className="space-y-3">
+
+
+
+                <FormField label="Visit Type">
+
+
+
+                  <Select
+
+
+
+                    value={visitForm.visitType}
+
+
+
+                    onChange={e => setVisitForm(prev => ({ ...prev, visitType: e.target.value }))}
+
+
+
+                  >
+
+
+
+                    <option value="Routine Maintenance">Routine Maintenance</option>
+
+
+
+                    <option value="Breakdown">Breakdown</option>
+
+
+
+                    <option value="Emergency">Emergency</option>
+
+
+
+                    <option value="Follow-up">Follow-up</option>
+
+
+
+                  </Select>
+
+
+
+                </FormField>
+
+
+
+
+
+
+
+                <div className="grid grid-cols-2 gap-3">
+
+
+
+                  <FormField label="Scheduled Date *">
+
+
+
+                    <Input
+
+
+
+                      type="date"
+
+
+
+                      value={visitForm.scheduledDate}
+
+
+
+                      onChange={e => setVisitForm(prev => ({ ...prev, scheduledDate: e.target.value }))}
+
+
+
+                      className="h-8 text-xs"
+
+
+
+                    />
+
+
+
+                  </FormField>
+
+
+
+                  <FormField label="Scheduled Time *">
+
+
+
+                    <Input
+
+
+
+                      type="time"
+
+
+
+                      value={visitForm.scheduledTime}
+
+
+
+                      onChange={e => setVisitForm(prev => ({ ...prev, scheduledTime: e.target.value }))}
+
+
+
+                      className="h-8 text-xs"
+
+
+
+                    />
+
+
+
+                  </FormField>
+
+
+
+                </div>
+
+
+
+
+
+
+
+                <FormField label="Engineer Assign *">
+
+
+
+                  <Select
+
+
+
+                    value={visitForm.engineerId}
+
+
+
+                    onChange={e => setVisitForm(prev => ({ ...prev, engineerId: e.target.value }))}
+
+
+
+                  >
+
+
+
+                    <option value="">Select Engineer</option>
+
+
+
+                    {engineers.map(engineer => (
+
+
+
+                      <option key={engineer.id} value={engineer.id}>
+
+
+
+                        {engineer.name} {engineer.email ? `(${engineer.email})` : ''}
+
+
+
+                      </option>
+
+
+
+                    ))}
+
+
+
+                  </Select>
+
+
+
+                  {engineers.length === 0 && (
+
+
+
+                    <p className="text-xs text-[var(--text-muted)] mt-1">Loading engineers...</p>
+
+
+
+                  )}
+
+
+
+                </FormField>
+
+
+
+
+
+
+
+                <FormField label="Priority">
+
+
+
+                  <Select
+
+
+
+                    value={visitForm.priority}
+
+
+
+                    onChange={e => setVisitForm(prev => ({ ...prev, priority: e.target.value }))}
+
+
+
+                  >
+
+
+
+                    <option value="Low">Low</option>
+
+
+
+                    <option value="Medium">Medium</option>
+
+
+
+                    <option value="High">High</option>
+
+
+
+                  </Select>
+
+
+
+                </FormField>
+
+
+
+
+
+
+
+                <FormField label="Notes (Optional)">
+
+
+
+                  <Textarea
+
+
+
+                    placeholder="Add any additional notes or instructions..."
+
+
+
+                    rows={3}
+
+
+
+                    value={visitForm.notes}
+
+
+
+                    onChange={e => setVisitForm(prev => ({ ...prev, notes: e.target.value }))}
+
+
+
+                  />
+
+
+
+                </FormField>
+
+
+
+              </div>
+
+
+
+            </div>
+
+
+
+          </Modal>
+
+
+
+        )
+      }
 
 
 
@@ -7885,27 +8127,32 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-      {toast.show && (
+      {
+        toast.show && (
 
 
 
-        <div className={`fixed bottom-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg transition-all duration-300 ${toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+          <div className={`fixed bottom-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg transition-all duration-300 ${toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
 
 
 
-          }`}>
+            }`}>
 
 
 
-          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
 
 
 
-            {toast.type === 'success' ? <CheckCircle size={16} /> : <AlertTriangle size={16} />}
+              {toast.type === 'success' ? <CheckCircle size={16} /> : <AlertTriangle size={16} />}
 
 
 
-            <span className="text-sm font-medium">{toast.message}</span>
+              <span className="text-sm font-medium">{toast.message}</span>
+
+
+
+            </div>
 
 
 
@@ -7913,31 +8160,17 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-        </div>
+        )
+      }
 
 
 
-      )}
-
-
-
-    </div>
+    </div >
 
 
 
   );
 
-
-
-};
-
-
-
-
-
-
+}
 
 export default ServicePage;
-
-
-
