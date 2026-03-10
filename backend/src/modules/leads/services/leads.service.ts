@@ -6,8 +6,7 @@ import * as xlsx from 'xlsx';
 import { Lead, LeadDocument } from '../schemas/lead.schema';
 import { CreateLeadDto, UpdateLeadDto, QueryLeadDto, AddActivityDto } from '../dto/lead.dto';
 import { LeadStatus, LeadStatusDocument } from '../../settings/schemas/lead-status.schema';
-import { buildVisibilityFilter, applyVisibilityFilter, buildCompleteFilter, canAccessRecord, UserWithVisibility } from '../../../common/utils/visibility-filter';
-
+import { buildVisibilityFilter, applyVisibilityFilter, UserWithVisibility, buildCompleteFilter, canAccessRecord } from '../../../common/utils/visibility-filter';
 import { SiteSurveysService } from '../../survey/services/site-surveys.service';
 
 @Injectable()
@@ -22,7 +21,6 @@ export class LeadsService {
   private readonly dashboardCache = new Map<string, { ts: number; data: any }>();
   private readonly dashboardCacheTtlMs = 30_000;
 
-  // Build complete filter with tenant and visibility
   private buildCompleteFilter(tenantId?: string, user?: UserWithVisibility, baseFilter: any = {}): any {
     const filter = { ...baseFilter };
     

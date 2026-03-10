@@ -4,7 +4,7 @@
 // ║  Comprehensive features · Real-time calendar · Bulk operations           ║
 // ╚══════════════════════════════════════════════════════════════════════════╝
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Search, Filter, Download, Calendar, Clock, LogIn, LogOut,
   RefreshCw, CheckCircle, XCircle, AlertCircle, Users,
@@ -21,6 +21,9 @@ import { Input, FormField, Select, Textarea } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { toast } from '../components/ui/Toast';
 import { attendanceApi, employeeApi } from '../services/hrmApi';
+import FullCalendar from '@fullcalendar/react';
+import dayGridPlugin from '@fullcalendar/daygrid';
+import interactionPlugin from '@fullcalendar/interaction';
 
 // ==================== CONSTANTS ====================
 const ATTENDANCE_STATUS = {
@@ -62,6 +65,8 @@ const AttendancePageV3 = () => {
   // ==================== CALENDAR STATE ====================
   const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth());
   const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
+  const [selectedCalendarDateForView, setSelectedCalendarDateForView] = useState(null);
+  const calendarRef = useRef(null);
 
   // ==================== PAGINATION STATE ====================
   const [currentPage, setCurrentPage] = useState(1);
@@ -142,8 +147,8 @@ const AttendancePageV3 = () => {
         startDate = new Date(dateRangeFilter.start);
         endDate = new Date(dateRangeFilter.end);
       } else {
-        startDate = startOfMonth(new Date(calendarYear, calendarMonth));
-        endDate = endOfMonth(new Date(calendarYear, calendarMonth));
+        startDate = startOfMonth(new Date());
+        endDate = endOfMonth(new Date());
       }
 
       const response = await attendanceApi.getAll({ startDate, endDate });
@@ -403,52 +408,6 @@ const AttendancePageV3 = () => {
     const start = (currentPage - 1) * itemsPerPage;
     return filteredRecords.slice(start, start + itemsPerPage);
   }, [filteredRecords, currentPage, itemsPerPage]);
-
-  // ==================== CALENDAR DAYS ====================
-  const calendarDays = useMemo(() => {
-    const firstDayOfMonth = new Date(calendarYear, calendarMonth, 1);
-    const lastDayOfMonth = new Date(calendarYear, calendarMonth + 1, 0);
-
-    const startDate = startOfWeek(firstDayOfMonth, { weekStartsOn: 0 });
-    const endDate = endOfWeek(lastDayOfMonth, { weekStartsOn: 0 });
-
-    const days = [];
-    let currentDate = new Date(startDate);
-
-    while (currentDate <= endDate) {
-      const dateStr = format(currentDate, 'yyyy-MM-dd');
-      const isCurrentMonth = currentDate.getMonth() === calendarMonth;
-      const isToday = isSameDay(currentDate, new Date());
-      const isSelected = selectedCalendarDate === dateStr;
-
-      // Count attendance statuses for this date
-      const dayRecords = attendanceRecords.filter(r => {
-        const recordDate = format(new Date(r.date), 'yyyy-MM-dd');
-        return recordDate === dateStr;
-      });
-
-      const presentCount = dayRecords.filter(r => r.status === 'present').length;
-      const absentCount = dayRecords.filter(r => r.status === 'absent').length;
-      const lateCount = dayRecords.filter(r => r.status === 'late').length;
-      const wfhCount = dayRecords.filter(r => r.type === 'remote').length;
-
-      days.push({
-        day: currentDate.getDate(),
-        date: dateStr,
-        isCurrentMonth,
-        isToday,
-        isSelected,
-        presentCount,
-        absentCount,
-        lateCount,
-        wfhCount,
-      });
-
-      currentDate = addDays(currentDate, 1);
-    }
-
-    return days;
-  }, [calendarMonth, calendarYear, attendanceRecords, selectedCalendarDate]);
 
   // ==================== TABLE COLUMNS ====================
   const columns = [
@@ -880,109 +839,164 @@ const AttendancePageV3 = () => {
           </div>
         </div>
 
-        {/* ==================== RIGHT SECTION - CALENDAR (25%) ==================== */}
+        {/* ==================== RIGHT SECTION - FULLCALENDAR (25%) ==================== */}
         <div className="col-span-12 lg:col-span-3">
           <div className="bg-white border border-[var(--border-base)] p-2 space-y-2 sticky top-3">
-            {/* Calendar Header */}
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold text-[var(--text-primary)]">
-                {format(new Date(calendarYear, calendarMonth), 'MMMM yyyy')}
-              </h3>
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => {
-                    if (calendarMonth === 0) {
-                      setCalendarMonth(11);
-                      setCalendarYear(y => y - 1);
-                    } else {
-                      setCalendarMonth(m => m - 1);
-                    }
-                  }}
-                  className="p-1 rounded hover:bg-[var(--bg-elevated)]"
-                >
-                  <ChevronLeft size={12} />
-                </button>
-                <button
-                  onClick={() => {
-                    if (calendarMonth === 11) {
-                      setCalendarMonth(0);
-                      setCalendarYear(y => y + 1);
-                    } else {
-                      setCalendarMonth(m => m + 1);
-                    }
-                  }}
-                  className="p-1 rounded hover:bg-[var(--bg-elevated)]"
-                >
-                  <ChevronRight size={12} />
-                </button>
-              </div>
+            {/* Month/Year Filter Controls */}
+            <div className="flex items-center gap-2 mb-2 pb-2 border-b border-[var(--border-base)]">
+              <Select
+                value={calendarMonth}
+                onChange={(e) => {
+                  const newMonth = parseInt(e.target.value);
+                  setCalendarMonth(newMonth);
+                  if (calendarRef.current) {
+                    calendarRef.current.getApi().gotoDate(new Date(calendarYear, newMonth, 1));
+                  }
+                }}
+                className="h-7 text-xs flex-1"
+              >
+                {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((month, idx) => (
+                  <option key={idx} value={idx}>{month}</option>
+                ))}
+              </Select>
+              <Select
+                value={calendarYear}
+                onChange={(e) => {
+                  const newYear = parseInt(e.target.value);
+                  setCalendarYear(newYear);
+                  if (calendarRef.current) {
+                    calendarRef.current.getApi().gotoDate(new Date(newYear, calendarMonth, 1));
+                  }
+                }}
+                className="h-7 text-xs w-20"
+              >
+                {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map((year) => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </Select>
+            </div>
+            <div className="text-center text-xs text-[var(--text-muted)] mb-1">
+              {attendanceRecords.filter(r => {
+                const date = new Date(r.date);
+                return date.getMonth() === calendarMonth && date.getFullYear() === calendarYear;
+              }).length} records this month
             </div>
 
-            {/* Calendar Grid */}
-            <div className="grid grid-cols-7 gap-1">
-              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
-                <div key={i} className="text-center text-[9px] font-bold text-[var(--text-muted)] py-1">
-                  {day}
-                </div>
-              ))}
-
-              {calendarDays.map((day, idx) => {
-                let bgColor = 'transparent';
-                let textColor = 'var(--text-primary)';
-                let borderColor = 'var(--border-base)';
-
-                if (day.isSelected) {
-                  bgColor = 'var(--primary)';
-                  textColor = 'white';
-                } else if (day.isToday) {
-                  bgColor = 'var(--primary)';
-                  textColor = 'white';
-                  borderColor = 'var(--primary)';
-                } else if (day.presentCount > 0) {
-                  bgColor = '#22c55e15';
-                  textColor = '#22c55e';
-                } else if (day.absentCount > 0) {
-                  bgColor = '#ef444415';
-                  textColor = '#ef4444';
-                } else if (day.lateCount > 0) {
-                  bgColor = '#f59e0b15';
-                  textColor = '#f59e0b';
+            <style>{`
+              .fc {
+                font-family: inherit;
+                font-size: 0.75rem;
+              }
+              .fc .fc-toolbar-title {
+                font-size: 0.875rem;
+                font-weight: 600;
+                color: var(--primary);
+              }
+              .fc .fc-button {
+                background: #f3f4f6;
+                border: 1px solid #d1d5db;
+                color: #374151;
+                font-weight: 500;
+                padding: 0.25rem 0.5rem;
+                border-radius: 0.25rem;
+                font-size: 0.75rem;
+              }
+              .fc .fc-button:hover {
+                background: #e5e7eb;
+              }
+              .fc .fc-button-primary {
+                background: var(--primary);
+                border-color: var(--primary);
+                color: white;
+              }
+              .fc .fc-button-primary:hover {
+                background: var(--primary-hover, var(--primary));
+              }
+              .fc .fc-col-header-cell {
+                padding: 0.25rem 0;
+                font-weight: 600;
+                color: #374151;
+                font-size: 0.7rem;
+              }
+              .fc .fc-col-header-cell.fc-day-sun {
+                color: #ef4444;
+              }
+              .fc .fc-daygrid-day {
+                border: 1px solid #e5e7eb;
+              }
+              .fc .fc-daygrid-day-number {
+                font-size: 0.75rem;
+                color: #6b7280;
+                padding: 0.25rem;
+              }
+              .fc .fc-day-today {
+                background: #fef3c7 !important;
+              }
+              .fc .fc-event {
+                font-size: 0.65rem;
+                padding: 0.0625rem 0.125rem;
+                border-radius: 0.125rem;
+                cursor: pointer;
+              }
+              .fc .fc-h-event .fc-event-main {
+                font-weight: 500;
+              }
+              .fc .fc-daygrid-event-harness {
+                margin: 1px 0;
+              }
+              .fc .fc-daygrid-day-events {
+                min-height: 1.5em;
+              }
+            `}</style>
+            <FullCalendar
+              ref={calendarRef}
+              plugins={[dayGridPlugin, interactionPlugin]}
+              initialView="dayGridMonth"
+              initialDate={new Date(calendarYear, calendarMonth, 1)}
+              headerToolbar={{
+                left: 'title',
+                center: '',
+                right: 'prev,next'
+              }}
+              datesSet={(dateInfo) => {
+                setCalendarMonth(dateInfo.view.currentStart.getMonth());
+                setCalendarYear(dateInfo.view.currentStart.getFullYear());
+              }}
+              events={attendanceRecords.map(record => ({
+                id: record._id,
+                title: `${record.employeeId?.firstName || ''} ${record.employeeId?.lastName || ''}`,
+                start: record.date,
+                allDay: true,
+                backgroundColor: record.status === 'present' ? '#86efac' :
+                  record.status === 'absent' ? '#fca5a5' :
+                    record.status === 'late' ? '#fde68a' :
+                      record.status === 'half_day' ? '#fde68a' : '#bfdbfe',
+                borderColor: record.status === 'present' ? '#22c55e' :
+                  record.status === 'absent' ? '#ef4444' :
+                    record.status === 'late' ? '#f59e0b' :
+                      record.status === 'half_day' ? '#f59e0b' : '#60a5fa',
+                textColor: record.status === 'present' ? '#166534' :
+                  record.status === 'absent' ? '#991b1b' :
+                    record.status === 'late' ? '#92400e' :
+                      record.status === 'half_day' ? '#92400e' : '#1e40af',
+                extendedProps: {
+                  status: record.status,
+                  employee: `${record.employeeId?.firstName || ''} ${record.employeeId?.lastName || ''}`,
+                  checkIn: record.checkIn,
+                  checkOut: record.checkOut
                 }
-
-                if (!day.isCurrentMonth) {
-                  textColor = 'var(--text-muted)';
-                  bgColor = 'transparent';
-                }
-
-                return (
-                  <button
-                    key={idx}
-                    onClick={() => day.isCurrentMonth && handleCalendarDateClick(day.date)}
-                    disabled={!day.isCurrentMonth}
-                    className="relative aspect-square rounded border text-[9px] font-bold flex items-center justify-center hover:opacity-80 transition-opacity"
-                    style={{
-                      background: bgColor,
-                      color: textColor,
-                      borderColor: borderColor,
-                      cursor: day.isCurrentMonth ? 'pointer' : 'default',
-                      opacity: day.isCurrentMonth ? 1 : 0.3,
-                    }}
-                  >
-                    {day.day}
-
-                    {/* Multi-status indicators */}
-                    {day.isCurrentMonth && (
-                      <div className="absolute bottom-0.5 left-1/2 transform -translate-x-1/2 flex gap-0.5">
-                        {day.presentCount > 0 && <div className="w-1 h-1 rounded-full bg-[#22c55e]" />}
-                        {day.lateCount > 0 && <div className="w-1 h-1 rounded-full bg-[#f59e0b]" />}
-                        {day.absentCount > 0 && <div className="w-1 h-1 rounded-full bg-[#ef4444]" />}
-                        {day.wfhCount > 0 && <div className="w-1 h-1 rounded-full bg-[#3b82f6]" />}
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+              }))}
+              height="auto"
+              dayMaxEvents={2}
+              eventClick={(info) => {
+                toast.info(`${info.event.extendedProps.employee} - ${info.event.extendedProps.status}`);
+              }}
+              dateClick={(info) => {
+                const clickedDate = format(info.date, 'yyyy-MM-dd');
+                setSelectedCalendarDateForView(clickedDate);
+                handleCalendarDateClick(clickedDate);
+              }}
+            />
 
             {/* Calendar Legend */}
             <div className="pt-2 border-t border-[var(--border-base)] space-y-1">
@@ -1006,6 +1020,93 @@ const AttendancePageV3 = () => {
                 </div>
               </div>
             </div>
+
+            {/* Selected Date Attendance Summary */}
+            {selectedCalendarDateForView && (
+              <div className="pt-2 border-t border-[var(--border-base)] space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase">
+                    {format(new Date(selectedCalendarDateForView), 'dd MMM yyyy')}
+                  </p>
+                  <button
+                    onClick={() => setSelectedCalendarDateForView(null)}
+                    className="text-[9px] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                  >
+                    Clear
+                  </button>
+                </div>
+
+                {/* Stats Summary */}
+                {(() => {
+                  const dayRecords = attendanceRecords.filter(r => {
+                    const recordDate = format(new Date(r.date), 'yyyy-MM-dd');
+                    return recordDate === selectedCalendarDateForView;
+                  });
+
+                  if (dayRecords.length === 0) {
+                    return <p className="text-xs text-[var(--text-muted)]">No records on this date</p>;
+                  }
+
+                  const present = dayRecords.filter(r => r.status === 'present').length;
+                  const absent = dayRecords.filter(r => r.status === 'absent').length;
+                  const late = dayRecords.filter(r => r.status === 'late').length;
+                  const halfDay = dayRecords.filter(r => r.status === 'half_day').length;
+                  const office = dayRecords.filter(r => r.type === 'office').length;
+                  const remote = dayRecords.filter(r => r.type === 'remote').length;
+
+                  return (
+                    <>
+                      {/* Status Stats */}
+                      <div className="grid grid-cols-2 gap-1">
+                        <div className="bg-emerald-50 border border-emerald-200 rounded p-1 text-center">
+                          <p className="text-sm font-bold text-emerald-600">{present}</p>
+                          <p className="text-[9px] text-emerald-600">Present</p>
+                        </div>
+                        <div className="bg-red-50 border border-red-200 rounded p-1 text-center">
+                          <p className="text-sm font-bold text-red-600">{absent}</p>
+                          <p className="text-[9px] text-red-600">Absent</p>
+                        </div>
+                        <div className="bg-amber-50 border border-amber-200 rounded p-1 text-center">
+                          <p className="text-sm font-bold text-amber-600">{late}</p>
+                          <p className="text-[9px] text-amber-600">Late</p>
+                        </div>
+                        <div className="bg-blue-50 border border-blue-200 rounded p-1 text-center">
+                          <p className="text-sm font-bold text-blue-600">{halfDay}</p>
+                          <p className="text-[9px] text-blue-600">Half Day</p>
+                        </div>
+                      </div>
+
+                      {/* Work Mode Stats */}
+                      <div className="flex gap-2 text-[10px]">
+                        <span className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">
+                          Office: {office}
+                        </span>
+                        <span className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">
+                          Remote: {remote}
+                        </span>
+                      </div>
+
+                      {/* Employee List */}
+                      <div className="space-y-1 max-h-32 overflow-y-auto">
+                        <p className="text-[9px] text-[var(--text-muted)]">{dayRecords.length} employee(s)</p>
+                        {dayRecords.map((record, idx) => (
+                          <div key={idx} className="flex items-center gap-2 p-1.5 bg-[var(--bg-elevated)] rounded text-[10px]">
+                            <div className="w-6 h-6 rounded-full flex items-center justify-center text-white font-bold text-[8px]"
+                              style={{ background: 'var(--primary)' }}>
+                              {record.employeeId?.firstName?.[0]}{record.employeeId?.lastName?.[0]}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium truncate">{record.employeeId?.firstName} {record.employeeId?.lastName}</p>
+                              <p className="text-[8px] text-[var(--text-muted)]">{record.status} • {record.type}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
 
             {/* Advanced Features */}
             <div className="pt-2 border-t border-[var(--border-base)] space-y-1">
