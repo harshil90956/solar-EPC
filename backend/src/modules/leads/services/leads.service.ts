@@ -55,19 +55,11 @@ export class LeadsService {
 
   // Check if user can access a specific lead
   private canAccessLead(user: UserWithVisibility, lead: any): boolean {
-    // Super admin or ALL scope can access everything
-    if (user.dataScope === 'ALL' || user.role === 'Super Admin') {
-      return true;
-    }
-    
-    // For ASSIGNED scope, check if user is assigned to lead
-    if (user.dataScope === 'ASSIGNED') {
-      const assignedTo = lead.assignedTo?.toString();
-      const createdBy = lead.createdBy?.toString();
-      return assignedTo === user.id || createdBy === user.id;
-    }
-    
-    return false;
+    return canAccessRecord(user, {
+      assignedTo: lead?.assignedTo,
+      createdBy: lead?.createdBy,
+      tenantId: lead?.tenantId,
+    });
   }
 
   private toObjectId(id: string | undefined): Types.ObjectId | undefined {

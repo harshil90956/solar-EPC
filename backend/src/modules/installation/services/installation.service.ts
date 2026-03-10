@@ -289,14 +289,38 @@ export class InstallationService {
     if (tenantId) {
       projectQuery.tenantId = tenantId;
     }
-    const project = await this.projectModel.findOne(projectQuery);
+    
+    console.log('[INSTALLATION] Project query:', JSON.stringify(projectQuery));
+    
+    let project = await this.projectModel.findOne(projectQuery);
 
     if (!project) {
       console.error(`[INSTALLATION] Project not found with projectId: ${dispatchData.projectId}`);
-      throw new NotFoundException(`Project with ID ${dispatchData.projectId} not found`);
+      console.error(`[INSTALLATION] Query was:`, JSON.stringify(projectQuery));
+      
+      // Try to find project without tenant filter (Super Admin case)
+      project = await this.projectModel.findOne({
+        projectId: dispatchData.projectId,
+        isDeleted: false,
+      });
+      
+      if (project) {
+        console.log('[INSTALLATION] Found project without tenant filter:', project._id.toString());
+      } else {
+        throw new NotFoundException(`Project with ID ${dispatchData.projectId} not found`);
+      }
     }
 
     console.log('[INSTALLATION] Found project:', project._id.toString());
+    console.log('[INSTALLATION] Project tenantId:', project.tenantId);
+
+    // Use project's tenantId as final fallback
+    const effectiveTenantId = tenantId || project.tenantId;
+    console.log('[INSTALLATION] Effective tenantId for installation:', effectiveTenantId);
+
+    if (!effectiveTenantId) {
+      throw new BadRequestException('Cannot create installation: no tenantId available from dispatch, user context, or project');
+    }
 
     const installationId = this.generateInstallationId();
 

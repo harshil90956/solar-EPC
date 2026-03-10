@@ -6835,43 +6835,24 @@ const ServicePage = ({ onNavigate, initialTab }) => {
             </FormField>
 
 
-
-            <FormField label="Next Visit">
-
-
-
+            <FormField label="End Date">
               <Input
-
-
-
                 type="date"
-
-
-
-                value={amcEditForm.nextVisit}
-
-
-
-                onChange={e => setAmcEditForm(prev => ({ ...prev, nextVisit: e.target.value }))}
-
-
-
+                value={amcEditForm.endDate}
+                onChange={e => setAmcEditForm(prev => ({ ...prev, endDate: e.target.value }))}
                 className="h-8 text-xs"
-
-
-
               />
-
-
-
             </FormField>
 
-
-
+            <FormField label="Next Visit">
+              <Input
+                type="date"
+                value={amcEditForm.nextVisit}
+                onChange={e => setAmcEditForm(prev => ({ ...prev, nextVisit: e.target.value }))}
+                className="h-8 text-xs"
+              />
+            </FormField>
           </div>
-
-
-
         </Modal>
 
 
