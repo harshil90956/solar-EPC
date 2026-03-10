@@ -100,9 +100,18 @@ const InvCard = ({ item, onDragStart, onClick }) => {
         </div>
         <div>
           <p className="text-[9px] text-[var(--text-faint)]">Rsv</p>
-          <p className="text-[11px] font-bold text-amber-400">{item.reserved}</p>
+          <p className="text-[11px] font-bold text-amber-400">{item.reserved || 0}</p>
         </div>
       </div>
+      {item._originalWarehouses && item._originalWarehouses.length > 1 && (
+        <div className="mt-2 text-[9px] text-[var(--text-muted)] border-t border-[var(--border-base)] pt-1">
+          {item._originalWarehouses.map((wh, idx) => (
+            <span key={wh.warehouse}>
+              {wh.warehouse}: {wh.stock} {idx < item._originalWarehouses.length - 1 ? ' | ' : ''}
+            </span>
+          ))}
+        </div>
+      )}
       {item.available <= item.minStock && item.available > 0 && (
         <div className="flex items-center gap-1 mt-1.5 text-[10px] text-amber-400">
           <AlertTriangle size={9} /> Below min stock ({item.minStock})
@@ -284,17 +293,44 @@ const InventoryPage = () => {
   const [transferQuantity, setTransferQuantity] = useState('');
   const [transferRemarks, setTransferRemarks] = useState('');
   const [showCardsInViews, setShowCardsInViews] = useState(false); // Toggle KPI cards in list/kanban view
+  const [showCategoryCards, setShowCategoryCards] = useState(true); // Toggle cards in Category tab
+  const [showUnitCards, setShowUnitCards] = useState(true); // Toggle cards in Unit tab
+
+  // Pagination and search states for different tables
+  // Warehouse table
+  const [warehouseSearch, setWarehouseSearch] = useState('');
+  const [warehousePage, setWarehousePage] = useState(1);
+  const [warehousePageSize, setWarehousePageSize] = useState(10);
+  
+  // Items table pagination (search already exists)
+  const [itemsPage, setItemsPage] = useState(1);
+  const [itemsPageSize, setItemsPageSize] = useState(10);
+  
+  // Category table
+  const [categorySearch, setCategorySearch] = useState('');
+  const [categoryPage, setCategoryPage] = useState(1);
+  const [categoryPageSize, setCategoryPageSize] = useState(10);
+  
+  // Unit table
+  const [unitSearch, setUnitSearch] = useState('');
+  const [unitPage, setUnitPage] = useState(1);
+  const [unitPageSize, setUnitPageSize] = useState(10);
+  
+  // Warehouse items modal
+  const [whItemsSearch, setWhItemsSearch] = useState('');
+  const [whItemsPage, setWhItemsPage] = useState(1);
+  const [whItemsPageSize, setWhItemsPageSize] = useState(10);
 
   // Fetch warehouses from API
   useEffect(() => {
     const fetchWarehouses = async () => {
       try {
-        const data = await api.get('/lookups/warehouses');
+        const data = await api.get('/lookups/warehouses', { headers: { 'x-tenant-id': TENANT_ID } });
         const warehousesArray = Array.isArray(data) ? data : (data.data || []);
         setWarehouses(warehousesArray.map(w => w.name));
       } catch (err) {
-        // Fallback to default if API fails
-        setWarehouses(['WH-Ahmedabad', 'WH-Surat', 'WH-Mumbai']);
+        console.error('Failed to fetch warehouses:', err);
+        setWarehouses([]); // No hardcoded fallback
       }
     };
     fetchWarehouses();
@@ -304,12 +340,12 @@ const InventoryPage = () => {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const data = await api.get('/lookups/categories');
+        const data = await api.get('/lookups/categories', { headers: { 'x-tenant-id': TENANT_ID } });
         const categoriesArray = Array.isArray(data) ? data : (data.data || []);
         setCategories(categoriesArray.map(c => c.name));
       } catch (err) {
-        // Fallback to default if API fails
-        setCategories(['Panel', 'Inverter', 'BOS', 'Structure', 'Cable', 'Other']);
+        console.error('Failed to fetch categories:', err);
+        setCategories([]); // No hardcoded fallback
       }
     };
     fetchCategories();
@@ -319,12 +355,12 @@ const InventoryPage = () => {
   useEffect(() => {
     const fetchUnits = async () => {
       try {
-        const data = await api.get('/lookups/units');
+        const data = await api.get('/lookups/units', { headers: { 'x-tenant-id': TENANT_ID } });
         const unitsArray = Array.isArray(data) ? data : (data.data || []);
         setUnits(unitsArray.map(u => u.name));
       } catch (err) {
-        // Fallback to default if API fails
-        setUnits(['Nos', 'Mtr', 'Kg', 'Set', 'Pairs', 'Box']);
+        console.error('Failed to fetch units:', err);
+        setUnits([]); // No hardcoded fallback
       }
     };
     fetchUnits();
@@ -486,15 +522,14 @@ const InventoryPage = () => {
         // Create new item in destination warehouse
         const createdItem = await api.post('/items', newItemData, { headers: { 'x-tenant-id': TENANT_ID } });
         
-        // Stock out from source warehouse
-        await api.post(`/items/${item._id || item.itemId}/stock-out`, {
-          quantity: qty,
-          remarks: `Transferred to ${transferToWarehouse} (new item created): ${transferRemarks || 'Stock transfer'}`,
+        // Decrease stock from source warehouse using PATCH (don't use stock-out which increments reserved)
+        await api.patch(`/items/${item._id}`, {
+          stock: (item.stock || 0) - qty,
         }, { headers: { 'x-tenant-id': TENANT_ID } });
       }
 
       // Refresh inventory
-      const data = await api.get('/items');
+      const data = await api.get('/items', { headers: { 'x-tenant-id': TENANT_ID } });
       const itemsArray = Array.isArray(data) ? data : (data.data || []);
       const inventoryData = itemsArray.map(item => ({
         ...item,
@@ -564,14 +599,20 @@ const InventoryPage = () => {
         }
 
         // Map items to inventory format (description -> name, add reserved/available)
-        const inventoryData = itemsArray.map(item => ({
-          ...item,
-          _id: item._id || item.id, // Ensure _id is preserved
-          name: item.description || item.name || 'Unnamed Item',
-          reserved: item.reserved || 0,
-          available: (item.stock || 0) - (item.reserved || 0),
-          lastUpdated: item.updatedAt || new Date().toISOString().split('T')[0]
-        }));
+        const inventoryData = itemsArray.map(item => {
+          const id = item._id || item.id;
+          if (!id) {
+            console.warn('Item _id is missing:', item.itemId || item.name || 'Unknown');
+          }
+          return {
+            ...item,
+            _id: id,
+            name: item.description || item.name || 'Unnamed Item',
+            reserved: item.reserved || 0,
+            available: (item.stock || 0) - (item.reserved || 0),
+            lastUpdated: item.updatedAt || new Date().toISOString().split('T')[0]
+          };
+        });
 
         setInventory(inventoryData);
         setError(null);
@@ -677,7 +718,7 @@ const InventoryPage = () => {
   const handleAddItem = async () => {
     setSubmitting(true);
     try {
-      const newItem = {
+      const response = await api.post('/items', {
         itemId: form.itemId?.trim() || `INV${Date.now().toString().slice(-4)}`,
         description: form.name,
         category: form.category,
@@ -688,16 +729,19 @@ const InventoryPage = () => {
         rate: parseFloat(form.rate) || 0,
         warehouse: form.warehouse,
         status: 'In Stock',
-      };
+      }, { headers: { 'x-tenant-id': TENANT_ID } });
 
-      const createdItem = await api.post('/items', newItem);
-      const itemData = createdItem.data || createdItem;
-      // Map to inventory format
-      setInventory(prev => [...prev, {
+      const itemData = response.data || response;
+      const newItem = {
         ...itemData,
-        name: itemData.description,
-        available: (itemData.stock || 0) - (itemData.reserved || 0)
-      }]);
+        _id: itemData._id || itemData.id,
+        name: itemData.description || itemData.name,
+        reserved: itemData.reserved || 0,
+        available: (itemData.stock || 0) - (itemData.reserved || 0),
+        lastUpdated: itemData.updatedAt || new Date().toISOString().split('T')[0]
+      };
+      
+      setInventory(prev => [...prev, newItem]);
       setShowAdd(false);
       setForm({ itemId: '', name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
       alert('Item added successfully!');
@@ -721,15 +765,21 @@ const InventoryPage = () => {
         return;
       }
       
-      const updatedItem = await api.post(`/items/${item._id}/stock-in`, {
+      const response = await api.post(`/items/${item._id}/stock-in`, {
         quantity: parseInt(stockInForm.quantity),
         poReference: stockInForm.poReference,
         receivedDate: stockInForm.receivedDate,
         remarks: stockInForm.remarks,
         warehouse: stockInForm.warehouse,
       }, { headers: { 'x-tenant-id': TENANT_ID } });
-      const itemData = updatedItem.data || updatedItem;
-      setInventory(prev => prev.map(i => i._id === item._id ? itemData : i));
+      
+      const itemData = response.data || response;
+      setInventory(prev => prev.map(i => i._id === item._id ? {
+        ...itemData,
+        name: itemData.description || itemData.name,
+        available: (itemData.stock || 0) - (itemData.reserved || 0)
+      } : i));
+      
       setStockIn(false);
       setStockInForm({ itemId: '', quantity: '', poReference: '', receivedDate: '', remarks: '', warehouse: '' });
       alert('Stock added successfully!');
@@ -740,22 +790,28 @@ const InventoryPage = () => {
     }
   };
 
-  // Fetch reservations when item is selected
+  // Fetch reservations when selected item changes
   useEffect(() => {
     if (selected?.itemId) {
+      console.log('Selected item for reservations:', selected);
       fetchItemReservations(selected.itemId);
     } else {
       setItemReservations([]);
     }
-  }, [selected?.itemId]);
+  }, [selected?._id, selected?.itemId]);
 
   const fetchItemReservations = async (itemId) => {
     setLoadingReservations(true);
     try {
+      console.log('Fetching reservations for itemId:', itemId);
       const data = await api.get(`/inventory/reservations/by-item/${itemId}`);
-      setItemReservations(data.data || data || []);
+      console.log('Raw API response:', data);
+      const reservations = data.data || data || [];
+      console.log('Processed reservations:', reservations);
+      setItemReservations(reservations);
     } catch (err) {
-      // Error fetching reservations
+      console.error('Error fetching reservations:', err);
+      setItemReservations([]);
     } finally {
       setLoadingReservations(false);
     }
@@ -836,35 +892,21 @@ const InventoryPage = () => {
         return;
       }
       
-      const updatedItem = await api.post(`/items/${item._id}/stock-out`, {
+      const response = await api.post(`/items/${item._id}/stock-out`, {
         quantity: parseInt(stockOutForm.quantity),
         projectId: stockOutForm.projectId,
         issuedDate: stockOutForm.issuedDate,
         remarks: stockOutForm.remarks,
       }, { headers: { 'x-tenant-id': TENANT_ID } });
-      const itemData = updatedItem.data || updatedItem;
+      
+      const itemData = response.data || response;
 
-      // Create reservation record for the project
-      if (stockOutForm.projectId) {
-        try {
-          // Find project name
-          const project = projects.find(p => p.projectId === stockOutForm.projectId);
-          const projectName = project?.customerName || project?.name || 'Unknown Project';
-          
-          await apiClient.post('/inventory/reservations', {
-            reservationId: `RES-${Date.now()}`,
-            itemId: item?.itemId || stockOutForm.itemId,
-            projectId: stockOutForm.projectId,
-            projectName: projectName,
-            quantity: parseInt(stockOutForm.quantity),
-            notes: stockOutForm.remarks || `Stock issued on ${stockOutForm.issuedDate || new Date().toISOString().split('T')[0]}`,
-          }, { params: { tenantId: TENANT_ID } });
-        } catch (resErr) {
-          // Don't fail the whole operation if reservation creation fails
-        }
-      }
-
-      setInventory(prev => prev.map(i => i._id === item._id ? itemData : i));
+      setInventory(prev => prev.map(i => i._id === item._id ? {
+        ...itemData,
+        name: itemData.description || itemData.name,
+        available: (itemData.stock || 0) - (itemData.reserved || 0)
+      } : i));
+      
       setShowStockOut(false);
       setStockOutForm({ itemId: '', quantity: '', projectId: '', issuedDate: '', remarks: '' });
       alert('Stock issued successfully! Project reservation recorded.');
@@ -1141,90 +1183,90 @@ const InventoryPage = () => {
             {/* Inventory Card */}
             <div 
               onClick={() => setActiveTab('inventory')}
-              className="relative overflow-hidden bg-gradient-to-br from-blue-600 to-blue-400 rounded-2xl p-5 shadow-lg shadow-blue-500/20 cursor-pointer hover:scale-[1.02] transition-transform"
+              className="relative overflow-hidden bg-gradient-to-br from-blue-500/40 to-blue-600/50 border border-blue-500/50 rounded-2xl p-5 shadow-lg cursor-pointer hover:scale-[1.02] transition-transform"
             >
               <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
               <div className="relative flex items-start justify-between">
                 <div>
-                  <p className="text-xs font-semibold text-blue-50 uppercase tracking-wider">Inventory</p>
-                  <p className="text-3xl font-bold text-white mt-2">{dynamicStats.totalItems}</p>
-                  <p className="text-xs text-blue-100/80 mt-1">Total SKUs tracked</p>
+                  <p className="text-xs font-bold text-blue-900 uppercase tracking-wider">Total Stock</p>
+                  <p className="text-3xl font-bold text-black mt-2">{inventory.reduce((sum, i) => sum + (i.stock || 0), 0)}</p>
+                  <p className="text-xs text-black/70 mt-1">Total quantity in inventory</p>
                 </div>
-                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
-                  <Package size={24} className="text-white" />
+                <div className="w-12 h-12 rounded-xl bg-blue-500/30 flex items-center justify-center backdrop-blur-sm">
+                  <Package size={24} className="text-blue-700" />
                 </div>
               </div>
               <div className="relative mt-3 flex gap-2">
-                <span className="text-[10px] px-2 py-1 bg-white/20 rounded text-white/90">₹{(dynamicStats.totalValue/100000).toFixed(1)}L value</span>
-                <span className="text-[10px] px-2 py-1 bg-white/20 rounded text-white/90">{dynamicStats.lowStockItems} low</span>
+                <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-black font-medium">₹{(dynamicStats.totalValue/100000).toFixed(1)}L value</span>
+                <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-black font-medium">{dynamicStats.lowStockItems} low</span>
               </div>
             </div>
 
             {/* Warehouse Card */}
             <div 
               onClick={() => setActiveTab('warehouse')}
-              className="relative overflow-hidden bg-gradient-to-br from-emerald-600 to-teal-500 rounded-2xl p-5 shadow-lg shadow-emerald-500/20 cursor-pointer hover:scale-[1.02] transition-transform"
+              className="relative overflow-hidden bg-gradient-to-br from-emerald-500/40 to-emerald-600/50 border border-emerald-500/50 rounded-2xl p-5 shadow-lg cursor-pointer hover:scale-[1.02] transition-transform"
             >
               <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
               <div className="relative flex items-start justify-between">
                 <div>
-                  <p className="text-xs font-semibold text-emerald-50 uppercase tracking-wider">Warehouse</p>
-                  <p className="text-3xl font-bold text-white mt-2">{warehouses.length}</p>
-                  <p className="text-xs text-emerald-100/80 mt-1">Active warehouses</p>
+                  <p className="text-xs font-bold text-emerald-900 uppercase tracking-wider">Warehouse</p>
+                  <p className="text-3xl font-bold text-black mt-2">{warehouses.length}</p>
+                  <p className="text-xs text-black/70 mt-1">Active warehouses</p>
                 </div>
-                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
-                  <Warehouse size={24} className="text-white" />
+                <div className="w-12 h-12 rounded-xl bg-emerald-500/30 flex items-center justify-center backdrop-blur-sm">
+                  <Warehouse size={24} className="text-emerald-700" />
                 </div>
               </div>
               <div className="relative mt-3 flex gap-2">
-                <span className="text-[10px] px-2 py-1 bg-white/20 rounded text-white/90">{inventory.length} items stored</span>
+                <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-black font-medium">{inventory.length} items stored</span>
               </div>
             </div>
 
             {/* Items Card */}
             <div 
               onClick={() => setActiveTab('items')}
-              className="relative overflow-hidden bg-gradient-to-br from-violet-600 to-purple-500 rounded-2xl p-5 shadow-lg shadow-violet-500/20 cursor-pointer hover:scale-[1.02] transition-transform"
+              className="relative overflow-hidden bg-gradient-to-br from-violet-500/40 to-violet-600/50 border border-violet-500/50 rounded-2xl p-5 shadow-lg cursor-pointer hover:scale-[1.02] transition-transform"
             >
               <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
               <div className="relative flex items-start justify-between">
                 <div>
-                  <p className="text-xs font-semibold text-violet-50 uppercase tracking-wider">Items</p>
-                  <p className="text-3xl font-bold text-white mt-2">{new Set(inventory.map(i => i.itemId)).size}</p>
-                  <p className="text-xs text-violet-100/80 mt-1">Unique items in system</p>
+                  <p className="text-xs font-bold text-violet-900 uppercase tracking-wider">Items</p>
+                  <p className="text-3xl font-bold text-black mt-2">{new Set(inventory.map(i => i.itemId)).size}</p>
+                  <p className="text-xs text-black/70 mt-1">Unique items in system</p>
                 </div>
-                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
-                  <Package size={24} className="text-white" />
+                <div className="w-12 h-12 rounded-xl bg-violet-500/30 flex items-center justify-center backdrop-blur-sm">
+                  <Package size={24} className="text-violet-700" />
                 </div>
               </div>
               <div className="relative mt-3 flex gap-2">
-                <span className="text-[10px] px-2 py-1 bg-white/20 rounded text-white/90">{inventory.length} total entries</span>
-                <span className="text-[10px] px-2 py-1 bg-white/20 rounded text-white/90">{categories.length} categories</span>
+                <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-black font-medium">{inventory.length} total entries</span>
+                <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-black font-medium">{categories.length} categories</span>
               </div>
             </div>
 
             {/* Category Card */}
             <div 
               onClick={() => setActiveTab('category')}
-              className="relative overflow-hidden bg-gradient-to-br from-amber-500 to-orange-400 rounded-2xl p-5 shadow-lg shadow-amber-500/20 cursor-pointer hover:scale-[1.02] transition-transform"
+              className="relative overflow-hidden bg-gradient-to-br from-amber-500/40 to-amber-600/50 border border-amber-500/50 rounded-2xl p-5 shadow-lg cursor-pointer hover:scale-[1.02] transition-transform"
             >
               <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
               <div className="relative flex items-start justify-between">
                 <div>
-                  <p className="text-xs font-semibold text-amber-50 uppercase tracking-wider">Category</p>
-                  <p className="text-3xl font-bold text-white mt-2">{categories.length}</p>
-                  <p className="text-xs text-amber-100/80 mt-1">Item categories</p>
+                  <p className="text-xs font-bold text-amber-900 uppercase tracking-wider">Category</p>
+                  <p className="text-3xl font-bold text-black mt-2">{categories.length}</p>
+                  <p className="text-xs text-black/70 mt-1">Item categories</p>
                 </div>
-                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
-                  <Tag size={24} className="text-white" />
+                <div className="w-12 h-12 rounded-xl bg-amber-500/30 flex items-center justify-center backdrop-blur-sm">
+                  <Tag size={24} className="text-amber-700" />
                 </div>
               </div>
               <div className="relative mt-3 flex gap-2 flex-wrap">
                 {categories.slice(0, 2).map((cat, i) => (
-                  <span key={cat} className="text-[10px] px-2 py-1 bg-white/20 rounded text-white/90">{cat}</span>
+                  <span key={cat} className="text-[10px] px-2 py-1 bg-white/80 rounded text-black font-medium">{cat}</span>
                 ))}
                 {categories.length > 2 && (
-                  <span className="text-[10px] px-2 py-1 bg-white/20 rounded text-white/90">+{categories.length - 2}</span>
+                  <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-black font-medium">+{categories.length - 2}</span>
                 )}
               </div>
             </div>
@@ -1232,25 +1274,25 @@ const InventoryPage = () => {
             {/* Unit Card */}
             <div 
               onClick={() => setActiveTab('unit')}
-              className="relative overflow-hidden bg-gradient-to-br from-cyan-600 to-sky-500 rounded-2xl p-5 shadow-lg shadow-cyan-500/20 cursor-pointer hover:scale-[1.02] transition-transform"
+              className="relative overflow-hidden bg-gradient-to-br from-cyan-500/40 to-cyan-600/50 border border-cyan-500/50 rounded-2xl p-5 shadow-lg cursor-pointer hover:scale-[1.02] transition-transform"
             >
               <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
               <div className="relative flex items-start justify-between">
                 <div>
-                  <p className="text-xs font-semibold text-cyan-50 uppercase tracking-wider">Unit</p>
-                  <p className="text-3xl font-bold text-white mt-2">{units.length}</p>
-                  <p className="text-xs text-cyan-100/80 mt-1">Measurement units</p>
+                  <p className="text-xs font-bold text-cyan-900 uppercase tracking-wider">Unit</p>
+                  <p className="text-3xl font-bold text-black mt-2">{units.length}</p>
+                  <p className="text-xs text-black/70 mt-1">Measurement units</p>
                 </div>
-                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
-                  <Scale size={24} className="text-white" />
+                <div className="w-12 h-12 rounded-xl bg-cyan-500/30 flex items-center justify-center backdrop-blur-sm">
+                  <Scale size={24} className="text-cyan-700" />
                 </div>
               </div>
               <div className="relative mt-3 flex gap-2 flex-wrap">
                 {units.slice(0, 3).map((unit, i) => (
-                  <span key={unit} className="text-[10px] px-2 py-1 bg-white/20 rounded text-white/90">{unit}</span>
+                  <span key={unit} className="text-[10px] px-2 py-1 bg-white/80 rounded text-black font-medium">{unit}</span>
                 ))}
                 {units.length > 3 && (
-                  <span className="text-[10px] px-2 py-1 bg-white/20 rounded text-white/90">+{units.length - 3}</span>
+                  <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-black font-medium">+{units.length - 3}</span>
                 )}
               </div>
             </div>
@@ -1607,13 +1649,13 @@ const InventoryPage = () => {
 
           {showCardsInViews && (
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-              <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 to-blue-400 rounded-2xl p-5 shadow-lg shadow-blue-500/20">
+              <div className="relative overflow-hidden bg-gradient-to-br from-blue-500/40 to-blue-600/50 border border-blue-500/50 rounded-2xl p-5 shadow-lg">
                 <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
                 <div className="relative flex items-start justify-between">
                   <div>
-                    <p className="text-xs font-semibold text-blue-50 uppercase tracking-wider">Total Items</p>
-                    <p className="text-3xl font-bold text-white mt-2">{dynamicStats.totalItems}</p>
-                    <p className="text-xs text-blue-100/80 mt-1">SKUs tracked</p>
+                    <p className="text-xs font-bold text-white/90 uppercase tracking-wider">Total Stock</p>
+                    <p className="text-3xl font-bold text-white mt-2">{inventory.reduce((sum, i) => sum + (i.stock || 0), 0)}</p>
+                    <p className="text-xs text-white/80 mt-1">Total quantity in inventory</p>
                   </div>
                   <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
                     <Package size={24} className="text-white" />
@@ -1621,13 +1663,13 @@ const InventoryPage = () => {
                 </div>
               </div>
               {/* Card 2: Reserved Items - Swapped to position 2 */}
-              <div className="relative overflow-hidden bg-gradient-to-br from-violet-600 to-purple-500 rounded-2xl p-5 shadow-lg shadow-violet-500/20">
+              <div className="relative overflow-hidden bg-gradient-to-br from-violet-500/40 to-violet-600/50 border border-violet-500/50 rounded-2xl p-5 shadow-lg">
                 <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
                 <div className="relative flex items-start justify-between">
                   <div>
-                    <p className="text-xs font-semibold text-violet-50 uppercase tracking-wider">Reserved Items</p>
+                    <p className="text-xs font-bold text-white/90 uppercase tracking-wider">Reserved Items</p>
                     <p className="text-3xl font-bold text-white mt-2">{dynamicStats.reservedItems}</p>
-                    <p className="text-xs text-violet-100/80 mt-1">Allocated to projects</p>
+                    <p className="text-xs text-white/80 mt-1">Allocated to projects</p>
                   </div>
                   <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
                     <Package size={24} className="text-white" />
@@ -1635,13 +1677,13 @@ const InventoryPage = () => {
                 </div>
               </div>
 
-              <div className="relative overflow-hidden bg-gradient-to-br from-amber-500 to-orange-400 rounded-2xl p-5 shadow-lg shadow-amber-500/20">
+              <div className="relative overflow-hidden bg-gradient-to-br from-amber-500/40 to-amber-600/50 border border-amber-500/50 rounded-2xl p-5 shadow-lg">
                 <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
                 <div className="relative flex items-start justify-between">
                   <div>
-                    <p className="text-xs font-semibold text-amber-50 uppercase tracking-wider">Low Stock</p>
+                    <p className="text-xs font-bold text-white/90 uppercase tracking-wider">Low Stock</p>
                     <p className="text-3xl font-bold text-white mt-2">{dynamicStats.lowStockItems}</p>
-                    <p className="text-xs text-amber-100/80 mt-1">Items need reorder</p>
+                    <p className="text-xs text-white/80 mt-1">Items need reorder</p>
                   </div>
                   <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
                     <AlertTriangle size={24} className="text-white" />
@@ -1649,13 +1691,13 @@ const InventoryPage = () => {
                 </div>
               </div>
 
-              <div className="relative overflow-hidden bg-gradient-to-br from-red-600 to-rose-500 rounded-2xl p-5 shadow-lg shadow-red-500/20">
+              <div className="relative overflow-hidden bg-gradient-to-br from-rose-500/40 to-rose-600/50 border border-rose-500/50 rounded-2xl p-5 shadow-lg">
                 <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
                 <div className="relative flex items-start justify-between">
                   <div>
-                    <p className="text-xs font-semibold text-red-50 uppercase tracking-wider">Out of Stock</p>
+                    <p className="text-xs font-bold text-white/90 uppercase tracking-wider">Out of Stock</p>
                     <p className="text-3xl font-bold text-white mt-2">{dynamicStats.outOfStockItems}</p>
-                    <p className="text-xs text-red-100/80 mt-1">Immediate action needed</p>
+                    <p className="text-xs text-white/80 mt-1">Immediate action needed</p>
                   </div>
                   <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
                     <AlertTriangle size={24} className="text-white" />
@@ -1664,13 +1706,13 @@ const InventoryPage = () => {
               </div>
 
               {/* Card 5: Inventory Value - Swapped to position 5 */}
-              <div className="relative overflow-hidden bg-gradient-to-br from-emerald-600 to-emerald-400 rounded-2xl p-5 shadow-lg shadow-emerald-500/20">
+              <div className="relative overflow-hidden bg-gradient-to-br from-emerald-500/40 to-emerald-600/50 border border-emerald-500/50 rounded-2xl p-5 shadow-lg">
                 <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
                 <div className="relative flex items-start justify-between">
                   <div>
-                    <p className="text-xs font-semibold text-emerald-50 uppercase tracking-wider">Inventory Value</p>
+                    <p className="text-xs font-bold text-white/90 uppercase tracking-wider">Inventory Value</p>
                     <p className="text-xl font-bold text-white mt-2">₹{(dynamicStats.totalValue / 100000).toFixed(1)}L</p>
-                    <p className="text-xs text-emerald-100/80 mt-1">At current rates</p>
+                    <p className="text-xs text-white/80 mt-1">At current rates</p>
                   </div>
                   <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
                     <Warehouse size={24} className="text-white" />
@@ -1749,8 +1791,18 @@ const InventoryPage = () => {
 
       {activeTab === 'warehouse' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-[var(--text-primary)]">Warehouse Management</h2>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <Input 
+                placeholder="Search warehouses..." 
+                value={warehouseSearch} 
+                onChange={(e) => { setWarehouseSearch(e.target.value); setWarehousePage(1); }}
+                className="h-9 text-xs w-64"
+              />
+              <span className="text-xs text-[var(--text-muted)]">
+                {warehouses.filter(w => w.toLowerCase().includes(warehouseSearch.toLowerCase())).length} warehouses
+              </span>
+            </div>
             <Button onClick={() => setShowWarehouseModal(true)}>
               <Plus size={14} /> Add Warehouse
             </Button>
@@ -1766,12 +1818,32 @@ const InventoryPage = () => {
                 </tr>
               </thead>
               <tbody>
-                {warehouses.length === 0 ? (
-                  <tr>
-                    <td colSpan={3} className="px-4 py-8 text-center text-[var(--text-muted)]">No warehouses</td>
-                  </tr>
-                ) : (
-                  warehouses.map((w) => (
+                {(() => {
+                  const filteredWarehouses = warehouses.filter(w => 
+                    w.toLowerCase().includes(warehouseSearch.toLowerCase())
+                  );
+                  const paginatedWarehouses = filteredWarehouses.slice(
+                    (warehousePage - 1) * warehousePageSize, 
+                    warehousePage * warehousePageSize
+                  );
+                  
+                  if (warehouses.length === 0) {
+                    return (
+                      <tr>
+                        <td colSpan={3} className="px-4 py-8 text-center text-[var(--text-muted)]">No warehouses</td>
+                      </tr>
+                    );
+                  }
+                  
+                  if (paginatedWarehouses.length === 0) {
+                    return (
+                      <tr>
+                        <td colSpan={3} className="px-4 py-8 text-center text-[var(--text-muted)]">No warehouses found</td>
+                      </tr>
+                    );
+                  }
+                  
+                  return paginatedWarehouses.map((w) => (
                     <tr
                       key={w}
                       className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)] cursor-pointer"
@@ -1816,10 +1888,36 @@ const InventoryPage = () => {
                         </div>
                       </td>
                     </tr>
-                  ))
-                )}
+                  ));
+                })()}
               </tbody>
             </table>
+            {/* Pagination */}
+            {warehouses.filter(w => w.toLowerCase().includes(warehouseSearch.toLowerCase())).length > warehousePageSize && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border-base)]">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-[var(--text-muted)]">Page {warehousePage} of {Math.ceil(warehouses.filter(w => w.toLowerCase().includes(warehouseSearch.toLowerCase())).length / warehousePageSize)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    disabled={warehousePage === 1}
+                    onClick={() => setWarehousePage(p => p - 1)}
+                  >
+                    Previous
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    disabled={warehousePage >= Math.ceil(warehouses.filter(w => w.toLowerCase().includes(warehouseSearch.toLowerCase())).length / warehousePageSize)}
+                    onClick={() => setWarehousePage(p => p + 1)}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1827,14 +1925,18 @@ const InventoryPage = () => {
       {/* ITEMS TAB CONTENT */}
       {activeTab === 'items' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <Input 
                 placeholder="Search items..." 
                 value={search} 
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => { setSearch(e.target.value); setItemsPage(1); }}
                 className="h-9 text-xs w-64"
               />
+              <span className="text-xs text-[var(--text-muted)]">
+                {inventory.filter(item => item.name?.toLowerCase().includes(search.toLowerCase()) || 
+                  item.itemId?.toLowerCase().includes(search.toLowerCase())).length} items
+              </span>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setShowAdd(true)}>
@@ -1851,34 +1953,55 @@ const InventoryPage = () => {
                   <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Item ID</th>
                   <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Description</th>
                   <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Category</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Warehouse</th>
                   <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Unit</th>
                   <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Rate (₹)</th>
                   <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-[var(--text-muted)]">
-                      <div className="flex items-center justify-center gap-2">
-                        <div className="w-4 h-4 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
-                        Loading items...
-                      </div>
-                    </td>
-                  </tr>
-                ) : inventory.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-[var(--text-muted)]">
-                      <Package size={32} className="mx-auto mb-2 text-[var(--text-faint)]" />
-                      <p>No items found</p>
-                    </td>
-                  </tr>
-                ) : (
-                  inventory
-                    .filter(item => item.name?.toLowerCase().includes(search.toLowerCase()) || 
-                                   item.itemId?.toLowerCase().includes(search.toLowerCase()))
-                    .map((item) => (
-                    <tr key={item._id || item.itemId} 
+                {(() => {
+                  if (loading) {
+                    return (
+                      <tr>
+                        <td colSpan={7} className="px-4 py-8 text-center text-[var(--text-muted)]">
+                          <div className="flex items-center justify-center gap-2">
+                            <div className="w-4 h-4 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+                            Loading items...
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  }
+                  if (inventory.length === 0) {
+                    return (
+                      <tr>
+                        <td colSpan={7} className="px-4 py-8 text-center text-[var(--text-muted)]">
+                          <Package size={32} className="mx-auto mb-2 text-[var(--text-faint)]" />
+                          <p>No items found</p>
+                        </td>
+                      </tr>
+                    );
+                  }
+                  const filteredItems = inventory.filter(item => 
+                    item.name?.toLowerCase().includes(search.toLowerCase()) || 
+                    item.itemId?.toLowerCase().includes(search.toLowerCase())
+                  );
+                  const paginatedItems = filteredItems.slice(
+                    (itemsPage - 1) * itemsPageSize,
+                    itemsPage * itemsPageSize
+                  );
+                  
+                  if (paginatedItems.length === 0) {
+                    return (
+                      <tr>
+                        <td colSpan={7} className="px-4 py-8 text-center text-[var(--text-muted)]">No items found</td>
+                      </tr>
+                    );
+                  }
+                  
+                  return paginatedItems.map((item) => (
+                    <tr key={item._id || `${item.itemId}-${item.warehouse}`} 
                       onClick={() => setSelected(item)}
                       className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)] cursor-pointer">
                       <td className="px-4 py-3">
@@ -1891,7 +2014,12 @@ const InventoryPage = () => {
                         <span className="text-xs text-[var(--text-secondary)]">{item.category}</span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="text-xs text-[var(--text-secondary)]">{item.unit}</span>
+                        <span className="text-xs text-[var(--text-secondary)]">{item.warehouse}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs text-[var(--text-secondary)]">
+                          {item.stock} {item.unit}
+                        </span>
                       </td>
                       <td className="px-4 py-3">
                         <span className="text-xs text-[var(--text-primary)]">₹{item.rate?.toLocaleString('en-IN')}</span>
@@ -1913,7 +2041,7 @@ const InventoryPage = () => {
                             <Edit2 size={14} />
                           </button>
                           <button
-                            onClick={(e) => { e.stopPropagation(); handleDeleteItem(item.itemId); }}
+                            onClick={(e) => { e.stopPropagation(); handleDeleteItem(item); }}
                             className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-red-500 hover:bg-red-500/10"
                             title="Delete"
                           >
@@ -1922,10 +2050,43 @@ const InventoryPage = () => {
                         </div>
                       </td>
                     </tr>
-                  ))
-                )}
+                  ));
+                })()}
               </tbody>
             </table>
+            {/* Pagination */}
+            {(() => {
+              const filteredCount = inventory.filter(item => 
+                item.name?.toLowerCase().includes(search.toLowerCase()) || 
+                item.itemId?.toLowerCase().includes(search.toLowerCase())
+              ).length;
+              if (filteredCount <= itemsPageSize) return null;
+              return (
+                <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border-base)]">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-[var(--text-muted)]">Page {itemsPage} of {Math.ceil(filteredCount / itemsPageSize)}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      disabled={itemsPage === 1}
+                      onClick={() => setItemsPage(p => p - 1)}
+                    >
+                      Previous
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      disabled={itemsPage >= Math.ceil(filteredCount / itemsPageSize)}
+                      onClick={() => setItemsPage(p => p + 1)}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -1934,37 +2095,51 @@ const InventoryPage = () => {
       {activeTab === 'category' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-[var(--text-primary)]">Category Management</h2>
-            <Button onClick={() => setShowCategoryModal(true)}>
-              <Plus size={14} /> Add Category
-            </Button>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-[var(--text-primary)]">Category Management</h2>
+              <span className="text-[10px] px-2 py-1 bg-[var(--bg-elevated)] rounded-full text-[var(--text-muted)]">Total: {categories.length} Categories</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowCategoryCards(v => !v)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${showCategoryCards ? 'bg-white border-gray-200 text-gray-700 shadow-sm' : 'bg-white border-gray-200 text-gray-700 shadow-sm'}`}
+                title={showCategoryCards ? 'Hide Cards' : 'Show Cards'}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+                {showCategoryCards ? 'Hide Cards' : 'Show Cards'}
+              </button>
+              <Button onClick={() => setShowCategoryModal(true)}>
+                <Plus size={14} /> Add Category
+              </Button>
+            </div>
           </div>
 
-          {/* Items by Category - Now at TOP as colored cards */}
+          {/* Items by Category - Cards */}
+          {showCategoryCards && (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             {categories.map((cat, index) => {
               const catItems = inventory.filter(i => i.category === cat);
               if (catItems.length === 0) return null;
-              const colors = ['bg-blue-50 border-blue-200', 'bg-amber-50 border-amber-200', 'bg-green-50 border-green-200', 'bg-purple-50 border-purple-200', 'bg-pink-50 border-pink-200', 'bg-cyan-50 border-cyan-200', 'bg-orange-50 border-orange-200', 'bg-teal-50 border-teal-200'];
-              const iconColors = ['text-blue-500', 'text-amber-500', 'text-green-500', 'text-purple-500', 'text-pink-500', 'text-cyan-500', 'text-orange-500', 'text-teal-500'];
-              const bgColors = ['bg-blue-100', 'bg-amber-100', 'bg-green-100', 'bg-purple-100', 'bg-pink-100', 'bg-cyan-100', 'bg-orange-100', 'bg-teal-100'];
+              const colors = ['bg-gradient-to-br from-emerald-500/40 to-emerald-600/50 border-emerald-500/50', 'bg-gradient-to-br from-blue-500/40 to-blue-600/50 border-blue-500/50', 'bg-gradient-to-br from-amber-500/40 to-amber-600/50 border-amber-500/50', 'bg-gradient-to-br from-rose-500/40 to-rose-600/50 border-rose-500/50', 'bg-gradient-to-br from-violet-500/40 to-violet-600/50 border-violet-500/50', 'bg-gradient-to-br from-cyan-500/40 to-cyan-600/50 border-cyan-500/50', 'bg-gradient-to-br from-orange-500/40 to-orange-600/50 border-orange-500/50', 'bg-gradient-to-br from-pink-500/40 to-pink-600/50 border-pink-500/50'];
+              const iconColors = ['text-white', 'text-white', 'text-white', 'text-white', 'text-white', 'text-white', 'text-white', 'text-white'];
+              const bgColors = ['bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20'];
               return (
                 <div key={cat} className={`${colors[index % colors.length]} border rounded-xl p-4 flex flex-col gap-2 hover:shadow-md transition-all`}>
                   <div className="flex items-center justify-between">
-                    <div className={`w-10 h-10 rounded-lg ${bgColors[index % bgColors.length]} flex items-center justify-center`}>
+                    <div className={`w-10 h-10 rounded-xl ${bgColors[index % bgColors.length]} flex items-center justify-center shadow-sm`}>
                       <Package size={20} className={iconColors[index % iconColors.length]} />
                     </div>
-                    <span className="text-xs font-medium text-[var(--text-muted)]">{catItems.length} items</span>
+                    <span className="text-xs font-medium text-white/80">{catItems.length} items</span>
                   </div>
-                  <span className="text-sm font-semibold text-[var(--text-primary)]">{cat}</span>
+                  <span className="text-sm font-semibold text-white">{cat}</span>
                   <div className="flex flex-wrap gap-1">
-                    {catItems.slice(0, 3).map((item) => (
-                      <span key={item.itemId} className="text-[10px] px-2 py-1 bg-white rounded text-[var(--text-secondary)] border border-[var(--border-base)]">
+                    {catItems.slice(0, 3).map((item, idx) => (
+                      <span key={`${item.itemId}-${idx}`} className="text-[10px] px-2 py-1 bg-white/20 rounded text-white border border-white/30">
                         {item.name || item.description}
                       </span>
                     ))}
                     {catItems.length > 3 && (
-                      <span className="text-[10px] px-2 py-1 text-[var(--text-muted)]">
+                      <span className="text-[10px] px-2 py-1 text-white/80">
                         +{catItems.length - 3} more
                       </span>
                     )}
@@ -1973,6 +2148,7 @@ const InventoryPage = () => {
               );
             })}
           </div>
+          )}
 
           {/* Categories Table - Now at BOTTOM */}
           <div className="mt-8">
@@ -2002,7 +2178,7 @@ const InventoryPage = () => {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="text-xs text-[var(--text-secondary)]">{inventory.filter(i => i.category === cat).length} items</span>
+                        <span className="text-[10px] text-[var(--text-muted)]">{inventory.filter(i => i.category === cat).length} items</span>
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
@@ -2042,37 +2218,51 @@ const InventoryPage = () => {
       {activeTab === 'unit' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-[var(--text-primary)]">Unit Management</h2>
-            <Button onClick={() => setShowUnitModal(true)}>
-              <Plus size={14} /> Add Unit
-            </Button>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-[var(--text-primary)]">Unit Management</h2>
+              <span className="text-[10px] px-2 py-1 bg-[var(--bg-elevated)] rounded-full text-[var(--text-muted)]">Total: {units.length} Units</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowUnitCards(v => !v)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${showUnitCards ? 'bg-white border-gray-200 text-gray-700 shadow-sm' : 'bg-white border-gray-200 text-gray-700 shadow-sm'}`}
+                title={showUnitCards ? 'Hide Cards' : 'Show Cards'}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+                {showUnitCards ? 'Hide Cards' : 'Show Cards'}
+              </button>
+              <Button onClick={() => setShowUnitModal(true)}>
+                <Plus size={14} /> Add Unit
+              </Button>
+            </div>
           </div>
 
           {/* Items by Unit - Cards */}
+          {showUnitCards && (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             {units.map((unit, index) => {
               const unitItems = inventory.filter(i => i.unit === unit);
               if (unitItems.length === 0) return null;
-              const colors = ['bg-blue-50 border-blue-200', 'bg-amber-50 border-amber-200', 'bg-green-50 border-green-200', 'bg-purple-50 border-purple-200', 'bg-pink-50 border-pink-200', 'bg-cyan-50 border-cyan-200', 'bg-orange-50 border-orange-200', 'bg-teal-50 border-teal-200'];
-              const iconColors = ['text-blue-500', 'text-amber-500', 'text-green-500', 'text-purple-500', 'text-pink-500', 'text-cyan-500', 'text-orange-500', 'text-teal-500'];
-              const bgColors = ['bg-blue-100', 'bg-amber-100', 'bg-green-100', 'bg-purple-100', 'bg-pink-100', 'bg-cyan-100', 'bg-orange-100', 'bg-teal-100'];
+              const colors = ['bg-gradient-to-br from-emerald-500/40 to-emerald-600/50 border-emerald-500/50', 'bg-gradient-to-br from-blue-500/40 to-blue-600/50 border-blue-500/50', 'bg-gradient-to-br from-amber-500/40 to-amber-600/50 border-amber-500/50', 'bg-gradient-to-br from-rose-500/40 to-rose-600/50 border-rose-500/50', 'bg-gradient-to-br from-violet-500/40 to-violet-600/50 border-violet-500/50', 'bg-gradient-to-br from-cyan-500/40 to-cyan-600/50 border-cyan-500/50', 'bg-gradient-to-br from-orange-500/40 to-orange-600/50 border-orange-500/50', 'bg-gradient-to-br from-pink-500/40 to-pink-600/50 border-pink-500/50'];
+              const iconColors = ['text-white', 'text-white', 'text-white', 'text-white', 'text-white', 'text-white', 'text-white', 'text-white'];
+              const bgColors = ['bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20'];
               return (
                 <div key={unit} className={`${colors[index % colors.length]} border rounded-xl p-4 flex flex-col gap-2 hover:shadow-md transition-all`}>
                   <div className="flex items-center justify-between">
-                    <div className={`w-10 h-10 rounded-lg ${bgColors[index % bgColors.length]} flex items-center justify-center`}>
+                    <div className={`w-10 h-10 rounded-xl ${bgColors[index % bgColors.length]} flex items-center justify-center shadow-sm`}>
                       <Package size={20} className={iconColors[index % iconColors.length]} />
                     </div>
-                    <span className="text-xs font-medium text-[var(--text-muted)]">{unitItems.length} items</span>
+                    <span className="text-xs font-medium text-white/80">{unitItems.length} items</span>
                   </div>
-                  <span className="text-sm font-semibold text-[var(--text-primary)]">{unit}</span>
+                  <span className="text-sm font-semibold text-white">{unit}</span>
                   <div className="flex flex-wrap gap-1">
-                    {unitItems.slice(0, 3).map((item) => (
-                      <span key={item.itemId} className="text-[10px] px-2 py-1 bg-white rounded text-[var(--text-secondary)] border border-[var(--border-base)]">
+                    {unitItems.slice(0, 3).map((item, idx) => (
+                      <span key={`${item.itemId}-${idx}`} className="text-[10px] px-2 py-1 bg-white/20 rounded text-white border border-white/30">
                         {item.name || item.description}
                       </span>
                     ))}
                     {unitItems.length > 3 && (
-                      <span className="text-[10px] px-2 py-1 text-[var(--text-muted)]">
+                      <span className="text-[10px] px-2 py-1 text-white/80">
                         +{unitItems.length - 3} more
                       </span>
                     )}
@@ -2081,6 +2271,7 @@ const InventoryPage = () => {
               );
             })}
           </div>
+          )}
 
           {/* Units Table */}
           <div className="mt-8">
@@ -2110,7 +2301,7 @@ const InventoryPage = () => {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="text-xs text-[var(--text-secondary)]">{inventory.filter(i => i.unit === unit).length} items</span>
+                        <span className="text-[10px] text-[var(--text-muted)]">{inventory.filter(i => i.unit === unit).length} items</span>
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
@@ -2158,13 +2349,13 @@ const InventoryPage = () => {
           <FormField label="Category">
             <Select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
               <option value="">Select Category</option>
-              {['Panel', 'Inverter', 'BOS', 'Structure', 'Cable', 'Other'].map(c => <option key={c}>{c}</option>)}
+              {categories.map(c => <option key={c} value={c}>{c}</option>)}
             </Select>
           </FormField>
           <FormField label="Unit">
             <Select value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))}>
               <option value="">Select Unit</option>
-              {['Nos', 'Mtr', 'Kg', 'Set', 'Pairs', 'Box'].map(u => <option key={u}>{u}</option>)}
+              {units.map(u => <option key={u} value={u}>{u}</option>)}
             </Select>
           </FormField>
           <FormField label="Min Stock Level"><Input type="number" placeholder="100" value={form.minStock} onChange={e => setForm(f => ({ ...f, minStock: e.target.value }))} /></FormField>
@@ -2321,7 +2512,7 @@ const InventoryPage = () => {
           <FormField label="Item">
             <Select value={stockInForm.itemId} onChange={e => setStockInForm(f => ({ ...f, itemId: e.target.value }))}>
               <option value="">Select Item</option>
-              {inventory.map(i => <option key={i._id} value={i.itemId}>{i.name || i.description} ({i.itemId})</option>)}
+              {inventory.map(i => <option key={i._id} value={i.itemId}>{i.name || i.description} ({i.warehouse}) - Stock: {i.stock || 0}</option>)}
             </Select>
           </FormField>
           <div className="grid grid-cols-2 gap-3">
@@ -2348,27 +2539,6 @@ const InventoryPage = () => {
         </div>}>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="Item ID"><Input value={editingItem?.itemId || ''} disabled className="bg-[var(--bg-muted)]" /></FormField>
-            <FormField label="Item Name"><Input placeholder="e.g. 400W Mono PERC Panel" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} /></FormField>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <FormField label="Category">
-              <Select value={editForm.category} onChange={e => setEditForm(f => ({ ...f, category: e.target.value }))}>
-                <option value="">Select Category</option>
-                {['Panel', 'Inverter', 'BOS', 'Structure', 'Cable', 'Other'].map(c => <option key={c}>{c}</option>)}
-              </Select>
-            </FormField>
-            <FormField label="Unit">
-              <Select value={editForm.unit} onChange={e => setEditForm(f => ({ ...f, unit: e.target.value }))}>
-                <option value="">Select Unit</option>
-                {['Nos', 'Mtr', 'Kg', 'Set', 'Pairs', 'Box'].map(u => <option key={u}>{u}</option>)}
-              </Select>
-            </FormField>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <FormField label="Min Stock Level"><Input type="number" placeholder="100" value={editForm.minStock} onChange={e => setEditForm(f => ({ ...f, minStock: e.target.value }))} /></FormField>
-            <FormField label="Unit Rate (₹)"><Input type="number" placeholder="14500" value={editForm.rate} onChange={e => setEditForm(f => ({ ...f, rate: e.target.value }))} /></FormField>
-          </div>
           <FormField label="Status">
             <Select value={editForm.status} onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))}>
               <option value="">Auto (calculated from stock)</option>
@@ -2385,6 +2555,7 @@ const InventoryPage = () => {
             </Select>
           </FormField>
         </div>
+        </div>
       </Modal>
 
       {/* Stock Out Modal */}
@@ -2399,7 +2570,7 @@ const InventoryPage = () => {
           <FormField label="Item">
             <Select value={stockOutForm.itemId} onChange={e => setStockOutForm(f => ({ ...f, itemId: e.target.value }))}>
               <option value="">Select Item</option>
-              {inventory.map(i => <option key={i._id} value={i.itemId}>{i.name || i.description} ({i.itemId})</option>)}
+              {inventory.map(i => <option key={i._id} value={i.itemId}>{i.name || i.description} ({i.warehouse}) - Stock: {i.stock || 0}</option>)}
             </Select>
           </FormField>
           <div className="grid grid-cols-2 gap-3">
@@ -2422,7 +2593,7 @@ const InventoryPage = () => {
           footer={<Button variant="ghost" onClick={() => setSelected(null)}>Close</Button>}>
           <div className="grid grid-cols-2 gap-3 text-xs mb-4">
             {[
-              ['Item ID', selected.itemId], ['Category', selected.category], ['Warehouse', selected.warehouse],
+              ['Item ID', selected.itemId], ['Category', selected.category],
               ['Unit', selected.unit], ['Total Stock', `${selected.stock} ${selected.unit}`],
               ['Reserved', `${selected.reserved} ${selected.unit}`], ['Available', `${selected.available} ${selected.unit}`],
               ['Min Stock', `${selected.minStock} ${selected.unit}`], ['Unit Rate', `₹${selected.rate.toLocaleString('en-IN')}`],
@@ -2436,6 +2607,26 @@ const InventoryPage = () => {
               </div>
             ))}
           </div>
+
+          {/* Warehouse Breakdown Section */}
+          {selected._originalWarehouses && selected._originalWarehouses.length > 0 && (
+            <div className="border-t border-[var(--border-base)] pt-3 mb-4">
+              <h4 className="text-xs font-semibold text-[var(--text-primary)] mb-2">Warehouse Distribution</h4>
+              <div className="grid grid-cols-1 gap-2">
+                {selected._originalWarehouses.map((wh) => (
+                  <div key={wh.warehouse} className="glass-card p-2 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Warehouse size={14} className="text-[var(--accent-light)]" />
+                      <span className="text-xs font-medium text-[var(--text-primary)]">{wh.warehouse}</span>
+                    </div>
+                    <div className="text-xs text-[var(--text-secondary)]">
+                      Stock: {wh.stock} {selected.unit} | Avail: {wh.available} {selected.unit}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Project Reservations Section */}
           <div className="border-t border-[var(--border-base)] pt-3">
@@ -2481,7 +2672,7 @@ const InventoryPage = () => {
                     isDeleted = true;
                   }
                   
-                  const projectId = res.projectId || res.projectID || 'N/A';
+                  const projectId = res.projectId || res.project_id || res.projectID || 'N/A';
                   
                   return (
                     <div key={res.reservationId || res._id} className="flex items-center justify-between glass-card p-2">
@@ -2555,7 +2746,7 @@ const InventoryPage = () => {
                 <p className="text-sm text-[var(--text-muted)]">No items in this category</p>
               ) : (
                 inventory.filter(i => i.category === viewingCategory).map(item => (
-                  <div key={item.itemId} className="glass-card p-3 flex items-center justify-between">
+                  <div key={item._id || `${item.itemId}-${item.warehouse}`} className="glass-card p-3 flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-[var(--text-primary)]">{item.name || item.description}</p>
                       <p className="text-xs text-[var(--text-muted)]">{item.itemId}</p>
@@ -2594,7 +2785,7 @@ const InventoryPage = () => {
                 <p className="text-sm text-[var(--text-muted)]">No items using this unit</p>
               ) : (
                 inventory.filter(i => i.unit === viewingUnit).map(item => (
-                  <div key={item.itemId} className="glass-card p-3 flex items-center justify-between">
+                  <div key={item._id || `${item.itemId}-${item.warehouse}`} className="glass-card p-3 flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-[var(--text-primary)]">{item.name || item.description}</p>
                       <p className="text-xs text-[var(--text-muted)]">{item.itemId}</p>
