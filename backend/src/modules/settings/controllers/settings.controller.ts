@@ -21,6 +21,8 @@ import { ViewAsService } from '../services/view-as.service';
 import { WorkflowEngineService } from '../services/workflow-engine.service';
 import { AuditService } from '../services/audit.service';
 import { ProjectTypeService } from '../services/project-type.service';
+import { InstallationTaskService } from '../services/installation-task.service';
+import { UpdateInstallationTasksConfigDto } from '../dto/installation-task.dto';
 import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
 import { 
@@ -73,6 +75,7 @@ export class SettingsController {
     private readonly workflowEngineService: WorkflowEngineService,
     private readonly auditService: AuditService,
     private readonly projectTypeService: ProjectTypeService,
+    private readonly installationTaskService: InstallationTaskService,
   ) {}
 
   // ── Full Settings ─────────────────────────────────────────────────────────
@@ -133,6 +136,8 @@ export class SettingsController {
 
       // Get legacy data from SettingsService for remaining items
       const legacy = await this.settingsService.getFullSettings(tenantId);
+      // Also fetch installation task config if available
+      const installCfg = await this.installationTaskService.getConfig(tenantId);
 
       return {
         flags,
@@ -141,6 +146,7 @@ export class SettingsController {
         auditLogs: legacy.auditLogs,
         customRoles, // Now from customRoleService
         projectTypeConfigs: legacy.projectTypeConfigs,
+      installationTasks: installCfg.tasks,
       };
     } catch (error: any) {
       return {
@@ -1105,6 +1111,25 @@ export class SettingsController {
       permissions: matrix,
       timestamp: new Date().toISOString(),
     };
+  }
+
+  // ── Installation Task Checklist Builder ─────────────────────────────────
+  @Get('installation/tasks')
+  async getInstallationTasks(@Request() req: any) {
+    const tenantId = req.tenant?.id;
+    const cfg = await this.installationTaskService.getConfig(tenantId);
+    return { data: cfg.tasks };
+  }
+
+  @Put('installation/tasks')
+  async updateInstallationTasks(
+    @Body() body: UpdateInstallationTasksConfigDto,
+    @Request() req: any,
+  ) {
+    const tenantId = req.tenant?.id;
+    const userId = req.user?.id;
+    const doc = await this.installationTaskService.updateConfig(tenantId, body.tasks, userId);
+    return { data: doc.tasks };
   }
 
   // ── Project Type Configs ────────────────────────────────────────────────
