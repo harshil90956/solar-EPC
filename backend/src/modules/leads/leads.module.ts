@@ -14,11 +14,7 @@ import { SurveyModule } from '../survey/survey.module';
       { name: LeadStatus.name, schema: LeadStatusSchema },
     ]),
     SettingsModule,
-<<<<<<< HEAD
-    TenantModule,
-=======
     forwardRef(() => SurveyModule),
->>>>>>> a5c0ef6d62c83a7978c21761c2cabefcddb65300
   ],
   controllers: [LeadsController],
   providers: [LeadsService],

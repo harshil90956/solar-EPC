@@ -253,21 +253,20 @@ export class InstallationService {
     },
     userContext: UserContext,
   ): Promise<Installation> {
-    console.log('[INSTALLATION] createInstallationFromDispatch called with:', {
-      dispatchId: dispatchData.dispatchId,
-      tenantId: dispatchData.tenantId,
-      projectId: dispatchData.projectId,
-    });
+    console.log('[INSTALLATION TRIGGERED]', dispatchData.dispatchId);
     
-    const tenantId = dispatchData.tenantId ? this.toObjectId(dispatchData.tenantId) : null;
+    // Use tenantId from dispatch or fall back to user context tenantId
+    const dispatchTenantId = dispatchData.tenantId || userContext.tenantId;
+    const tenantId = dispatchTenantId ? this.toObjectId(dispatchTenantId) : null;
     const userId = this.toObjectId(userContext.userId);
     
-    console.log('[INSTALLATION] Converted tenantId:', tenantId);
-    console.log('[INSTALLATION] Converted userId:', userId);
+    console.log('[INSTALLATION] Dispatch tenantId:', dispatchData.tenantId);
+    console.log('[INSTALLATION] User context tenantId:', userContext.tenantId);
+    console.log('[INSTALLATION] Final converted tenantId:', tenantId);
 
     // Check if installation already exists for this dispatch
     const existingQuery: any = {
-      dispatchId: this.toObjectId(dispatchData.dispatchId),
+      dispatchId: dispatchData.dispatchId, // Use STRING, not ObjectId
       isDeleted: false,
     };
     if (tenantId) {
@@ -278,7 +277,8 @@ export class InstallationService {
     console.log('[INSTALLATION] Existing installation check:', existing ? 'Found' : 'Not found');
 
     if (existing) {
-      throw new BadRequestException('Installation already exists for this dispatch');
+      console.log('[INSTALLATION] Duplicate found - returning existing:', existing._id);
+      return existing; // Return existing instead of throwing error
     }
 
     // Look up the project by its custom projectId string (e.g., "PRJ001")
@@ -314,7 +314,7 @@ export class InstallationService {
     const installation = new this.installationModel({
       installationId,
       projectId: project._id, // Use the actual MongoDB ObjectId
-      dispatchId: this.toObjectId(dispatchData.dispatchId),
+      dispatchId: dispatchData.dispatchId, // Use STRING, don't convert to ObjectId
       customerName: dispatchData.customerName,
       site: dispatchData.site,
       technicianId: userId, // Will be reassigned
@@ -329,7 +329,16 @@ export class InstallationService {
       assignedTo: userId,
     });
 
-    return installation.save();
+    const saved = await installation.save();
+    console.log('[INSTALLATION CREATED]', {
+      _id: saved._id,
+      installationId: saved.installationId,
+      dispatchId: saved.dispatchId,
+      projectId: saved.projectId,
+      status: saved.status,
+      tenantId: saved.tenantId,
+    });
+    return saved;
   }
 
   /**

@@ -106,6 +106,7 @@ export class LogisticsService {
       }
 
       // Auto-create installation record when materials are delivered
+      console.log(`[LOGISTICS] INSTALLATION TRIGGERED for dispatch ${id}`);
       console.log(`[LOGISTICS] Triggering installation creation for dispatch ${id}`);
       
       try {

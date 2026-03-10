@@ -32,8 +32,8 @@ export class Installation extends Document {
   @Prop({ type: Types.ObjectId, ref: 'Project', required: true, index: true })
   projectId!: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: 'Dispatch', required: false, index: true })
-  dispatchId?: Types.ObjectId;
+  @Prop({ type: String, ref: 'Dispatch', required: false, index: true })
+  dispatchId?: string;
 
   @Prop({ required: true })
   customerName!: string;
