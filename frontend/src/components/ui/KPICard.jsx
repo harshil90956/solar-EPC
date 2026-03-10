@@ -4,12 +4,19 @@ import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 /**
- * Unified KPI Card — same gradient colors and shadow across all modules
- * Colors:
- * - emerald (green): Total Revenue
- * - blue: Cash Position
- * - amber (orange): Receivables/Outstanding
- * - red: Payables/Expenses
+ * KPICard props:
+ *  label      — string
+ *  value      — string | number (formatted externally)
+ *  sub        — string (subtitle)
+ *  icon       — Lucide icon component
+ *  trend      — string (e.g. "+23% YoY")
+ *  trendUp    — bool
+ *  accentColor— hex | CSS var
+ *  glowClass  — tailwind shadow class
+ *  sparkData  — [number] (mini sparkline — future)
+ *  gradient   — string (tailwind gradient class for background)
+ *  iconBgColor— string (tailwind bg class for icon container)
+ *  iconColor  — string (tailwind text class for icon)
  */
 export const KPICard = ({
     label, value, sub, icon: Icon,
@@ -17,6 +24,24 @@ export const KPICard = ({
     variant = 'emerald', // emerald | blue | amber | red | purple | indigo
     className,
     style,
+    gradient,
+    iconBgColor = 'bg-gray-100',
+    iconColor = 'text-gray-600',
+    onClick,
+}) => (
+    <div 
+        onClick={onClick}
+        className={cn('p-4 flex flex-col gap-2 group cursor-default rounded-xl border border-gray-200/50 backdrop-blur-sm', onClick && 'cursor-pointer', className)} 
+        style={style}
+    >
+        <div className="flex items-start justify-between gap-2">
+            <div className="flex-1 min-w-0">
+                <p className="label-muted mb-1">{label}</p>
+                <p className="text-2xl font-extrabold text-[var(--text-primary)] tabular-nums leading-none tracking-tight">
+                    {value}
+                </p>
+                {sub && <p className="text-[11px] text-[var(--text-muted)] mt-1">{sub}</p>}
+=======
 }) => {
     // Unified color palette - same across all modules
     const variants = {
@@ -86,6 +111,7 @@ export const KPICard = ({
                 <div className={cn('p-3 rounded-xl shadow-md', v.iconBg)}>
                     {Icon && <Icon size={22} className={v.iconColor} />}
                 </div>
+
                 {trend && (
                     <div className="flex items-center gap-1">
                         {trendUp
@@ -97,10 +123,11 @@ export const KPICard = ({
                     </div>
                 )}
             </div>
-
-            <div className="relative z-10">
-                <div className="text-3xl font-bold text-[var(--text-primary)] mb-1 tracking-tight">
-                    {value}
+            {Icon && (
+                <div
+                    className={cn('w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110 border border-white/50 shadow-sm', iconBgColor)}
+                >
+                    <Icon size={18} className={iconColor} />
                 </div>
                 <div className="text-sm font-medium text-[var(--text-primary)] mb-0.5">
                     {label}

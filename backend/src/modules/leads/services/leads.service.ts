@@ -6,7 +6,11 @@ import * as xlsx from 'xlsx';
 import { Lead, LeadDocument } from '../schemas/lead.schema';
 import { CreateLeadDto, UpdateLeadDto, QueryLeadDto, AddActivityDto } from '../dto/lead.dto';
 import { LeadStatus, LeadStatusDocument } from '../../settings/schemas/lead-status.schema';
+<<<<<<< Updated upstream
 import { buildVisibilityFilter, applyVisibilityFilter, buildCompleteFilter, canAccessRecord, UserWithVisibility } from '../../../common/utils/visibility-filter';
+=======
+import { buildVisibilityFilter, applyVisibilityFilter, UserWithVisibility, buildCompleteFilter, canAccessRecord } from '../../../common/utils/visibility-filter';
+>>>>>>> Stashed changes
 import { SiteSurveysService } from '../../survey/services/site-surveys.service';
 
 @Injectable()
