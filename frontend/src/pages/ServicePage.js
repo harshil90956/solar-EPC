@@ -6770,156 +6770,33 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
             </div>
 
-        <KPICard
-          label="Open Tickets"
-          value={dynamicTicketStats.openTickets}
-          icon={AlertTriangle}
-          variant="red"
-          loading={loadingStats}
-        />
-
-        <KPICard
-          label="Scheduled"
-          value={dynamicTicketStats.scheduled}
-          icon={Calendar}
-          variant="blue"
-          loading={loadingStats}
-        />
-
-        <KPICard
-          label="In Progress"
-          value={dynamicTicketStats.inProgress}
-          icon={Wrench}
-          variant="amber"
-          loading={loadingStats}
-        />
-
-        <KPICard
-          label="Resolved"
-          value={dynamicTicketStats.resolved}
-          icon={CheckCircle}
-          variant="emerald"
-          loading={loadingStats}
-        />
-
-        <KPICard
-          label="Closed"
-          value={dynamicTicketStats.closed}
-          icon={XCircle}
-          variant="indigo"
-          loading={loadingStats}
-        />
-
-        <KPICard
-          label="AMC Contracts"
-          value={dynamicAmcStats.activeContracts}
-          icon={Shield}
-          variant="purple"
-          loading={loadingStats}
-        />
-
-
-
-                <Input
-
-
-
-                  type="date"
-
-
-
-                  value={amcEditForm.startDate}
-
-
-
-                  onChange={e => setAmcEditForm(prev => ({ ...prev, startDate: e.target.value }))}
-
-
-
-                  className="h-8 text-xs"
-
-
-
-                />
-
-
-
-              </FormField>
-
-
-
-              <FormField label="End Date">
-
-
-
-                <Input
-
-
-
-                  type="date"
-
-
-
-                  value={amcEditForm.endDate}
-
-
-
-                  onChange={e => setAmcEditForm(prev => ({ ...prev, endDate: e.target.value }))}
-
-
-
-                  className="h-8 text-xs"
-
-
-
-                />
-
-
-
-              </FormField>
-
-
-
-            </div>
-
-
-
-            <FormField label="Next Visit">
-
-
-
+            <FormField label="Start Date">
               <Input
-
-
-
                 type="date"
-
-
-
-                value={amcEditForm.nextVisit}
-
-
-
-                onChange={e => setAmcEditForm(prev => ({ ...prev, nextVisit: e.target.value }))}
-
-
-
+                value={amcEditForm.startDate}
+                onChange={e => setAmcEditForm(prev => ({ ...prev, startDate: e.target.value }))}
                 className="h-8 text-xs"
-
-
-
               />
-
-
-
             </FormField>
 
+            <FormField label="End Date">
+              <Input
+                type="date"
+                value={amcEditForm.endDate}
+                onChange={e => setAmcEditForm(prev => ({ ...prev, endDate: e.target.value }))}
+                className="h-8 text-xs"
+              />
+            </FormField>
 
-
+            <FormField label="Next Visit">
+              <Input
+                type="date"
+                value={amcEditForm.nextVisit}
+                onChange={e => setAmcEditForm(prev => ({ ...prev, nextVisit: e.target.value }))}
+                className="h-8 text-xs"
+              />
+            </FormField>
           </div>
-
-
-
         </Modal>
 
 
