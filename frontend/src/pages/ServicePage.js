@@ -2288,7 +2288,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-      
+
 
 
 
@@ -2316,7 +2316,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-    
+
 
 
 
@@ -4148,7 +4148,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-    
+
 
 
 
@@ -4160,7 +4160,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-    
+
 
 
 
@@ -4200,7 +4200,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-    
+
 
 
 
@@ -4216,7 +4216,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-    
+
 
 
 
@@ -4228,7 +4228,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-    
+
 
 
 
@@ -4268,7 +4268,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-    
+
 
 
 
@@ -6772,79 +6772,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-            <div className="grid grid-cols-2 gap-3">
-
-
-
-              <FormField label="Start Date">
-
-
-
-                <Input
-
-
-
-                  type="date"
-
-
-
-                  value={amcEditForm.startDate}
-
-
-
-                  onChange={e => setAmcEditForm(prev => ({ ...prev, startDate: e.target.value }))}
-
-
-
-                  className="h-8 text-xs"
-
-
-
-                />
-
-
-
-              </FormField>
-
-
-
-              <FormField label="End Date">
-
-
-
-                <Input
-
-
-
-                  type="date"
-
-
-
-                  value={amcEditForm.endDate}
-
-
-
-                  onChange={e => setAmcEditForm(prev => ({ ...prev, endDate: e.target.value }))}
-
-
-
-                  className="h-8 text-xs"
-
-
-
-                />
-
-
-
-              </FormField>
-
-
-
-            </div>
-
-
-
-            <FormField label="Next Visit">
+            <FormField label="Start Date">
 
 
 
@@ -6856,11 +6784,11 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-                value={amcEditForm.nextVisit}
+                value={amcEditForm.startDate}
 
 
 
-                onChange={e => setAmcEditForm(prev => ({ ...prev, nextVisit: e.target.value }))}
+                onChange={e => setAmcEditForm(prev => ({ ...prev, startDate: e.target.value }))}
 
 
 
@@ -6876,15 +6804,61 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+            <FormField label="End Date">
+
+
+
+              <Input
+
+
+
+                type="date"
+
+
+
+                value={amcEditForm.endDate}
+
+
+
+                onChange={e => setAmcEditForm(prev => ({ ...prev, endDate: e.target.value }))}
+
+
+
+                className="h-8 text-xs"
+
+
+
+              />
+
+
+
+            </FormField>
+
+
+            <FormField label="End Date">
+              <Input
+                type="date"
+                value={amcEditForm.endDate}
+                onChange={e => setAmcEditForm(prev => ({ ...prev, endDate: e.target.value }))}
+                className="h-8 text-xs"
+              />
+            </FormField>
+
+            <FormField label="Next Visit">
+              <Input
+                type="date"
+                value={amcEditForm.nextVisit}
+                onChange={e => setAmcEditForm(prev => ({ ...prev, nextVisit: e.target.value }))}
+                className="h-8 text-xs"
+              />
+            </FormField>
           </div>
-
-
-
         </Modal>
 
 
 
-      )}
+      )
+      }
 
 
 
@@ -6896,275 +6870,52 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-      {assignModal.open && assignModal.ticket && (
+      {
+        assignModal.open && assignModal.ticket && (
 
 
 
-        <Modal
+          <Modal
 
 
 
-          open={assignModal.open}
+            open={assignModal.open}
 
 
 
-          onClose={closeAssignModal}
+            onClose={closeAssignModal}
 
 
 
-          title="Assign Engineer"
+            title="Assign Engineer"
 
 
 
-          footer={
+            footer={
 
 
 
-            <div className="flex gap-2 justify-end">
+              <div className="flex gap-2 justify-end">
 
 
 
-              <Button variant="ghost" onClick={closeAssignModal}>Cancel</Button>
+                <Button variant="ghost" onClick={closeAssignModal}>Cancel</Button>
 
 
 
-              <Button onClick={handleAssignEngineer} disabled={!selectedEngineer || assigning}>
+                <Button onClick={handleAssignEngineer} disabled={!selectedEngineer || assigning}>
 
 
 
-                {assigning ? <Loader2 size={13} className="animate-spin" /> : <Wrench size={13} />}
+                  {assigning ? <Loader2 size={13} className="animate-spin" /> : <Wrench size={13} />}
 
 
 
-                {assigning ? 'Assigning...' : 'Assign'}
+                  {assigning ? 'Assigning...' : 'Assign'}
 
 
 
-              </Button>
-
-
-
-            </div>
-
-
-
-          }
-
-
-
-        >
-
-
-
-          <div className="space-y-3">
-
-
-
-            <div className="text-xs text-[var(--text-muted)] mb-2">
-
-
-
-              Ticket: <span className="font-mono text-[var(--accent-light)]">{assignModal.ticket.id}</span>
-
-
-
-            </div>
-
-
-
-            <FormField label="Select Engineer">
-
-
-
-              <Select
-
-
-
-                value={selectedEngineer}
-
-
-
-                onChange={e => setSelectedEngineer(e.target.value)}
-
-
-
-              >
-
-
-
-                <option value="">Select an engineer...</option>
-
-
-
-                {engineers.map(engineer => (
-
-
-
-                  <option key={engineer.id} value={engineer.name}>
-
-
-
-                    {engineer.name} {engineer.email ? `(${engineer.email})` : ''}
-
-
-
-                  </option>
-
-
-
-                ))}
-
-
-
-              </Select>
-
-
-
-            </FormField>
-
-
-
-            {engineers.length === 0 && (
-
-
-
-              <p className="text-xs text-[var(--text-muted)]">No engineers found.</p>
-
-
-
-            )}
-
-
-
-          </div>
-
-
-
-        </Modal>
-
-
-
-      )}
-
-
-
-
-
-
-
-      {/* AMC Project View Modal - Shows project details like Project Module View Details */}
-
-
-
-      {amcProjectView && (
-
-
-
-        <Modal
-
-
-
-          open={!!amcProjectView}
-
-
-
-          onClose={() => { setAmcProjectView(null); setAmcProjectData(null); }}
-
-
-
-          title={amcProjectData ? `Project — ${amcProjectData.id}` : 'Project Details'}
-
-
-
-          footer={
-
-
-
-            <div className="flex gap-2 justify-end">
-
-
-
-              <Button variant="ghost" onClick={() => { setAmcProjectView(null); setAmcProjectData(null); }}>Close</Button>
-
-
-
-            </div>
-
-
-
-          }
-
-
-
-        >
-
-
-
-          {loadingAmcProject ? (
-
-
-
-            <div className="flex items-center justify-center py-8">
-
-
-
-              <Loader2 size={24} className="animate-spin text-[var(--primary)]" />
-
-
-
-              <span className="ml-2 text-sm text-[var(--text-muted)]">Loading project...</span>
-
-
-
-            </div>
-
-
-
-          ) : amcProjectData ? (
-
-
-
-            <div className="space-y-4">
-
-
-
-              {/* Project Info Grid - Same as ProjectPage View Details */}
-
-
-
-              <div className="grid grid-cols-2 gap-3 text-xs">
-
-
-
-                {[['Customer', amcProjectData.customerName], ['Email', amcProjectData.email || '—'], ['Mobile', amcProjectData.mobileNumber || '—'], ['Site', amcProjectData.site], ['System Size', `${amcProjectData.systemSize} kW`], ['Project Manager', amcProjectData.pm],
-
-
-
-                ['Status', <StatusBadge domain="project" value={amcProjectData.status} />], ['Value', `₹${(amcProjectData.value / 100000).toFixed(1)}L`],
-
-
-
-                ].map(([k, v]) => (
-
-
-
-                  <div key={k} className="glass-card p-2">
-
-
-
-                    <div className="text-[var(--text-muted)] mb-0.5">{k}</div>
-
-
-
-                    <div className="font-semibold text-[var(--text-primary)]">{v}</div>
-
-
-
-                  </div>
-
-
-
-                ))}
+                </Button>
 
 
 
@@ -7172,451 +6923,11 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+            }
 
 
 
-
-              {/* Progress Bar - Same as ProjectPage */}
-
-
-
-              <div>
-
-
-
-                <div className="text-xs flex items-center justify-between mb-1">
-
-
-
-                  <span className="font-semibold text-[var(--text-primary)]">Overall Progress</span>
-
-
-
-                  <span className="text-[var(--text-muted)]">{amcProjectData.progress}%</span>
-
-
-
-                </div>
-
-
-
-                <Progress value={amcProjectData.progress} className="h-2" />
-
-
-
-              </div>
-
-
-
-
-
-
-
-              {/* Milestone Tracker - Same as ProjectPage View Details */}
-
-
-
-              <div>
-
-
-
-                <div className="text-xs font-semibold text-[var(--text-primary)] mb-3">Milestone Tracker</div>
-
-
-
-                <Stepper steps={amcProjectData.milestones?.map(m => ({ name: m.name, status: m.status, date: m.date })) ?? [
-
-
-
-                  { name: 'Material Ready', status: 'Pending', date: null },
-
-
-
-                  { name: 'Installation', status: 'Pending', date: null },
-
-
-
-                  { name: 'Commission', status: 'Pending', date: null },
-
-
-
-                  { name: 'Billing', status: 'Pending', date: null },
-
-
-
-                  { name: 'Closure', status: 'Pending', date: null }
-
-
-
-                ]} />
-
-
-
-              </div>
-
-
-
-
-
-
-
-              {/* Reserved Materials - Same as ProjectPage */}
-
-
-
-              {amcProjectData.materials && amcProjectData.materials.length > 0 && (
-
-
-
-                <div>
-
-
-
-                  <div className="text-xs font-semibold text-[var(--text-primary)] mb-3">Reserved Materials</div>
-
-
-
-                  <div className="space-y-2">
-
-
-
-                    {amcProjectData.materials.map((m, idx) => (
-
-
-
-                      <div key={`mat-${idx}`} className="glass-card p-2 flex items-center justify-between">
-
-
-
-                        <div>
-
-
-
-                          <div className="text-xs font-medium text-[var(--text-primary)]">{m.itemName}</div>
-
-
-
-                          <div className="text-[10px] text-[var(--text-muted)]">Qty: {m.quantity} | Issued: {m.issuedDate || '—'}</div>
-
-
-
-                        </div>
-
-
-
-                        {m.remarks && (
-
-
-
-                          <div className="text-[10px] text-[var(--text-faint)] max-w-[150px] truncate" title={m.remarks}>
-
-
-
-                            {m.remarks}
-
-
-
-                          </div>
-
-
-
-                        )}
-
-
-
-                      </div>
-
-
-
-                    ))}
-
-
-
-                  </div>
-
-
-
-                </div>
-
-
-
-              )}
-
-
-
-            </div>
-
-
-
-          ) : (
-
-
-
-            <div className="text-center py-8">
-
-
-
-              <AlertTriangle size={32} className="mx-auto text-amber-400 mb-2" />
-
-
-
-              <p className="text-sm text-[var(--text-muted)]">No matching project found for this AMC contract.</p>
-
-
-
-              <p className="text-xs text-[var(--text-faint)] mt-1">Customer: {amcProjectView.customer}, Site: {amcProjectView.site}</p>
-
-
-
-            </div>
-
-
-
-          )}
-
-
-
-        </Modal>
-
-
-
-      )}
-
-
-
-
-
-
-
-      {/* Schedule Visit Modal */}
-
-
-
-      {scheduleVisitModal.open && scheduleVisitModal.contract && (
-
-
-
-        <Modal
-
-
-
-          open={scheduleVisitModal.open}
-
-
-
-          onClose={closeScheduleVisitModal}
-
-
-
-          title="Schedule Visit"
-
-
-
-          footer={
-
-
-
-            <div className="flex gap-2 justify-end">
-
-
-
-              <Button variant="ghost" onClick={closeScheduleVisitModal}>Cancel</Button>
-
-
-
-              <Button onClick={handleScheduleVisit} disabled={schedulingVisit}>
-
-
-
-                {schedulingVisit ? <Loader2 size={13} className="animate-spin" /> : <Clock size={13} />}
-
-
-
-                {schedulingVisit ? 'Scheduling...' : 'Schedule Visit'}
-
-
-
-              </Button>
-
-
-
-            </div>
-
-
-
-          }
-
-
-
-        >
-
-
-
-          <div className="space-y-4">
-
-
-
-            {/* Auto-filled Read-only Fields */}
-
-
-
-            <div className="grid grid-cols-2 gap-3 text-xs">
-
-
-
-              <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
-
-
-
-                <div className="text-[var(--text-muted)] mb-0.5">Contract ID</div>
-
-
-
-                <div className="font-semibold text-[var(--text-primary)]">{scheduleVisitModal.contract.id}</div>
-
-
-
-              </div>
-
-
-
-              <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
-
-
-
-                <div className="text-[var(--text-muted)] mb-0.5">Email ID</div>
-
-
-
-                <div className="font-semibold text-[var(--text-primary)]">
-
-
-
-                  {loadingScheduleVisitProject ? (
-
-
-
-                    <span className="text-[var(--text-muted)]">Loading...</span>
-
-
-
-                  ) : (
-
-
-
-                    scheduleVisitProjectData?.email || '—'
-
-
-
-                  )}
-
-
-
-                </div>
-
-
-
-              </div>
-
-
-
-              <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
-
-
-
-                <div className="text-[var(--text-muted)] mb-0.5">Mobile Number</div>
-
-
-
-                <div className="font-semibold text-[var(--text-primary)]">
-
-
-
-                  {loadingScheduleVisitProject ? (
-
-
-
-                    <span className="text-[var(--text-muted)]">Loading...</span>
-
-
-
-                  ) : (
-
-
-
-                    scheduleVisitProjectData?.mobileNumber || '—'
-
-
-
-                  )}
-
-
-
-                </div>
-
-
-
-              </div>
-
-
-
-              <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
-
-
-
-                <div className="text-[var(--text-muted)] mb-0.5">Site</div>
-
-
-
-                <div className="font-semibold text-[var(--text-primary)]">{scheduleVisitModal.contract.site}</div>
-
-
-
-              </div>
-
-
-
-              <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
-
-
-
-                <div className="text-[var(--text-muted)] mb-0.5">Customer Name</div>
-
-
-
-                <div className="font-semibold text-[var(--text-primary)]">{scheduleVisitModal.contract.customer}</div>
-
-
-
-              </div>
-
-
-
-              <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
-
-
-
-                <div className="text-[var(--text-muted)] mb-0.5">Size (kW)</div>
-
-
-
-                <div className="font-semibold text-[var(--text-primary)]">{scheduleVisitModal.contract.systemSize} kW</div>
-
-
-
-              </div>
-
-
-
-            </div>
-
-
-
-
-
-
-
-            {/* Input Fields */}
+          >
 
 
 
@@ -7624,119 +6935,11 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-              <FormField label="Visit Type">
+              <div className="text-xs text-[var(--text-muted)] mb-2">
 
 
 
-                <Select
-
-
-
-                  value={visitForm.visitType}
-
-
-
-                  onChange={e => setVisitForm(prev => ({ ...prev, visitType: e.target.value }))}
-
-
-
-                >
-
-
-
-                  <option value="Routine Maintenance">Routine Maintenance</option>
-
-
-
-                  <option value="Breakdown">Breakdown</option>
-
-
-
-                  <option value="Emergency">Emergency</option>
-
-
-
-                  <option value="Follow-up">Follow-up</option>
-
-
-
-                </Select>
-
-
-
-              </FormField>
-
-
-
-
-
-
-
-              <div className="grid grid-cols-2 gap-3">
-
-
-
-                <FormField label="Scheduled Date *">
-
-
-
-                  <Input
-
-
-
-                    type="date"
-
-
-
-                    value={visitForm.scheduledDate}
-
-
-
-                    onChange={e => setVisitForm(prev => ({ ...prev, scheduledDate: e.target.value }))}
-
-
-
-                    className="h-8 text-xs"
-
-
-
-                  />
-
-
-
-                </FormField>
-
-
-
-                <FormField label="Scheduled Time *">
-
-
-
-                  <Input
-
-
-
-                    type="time"
-
-
-
-                    value={visitForm.scheduledTime}
-
-
-
-                    onChange={e => setVisitForm(prev => ({ ...prev, scheduledTime: e.target.value }))}
-
-
-
-                    className="h-8 text-xs"
-
-
-
-                  />
-
-
-
-                </FormField>
+                Ticket: <span className="font-mono text-[var(--accent-light)]">{assignModal.ticket.id}</span>
 
 
 
@@ -7744,11 +6947,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-
-
-
-
-              <FormField label="Engineer Assign *">
+              <FormField label="Select Engineer">
 
 
 
@@ -7756,11 +6955,11 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-                  value={visitForm.engineerId}
+                  value={selectedEngineer}
 
 
 
-                  onChange={e => setVisitForm(prev => ({ ...prev, engineerId: e.target.value }))}
+                  onChange={e => setSelectedEngineer(e.target.value)}
 
 
 
@@ -7768,7 +6967,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-                  <option value="">Select Engineer</option>
+                  <option value="">Select an engineer...</option>
 
 
 
@@ -7776,7 +6975,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-                    <option key={engineer.id} value={engineer.id}>
+                    <option key={engineer.id} value={engineer.name}>
 
 
 
@@ -7796,99 +6995,19 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-                {engineers.length === 0 && (
-
-
-
-                  <p className="text-xs text-[var(--text-muted)] mt-1">Loading engineers...</p>
-
-
-
-                )}
-
-
-
               </FormField>
 
 
 
+              {engineers.length === 0 && (
 
 
 
-
-              <FormField label="Priority">
-
-
-
-                <Select
+                <p className="text-xs text-[var(--text-muted)]">No engineers found.</p>
 
 
 
-                  value={visitForm.priority}
-
-
-
-                  onChange={e => setVisitForm(prev => ({ ...prev, priority: e.target.value }))}
-
-
-
-                >
-
-
-
-                  <option value="Low">Low</option>
-
-
-
-                  <option value="Medium">Medium</option>
-
-
-
-                  <option value="High">High</option>
-
-
-
-                </Select>
-
-
-
-              </FormField>
-
-
-
-
-
-
-
-              <FormField label="Notes (Optional)">
-
-
-
-                <Textarea
-
-
-
-                  placeholder="Add any additional notes or instructions..."
-
-
-
-                  rows={3}
-
-
-
-                  value={visitForm.notes}
-
-
-
-                  onChange={e => setVisitForm(prev => ({ ...prev, notes: e.target.value }))}
-
-
-
-                />
-
-
-
-              </FormField>
+              )}
 
 
 
@@ -7896,15 +7015,876 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-          </div>
+          </Modal>
 
 
 
-        </Modal>
+        )
+      }
 
 
 
-      )}
+
+
+
+
+      {/* AMC Project View Modal - Shows project details like Project Module View Details */}
+
+
+
+      {
+        amcProjectView && (
+
+
+
+          <Modal
+
+
+
+            open={!!amcProjectView}
+
+
+
+            onClose={() => { setAmcProjectView(null); setAmcProjectData(null); }}
+
+
+
+            title={amcProjectData ? `Project — ${amcProjectData.id}` : 'Project Details'}
+
+
+
+            footer={
+
+
+
+              <div className="flex gap-2 justify-end">
+
+
+
+                <Button variant="ghost" onClick={() => { setAmcProjectView(null); setAmcProjectData(null); }}>Close</Button>
+
+
+
+              </div>
+
+
+
+            }
+
+
+
+          >
+
+
+
+            {loadingAmcProject ? (
+
+
+
+              <div className="flex items-center justify-center py-8">
+
+
+
+                <Loader2 size={24} className="animate-spin text-[var(--primary)]" />
+
+
+
+                <span className="ml-2 text-sm text-[var(--text-muted)]">Loading project...</span>
+
+
+
+              </div>
+
+
+
+            ) : amcProjectData ? (
+
+
+
+              <div className="space-y-4">
+
+
+
+                {/* Project Info Grid - Same as ProjectPage View Details */}
+
+
+
+                <div className="grid grid-cols-2 gap-3 text-xs">
+
+
+
+                  {[['Customer', amcProjectData.customerName], ['Email', amcProjectData.email || '—'], ['Mobile', amcProjectData.mobileNumber || '—'], ['Site', amcProjectData.site], ['System Size', `${amcProjectData.systemSize} kW`], ['Project Manager', amcProjectData.pm],
+
+
+
+                  ['Status', <StatusBadge domain="project" value={amcProjectData.status} />], ['Value', `₹${(amcProjectData.value / 100000).toFixed(1)}L`],
+
+
+
+                  ].map(([k, v]) => (
+
+
+
+                    <div key={k} className="glass-card p-2">
+
+
+
+                      <div className="text-[var(--text-muted)] mb-0.5">{k}</div>
+
+
+
+                      <div className="font-semibold text-[var(--text-primary)]">{v}</div>
+
+
+
+                    </div>
+
+
+
+                  ))}
+
+
+
+                </div>
+
+
+
+
+
+
+
+                {/* Progress Bar - Same as ProjectPage */}
+
+
+
+                <div>
+
+
+
+                  <div className="text-xs flex items-center justify-between mb-1">
+
+
+
+                    <span className="font-semibold text-[var(--text-primary)]">Overall Progress</span>
+
+
+
+                    <span className="text-[var(--text-muted)]">{amcProjectData.progress}%</span>
+
+
+
+                  </div>
+
+
+
+                  <Progress value={amcProjectData.progress} className="h-2" />
+
+
+
+                </div>
+
+
+
+
+
+
+
+                {/* Milestone Tracker - Same as ProjectPage View Details */}
+
+
+
+                <div>
+
+
+
+                  <div className="text-xs font-semibold text-[var(--text-primary)] mb-3">Milestone Tracker</div>
+
+
+
+                  <Stepper steps={amcProjectData.milestones?.map(m => ({ name: m.name, status: m.status, date: m.date })) ?? [
+
+
+
+                    { name: 'Material Ready', status: 'Pending', date: null },
+
+
+
+                    { name: 'Installation', status: 'Pending', date: null },
+
+
+
+                    { name: 'Commission', status: 'Pending', date: null },
+
+
+
+                    { name: 'Billing', status: 'Pending', date: null },
+
+
+
+                    { name: 'Closure', status: 'Pending', date: null }
+
+
+
+                  ]} />
+
+
+
+                </div>
+
+
+
+
+
+
+
+                {/* Reserved Materials - Same as ProjectPage */}
+
+
+
+                {amcProjectData.materials && amcProjectData.materials.length > 0 && (
+
+
+
+                  <div>
+
+
+
+                    <div className="text-xs font-semibold text-[var(--text-primary)] mb-3">Reserved Materials</div>
+
+
+
+                    <div className="space-y-2">
+
+
+
+                      {amcProjectData.materials.map((m, idx) => (
+
+
+
+                        <div key={`mat-${idx}`} className="glass-card p-2 flex items-center justify-between">
+
+
+
+                          <div>
+
+
+
+                            <div className="text-xs font-medium text-[var(--text-primary)]">{m.itemName}</div>
+
+
+
+                            <div className="text-[10px] text-[var(--text-muted)]">Qty: {m.quantity} | Issued: {m.issuedDate || '—'}</div>
+
+
+
+                          </div>
+
+
+
+                          {m.remarks && (
+
+
+
+                            <div className="text-[10px] text-[var(--text-faint)] max-w-[150px] truncate" title={m.remarks}>
+
+
+
+                              {m.remarks}
+
+
+
+                            </div>
+
+
+
+                          )}
+
+
+
+                        </div>
+
+
+
+                      ))}
+
+
+
+                    </div>
+
+
+
+                  </div>
+
+
+
+                )}
+
+
+
+              </div>
+
+
+
+            ) : (
+
+
+
+              <div className="text-center py-8">
+
+
+
+                <AlertTriangle size={32} className="mx-auto text-amber-400 mb-2" />
+
+
+
+                <p className="text-sm text-[var(--text-muted)]">No matching project found for this AMC contract.</p>
+
+
+
+                <p className="text-xs text-[var(--text-faint)] mt-1">Customer: {amcProjectView.customer}, Site: {amcProjectView.site}</p>
+
+
+
+              </div>
+
+
+
+            )}
+
+
+
+          </Modal>
+
+
+
+        )
+      }
+
+
+
+
+
+
+
+      {/* Schedule Visit Modal */}
+
+
+
+      {
+        scheduleVisitModal.open && scheduleVisitModal.contract && (
+
+
+
+          <Modal
+
+
+
+            open={scheduleVisitModal.open}
+
+
+
+            onClose={closeScheduleVisitModal}
+
+
+
+            title="Schedule Visit"
+
+
+
+            footer={
+
+
+
+              <div className="flex gap-2 justify-end">
+
+
+
+                <Button variant="ghost" onClick={closeScheduleVisitModal}>Cancel</Button>
+
+
+
+                <Button onClick={handleScheduleVisit} disabled={schedulingVisit}>
+
+
+
+                  {schedulingVisit ? <Loader2 size={13} className="animate-spin" /> : <Clock size={13} />}
+
+
+
+                  {schedulingVisit ? 'Scheduling...' : 'Schedule Visit'}
+
+
+
+                </Button>
+
+
+
+              </div>
+
+
+
+            }
+
+
+
+          >
+
+
+
+            <div className="space-y-4">
+
+
+
+              {/* Auto-filled Read-only Fields */}
+
+
+
+              <div className="grid grid-cols-2 gap-3 text-xs">
+
+
+
+                <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
+
+
+
+                  <div className="text-[var(--text-muted)] mb-0.5">Contract ID</div>
+
+
+
+                  <div className="font-semibold text-[var(--text-primary)]">{scheduleVisitModal.contract.id}</div>
+
+
+
+                </div>
+
+
+
+                <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
+
+
+
+                  <div className="text-[var(--text-muted)] mb-0.5">Email ID</div>
+
+
+
+                  <div className="font-semibold text-[var(--text-primary)]">
+
+
+
+                    {loadingScheduleVisitProject ? (
+
+
+
+                      <span className="text-[var(--text-muted)]">Loading...</span>
+
+
+
+                    ) : (
+
+
+
+                      scheduleVisitProjectData?.email || '—'
+
+
+
+                    )}
+
+
+
+                  </div>
+
+
+
+                </div>
+
+
+
+                <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
+
+
+
+                  <div className="text-[var(--text-muted)] mb-0.5">Mobile Number</div>
+
+
+
+                  <div className="font-semibold text-[var(--text-primary)]">
+
+
+
+                    {loadingScheduleVisitProject ? (
+
+
+
+                      <span className="text-[var(--text-muted)]">Loading...</span>
+
+
+
+                    ) : (
+
+
+
+                      scheduleVisitProjectData?.mobileNumber || '—'
+
+
+
+                    )}
+
+
+
+                  </div>
+
+
+
+                </div>
+
+
+
+                <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
+
+
+
+                  <div className="text-[var(--text-muted)] mb-0.5">Site</div>
+
+
+
+                  <div className="font-semibold text-[var(--text-primary)]">{scheduleVisitModal.contract.site}</div>
+
+
+
+                </div>
+
+
+
+                <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
+
+
+
+                  <div className="text-[var(--text-muted)] mb-0.5">Customer Name</div>
+
+
+
+                  <div className="font-semibold text-[var(--text-primary)]">{scheduleVisitModal.contract.customer}</div>
+
+
+
+                </div>
+
+
+
+                <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
+
+
+
+                  <div className="text-[var(--text-muted)] mb-0.5">Size (kW)</div>
+
+
+
+                  <div className="font-semibold text-[var(--text-primary)]">{scheduleVisitModal.contract.systemSize} kW</div>
+
+
+
+                </div>
+
+
+
+              </div>
+
+
+
+
+
+
+
+              {/* Input Fields */}
+
+
+
+              <div className="space-y-3">
+
+
+
+                <FormField label="Visit Type">
+
+
+
+                  <Select
+
+
+
+                    value={visitForm.visitType}
+
+
+
+                    onChange={e => setVisitForm(prev => ({ ...prev, visitType: e.target.value }))}
+
+
+
+                  >
+
+
+
+                    <option value="Routine Maintenance">Routine Maintenance</option>
+
+
+
+                    <option value="Breakdown">Breakdown</option>
+
+
+
+                    <option value="Emergency">Emergency</option>
+
+
+
+                    <option value="Follow-up">Follow-up</option>
+
+
+
+                  </Select>
+
+
+
+                </FormField>
+
+
+
+
+
+
+
+                <div className="grid grid-cols-2 gap-3">
+
+
+
+                  <FormField label="Scheduled Date *">
+
+
+
+                    <Input
+
+
+
+                      type="date"
+
+
+
+                      value={visitForm.scheduledDate}
+
+
+
+                      onChange={e => setVisitForm(prev => ({ ...prev, scheduledDate: e.target.value }))}
+
+
+
+                      className="h-8 text-xs"
+
+
+
+                    />
+
+
+
+                  </FormField>
+
+
+
+                  <FormField label="Scheduled Time *">
+
+
+
+                    <Input
+
+
+
+                      type="time"
+
+
+
+                      value={visitForm.scheduledTime}
+
+
+
+                      onChange={e => setVisitForm(prev => ({ ...prev, scheduledTime: e.target.value }))}
+
+
+
+                      className="h-8 text-xs"
+
+
+
+                    />
+
+
+
+                  </FormField>
+
+
+
+                </div>
+
+
+
+
+
+
+
+                <FormField label="Engineer Assign *">
+
+
+
+                  <Select
+
+
+
+                    value={visitForm.engineerId}
+
+
+
+                    onChange={e => setVisitForm(prev => ({ ...prev, engineerId: e.target.value }))}
+
+
+
+                  >
+
+
+
+                    <option value="">Select Engineer</option>
+
+
+
+                    {engineers.map(engineer => (
+
+
+
+                      <option key={engineer.id} value={engineer.id}>
+
+
+
+                        {engineer.name} {engineer.email ? `(${engineer.email})` : ''}
+
+
+
+                      </option>
+
+
+
+                    ))}
+
+
+
+                  </Select>
+
+
+
+                  {engineers.length === 0 && (
+
+
+
+                    <p className="text-xs text-[var(--text-muted)] mt-1">Loading engineers...</p>
+
+
+
+                  )}
+
+
+
+                </FormField>
+
+
+
+
+
+
+
+                <FormField label="Priority">
+
+
+
+                  <Select
+
+
+
+                    value={visitForm.priority}
+
+
+
+                    onChange={e => setVisitForm(prev => ({ ...prev, priority: e.target.value }))}
+
+
+
+                  >
+
+
+
+                    <option value="Low">Low</option>
+
+
+
+                    <option value="Medium">Medium</option>
+
+
+
+                    <option value="High">High</option>
+
+
+
+                  </Select>
+
+
+
+                </FormField>
+
+
+
+
+
+
+
+                <FormField label="Notes (Optional)">
+
+
+
+                  <Textarea
+
+
+
+                    placeholder="Add any additional notes or instructions..."
+
+
+
+                    rows={3}
+
+
+
+                    value={visitForm.notes}
+
+
+
+                    onChange={e => setVisitForm(prev => ({ ...prev, notes: e.target.value }))}
+
+
+
+                  />
+
+
+
+                </FormField>
+
+
+
+              </div>
+
+
+
+            </div>
+
+
+
+          </Modal>
+
+
+
+        )
+      }
 
 
 
@@ -7968,27 +7948,32 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-      {toast.show && (
+      {
+        toast.show && (
 
 
 
-        <div className={`fixed bottom-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg transition-all duration-300 ${toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+          <div className={`fixed bottom-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg transition-all duration-300 ${toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
 
 
 
-          }`}>
+            }`}>
 
 
 
-          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
 
 
 
-            {toast.type === 'success' ? <CheckCircle size={16} /> : <AlertTriangle size={16} />}
+              {toast.type === 'success' ? <CheckCircle size={16} /> : <AlertTriangle size={16} />}
 
 
 
-            <span className="text-sm font-medium">{toast.message}</span>
+              <span className="text-sm font-medium">{toast.message}</span>
+
+
+
+            </div>
 
 
 
@@ -7996,15 +7981,12 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-        </div>
+        )
+      }
 
 
 
-      )}
-
-
-
-    </div>
+    </div >
 
 
 

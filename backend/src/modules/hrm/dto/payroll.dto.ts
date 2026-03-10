@@ -9,29 +9,35 @@ export class GeneratePayrollDto {
   @IsNumber()
   @Min(1)
   @Max(12)
+  @Type(() => Number)
   month!: number;
 
   @IsNumber()
   @Min(2000)
+  @Type(() => Number)
   year!: number;
 
   @IsNumber()
   @Min(0)
+  @Type(() => Number)
   baseSalary!: number;
 
   @IsNumber()
   @Min(0)
   @IsOptional()
+  @Type(() => Number)
   allowances?: number;
 
   @IsNumber()
   @Min(0)
   @IsOptional()
+  @Type(() => Number)
   deductions?: number;
 
   @IsNumber()
   @Min(0)
   @IsOptional()
+  @Type(() => Number)
   bonus?: number;
 }
 

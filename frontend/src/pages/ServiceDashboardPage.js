@@ -284,12 +284,14 @@ const ServiceDashboardPage = ({ onNavigate }) => {
     { key: 'type', header: 'Type', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
     { key: 'status', header: 'Status', render: v => <TicketStatusBadge value={v} /> },
     { key: 'priority', header: 'Priority', render: v => <PriorityBadge value={v} /> },
-    { key: 'assignedTo', header: 'Assigned', render: v => (
-      <div className="flex items-center gap-1.5">
-        <Avatar name={v} size="xs" />
-        <span className="text-xs text-[var(--text-muted)]">{v || 'Unassigned'}</span>
-      </div>
-    )},
+    {
+      key: 'assignedTo', header: 'Assigned', render: v => (
+        <div className="flex items-center gap-1.5">
+          <Avatar name={v} size="xs" />
+          <span className="text-xs text-[var(--text-muted)]">{v || 'Unassigned'}</span>
+        </div>
+      )
+    },
   ];
 
   return (
@@ -316,90 +318,66 @@ const ServiceDashboardPage = ({ onNavigate }) => {
       {/* Overview Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KPICard
-          label={<span className="text-sm font-semibold text-[var(--text-primary)]">Total Tickets</span>}
+          label="Total Tickets"
           value={dynamicTicketStats.total}
           icon={Headphones}
           sub={`${dynamicTicketStats.openTickets} open now`}
-          accentColor="#3b82f6"
-          className="bg-[rgba(59,130,246,0.20)]"
-          iconBgColor="bg-blue-100"
-          iconColor="text-blue-500"
+          variant="blue"
         />
         <KPICard
-          label={<span className="text-sm font-semibold text-[var(--text-primary)]">Open Tickets</span>}
+          label="Open Tickets"
           value={dynamicTicketStats.openTickets}
           icon={AlertTriangle}
           trend="Need attention"
           trendUp={false}
-          accentColor="#f97316"
-          className="bg-[rgba(249,115,22,0.20)]"
-          iconBgColor="bg-orange-100"
-          iconColor="text-orange-500"
+          variant="amber"
         />
         <KPICard
-          label={<span className="text-sm font-semibold text-[var(--text-primary)]">Scheduled</span>}
+          label="Scheduled"
           value={dynamicVisitStats.scheduled}
           icon={Calendar}
           sub={`${dynamicVisitStats.total} total visits`}
-          accentColor="#8b5cf6"
-          className="bg-[rgba(139,92,246,0.20)]"
-          iconBgColor="bg-purple-100"
-          iconColor="text-purple-500"
+          variant="purple"
         />
         <KPICard
-          label={<span className="text-sm font-semibold text-[var(--text-primary)]">In Progress</span>}
+          label="In Progress"
           value={dynamicTicketStats.inProgress}
           icon={Clock}
           sub="Being handled"
-          accentColor="#eab308"
-          className="bg-[rgba(234,179,8,0.20)]"
-          iconBgColor="bg-yellow-100"
-          iconColor="text-yellow-500"
+          variant="indigo"
         />
       </div>
 
       {/* Second Row Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KPICard
-          label={<span className="text-sm font-semibold text-[var(--text-primary)]">Resolved</span>}
+          label="Resolved"
           value={dynamicTicketStats.resolved}
           icon={CheckCircle}
           trend="This month"
           trendUp={true}
-          accentColor="#22c55e"
-          className="bg-[rgba(34,197,94,0.20)]"
-          iconBgColor="bg-green-100"
-          iconColor="text-green-500"
+          variant="emerald"
         />
         <KPICard
-          label={<span className="text-sm font-semibold text-[var(--text-primary)]">Closed</span>}
+          label="Closed"
           value={dynamicTicketStats.closed}
           icon={XCircle}
           sub="Completed"
-          accentColor="#64748b"
-          className="bg-[rgba(100,116,139,0.20)]"
-          iconBgColor="bg-slate-100"
-          iconColor="text-slate-500"
+          variant="indigo"
         />
         <KPICard
-          label={<span className="text-sm font-semibold text-[var(--text-primary)]">AMC Contracts</span>}
+          label="AMC Contracts"
           value={dynamicAmcStats.active}
           icon={Shield}
           sub={`${dynamicAmcStats.total} total contracts`}
-          accentColor="#a855f7"
-          className="bg-[rgba(168,85,247,0.20)]"
-          iconBgColor="bg-violet-100"
-          iconColor="text-violet-500"
+          variant="purple"
         />
         <KPICard
-          label={<span className="text-sm font-semibold text-[var(--text-primary)]">Total Visits</span>}
+          label="Total Visits"
           value={dynamicVisitStats.total}
           icon={Activity}
           sub={`${dynamicVisitStats.scheduled} scheduled`}
-          accentColor="#06b6d4"
-          className="bg-[rgba(6,182,212,0.20)]"
-          iconBgColor="bg-cyan-100"
-          iconColor="text-cyan-500"
+          variant="blue"
         />
       </div>
 

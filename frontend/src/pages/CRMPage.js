@@ -30,6 +30,7 @@ import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input, Select, Textarea, FormField } from '../components/ui/Input';
 import { PageHeader } from '../components/ui/PageHeader';
+import { KPICard } from '../components/ui/KPICard';
 import DataTable from '../components/ui/DataTable';
 import { format, subMonths } from 'date-fns';
 import FilterSystem from '../components/ui/FilterSystem';
@@ -46,7 +47,7 @@ import LeadAnalyticsDashboard from '../components/dashboard/LeadAnalyticsDashboa
 // UserSelect component for lead assignment
 const UserSelect = ({ value, onChange, placeholder }) => {
   const { users } = useAuth();
-  
+
   return (
     <Select value={value} onChange={(e) => onChange(e.target.value)}>
       <option value="">{placeholder || 'Select user...'}</option>
@@ -96,32 +97,31 @@ const EmptyState = ({ onAddLead }) => (
   </div>
 );
 
-const DashboardKPI = ({ title, value, change, icon: Icon, color, subtitle, trend }) => (
-  <div className="glass-card p-4 flex items-center gap-3 hover:scale-[1.02] transition-transform cursor-pointer">
-    <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${color}20, ${color}10)` }}>
-      <Icon size={20} style={{ color }} />
-    </div>
-    <div className="flex-1">
-      <p className="text-[11px] text-[var(--text-muted)] font-medium uppercase tracking-wider">{title}</p>
-      <p className="text-xl font-black text-[var(--text-primary)]">{value}</p>
-      {subtitle && <p className="text-[9px] text-[var(--text-muted)]">{subtitle}</p>}
-      <div className="flex items-center gap-1 mt-1">
-        {change !== undefined && (
-          <p className={`text-[10px] font-bold ${change >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-            {change >= 0 ? '↑' : '↓'} {Math.abs(change)}%
-          </p>
-        )}
-        {trend && (
-          <div className="flex items-center gap-0.5">
-            {trend === 'up' && <TrendingUp size={10} className="text-emerald-500" />}
-            {trend === 'down' && <TrendingDown size={10} className="text-red-500" />}
-            {trend === 'stable' && <ArrowRight size={10} className="text-amber-500" />}
-          </div>
-        )}
-      </div>
-    </div>
-  </div>
-);
+// ── Standardized KPI Card using KPICard component ─────────────────────────────
+const DashboardKPI = ({ title, value, change, icon: Icon, color, subtitle, trend }) => {
+  // Map color hex to variant names
+  const colorMap = {
+    '#22c55e': 'emerald',
+    '#3b82f6': 'blue',
+    '#f59e0b': 'amber',
+    '#ef4444': 'red',
+    '#8b5cf6': 'purple',
+    '#06b6d4': 'indigo'
+  };
+  const variant = colorMap[color] || 'blue';
+
+  return (
+    <KPICard
+      label={title}
+      value={value}
+      sub={subtitle}
+      icon={Icon}
+      variant={variant}
+      trend={change !== undefined ? `${Math.abs(change)}%` : undefined}
+      trendUp={change >= 0}
+    />
+  );
+};
 
 const ScoreDistributionChart = ({ buckets }) => {
   const data = (buckets || []).map(b => ({ score: b.bucket, count: b.count }));
@@ -559,7 +559,7 @@ const StagePill = ({ stageId, stageMap }) => {
 };
 
 const SourceBadge = ({ source }) => (
-  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[var(--bg-elevated)] text-[var(--text-muted)] border border-[var(--border-subtle)]">{source}</span>
+  <span className="px-1.5 py-0.5 rounded-md text-[11px] font-normal bg-[#F3F4F6] text-[#374151]">{source}</span>
 );
 
 const ScoreBadge = ({ score }) => (
@@ -859,13 +859,13 @@ const CRMPage = () => {
 
   const [activeFilters, setActiveFilters] = useState([]);
   const [quickFilter, setQuickFilter] = useState(null);
-  
+
   // Advanced filter states - arrays for multiple values
   const [filterStages, setFilterStages] = useState([]); // multiple stages
   const [filterScoreRanges, setFilterScoreRanges] = useState([]); // multiple score ranges
   const [filterValueRanges, setFilterValueRanges] = useState([]); // multiple value ranges
   const [filterSources, setFilterSources] = useState([]); // multiple sources
-  
+
   // Temp states for adding new values
   const [tempStage, setTempStage] = useState('');
   const [tempScoreMin, setTempScoreMin] = useState('');
@@ -873,9 +873,9 @@ const CRMPage = () => {
   const [tempValueMin, setTempValueMin] = useState('');
   const [tempValueMax, setTempValueMax] = useState('');
   const [tempSource, setTempSource] = useState('');
-  
+
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  
+
   const [visibleColumns, setVisibleColumns] = useState({
     name: true,
     email: true,
@@ -1004,14 +1004,14 @@ const CRMPage = () => {
         limit: pageSize,
         search,
       };
-      
+
       // Add date range filter
       const { startDate, endDate } = getDateRangeFromPreset(dateRangeFilter.type);
       if (startDate && endDate) {
         params.startDate = startDate.toISOString();
         params.endDate = endDate.toISOString();
       }
-      
+
       // Only add sort params if sort key is valid
       if (sort.key) {
         params.sortBy = sort.key;
@@ -1060,12 +1060,12 @@ const CRMPage = () => {
     if (!editingLead) return;
     try {
       setActionLoading(true);
-      
+
       // Handle lead assignment if changed
       if (editingLead.assignedTo && editingLead.assignedTo !== selectedLead?.assignedTo) {
         await leadsApi.assignLead(editingLead._id, editingLead.assignedTo);
       }
-      
+
       // Only send allowed fields to API
       const updateData = {
         name: editingLead.name,
@@ -1153,7 +1153,7 @@ const CRMPage = () => {
       setActionLoading(true);
       const scoreValue = parseInt(newScore) || 0;
       // Include all required fields for MongoDB validation
-      const response = await leadsApi.update(scoreEditingLead._id, { 
+      const response = await leadsApi.update(scoreEditingLead._id, {
         score: scoreValue,
         name: scoreEditingLead.name,
         leadId: scoreEditingLead.leadId,
@@ -1182,10 +1182,10 @@ const CRMPage = () => {
     if (!window.confirm(`Flip lead "${lead.name}" to Site Survey Scheduled? This will create a pending survey.`)) return;
     try {
       setActionLoading(true);
-      
+
       // Update lead stage to 'survey'
       await leadsApi.update(lead._id || lead.id, { stage: 'survey' });
-      
+
       // Create a pending survey for this lead
       const surveyData = {
         customerName: lead.name,
@@ -1197,9 +1197,9 @@ const CRMPage = () => {
         sourceLeadId: lead._id || lead.id,
         notes: `Flipped from CRM. Source: ${lead.source}, City: ${lead.city}, Phone: ${lead.phone}`
       };
-      
+
       await surveysApi.create(surveyData);
-      
+
       logUpdate({ ...lead, stage: 'survey' });
       fetchLeads(); // Refresh list
       toast.success(`Lead "${lead.name}" flipped to Site Survey Scheduled`);
@@ -1570,8 +1570,8 @@ const CRMPage = () => {
 
     // Multiple Source filters (OR logic)
     if (filterSources.length > 0) {
-      result = result.filter(lead => 
-        filterSources.some(source => 
+      result = result.filter(lead =>
+        filterSources.some(source =>
           lead.source?.toLowerCase() === source.toLowerCase()
         )
       );
@@ -1745,21 +1745,21 @@ const CRMPage = () => {
   const handleImport = async ({ file, mapping }) => {
     try {
       setActionLoading(true);
-      
+
       // Parse CSV file
       const Papa = await import('papaparse');
       const text = await file.text();
-      
+
       const { data } = Papa.parse(text, {
         header: true,
         skipEmptyLines: true,
         dynamicTyping: true
       });
-      
+
       let successCount = 0;
       let errorCount = 0;
       const errors = [];
-      
+
       // Process each row
       for (let i = 0; i < data.length; i++) {
         const row = data[i];
@@ -1768,7 +1768,7 @@ const CRMPage = () => {
           const firstName = row[mapping.firstName] || row.firstName || row.firstname || row['First Name'] || row.first_name || '';
           const lastName = row[mapping.lastName] || row.lastName || row.lastname || row['Last Name'] || row.last_name || '';
           const fullName = `${firstName} ${lastName}`.trim();
-          
+
           // Map CSV columns to lead fields based on mapping
           const leadData = {
             name: fullName || row.name || row.Name || row.NAME || '',
@@ -1780,14 +1780,14 @@ const CRMPage = () => {
             statusKey: 'new',
             value: parseInt(row[mapping.value] || row.value || row.Value || row.VALUE || 0),
           };
-          
+
           // Skip if name is missing
           if (!leadData.name) {
             errorCount++;
             errors.push(`Row ${i + 1}: Missing name`);
             continue;
           }
-          
+
           // Create lead via API
           await leadsApi.create(leadData);
           successCount++;
@@ -1796,10 +1796,10 @@ const CRMPage = () => {
           errors.push(`Row ${i + 1}: ${err.message}`);
         }
       }
-      
+
       // Log import activity
       logCreate({ id: 'import', name: `Imported ${successCount} leads from ${file.name}` });
-      
+
       // Show result
       if (errorCount === 0) {
         // Success - no alert
@@ -1807,7 +1807,7 @@ const CRMPage = () => {
         // Errors occurred but don't show alert
         console.log(`Import completed: ${successCount} leads created, ${errorCount} errors.`);
       }
-      
+
       fetchLeads(); // Refresh list
     } catch (err) {
       console.error('Import failed:', err);
@@ -1869,18 +1869,16 @@ const CRMPage = () => {
             { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
             { id: 'leads', label: 'Leads', icon: List },
             { id: 'kanban', label: 'Kanban', icon: LayoutDashboard },
-            { id: 'reports', label: 'Reports', icon: BarChart2 }
           ]}
           activeTab={view}
           onTabChange={setView}
         />
-        
+
         {/* Data Visibility Indicator */}
-        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[11px] font-medium ${
-          userDataScope === 'ALL' 
-            ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' 
-            : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
-        }`}>
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[11px] font-medium ${userDataScope === 'ALL'
+          ? 'bg-blue-500/10 border-blue-500/30 text-blue-400'
+          : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+          }`}>
           <Eye size={12} />
           <span>
             {userDataScope === 'ALL' ? 'Showing: All Leads' : 'Showing: Assigned Leads Only'}
@@ -1889,7 +1887,7 @@ const CRMPage = () => {
       </div>
 
       {/* ── Date Filters ── */}
-      {(view === 'dashboard' || view === 'reports') && (
+      {view === 'dashboard' && (
         <div className="glass-card p-3">
           <div className="flex flex-wrap gap-3 items-center">
             <div className="flex items-center gap-2">
@@ -1971,121 +1969,10 @@ const CRMPage = () => {
         <LeadAnalyticsDashboard />
       )}
 
-      {/* ── Comprehensive Reports View ── */}
-      {view === 'reports' && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-bold text-[var(--text-primary)]">CRM Analytics & Reports</h3>
-              <p className="text-xs text-[var(--text-muted)]">Comprehensive insights and performance metrics</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button className="px-3 py-1 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] text-[10px] font-medium text-[var(--text-muted)] hover:bg-[var(--bg-hovered)] transition-colors">
-                <Download size={10} className="inline mr-1" /> Export PDF
-              </button>
-              <button className="px-3 py-1 rounded-lg bg-[var(--primary)] text-white text-[10px] font-medium hover:opacity-90 transition-opacity">
-                <CalendarDays size={10} className="inline mr-1" /> Schedule Report
-              </button>
-            </div>
-          </div>
-
-          {/* Performance Overview */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <PerformanceReport />
-            <LeadTrendReport />
-          </div>
-
-          {/* Detailed Analytics */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <SourcePerformanceReport />
-            <SalesTeamReport />
-          </div>
-
-          {/* Additional Metrics */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="glass-card p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Target size={16} className="text-emerald-500" />
-                <h3 className="text-sm font-bold text-[var(--text-primary)]">Conversion Funnel</h3>
-              </div>
-              <div className="space-y-3">
-                {[
-                  { stage: 'Lead → Qualified', rate: 62, trend: 'up' },
-                  { stage: 'Qualified → Proposal', rate: 59, trend: 'stable' },
-                  { stage: 'Proposal → Negotiation', rate: 58, trend: 'down' },
-                  { stage: 'Negotiation → Closed', rate: 61, trend: 'up' }
-                ].map((item) => (
-                  <div key={item.stage} className="flex items-center justify-between">
-                    <span className="text-xs text-[var(--text-muted)]">{item.stage}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-[var(--text-primary)]">{item.rate}%</span>
-                      {item.trend === 'up' && <TrendingUp size={10} className="text-emerald-500" />}
-                      {item.trend === 'down' && <TrendingDown size={10} className="text-red-500" />}
-                      {item.trend === 'stable' && <ArrowRight size={10} className="text-amber-500" />}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="glass-card p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Clock size={16} className="text-amber-500" />
-                <h3 className="text-sm font-bold text-[var(--text-primary)]">Response Times</h3>
-              </div>
-              <div className="space-y-3">
-                {[
-                  { metric: 'First Response', current: '2.3 hrs', target: '1 hr', status: 'warning' },
-                  { metric: 'Quote Delivery', current: '18 hrs', target: '24 hrs', status: 'good' },
-                  { metric: 'Follow-up', current: '4.2 days', target: '3 days', status: 'warning' },
-                  { metric: 'Closing Time', current: '45 days', target: '35 days', status: 'critical' }
-                ].map((item) => (
-                  <div key={item.metric} className="flex items-center justify-between">
-                    <span className="text-xs text-[var(--text-muted)]">{item.metric}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-[var(--text-primary)]">{item.current}</span>
-                      <span className={`text-[9px] px-2 py-0.5 rounded-full ${item.status === 'good' ? 'bg-emerald-500/10 text-emerald-500' :
-                        item.status === 'warning' ? 'bg-amber-500/10 text-amber-500' :
-                          'bg-red-500/10 text-red-500'
-                        }`}>
-                        {item.status}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="glass-card p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Award size={16} className="text-purple-500" />
-                <h3 className="text-sm font-bold text-[var(--text-primary)]">Top Achievements</h3>
-              </div>
-              <div className="space-y-3">
-                {[
-                  { achievement: 'Highest Deal Size', value: fmt(2400000), person: 'Rahul Sharma' },
-                  { achievement: 'Best Conversion', value: '32.1%', person: 'Priya Patel' },
-                  { achievement: 'Most Leads', value: '45', person: 'Rahul Sharma' },
-                  { achievement: 'Fast Response', value: '1.2 hrs', person: 'Sneha Reddy' }
-                ].map((item) => (
-                  <div key={item.achievement} className="p-2 rounded-lg bg-[var(--bg-elevated)]">
-                    <p className="text-xs font-medium text-[var(--text-primary)]">{item.achievement}</p>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="text-xs font-bold text-[var(--accent)]">{item.value}</span>
-                      <span className="text-[9px] text-[var(--text-muted)]">{item.person}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ── Kanban Board View ── */}
       {view === 'kanban' && (
         <div className="space-y-4">
-          {(() => { console.log('[KANBAN DEBUG] statusOptions:', statusOptions); console.log('[KANBAN DEBUG] enhancedLeads first 3:', enhancedLeads.slice(0, 3).map(l => ({name: l.name, statusKey: l.statusKey, status: l.status}))); return null; })()}
+          {(() => { console.log('[KANBAN DEBUG] statusOptions:', statusOptions); console.log('[KANBAN DEBUG] enhancedLeads first 3:', enhancedLeads.slice(0, 3).map(l => ({ name: l.name, statusKey: l.statusKey, status: l.status }))); return null; })()}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <h3 className="text-lg font-bold text-[var(--text-primary)]">Pipeline Kanban Board</h3>
@@ -2102,7 +1989,7 @@ const CRMPage = () => {
           </div>
 
           <div className="overflow-x-auto pb-3">
-            <div className="flex gap-3 min-w-max">
+            <div className="flex gap-4 min-w-max">
               {(statusOptions || []).map((stage) => {
                 // Filter leads that match this stage's key - handle both statusKey and status fields
                 // Use case-insensitive comparison to handle status value mismatches
@@ -2115,7 +2002,7 @@ const CRMPage = () => {
 
                 return (
                   <div key={stage.key}
-                    className={`flex flex-col w-64 rounded-xl border transition-colors`}
+                    className={`flex flex-col w-64 rounded-[14px] border border-[#F1F5F9] bg-[#F8FAFC] p-2.5 transition-colors`}
                     onDragOver={e => { e.preventDefault(); }}
                     onDragEnter={() => {
                       if (!dragRef.current) return;
@@ -2171,21 +2058,20 @@ const CRMPage = () => {
                         });
                     }}
                   >
-                    <div className="p-2.5 border-b border-[var(--border-base)]">
-                      <div className="flex items-center justify-between mb-0.5">
+                    <div className="pb-2.5 mb-2 border-b border-[#F1F5F9]">
+                      <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2">
                           <div className="w-2.5 h-2.5 rounded-full" style={{ background: stage.color }} />
-                          <span className="text-xs font-semibold text-[var(--text-primary)]">{stage.label}</span>
+                          <span className="text-[13px] font-semibold text-[#374151]">{stage.label}</span>
                         </div>
-                        <span className="min-w-[20px] h-5 rounded-full text-[10px] font-bold flex items-center justify-center"
-                          style={{ background: `${stage.color}20`, color: stage.color }}>{stageLeads.length}</span>
+                        <span className="rounded-full bg-[#F3F4F6] text-[11px] px-2 py-0.5 text-[#374151] font-medium">{stageLeads.length}</span>
                       </div>
-                      <div className="flex items-center gap-2 text-[9px] text-[var(--text-muted)] pl-4">
+                      <div className="flex items-center gap-2 text-[11px] text-[#9CA3AF] pl-4">
                         <span>{stageLeads.length} leads</span><span>·</span><span>{fmt(totalValue)}</span>
                       </div>
                     </div>
                     <div
-                      className="flex flex-col gap-2 p-2 flex-1 min-h-[120px]"
+                      className="flex flex-col gap-2.5 flex-1 min-h-[120px]"
                       onDragOver={(e) => {
                         e.preventDefault();
                         if (!dragRef.current) return;
@@ -2214,6 +2100,7 @@ const CRMPage = () => {
                           draggable
                           onDragStart={(e) => {
                             const leadId = getLeadId(lead);
+                            e.currentTarget.classList.add('opacity-95', 'scale-[1.02]');
                             dragRef.current = {
                               leadId,
                               sourceStageKey: stage.key,
@@ -2223,6 +2110,9 @@ const CRMPage = () => {
                               originalActiveLeads: activeLeads,
                             };
                             e.dataTransfer.setData('leadId', leadId);
+                          }}
+                          onDragEnd={(e) => {
+                            e.currentTarget.classList.remove('opacity-95', 'scale-[1.02]');
                           }}
                           onDragEnter={() => {
                             if (!dragRef.current) return;
@@ -2238,18 +2128,18 @@ const CRMPage = () => {
                             dragRef.current.destStageKey = stage.key;
                             dragRef.current.destIndex = insertAfter ? (idx + 1) : idx;
                           }}
-                          className="glass-card p-3 cursor-grab active:cursor-grabbing hover:border-[var(--primary)]/40 transition-all"
+                          className="rounded-xl bg-white border border-[#E5E7EB] shadow-[0_1px_2px_rgba(0,0,0,0.05)] p-3 cursor-grab active:cursor-grabbing transition-all hover:shadow-[0_6px_12px_rgba(0,0,0,0.08)] hover:border-[#D1D5DB]"
                           onClick={() => { setTrackerLeadId(lead._id || lead.id); setShowTrackerDrawer(true); }}
                         >
                           {/* Lead Header */}
-                          <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-start justify-between mb-1.5">
                             <div className="flex items-center gap-2">
-                              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 text-white flex items-center justify-center font-bold text-[10px]">
+                              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 text-white flex items-center justify-center font-semibold text-[12px]">
                                 {lead.name[0]}
                               </div>
                               <div>
-                                <p className="text-xs font-bold text-[var(--text-primary)]">{lead.name}</p>
-                                <p className="text-[9px] text-[var(--text-muted)]">{lead.company || 'Individual'}</p>
+                                <p className="text-[14px] font-semibold text-[#111827]">{lead.name}</p>
+                                <p className="text-[12px] font-normal text-[#6B7280]">{lead.company || 'Individual'}</p>
                               </div>
                             </div>
                             <div className="flex flex-col items-end gap-1">
@@ -2263,26 +2153,23 @@ const CRMPage = () => {
                           </div>
 
                           {/* Lead Details */}
-                          <div className="space-y-2">
+                          <div className="space-y-1.5">
                             <div className="flex items-center justify-between">
-                              <span className="text-xs font-bold text-[var(--accent)]">{fmt(lead.value || 0)}</span>
+                              <span className="text-[13px] font-semibold text-[#F97316]">{fmt(lead.value || 0)}</span>
                               <div className="flex items-center gap-1">
                                 <Brain size={8} className="text-[var(--text-muted)]" />
-                                <span className={`text-[9px] font-black ${lead.score >= 75 ? 'text-red-500' :
-                                  lead.score >= 50 ? 'text-amber-500' :
-                                    'text-emerald-500'
-                                  }`}>{lead.score || 0}pts</span>
+                                <span className="text-[12px] font-medium text-[#10B981]">{lead.score || 0}pts</span>
                               </div>
                             </div>
 
                             <div className="flex items-center gap-1">
                               <SourceBadge source={lead.source} />
-                              <span className="text-[9px] text-[var(--text-muted)]">•</span>
-                              <span className="text-[9px] text-[var(--text-muted)]">{lead.kw || lead.systemSize || '0'}kW</span>
+                              <span className="text-[11px] text-[#9CA3AF]">•</span>
+                              <span className="text-[11px] text-[#9CA3AF]">{lead.kw || lead.systemSize || '0'}kW</span>
                             </div>
 
                             {lead.activities && lead.activities.length > 0 && (
-                              <div className="flex items-center gap-1 text-[9px] text-[var(--text-muted)]">
+                              <div className="flex items-center gap-1 text-[11px] text-[#9CA3AF]">
                                 <Clock size={8} />
                                 <span>Last: {lead.activities[lead.activities.length - 1].ts}</span>
                               </div>
@@ -2324,15 +2211,15 @@ const CRMPage = () => {
           {/* Action Buttons & Filter Toggle */}
           <div className="flex items-center justify-between gap-2 mb-4">
             <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
                 className={showAdvancedFilters ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : ''}
               >
-                <Filter size={14} className="mr-1" /> 
+                <Filter size={14} className="mr-1" />
                 {showAdvancedFilters ? 'Hide Filters' : 'Advanced Filters'}
               </Button>
-              
+
               {/* Date Range Picker */}
               <div className="relative" ref={dateRangeRef}>
                 <Button
@@ -2344,7 +2231,7 @@ const CRMPage = () => {
                   {getDateRangeLabel()}
                   <ChevronDown size={12} className="ml-1" />
                 </Button>
-                
+
                 {showDateRangeDropdown && (
                   <div className="absolute left-0 top-full mt-2 w-56 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] shadow-lg z-50">
                     <div className="p-2">
@@ -2364,17 +2251,16 @@ const CRMPage = () => {
                               setPage(1); // Reset pagination
                             }
                           }}
-                          className={`w-full text-left px-3 py-2 rounded text-xs flex items-center justify-between hover:bg-[var(--bg-hovered)] ${
-                            dateRangeFilter.type === option.id 
-                              ? 'text-[var(--primary)] font-bold bg-[var(--primary)]/10' 
-                              : 'text-[var(--text-secondary)]'
-                          }`}
+                          className={`w-full text-left px-3 py-2 rounded text-xs flex items-center justify-between hover:bg-[var(--bg-hovered)] ${dateRangeFilter.type === option.id
+                            ? 'text-[var(--primary)] font-bold bg-[var(--primary)]/10'
+                            : 'text-[var(--text-secondary)]'
+                            }`}
                         >
                           {option.label}
                           {dateRangeFilter.type === option.id && <CheckCircle2 size={12} />}
                         </button>
                       ))}
-                      
+
                       {/* Custom Range Inputs */}
                       {dateRangeFilter.type === 'custom' && (
                         <div className="mt-2 pt-2 border-t border-[var(--border-base)] px-2">
@@ -2418,7 +2304,7 @@ const CRMPage = () => {
                   </div>
                 )}
               </div>
-              
+
               {/* Reset Filter Button */}
               {dateRangeFilter.type !== 'last7days' && (
                 <button
@@ -2428,7 +2314,7 @@ const CRMPage = () => {
                   <RefreshCw size={12} /> Reset
                 </button>
               )}
-              
+
               {(filterStages.length > 0 || filterScoreRanges.length > 0 || filterValueRanges.length > 0 || filterSources.length > 0) && (
                 <button
                   onClick={clearAllFilters}
@@ -2451,7 +2337,7 @@ const CRMPage = () => {
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs text-blue-600">
               <Info size={14} />
               <span>
-                Showing leads from the <strong>{getDateRangeLabel()}</strong>. 
+                Showing leads from the <strong>{getDateRangeLabel()}</strong>.
                 Use the date filter to view older leads.
               </span>
             </div>
@@ -2623,51 +2509,51 @@ const CRMPage = () => {
             selectedRows={selected}
             onSelectRows={setSelected}
             bulkActions={[
-              ...(can('crm', 'export') ? [{ label: 'Export', icon: Download, onClick: (selectedIds) => { 
-                if (guardExport()) {
-                  const selectedIdSet = new Set(selectedIds.map(id => String(id)));
-                  const dataToExport = selectedIds.length > 0 
-                    ? sortedLeads.filter(lead => selectedIdSet.has(String(lead._id)))
-                    : sortedLeads;
-                  const headers = ['Name', 'Company', 'Email', 'Phone', 'Stage', 'Source', 'Value', 'Score', 'City'];
-                  const csvContent = [
-                    headers.join(','),
-                    ...dataToExport.map(lead => [
-                      `"${lead.name || ''}"`,
-                      `"${lead.company || ''}"`,
-                      `"${lead.email || ''}"`,
-                      `"${lead.phone || ''}"`,
-                      `"${statusMap?.[lead.statusKey]?.label || lead.statusKey || ''}"`,
-                      `"${lead.source || ''}"`,
-                      lead.value || 0,
-                      lead.score || 0,
-                      `"${lead.city || ''}"`
-                    ].join(','))
-                  ].join('\n');
-                  
-                  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                  const link = document.createElement('a');
-                  const url = URL.createObjectURL(blob);
-                  link.setAttribute('href', url);
-                  link.setAttribute('download', `leads_export_${new Date().toISOString().split('T')[0]}.csv`);
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
-                  alert(`Exported ${dataToExport.length} leads to CSV!`);
+              ...(can('crm', 'export') ? [{
+                label: 'Export', icon: Download, onClick: (selectedIds) => {
+                  if (guardExport()) {
+                    const selectedIdSet = new Set(selectedIds.map(id => String(id)));
+                    const dataToExport = selectedIds.length > 0
+                      ? sortedLeads.filter(lead => selectedIdSet.has(String(lead._id)))
+                      : sortedLeads;
+                    const headers = ['Name', 'Company', 'Email', 'Phone', 'Stage', 'Source', 'Value', 'Score', 'City'];
+                    const csvContent = [
+                      headers.join(','),
+                      ...dataToExport.map(lead => [
+                        `"${lead.name || ''}"`,
+                        `"${lead.company || ''}"`,
+                        `"${lead.email || ''}"`,
+                        `"${lead.phone || ''}"`,
+                        `"${statusMap?.[lead.statusKey]?.label || lead.statusKey || ''}"`,
+                        `"${lead.source || ''}"`,
+                        lead.value || 0,
+                        lead.score || 0,
+                        `"${lead.city || ''}"`
+                      ].join(','))
+                    ].join('\n');
+
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement('a');
+                    const url = URL.createObjectURL(blob);
+                    link.setAttribute('href', url);
+                    link.setAttribute('download', `leads_export_${new Date().toISOString().split('T')[0]}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    alert(`Exported ${dataToExport.length} leads to CSV!`);
+                  }
                 }
-              }}] : []),
+              }] : []),
               ...(can('crm', 'edit') ? [{ label: 'Score Boost', icon: Brain, onClick: (rows) => { if (guardEdit()) console.log('Boosting scores', rows); } }] : []),
               ...(can('crm', 'delete') ? [{ label: 'Delete', icon: Trash2, onClick: (selectedIds) => { if (guardDelete()) handleBulkDelete(selectedIds); }, danger: true }] : []),
             ]}
             rowActions={[
               { label: 'View', icon: Eye, onClick: handleViewLead },
+              { label: 'Lead Tracker', icon: Target, onClick: handleViewTracker },
               { label: 'Edit', icon: Edit2, onClick: handleEditLead },
               { label: 'Flip to Survey', icon: Zap, onClick: handleFlipToSurvey },
-              { label: 'Duplicate', icon: RefreshCw, onClick: handleDuplicateLead },
               { label: 'Score', icon: Brain, onClick: handleRecalculateScore },
-              { label: 'Archive', icon: Building2, onClick: handleArchiveLead },
               { label: 'Delete', icon: Trash2, onClick: handleDeleteLead, danger: true },
-              { label: 'Timeline', icon: Clock, onClick: handleViewTimeline },
               { label: 'Activity Log', icon: Activity, onClick: handleViewActivity },
             ]}
           />
@@ -2760,7 +2646,7 @@ const CRMPage = () => {
           <FormField label="Status">
             <Select
               value={newLead.statusKey}
-              onChange={(e) => setNewLead({...newLead, statusKey: e.target.value})}
+              onChange={(e) => setNewLead({ ...newLead, statusKey: e.target.value })}
             >
               {(statusOptions || []).map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
             </Select>
@@ -2986,7 +2872,7 @@ const CRMPage = () => {
       {showActivityModal && (
         <>
           {/* Backdrop */}
-          <div 
+          <div
             className="fixed inset-0 bg-black/50 z-40 transition-opacity"
             onClick={() => { setShowActivityModal(false); setNewActivityNote(''); setActivityLeadId(null); }}
           />
@@ -2995,14 +2881,14 @@ const CRMPage = () => {
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-[var(--border-base)]">
               <h3 className="text-lg font-bold text-[var(--text-primary)]">Activity Log</h3>
-              <button 
+              <button
                 onClick={() => { setShowActivityModal(false); setNewActivityNote(''); setActivityLeadId(null); }}
                 className="p-2 hover:bg-[var(--bg-elevated)] rounded-lg transition-colors"
               >
                 <X size={20} className="text-[var(--text-muted)]" />
               </button>
             </div>
-            
+
             {/* Activity Timeline */}
             <div className="flex-1 overflow-y-auto p-4">
               <div className="space-y-3">
@@ -3027,7 +2913,7 @@ const CRMPage = () => {
                 )}
               </div>
             </div>
-            
+
             {/* Add New Activity Input */}
             <div className="border-t border-[var(--border-base)] p-4 bg-[var(--bg-elevated)]">
               <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-3">Add Activity</p>
@@ -3047,8 +2933,8 @@ const CRMPage = () => {
                 />
               </div>
               <div className="flex justify-end mt-3">
-                <Button 
-                  onClick={handleSaveActivity} 
+                <Button
+                  onClick={handleSaveActivity}
                   disabled={actionLoading || !newActivityNote.trim()}
                   size="sm"
                 >
@@ -3064,7 +2950,7 @@ const CRMPage = () => {
       {showTrackerDrawer && trackerLeadId && (
         <>
           {/* Backdrop */}
-          <div 
+          <div
             className="fixed inset-0 bg-black/1 z-40 transition-opacity"
             onClick={() => { setShowTrackerDrawer(false); setTrackerLeadId(null); }}
           />
@@ -3073,18 +2959,18 @@ const CRMPage = () => {
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-[var(--border-base)]">
               <h3 className="text-lg font-bold text-[var(--text-primary)]">Lead Tracker</h3>
-              <button 
+              <button
                 onClick={() => { setShowTrackerDrawer(false); setTrackerLeadId(null); }}
                 className="p-2 hover:bg-[var(--bg-elevated)] rounded-lg transition-colors"
               >
                 <X size={20} className="text-[var(--text-muted)]" />
               </button>
             </div>
-            
+
             {/* Lead Tracker Content */}
             <div className="flex-1 overflow-y-auto p-4">
-              <LeadTracker 
-                leadId={trackerLeadId} 
+              <LeadTracker
+                leadId={trackerLeadId}
                 statusOptions={statusOptions}
                 onStageChange={fetchLeads}
               />

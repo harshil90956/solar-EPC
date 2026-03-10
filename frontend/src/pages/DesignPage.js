@@ -544,10 +544,10 @@ const DesignPage = () => {
           <span>Design Overview - Project designs and BOQ statistics</span>
         </p>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <KPICard label="Total Designs" value={designs.length} sub={`${totalKw} kW total capacity`} icon={Pencil} accentColor="var(--primary)" />
-          <KPICard label="Total Approved Designs" value={approved} sub="Ready for quotation" icon={CheckCircle} accentColor="#22c55e" />
-          <KPICard label="Total Designs In Review" value={inReview} sub="Awaiting approval" icon={Layers} accentColor="#f59e0b" />
-          <KPICard label="Total BOQs Generated" value={boqGenerated} sub={`${fmt(totalEstCost)} total value`} icon={FileText} accentColor="#3b82f6" />
+          <KPICard label="Total Designs" value={designs.length} sub={`${totalKw} kW total capacity`} icon={Pencil} variant="indigo" />
+          <KPICard label="Total Approved Designs" value={approved} sub="Ready for quotation" icon={CheckCircle} variant="emerald" />
+          <KPICard label="Total Designs In Review" value={inReview} sub="Awaiting approval" icon={Layers} variant="amber" />
+          <KPICard label="Total BOQs Generated" value={boqGenerated} sub={`${fmt(totalEstCost)} total value`} icon={FileText} variant="blue" />
         </div>
       </div>
 

@@ -530,10 +530,10 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
     const totalPayroll = payrolls.reduce((sum, p) => sum + (p.netSalary || 0), 0);
 
     return [
-      { label: 'Total Employees', value: totalEmployees, icon: UserCircle, color: '#3b82f6' },
-      { label: 'Active Employees', value: activeEmployees, icon: BadgeCheck, color: '#22c55e' },
-      { label: 'Pending Leaves', value: pendingLeaves, icon: AlertCircle, color: '#f59e0b' },
-      { label: 'Monthly Payroll', value: fmt(totalPayroll), icon: Wallet, color: '#a855f7' },
+      { label: 'Total Employees', value: totalEmployees, icon: UserCircle, variant: 'blue' },
+      { label: 'Active Employees', value: activeEmployees, icon: BadgeCheck, variant: 'emerald' },
+      { label: 'Pending Leaves', value: pendingLeaves, icon: AlertCircle, variant: 'amber' },
+      { label: 'Monthly Payroll', value: fmt(totalPayroll), icon: Wallet, variant: 'purple' },
     ];
   }, [employees, leaves, payrolls]);
 
@@ -1019,10 +1019,10 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
           {kpis.map((kpi, index) => (
             <KPICard
               key={index}
-              title={kpi.label}
+              label={kpi.label}
               value={kpi.value}
               icon={kpi.icon}
-              accentColor={kpi.color}
+              variant={kpi.variant}
             />
           ))}
         </div>
