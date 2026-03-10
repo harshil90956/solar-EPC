@@ -4,6 +4,7 @@ import { Model, Types } from 'mongoose';
 import { Survey, SurveyDocument } from '../schemas/survey.schema';
 import { CreateSurveyDto, UpdateSurveyDto, QuerySurveyDto } from '../dto/survey.dto';
 import { Lead, LeadDocument } from '../../leads/schemas/lead.schema';
+import { buildCompleteFilter, UserWithVisibility } from '../../../common/utils/visibility-filter';
 
 @Injectable()
 export class SurveysService {
@@ -50,7 +51,7 @@ export class SurveysService {
   async findAll(
     query: QuerySurveyDto,
     tenantId?: string,
-    _user?: any,
+    user?: UserWithVisibility,
   ): Promise<{ data: any[]; total: number; surveys: any[] }> {
     const { page = 1, limit = 100 } = query;
 
@@ -58,14 +59,19 @@ export class SurveysService {
     if (!tid) {
       return { data: [], total: 0, surveys: [] };
     }
-    const filter: any = {
+
+    // Build base filter for site survey leads
+    const baseFilter: any = {
       isDeleted: { $ne: true },
       // Leads store the stage in `statusKey` and are normalized to lowercase with underscores.
       // Accept both the normalized form and the raw "SITE_SURVEY" string to match expectations.
       statusKey: { $in: ['site_survey', 'SITE_SURVEY'] },
     };
 
-    filter.tenantId = tid;
+    // Apply tenant and visibility filtering
+    // Admin sees all site survey leads in tenant
+    // Agents see only leads assigned to them or created by them
+    const filter = buildCompleteFilter(tid, user, baseFilter);
 
     const skip = (page - 1) * limit;
 

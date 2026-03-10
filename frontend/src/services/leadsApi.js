@@ -28,7 +28,6 @@ export const leadsApi = {
 
   // Delete lead (soft delete)
   async delete(id) {
-    // apiClient unwraps response.data; for 204 axios returns empty string/undefined.
     await api.delete(`/leads/${id}`);
     return { success: true };
   },
@@ -98,9 +97,9 @@ export const leadsApi = {
     return api.post('/leads/bulk/archive', { ids });
   },
 
-  // Bulk delete leads
+  // Bulk delete leads - DELETE /api/v1/leads/bulk
   async bulkDelete(ids) {
-    return api.post('/leads/bulk/delete', { ids });
+    return api.delete('/leads/bulk', { data: { leadIds: ids } });
   },
 
   // Bulk update stage
@@ -118,18 +117,35 @@ export const leadsApi = {
     return api.patch(`/leads/${id}/assign`, { assignedTo });
   },
 
-  // Export leads to CSV
-  async exportCSV(ids = null) {
-    const params = ids ? { ids: ids.join(',') } : {};
-    const res = await apiClient.get('/leads/export', { params, responseType: 'blob' });
-    return res;
+  // Bulk assign leads to user - PATCH /api/v1/leads/bulk-assign
+  async bulkAssign(ids, assignedTo) {
+    return api.patch('/leads/bulk-assign', { leadIds: ids, assignedTo });
+  },
+
+  // Bulk score boost - PATCH /api/v1/leads/bulk-score
+  async bulkScore(ids, scoreIncrease) {
+    return api.patch('/leads/bulk-score', { leadIds: ids, scoreIncrease });
+  },
+
+  // Get all roles
+  async getRoles() {
+    return api.get('/roles');
+  },
+
+  // Get users by role
+  async getUsersByRole(roleId) {
+    return api.get('/users', { roleId });
+  },
+
+  // Export leads to CSV - POST /api/v1/leads/export
+  async exportCSV(ids) {
+    return api.post('/leads/export', { leadIds: ids });
   },
 
   // Import leads from file (CSV, XLSX, JSON)
   async importLeads(file) {
     const formData = new FormData();
     formData.append('file', file);
-    // Let axios/browser set multipart boundaries
     return apiClient.post('/leads/import', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });

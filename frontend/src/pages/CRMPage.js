@@ -750,6 +750,17 @@ const CRMPage = () => {
   const [timelineData, setTimelineData] = useState([]);
   const [activityData, setActivityData] = useState([]);
 
+  // Lead Assignment Modal State
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [assigningLeadIds, setAssigningLeadIds] = useState([]);
+  const [selectedAssignUser, setSelectedAssignUser] = useState('');
+  const [assignLoading, setAssignLoading] = useState(false);
+  const [roles, setRoles] = useState([]);
+  const [selectedRole, setSelectedRole] = useState('');
+  const [filteredUsers, setFilteredUsers] = useState([]);
+  const [rolesLoading, setRolesLoading] = useState(false);
+  const [usersLoading, setUsersLoading] = useState(false);
+
   const normalizeStageKey = (lead) => (lead?.statusKey || lead?.status || 'new').toString().toLowerCase();
   const getLeadId = (lead) => String(lead?._id || lead?.id || '');
   const dragRef = useRef(null);
@@ -797,6 +808,12 @@ const CRMPage = () => {
   const [showScoreEditModal, setShowScoreEditModal] = useState(false);
   const [scoreEditingLead, setScoreEditingLead] = useState(null);
   const [newScore, setNewScore] = useState('');
+
+  // Score Boost Modal State
+  const [showScoreBoostModal, setShowScoreBoostModal] = useState(false);
+  const [scoreBoostLeadIds, setScoreBoostLeadIds] = useState([]);
+  const [scoreBoostValue, setScoreBoostValue] = useState(10);
+  const [scoreBoostLoading, setScoreBoostLoading] = useState(false);
 
   const overviewQ = useQuery({
     queryKey: ['leads-dashboard-overview'],
@@ -1130,12 +1147,14 @@ const CRMPage = () => {
       setActionLoading(true);
       await leadsApi.delete(lead._id);
       logDelete(lead);
+      toast.success(`Lead "${lead.name}" deleted successfully`);
       fetchLeads(); // Refresh list
       if (selectedLead && selectedLead._id === lead._id) {
         setSelectedLead(null); // Close detail modal
       }
     } catch (err) {
       console.error('Failed to delete lead:', err);
+      toast.error(err?.response?.data?.message || 'Failed to delete lead');
     } finally {
       setActionLoading(false);
     }
@@ -1260,32 +1279,36 @@ const CRMPage = () => {
   };
 
   // Bulk Actions
-  const handleBulkExport = (selectedIds) => {
-    const leadsToExport = sortedLeads.filter(l => selectedIds.includes(l._id));
-    const headers = ['Name', 'Company', 'Email', 'Phone', 'Stage', 'Source', 'Value', 'Score', 'City'];
-    const csvContent = [
-      headers.join(','),
-      ...leadsToExport.map(lead => [
-        `"${lead.name || ''}"`,
-        `"${lead.company || ''}"`,
-        `"${lead.email || ''}"`,
-        `"${lead.phone || ''}"`,
-        `"${statusMap?.[lead.statusKey]?.label || lead.statusKey || ''}"`,
-        `"${lead.source || ''}"`,
-        lead.value || 0,
-        lead.score || 0,
-        `"${lead.city || ''}"`
-      ].join(','))
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `leads_export_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleBulkExport = async (selectedIds) => {
+    if (!guardExport()) return;
+    if (!selectedIds || selectedIds.length === 0) {
+      toast.error('Please select leads to export');
+      return;
+    }
+    try {
+      setActionLoading(true);
+      toast.loading('Exporting leads...', { id: 'export' });
+      
+      const result = await leadsApi.exportCSV(selectedIds);
+      const { csv, filename } = result.data || result;
+      
+      // Download CSV
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success(`${selectedIds.length} leads exported successfully`, { id: 'export' });
+    } catch (err) {
+      console.error('Export failed:', err);
+      toast.error(err?.response?.data?.message || 'Failed to export leads', { id: 'export' });
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handleBulkDelete = async (selectedIds) => {
@@ -1293,12 +1316,128 @@ const CRMPage = () => {
       setActionLoading(true);
       await leadsApi.bulkDelete(selectedIds);
       logDelete({ ids: selectedIds });
+      toast.success(`${selectedIds.length} leads deleted successfully`);
       fetchLeads();
       setSelected(new Set());
     } catch (err) {
       console.error('Failed to bulk delete:', err);
+      toast.error(err?.response?.data?.message || 'Failed to delete leads');
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  // Lead Assignment Handlers
+  const handleOpenAssignModal = async (leadIds) => {
+    setAssigningLeadIds(Array.isArray(leadIds) ? leadIds : [leadIds]);
+    setSelectedAssignUser('');
+    setSelectedRole('');
+    setFilteredUsers([]);
+    setShowAssignModal(true);
+
+    // Load roles when modal opens
+    try {
+      setRolesLoading(true);
+      const result = await leadsApi.getRoles();
+      const rolesData = result.data?.data || result.data || [];
+      setRoles(Array.isArray(rolesData) ? rolesData : []);
+    } catch (err) {
+      console.error('Failed to fetch roles:', err);
+      setRoles([]);
+    } finally {
+      setRolesLoading(false);
+    }
+  };
+
+  const handleCloseAssignModal = () => {
+    setShowAssignModal(false);
+    setAssigningLeadIds([]);
+    setSelectedAssignUser('');
+    setSelectedRole('');
+    setFilteredUsers([]);
+  };
+
+  // Score Boost Handlers
+  const handleOpenScoreBoostModal = (leadIds) => {
+    setScoreBoostLeadIds(Array.isArray(leadIds) ? leadIds : [leadIds]);
+    setScoreBoostValue(10);
+    setShowScoreBoostModal(true);
+  };
+
+  const handleCloseScoreBoostModal = () => {
+    setShowScoreBoostModal(false);
+    setScoreBoostLeadIds([]);
+    setScoreBoostValue(10);
+  };
+
+  const handleScoreBoost = async () => {
+    if (!scoreBoostValue || scoreBoostLeadIds.length === 0) return;
+
+    try {
+      setScoreBoostLoading(true);
+      await leadsApi.bulkScore(scoreBoostLeadIds, scoreBoostValue);
+      toast.success(`${scoreBoostLeadIds.length} leads boosted by ${scoreBoostValue} points`);
+      fetchLeads();
+      handleCloseScoreBoostModal();
+    } catch (err) {
+      console.error('Failed to boost scores:', err);
+      toast.error(err?.response?.data?.message || 'Failed to boost scores');
+    } finally {
+      setScoreBoostLoading(false);
+    }
+  };
+
+  const handleRoleChange = async (roleId) => {
+    setSelectedRole(roleId);
+    setSelectedAssignUser('');
+    setFilteredUsers([]);
+
+    if (!roleId) return;
+
+    // Fetch users by selected role
+    try {
+      setUsersLoading(true);
+      const result = await leadsApi.getUsersByRole(roleId);
+      const usersData = result.data?.data || result.data || [];
+      setFilteredUsers(Array.isArray(usersData) ? usersData : []);
+    } catch (err) {
+      console.error('Failed to fetch users by role:', err);
+      setFilteredUsers([]);
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
+  const handleAssignLeads = async () => {
+    if (!selectedAssignUser || assigningLeadIds.length === 0) return;
+
+    try {
+      setAssignLoading(true);
+
+      if (assigningLeadIds.length === 1) {
+        // Single lead assignment
+        await leadsApi.assignLead(assigningLeadIds[0], selectedAssignUser);
+        toast.success('Lead assigned successfully');
+      } else {
+        // Bulk assignment
+        await leadsApi.bulkAssign(assigningLeadIds, selectedAssignUser);
+        toast.success(`${assigningLeadIds.length} leads assigned successfully`);
+      }
+
+      // Refresh leads table
+      fetchLeads();
+
+      // Clear selection if bulk assign
+      if (assigningLeadIds.length > 1) {
+        setSelected(new Set());
+      }
+
+      handleCloseAssignModal();
+    } catch (err) {
+      console.error('Failed to assign leads:', err);
+      toast.error(err?.response?.data?.message || 'Failed to assign leads');
+    } finally {
+      setAssignLoading(false);
     }
   };
 
@@ -1349,14 +1488,13 @@ const CRMPage = () => {
       const created = await leadsApi.create(leadData);
       const newLeadData = created.data || created;
       logCreate(newLeadData);
+      toast.success(`Lead "${leadData.name}" created successfully`);
       setShowAddModal(false);
       setNewLead({ firstName: '', lastName: '', company: '', email: '', phone: '', source: '', city: '', notes: '', statusKey: 'new' });
-      // Immediately add to list without refresh
-      setActiveLeads(prev => [newLeadData, ...prev]);
-      // Toast removed as per user request - no alerts on lead pages
+      fetchLeads(); // Refresh list
     } catch (err) {
       console.error('Failed to create lead:', err);
-      // Alert removed as per user request - no alerts on lead pages
+      toast.error(err?.response?.data?.message || 'Failed to create lead');
     } finally {
       setActionLoading(false);
     }
@@ -1738,80 +1876,55 @@ const CRMPage = () => {
         )
       },
       { key: 'source', header: 'Source', width: '100px' },
+      {
+        key: 'assignedTo',
+        header: 'Assigned To',
+        width: '120px',
+        render: (val, row) => {
+          // Show assigned user name or 'Unassigned'
+          const assignedName = val?.name || val || row.assignedToName || 'Unassigned';
+          return (
+            <span className="text-[11px] text-[var(--text-secondary)] truncate">
+              {assignedName}
+            </span>
+          );
+        }
+      },
     ];
     return allColumns.filter(col => visibleColumns[col.key] !== false);
   }, [visibleColumns, statusMap]);
 
   const handleImport = async ({ file, mapping }) => {
+    if (!file) {
+      toast.error('Please select a file to import');
+      return;
+    }
+    
     try {
       setActionLoading(true);
+      toast.loading('Importing leads...', { id: 'import' });
 
-      // Parse CSV file
-      const Papa = await import('papaparse');
-      const text = await file.text();
-
-      const { data } = Papa.parse(text, {
-        header: true,
-        skipEmptyLines: true,
-        dynamicTyping: true
-      });
-
-      let successCount = 0;
-      let errorCount = 0;
-      const errors = [];
-
-      // Process each row
-      for (let i = 0; i < data.length; i++) {
-        const row = data[i];
-        try {
-          // Combine first and last name from CSV
-          const firstName = row[mapping.firstName] || row.firstName || row.firstname || row['First Name'] || row.first_name || '';
-          const lastName = row[mapping.lastName] || row.lastName || row.lastname || row['Last Name'] || row.last_name || '';
-          const fullName = `${firstName} ${lastName}`.trim();
-
-          // Map CSV columns to lead fields based on mapping
-          const leadData = {
-            name: fullName || row.name || row.Name || row.NAME || '',
-            company: row[mapping.company] || row.company || row.Company || row.COMPANY || '',
-            email: row[mapping.email] || row.email || row.Email || row.EMAIL || '',
-            phone: row[mapping.phone] || row.phone || row.Phone || row.PHONE || row.mobile || '',
-            source: row[mapping.source] || row.source || row.Source || row.SOURCE || 'Import',
-            city: row[mapping.city] || row.city || row.City || row.CITY || '',
-            statusKey: 'new',
-            value: parseInt(row[mapping.value] || row.value || row.Value || row.VALUE || 0),
-          };
-
-          // Skip if name is missing
-          if (!leadData.name) {
-            errorCount++;
-            errors.push(`Row ${i + 1}: Missing name`);
-            continue;
-          }
-
-          // Create lead via API
-          await leadsApi.create(leadData);
-          successCount++;
-        } catch (err) {
-          errorCount++;
-          errors.push(`Row ${i + 1}: ${err.message}`);
+      // Use backend API for import
+      const result = await leadsApi.importLeads(file);
+      const { inserted, updated, failed, errors } = result.data || result;
+      
+      // Log import activity
+      logCreate({ id: 'import', name: `Imported ${inserted} leads from ${file.name}` });
+      
+      // Show result
+      if (failed === 0) {
+        toast.success(`${inserted} leads imported, ${updated} updated successfully`, { id: 'import' });
+      } else {
+        toast.success(`${inserted} imported, ${updated} updated, ${failed} failed`, { id: 'import' });
+        if (errors && errors.length > 0) {
+          console.error('Import errors:', errors);
         }
       }
-
-      // Log import activity
-      logCreate({ id: 'import', name: `Imported ${successCount} leads from ${file.name}` });
-
-      // Show result
-      if (errorCount === 0) {
-        // Success - no alert
-      } else {
-        // Errors occurred but don't show alert
-        console.log(`Import completed: ${successCount} leads created, ${errorCount} errors.`);
-      }
-
+      
       fetchLeads(); // Refresh list
     } catch (err) {
       console.error('Import failed:', err);
-      // Alert removed as per user request - no alerts on lead pages
+      toast.error(err?.response?.data?.message || 'Failed to import leads', { id: 'import' });
     } finally {
       setActionLoading(false);
     }
@@ -2172,6 +2285,14 @@ const CRMPage = () => {
                               <div className="flex items-center gap-1 text-[11px] text-[#9CA3AF]">
                                 <Clock size={8} />
                                 <span>Last: {lead.activities[lead.activities.length - 1].ts}</span>
+                              </div>
+                            )}
+
+                            {/* Assigned User */}
+                            {lead.assignedTo && (
+                              <div className="flex items-center gap-1 text-[11px] text-[#6B7280]">
+                                <UserCheck size={8} />
+                                <span>Assigned: {lead.assignedTo?.name || lead.assignedTo}</span>
                               </div>
                             )}
 
@@ -2544,13 +2665,15 @@ const CRMPage = () => {
                   }
                 }
               }] : []),
-              ...(can('crm', 'edit') ? [{ label: 'Score Boost', icon: Brain, onClick: (rows) => { if (guardEdit()) console.log('Boosting scores', rows); } }] : []),
+              ...(can('crm', 'edit') ? [{ label: 'Score Boost', icon: Brain, onClick: (selectedIds) => { if (guardEdit()) handleOpenScoreBoostModal(selectedIds); } }] : []),
+              ...(can('crm', 'assign') ? [{ label: 'Assign', icon: UserCheck, onClick: (selectedIds) => handleOpenAssignModal(selectedIds) }] : []),
               ...(can('crm', 'delete') ? [{ label: 'Delete', icon: Trash2, onClick: (selectedIds) => { if (guardDelete()) handleBulkDelete(selectedIds); }, danger: true }] : []),
             ]}
             rowActions={[
               { label: 'View', icon: Eye, onClick: handleViewLead },
               { label: 'Lead Tracker', icon: Target, onClick: handleViewTracker },
               { label: 'Edit', icon: Edit2, onClick: handleEditLead },
+              { label: 'Assign Lead', icon: UserCheck, onClick: (lead) => handleOpenAssignModal([lead._id || lead.id]), showWhen: () => can('crm', 'assign') },
               { label: 'Flip to Survey', icon: Zap, onClick: handleFlipToSurvey },
               { label: 'Score', icon: Brain, onClick: handleRecalculateScore },
               { label: 'Delete', icon: Trash2, onClick: handleDeleteLead, danger: true },
@@ -3071,7 +3194,107 @@ const CRMPage = () => {
         </Modal>
       )}
 
+      {/* ASSIGN LEADS MODAL */}
+      {showAssignModal && (
+        <Modal
+          open={showAssignModal}
+          onClose={handleCloseAssignModal}
+          title={`Assign Leads (${assigningLeadIds.length})`}
+          footer={
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" onClick={handleCloseAssignModal}>Cancel</Button>
+              <Button onClick={handleAssignLeads} disabled={assignLoading || !selectedAssignUser}>
+                {assignLoading ? 'Assigning...' : <><UserCheck size={13} /> Assign</>}
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-[var(--text-muted)]">
+              Select a role and user to assign {assigningLeadIds.length === 1 ? 'this lead' : `these ${assigningLeadIds.length} leads`} to:
+            </p>
 
+            {/* Role Selection */}
+            <FormField label="Role">
+              <Select
+                value={selectedRole}
+                onChange={(e) => handleRoleChange(e.target.value)}
+                disabled={rolesLoading}
+              >
+                <option value="">{rolesLoading ? 'Loading roles...' : 'Select Role'}</option>
+                {roles.map((role) => (
+                  <option key={role._id || role.id} value={role._id || role.id}>
+                    {role.name}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+
+            {/* User Selection (filtered by role) */}
+            <FormField label="User">
+              <Select
+                value={selectedAssignUser}
+                onChange={(e) => setSelectedAssignUser(e.target.value)}
+                disabled={!selectedRole || usersLoading}
+              >
+                <option value="">
+                  {!selectedRole
+                    ? 'Select role first'
+                    : usersLoading
+                      ? 'Loading users...'
+                      : 'Select User'
+                  }
+                </option>
+                {filteredUsers.map((user) => (
+                  <option key={user._id || user.id} value={user._id || user.id}>
+                    {user.name}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+          </div>
+        </Modal>
+      )}
+
+      {/* SCORE BOOST MODAL */}
+      {showScoreBoostModal && (
+        <Modal
+          open={showScoreBoostModal}
+          onClose={handleCloseScoreBoostModal}
+          title={`Score Boost (${scoreBoostLeadIds.length})`}
+          footer={
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" onClick={handleCloseScoreBoostModal}>Cancel</Button>
+              <Button onClick={handleScoreBoost} disabled={scoreBoostLoading || !scoreBoostValue}>
+                {scoreBoostLoading ? 'Boosting...' : <><Brain size={13} /> Boost Score</>}
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-[var(--text-muted)]">
+              Increase score by {scoreBoostValue} points for {scoreBoostLeadIds.length === 1 ? 'this lead' : `these ${scoreBoostLeadIds.length} leads`}:
+            </p>
+            <FormField label="Score Increase">
+              <Input
+                type="number"
+                min="1"
+                max="100"
+                value={scoreBoostValue}
+                onChange={(e) => setScoreBoostValue(parseInt(e.target.value) || 0)}
+                placeholder="Enter score increase"
+              />
+            </FormField>
+            <div className="flex gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setScoreBoostValue(5)}>+5</Button>
+              <Button variant="secondary" size="sm" onClick={() => setScoreBoostValue(10)}>+10</Button>
+              <Button variant="secondary" size="sm" onClick={() => setScoreBoostValue(15)}>+15</Button>
+              <Button variant="secondary" size="sm" onClick={() => setScoreBoostValue(20)}>+20</Button>
+              <Button variant="secondary" size="sm" onClick={() => setScoreBoostValue(25)}>+25</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
     </div >
   );
