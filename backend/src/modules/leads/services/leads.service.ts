@@ -6,7 +6,9 @@ import * as xlsx from 'xlsx';
 import { Lead, LeadDocument } from '../schemas/lead.schema';
 import { CreateLeadDto, UpdateLeadDto, QueryLeadDto, AddActivityDto } from '../dto/lead.dto';
 import { LeadStatus, LeadStatusDocument } from '../../settings/schemas/lead-status.schema';
-import { buildVisibilityFilter, applyVisibilityFilter, UserWithVisibility, buildCompleteFilter, canAccessRecord } from '../../../common/utils/visibility-filter';
+import { buildVisibilityFilter, applyVisibilityFilter, buildCompleteFilter, canAccessRecord, UserWithVisibility } from '../../../common/utils/visibility-filter';
+import { User, UserDocument } from '../../../core/auth/schemas/user.schema';
+
 import { SiteSurveysService } from '../../survey/services/site-surveys.service';
 
 @Injectable()
@@ -14,6 +16,7 @@ export class LeadsService {
   constructor(
     @InjectModel(Lead.name) private leadModel: Model<LeadDocument>,
     @InjectModel(LeadStatus.name) private leadStatusModel: Model<LeadStatusDocument>,
+    @InjectModel(User.name) private userModel: Model<UserDocument>,
     @Inject(forwardRef(() => SiteSurveysService))
     private readonly siteSurveysService: SiteSurveysService,
   ) {}
@@ -1319,7 +1322,8 @@ export class LeadsService {
   async importLeads(
     filePath: string,
     fileExtension: string,
-    tenantId?: string
+    tenantId?: string,
+    user?: UserWithVisibility
   ): Promise<{ success: boolean; inserted: number; updated: number; failed: number; errors: Array<{ row: number; reason: string }> }> {
     const result = {
       success: true,
@@ -1387,7 +1391,7 @@ export class LeadsService {
                 type: 'import',
                 ts: this.formatTimestamp(new Date()),
                 note: log,
-                by: 'System',
+                by: user?.id || 'System',
                 timestamp: new Date(),
               }));
               updateData.$push = { activities: { $each: activities } };
@@ -1414,12 +1418,22 @@ export class LeadsService {
               activities: [],
             };
 
+            // Add createdBy from authenticated user
+            if (user?._id) {
+              leadData.createdBy = new Types.ObjectId(user._id.toString());
+            }
+
+            // Add tenantId
+            if (tenantId) {
+              leadData.tenantId = new Types.ObjectId(tenantId);
+            }
+
             // Add import activity
             leadData.activities.push({
               type: 'created',
               ts: this.formatTimestamp(now),
               note: 'Lead imported',
-              by: 'System',
+              by: user?.id || 'System',
               timestamp: now,
             });
 
@@ -1430,7 +1444,7 @@ export class LeadsService {
                   type: 'import',
                   ts: this.formatTimestamp(now),
                   note: log,
-                  by: 'System',
+                  by: user?.id || 'System',
                   timestamp: now,
                 });
               });
@@ -1440,10 +1454,6 @@ export class LeadsService {
             leadData.score = this.calculateScore(leadData);
             leadData.slaBreached = this.checkSlaBreached(leadData);
             leadData.activeAutomation = this.applyAutomation(leadData);
-
-            if (tenantId) {
-              leadData.tenantId = new Types.ObjectId(tenantId);
-            }
 
             bulkOps.push({
               insertOne: { document: leadData },
@@ -1705,16 +1715,58 @@ export class LeadsService {
   async assignLead(
     id: string,
     assignedTo: string,
-    assignedBy: string,
-    tenantId?: string
+    user: UserWithVisibility,
   ): Promise<Lead> {
-    // Validate assignedTo user ID
+    // STEP 1: Security - Never trust frontend role, validate from authenticated user
+    const userRole = user?.role?.toLowerCase() || '';
+    const allowedRoles = ['admin', 'manager'];
+    if (!allowedRoles.includes(userRole)) {
+      throw new ForbiddenException('Not authorized to assign leads. Only Admin or Manager can assign leads.');
+    }
+
+    // STEP 2: Validate assignedTo user ID
     if (!assignedTo || !Types.ObjectId.isValid(assignedTo)) {
       throw new BadRequestException('Invalid assignedTo user ID');
     }
 
-    const lead = await this.findOne(id, tenantId);
+    // Get tenantId from authenticated user (never from frontend)
+    const tid = this.toObjectId(user.tenantId?.toString());
     const assignedToId = new Types.ObjectId(assignedTo);
+    const assignedById = user._id;
+
+    // STEP 3: Verify lead belongs to same tenant
+    const leadFilter: any = {
+      $or: [
+        { _id: Types.ObjectId.isValid(id) ? new Types.ObjectId(id) : undefined },
+        { leadId: id }
+      ].filter(Boolean),
+      isDeleted: { $ne: true }
+    };
+    
+    if (tid) {
+      leadFilter.$and = [{ $or: [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }] }];
+    }
+
+    const lead = await this.leadModel.findOne(leadFilter).lean().exec();
+    if (!lead) {
+      throw new NotFoundException('Lead not found');
+    }
+
+    // STEP 4: Verify target user belongs to same tenant
+    if (tid) {
+      const targetUser = await this.userModel.findOne({
+        _id: assignedToId,
+        $or: [
+          { tenantId: tid },
+          { tenantId: { $exists: false } },
+          { tenantId: null },
+        ],
+      }).lean().exec();
+
+      if (!targetUser) {
+        throw new BadRequestException('Target user does not belong to your tenant');
+      }
+    }
 
     // Check if already assigned to same user
     const currentAssignedTo = lead.assignedTo?.toString();
@@ -1724,9 +1776,10 @@ export class LeadsService {
 
     const now = new Date();
 
-    // Build update data
+    // STEP 5: Update lead with assignedTo and assignedBy
     const updateData: any = {
       assignedTo: assignedToId,
+      assignedBy: assignedById,
       lastContact: now,
     };
 
@@ -1735,27 +1788,13 @@ export class LeadsService {
       type: 'assignment',
       ts: this.formatTimestamp(now),
       note: `Lead assigned to user ${assignedTo}`,
-      by: assignedBy || 'System',
+      by: user?.id || 'System',
       timestamp: now,
     };
     updateData.$push = { activities: activity };
 
-    // Update lead
-    const filter: any = {
-      $or: [
-        { _id: Types.ObjectId.isValid(id) ? new Types.ObjectId(id) : undefined },
-        { leadId: id }
-      ].filter(Boolean),
-      isDeleted: { $ne: true }
-    };
-
-    const tid = this.toObjectId(tenantId);
-    if (tid) {
-      filter.$and = [{ $or: [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }] }];
-    }
-
     const updatedLead = await this.leadModel.findOneAndUpdate(
-      filter,
+      leadFilter,
       updateData,
       { new: true, runValidators: true }
     ).exec();
@@ -1765,5 +1804,84 @@ export class LeadsService {
     }
 
     return updatedLead;
+  }
+
+  // ============================================
+  // EXPORT LEADS
+  // ============================================
+
+  async exportLeads(ids: string[], tenantId?: string, user?: UserWithVisibility): Promise<{ csv: string; filename: string }> {
+    const objectIds = ids.filter(id => Types.ObjectId.isValid(id)).map(id => new Types.ObjectId(id));
+    const filter: any = {
+      $or: [
+        { _id: { $in: objectIds } },
+        { leadId: { $in: ids } }
+      ],
+      isDeleted: { $ne: true }
+    };
+
+    const tid = this.toObjectId(tenantId);
+    if (tid) {
+      filter.$and = [{ $or: [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }] }];
+    }
+
+    const leads = await this.leadModel.find(filter).lean().exec();
+
+    // Generate CSV
+    const headers = ['Name', 'Company', 'Email', 'Phone', 'Stage', 'Source', 'Value', 'Score', 'City', 'Assigned To', 'Created At'];
+    const rows = leads.map(lead => [
+      lead.name || '',
+      lead.company || '',
+      lead.email || '',
+      lead.phone || '',
+      lead.statusKey || 'new',
+      lead.source || '',
+      lead.value || 0,
+      lead.score || 0,
+      lead.city || '',
+      lead.assignedTo?.toString() || '',
+      lead.created ? new Date(lead.created).toISOString() : ''
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+
+    return {
+      csv: csvContent,
+      filename: `leads_export_${new Date().toISOString().split('T')[0]}.csv`
+    };
+  }
+
+  // ============================================
+  // BULK UPDATE SCORE
+  // ============================================
+
+  async bulkUpdateScore(ids: string[], scoreIncrease: number, tenantId?: string): Promise<{ modified: number }> {
+    if (!ids || ids.length === 0) {
+      return { modified: 0 };
+    }
+
+    const objectIds = ids.filter(id => Types.ObjectId.isValid(id)).map(id => new Types.ObjectId(id));
+    const filter: any = {
+      $or: [
+        { _id: { $in: objectIds } },
+        { leadId: { $in: ids } }
+      ],
+      isDeleted: { $ne: true }
+    };
+
+    const tid = this.toObjectId(tenantId);
+    if (tid) {
+      filter.$and = [{ $or: [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }] }];
+    }
+
+    const result = await this.leadModel.updateMany(
+      filter,
+      { $inc: { score: scoreIncrease } }
+    );
+
+    return { modified: result.modifiedCount };
   }
 }
