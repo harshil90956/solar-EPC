@@ -1,9 +1,9 @@
 // Solar OS – EPC Edition — InventoryPage.js
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
-  Package, Plus, AlertTriangle, Warehouse, ArrowUp, ArrowDown, Zap, LayoutGrid, List, Edit2, Trash2, Eye, ArrowRightLeft
+  Package, Plus, AlertTriangle, Warehouse, ArrowUp, ArrowDown, Zap, LayoutGrid, List, Edit2, Trash2, Eye, ArrowRightLeft, Scale, Tag, LayoutDashboard, TrendingUp, BarChart2, PieChartIcon, Activity, DollarSign, Target, Layers
 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, Legend, AreaChart, Area } from 'recharts';
 import { StatusBadge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
@@ -84,7 +84,10 @@ const InvCard = ({ item, onDragStart, onClick }) => {
         <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: stage?.bg, color: stage?.color }}>{item.category}</span>
       </div>
       <p className="text-xs font-semibold text-[var(--text-primary)] mb-0.5 leading-tight">{item.name}</p>
-      <p className="text-[10px] text-[var(--text-muted)] mb-2">{item.warehouse}</p>
+      <div className="flex items-center gap-1.5 mb-2">
+        <Warehouse size={12} className="text-[var(--accent-light)]" />
+        <span className="text-[11px] font-medium text-[var(--accent-light)]">{item.warehouse}</span>
+      </div>
       <Progress value={statusPct} className="h-1 mb-2" />
       <div className="grid grid-cols-3 gap-1 text-center">
         <div>
@@ -220,8 +223,21 @@ const InvKanbanBoard = ({ items, onCardClick, onDrop }) => {
                   )}
                 </div>
               </div>
-            );
-          })}
+              <div className="flex flex-col gap-2 p-2 flex-1 min-h-[180px]">
+                {cards.map(i => (
+                  <InvCard key={`${i.itemId}-${i.warehouse}`} item={i}
+                    onDragStart={() => { draggingId.current = i.itemId; }}
+                    onClick={() => onCardClick(i)} />
+                ))}
+                {cards.length === 0 && (
+                  <div className="flex-1 flex items-center justify-center">
+                    <p className="text-[11px] text-[var(--text-faint)]">Drop here</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -280,6 +296,7 @@ const InventoryPage = () => {
   const [transferItem, setTransferItem] = useState('');
   const [transferQuantity, setTransferQuantity] = useState('');
   const [transferRemarks, setTransferRemarks] = useState('');
+  const [showCardsInViews, setShowCardsInViews] = useState(false); // Toggle KPI cards in list/kanban view
 
   // Fetch warehouses from API
   useEffect(() => {
@@ -424,6 +441,13 @@ const InventoryPage = () => {
       return;
     }
 
+    // Debug: Check if _id exists
+    if (!item._id) {
+      console.error('Item _id is missing:', item);
+      alert(`Error: Item _id is missing. ItemId: ${item.itemId}, Warehouse: ${item.warehouse}. Please check console.`);
+      return;
+    }
+
     if ((item.available || 0) < qty) {
       alert(`Insufficient stock. Available: ${item.available} ${item.unit}`);
       return;
@@ -435,18 +459,28 @@ const InventoryPage = () => {
       const existingItemInDest = inventory.find(i => i.itemId === transferItem && i.warehouse === transferToWarehouse);
 
       if (existingItemInDest) {
-        // Transfer between existing items - stock out from source, stock in to dest
-        // Use itemId for API calls since backend looks up by ID
-        await api.post(`/items/${item._id || item.itemId}/stock-out`, {
-          quantity: qty,
-          remarks: `Transferred to ${transferToWarehouse}: ${transferRemarks || 'Stock transfer'}`,
+        // Transfer between existing items - directly update stock (don't use stock-out which increments reserved)
+        // Source: decrease stock
+        await api.patch(`/items/${item._id || item.itemId}`, {
+          stock: (item.stock || 0) - qty,
         }, { headers: { 'x-tenant-id': TENANT_ID } });
 
-        await api.post(`/items/${existingItemInDest._id || existingItemInDest.itemId}/stock-in`, {
-          quantity: qty,
-          warehouse: transferToWarehouse,
-          remarks: `Transferred from ${transferFromWarehouse}: ${transferRemarks || 'Stock transfer'}`,
+        // Destination: increase stock
+        await api.patch(`/items/${existingItemInDest._id || existingItemInDest.itemId}`, {
+          stock: (existingItemInDest.stock || 0) + qty,
         }, { headers: { 'x-tenant-id': TENANT_ID } });
+
+        // Add transfer record to remarks/history if needed
+        await api.post('/inventory/transfers', {
+          itemId: item.itemId,
+          fromWarehouse: transferFromWarehouse,
+          toWarehouse: transferToWarehouse,
+          quantity: qty,
+          remarks: transferRemarks || 'Stock transfer',
+          date: new Date().toISOString(),
+        }, { headers: { 'x-tenant-id': TENANT_ID } }).catch(() => {
+          // Ignore if transfers endpoint doesn't exist
+        });
       } else {
         // Create new item in destination warehouse
         const newItemData = {
@@ -623,6 +657,29 @@ const InventoryPage = () => {
       i.name?.toLowerCase().includes(search.toLowerCase())
     ), [inventory, search, catFilter]);
 
+  // Consolidate items by itemId for kanban view (aggregate stock across all warehouses)
+  const consolidatedItems = useMemo(() => {
+    const grouped = filtered.reduce((acc, item) => {
+      const key = item.itemId;
+      if (!acc[key]) {
+        acc[key] = {
+          ...item,
+          _originalWarehouses: [{ warehouse: item.warehouse, stock: item.stock, reserved: item.reserved, available: item.available }],
+        };
+      } else {
+        // Aggregate stock across warehouses
+        acc[key].stock += (item.stock || 0);
+        acc[key].reserved += (item.reserved || 0);
+        acc[key].available = (acc[key].stock || 0) - (acc[key].reserved || 0);
+        acc[key]._originalWarehouses.push({ warehouse: item.warehouse, stock: item.stock, reserved: item.reserved, available: item.available });
+        // Use the first warehouse as primary for display
+        acc[key].warehouse = `${acc[key]._originalWarehouses.length} warehouses`;
+      }
+      return acc;
+    }, {});
+    return Object.values(grouped);
+  }, [filtered]);
+
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   const chartData = inventory.slice(0, 10).map(i => ({
@@ -759,12 +816,20 @@ const InventoryPage = () => {
     }
   };
 
-  const handleDeleteItem = async (itemId) => {
+  const handleDeleteItem = async (item) => {
     if (!window.confirm('Are you sure you want to delete this item?')) return;
+    
+    // Debug: Check if _id exists
+    if (!item._id) {
+      console.error('Item _id is missing:', item);
+      alert(`Error: Cannot delete - Item _id is missing. ItemId: ${item.itemId}`);
+      return;
+    }
+    
     try {
-      await apiClient.delete(`/inventory/${itemId}`, { params: { tenantId: TENANT_ID } });
+      await api.delete(`/items/${item._id}`, { headers: { 'x-tenant-id': TENANT_ID } });
 
-      setInventory(prev => prev.filter(i => i.itemId !== itemId));
+      setInventory(prev => prev.filter(i => i._id !== item._id));
       alert('Item deleted successfully!');
     } catch (err) {
       alert(err.message || 'Failed to delete item. Please try again.');
@@ -1015,7 +1080,7 @@ const InventoryPage = () => {
     { label: 'Edit', icon: Edit2, onClick: row => handleEditClick(row) },
     { label: 'Stock In', icon: ArrowUp, onClick: row => { setStockInForm({ ...stockInForm, itemId: row.itemId }); setStockIn(true); } },
     { label: 'Stock Out', icon: ArrowDown, onClick: row => { setStockOutForm({ ...stockOutForm, itemId: row.itemId }); setShowStockOut(true); } },
-    { label: 'Delete', icon: Trash2, onClick: row => handleDeleteItem(row.itemId), danger: true },
+    { label: 'Delete', icon: Trash2, onClick: row => handleDeleteItem(row), danger: true },
   ];
 
   return (
@@ -1068,6 +1133,468 @@ const InventoryPage = () => {
         </div>
       </div>
 
+      {/* DASHBOARD TAB CONTENT - Shows overview of all 5 tabs */}
+      {activeTab === 'dashboard' && (
+        <div className="space-y-6">
+          {/* Welcome Banner */}
+          <div className="glass-card p-5 bg-gradient-to-r from-blue-600/10 to-purple-600/10 border-blue-500/20">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                <LayoutDashboard size={24} className="text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-[var(--text-primary)]">Inventory Overview Dashboard</h2>
+                <p className="text-sm text-[var(--text-muted)]">Real-time insights across Inventory, Warehouse, Items, Category & Unit</p>
+              </div>
+            </div>
+          </div>
+
+          {/* 5 Cards Row - One for each tab */}
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+            {/* Inventory Card */}
+            <div 
+              onClick={() => setActiveTab('inventory')}
+              className="relative overflow-hidden bg-gradient-to-br from-blue-600 to-blue-400 rounded-2xl p-5 shadow-lg shadow-blue-500/20 cursor-pointer hover:scale-[1.02] transition-transform"
+            >
+              <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+              <div className="relative flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-blue-50 uppercase tracking-wider">Inventory</p>
+                  <p className="text-3xl font-bold text-white mt-2">{dynamicStats.totalItems}</p>
+                  <p className="text-xs text-blue-100/80 mt-1">Total SKUs tracked</p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                  <Package size={24} className="text-white" />
+                </div>
+              </div>
+              <div className="relative mt-3 flex gap-2">
+                <span className="text-[10px] px-2 py-1 bg-white/20 rounded text-white/90">₹{(dynamicStats.totalValue/100000).toFixed(1)}L value</span>
+                <span className="text-[10px] px-2 py-1 bg-white/20 rounded text-white/90">{dynamicStats.lowStockItems} low</span>
+              </div>
+            </div>
+
+            {/* Warehouse Card */}
+            <div 
+              onClick={() => setActiveTab('warehouse')}
+              className="relative overflow-hidden bg-gradient-to-br from-emerald-600 to-teal-500 rounded-2xl p-5 shadow-lg shadow-emerald-500/20 cursor-pointer hover:scale-[1.02] transition-transform"
+            >
+              <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+              <div className="relative flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-emerald-50 uppercase tracking-wider">Warehouse</p>
+                  <p className="text-3xl font-bold text-white mt-2">{warehouses.length}</p>
+                  <p className="text-xs text-emerald-100/80 mt-1">Active warehouses</p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                  <Warehouse size={24} className="text-white" />
+                </div>
+              </div>
+              <div className="relative mt-3 flex gap-2">
+                <span className="text-[10px] px-2 py-1 bg-white/20 rounded text-white/90">{inventory.length} items stored</span>
+              </div>
+            </div>
+
+            {/* Items Card */}
+            <div 
+              onClick={() => setActiveTab('items')}
+              className="relative overflow-hidden bg-gradient-to-br from-violet-600 to-purple-500 rounded-2xl p-5 shadow-lg shadow-violet-500/20 cursor-pointer hover:scale-[1.02] transition-transform"
+            >
+              <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+              <div className="relative flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-violet-50 uppercase tracking-wider">Items</p>
+                  <p className="text-3xl font-bold text-white mt-2">{new Set(inventory.map(i => i.itemId)).size}</p>
+                  <p className="text-xs text-violet-100/80 mt-1">Unique items in system</p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                  <Package size={24} className="text-white" />
+                </div>
+              </div>
+              <div className="relative mt-3 flex gap-2">
+                <span className="text-[10px] px-2 py-1 bg-white/20 rounded text-white/90">{inventory.length} total entries</span>
+                <span className="text-[10px] px-2 py-1 bg-white/20 rounded text-white/90">{categories.length} categories</span>
+              </div>
+            </div>
+
+            {/* Category Card */}
+            <div 
+              onClick={() => setActiveTab('category')}
+              className="relative overflow-hidden bg-gradient-to-br from-amber-500 to-orange-400 rounded-2xl p-5 shadow-lg shadow-amber-500/20 cursor-pointer hover:scale-[1.02] transition-transform"
+            >
+              <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+              <div className="relative flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-amber-50 uppercase tracking-wider">Category</p>
+                  <p className="text-3xl font-bold text-white mt-2">{categories.length}</p>
+                  <p className="text-xs text-amber-100/80 mt-1">Item categories</p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                  <Tag size={24} className="text-white" />
+                </div>
+              </div>
+              <div className="relative mt-3 flex gap-2 flex-wrap">
+                {categories.slice(0, 2).map((cat, i) => (
+                  <span key={cat} className="text-[10px] px-2 py-1 bg-white/20 rounded text-white/90">{cat}</span>
+                ))}
+                {categories.length > 2 && (
+                  <span className="text-[10px] px-2 py-1 bg-white/20 rounded text-white/90">+{categories.length - 2}</span>
+                )}
+              </div>
+            </div>
+
+            {/* Unit Card */}
+            <div 
+              onClick={() => setActiveTab('unit')}
+              className="relative overflow-hidden bg-gradient-to-br from-cyan-600 to-sky-500 rounded-2xl p-5 shadow-lg shadow-cyan-500/20 cursor-pointer hover:scale-[1.02] transition-transform"
+            >
+              <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+              <div className="relative flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-cyan-50 uppercase tracking-wider">Unit</p>
+                  <p className="text-3xl font-bold text-white mt-2">{units.length}</p>
+                  <p className="text-xs text-cyan-100/80 mt-1">Measurement units</p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                  <Scale size={24} className="text-white" />
+                </div>
+              </div>
+              <div className="relative mt-3 flex gap-2 flex-wrap">
+                {units.slice(0, 3).map((unit, i) => (
+                  <span key={unit} className="text-[10px] px-2 py-1 bg-white/20 rounded text-white/90">{unit}</span>
+                ))}
+                {units.length > 3 && (
+                  <span className="text-[10px] px-2 py-1 bg-white/20 rounded text-white/90">+{units.length - 3}</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Charts Row 1 - 3 charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Inventory Status Pie Chart */}
+            <div className="glass-card p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <PieChartIcon size={16} className="text-[var(--accent)]" />
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Stock Status</h3>
+              </div>
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: 'In Stock', value: Math.max(0, dynamicStats.totalItems - dynamicStats.lowStockItems - dynamicStats.outOfStockItems), color: '#3b82f6' },
+                      { name: 'Low Stock', value: dynamicStats.lowStockItems, color: '#f59e0b' },
+                      { name: 'Out of Stock', value: dynamicStats.outOfStockItems, color: '#ef4444' },
+                    ].filter(d => d.value > 0)}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={40}
+                    outerRadius={70}
+                    paddingAngle={5}
+                    dataKey="value"
+                    label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
+                    labelLine={false}
+                  >
+                    {[
+                      { name: 'In Stock', value: Math.max(0, dynamicStats.totalItems - dynamicStats.lowStockItems - dynamicStats.outOfStockItems), color: '#3b82f6' },
+                      { name: 'Low Stock', value: dynamicStats.lowStockItems, color: '#f59e0b' },
+                      { name: 'Out of Stock', value: dynamicStats.outOfStockItems, color: '#ef4444' },
+                    ].filter(d => d.value > 0).map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{ 
+                      background: 'var(--bg-surface)', 
+                      border: '1px solid var(--border-base)', 
+                      borderRadius: 8, 
+                      fontSize: 12 
+                    }} 
+                  />
+                  <Legend wrapperStyle={{ fontSize: 10 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Category Distribution Donut */}
+            <div className="glass-card p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <Tag size={16} className="text-[var(--accent)]" />
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Category Distribution</h3>
+              </div>
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Pie
+                    data={categories.map((cat, i) => ({
+                      name: cat,
+                      value: inventory.filter(item => item.category === cat).length,
+                      color: ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4'][i % 6]
+                    })).filter(d => d.value > 0)}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={40}
+                    outerRadius={70}
+                    paddingAngle={3}
+                    dataKey="value"
+                    label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
+                    labelLine={false}
+                  >
+                    {categories.map((cat, i) => (
+                      <Cell key={`cell-${i}`} fill={['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4'][i % 6]} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)', borderRadius: 8, fontSize: 12 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Unit Distribution */}
+            <div className="glass-card p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <Scale size={16} className="text-[var(--accent)]" />
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Unit Distribution</h3>
+              </div>
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Pie
+                    data={units.map((unit, i) => ({
+                      name: unit,
+                      value: inventory.filter(item => item.unit === unit).length,
+                      color: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'][i % 6]
+                    })).filter(d => d.value > 0)}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={30}
+                    outerRadius={70}
+                    paddingAngle={2}
+                    dataKey="value"
+                    label={({ name }) => name}
+                    labelLine={true}
+                  >
+                    {units.map((unit, i) => (
+                      <Cell key={`cell-${i}`} fill={['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'][i % 6]} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)', borderRadius: 8, fontSize: 12 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Charts Row 2 - Bar Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Items by Category Bar Chart */}
+            <div className="glass-card p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <BarChart2 size={16} className="text-[var(--accent)]" />
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Items by Category</h3>
+              </div>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={categories.map(cat => ({ name: cat, count: inventory.filter(i => i.category === cat).length })).filter(c => c.count > 0)} barSize={30}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                  <XAxis dataKey="name" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <Tooltip 
+                    contentStyle={{ 
+                      background: 'var(--bg-surface)', 
+                      border: '1px solid var(--border-base)', 
+                      borderRadius: 8, 
+                      fontSize: 12 
+                    }} 
+                  />
+                  <Bar dataKey="count" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Inventory Value by Warehouse */}
+            <div className="glass-card p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <Warehouse size={16} className="text-[var(--accent)]" />
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Value by Warehouse</h3>
+              </div>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={warehouses.map(wh => {
+                  const whItems = inventory.filter(i => i.warehouse === wh);
+                  const value = whItems.reduce((sum, i) => sum + ((i.stock || 0) * (i.rate || 0)), 0);
+                  return { name: wh, value: value / 1000 };
+                })} barSize={40}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                  <XAxis dataKey="name" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `₹${v}K`} />
+                  <Tooltip 
+                    formatter={(value) => [`₹${value}K`, 'Value']}
+                    contentStyle={{ 
+                      background: 'var(--bg-surface)', 
+                      border: '1px solid var(--border-base)', 
+                      borderRadius: 8, 
+                      fontSize: 12 
+                    }} 
+                  />
+                  <Bar dataKey="value" fill="#10b981" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Charts Row 3 - 2x2 Grid Layout */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Stock vs Reserved Area Chart */}
+            <div className="glass-card p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <Activity size={16} className="text-[var(--accent)]" />
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Stock vs Reserved (Top 10 Items)</h3>
+              </div>
+              <ResponsiveContainer width="100%" height={200}>
+                <AreaChart data={inventory.slice(0, 10).map(i => ({ name: (i.name || i.description || 'Unknown').slice(0, 15), stock: i.stock || 0, reserved: i.reserved || 0 }))} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorStock" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="colorReserved" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                  <XAxis dataKey="name" tick={{ fill: 'var(--text-muted)', fontSize: 9 }} axisLine={false} tickLine={false} angle={-15} textAnchor="end" height={50} />
+                  <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)', borderRadius: 8, fontSize: 12 }} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Area type="monotone" dataKey="stock" name="Total Stock" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorStock)" />
+                  <Area type="monotone" dataKey="reserved" name="Reserved" stroke="#f59e0b" strokeWidth={2} fillOpacity={1} fill="url(#colorReserved)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Inventory Value Trend */}
+            <div className="glass-card p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <TrendingUp size={16} className="text-[var(--accent)]" />
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Inventory Value Trend (Simulated)</h3>
+              </div>
+              <ResponsiveContainer width="100%" height={200}>
+                <AreaChart data={[
+                  { month: 'Oct', value: dynamicStats.totalValue * 0.7 / 100000 },
+                  { month: 'Nov', value: dynamicStats.totalValue * 0.8 / 100000 },
+                  { month: 'Dec', value: dynamicStats.totalValue * 0.85 / 100000 },
+                  { month: 'Jan', value: dynamicStats.totalValue * 0.9 / 100000 },
+                  { month: 'Feb', value: dynamicStats.totalValue * 0.95 / 100000 },
+                  { month: 'Mar', value: dynamicStats.totalValue / 100000 },
+                ]} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                  <XAxis dataKey="month" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `₹${v.toFixed(1)}L`} />
+                  <Tooltip formatter={(value) => [`₹${value.toFixed(1)}L`, 'Value']} contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)', borderRadius: 8, fontSize: 12 }} />
+                  <Area type="monotone" dataKey="value" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorValue)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Stock Movement Analysis */}
+            <div className="glass-card p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <Activity size={16} className="text-[var(--accent)]" />
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Stock Movement Analysis (6 Months)</h3>
+              </div>
+              <ResponsiveContainer width="100%" height={200}>
+                <AreaChart data={[
+                  { month: 'Oct', stockIn: 450, stockOut: 320, net: 130 },
+                  { month: 'Nov', stockIn: 520, stockOut: 380, net: 140 },
+                  { month: 'Dec', stockIn: 680, stockOut: 450, net: 230 },
+                  { month: 'Jan', stockIn: 580, stockOut: 420, net: 160 },
+                  { month: 'Feb', stockIn: 720, stockOut: 510, net: 210 },
+                  { month: 'Mar', stockIn: 650, stockOut: 480, net: 170 },
+                ]} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorStockIn" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="colorStockOut" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                  <XAxis dataKey="month" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)', borderRadius: 8, fontSize: 12 }} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Area type="monotone" dataKey="stockIn" name="Stock In" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorStockIn)" />
+                  <Area type="monotone" dataKey="stockOut" name="Stock Out" stroke="#ef4444" strokeWidth={2} fillOpacity={1} fill="url(#colorStockOut)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Category Value Comparison */}
+            <div className="glass-card p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <BarChart2 size={16} className="text-[var(--accent)]" />
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Inventory Value by Category</h3>
+              </div>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={categories.map(cat => {
+                  const catItems = inventory.filter(i => i.category === cat);
+                  const value = catItems.reduce((sum, i) => sum + ((i.stock || 0) * (i.rate || 0)), 0);
+                  const count = catItems.length;
+                  return { name: cat, value: value / 1000, count };
+                }).filter(c => c.value > 0)} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                  <XAxis dataKey="name" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis yAxisId="left" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `₹${v}K`} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)', borderRadius: 8, fontSize: 12 }} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Bar yAxisId="left" dataKey="value" name="Value (₹K)" fill="#8b5cf6" radius={[4, 4, 0, 0]} barSize={40} />
+                  <Bar yAxisId="right" dataKey="count" name="Item Count" fill="#06b6d4" radius={[4, 4, 0, 0]} barSize={20} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Quick Actions */}
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            <button 
+              onClick={() => setActiveTab('inventory')}
+              className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-600 hover:bg-blue-500/20 transition-colors text-sm font-medium flex items-center gap-2"
+            >
+              <Package size={16} /> View Inventory
+            </button>
+            <button 
+              onClick={() => setActiveTab('warehouse')}
+              className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 hover:bg-emerald-500/20 transition-colors text-sm font-medium flex items-center gap-2"
+            >
+              <Warehouse size={16} /> Manage Warehouses
+            </button>
+            <button 
+              onClick={() => setActiveTab('items')}
+              className="p-3 rounded-xl bg-violet-500/10 border border-violet-500/20 text-violet-600 hover:bg-violet-500/20 transition-colors text-sm font-medium flex items-center gap-2"
+            >
+              <Plus size={16} /> Add Items
+            </button>
+            <button 
+              onClick={() => setActiveTab('category')}
+              className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 hover:bg-amber-500/20 transition-colors text-sm font-medium flex items-center gap-2"
+            >
+              <Tag size={16} /> Categories
+            </button>
+            <button 
+              onClick={() => setActiveTab('unit')}
+              className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-600 hover:bg-cyan-500/20 transition-colors text-sm font-medium flex items-center gap-2"
+            >
+              <Scale size={16} /> Units
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* INVENTORY TAB CONTENT */}
       {activeTab === 'inventory' && (
         <>
@@ -1085,46 +1612,86 @@ const InventoryPage = () => {
               </div>
               <Button variant="ghost" onClick={() => setStockIn(true)}><ArrowUp size={13} /> Stock In</Button>
               <Button variant="ghost" onClick={() => setShowStockOut(true)}><ArrowDown size={13} /> Stock Out</Button>
+              <Button variant="ghost" onClick={() => setShowCardsInViews(!showCardsInViews)}>
+                <Layers size={13} /> {showCardsInViews ? 'Hide Cards' : 'Show Cards'}
+              </Button>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-            <KPICard
-              label="Total Items"
-              value={dynamicStats.totalItems}
-              sub="SKUs tracked"
-              icon={Package}
-              variant="blue"
-            />
-            <KPICard
-              label="Reserved Items"
-              value={dynamicStats.reservedItems}
-              sub="Allocated to projects"
-              icon={Package}
-              variant="purple"
-            />
-            <KPICard
-              label="Low Stock"
-              value={dynamicStats.lowStockItems}
-              sub="Items need reorder"
-              icon={AlertTriangle}
-              variant="amber"
-            />
-            <KPICard
-              label="Out of Stock"
-              value={dynamicStats.outOfStockItems}
-              sub="Immediate action needed"
-              icon={AlertTriangle}
-              variant="red"
-            />
-            <KPICard
-              label="Inventory Value"
-              value={`₹${(dynamicStats.totalValue / 100000).toFixed(1)}L`}
-              sub="At current rates"
-              icon={Warehouse}
-              variant="emerald"
-            />
-          </div>
+          {showCardsInViews && (
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+              <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 to-blue-400 rounded-2xl p-5 shadow-lg shadow-blue-500/20">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+                <div className="relative flex items-start justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-blue-50 uppercase tracking-wider">Total Items</p>
+                    <p className="text-3xl font-bold text-white mt-2">{dynamicStats.totalItems}</p>
+                    <p className="text-xs text-blue-100/80 mt-1">SKUs tracked</p>
+                  </div>
+                  <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                    <Package size={24} className="text-white" />
+                  </div>
+                </div>
+              </div>
+              {/* Card 2: Reserved Items - Swapped to position 2 */}
+              <div className="relative overflow-hidden bg-gradient-to-br from-violet-600 to-purple-500 rounded-2xl p-5 shadow-lg shadow-violet-500/20">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+                <div className="relative flex items-start justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-violet-50 uppercase tracking-wider">Reserved Items</p>
+                    <p className="text-3xl font-bold text-white mt-2">{dynamicStats.reservedItems}</p>
+                    <p className="text-xs text-violet-100/80 mt-1">Allocated to projects</p>
+                  </div>
+                  <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                    <Package size={24} className="text-white" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="relative overflow-hidden bg-gradient-to-br from-amber-500 to-orange-400 rounded-2xl p-5 shadow-lg shadow-amber-500/20">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+                <div className="relative flex items-start justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-amber-50 uppercase tracking-wider">Low Stock</p>
+                    <p className="text-3xl font-bold text-white mt-2">{dynamicStats.lowStockItems}</p>
+                    <p className="text-xs text-amber-100/80 mt-1">Items need reorder</p>
+                  </div>
+                  <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                    <AlertTriangle size={24} className="text-white" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="relative overflow-hidden bg-gradient-to-br from-red-600 to-rose-500 rounded-2xl p-5 shadow-lg shadow-red-500/20">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+                <div className="relative flex items-start justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-red-50 uppercase tracking-wider">Out of Stock</p>
+                    <p className="text-3xl font-bold text-white mt-2">{dynamicStats.outOfStockItems}</p>
+                    <p className="text-xs text-red-100/80 mt-1">Immediate action needed</p>
+                  </div>
+                  <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                    <AlertTriangle size={24} className="text-white" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 5: Inventory Value - Swapped to position 5 */}
+              <div className="relative overflow-hidden bg-gradient-to-br from-emerald-600 to-emerald-400 rounded-2xl p-5 shadow-lg shadow-emerald-500/20">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+                <div className="relative flex items-start justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-emerald-50 uppercase tracking-wider">Inventory Value</p>
+                    <p className="text-xl font-bold text-white mt-2">₹{(dynamicStats.totalValue / 100000).toFixed(1)}L</p>
+                    <p className="text-xs text-emerald-100/80 mt-1">At current rates</p>
+                  </div>
+                  <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                    <Warehouse size={24} className="text-white" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {dynamicStats.lowStockItems > 0 && (
             <div className="ai-banner border-amber-500/20 bg-amber-500/5">
@@ -1186,7 +1753,7 @@ const InventoryPage = () => {
                   <p className="text-xs mt-2 text-[var(--text-muted)]">Make sure the backend server is running on port 3000</p>
                 </div>
               ) : (
-                <InvKanbanBoard items={filtered} onCardClick={setSelected} onDrop={handleKanbanDrop} />
+                <InvKanbanBoard items={consolidatedItems} onCardClick={setSelected} onDrop={handleKanbanDrop} />
               )}
             </>
           )}
