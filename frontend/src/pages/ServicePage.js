@@ -4570,6 +4570,94 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+      {/* Status Summary Cards - All, Pending, Active, Complete */}
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+
+        <KPICard
+
+          label={<span className="text-sm font-semibold text-[var(--text-primary)]">All Tickets</span>}
+
+          value={tickets.length}
+
+          icon={Headphones}
+
+          color="blue"
+
+          loading={loadingTickets}
+
+          style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)' }}
+
+          iconBgColor="bg-blue-100"
+
+          iconColor="text-blue-600"
+
+        />
+
+        <KPICard
+
+          label={<span className="text-sm font-semibold text-[var(--text-primary)]">Pending</span>}
+
+          value={dynamicTicketStats.openTickets + dynamicTicketStats.scheduled}
+
+          icon={Clock}
+
+          color="amber"
+
+          loading={loadingStats}
+
+          style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)' }}
+
+          iconBgColor="bg-amber-100"
+
+          iconColor="text-amber-600"
+
+        />
+
+        <KPICard
+
+          label={<span className="text-sm font-semibold text-[var(--text-primary)]">Active</span>}
+
+          value={dynamicTicketStats.inProgress}
+
+          icon={Zap}
+
+          color="purple"
+
+          loading={loadingStats}
+
+          style={{ backgroundColor: 'rgba(139, 92, 246, 0.1)' }}
+
+          iconBgColor="bg-purple-100"
+
+          iconColor="text-purple-600"
+
+        />
+
+        <KPICard
+
+          label={<span className="text-sm font-semibold text-[var(--text-primary)]">Complete</span>}
+
+          value={dynamicTicketStats.resolved + dynamicTicketStats.closed}
+
+          icon={CheckCircle}
+
+          color="emerald"
+
+          loading={loadingStats}
+
+          style={{ backgroundColor: 'rgba(34, 197, 94, 0.1)' }}
+
+          iconBgColor="bg-emerald-100"
+
+          iconColor="text-emerald-600"
+
+        />
+
+      </div>
+
+
+
 
 
       <div className="ai-banner">

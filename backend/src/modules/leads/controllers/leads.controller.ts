@@ -226,10 +226,10 @@ export class LeadsController {
     @Request() req: any
   ) {
     try {
-      const tenantId = req.tenant?.id;
-      const userId = req.user?.id || req.user?._id;
-      this.logger.log(`[DEBUG] assignLead ${id} to ${assignedTo} by ${userId}`);
-      const result = await this.leadsService.assignLead(id, assignedTo, userId, tenantId);
+      // Pass full user object from JWT token - NEVER trust frontend role
+      const user = req.user;
+      this.logger.log(`[DEBUG] assignLead ${id} to ${assignedTo} by ${user?.id} (role: ${user?.role})`);
+      const result = await this.leadsService.assignLead(id, assignedTo, user);
       return { success: true, data: result };
     } catch (error: any) {
       this.logger.error(`Assign lead ${id} failed: ${error?.message || 'Unknown error'}`, error?.stack);
@@ -263,14 +263,77 @@ export class LeadsController {
     }
   }
 
-  @Post('bulk/delete')
+  @Delete('bulk')
   @HttpCode(HttpStatus.OK)
-  async bulkDelete(@Body() bulkDto: BulkActionDto, @Request() req: any) {
+  @RequirePermission('leads', 'delete')
+  async bulkDeleteEndpoint(@Body() body: { leadIds: string[] }, @Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
-      return await this.leadsService.bulkDelete(bulkDto.ids, tenantId);
+      return await this.leadsService.bulkDelete(body.leadIds, tenantId);
     } catch (error: any) {
       this.logger.error(`Bulk delete failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
+  @Patch('bulk-assign')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermission('leads', 'assign')
+  async bulkAssign(
+    @Body() body: { leadIds: string[]; assignedTo: string },
+    @Request() req: any
+  ) {
+    try {
+      const user = req.user;
+      this.logger.log(`[DEBUG] bulkAssign ${body.leadIds?.length} leads to ${body.assignedTo} by ${user?.id}`);
+      const results = [];
+      for (const leadId of body.leadIds || []) {
+        try {
+          const result = await this.leadsService.assignLead(leadId, body.assignedTo, user);
+          results.push({ leadId, success: true, data: result });
+        } catch (err: any) {
+          results.push({ leadId, success: false, error: err?.message });
+        }
+      }
+      return { success: true, data: results };
+    } catch (error: any) {
+      this.logger.error(`Bulk assign failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
+  @Patch('bulk-score')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermission('leads', 'edit')
+  async bulkScore(
+    @Body() body: { leadIds: string[]; scoreIncrease: number },
+    @Request() req: any
+  ) {
+    try {
+      const tenantId = req.tenant?.id;
+      this.logger.log(`[DEBUG] bulkScore ${body.leadIds?.length} leads by ${body.scoreIncrease}`);
+      const result = await this.leadsService.bulkUpdateScore(body.leadIds, body.scoreIncrease, tenantId);
+      return { success: true, data: result };
+    } catch (error: any) {
+      this.logger.error(`Bulk score failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
+  @Post('export')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermission('leads', 'export')
+  async exportLeads(
+    @Body() body: { leadIds: string[] },
+    @Request() req: any
+  ) {
+    try {
+      const tenantId = req.tenant?.id;
+      const user = req.user;
+      this.logger.log(`[DEBUG] exportLeads ${body.leadIds?.length} leads`);
+      return await this.leadsService.exportLeads(body.leadIds, tenantId, user);
+    } catch (error: any) {
+      this.logger.error(`Export leads failed: ${error?.message || 'Unknown error'}`, error?.stack);
       throw error;
     }
   }
@@ -385,17 +448,17 @@ export class LeadsController {
   }
 
   // ============================================
-  // LEAD IMPORT ENDPOINT - TEMPORARILY DISABLED
+  // LEAD IMPORT ENDPOINT
   // ============================================
-  /*
   @Post('import')
   @HttpCode(HttpStatus.OK)
+  @RequirePermission('leads', 'create')
   async importLeads(@Request() req: any) {
-    const file = await req.file?.();
+    const file = req.file;
     if (!file) throw new BadRequestException('No file uploaded');
 
     const allowedExt = ['.csv', '.xlsx', '.xls', '.json'];
-    const ext = extname(file.filename || '').toLowerCase();
+    const ext = extname(file.originalname || '').toLowerCase();
     if (!allowedExt.includes(ext)) {
       throw new BadRequestException('Only CSV, XLSX, XLS, or JSON files are allowed');
     }
@@ -407,15 +470,17 @@ export class LeadsController {
     const storedFileName = `leads-${uniqueSuffix}${ext}`;
     const storedPath = join(uploadDir, storedFileName);
 
-    await pipeline(file.file, createWriteStream(storedPath));
+    // Write file to disk
+    await pipeline(file.buffer, createWriteStream(storedPath));
 
     try {
       const tenantId = req.tenant?.id;
+      const user = req.user;
       const fileExtension = ext;
       
-      this.logger.log(`Importing leads from file: ${file.filename}, tenant: ${tenantId || 'default'}`);
+      this.logger.log(`Importing leads from file: ${file.originalname}, tenant: ${tenantId || 'default'}`);
       
-      const result = await this.leadsService.importLeads(storedPath, fileExtension, tenantId);
+      const result = await this.leadsService.importLeads(storedPath, fileExtension, tenantId, user);
       
       return result;
     } catch (error: any) {
@@ -423,5 +488,4 @@ export class LeadsController {
       throw error;
     }
   }
-  */
 }

@@ -221,13 +221,13 @@ export const KPICard = ({
             </div>
 
             <div className="relative z-10">
-                <div className="text-sm font-medium text-[var(--text-primary)] mb-0.5">
+                <div className="text-sm font-semibold text-gray-700 mb-1">
                     {label}
                 </div>
-                <div className="text-2xl font-bold text-[var(--text-primary)]">
+                <div className="text-3xl font-bold text-gray-900">
                     {value}
                 </div>
-                {sub && <div className="text-xs text-[var(--text-muted)]">{sub}</div>}
+                {sub && <div className="text-xs text-gray-500 mt-1">{sub}</div>}
             </div>
         </div>
     );
