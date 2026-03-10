@@ -6,11 +6,8 @@ import * as xlsx from 'xlsx';
 import { Lead, LeadDocument } from '../schemas/lead.schema';
 import { CreateLeadDto, UpdateLeadDto, QueryLeadDto, AddActivityDto } from '../dto/lead.dto';
 import { LeadStatus, LeadStatusDocument } from '../../settings/schemas/lead-status.schema';
-<<<<<<< Updated upstream
 import { buildVisibilityFilter, applyVisibilityFilter, buildCompleteFilter, canAccessRecord, UserWithVisibility } from '../../../common/utils/visibility-filter';
-=======
-import { buildVisibilityFilter, applyVisibilityFilter, UserWithVisibility, buildCompleteFilter, canAccessRecord } from '../../../common/utils/visibility-filter';
->>>>>>> Stashed changes
+
 import { SiteSurveysService } from '../../survey/services/site-surveys.service';
 
 @Injectable()
@@ -60,19 +57,11 @@ export class LeadsService {
 
   // Check if user can access a specific lead
   private canAccessLead(user: UserWithVisibility, lead: any): boolean {
-    // Super admin or ALL scope can access everything
-    if (user.dataScope === 'ALL' || user.role === 'Super Admin') {
-      return true;
-    }
-    
-    // For ASSIGNED scope, check if user is assigned to lead
-    if (user.dataScope === 'ASSIGNED') {
-      const assignedTo = lead.assignedTo?.toString();
-      const createdBy = lead.createdBy?.toString();
-      return assignedTo === user.id || createdBy === user.id;
-    }
-    
-    return false;
+    return canAccessRecord(user, {
+      assignedTo: lead?.assignedTo,
+      createdBy: lead?.createdBy,
+      tenantId: lead?.tenantId,
+    });
   }
 
   private toObjectId(id: string | undefined): Types.ObjectId | undefined {
