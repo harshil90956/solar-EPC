@@ -463,14 +463,14 @@ const AttendancePage = () => {
             label="Total Employees"
             value={analytics.totalEmployees}
             icon={Users}
-            accentColor="#3b82f6"
+            variant="blue"
             sub="Total staff"
           />
           <KPICard
             label="Present Today"
             value={analytics.presentToday}
             icon={CheckCircle}
-            accentColor="#22c55e"
+            variant="emerald"
             trend={`${analytics.totalEmployees > 0 ? Math.round((analytics.presentToday / analytics.totalEmployees) * 100) : 0}%`}
             trendUp={true}
           />
@@ -478,7 +478,7 @@ const AttendancePage = () => {
             label="Absent Today"
             value={analytics.absentToday}
             icon={XCircle}
-            accentColor="#ef4444"
+            variant="red"
             trend={`${analytics.totalEmployees > 0 ? Math.round((analytics.absentToday / analytics.totalEmployees) * 100) : 0}%`}
             trendUp={false}
           />
@@ -486,7 +486,7 @@ const AttendancePage = () => {
             label="Late Today"
             value={analytics.lateToday}
             icon={Clock}
-            accentColor="#f59e0b"
+            variant="amber"
             trend={`${analytics.totalEmployees > 0 ? Math.round((analytics.lateToday / analytics.totalEmployees) * 100) : 0}%`}
             trendUp={false}
           />

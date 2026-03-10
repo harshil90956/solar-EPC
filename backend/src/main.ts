@@ -47,7 +47,7 @@ async function bootstrap() {
     optionsSuccessStatus: 204,
   });
 
-  app.setGlobalPrefix('api/v1');
+  app.setGlobalPrefix('api');
 
   app.useGlobalPipes(
     new ValidationPipe({

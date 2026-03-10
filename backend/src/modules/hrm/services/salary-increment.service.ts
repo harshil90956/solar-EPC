@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { SalaryIncrement, SalaryIncrementDocument } from '../schemas/salary-increment.schema';
-import { CreateIncrementDto } from '../dto/salary-increment.dto';
+import { CreateIncrementDto, UpdateIncrementDto } from '../dto/salary-increment.dto';
 
 @Injectable()
 export class SalaryIncrementService {
@@ -124,5 +124,56 @@ export class SalaryIncrementService {
         createdAt: inc.createdAt,
       })),
     };
+  }
+
+  async update(id: string, updateDto: UpdateIncrementDto, tenantId?: string): Promise<SalaryIncrement> {
+    const query: any = { _id: new Types.ObjectId(id) };
+    
+    if (tenantId && tenantId !== 'default') {
+      query.tenantId = new Types.ObjectId(tenantId);
+    }
+
+    // If updating salaries, recalculate increment amount
+    const updateData: any = { ...updateDto };
+    if (updateDto.previousSalary !== undefined && updateDto.newSalary !== undefined) {
+      if (updateDto.newSalary <= updateDto.previousSalary) {
+        throw new BadRequestException('New salary must be greater than previous salary');
+      }
+      updateData.incrementAmount = updateDto.newSalary - updateDto.previousSalary;
+    }
+
+    if (updateDto.approvedBy) {
+      updateData.approvedBy = new Types.ObjectId(updateDto.approvedBy);
+    }
+
+    const increment = await this.incrementModel
+      .findOneAndUpdate(
+        query,
+        { $set: updateData },
+        { new: true }
+      )
+      .populate('employeeId', 'firstName lastName employeeId')
+      .populate('approvedBy', 'firstName lastName')
+      .exec();
+
+    if (!increment) {
+      throw new NotFoundException(`Salary increment with ID ${id} not found`);
+    }
+
+    return increment;
+  }
+
+  async delete(id: string, tenantId?: string): Promise<void> {
+    const query: any = { _id: new Types.ObjectId(id) };
+    
+    if (tenantId && tenantId !== 'default') {
+      query.tenantId = new Types.ObjectId(tenantId);
+    }
+
+    const result = await this.incrementModel.deleteOne(query).exec();
+    
+    if (result.deletedCount === 0) {
+      throw new NotFoundException(`Salary increment with ID ${id} not found`);
+    }
   }
 }

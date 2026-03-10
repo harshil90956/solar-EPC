@@ -175,53 +175,53 @@ const InvKanbanBoard = ({ items, onCardClick, onDrop }) => {
           .map(id => INV_STAGES.find(s => s.id === id))
           .filter(Boolean)
           .map(stage => {
-          const cards = items.filter(i => getStockStatus(i) === stage.id);
-          const totalVal = cards.reduce((a, i) => a + i.available * i.rate, 0);
-          return (
-            <div key={stage.id}
-              className={`flex flex-col w-72 sm:w-60 rounded-xl border transition-colors ${dragOver === stage.id ? 'border-[var(--primary)]/50 bg-[var(--primary)]/5' : 'border-[var(--border-base)] bg-[var(--bg-surface)]'}`}
-              onDragOver={e => { e.preventDefault(); setDragOver(stage.id); }}
-              onDragLeave={() => setDragOver(null)}
-              onDrop={() => handleDrop(stage.id)}>
-              <div
-                draggable
-                onDragStart={(e) => {
-                  draggingStageId.current = stage.id;
-                  try {
-                    e.dataTransfer.effectAllowed = 'move';
-                  } catch {
-                    // ignore
-                  }
-                }}
-                onDragEnd={() => { draggingStageId.current = null; setDragOver(null); }}
-                className="flex items-center justify-between p-3 border-b border-[var(--border-base)] cursor-grab active:cursor-grabbing"
-                title="Drag to reorder columns"
-              >
-                <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full" style={{ background: stage.color }} />
-                  <span className="text-xs font-semibold text-[var(--text-primary)]">{stage.label}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  {totalVal > 0 && <span className="text-[10px] text-[var(--text-muted)] hidden sm:inline">₹{(totalVal / 100000).toFixed(1)}L</span>}
-                  <span className="min-w-[20px] h-5 rounded-full text-[10px] font-bold flex items-center justify-center"
-                    style={{ background: stage.bg, color: stage.color }}>{cards.length}</span>
-                </div>
-              </div>
-              <div className="flex flex-col gap-2 p-2 flex-1 min-h-[180px]">
-                {cards.map(i => (
-                  <InvCard key={i.itemId} item={i}
-                    onDragStart={() => { draggingId.current = i.itemId; }}
-                    onClick={() => onCardClick(i)} />
-                ))}
-                {cards.length === 0 && (
-                  <div className="flex-1 flex items-center justify-center">
-                    <p className="text-[11px] text-[var(--text-faint)]">Drop here</p>
+            const cards = items.filter(i => getStockStatus(i) === stage.id);
+            const totalVal = cards.reduce((a, i) => a + i.available * i.rate, 0);
+            return (
+              <div key={stage.id}
+                className={`flex flex-col w-72 sm:w-60 rounded-xl border transition-colors ${dragOver === stage.id ? 'border-[var(--primary)]/50 bg-[var(--primary)]/5' : 'border-[var(--border-base)] bg-[var(--bg-surface)]'}`}
+                onDragOver={e => { e.preventDefault(); setDragOver(stage.id); }}
+                onDragLeave={() => setDragOver(null)}
+                onDrop={() => handleDrop(stage.id)}>
+                <div
+                  draggable
+                  onDragStart={(e) => {
+                    draggingStageId.current = stage.id;
+                    try {
+                      e.dataTransfer.effectAllowed = 'move';
+                    } catch {
+                      // ignore
+                    }
+                  }}
+                  onDragEnd={() => { draggingStageId.current = null; setDragOver(null); }}
+                  className="flex items-center justify-between p-3 border-b border-[var(--border-base)] cursor-grab active:cursor-grabbing"
+                  title="Drag to reorder columns"
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ background: stage.color }} />
+                    <span className="text-xs font-semibold text-[var(--text-primary)]">{stage.label}</span>
                   </div>
-                )}
+                  <div className="flex items-center gap-1.5">
+                    {totalVal > 0 && <span className="text-[10px] text-[var(--text-muted)] hidden sm:inline">₹{(totalVal / 100000).toFixed(1)}L</span>}
+                    <span className="min-w-[20px] h-5 rounded-full text-[10px] font-bold flex items-center justify-center"
+                      style={{ background: stage.bg, color: stage.color }}>{cards.length}</span>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2 p-2 flex-1 min-h-[180px]">
+                  {cards.map(i => (
+                    <InvCard key={i.itemId} item={i}
+                      onDragStart={() => { draggingId.current = i.itemId; }}
+                      onClick={() => onCardClick(i)} />
+                  ))}
+                  {cards.length === 0 && (
+                    <div className="flex-1 flex items-center justify-center">
+                      <p className="text-[11px] text-[var(--text-faint)]">Drop here</p>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
       </div>
     </div>
   );
@@ -336,7 +336,7 @@ const InventoryPage = () => {
       alert('Warehouse already exists');
       return;
     }
-    
+
     setSubmitting(true);
     try {
       const code = name.toUpperCase().replace(/\s+/g, '-');
@@ -366,7 +366,7 @@ const InventoryPage = () => {
       alert('Warehouse already exists');
       return;
     }
-    
+
     setSubmitting(true);
     try {
       const oldCode = oldName.toUpperCase().replace(/\s+/g, '-');
@@ -387,7 +387,7 @@ const InventoryPage = () => {
 
   const handleDeleteWarehouse = async (name) => {
     if (!window.confirm(`Are you sure you want to delete "${name}" warehouse?`)) return;
-    
+
     setSubmitting(true);
     try {
       const code = name.toUpperCase().replace(/\s+/g, '-');
@@ -464,7 +464,7 @@ const InventoryPage = () => {
 
         // Create new item in destination warehouse
         const createdItem = await api.post('/items', newItemData, { headers: { 'x-tenant-id': TENANT_ID } });
-        
+
         // Stock out from source warehouse
         await api.post(`/items/${item._id || item.itemId}/stock-out`, {
           quantity: qty,
@@ -676,7 +676,7 @@ const InventoryPage = () => {
         setSubmitting(false);
         return;
       }
-      
+
       const updatedItem = await api.post(`/items/${item._id}/stock-in`, {
         quantity: parseInt(stockInForm.quantity),
         poReference: stockInForm.poReference,
@@ -783,7 +783,7 @@ const InventoryPage = () => {
         setSubmitting(false);
         return;
       }
-      
+
       const updatedItem = await api.post(`/items/${item._id}/stock-out`, {
         quantity: parseInt(stockOutForm.quantity),
         projectId: stockOutForm.projectId,
@@ -798,7 +798,7 @@ const InventoryPage = () => {
           // Find project name
           const project = projects.find(p => p.projectId === stockOutForm.projectId);
           const projectName = project?.customerName || project?.name || 'Unknown Project';
-          
+
           await apiClient.post('/inventory/reservations', {
             reservationId: `RES-${Date.now()}`,
             itemId: item?.itemId || stockOutForm.itemId,
@@ -849,7 +849,7 @@ const InventoryPage = () => {
       const updatedItem = await api.patch(`/items/${item._id || itemId}`, { status: newStatus }, { headers: { 'x-tenant-id': TENANT_ID } });
       const itemData = updatedItem.data || updatedItem;
       setInventory(prev => prev.map(i => (i._id || i.itemId) === (itemData._id || itemData.itemId) ? { ...i, status: newStatus } : i));
-      
+
       // Refresh stats
       const statsData = await api.get('/inventory/stats', { headers: { 'x-tenant-id': TENANT_ID } });
       setInventoryStats(statsData.data || statsData);
@@ -870,7 +870,7 @@ const InventoryPage = () => {
       alert('Category already exists');
       return;
     }
-    
+
     setSubmitting(true);
     try {
       const code = newCategory.trim().toUpperCase().replace(/\s+/g, '-');
@@ -899,7 +899,7 @@ const InventoryPage = () => {
       alert('Category already exists');
       return;
     }
-    
+
     setSubmitting(true);
     try {
       const oldCode = oldCategory.toUpperCase().replace(/\s+/g, '-');
@@ -921,7 +921,7 @@ const InventoryPage = () => {
     if (!window.confirm(`Are you sure you want to delete "${categoryToDelete}" category?`)) {
       return;
     }
-    
+
     setSubmitting(true);
     try {
       const code = categoryToDelete.toUpperCase().replace(/\s+/g, '-');
@@ -945,7 +945,7 @@ const InventoryPage = () => {
       alert('Unit already exists');
       return;
     }
-    
+
     setSubmitting(true);
     try {
       const code = newUnit.trim().toUpperCase().replace(/\s+/g, '-');
@@ -974,7 +974,7 @@ const InventoryPage = () => {
       alert('Unit already exists');
       return;
     }
-    
+
     setSubmitting(true);
     try {
       const oldCode = oldUnit.toUpperCase().replace(/\s+/g, '-');
@@ -996,7 +996,7 @@ const InventoryPage = () => {
     if (!window.confirm(`Are you sure you want to delete "${unitToDelete}" unit?`)) {
       return;
     }
-    
+
     setSubmitting(true);
     try {
       const code = unitToDelete.toUpperCase().replace(/\s+/g, '-');
@@ -1028,37 +1028,37 @@ const InventoryPage = () => {
         <div className="flex items-center gap-2 flex-wrap">
           {/* Main Tabs - Now at top right */}
           <div className="flex items-center gap-1 p-1 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-base)]">
-            <button 
+            <button
               onClick={() => setActiveTab('dashboard')}
               className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${activeTab === 'dashboard' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
             >
               Dashboard
             </button>
-            <button 
+            <button
               onClick={() => setActiveTab('inventory')}
               className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${activeTab === 'inventory' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
             >
               Inventory
             </button>
-            <button 
+            <button
               onClick={() => setActiveTab('warehouse')}
               className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${activeTab === 'warehouse' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
             >
               Warehouse
             </button>
-            <button 
+            <button
               onClick={() => setActiveTab('items')}
               className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${activeTab === 'items' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
             >
               Item
             </button>
-            <button 
+            <button
               onClick={() => setActiveTab('category')}
               className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${activeTab === 'category' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
             >
               Category
             </button>
-            <button 
+            <button
               onClick={() => setActiveTab('unit')}
               className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${activeTab === 'unit' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
             >
@@ -1089,76 +1089,41 @@ const InventoryPage = () => {
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-            <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 to-blue-400 rounded-2xl p-5 shadow-lg shadow-blue-500/20">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
-              <div className="relative flex items-start justify-between">
-                <div>
-                  <p className="text-xs font-semibold text-blue-50 uppercase tracking-wider">Total Items</p>
-                  <p className="text-3xl font-bold text-white mt-2">{dynamicStats.totalItems}</p>
-                  <p className="text-xs text-blue-100/80 mt-1">SKUs tracked</p>
-                </div>
-                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
-                  <Package size={24} className="text-white" />
-                </div>
-              </div>
-            </div>
-            {/* Card 2: Reserved Items - Swapped to position 2 */}
-            <div className="relative overflow-hidden bg-gradient-to-br from-violet-600 to-purple-500 rounded-2xl p-5 shadow-lg shadow-violet-500/20">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
-              <div className="relative flex items-start justify-between">
-                <div>
-                  <p className="text-xs font-semibold text-violet-50 uppercase tracking-wider">Reserved Items</p>
-                  <p className="text-3xl font-bold text-white mt-2">{dynamicStats.reservedItems}</p>
-                  <p className="text-xs text-violet-100/80 mt-1">Allocated to projects</p>
-                </div>
-                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
-                  <Package size={24} className="text-white" />
-                </div>
-              </div>
-            </div>
-
-            <div className="relative overflow-hidden bg-gradient-to-br from-amber-500 to-orange-400 rounded-2xl p-5 shadow-lg shadow-amber-500/20">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
-              <div className="relative flex items-start justify-between">
-                <div>
-                  <p className="text-xs font-semibold text-amber-50 uppercase tracking-wider">Low Stock</p>
-                  <p className="text-3xl font-bold text-white mt-2">{dynamicStats.lowStockItems}</p>
-                  <p className="text-xs text-amber-100/80 mt-1">Items need reorder</p>
-                </div>
-                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
-                  <AlertTriangle size={24} className="text-white" />
-                </div>
-              </div>
-            </div>
-
-            <div className="relative overflow-hidden bg-gradient-to-br from-red-600 to-rose-500 rounded-2xl p-5 shadow-lg shadow-red-500/20">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
-              <div className="relative flex items-start justify-between">
-                <div>
-                  <p className="text-xs font-semibold text-red-50 uppercase tracking-wider">Out of Stock</p>
-                  <p className="text-3xl font-bold text-white mt-2">{dynamicStats.outOfStockItems}</p>
-                  <p className="text-xs text-red-100/80 mt-1">Immediate action needed</p>
-                </div>
-                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
-                  <AlertTriangle size={24} className="text-white" />
-                </div>
-              </div>
-            </div>
-
-            {/* Card 5: Inventory Value - Swapped to position 5 */}
-            <div className="relative overflow-hidden bg-gradient-to-br from-emerald-600 to-emerald-400 rounded-2xl p-5 shadow-lg shadow-emerald-500/20">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
-              <div className="relative flex items-start justify-between">
-                <div>
-                  <p className="text-xs font-semibold text-emerald-50 uppercase tracking-wider">Inventory Value</p>
-                  <p className="text-xl font-bold text-white mt-2">₹{(dynamicStats.totalValue / 100000).toFixed(1)}L</p>
-                  <p className="text-xs text-emerald-100/80 mt-1">At current rates</p>
-                </div>
-                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
-                  <Warehouse size={24} className="text-white" />
-                </div>
-              </div>
-            </div>
+            <KPICard
+              label="Total Items"
+              value={dynamicStats.totalItems}
+              sub="SKUs tracked"
+              icon={Package}
+              variant="blue"
+            />
+            <KPICard
+              label="Reserved Items"
+              value={dynamicStats.reservedItems}
+              sub="Allocated to projects"
+              icon={Package}
+              variant="purple"
+            />
+            <KPICard
+              label="Low Stock"
+              value={dynamicStats.lowStockItems}
+              sub="Items need reorder"
+              icon={AlertTriangle}
+              variant="amber"
+            />
+            <KPICard
+              label="Out of Stock"
+              value={dynamicStats.outOfStockItems}
+              sub="Immediate action needed"
+              icon={AlertTriangle}
+              variant="red"
+            />
+            <KPICard
+              label="Inventory Value"
+              value={`₹${(dynamicStats.totalValue / 100000).toFixed(1)}L`}
+              sub="At current rates"
+              icon={Warehouse}
+              variant="emerald"
+            />
           </div>
 
           {dynamicStats.lowStockItems > 0 && (
@@ -1310,9 +1275,9 @@ const InventoryPage = () => {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Input 
-                placeholder="Search items..." 
-                value={search} 
+              <Input
+                placeholder="Search items..."
+                value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="h-9 text-xs w-64"
               />
@@ -1356,54 +1321,54 @@ const InventoryPage = () => {
                   </tr>
                 ) : (
                   inventory
-                    .filter(item => item.name?.toLowerCase().includes(search.toLowerCase()) || 
-                                   item.itemId?.toLowerCase().includes(search.toLowerCase()))
+                    .filter(item => item.name?.toLowerCase().includes(search.toLowerCase()) ||
+                      item.itemId?.toLowerCase().includes(search.toLowerCase()))
                     .map((item) => (
-                    <tr key={item._id || item.itemId} 
-                      onClick={() => setSelected(item)}
-                      className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)] cursor-pointer">
-                      <td className="px-4 py-3">
-                        <span className="text-xs font-mono text-[var(--accent-light)]">{item.itemId}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-xs font-semibold text-[var(--text-primary)]">{item.name || item.description}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-xs text-[var(--text-secondary)]">{item.category}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-xs text-[var(--text-secondary)]">{item.unit}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-xs text-[var(--text-primary)]">₹{item.rate?.toLocaleString('en-IN')}</span>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setSelected(item); }}
-                            className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-[var(--primary)] hover:bg-[var(--bg-hover)]"
-                            title="View"
-                          >
-                            <Package size={14} />
-                          </button>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleEditClick(item); }}
-                            className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
-                            title="Edit"
-                          >
-                            <Edit2 size={14} />
-                          </button>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleDeleteItem(item.itemId); }}
-                            className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-red-500 hover:bg-red-500/10"
-                            title="Delete"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                      <tr key={item._id || item.itemId}
+                        onClick={() => setSelected(item)}
+                        className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)] cursor-pointer">
+                        <td className="px-4 py-3">
+                          <span className="text-xs font-mono text-[var(--accent-light)]">{item.itemId}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs font-semibold text-[var(--text-primary)]">{item.name || item.description}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs text-[var(--text-secondary)]">{item.category}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs text-[var(--text-secondary)]">{item.unit}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs text-[var(--text-primary)]">₹{item.rate?.toLocaleString('en-IN')}</span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setSelected(item); }}
+                              className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-[var(--primary)] hover:bg-[var(--bg-hover)]"
+                              title="View"
+                            >
+                              <Package size={14} />
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleEditClick(item); }}
+                              className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
+                              title="Edit"
+                            >
+                              <Edit2 size={14} />
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleDeleteItem(item.itemId); }}
+                              className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-red-500 hover:bg-red-500/10"
+                              title="Delete"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
                 )}
               </tbody>
             </table>
@@ -1469,8 +1434,8 @@ const InventoryPage = () => {
                 </thead>
                 <tbody>
                   {categories.map((cat) => (
-                    <tr 
-                      key={cat} 
+                    <tr
+                      key={cat}
                       className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)] cursor-pointer"
                       onClick={() => setViewingCategory(cat)}
                     >
@@ -1577,8 +1542,8 @@ const InventoryPage = () => {
                 </thead>
                 <tbody>
                   {units.map((unit) => (
-                    <tr 
-                      key={unit} 
+                    <tr
+                      key={unit}
                       className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)] cursor-pointer"
                       onClick={() => setViewingUnit(unit)}
                     >
@@ -1732,7 +1697,7 @@ const InventoryPage = () => {
       </Modal>
 
       {/* Warehouse Stock Transfer Modal */}
-      <Modal open={showTransferModal} onClose={() => { setShowTransferModal(false); setTransferToWarehouse(''); setTransferItem(''); setTransferQuantity(''); setTransferRemarks(''); }} 
+      <Modal open={showTransferModal} onClose={() => { setShowTransferModal(false); setTransferToWarehouse(''); setTransferItem(''); setTransferQuantity(''); setTransferRemarks(''); }}
         title={`Transfer Stock — ${transferFromWarehouse}`}
         footer={<div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={() => { setShowTransferModal(false); setTransferToWarehouse(''); setTransferItem(''); setTransferQuantity(''); setTransferRemarks(''); }}>Cancel</Button>
@@ -1762,17 +1727,17 @@ const InventoryPage = () => {
           </FormField>
           <div className="grid grid-cols-2 gap-3">
             <FormField label="Quantity to Transfer" required>
-              <Input type="number" placeholder="Enter quantity" value={transferQuantity} 
-                onChange={e => setTransferQuantity(e.target.value)} 
+              <Input type="number" placeholder="Enter quantity" value={transferQuantity}
+                onChange={e => setTransferQuantity(e.target.value)}
                 min="1"
                 max={inventory.find(i => i.itemId === transferItem && i.warehouse === transferFromWarehouse)?.available || ''}
               />
             </FormField>
             <FormField label="Available Stock">
-              <Input 
-                value={transferItem ? `${inventory.find(i => i.itemId === transferItem && i.warehouse === transferFromWarehouse)?.available || 0} ${inventory.find(i => i.itemId === transferItem && i.warehouse === transferFromWarehouse)?.unit || ''}` : '—'} 
-                disabled 
-                className="bg-[var(--bg-muted)]" 
+              <Input
+                value={transferItem ? `${inventory.find(i => i.itemId === transferItem && i.warehouse === transferFromWarehouse)?.available || 0} ${inventory.find(i => i.itemId === transferItem && i.warehouse === transferFromWarehouse)?.unit || ''}` : '—'}
+                disabled
+                className="bg-[var(--bg-muted)]"
               />
             </FormField>
           </div>
@@ -1933,16 +1898,16 @@ const InventoryPage = () => {
                   // Check for projectName directly on reservation
                   const projectNameFromRes = res.projectName || res.project_name;
                   // Then try to find in projects array
-                  const projectFromList = projects.find(p => 
-                    p.projectId === res.projectId || 
-                    p._id === res.projectId || 
+                  const projectFromList = projects.find(p =>
+                    p.projectId === res.projectId ||
+                    p._id === res.projectId ||
                     p.id === res.projectId
                   );
-                  
+
                   // Determine project name and status
                   let projectName = 'Unknown Project';
                   let isDeleted = false;
-                  
+
                   if (projectFromRes?.customerName || projectFromRes?.name) {
                     // Project info embedded in reservation
                     projectName = projectFromRes.customerName || projectFromRes.name;
@@ -1961,9 +1926,9 @@ const InventoryPage = () => {
                     projectName = res.projectId || 'Unknown Project';
                     isDeleted = true;
                   }
-                  
+
                   const projectId = res.projectId || res.projectID || 'N/A';
-                  
+
                   return (
                     <div key={res.reservationId || res._id} className="flex items-center justify-between glass-card p-2">
                       <div className="flex items-center gap-2">
@@ -2028,7 +1993,7 @@ const InventoryPage = () => {
               </div>
             </div>
           </div>
-          
+
           <div>
             <h4 className="text-sm font-semibold text-[var(--text-primary)] mb-2">Items in this category</h4>
             <div className="space-y-2">
@@ -2067,7 +2032,7 @@ const InventoryPage = () => {
               </div>
             </div>
           </div>
-          
+
           <div>
             <h4 className="text-sm font-semibold text-[var(--text-primary)] mb-2">Items using this unit</h4>
             <div className="space-y-2">

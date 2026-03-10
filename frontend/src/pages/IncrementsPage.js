@@ -8,7 +8,7 @@ import { Modal } from '../components/ui/Modal';
 import { toast } from '../components/ui/Toast';
 import { Search, RefreshCw, Plus, TrendingUp } from 'lucide-react';
 import { format } from 'date-fns';
-import { incrementApi } from '../services/hrmApi';
+import { incrementApi, employeeApi } from '../services/hrmApi';
 
 const IncrementsPage = () => {
   const [mounted, setMounted] = useState(false);
@@ -29,11 +29,16 @@ const IncrementsPage = () => {
   // Functions defined before useEffect
   const fetchEmployees = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/v1/hrm/employees');
-      const data = await response.json();
-      setEmployees(data.data || []);
+      console.log('[DEBUG] Fetching employees from API...');
+      const response = await employeeApi.getAll();
+      console.log('[DEBUG] Employee API response:', response);
+      const data = response.data?.data || response.data || [];
+      console.log('[DEBUG] Setting employees:', data.length, 'employees');
+      setEmployees(data);
     } catch (error) {
-      console.error('Failed to fetch employees');
+      console.error('[DEBUG] Error fetching employees:', error);
+      console.error('[DEBUG] Error details:', error.response?.data || error.message);
+      toast.error('Failed to fetch employees');
     }
   };
 
@@ -92,33 +97,33 @@ const IncrementsPage = () => {
   const totalIncrementAmount = increments.reduce((sum, inc) => sum + (inc.newSalary - inc.previousSalary), 0);
 
   const kpis = [
-    { 
-      label: 'Total Increments', 
-      value: increments.length, 
-      icon: TrendingUp, 
-      color: '#22c55e' 
+    {
+      label: 'Total Increments',
+      value: increments.length,
+      icon: TrendingUp,
+      variant: 'emerald'
     },
-    { 
-      label: 'This Month', 
+    {
+      label: 'This Month',
       value: increments.filter(inc => {
         const incMonth = new Date(inc.effectiveFrom).getMonth() + 1;
         const incYear = new Date(inc.effectiveFrom).getFullYear();
         return incMonth === new Date().getMonth() + 1 && incYear === new Date().getFullYear();
-      }).length, 
-      icon: TrendingUp, 
-      color: '#3b82f6' 
+      }).length,
+      icon: TrendingUp,
+      variant: 'blue'
     },
-    { 
-      label: 'Avg Increase', 
-      value: `${increments.length > 0 ? Math.round(increments.reduce((sum, inc) => sum + inc.incrementPercentage, 0) / increments.length) : 0}%`, 
-      icon: TrendingUp, 
-      color: '#f59e0b' 
+    {
+      label: 'Avg Increase',
+      value: `${increments.length > 0 ? Math.round(increments.reduce((sum, inc) => sum + inc.incrementPercentage, 0) / increments.length) : 0}%`,
+      icon: TrendingUp,
+      variant: 'amber'
     },
-    { 
-      label: 'Total Amount', 
-      value: `₹${totalIncrementAmount.toLocaleString()}`, 
-      icon: TrendingUp, 
-      color: '#a855f7' 
+    {
+      label: 'Total Amount',
+      value: `₹${totalIncrementAmount.toLocaleString()}`,
+      icon: TrendingUp,
+      variant: 'purple'
     },
   ];
 
@@ -206,7 +211,7 @@ const IncrementsPage = () => {
             label={kpi.label}
             value={kpi.value}
             icon={kpi.icon}
-            accentColor={kpi.color}
+            variant={kpi.variant}
           />
         ))}
       </div>

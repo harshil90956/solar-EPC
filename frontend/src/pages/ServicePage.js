@@ -6770,13 +6770,53 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
             </div>
 
+        <KPICard
+          label="Open Tickets"
+          value={dynamicTicketStats.openTickets}
+          icon={AlertTriangle}
+          variant="red"
+          loading={loadingStats}
+        />
 
+        <KPICard
+          label="Scheduled"
+          value={dynamicTicketStats.scheduled}
+          icon={Calendar}
+          variant="blue"
+          loading={loadingStats}
+        />
 
-            <div className="grid grid-cols-2 gap-3">
+        <KPICard
+          label="In Progress"
+          value={dynamicTicketStats.inProgress}
+          icon={Wrench}
+          variant="amber"
+          loading={loadingStats}
+        />
 
+        <KPICard
+          label="Resolved"
+          value={dynamicTicketStats.resolved}
+          icon={CheckCircle}
+          variant="emerald"
+          loading={loadingStats}
+        />
 
+        <KPICard
+          label="Closed"
+          value={dynamicTicketStats.closed}
+          icon={XCircle}
+          variant="indigo"
+          loading={loadingStats}
+        />
 
-              <FormField label="Start Date">
+        <KPICard
+          label="AMC Contracts"
+          value={dynamicAmcStats.activeContracts}
+          icon={Shield}
+          variant="purple"
+          loading={loadingStats}
+        />
 
 
 
