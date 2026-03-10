@@ -139,6 +139,20 @@ export class LeaveService {
     return leave;
   }
 
+  async delete(id: string, tenantId?: string): Promise<void> {
+    const query: any = { _id: new Types.ObjectId(id) };
+    
+    if (tenantId && tenantId !== 'default') {
+      query.tenantId = new Types.ObjectId(tenantId);
+    }
+
+    const result = await this.leaveModel.deleteOne(query).exec();
+    
+    if (result.deletedCount === 0) {
+      throw new NotFoundException(`Leave request with ID ${id} not found`);
+    }
+  }
+
   async getLeaveBalance(employeeId: string, year: number, tenantId?: string): Promise<any> {
     const query: any = {
       employeeId: new Types.ObjectId(employeeId),

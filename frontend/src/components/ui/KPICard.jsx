@@ -23,45 +23,27 @@ import { cn } from '../../lib/utils';
  *  trend      — string (e.g. "+23% YoY")
 
  *  trendUp    — bool
-
- *  accentColor— hex | CSS var
-
- *  glowClass  — tailwind shadow class
-
- *  sparkData  — [number] (mini sparkline — future)
-
- *  gradient   — string (tailwind gradient class for background)
-
- *  iconBgColor— string (tailwind bg class for icon container)
-
- *  iconColor  — string (tailwind text class for icon)
-
+ *  variant    — string (emerald | blue | amber | red | purple | indigo)
+ *  className  — string
+ *  style      — object
+ *  onClick    — function
+ *  loading    — boolean
  */
 
 export const KPICard = ({
-
-    label, value, sub, icon: Icon,
-
-    trend, trendUp,
-
-    variant = 'emerald', // emerald | blue | amber | red | purple | indigo
-
+    label,
+    value,
+    sub,
+    icon: Icon,
+    trend,
+    trendUp,
+    variant = 'emerald',
     className,
 
     style,
-
-    gradient,
-
-    iconBgColor = 'bg-gray-100',
-
-    iconColor = 'text-gray-600',
-
     onClick,
-
+    loading = false,
 }) => {
-
-    // Unified color palette - same across all modules
-
     const variants = {
 
         emerald: {
@@ -142,12 +124,33 @@ export const KPICard = ({
 
     const v = variants[variant] || variants.emerald;
 
-
+    if (loading) {
+        return (
+            <div
+                className={cn(
+                    'relative overflow-hidden rounded-2xl p-5 bg-gradient-to-br',
+                    v.gradient,
+                    'border border-[var(--border-muted)]',
+                    'animate-pulse',
+                    className
+                )}
+                style={style}
+            >
+                <div className="flex items-start justify-between mb-4">
+                    <div className={cn('p-3 rounded-xl', v.iconBg)}>
+                        <div className="w-[22px] h-[22px] bg-gray-300 rounded" />
+                    </div>
+                </div>
+                <div className="h-4 w-20 bg-gray-300 rounded mb-2" />
+                <div className="h-8 w-32 bg-gray-300 rounded" />
+            </div>
+        );
+    }
 
     return (
 
         <div
-
+            onClick={onClick}
             className={cn(
 
                 'relative overflow-hidden rounded-2xl p-5 bg-gradient-to-br',
@@ -157,7 +160,7 @@ export const KPICard = ({
                 'border border-[var(--border-muted)]',
 
                 'hover:scale-[1.02] transition-all duration-300 cursor-pointer group',
-
+                onClick && 'cursor-pointer',
                 className
 
             )}

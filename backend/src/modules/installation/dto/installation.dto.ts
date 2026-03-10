@@ -15,6 +15,10 @@ export class TaskItemDto {
   @IsOptional()
   @IsMongoId()
   completedBy?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  photoRequired?: boolean;
 }
 
 export class PhotoItemDto {
@@ -150,12 +154,6 @@ export class UpdateInstallationDto extends PartialType(CreateInstallationDto) {}
 export class UpdateInstallationStatusDto {
   @IsEnum(['Pending', 'In Progress', 'Delayed', 'Completed'])
   status!: 'Pending' | 'In Progress' | 'Delayed' | 'Completed';
-
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  @Max(100)
-  progress?: number;
 
   @IsOptional()
   @IsString()

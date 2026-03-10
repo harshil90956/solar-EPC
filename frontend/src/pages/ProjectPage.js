@@ -1223,7 +1223,7 @@ const ProjectPage = () => {
                       <option value="">{itemsLoading ? 'Loading...' : 'Select Item'}</option>
                       {items.map(item => (
                         <option key={item._id || item.id} value={item._id || item.id}>
-                          {item.description || item.name} (Stock: {item.stock || 0})
+                          {item.description || item.name} ({item.warehouse}) - Stock: {item.stock || 0}
                         </option>
                       ))}
                     </Select>
@@ -1294,7 +1294,7 @@ const ProjectPage = () => {
                       <option value="">{itemsLoading ? 'Loading...' : 'Select Item'}</option>
                       {items.map(item => (
                         <option key={item._id || item.id} value={item._id || item.id}>
-                          {item.description || item.name} (Stock: {item.stock || 0})
+                          {item.description || item.name} ({item.warehouse}) - Stock: {item.stock || 0}
                         </option>
                       ))}
                     </Select>

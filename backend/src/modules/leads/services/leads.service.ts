@@ -24,7 +24,6 @@ export class LeadsService {
   private readonly dashboardCache = new Map<string, { ts: number; data: any }>();
   private readonly dashboardCacheTtlMs = 30_000;
 
-  // Build complete filter with tenant and visibility
   private buildCompleteFilter(tenantId?: string, user?: UserWithVisibility, baseFilter: any = {}): any {
     const filter = { ...baseFilter };
     

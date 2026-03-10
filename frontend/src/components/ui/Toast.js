@@ -24,13 +24,12 @@ export const ToastProvider = ({ children }) => {
         {toasts.map(toast => (
           <div
             key={toast.id}
-            className={`px-4 py-3 rounded-lg shadow-lg text-sm font-medium animate-fade-in ${
-              toast.type === 'error' 
-                ? 'bg-red-500/90 text-white' 
+            className={`px-4 py-3 rounded-lg shadow-lg text-sm font-medium animate-fade-in ${toast.type === 'error'
+                ? 'bg-red-500/90 text-white'
                 : toast.type === 'success'
-                ? 'bg-emerald-500/90 text-white'
-                : 'bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-base)]'
-            }`}
+                  ? 'bg-emerald-500/90 text-white'
+                  : 'bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-base)]'
+              }`}
           >
             {toast.message}
           </div>
@@ -65,6 +64,16 @@ export const toast = {
     console.log(`[Toast Success] ${message}`);
     const toastEl = document.createElement('div');
     toastEl.className = 'fixed bottom-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-sm font-medium bg-emerald-500/90 text-white animate-fade-in';
+    toastEl.textContent = message;
+    document.body.appendChild(toastEl);
+    setTimeout(() => {
+      toastEl.remove();
+    }, 3000);
+  },
+  info: (message) => {
+    console.log(`[Toast Info] ${message}`);
+    const toastEl = document.createElement('div');
+    toastEl.className = 'fixed bottom-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-sm font-medium bg-blue-500/90 text-white animate-fade-in';
     toastEl.textContent = message;
     document.body.appendChild(toastEl);
     setTimeout(() => {
