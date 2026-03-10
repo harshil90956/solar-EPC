@@ -18,7 +18,7 @@ export class ItemsController {
     @Query('itemGroupId') itemGroupId?: string,
     @Req() req?: any,
   ) {
-    const tenantId = headerTenantId || queryTenantId;
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
     // Extract user with dataScope from JWT (same pattern as Finance controller)
     const user = req?.user ? {
       id: String(req.user.id || req.user._id),
