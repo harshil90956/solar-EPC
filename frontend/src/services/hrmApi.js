@@ -19,6 +19,10 @@ export const attendanceApi = {
   getByEmployee: (employeeId) => apiClient.get(`/hrm/attendance/employee/${employeeId}`),
   getMonthlySummary: (employeeId, month, year) =>
     apiClient.get(`/hrm/attendance/summary/${employeeId}`, { params: { month, year } }),
+  getTodaySummary: () => apiClient.get('/hrm/attendance/today-summary'),
+  update: (id, data) => apiClient.put(`/hrm/attendance/${id}`, data),
+  delete: (id) => apiClient.delete(`/hrm/attendance/${id}`),
+  bulkUpdate: (data) => apiClient.patch('/hrm/attendance/bulk-update', data),
 };
 
 // ==================== LEAVE APIs ====================
@@ -37,6 +41,7 @@ export const payrollApi = {
   getAll: (params) => apiClient.get('/hrm/payroll', { params }),
   getById: (id) => apiClient.get(`/hrm/payroll/${id}`),
   getByEmployee: (employeeId) => apiClient.get(`/hrm/payroll/employee/${employeeId}`),
+  create: (data) => apiClient.post('/hrm/payroll/generate', data),
   generate: (data) => apiClient.post('/hrm/payroll/generate', data),
   generateBulk: (data) => apiClient.post('/hrm/payroll/generate-bulk', data),
   update: (id, data) => apiClient.patch(`/hrm/payroll/${id}`, data),

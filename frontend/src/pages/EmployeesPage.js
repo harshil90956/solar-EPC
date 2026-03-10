@@ -55,8 +55,11 @@ const EmployeesPage = () => {
   const fetchEmployees = async () => {
     try {
       setLoading(true);
+      console.log('[DEBUG] Fetching employees...');
       const response = await employeeApi.getAll();
+      console.log('[DEBUG] Employee API response:', response);
       const data = response.data?.data || response.data || [];
+      console.log('[DEBUG] Extracted employee data:', data);
       setEmployees(data);
 
       // Calculate stats
@@ -71,6 +74,8 @@ const EmployeesPage = () => {
         departments: uniqueDepts.length
       });
     } catch (error) {
+      console.error('[DEBUG] Error fetching employees:', error);
+      console.error('[DEBUG] Error response:', error.response);
       toast.error('Failed to fetch employees');
     } finally {
       setLoading(false);
@@ -328,33 +333,33 @@ const EmployeesPage = () => {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard
-          title="Total Employees"
+          label="Total Employees"
           value={stats.total}
           icon={Briefcase}
-          accentColor="#3b82f6"
+          variant="blue"
           sub="All employees"
         />
         <KPICard
-          title="Active Employees"
+          label="Active Employees"
           value={stats.active}
           icon={Briefcase}
-          accentColor="#22c55e"
+          variant="emerald"
           trend={`${stats.total > 0 ? Math.round((stats.active / stats.total) * 100) : 0}%`}
           trendUp={true}
         />
         <KPICard
-          title="Inactive"
+          label="Inactive"
           value={stats.inactive}
           icon={Briefcase}
-          accentColor="#ef4444"
+          variant="red"
           trend={`${stats.total > 0 ? Math.round((stats.inactive / stats.total) * 100) : 0}%`}
           trendUp={false}
         />
         <KPICard
-          title="Departments"
+          label="Departments"
           value={stats.departments}
           icon={MapPin}
-          accentColor="#f59e0b"
+          variant="amber"
           sub="Unique depts"
         />
       </div>

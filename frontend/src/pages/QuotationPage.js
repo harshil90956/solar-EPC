@@ -285,22 +285,22 @@ const QuotationPage = () => {
         <KPICard
           label="Total Quotes" value={quotations.length}
           sub={`Pipeline: ${fmt(totalValue)}`} icon={FileText}
-          accentColor="var(--primary)"
+          variant="indigo"
         />
         <KPICard
           label="Approved Value" value={fmt(approvedValue)}
-          sub={`${QUOTATIONS_EXT.filter(q => q.status === 'Approved').length} quotes approved`} icon={CheckCircle} accentColor="#22c55e"
+          sub={`${QUOTATIONS_EXT.filter(q => q.status === 'Approved').length} quotes approved`} icon={CheckCircle} variant="emerald"
         />
         <KPICard
           label="Avg Gross Margin" value={`${avgMargin.toFixed(1)}%`}
           sub={`Target ${TARGET_MARGIN_PCT}% · Floor ${MIN_MARGIN_PCT}%`}
-          icon={TrendingUp} accentColor="#3b82f6"
+          icon={TrendingUp} variant="blue"
           trend={avgMargin >= TARGET_MARGIN_PCT ? 'On target' : 'Below target'} trendUp={avgMargin >= TARGET_MARGIN_PCT}
         />
         <KPICard
           label="Pending Approval" value={pendingApproval}
           sub={`${belowMinMargin} quotes below ${MIN_MARGIN_PCT}% floor`}
-          icon={AlertTriangle} accentColor="#f59e0b"
+          icon={AlertTriangle} variant="amber"
         />
       </div>
 

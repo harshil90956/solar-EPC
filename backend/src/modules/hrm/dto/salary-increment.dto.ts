@@ -8,14 +8,17 @@ export class CreateIncrementDto {
 
   @IsNumber()
   @Min(0)
+  @Type(() => Number)
   previousSalary!: number;
 
   @IsNumber()
   @Min(0)
+  @Type(() => Number)
   incrementPercentage!: number;
 
   @IsNumber()
   @Min(0)
+  @Type(() => Number)
   newSalary!: number;
 
   @IsDate()
@@ -36,4 +39,34 @@ export class GetIncrementQueryDto {
   @IsMongoId()
   @IsOptional()
   employeeId?: string;
+}
+
+export class UpdateIncrementDto {
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  previousSalary?: number;
+
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  incrementPercentage?: number;
+
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  newSalary?: number;
+
+  @IsDate()
+  @Type(() => Date)
+  @IsOptional()
+  effectiveFrom?: Date;
+
+  @IsString()
+  @IsOptional()
+  reason?: string;
+
+  @IsMongoId()
+  @IsOptional()
+  approvedBy?: string;
 }

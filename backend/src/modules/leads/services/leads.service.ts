@@ -7,6 +7,7 @@ import { Lead, LeadDocument } from '../schemas/lead.schema';
 import { CreateLeadDto, UpdateLeadDto, QueryLeadDto, AddActivityDto } from '../dto/lead.dto';
 import { LeadStatus, LeadStatusDocument } from '../../settings/schemas/lead-status.schema';
 import { buildVisibilityFilter, applyVisibilityFilter, buildCompleteFilter, canAccessRecord, UserWithVisibility } from '../../../common/utils/visibility-filter';
+
 import { SiteSurveysService } from '../../survey/services/site-surveys.service';
 
 @Injectable()
@@ -20,6 +21,48 @@ export class LeadsService {
 
   private readonly dashboardCache = new Map<string, { ts: number; data: any }>();
   private readonly dashboardCacheTtlMs = 30_000;
+
+  // Build complete filter with tenant and visibility
+  private buildCompleteFilter(tenantId?: string, user?: UserWithVisibility, baseFilter: any = {}): any {
+    const filter = { ...baseFilter };
+    
+    // Apply tenant filter
+    const tid = this.toObjectId(tenantId);
+    if (tid) {
+      filter.$or = [
+        { tenantId: tid },
+        { tenantId: { $exists: false } },
+        { tenantId: null },
+      ];
+    } else {
+      filter.$or = [
+        { tenantId: { $exists: false } },
+        { tenantId: null },
+      ];
+    }
+    
+    // Apply visibility filter
+    if (user?.dataScope === 'ASSIGNED') {
+      filter.$and = filter.$and || [];
+      filter.$and.push({
+        $or: [
+          { assignedTo: user.id },
+          { createdBy: user.id },
+        ],
+      });
+    }
+    
+    return filter;
+  }
+
+  // Check if user can access a specific lead
+  private canAccessLead(user: UserWithVisibility, lead: any): boolean {
+    return canAccessRecord(user, {
+      assignedTo: lead?.assignedTo,
+      createdBy: lead?.createdBy,
+      tenantId: lead?.tenantId,
+    });
+  }
 
   private toObjectId(id: string | undefined): Types.ObjectId | undefined {
     if (!id) return undefined;
@@ -250,7 +293,7 @@ export class LeadsService {
     } = query;
 
     // Build complete filter with tenant and visibility
-    const filter = buildCompleteFilter(tenantId, user, {});
+    const filter = this.buildCompleteFilter(tenantId, user, {});
 
     // Apply quick filters
     if (quickFilter) {
@@ -736,7 +779,7 @@ export class LeadsService {
 
   async getStats(tenantId?: string, user?: UserWithVisibility): Promise<any> {
     // Build complete filter with tenant and visibility
-    const filter = buildCompleteFilter(tenantId, user, {});
+    const filter = this.buildCompleteFilter(tenantId, user, {});
 
     Logger.log(`[getStats] tenantId: ${tenantId}, filter: ${JSON.stringify(filter)}`, 'LeadsService');
 
@@ -813,7 +856,7 @@ export class LeadsService {
     activeLeads: number;
   }> {
     return this.withDashboardCache(tenantId, 'overview', async () => {
-      const filter = buildCompleteFilter(tenantId, user, {});
+      const filter = this.buildCompleteFilter(tenantId, user, {});
       Logger.log(`[getDashboardOverview] tenantId: ${tenantId}, filter: ${JSON.stringify(filter)}`, 'LeadsService');
       
       const now = new Date();
@@ -861,7 +904,7 @@ export class LeadsService {
 
   async getDashboardFunnel(tenantId?: string, user?: UserWithVisibility): Promise<{ stages: Array<{ stage: string; count: number }> }> {
     return this.withDashboardCache(tenantId, 'funnel', async () => {
-      const filter = buildCompleteFilter(tenantId, user, {});
+      const filter = this.buildCompleteFilter(tenantId, user, {});
       const stageOrder = ['new', 'contacted', 'qualified', 'proposal', 'negotiation', 'won', 'lost'];
 
       const stageAgg = await this.leadModel.aggregate([
@@ -881,7 +924,7 @@ export class LeadsService {
 
   async getDashboardSource(tenantId?: string, user?: UserWithVisibility): Promise<{ sources: Array<{ source: string; leads: number; value: number }> }> {
     return this.withDashboardCache(tenantId, 'source', async () => {
-      const filter = buildCompleteFilter(tenantId, user, {});
+      const filter = this.buildCompleteFilter(tenantId, user, {});
 
       const agg = await this.leadModel.aggregate([
         { $match: filter },
@@ -904,7 +947,7 @@ export class LeadsService {
     user?: UserWithVisibility
   ): Promise<{ months: Array<{ month: string; leads: number; value: number }>; scoreBuckets: Array<{ bucket: string; count: number }>; agents: Array<{ id: string; name: string; leadsAssigned: number; leadsConverted: number; conversionRate: number; rank: number }> }> {
     return this.withDashboardCache(tenantId, 'trend', async () => {
-      const filter = buildCompleteFilter(tenantId, user, {});
+      const filter = this.buildCompleteFilter(tenantId, user, {});
 
       const start = new Date();
       start.setMonth(start.getMonth() - 11);
@@ -1006,7 +1049,7 @@ export class LeadsService {
     user?: UserWithVisibility
   ): Promise<{ last30Days: Array<{ date: string; count: number }>; byType: Array<{ type: string; count: number }> }> {
     return this.withDashboardCache(tenantId, 'activity', async () => {
-      const filter = buildCompleteFilter(tenantId, user, {});
+      const filter = this.buildCompleteFilter(tenantId, user, {});
       const start = new Date();
       start.setDate(start.getDate() - 30);
       start.setHours(0, 0, 0, 0);

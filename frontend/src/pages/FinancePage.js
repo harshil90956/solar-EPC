@@ -331,7 +331,7 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
           // Show Pending invoices in Sent column
 
-          const cards = invoices.filter(i => 
+          const cards = invoices.filter(i =>
 
             i.status === stage.id || (stage.id === 'Sent' && i.status === 'Pending')
 
@@ -547,35 +547,37 @@ const INVOICE_COLUMNS = [
 
 
 
-  { key: 'reminderCount', header: 'Reminders', render: (v, row) => (
+  {
+    key: 'reminderCount', header: 'Reminders', render: (v, row) => (
 
-    <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1">
 
-      {v > 0 ? (
+        {v > 0 ? (
 
-        <>
+          <>
 
-          <span className="text-xs font-bold text-orange-400">{v}</span>
+            <span className="text-xs font-bold text-orange-400">{v}</span>
 
-          {row.lastReminderSentAt && (
+            {row.lastReminderSentAt && (
 
-            <span className="text-[10px] text-[var(--text-faint)]">
+              <span className="text-[10px] text-[var(--text-faint)]">
 
-              ({new Date(row.lastReminderSentAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })})</span>
+                ({new Date(row.lastReminderSentAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })})</span>
 
-          )}
+            )}
 
-        </>
+          </>
 
-      ) : (
+        ) : (
 
-        <span className="text-xs text-[var(--text-faint)]">—</span>
+          <span className="text-xs text-[var(--text-faint)]">—</span>
 
-      )}
+        )}
 
-    </div>
+      </div>
 
-  )},
+    )
+  },
 
 
 
@@ -657,7 +659,7 @@ const FinancePage = ({ onNavigate }) => {
 
   const [view, setView] = useState('table');
 
-  
+
 
   // Main view mode: 'dashboard', 'kanban', 'table'
 
@@ -695,7 +697,7 @@ const FinancePage = ({ onNavigate }) => {
 
   });
 
-  
+
 
   const setPageSize = (size) => {
 
@@ -1290,7 +1292,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-      
+
 
 
 
@@ -1370,7 +1372,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-      
+
 
 
 
@@ -1628,27 +1630,27 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-      console.log('FinancePage CashFlow debug:', { 
+      console.log('FinancePage CashFlow debug:', {
 
         months: months.map(m => ({ month: m.month, start: m.start.toISOString(), end: m.end.toISOString() })),
 
         invoicesCount: invoicesRes?.length || 0,
 
-        paidInvoices: invoicesRes?.filter(inv => inv?.status === 'Paid').map(inv => ({ 
+        paidInvoices: invoicesRes?.filter(inv => inv?.status === 'Paid').map(inv => ({
 
-          status: inv.status, 
+          status: inv.status,
 
-          amount: inv.amount, 
+          amount: inv.amount,
 
           paid: inv.paid,
 
           invoiceDate: inv.invoiceDate,
 
-          paidDate: inv.paidDate 
+          paidDate: inv.paidDate
 
         })),
 
-        cashFlowSeries 
+        cashFlowSeries
 
       });
 
@@ -2800,7 +2802,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-    
+
 
     // Try to get email from projects list immediately
 
@@ -2868,7 +2870,7 @@ const FinancePage = ({ onNavigate }) => {
 
         const customerEmail = projectRes?.email || projectRes?.data?.email || projectRes?.project?.email || projectRes?.customerEmail || projectRes?.data?.customerEmail || projectRes?.project?.customerEmail || '';
 
-        
+
 
         console.log('Project Response:', projectRes);
 
@@ -3302,7 +3304,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-    
+
 
 
 
@@ -3322,7 +3324,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-      
+
 
 
 
@@ -3380,7 +3382,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-      
+
 
 
 
@@ -3452,7 +3454,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-      
+
 
 
 
@@ -3572,7 +3574,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-      
+
 
 
 
@@ -3596,31 +3598,31 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-              }, 2000);
+      }, 2000);
 
 
 
-            } catch (err) {
+    } catch (err) {
 
 
 
-              setError(err.message || 'Failed to send reminder');
+      setError(err.message || 'Failed to send reminder');
 
 
 
-            } finally {
+    } finally {
 
 
 
-              setSendingReminder(false);
+      setSendingReminder(false);
 
 
 
-            }
+    }
 
 
 
-          };
+  };
 
 
 
@@ -4032,11 +4034,9 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-      (invStatus === 'All' || 
+      (invStatus === 'All' ||
 
-
-
-        inv.status === invStatus || 
+        inv.status === invStatus ||
 
 
 
@@ -4060,11 +4060,11 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-  const paginatedInvoices = useMemo(() => 
+  const paginatedInvoices = useMemo(() =>
 
     filteredInvoices.slice((page - 1) * pageSize, page * pageSize),
 
-  [filteredInvoices, page, pageSize]);
+    [filteredInvoices, page, pageSize]);
 
 
 
@@ -4196,7 +4196,7 @@ const FinancePage = ({ onNavigate }) => {
 
     const rows = [];
 
-    
+
 
     journalEntries.forEach(entry => {
 
@@ -4208,7 +4208,7 @@ const FinancePage = ({ onNavigate }) => {
 
       const creditLines = entry.lines?.filter(l => l.creditAmount > 0) || [];
 
-      
+
 
       // Add debit lines
 
@@ -4232,7 +4232,7 @@ const FinancePage = ({ onNavigate }) => {
 
       });
 
-      
+
 
       // Add credit lines
 
@@ -4258,13 +4258,13 @@ const FinancePage = ({ onNavigate }) => {
 
     });
 
-    
+
 
     // Create worksheet
 
     const ws = XLSX.utils.json_to_sheet(rows);
 
-    
+
 
     // Set column widths
 
@@ -4284,7 +4284,7 @@ const FinancePage = ({ onNavigate }) => {
 
     ];
 
-    
+
 
     // Create workbook
 
@@ -4292,11 +4292,11 @@ const FinancePage = ({ onNavigate }) => {
 
     XLSX.utils.book_append_sheet(wb, ws, 'Journal Entries');
 
-    
+
 
     // Download file
 
-    XLSX.writeFile(wb, `journal_entries_${new Date().toISOString().slice(0,10)}.xlsx`);
+    XLSX.writeFile(wb, `journal_entries_${new Date().toISOString().slice(0, 10)}.xlsx`);
 
   };
 
@@ -4771,15 +4771,13 @@ const FinancePage = ({ onNavigate }) => {
 
                   onClick={() => setMainView('dashboard')}
 
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-
-                    mainView === 'dashboard'
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${mainView === 'dashboard'
 
                       ? 'bg-[var(--primary)] text-white shadow-sm'
 
                       : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
 
-                  }`}
+                    }`}
 
                 >
 
@@ -4791,15 +4789,13 @@ const FinancePage = ({ onNavigate }) => {
 
                   onClick={() => setMainView('kanban')}
 
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-
-                    mainView === 'kanban'
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${mainView === 'kanban'
 
                       ? 'bg-[var(--primary)] text-white shadow-sm'
 
                       : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
 
-                  }`}
+                    }`}
 
                 >
 
@@ -4811,15 +4807,13 @@ const FinancePage = ({ onNavigate }) => {
 
                   onClick={() => setMainView('table')}
 
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-
-                    mainView === 'table'
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${mainView === 'table'
 
                       ? 'bg-[var(--primary)] text-white shadow-sm'
 
                       : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
 
-                  }`}
+                    }`}
 
                 >
 
@@ -4892,7 +4886,7 @@ const FinancePage = ({ onNavigate }) => {
 
           isOpen={true}
 
-          onClose={() => {}}
+          onClose={() => { }}
 
           dashboardStats={dashboardStats}
 
@@ -4914,11 +4908,9 @@ const FinancePage = ({ onNavigate }) => {
 
           adjustmentTrend={adjustmentTrend}
 
-          onInvoicesClick={() => { setMainView('table'); setActiveTab('invoices'); }}
-          onPayablesClick={() => { setMainView('table'); setActiveTab('payables'); }}
-          onCollectedClick={() => { setMainView('table'); setActiveTab('invoices'); setInvStatus('Paid'); setPage(1); }}
+          onInvoicesClick={() => { }}
 
-          onStatusClick={() => {}}
+          onStatusClick={() => { }}
 
         />
           )}
@@ -4972,630 +4964,239 @@ const FinancePage = ({ onNavigate }) => {
 
         <>
 
-      {showSummaryCards && (
+          {showSummaryCards && (
 
-        <>
-      {calendarFilterYear !== 'all' && filteredInvoicesByYear.length === 0 && filteredPayablesByYear.length === 0 && filteredJournalEntriesByYear.length === 0 && filteredManualAdjustmentsByYear.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 px-4">
-          <div className="text-6xl mb-4">📅</div>
-          <h3 className="text-lg font-semibold text-gray-700 mb-2">No data available for the selected period</h3>
-          <p className="text-sm text-gray-500 text-center max-w-md mb-4">
-            There are no invoices, payables, or transactions recorded for {calendarFilterYear}.
-          </p>
-          <button
-            onClick={() => { setCalendarFilterYear('all'); setCalendarFilterMonth(undefined); }}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-          >
-            Show All Data
-          </button>
-        </div>
-      ) : (
-      <>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <>
 
-        <KPICard 
-          className="glass-card bg-white cursor-pointer hover:shadow-md transition-shadow" 
-          label="Total Revenue" 
-          value={fmt(revenueCurrent)} 
-          sub="From invoices" 
-          icon={TrendingUp} 
-          accentColor="#22c55e"
-          onClick={() => { setMainView('table'); setActiveTab('invoices'); }}
-        />
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
 
-        <KPICard className="glass-card bg-white" label="Cash Position" value={fmt(cashPosition)} sub="Collected - Payables" icon={IndianRupee} accentColor="#3b82f6" />
+                <KPICard className="glass-card bg-white" label="Total Revenue" value={fmt(revenueCurrent)} sub="From invoices" icon={TrendingUp} variant="emerald" />
 
-        <KPICard className="glass-card bg-white" label="Receivables" value={fmt(receivables)} sub="Outstanding" icon={Clock} accentColor="#f59e0b" />
+                <KPICard className="glass-card bg-white" label="Cash Position" value={fmt(cashPosition)} sub="Collected - Payables" icon={IndianRupee} variant="blue" />
 
-        <KPICard className="glass-card bg-white" label="Payables" value={fmt(payablesTotal)} sub="Due" icon={TrendingDown} accentColor="#ef4444" />
+                <KPICard className="glass-card bg-white" label="Receivables" value={fmt(receivables)} sub="Outstanding" icon={Clock} variant="amber" />
 
-      </div>
-
-
-
-      <div className="space-y-2">
-
-        <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Current Month</p>
-
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-
-          {[
-
-            { label: 'Total Invoiced', value: fmt(currentMonthInvoiced), color: 'text-[var(--text-primary)]', clickable: true, action: 'invoices' },
-            { label: 'Collected', value: fmt(currentMonthCollected), color: 'text-emerald-400', clickable: true, action: 'paid' },
-            { label: 'Outstanding', value: fmt(currentMonthOutstanding), color: 'text-amber-400' },
-            { label: 'Collection Rate', value: `${currentMonthCollectionRate}%`, color: 'text-cyan-400' },
-
-          ].map(stat => (
-            <div 
-              key={stat.label} 
-              className={`glass-card p-3 text-center bg-white ${stat.clickable ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}
-              onClick={stat.clickable ? () => { 
-                setMainView('table'); 
-                setActiveTab('invoices'); 
-                if (stat.action === 'paid') {
-                  setInvStatus('Paid');
-                  setPage(1);
-                } else {
-                  setInvStatus('All');
-                  setPage(1);
-                }
-              } : undefined}
-            >
-              <p className="text-[11px] text-[var(--text-muted)] mb-1">{stat.label}</p>
-              <p className={`text-base font-black ${stat.color}`}>{stat.value}</p>
-            </div>
-          ))}
-
-        </div>
-
-      </div>
-
-        </>
-
-      )}
-
-
-
-
-
-
-
-      </>
-
-      )}
-
-
-
-      <Tabs defaultValue="invoices" value={activeTab} onValueChange={setActiveTab}>
-
-
-
-        <TabsList>
-
-
-
-          <TabsTrigger value="invoices">Invoices ({filteredInvoicesByYear.length})</TabsTrigger>
-
-
-
-          <TabsTrigger value="payables">Payables Summary ({filteredPayablesByYear.length})</TabsTrigger>
-
-
-
-          <TabsTrigger value="transactions">Transactions ({filteredManualAdjustmentsByYear.length})</TabsTrigger>
-
-
-
-        </TabsList>
-
-
-
-
-
-
-
-        <TabsContent value="invoices">
-
-
-
-          <div className="space-y-3">
-
-
-
-            <div className="flex flex-wrap gap-2 items-center">
-
-
-
-              <span className="text-xs text-[var(--text-muted)] mr-1">Status:</span>
-
-
-
-              {INV_STATUS_FILTERS.map(s => (
-
-
-
-                <button key={s} onClick={() => { setInvStatus(s); setPage(1); }}
-
-
-
-                  className={`filter-chip ${invStatus === s ? 'filter-chip-active' : ''}`}>{s}</button>
-
-
-
-              ))}
-
-
-
-              <div className="flex items-center gap-2 ml-auto">
-
-
-
-                <Input placeholder="Search invoices..." value={invSearch}
-
-
-
-                  onChange={e => { setInvSearch(e.target.value); setPage(1); }}
-
-
-
-                  className="h-8 text-xs w-44" />
-
-
+                <KPICard className="glass-card bg-white" label="Payables" value={fmt(payablesTotal)} sub="Due" icon={TrendingDown} variant="red" />
 
               </div>
-
-
-
-            </div>
-
-
-
-
-
-
-
-            {view === 'kanban' ? (
-
-
-
-              <InvKanbanBoard invoices={filteredInvoices} onStageChange={handleStageChange} onCardClick={setSelected} />
-
-
-
-            ) : (
-
-
-
-              <DataTable
-
-
-
-                columns={INVOICE_COLUMNS}
-
-
-
-                data={paginatedInvoices}
-
-
-
-                total={filteredInvoices.length}
-
-
-
-                page={page}
-
-
-
-                pageSize={pageSize}
-
-
-
-                onPageChange={setPage}
-
-
-
-                onPageSizeChange={s => { setPageSize(s); setPage(1); }}
-
-
-
-                toolbar={canFinance('export') ? (
-
-
-
-                  <Button size="sm" onClick={exportAllInvoicesCsv}>
-
-
-
-                    <Download size={12} /> Export
-
-
-
-                  </Button>
-
-
-
-                ) : null}
-
-
-
-                rowActions={filteredRowActions}
-
-
-
-                onRowClick={setSelected}
-
-
-
-                rowKey="_id"
-
-
-
-                emptyText="No invoices found."
-
-
-
-              />
-
-
-
-            )}
-
-
-
-          </div>
-
-
-
-        </TabsContent>
-
-
-
-
-
-
-
-        <TabsContent value="payables">
-
-
-
-          <div className="glass-card p-4 space-y-3">
-
-
-
-            <h3 className="text-sm font-semibold text-[var(--text-primary)]">Payables to Vendors</h3>
-
-
-
-            {filteredPayablesByYear.length === 0 ? (
-
-
-
-              <p className="text-sm text-[var(--text-muted)] text-center py-8">No pending payables</p>
-
-
-
-            ) : (
 
 
 
               <div className="space-y-2">
 
+                <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Current Month</p>
 
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
 
-                <div className="grid grid-cols-7 gap-2 text-[11px] text-[var(--text-muted)] px-2">
+                  {[
 
-                  <div>Vendor</div>
+                    { label: 'Total Invoiced', value: fmt(currentMonthInvoiced), color: 'text-[var(--text-primary)]' },
 
-                  <div>Vendor ID</div>
+                    { label: 'Collected', value: fmt(currentMonthCollected), color: 'text-emerald-400' },
 
-                  <div className="text-right">Total POs</div>
+                    { label: 'Outstanding', value: fmt(currentMonthOutstanding), color: 'text-amber-400' },
 
-                  <div className="text-right">Total Payable</div>
+                    { label: 'Collection Rate', value: `${currentMonthCollectionRate}%`, color: 'text-cyan-400' },
 
-                  <div className="text-right">Paid</div>
+                  ].map(stat => (
 
-                  <div className="text-right">Outstanding</div>
+                    <div key={stat.label} className="glass-card p-3 text-center bg-white">
 
-                  <div className="text-right">Last PO</div>
+                      <p className="text-[11px] text-[var(--text-muted)] mb-1">{stat.label}</p>
 
-                </div>
-
-
-
-                {filteredPayablesByYear.map((p) => (
-
-                  <div
-
-                    key={p.vendorObjectId || p.vendorId}
-
-                    className="grid grid-cols-7 gap-2 items-center p-3 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-muted)]"
-
-                  >
-
-                    <div className="text-xs font-semibold text-[var(--text-primary)]">{p.vendorName}</div>
-
-                    <div className="text-xs font-mono text-[var(--accent-light)]">{p.vendorId}</div>
-
-                    <div className="text-xs text-right text-[var(--text-primary)]">{p.totalPurchaseOrders}</div>
-
-                    <div className="text-xs text-right text-[var(--text-primary)]">{fmt(p.totalPayableAmount)}</div>
-
-                    <div className="text-xs text-right text-[var(--text-primary)]">{fmt(p.amountPaid)}</div>
-
-                    <div className="text-xs text-right font-bold text-amber-400">{fmt(p.outstandingAmount)}</div>
-
-                    <div className="text-xs text-right text-[var(--text-muted)]">{p.lastPurchaseOrderDate || '—'}</div>
-
-                  </div>
-
-                ))}
-
-
-
-              </div>
-
-
-
-            )}
-
-
-
-          </div>
-
-
-
-        </TabsContent>
-
-
-
-
-
-
-
-        <TabsContent value="transactions">
-
-
-
-          <div className="glass-card p-4 space-y-3">
-
-
-
-            <div className="flex items-center justify-between">
-
-              <h3 className="text-sm font-semibold text-[var(--text-primary)]">Journal Entries</h3>
-
-              {canFinance('export') && journalEntries.length > 0 && (
-
-                <Button size="sm" onClick={exportJournalEntriesCsv}>
-
-                  <Download size={12} /> Export
-
-                </Button>
-
-              )}
-
-            </div>
-
-
-
-            {filteredJournalEntriesByYear.length === 0 ? (
-
-
-
-              <p className="text-sm text-[var(--text-muted)] text-center py-8">No journal entries recorded</p>
-
-
-
-            ) : (
-
-
-
-              <div className="border border-[var(--border-base)] overflow-auto bg-[var(--bg-elevated)] relative">
-
-
-
-                {/* Table Header - Traditional Accounting Format */}
-
-                <div className="grid grid-cols-12 text-[13px] font-bold text-[var(--text-primary)] border-b-2 border-[var(--border-base)] pb-2 mt-3">
-
-                  <div className="col-span-2 border-r-2 border-[var(--border-base)] pr-2">Date</div>
-
-                  <div className="col-span-6 border-r-2 border-[var(--border-base)] px-2">Particulars</div>
-
-                  <div className="col-span-1 border-r border-[var(--border-base)] px-1 text-center">L.F.</div>
-
-                  <div className="col-span-2 border-r border-[var(--border-base)] px-1 text-right">Amount(Dr.)</div>
-
-                  <div className="col-span-1 pl-1 text-right">Amount(Cr.)</div>
-
-                </div>
-
-
-
-                {[...filteredJournalEntriesByYear].reverse().map((entry, entryIdx) => (
-
-                  <div 
-
-                    key={entry._id || entry.id} 
-
-                    className="relative border-b border-[var(--border-muted)] last:border-b-0 cursor-pointer hover:bg-[var(--bg-hover)] transition-colors"
-
-                    onClick={() => {
-
-                      setSelectedJournalEntry(entry);
-
-                      setSelectedJournalEntryIndex(entryIdx + 1);
-
-                      setShowJournalEntryModal(true);
-
-                    }}
-
-                  >
-
-                    {/* Continuous vertical lines using absolute positioned divs */}
-
-                    <div className="absolute top-0 bottom-0 left-[16.66%] w-[2px] bg-[var(--border-base)] z-10"></div>
-
-                    <div className="absolute top-0 bottom-0 left-[66.66%] w-[1px] bg-[var(--border-base)] z-10"></div>
-
-                    <div className="absolute top-0 bottom-0 left-[75%] w-[1px] bg-[var(--border-base)] z-10"></div>
-
-                    <div className="absolute top-0 bottom-0 left-[91.66%] w-[1px] bg-[var(--border-base)] z-10"></div>
-
-                    
-
-                    {/* Journal Entry Content - No internal horizontal lines */}
-
-                    <div>
-
-                      
-
-                      {(() => {
-
-                        const debitLines = entry.lines?.filter(l => l.debitAmount > 0) || [];
-
-                        const creditLines = entry.lines?.filter(l => l.creditAmount > 0) || [];
-
-                        
-
-                        return (
-
-                          <>
-
-                            {debitLines.map((line, idx) => (
-
-                              <div 
-
-                                key={`debit-${idx}`}
-
-                                className="grid grid-cols-12 text-[13px] items-start relative"
-
-                              >
-
-                                <div className="col-span-2 px-2 py-2 text-[var(--text-primary)]">
-
-                                  {idx === 0 ? new Date(entry.date).toLocaleDateString('en-IN', { 
-
-                                    day: '2-digit', 
-
-                                    month: '2-digit', 
-
-                                    year: 'numeric' 
-
-                                  }) : ''}
-
-                                </div>
-
-                                <div className="col-span-6 px-2 py-2 text-[var(--text-primary)]">
-
-                                  {line.accountName} <span className="text-[var(--text-muted)]">Dr.</span>
-
-                                </div>
-
-                                <div className="col-span-1 px-1 py-2 text-center text-[var(--text-muted)] text-[10px]"></div>
-
-                                <div className="col-span-2 px-2 py-2 text-right font-medium text-[var(--text-primary)]">
-
-                                  {fmt(line.debitAmount)}
-
-                                </div>
-
-                                <div className="col-span-1 px-1 py-2 text-right"></div>
-
-                              </div>
-
-                            ))}
-
-                            
-
-                            {creditLines.map((line, idx) => (
-
-                              <div 
-
-                                key={`credit-${idx}`}
-
-                                className="grid grid-cols-12 text-[13px] items-start relative"
-
-                              >
-
-                                <div className="col-span-2 px-2 py-2"></div>
-
-                                <div className="col-span-6 px-2 py-2 text-[var(--text-primary)] pl-6">
-
-                                  <span className="text-[var(--text-muted)]">To</span> {line.accountName}
-
-                                </div>
-
-                                <div className="col-span-1 px-1 py-2 text-center text-[var(--text-muted)] text-[10px]"></div>
-
-                                <div className="col-span-2 px-1 py-2 text-right"></div>
-
-                                <div className="col-span-1 px-1 py-2 text-right font-medium text-[var(--text-primary)]">
-
-                                  {fmt(line.creditAmount)}
-
-                                </div>
-
-                              </div>
-
-                            ))}
-
-                            
-
-                            {entry.narration && (
-
-                              <div className="grid grid-cols-12 text-[13px] items-start bg-[var(--bg-surface)] relative">
-
-                                <div className="col-span-2 px-2 py-2"></div>
-
-                                <div className="col-span-6 px-2 py-2 text-[var(--text-muted)] italic">
-
-                                  ({entry.narration})
-
-                                </div>
-
-                                <div className="col-span-1 px-1 py-2"></div>
-
-                                <div className="col-span-2 px-1 py-2"></div>
-
-                                <div className="col-span-1 px-1 py-2"></div>
-
-                              </div>
-
-                            )}
-
-                          </>
-
-                        );
-
-                      })()}
-
-                      
+                      <p className={`text-base font-black ${stat.color}`}>{stat.value}</p>
 
                     </div>
 
-                    
+                  ))}
+
+                </div>
+
+              </div>
+
+            </>
+
+          )}
+
+
+
+
+
+
+
+          <Tabs defaultValue="invoices">
+
+
+
+            <TabsList>
+
+
+
+              <TabsTrigger value="invoices">Invoices ({invoices.length})</TabsTrigger>
+
+
+
+              <TabsTrigger value="payables">Payables Summary</TabsTrigger>
+
+
+
+              <TabsTrigger value="transactions">Transactions ({manualAdjustments.length})</TabsTrigger>
+
+
+
+            </TabsList>
+
+
+
+
+
+
+
+            <TabsContent value="invoices">
+
+
+
+              <div className="space-y-3">
+
+
+
+                <div className="flex flex-wrap gap-2 items-center">
+
+
+
+                  <span className="text-xs text-[var(--text-muted)] mr-1">Status:</span>
+
+
+
+                  {INV_STATUS_FILTERS.map(s => (
+
+
+
+                    <button key={s} onClick={() => { setInvStatus(s); setPage(1); }}
+
+
+
+                      className={`filter-chip ${invStatus === s ? 'filter-chip-active' : ''}`}>{s}</button>
+
+
+
+                  ))}
+
+
+
+                  <div className="flex items-center gap-2 ml-auto">
+
+
+
+                    <Input placeholder="Search invoices..." value={invSearch}
+
+
+
+                      onChange={e => { setInvSearch(e.target.value); setPage(1); }}
+
+
+
+                      className="h-8 text-xs w-44" />
+
+
 
                   </div>
 
-                ))}
 
-
-
-                <div className="grid grid-cols-12 text-[15px] font-bold text-[var(--text-primary)] bg-[var(--bg-surface)] border-t-2 border-[var(--border-base)] sticky bottom-0 z-20">
-
-                  <div className="col-span-2 border-r-2 border-[var(--border-base)] px-2 py-2">TOTAL</div>
-
-                  <div className="col-span-6 border-r-2 border-[var(--border-base)] px-2 py-2"></div>
-
-                  <div className="col-span-1 border-r border-[var(--border-base)] px-1 py-2"></div>
-
-                  <div className="col-span-2 border-r border-[var(--border-base)] px-1 py-2 text-right">{fmt(journalTotals.debitTotal)}</div>
-
-                  <div className="col-span-1 pl-1 py-2 text-right">{fmt(journalTotals.creditTotal)}</div>
 
                 </div>
+
+
+
+
+
+
+
+                {view === 'kanban' ? (
+
+
+
+                  <InvKanbanBoard invoices={filteredInvoices} onStageChange={handleStageChange} onCardClick={setSelected} />
+
+
+
+                ) : (
+
+
+
+                  <DataTable
+
+
+
+                    columns={INVOICE_COLUMNS}
+
+
+
+                    data={paginatedInvoices}
+
+
+
+                    total={filteredInvoices.length}
+
+
+
+                    page={page}
+
+
+
+                    pageSize={pageSize}
+
+
+
+                    onPageChange={setPage}
+
+
+
+                    onPageSizeChange={s => { setPageSize(s); setPage(1); }}
+
+
+
+                    toolbar={canFinance('export') ? (
+
+
+
+                      <Button size="sm" onClick={exportAllInvoicesCsv}>
+
+
+
+                        <Download size={12} /> Export
+
+
+
+                      </Button>
+
+
+
+                    ) : null}
+
+
+
+                    rowActions={filteredRowActions}
+
+
+
+                    onRowClick={setSelected}
+
+
+
+                    rowKey="_id"
+
+
+
+                    emptyText="No invoices found."
+
+
+
+                  />
+
+
+
+                )}
 
 
 
@@ -5603,21 +5204,377 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-            )}
+            </TabsContent>
 
 
 
-          </div>
 
 
 
-        </TabsContent>
+
+            <TabsContent value="payables">
 
 
 
-      </Tabs>
+              <div className="glass-card p-4 space-y-3">
 
-      </>
+
+
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Payables to Vendors</h3>
+
+
+
+                {payables.length === 0 ? (
+
+
+
+                  <p className="text-sm text-[var(--text-muted)] text-center py-8">No pending payables</p>
+
+
+
+                ) : (
+
+
+
+                  <div className="space-y-2">
+
+
+
+                    <div className="grid grid-cols-7 gap-2 text-[11px] text-[var(--text-muted)] px-2">
+
+                      <div>Vendor</div>
+
+                      <div>Vendor ID</div>
+
+                      <div className="text-right">Total POs</div>
+
+                      <div className="text-right">Total Payable</div>
+
+                      <div className="text-right">Paid</div>
+
+                      <div className="text-right">Outstanding</div>
+
+                      <div className="text-right">Last PO</div>
+
+                    </div>
+
+
+
+                    {payables.map((p) => (
+
+                      <div
+
+                        key={p.vendorObjectId || p.vendorId}
+
+                        className="grid grid-cols-7 gap-2 items-center p-3 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-muted)]"
+
+                      >
+
+                        <div className="text-xs font-semibold text-[var(--text-primary)]">{p.vendorName}</div>
+
+                        <div className="text-xs font-mono text-[var(--accent-light)]">{p.vendorId}</div>
+
+                        <div className="text-xs text-right text-[var(--text-primary)]">{p.totalPurchaseOrders}</div>
+
+                        <div className="text-xs text-right text-[var(--text-primary)]">{fmt(p.totalPayableAmount)}</div>
+
+                        <div className="text-xs text-right text-[var(--text-primary)]">{fmt(p.amountPaid)}</div>
+
+                        <div className="text-xs text-right font-bold text-amber-400">{fmt(p.outstandingAmount)}</div>
+
+                        <div className="text-xs text-right text-[var(--text-muted)]">{p.lastPurchaseOrderDate || '—'}</div>
+
+                      </div>
+
+                    ))}
+
+
+
+                  </div>
+
+
+
+                )}
+
+
+
+              </div>
+
+
+
+            </TabsContent>
+
+
+
+
+
+
+
+            <TabsContent value="transactions">
+
+
+
+              <div className="glass-card p-4 space-y-3">
+
+
+
+                <div className="flex items-center justify-between">
+
+                  <h3 className="text-sm font-semibold text-[var(--text-primary)]">Journal Entries</h3>
+
+                  {canFinance('export') && journalEntries.length > 0 && (
+
+                    <Button size="sm" onClick={exportJournalEntriesCsv}>
+
+                      <Download size={12} /> Export
+
+                    </Button>
+
+                  )}
+
+                </div>
+
+
+
+                {journalEntries.length === 0 ? (
+
+
+
+                  <p className="text-sm text-[var(--text-muted)] text-center py-8">No journal entries recorded</p>
+
+
+
+                ) : (
+
+
+
+                  <div className="border border-[var(--border-base)] overflow-auto bg-[var(--bg-elevated)] relative">
+
+
+
+                    {/* Table Header - Traditional Accounting Format */}
+
+                    <div className="grid grid-cols-12 text-[13px] font-bold text-[var(--text-primary)] border-b-2 border-[var(--border-base)] pb-2 mt-3">
+
+                      <div className="col-span-2 border-r-2 border-[var(--border-base)] pr-2">Date</div>
+
+                      <div className="col-span-6 border-r-2 border-[var(--border-base)] px-2">Particulars</div>
+
+                      <div className="col-span-1 border-r border-[var(--border-base)] px-1 text-center">L.F.</div>
+
+                      <div className="col-span-2 border-r border-[var(--border-base)] px-1 text-right">Amount(Dr.)</div>
+
+                      <div className="col-span-1 pl-1 text-right">Amount(Cr.)</div>
+
+                    </div>
+
+
+
+                    {[...journalEntries].reverse().map((entry, entryIdx) => (
+
+                      <div
+
+                        key={entry._id || entry.id}
+
+                        className="relative border-b border-[var(--border-muted)] last:border-b-0 cursor-pointer hover:bg-[var(--bg-hover)] transition-colors"
+
+                        onClick={() => {
+
+                          setSelectedJournalEntry(entry);
+
+                          setSelectedJournalEntryIndex(entryIdx + 1);
+
+                          setShowJournalEntryModal(true);
+
+                        }}
+
+                      >
+
+                        {/* Continuous vertical lines using absolute positioned divs */}
+
+                        <div className="absolute top-0 bottom-0 left-[16.66%] w-[2px] bg-[var(--border-base)] z-10"></div>
+
+                        <div className="absolute top-0 bottom-0 left-[66.66%] w-[1px] bg-[var(--border-base)] z-10"></div>
+
+                        <div className="absolute top-0 bottom-0 left-[75%] w-[1px] bg-[var(--border-base)] z-10"></div>
+
+                        <div className="absolute top-0 bottom-0 left-[91.66%] w-[1px] bg-[var(--border-base)] z-10"></div>
+
+
+
+                        {/* Journal Entry Content - No internal horizontal lines */}
+
+                        <div>
+
+
+
+                          {(() => {
+
+                            const debitLines = entry.lines?.filter(l => l.debitAmount > 0) || [];
+
+                            const creditLines = entry.lines?.filter(l => l.creditAmount > 0) || [];
+
+
+
+                            return (
+
+                              <>
+
+                                {debitLines.map((line, idx) => (
+
+                                  <div
+
+                                    key={`debit-${idx}`}
+
+                                    className="grid grid-cols-12 text-[13px] items-start relative"
+
+                                  >
+
+                                    <div className="col-span-2 px-2 py-2 text-[var(--text-primary)]">
+
+                                      {idx === 0 ? new Date(entry.date).toLocaleDateString('en-IN', {
+
+                                        day: '2-digit',
+
+                                        month: '2-digit',
+
+                                        year: 'numeric'
+
+                                      }) : ''}
+
+                                    </div>
+
+                                    <div className="col-span-6 px-2 py-2 text-[var(--text-primary)]">
+
+                                      {line.accountName} <span className="text-[var(--text-muted)]">Dr.</span>
+
+                                    </div>
+
+                                    <div className="col-span-1 px-1 py-2 text-center text-[var(--text-muted)] text-[10px]"></div>
+
+                                    <div className="col-span-2 px-2 py-2 text-right font-medium text-[var(--text-primary)]">
+
+                                      {fmt(line.debitAmount)}
+
+                                    </div>
+
+                                    <div className="col-span-1 px-1 py-2 text-right"></div>
+
+                                  </div>
+
+                                ))}
+
+
+
+                                {creditLines.map((line, idx) => (
+
+                                  <div
+
+                                    key={`credit-${idx}`}
+
+                                    className="grid grid-cols-12 text-[13px] items-start relative"
+
+                                  >
+
+                                    <div className="col-span-2 px-2 py-2"></div>
+
+                                    <div className="col-span-6 px-2 py-2 text-[var(--text-primary)] pl-6">
+
+                                      <span className="text-[var(--text-muted)]">To</span> {line.accountName}
+
+                                    </div>
+
+                                    <div className="col-span-1 px-1 py-2 text-center text-[var(--text-muted)] text-[10px]"></div>
+
+                                    <div className="col-span-2 px-1 py-2 text-right"></div>
+
+                                    <div className="col-span-1 px-1 py-2 text-right font-medium text-[var(--text-primary)]">
+
+                                      {fmt(line.creditAmount)}
+
+                                    </div>
+
+                                  </div>
+
+                                ))}
+
+
+
+                                {entry.narration && (
+
+                                  <div className="grid grid-cols-12 text-[13px] items-start bg-[var(--bg-surface)] relative">
+
+                                    <div className="col-span-2 px-2 py-2"></div>
+
+                                    <div className="col-span-6 px-2 py-2 text-[var(--text-muted)] italic">
+
+                                      ({entry.narration})
+
+                                    </div>
+
+                                    <div className="col-span-1 px-1 py-2"></div>
+
+                                    <div className="col-span-2 px-1 py-2"></div>
+
+                                    <div className="col-span-1 px-1 py-2"></div>
+
+                                  </div>
+
+                                )}
+
+                              </>
+
+                            );
+
+                          })()}
+
+
+
+                        </div>
+
+
+
+                      </div>
+
+                    ))}
+
+
+
+                    <div className="grid grid-cols-12 text-[15px] font-bold text-[var(--text-primary)] bg-[var(--bg-surface)] border-t-2 border-[var(--border-base)] sticky bottom-0 z-20">
+
+                      <div className="col-span-2 border-r-2 border-[var(--border-base)] px-2 py-2">TOTAL</div>
+
+                      <div className="col-span-6 border-r-2 border-[var(--border-base)] px-2 py-2"></div>
+
+                      <div className="col-span-1 border-r border-[var(--border-base)] px-1 py-2"></div>
+
+                      <div className="col-span-2 border-r border-[var(--border-base)] px-1 py-2 text-right">{fmt(journalTotals.debitTotal)}</div>
+
+                      <div className="col-span-1 pl-1 py-2 text-right">{fmt(journalTotals.creditTotal)}</div>
+
+                    </div>
+
+
+
+                  </div>
+
+
+
+                )}
+
+
+
+              </div>
+
+
+
+            </TabsContent>
+
+
+
+          </Tabs>
+
+        </>
 
       )}
 
@@ -5723,7 +5680,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-              <Input 
+              <Input
 
 
 
@@ -5743,7 +5700,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-                placeholder="INV-001" 
+                placeholder="INV-001"
 
 
 
@@ -5835,11 +5792,11 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-              <Input 
+              <Input
 
 
 
-                type="number" 
+                type="number"
 
 
 
@@ -5879,7 +5836,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-                placeholder="280000" 
+                placeholder="280000"
 
 
 
@@ -5903,11 +5860,11 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-              <Input 
+              <Input
 
 
 
-                type="date" 
+                type="date"
 
 
 
@@ -5955,11 +5912,11 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-              <Input 
+              <Input
 
 
 
-                type="date" 
+                type="date"
 
 
 
@@ -6003,7 +5960,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-              <Select 
+              <Select
 
 
 
@@ -6011,7 +5968,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-                onChange={e => setNewInvoice({...newInvoice, paymentTerms: e.target.value})}
+                onChange={e => setNewInvoice({ ...newInvoice, paymentTerms: e.target.value })}
 
 
 
@@ -6061,7 +6018,7 @@ const FinancePage = ({ onNavigate }) => {
 
           <FormField label="Customer Email">
 
-            <Input 
+            <Input
 
               type="email"
 
@@ -7091,19 +7048,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-        <Modal 
+        <Modal
 
 
 
-          open={showReminderModal} 
+          open={showReminderModal}
 
 
 
-          onClose={() => { 
+          onClose={() => {
 
 
 
-            setShowReminderModal(false); 
+            setShowReminderModal(false);
 
 
 
@@ -7123,7 +7080,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-          }} 
+          }}
 
 
 
@@ -7139,19 +7096,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-              <Button 
+              <Button
 
 
 
-                variant="ghost" 
+                variant="ghost"
 
 
 
-                onClick={() => { 
+                onClick={() => {
 
 
 
-                  setShowReminderModal(false); 
+                  setShowReminderModal(false);
 
 
 
@@ -7171,7 +7128,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-                }} 
+                }}
 
 
 
@@ -7191,11 +7148,11 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-              <Button 
+              <Button
 
 
 
-                onClick={handleSendReminder} 
+                onClick={handleSendReminder}
 
 
 
@@ -7275,7 +7232,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-            
+
 
 
 
@@ -7367,7 +7324,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-              <Select 
+              <Select
 
 
 
@@ -7375,7 +7332,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-                onChange={e => setReminderForm({...reminderForm, reminderType: e.target.value})}
+                onChange={e => setReminderForm({ ...reminderForm, reminderType: e.target.value })}
 
 
 
@@ -7419,7 +7376,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-              <Input 
+              <Input
 
 
 
@@ -7431,7 +7388,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-                onChange={e => setReminderForm({...reminderForm, customerEmail: e.target.value})}
+                onChange={e => setReminderForm({ ...reminderForm, customerEmail: e.target.value })}
 
 
 
@@ -7471,7 +7428,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-                onChange={e => setReminderForm({...reminderForm, messageBody: e.target.value})}
+                onChange={e => setReminderForm({ ...reminderForm, messageBody: e.target.value })}
 
 
 
@@ -7523,11 +7480,11 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-          <div 
+          <div
 
 
 
-            className="absolute inset-0 bg-black/50" 
+            className="absolute inset-0 bg-black/50"
 
 
 
@@ -7563,7 +7520,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-              <button 
+              <button
 
 
 
@@ -7727,15 +7684,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-                              {new Date(activity.createdAt).toLocaleDateString('en-IN', { 
+                              {new Date(activity.createdAt).toLocaleDateString('en-IN', {
 
 
 
-                                day: '2-digit', 
+                                day: '2-digit',
 
 
 
-                                month: 'short', 
+                                month: 'short',
 
 
 
@@ -7763,7 +7720,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-                          
+
 
 
 
@@ -7831,7 +7788,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-                          
+
 
 
 
@@ -7903,15 +7860,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-      <Modal 
+      <Modal
 
 
 
-        isOpen={showRecordPayment} 
+        open={showRecordPayment}
 
 
 
-        onClose={() => { 
+        onClose={() => {
 
 
 
@@ -7919,7 +7876,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-          setShowRecordPayment(false); 
+          setShowRecordPayment(false);
 
 
 
@@ -7947,15 +7904,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-            <Button 
+            <Button
 
 
 
-              variant="ghost" 
+              variant="ghost"
 
 
 
-              onClick={() => { 
+              onClick={() => {
 
 
 
@@ -7963,7 +7920,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-                setShowRecordPayment(false); 
+                setShowRecordPayment(false);
 
 
 
@@ -7995,7 +7952,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-            <Button 
+            <Button
 
 
 
@@ -8087,11 +8044,11 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-                  setRecordPayment({ 
+                  setRecordPayment({
 
 
 
-                    ...recordPayment, 
+                    ...recordPayment,
 
 
 
@@ -8345,7 +8302,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-              {recordPayment.paymentType === 'Customer Payment' 
+              {recordPayment.paymentType === 'Customer Payment'
 
 
 
@@ -8353,19 +8310,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-                    <option key={inv._id || inv.id} value={inv._id || inv.id}>
+                  <option key={inv._id || inv.id} value={inv._id || inv.id}>
 
 
 
-                      {inv.invoiceNumber} - {inv.customerName} (₹{inv.amount})
+                    {inv.invoiceNumber} - {inv.customerName} (₹{inv.amount})
 
 
 
-                    </option>
+                  </option>
 
 
 
-                  ))
+                ))
 
 
 
@@ -8373,19 +8330,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-                    <option key={p.vendorObjectId || p.vendorId} value={p.vendorObjectId || p.vendorId}>
+                  <option key={p.vendorObjectId || p.vendorId} value={p.vendorObjectId || p.vendorId}>
 
 
 
-                      {p.vendorName} (Outstanding: ₹{p.outstandingAmount})
+                    {p.vendorName} (Outstanding: ₹{p.outstandingAmount})
 
 
 
-                    </option>
+                  </option>
 
 
 
-                  ))
+                ))
 
 
 
@@ -8425,7 +8382,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-              <Input 
+              <Input
 
 
 
@@ -8495,7 +8452,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-              <Input 
+              <Input
 
 
 
@@ -9189,13 +9146,13 @@ const FinancePage = ({ onNavigate }) => {
 
                 <div className="font-semibold text-[var(--text-primary)]">
 
-                  {new Date(selectedJournalEntry.date).toLocaleDateString('en-IN', { 
+                  {new Date(selectedJournalEntry.date).toLocaleDateString('en-IN', {
 
-                    day: '2-digit', 
+                    day: '2-digit',
 
-                    month: '2-digit', 
+                    month: '2-digit',
 
-                    year: 'numeric' 
+                    year: 'numeric'
 
                   })}
 
@@ -9221,9 +9178,9 @@ const FinancePage = ({ onNavigate }) => {
 
                 <div className="font-semibold text-[var(--text-primary)]">
 
-                  {selectedJournalEntry.narration 
+                  {selectedJournalEntry.narration
 
-                    ? selectedJournalEntry.narration.split(':')[0]?.trim() 
+                    ? selectedJournalEntry.narration.split(':')[0]?.trim()
 
                     : (selectedJournalEntry.category || '—')}
 
@@ -9263,7 +9220,7 @@ const FinancePage = ({ onNavigate }) => {
 
               </div>
 
-              
+
 
               {/* Debit Lines */}
 
@@ -9273,7 +9230,7 @@ const FinancePage = ({ onNavigate }) => {
 
                 .map((line, idx) => (
 
-                  <div 
+                  <div
 
                     key={`debit-${idx}`}
 
@@ -9299,7 +9256,7 @@ const FinancePage = ({ onNavigate }) => {
 
                 ))}
 
-              
+
 
               {/* Credit Lines */}
 
@@ -9309,7 +9266,7 @@ const FinancePage = ({ onNavigate }) => {
 
                 .map((line, idx) => (
 
-                  <div 
+                  <div
 
                     key={`credit-${idx}`}
 
@@ -9335,7 +9292,7 @@ const FinancePage = ({ onNavigate }) => {
 
                 ))}
 
-              
+
 
               {/* Total Row */}
 

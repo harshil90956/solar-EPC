@@ -40,33 +40,6 @@ import EnhancedSolarSurveyStudio from '../components/SolarDesignStudio/EnhancedS
 import CanAccess, { CanCreate, CanEdit, CanDelete } from '../components/CanAccess';
 import { toast } from '../components/ui/Toast';
 
-// ── Advanced Survey Analytics Components ────────────────────────────────────────
-const SurveyDashboardKPI = ({ title, value, change, icon: Icon, color, subtitle, trend }) => (
-  <div className="glass-card p-4 flex items-center gap-3 hover:scale-[1.02] transition-transform cursor-pointer">
-    <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${color}20, ${color}10)` }}>
-      <Icon size={20} style={{ color }} />
-    </div>
-    <div className="flex-1">
-      <p className="text-[11px] text-[var(--text-muted)] font-medium uppercase tracking-wider">{title}</p>
-      <p className="text-xl font-black text-[var(--text-primary)]">{value}</p>
-      {subtitle && <p className="text-[9px] text-[var(--text-muted)]">{subtitle}</p>}
-      <div className="flex items-center gap-1 mt-1">
-        {change !== undefined && (
-          <p className={`text-[10px] font-bold ${change >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-            {change >= 0 ? '↑' : '↓'} {Math.abs(change)}%
-          </p>
-        )}
-        {trend && (
-          <div className="flex items-center gap-0.5">
-            {trend === 'up' && <TrendingUp size={10} className="text-emerald-500" />}
-            {trend === 'down' && <TrendingDown size={10} className="text-red-500" />}
-            {trend === 'stable' && <ArrowRight size={10} className="text-amber-500" />}
-          </div>
-        )}
-      </div>
-    </div>
-  </div>
-);
 
 const SURVEY_FIELDS = [
   { id: 'id', label: 'Survey ID', type: 'text' },
@@ -227,31 +200,31 @@ const SurveyPage = () => {
   const [studioSurvey, setStudioSurvey] = useState(null);
   const [kanbanView, setKanbanView] = useState(false);
   const [reportsView, setReportsView] = useState(false);
-  
+
   // 4-Section Survey Management State
   // Section 1: CRM Leads (stage='survey') - fetched from leads API
   const [crmLeads, setCrmLeads] = useState([]);
   const [leadsLoading, setLeadsLoading] = useState(true);
   const [leadsError, setLeadsError] = useState(null);
-  
+
   // All surveys combined (for calculations and legacy support)
   const [surveys, setSurveys] = useState([]);
-  
+
   // Section 2: Pending Surveys (status='pending') - survey scheduled, form not submitted
   const [pendingSurveys, setPendingSurveys] = useState([]);
-  
+
   // Section 3: Active Surveys (status='active') - form submitted, survey in progress
   const [activeSurveys, setActiveSurveys] = useState([]);
-  
+
   // Section 4: Completed Surveys (status='completed') - survey done
   const [completedSurveys, setCompletedSurveys] = useState([]);
-  
+
   const [surveysLoading, setSurveysLoading] = useState(true);
   const [surveysError, setSurveysError] = useState(null);
-  
+
   // Track which leads have surveys created (to prevent duplicate scheduling)
   const [surveyCreatedLeadIds, setSurveyCreatedLeadIds] = useState([]);
-  
+
   // Form state for scheduling survey
   const [formData, setFormData] = useState({
     customerName: '',
@@ -268,17 +241,17 @@ const SurveyPage = () => {
       try {
         setLeadsLoading(true);
         setSurveysLoading(true);
-        
+
         // Fetch leads from CRM (Site Survey Scheduled stage)
         const leadsResult = await leadsApi.getAll({ stage: 'survey', limit: 100 });
         const leadsData = leadsResult.data?.data || leadsResult.data || [];
         setCrmLeads(leadsData);
         setLeadsError(null);
-        
+
         // Fetch ALL surveys from backend (no status filter to get all)
         const surveysResult = await surveysApi.getAll({ limit: 100 });
         const surveysData = surveysResult.data?.data || surveysResult.data || [];
-        
+
         // Transform and categorize surveys by status
         const transformedSurveys = surveysData.map(s => ({
           id: s.surveyId || s._id,
@@ -294,18 +267,18 @@ const SurveyPage = () => {
           notes: s.notes,
           createdAt: s.createdAt
         }));
-        
+
         // Split surveys by status
         setPendingSurveys(transformedSurveys.filter(s => s.status === 'pending'));
         setActiveSurveys(transformedSurveys.filter(s => s.status === 'active'));
         setCompletedSurveys(transformedSurveys.filter(s => s.status === 'completed'));
-        
+
         // Track which leads have surveys created
         const createdLeadIds = surveysData
           .filter(s => s.sourceLeadId)
           .map(s => s.sourceLeadId);
         setSurveyCreatedLeadIds(createdLeadIds);
-        
+
         setSurveysError(null);
       } catch (err) {
         console.error('Failed to fetch data:', err);
@@ -556,14 +529,14 @@ const SurveyPage = () => {
   // 🔄 SURVEY FLOW: Pending → Active (Submit Form)
   const handleSubmitSurveyForm = async (survey) => {
     if (!guardEdit()) return;
-    
+
     // Optimistic UI update - move immediately
     const surveyWithActiveStatus = { ...survey, status: 'active' };
     setPendingSurveys(prev => prev.filter(s => s.id !== survey.id));
     setActiveSurveys(prev => [surveyWithActiveStatus, ...prev]);
     toast.success('Survey form submitted! Moved to Active.');
     logStatusChange(survey, 'pending', 'active');
-    
+
     try {
       setSurveysLoading(true);
       // Update survey status to 'active' in backend
@@ -581,19 +554,19 @@ const SurveyPage = () => {
   // 🔄 SURVEY FLOW: Active → Completed + Lead Stage → Proposal
   const handleCompleteSurvey = async (survey) => {
     if (!guardEdit()) return;
-    
+
     // Optimistic UI update - move immediately
     const surveyWithCompletedStatus = { ...survey, status: 'completed' };
     setActiveSurveys(prev => prev.filter(s => s.id !== survey.id));
     setCompletedSurveys(prev => [surveyWithCompletedStatus, ...prev]);
     toast.success('Survey completed! Lead moved to Proposal stage.');
     logStatusChange(survey, 'active', 'completed');
-    
+
     try {
       setSurveysLoading(true);
       // Update survey status to 'completed' in backend
       await surveysApi.update(survey.id, { status: 'completed' });
-      
+
       // Update lead stage to 'proposal' (ONLY on completion)
       if (survey.sourceLeadId) {
         await leadsApi.bulkUpdateStage([survey.sourceLeadId], 'proposal');
@@ -689,41 +662,33 @@ const SurveyPage = () => {
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
           {/* Simple Stats Cards Only */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <SurveyDashboardKPI
-              title="ALL"
+            <KPICard
+              label="ALL"
               value={stats.total}
-              change={12.5}
               icon={MapPin}
-              color="#3b82f6"
-              subtitle="Total surveys"
-              trend="up"
+              variant="blue"
+              sub="Total surveys"
             />
-            <SurveyDashboardKPI
-              title="PENDING"
+            <KPICard
+              label="PENDING"
               value={stats.pending}
-              change={-5.2}
               icon={Clock}
-              color="#f59e0b"
-              subtitle="Awaiting form submission"
-              trend="down"
+              variant="amber"
+              sub="Awaiting form submission"
             />
-            <SurveyDashboardKPI
-              title="ACTIVE"
+            <KPICard
+              label="ACTIVE"
               value={stats.active}
-              change={8.2}
               icon={Zap}
-              color="#22c55e"
-              subtitle="In progress"
-              trend="up"
+              variant="emerald"
+              sub="In progress"
             />
-            <SurveyDashboardKPI
-              title="COMPLETED"
+            <KPICard
+              label="COMPLETED"
               value={stats.completed}
-              change={15.3}
               icon={CheckCircle}
-              color="#a855f7"
-              subtitle="Finished surveys"
-              trend="up"
+              variant="purple"
+              sub="Finished surveys"
             />
           </div>
         </div>
@@ -866,99 +831,99 @@ const SurveyPage = () => {
               setShowAdd(false);
               setSelectedLead(null);
             }}>Cancel</Button>
-            <Button 
+            <Button
               disabled={isScheduling}
               onClick={async () => {
-              if (guardCreate()) {
-                setIsScheduling(true);
-                try {
-                  // Create survey with 'pending' status
-                  // Lead stage will NOT change - it stays 'survey' in CRM
-                  const surveyData = {
-                    customerName: formData.customerName,
-                    engineer: formData.engineer,
-                    site: formData.siteAddress,
-                    scheduledDate: formData.scheduledDate,
-                    estimatedKw: parseInt(formData.size) || 0,
-                    status: 'pending', // NEW: Create as pending, not active
-                    shadowPct: 0,
-                    roofArea: 0,
-                    sourceLeadId: selectedLead?.id || null,
-                    notes: formData.notes
-                  };
-                  
-                  const result = await surveysApi.create(surveyData);
-                  const newSurveyId = result.data?.surveyId || result.data?._id || `temp-${Date.now()}`;
-                  
-                  // Add to pending surveys immediately (lead stays in CRM section)
-                  const newSurvey = {
-                    id: newSurveyId,
-                    customerName: formData.customerName,
-                    engineer: formData.engineer,
-                    site: formData.siteAddress,
-                    scheduledDate: formData.scheduledDate,
-                    estimatedKw: parseInt(formData.size) || 0,
-                    status: 'pending',
-                    shadowPct: 0,
-                    roofArea: 0,
-                    sourceLeadId: selectedLead?.id || null,
-                    notes: formData.notes,
-                    createdAt: new Date().toISOString()
-                  };
-                  
-                  setPendingSurveys(prev => [newSurvey, ...prev]);
-                  
-                  // Track this lead as having a survey created
-                  if (selectedLead?.id) {
-                    setSurveyCreatedLeadIds(prev => [...prev, selectedLead.id]);
+                if (guardCreate()) {
+                  setIsScheduling(true);
+                  try {
+                    // Create survey with 'pending' status
+                    // Lead stage will NOT change - it stays 'survey' in CRM
+                    const surveyData = {
+                      customerName: formData.customerName,
+                      engineer: formData.engineer,
+                      site: formData.siteAddress,
+                      scheduledDate: formData.scheduledDate,
+                      estimatedKw: parseInt(formData.size) || 0,
+                      status: 'pending', // NEW: Create as pending, not active
+                      shadowPct: 0,
+                      roofArea: 0,
+                      sourceLeadId: selectedLead?.id || null,
+                      notes: formData.notes
+                    };
+
+                    const result = await surveysApi.create(surveyData);
+                    const newSurveyId = result.data?.surveyId || result.data?._id || `temp-${Date.now()}`;
+
+                    // Add to pending surveys immediately (lead stays in CRM section)
+                    const newSurvey = {
+                      id: newSurveyId,
+                      customerName: formData.customerName,
+                      engineer: formData.engineer,
+                      site: formData.siteAddress,
+                      scheduledDate: formData.scheduledDate,
+                      estimatedKw: parseInt(formData.size) || 0,
+                      status: 'pending',
+                      shadowPct: 0,
+                      roofArea: 0,
+                      sourceLeadId: selectedLead?.id || null,
+                      notes: formData.notes,
+                      createdAt: new Date().toISOString()
+                    };
+
+                    setPendingSurveys(prev => [newSurvey, ...prev]);
+
+                    // Track this lead as having a survey created
+                    if (selectedLead?.id) {
+                      setSurveyCreatedLeadIds(prev => [...prev, selectedLead.id]);
+                    }
+
+                    // Refresh all surveys from backend
+                    const surveysResult = await surveysApi.getAll({ limit: 100 });
+                    const surveysData = surveysResult.data?.data || surveysResult.data || [];
+
+                    const transformedSurveys = surveysData.map(s => ({
+                      id: s.surveyId || s._id,
+                      customerName: s.customerName,
+                      engineer: s.engineer,
+                      site: s.site,
+                      scheduledDate: s.scheduledDate,
+                      estimatedKw: s.estimatedKw,
+                      status: s.status,
+                      shadowPct: s.shadowPct,
+                      roofArea: s.roofArea,
+                      sourceLeadId: s.sourceLeadId,
+                      notes: s.notes,
+                      createdAt: s.createdAt
+                    }));
+
+                    // Update all survey lists
+                    setPendingSurveys(transformedSurveys.filter(s => s.status === 'pending'));
+                    setActiveSurveys(transformedSurveys.filter(s => s.status === 'active'));
+                    setCompletedSurveys(transformedSurveys.filter(s => s.status === 'completed'));
+
+                    logCreate({ id: 'new', name: `Survey scheduled for ${formData.customerName}` });
+                    toast.success(`Survey scheduled for ${formData.customerName} - Pending Form Submission`);
+                    setShowAdd(false);
+                    setSelectedLead(null);
+
+                    // Reset form
+                    setFormData({
+                      customerName: '',
+                      engineer: 'Priya Patel',
+                      siteAddress: '',
+                      scheduledDate: '',
+                      size: '',
+                      notes: ''
+                    });
+                  } catch (err) {
+                    console.error('Failed to create survey:', err);
+                    toast.error(err.message || 'Failed to schedule survey. Please try again.');
+                  } finally {
+                    setIsScheduling(false);
                   }
-                  
-                  // Refresh all surveys from backend
-                  const surveysResult = await surveysApi.getAll({ limit: 100 });
-                  const surveysData = surveysResult.data?.data || surveysResult.data || [];
-                  
-                  const transformedSurveys = surveysData.map(s => ({
-                    id: s.surveyId || s._id,
-                    customerName: s.customerName,
-                    engineer: s.engineer,
-                    site: s.site,
-                    scheduledDate: s.scheduledDate,
-                    estimatedKw: s.estimatedKw,
-                    status: s.status,
-                    shadowPct: s.shadowPct,
-                    roofArea: s.roofArea,
-                    sourceLeadId: s.sourceLeadId,
-                    notes: s.notes,
-                    createdAt: s.createdAt
-                  }));
-                  
-                  // Update all survey lists
-                  setPendingSurveys(transformedSurveys.filter(s => s.status === 'pending'));
-                  setActiveSurveys(transformedSurveys.filter(s => s.status === 'active'));
-                  setCompletedSurveys(transformedSurveys.filter(s => s.status === 'completed'));
-                  
-                  logCreate({ id: 'new', name: `Survey scheduled for ${formData.customerName}` });
-                  toast.success(`Survey scheduled for ${formData.customerName} - Pending Form Submission`);
-                  setShowAdd(false);
-                  setSelectedLead(null);
-                  
-                  // Reset form
-                  setFormData({
-                    customerName: '',
-                    engineer: 'Priya Patel',
-                    siteAddress: '',
-                    scheduledDate: '',
-                    size: '',
-                    notes: ''
-                  });
-                } catch (err) {
-                  console.error('Failed to create survey:', err);
-                  toast.error(err.message || 'Failed to schedule survey. Please try again.');
-                } finally {
-                  setIsScheduling(false);
                 }
-              }
-            }}>
+              }}>
               {isScheduling ? 'Scheduling...' : (<><Plus size={14} /> {selectedLead ? 'Schedule from Lead' : 'Schedule Visit'}</>)}
             </Button>
           </div>
@@ -967,16 +932,16 @@ const SurveyPage = () => {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <FormField label="Customer Name">
-              <Input 
+              <Input
                 value={formData.customerName}
-                onChange={(e) => setFormData({...formData, customerName: e.target.value})}
-                placeholder="e.g. Rajesh Kumar" 
+                onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
+                placeholder="e.g. Rajesh Kumar"
               />
             </FormField>
             <FormField label="Assigned Engineer">
-              <Select 
+              <Select
                 value={formData.engineer}
-                onChange={(e) => setFormData({...formData, engineer: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, engineer: e.target.value })}
               >
                 <option key="eng1" value="Priya Patel">Priya Patel</option>
                 <option key="eng2" value="Rahul Sharma">Rahul Sharma</option>
@@ -987,42 +952,42 @@ const SurveyPage = () => {
             </FormField>
           </div>
           <FormField label="Site Address">
-            <Input 
+            <Input
               value={formData.siteAddress}
-              onChange={(e) => setFormData({...formData, siteAddress: e.target.value})}
-              placeholder="Plot 45, GIDC Phase II, Ahmedabad" 
+              onChange={(e) => setFormData({ ...formData, siteAddress: e.target.value })}
+              placeholder="Plot 45, GIDC Phase II, Ahmedabad"
             />
           </FormField>
           <div className="grid grid-cols-2 gap-4">
             <FormField label="Scheduled Date">
-              <Input 
-                type="date" 
+              <Input
+                type="date"
                 value={formData.scheduledDate}
-                onChange={(e) => setFormData({...formData, scheduledDate: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, scheduledDate: e.target.value })}
               />
             </FormField>
             <FormField label="Est. Size (kW)">
-              <Input 
-                type="number" 
+              <Input
+                type="number"
                 value={formData.size}
-                onChange={(e) => setFormData({...formData, size: e.target.value})}
-                placeholder="50" 
+                onChange={(e) => setFormData({ ...formData, size: e.target.value })}
+                placeholder="50"
               />
             </FormField>
           </div>
           <FormField label="Site Notes">
-            <Textarea 
-              rows={3} 
+            <Textarea
+              rows={3}
               value={formData.notes}
-              onChange={(e) => setFormData({...formData, notes: e.target.value})}
-              placeholder="Access restrictions, structural observations..." 
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              placeholder="Access restrictions, structural observations..."
             />
           </FormField>
           {selectedLead && (
             <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
               <p className="text-[11px] text-blue-600">
-                <strong>Source:</strong> CRM Lead #{selectedLead.id} | 
-                <strong>Stage:</strong> {PIPELINE_STAGES.find(s => s.id === selectedLead.stage)?.label} | 
+                <strong>Source:</strong> CRM Lead #{selectedLead.id} |
+                <strong>Stage:</strong> {PIPELINE_STAGES.find(s => s.id === selectedLead.stage)?.label} |
                 <strong>Value:</strong> ₹{selectedLead.value?.toLocaleString()}
               </p>
             </div>
@@ -1038,7 +1003,7 @@ const SurveyPage = () => {
         footer={
           <div className="flex gap-2 justify-end">
             <Button variant="ghost" onClick={() => setSelectedSurvey(null)}>Close</Button>
-            
+
             {/* PENDING: Submit Survey Form button */}
             {selectedSurvey?.status === 'pending' && (
               <Button
@@ -1051,7 +1016,7 @@ const SurveyPage = () => {
                 <CheckCircle size={14} /> Submit Survey
               </Button>
             )}
-            
+
             {/* ACTIVE: Complete Survey button */}
             {selectedSurvey?.status === 'active' && (
               <Button
@@ -1064,7 +1029,7 @@ const SurveyPage = () => {
                 <CheckCircle size={14} /> Complete Survey
               </Button>
             )}
-            
+
             {/* COMPLETED: Generate Proposal button */}
             {selectedSurvey?.status === 'completed' && (
               <Button
