@@ -6,6 +6,12 @@ import { Tenant } from '../../../core/tenant/schemas/tenant.schema';
 import { Project } from '../../projects/schemas/project.schema';
 import { CreateCommissioningDto, UpdateCommissioningDto, UpdateCommissioningStatusDto } from '../dto/commissioning.dto';
 
+interface UserWithVisibility {
+  id?: string;
+  _id?: string;
+  dataScope?: 'ALL' | 'ASSIGNED';
+}
+
 @Injectable()
 export class CommissioningService {
   constructor(
@@ -27,9 +33,21 @@ export class CommissioningService {
     return tenant._id as Types.ObjectId;
   }
 
-  async findAll(tenantCode: string, status?: string, projectId?: string) {
+  async findAll(tenantCode: string, user?: UserWithVisibility, status?: string, projectId?: string) {
     const tenantId = await this.getTenantId(tenantCode);
     const query: any = { tenantId, isDeleted: false };
+    
+    // Apply visibility filter based on user's dataScope
+    if (user?.dataScope === 'ASSIGNED') {
+      const userId = user._id || user.id;
+      if (userId) {
+        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
+          ? new Types.ObjectId(userId)
+          : userId;
+        // Show only items assigned to this user
+        query.assignedTo = objectId;
+      }
+    }
     
     if (status && status !== 'All') {
       query.status = status;
@@ -212,29 +230,40 @@ export class CommissioningService {
     return { message: 'Commissioning record deleted successfully' };
   }
 
-  async getStats(tenantCode: string) {
+  async getStats(tenantCode: string, user?: UserWithVisibility) {
     const tenantId = await this.getTenantId(tenantCode);
     
-    const total = await this.commissioningModel.countDocuments({
+    const query: any = {
       tenantId,
       isDeleted: false,
-    });
+    };
+    
+    // Apply visibility filter based on user's dataScope
+    if (user?.dataScope === 'ASSIGNED') {
+      const userId = user._id || user.id;
+      if (userId) {
+        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
+          ? new Types.ObjectId(userId)
+          : userId;
+        // Show only items assigned to this user
+        query.assignedTo = objectId;
+      }
+    }
+    
+    const total = await this.commissioningModel.countDocuments(query);
 
     const pending = await this.commissioningModel.countDocuments({
-      tenantId,
-      isDeleted: false,
+      ...query,
       status: 'Pending',
     });
 
     const completed = await this.commissioningModel.countDocuments({
-      tenantId,
-      isDeleted: false,
+      ...query,
       status: 'Completed',
     });
 
     const cancelled = await this.commissioningModel.countDocuments({
-      tenantId,
-      isDeleted: false,
+      ...query,
       status: 'Cancelled',
     });
 
@@ -246,7 +275,7 @@ export class CommissioningService {
     };
   }
 
-  async getDashboardStats(tenantCode: string, startDate?: string, endDate?: string, projectType?: string) {
+  async getDashboardStats(tenantCode: string, user?: UserWithVisibility, startDate?: string, endDate?: string, projectType?: string) {
     const tenantId = await this.getTenantId(tenantCode);
     
     // Build date filter
@@ -265,6 +294,18 @@ export class CommissioningService {
     };
     if (Object.keys(dateFilter).length > 0) {
       baseQuery.createdAt = dateFilter;
+    }
+    
+    // Apply visibility filter based on user's dataScope
+    if (user?.dataScope === 'ASSIGNED') {
+      const userId = user._id || user.id;
+      if (userId) {
+        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
+          ? new Types.ObjectId(userId)
+          : userId;
+        // Show only items assigned to this user
+        baseQuery.assignedTo = objectId;
+      }
     }
 
     // Status distribution

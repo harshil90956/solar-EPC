@@ -44,13 +44,18 @@ export function buildVisibilityFilter(
     return {};
   }
 
-  const userRole = user.role?.toLowerCase() || '';
-  const userId = user._id || user.id;
-
   // ADMIN sees all data in their tenant
-  if (userRole === 'admin') {
+  if (user.role?.toLowerCase() === 'admin') {
     return {};
   }
+
+  // ALL dataScope sees all data in their tenant (not just assigned)
+  if (user.dataScope === 'ALL') {
+    return {};
+  }
+
+  const userRole = user.role?.toLowerCase() || '';
+  const userId = user._id || user.id;
 
   // Convert userId to ObjectId if needed
   const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
@@ -208,6 +213,11 @@ export function canAccessRecord(
 
   // ADMIN can access everything in their tenant
   if (userRole === 'admin') {
+    return true;
+  }
+
+  // ALL dataScope can access everything in their tenant
+  if (user.dataScope === 'ALL') {
     return true;
   }
 

@@ -150,7 +150,12 @@ const AppInner = () => {
     if (page === 'dashboard') return true;
     if (!isModuleEnabled(page)) return false;
     // Check view permission using resolvePermission
-    return resolvePermission(user?.id, user?.role, page, 'view');
+    const roleId = user?.roleId || user?.role;
+    const canView = resolvePermission(user?.id, roleId, page, 'view');
+    
+    // For employees with custom roles, if no explicit permission but has roleId, allow access
+    const hasCustomRole = user?.roleId && user?.roleId.startsWith('custom_');
+    return canView || hasCustomRole;
   };
 
   const entry = PAGE_MAP[currentPage];

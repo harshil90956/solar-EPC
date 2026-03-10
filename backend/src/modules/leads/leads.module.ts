@@ -5,6 +5,7 @@ import { LeadStatus, LeadStatusSchema } from '../settings/schemas/lead-status.sc
 import { LeadsService } from './services/leads.service';
 import { LeadsController } from './controllers/leads.controller';
 import { SettingsModule } from '../settings/settings.module';
+import { TenantModule } from '../../core/tenant/tenant.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { SettingsModule } from '../settings/settings.module';
       { name: LeadStatus.name, schema: LeadStatusSchema },
     ]),
     SettingsModule,
+    TenantModule,
   ],
   controllers: [LeadsController],
   providers: [LeadsService],

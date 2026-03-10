@@ -13,6 +13,12 @@ import {
   CreateComplianceDocumentDto, UpdateComplianceDocumentDto,
 } from '../dto/compliance.dto';
 
+interface UserWithVisibility {
+  id?: string;
+  _id?: string;
+  dataScope?: 'ALL' | 'ASSIGNED';
+}
+
 @Injectable()
 export class ComplianceService {
   constructor(
@@ -38,31 +44,58 @@ export class ComplianceService {
 
   // ==================== NET METERING ====================
 
-  async findAllNetMetering(tenantCode: string, status?: string) {
+  async findAllNetMetering(tenantCode: string, user?: UserWithVisibility, status?: string) {
     const tenantId = await this.getTenantId(tenantCode);
     const query: any = { tenantId, isDeleted: false };
+    
+    // Apply visibility filter based on user's dataScope
+    if (user?.dataScope === 'ASSIGNED') {
+      const userId = user._id || user.id;
+      if (userId) {
+        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
+          ? new Types.ObjectId(userId)
+          : userId;
+        query.assignedTo = objectId;
+      }
+    }
+    
     if (status && status !== 'All') {
       query.status = status;
     }
     return this.netMeteringModel.find(query).sort({ createdAt: -1 }).exec();
   }
 
-  async findOneNetMetering(tenantCode: string, applicationId: string) {
+  async findOneNetMetering(tenantCode: string, applicationId: string, user?: UserWithVisibility) {
     const tenantId = await this.getTenantId(tenantCode);
     const item = await this.netMeteringModel.findOne({ tenantId, applicationId, isDeleted: false }).exec();
     if (!item) {
       throw new NotFoundException(`Net Metering application ${applicationId} not found`);
     }
+    
+    // Check access for ASSIGNED scope
+    const assignedTo = (item as any).assignedTo;
+    if (user?.dataScope === 'ASSIGNED' && assignedTo) {
+      const userId = user._id || user.id;
+      if (assignedTo.toString() !== userId) {
+        throw new NotFoundException(`Net Metering application ${applicationId} not found`);
+      }
+    }
+    
     return item;
   }
 
-  async createNetMetering(tenantCode: string, createDto: CreateNetMeteringDto) {
+  async createNetMetering(tenantCode: string, createDto: CreateNetMeteringDto, user?: UserWithVisibility) {
     const tenantId = await this.getTenantId(tenantCode);
-    const item = new this.netMeteringModel({
+    const itemData: any = {
       ...createDto,
       tenantId,
       status: createDto.status || 'Draft',
-    });
+    };
+    // Auto-assign if user has ASSIGNED scope
+    if (user?.dataScope === 'ASSIGNED') {
+      itemData.assignedTo = user._id || user.id;
+    }
+    const item = new this.netMeteringModel(itemData);
     return item.save();
   }
 

@@ -10,6 +10,8 @@ import {
   Headers,
   HttpCode,
   HttpStatus,
+  Request,
+  UseGuards,
 } from '@nestjs/common';
 import { ComplianceService } from '../services/compliance.service';
 import {
@@ -18,8 +20,11 @@ import {
   CreateInspectionDto, UpdateInspectionDto,
   CreateComplianceDocumentDto, UpdateComplianceDocumentDto,
 } from '../dto/compliance.dto';
+import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
+import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
 
 @Controller('compliance')
+@UseGuards(JwtAuthGuard, TenantGuard)
 export class ComplianceController {
   constructor(private readonly complianceService: ComplianceService) {}
 
@@ -41,9 +46,15 @@ export class ComplianceController {
     @Headers('x-tenant-id') headerTenantId: string,
     @Query('tenantId') queryTenantId: string,
     @Query('status') status?: string,
+    @Request() req?: any,
   ) {
     const tenantId = headerTenantId || queryTenantId;
-    return this.complianceService.findAllNetMetering(tenantId, status);
+    const user = req?.user ? {
+      id: req.user.id,
+      _id: req.user.id,
+      dataScope: req.user.dataScope || 'ASSIGNED',
+    } : undefined;
+    return this.complianceService.findAllNetMetering(tenantId, user, status);
   }
 
   @Get('net-metering/:applicationId')
@@ -51,9 +62,15 @@ export class ComplianceController {
     @Headers('x-tenant-id') headerTenantId: string,
     @Query('tenantId') queryTenantId: string,
     @Param('applicationId') applicationId: string,
+    @Request() req?: any,
   ) {
     const tenantId = headerTenantId || queryTenantId;
-    return this.complianceService.findOneNetMetering(tenantId, applicationId);
+    const user = req?.user ? {
+      id: req.user.id,
+      _id: req.user.id,
+      dataScope: req.user.dataScope || 'ASSIGNED',
+    } : undefined;
+    return this.complianceService.findOneNetMetering(tenantId, applicationId, user);
   }
 
   @Post('net-metering')
@@ -62,9 +79,15 @@ export class ComplianceController {
     @Headers('x-tenant-id') headerTenantId: string,
     @Query('tenantId') queryTenantId: string,
     @Body() createDto: CreateNetMeteringDto,
+    @Request() req?: any,
   ) {
     const tenantId = headerTenantId || queryTenantId;
-    return this.complianceService.createNetMetering(tenantId, createDto);
+    const user = req?.user ? {
+      id: req.user.id,
+      _id: req.user.id,
+      dataScope: req.user.dataScope || 'ASSIGNED',
+    } : undefined;
+    return this.complianceService.createNetMetering(tenantId, createDto, user);
   }
 
   @Patch('net-metering/:applicationId')

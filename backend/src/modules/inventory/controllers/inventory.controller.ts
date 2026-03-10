@@ -15,11 +15,12 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
+import { PermissionGuard } from '../../settings/guards/permission.guard';
 import { InventoryService } from '../services/inventory.service';
 import { CreateInventoryDto, UpdateInventoryDto, StockInDto, StockOutDto, CreateReservationDto, UpdateReservationDto } from '../dto/inventory.dto';
 
 @Controller('inventory')
-@UseGuards(JwtAuthGuard, TenantGuard)
+@UseGuards(JwtAuthGuard, TenantGuard, PermissionGuard)
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
@@ -32,7 +33,14 @@ export class InventoryController {
     @Request() req?: any,
   ) {
     const tenantId = headerTenantId || queryTenantId || 'solarcorp';
-    const user = req?.user;
+    // Extract user with dataScope from JWT (same pattern as Finance controller)
+    const user = req?.user ? {
+      id: String(req.user.id || req.user._id),
+      _id: String(req.user.id || req.user._id),
+      dataScope: (req.user.dataScope as 'ALL' | 'ASSIGNED') || 'ASSIGNED',
+    } : undefined;
+    console.log(`[INVENTORY CTRL] req.user:`, JSON.stringify(req?.user));
+    console.log(`[INVENTORY CTRL] Extracted user.dataScope:`, user?.dataScope);
     return this.inventoryService.findAll(tenantId, user, category, search);
   }
 
@@ -43,7 +51,12 @@ export class InventoryController {
     @Request() req?: any,
   ) {
     const tenantId = headerTenantId || queryTenantId || 'solarcorp';
-    const user = req?.user;
+    const user = req?.user ? {
+      id: String(req.user.id || req.user._id),
+      _id: String(req.user.id || req.user._id),
+      dataScope: (req.user.dataScope as 'ALL' | 'ASSIGNED') || 'ASSIGNED',
+    } : undefined;
+    console.log(`[INVENTORY STATS] user.dataScope:`, user?.dataScope);
     return this.inventoryService.getStats(tenantId, user);
   }
 
@@ -51,9 +64,16 @@ export class InventoryController {
   async getItemsByCategory(
     @Headers('x-tenant-id') headerTenantId: string,
     @Query('tenantId') queryTenantId: string,
+    @Request() req?: any,
   ) {
     const tenantId = headerTenantId || queryTenantId || 'solarcorp';
-    return this.inventoryService.getItemsByCategory(tenantId);
+    const user = req?.user ? {
+      id: String(req.user.id || req.user._id),
+      _id: String(req.user.id || req.user._id),
+      dataScope: (req.user.dataScope as 'ALL' | 'ASSIGNED') || 'ASSIGNED',
+    } : undefined;
+    console.log(`[INVENTORY CATEGORY] user.dataScope:`, user?.dataScope);
+    return this.inventoryService.getItemsByCategory(tenantId, user);
   }
 
   @Get(':itemId')

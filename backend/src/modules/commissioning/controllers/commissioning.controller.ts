@@ -8,13 +8,19 @@ import {
   Param,
   Query,
   Headers,
+  Request,
   UsePipes,
+  UseGuards,
   ValidationPipe,
 } from '@nestjs/common';
 import { CommissioningService } from '../services/commissioning.service';
 import { CreateCommissioningDto, UpdateCommissioningDto, UpdateCommissioningStatusDto } from '../dto/commissioning.dto';
+import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
+import { PermissionGuard } from '../../settings/guards/permission.guard';
+import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
 
 @Controller('commissioning')
+@UseGuards(JwtAuthGuard, TenantGuard, PermissionGuard)
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 export class CommissioningController {
   constructor(private readonly commissioningService: CommissioningService) {}
@@ -25,18 +31,30 @@ export class CommissioningController {
     @Query('tenantId') queryTenantId: string,
     @Query('status') status?: string,
     @Query('projectId') projectId?: string,
+    @Request() req?: any,
   ) {
     const tenantId = headerTenantId || queryTenantId;
-    return this.commissioningService.findAll(tenantId, status, projectId);
+    const user = req?.user ? {
+      id: req.user.id,
+      _id: req.user.id,
+      dataScope: req.user.dataScope || 'ASSIGNED',
+    } : undefined;
+    return this.commissioningService.findAll(tenantId, user, status, projectId);
   }
 
   @Get('stats')
   async getStats(
     @Headers('x-tenant-id') headerTenantId: string,
     @Query('tenantId') queryTenantId: string,
+    @Request() req?: any,
   ) {
     const tenantId = headerTenantId || queryTenantId;
-    return this.commissioningService.getStats(tenantId);
+    const user = req?.user ? {
+      id: req.user.id,
+      _id: req.user.id,
+      dataScope: req.user.dataScope || 'ASSIGNED',
+    } : undefined;
+    return this.commissioningService.getStats(tenantId, user);
   }
 
   @Get('dashboard')
@@ -46,9 +64,15 @@ export class CommissioningController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('projectType') projectType?: string,
+    @Request() req?: any,
   ) {
     const tenantId = headerTenantId || queryTenantId;
-    return this.commissioningService.getDashboardStats(tenantId, startDate, endDate, projectType);
+    const user = req?.user ? {
+      id: req.user.id,
+      _id: req.user.id,
+      dataScope: req.user.dataScope || 'ASSIGNED',
+    } : undefined;
+    return this.commissioningService.getDashboardStats(tenantId, user, startDate, endDate, projectType);
   }
 
   @Get('by-project/:projectId')

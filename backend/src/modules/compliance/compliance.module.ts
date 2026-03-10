@@ -7,6 +7,7 @@ import { Subsidy, SubsidySchema } from './schemas/subsidy.schema';
 import { Inspection, InspectionSchema } from './schemas/inspection.schema';
 import { ComplianceDocument, ComplianceDocumentSchema } from './schemas/compliance-document.schema';
 import { Tenant, TenantSchema } from '../../core/tenant/schemas/tenant.schema';
+import { SettingsModule } from '../settings/settings.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { Tenant, TenantSchema } from '../../core/tenant/schemas/tenant.schema';
       { name: ComplianceDocument.name, schema: ComplianceDocumentSchema },
       { name: Tenant.name, schema: TenantSchema },
     ]),
+    SettingsModule,
   ],
   controllers: [ComplianceController],
   providers: [ComplianceService],
