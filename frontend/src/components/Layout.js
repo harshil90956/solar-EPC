@@ -119,27 +119,19 @@ const Layout = ({ currentPage, onNavigate, children }) => {
   const unreadCount = ALERTS.filter(a => a.severity === 'critical' || a.severity === 'warning').length;
   const totalReminderAlerts = activeNotifications.length + upcomingCount + overdueCount;
 
-  // Filter nav based on role permissions AND module enabled flags
-  // Uses resolvePermission to support custom roles (User Override → Custom Role → Base RBAC)
-  // Admin always sees all modules
-  // Employees with valid customRoleId see modules based on their role
+  // Sidebar visibility:
+  // - Admin (role='Admin'/'admin', or isSuperAdmin): always sees all enabled modules
+  // - Custom role / employee: only shows modules where view = true in Role Builder
   const visibleSections = NAV_CONFIG.map(section => ({
     ...section,
     items: section.items.filter(item => {
-      const hasModuleAccess = isModuleEnabled(item.id);
-
-      if (!hasModuleAccess) return false;
-
-      // Check view permission using resolvePermission (supports custom roles)
-      const userId = user?.id;
+      if (!isModuleEnabled(item.id)) return false;
+      // Admins / superadmins always see everything
+      const userRole = (user?.role || '').toLowerCase();
+      if (user?.isSuperAdmin || userRole === 'admin' || userRole === 'superadmin') return true;
+      // Custom role / employee: check view permission
       const roleId = user?.roleId || user?.role;
-      const canView = resolvePermission(userId, roleId, item.id, 'view');
-      
-      // For employees with custom roles, if no explicit permission but has roleId, allow view
-      const hasCustomRole = user?.roleId && user?.roleId.startsWith('custom_');
-      const effectiveCanView = canView || (hasCustomRole && !user?.permissions?.[item.id]);
-
-      return effectiveCanView;
+      return resolvePermission(user?.id, roleId, item.id, 'view');
     }),
   })).filter(s => s.items.length > 0);
 

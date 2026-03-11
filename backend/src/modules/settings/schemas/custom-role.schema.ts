@@ -29,7 +29,7 @@ export class CustomRole {
   @Prop({ type: Map, of: Object, default: {} })
   permissions!: Map<string, Map<string, boolean>>;
 
-  @Prop({ type: String, default: 'ASSIGNED', enum: ['ALL', 'ASSIGNED'] })
+  @Prop({ type: String, default: 'ALL', enum: ['ALL', 'ASSIGNED'] })
   dataScope!: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Tenant', index: true })

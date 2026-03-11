@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Vendor, VendorDocument } from '../schemas/vendor.schema';
 import { PurchaseOrder, PurchaseOrderDocument } from '../schemas/purchase-order.schema';
+import { Project } from '../../projects/schemas/project.schema';
 import { Tenant } from '../../../core/tenant/schemas/tenant.schema';
 import { CreateVendorDto, UpdateVendorDto } from '../dto/create-vendor.dto';
 import { CreatePurchaseOrderDto, UpdatePurchaseOrderDto, UpdatePurchaseOrderStatusDto } from '../dto/create-purchase-order.dto';
@@ -16,8 +17,9 @@ interface UserWithVisibility {
 @Injectable()
 export class ProcurementService {
   constructor(
-    @InjectModel(Vendor.name) private vendorModel: Model<VendorDocument>,
+    @InjectModel('LogisticsVendor') private vendorModel: Model<VendorDocument>,
     @InjectModel(PurchaseOrder.name) private purchaseOrderModel: Model<PurchaseOrderDocument>,
+    @InjectModel(Project.name) private projectModel: Model<Project>,
     @InjectModel(Tenant.name) private tenantModel: Model<Tenant>,
   ) {}
 
@@ -121,29 +123,52 @@ export class ProcurementService {
 
   async createPurchaseOrder(dto: CreatePurchaseOrderDto, tenantId: string): Promise<PurchaseOrder> {
     const tenantObjId = await this.getTenantId(tenantId);
-    // Count all active POs when tenant is default, otherwise count by tenant
-    const countQuery = tenantObjId ? { tenantId: tenantObjId, isActive: true } : { isActive: true };
-    const count = await this.purchaseOrderModel.countDocuments(countQuery);
-    const id = `PO${String(count + 1).padStart(3, '0')}`;
+    
+    // Find the highest existing PO id from active POs and increment
+    // Use lean() to get plain objects where 'id' is the actual stored field, not the Mongoose virtual
+    const allPOs = await this.purchaseOrderModel.find({}, { id: 1 }).lean().exec();
+    const existingNumbers = allPOs.map((po: any) => {
+      const rawId = po.id as string;
+      const match = rawId?.match(/PO(\d+)/);
+      return match ? parseInt(match[1]) : 0;
+    });
+    const maxNum = existingNumbers.length > 0 ? Math.max(...existingNumbers) : 0;
+    const id = `PO${String(maxNum + 1).padStart(3, '0')}`;
 
-    // Get vendor name - search by vendor ID without tenant filter for default
-    const vendorQuery = tenantObjId ? { id: dto.vendorId, tenantId: tenantObjId } : { id: dto.vendorId };
-    const vendor = await this.vendorModel.findOne(vendorQuery).exec();
+    // Get vendor from logistics_vendors collection using MongoDB _id
+    const vendor = await this.vendorModel.findById(dto.vendorId).exec();
     if (!vendor) throw new NotFoundException(`Vendor ${dto.vendorId} not found`);
 
     const now = new Date();
     const orderedDate = now.toISOString().split('T')[0];
 
+    let resolvedRelatedProjectId: Types.ObjectId | null = null;
+    if (dto.relatedProjectId) {
+      if (Types.ObjectId.isValid(dto.relatedProjectId)) {
+        resolvedRelatedProjectId = new Types.ObjectId(dto.relatedProjectId);
+      } else {
+        const project = await this.projectModel.findOne({ projectId: dto.relatedProjectId }).exec();
+        if (!project) {
+          throw new BadRequestException(`Invalid relatedProjectId: Project ${dto.relatedProjectId} not found`);
+        }
+        resolvedRelatedProjectId = project._id as Types.ObjectId;
+      }
+    }
+
     const purchaseOrder = new this.purchaseOrderModel({
       ...dto,
+      relatedProjectId: resolvedRelatedProjectId,
       id,
       vendorId: vendor._id,
       vendorName: vendor.name,
+      items: dto.items || '',
       orderedDate,
       status: 'Ordered',
       deliveredDate: null,
       tenantId: tenantObjId,
     });
+
+    console.log('[PROCUREMENT] Creating PO:', JSON.stringify(purchaseOrder));
 
     // Increment vendor total orders
     await this.vendorModel.findByIdAndUpdate(vendor._id, { $inc: { totalOrders: 1 } });
@@ -171,10 +196,22 @@ export class ProcurementService {
       }
     }
     
-    return this.purchaseOrderModel
+    const pos = await this.purchaseOrderModel
       .find(query)
       .populate('vendorId', 'id name')
       .exec();
+    
+    // Update vendorName with current vendor's name
+    return pos.map(po => {
+      const poObj = po.toObject();
+      const populatedVendor = poObj.vendorId as any;
+      console.log(`[DEBUG] PO ${poObj.id} - vendorId:`, populatedVendor, '- vendorName:', poObj.vendorName);
+      if (populatedVendor && typeof populatedVendor === 'object' && populatedVendor.name) {
+        poObj.vendorName = populatedVendor.name;
+        console.log(`[DEBUG] Updated vendorName to:`, poObj.vendorName);
+      }
+      return poObj as PurchaseOrder;
+    });
   }
 
   async findPurchaseOrderById(id: string, tenantId: string): Promise<PurchaseOrder> {
@@ -188,7 +225,14 @@ export class ProcurementService {
       .populate('vendorId', 'id name')
       .exec();
     if (!po) throw new NotFoundException(`Purchase Order ${id} not found`);
-    return po;
+    
+    // Update vendorName with current vendor's name
+    const poObj = po.toObject();
+    const populatedVendor = poObj.vendorId as any;
+    if (populatedVendor && typeof populatedVendor === 'object' && populatedVendor.name) {
+      poObj.vendorName = populatedVendor.name;
+    }
+    return poObj as PurchaseOrder;
   }
 
   async updatePurchaseOrderStatus(id: string, dto: UpdatePurchaseOrderStatusDto, tenantId: string): Promise<PurchaseOrder> {
@@ -285,5 +329,22 @@ export class ProcurementService {
       inTransitCount,
       totalSpend,
     };
+  }
+
+  // ==================== VENDOR SYNC ====================
+
+  async syncVendorName(vendorId: Types.ObjectId | string, newVendorName: string): Promise<void> {
+    console.log(`[PROCUREMENT SYNC] Syncing vendor name for vendor ${vendorId} to "${newVendorName}"`);
+    
+    const vendorObjId = typeof vendorId === 'string' && Types.ObjectId.isValid(vendorId)
+      ? new Types.ObjectId(vendorId)
+      : vendorId;
+    
+    const result = await this.purchaseOrderModel.updateMany(
+      { vendorId: vendorObjId, isActive: true },
+      { $set: { vendorName: newVendorName } }
+    );
+    
+    console.log(`[PROCUREMENT SYNC] Updated ${result.modifiedCount} purchase orders`);
   }
 }

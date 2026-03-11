@@ -1,16 +1,12 @@
 import { Injectable, Inject, forwardRef } from '@nestjs/common';
-
 import { InjectModel } from '@nestjs/mongoose';
-
 import { Model, Types } from 'mongoose';
-
 import { Dispatch } from '../schemas/dispatch.schema';
-
 import { Vendor } from '../schemas/vendor.schema';
-
+import { PurchaseOrder } from '../../procurement/schemas/purchase-order.schema';
 import { InventoryService } from '../../inventory/services/inventory.service';
-
 import { InstallationService } from '../../installation/services/installation.service';
+import { ProcurementService } from '../../procurement/services/procurement.service';
 
 
 
@@ -34,11 +30,16 @@ export class LogisticsService {
 
     @InjectModel(Dispatch.name) private dispatchModel: Model<Dispatch>,
 
-    @InjectModel(Vendor.name) private vendorModel: Model<Vendor>,
+    @InjectModel('LogisticsVendor') private vendorModel: Model<Vendor>,
+
+    @InjectModel(PurchaseOrder.name) private purchaseOrderModel: Model<PurchaseOrder>,
 
     private readonly inventoryService: InventoryService,
 
     private readonly installationService: InstallationService,
+
+    @Inject(forwardRef(() => ProcurementService))
+    private readonly procurementService: ProcurementService,
 
   ) {}
 
@@ -399,9 +400,23 @@ export class LogisticsService {
 
     const results = await this.vendorModel.find(query).exec();
 
+    // Calculate totalOrders dynamically from Purchase Orders
+    const vendorsWithPOCount = await Promise.all(
+      results.map(async (vendor) => {
+        const poCount = await this.purchaseOrderModel.countDocuments({
+          vendorId: vendor._id,
+          isActive: true
+        }).exec();
+        
+        const vendorObj = vendor.toObject();
+        vendorObj.totalOrders = poCount;
+        return vendorObj as Vendor;
+      })
+    );
+
     console.log(`[LOGISTICS VENDORS] Found:`, results.length, 'records');
 
-    return results;
+    return vendorsWithPOCount;
 
   }
 
@@ -476,9 +491,21 @@ export class LogisticsService {
 
 
   async updateVendor(id: string, data: Partial<Vendor>): Promise<Vendor | null> {
-
-    return this.vendorModel.findOneAndUpdate({ id }, data, { new: true }).exec();
-
+    console.log(`[LOGISTICS] Updating vendor ${id} with data:`, data);
+    
+    const oldVendor = await this.vendorModel.findOne({ id }).exec();
+    const updated = await this.vendorModel.findOneAndUpdate({ id }, data, { new: true }).exec();
+    
+    if (updated && data.name && data.name !== oldVendor?.name) {
+      console.log(`[LOGISTICS] Vendor name changed from "${oldVendor?.name}" to "${data.name}" - syncing with POs`);
+      try {
+        await this.procurementService.syncVendorName(updated._id, data.name);
+      } catch (error: any) {
+        console.error(`[LOGISTICS] Failed to sync vendor name with POs:`, error.message);
+      }
+    }
+    
+    return updated;
   }
 
 
@@ -493,7 +520,7 @@ export class LogisticsService {
 
   // Vendor delivery - add stock to inventory
 
-  async vendorDelivery(vendorId: string, itemName: string, quantity: number): Promise<any> {
+  async vendorDelivery(vendorId: string, itemName: string, quantity: number, tenantId?: string): Promise<any> {
 
     // Add stock to inventory
 
@@ -505,7 +532,9 @@ export class LogisticsService {
 
       `Vendor delivery from ${vendorId}`,
 
-      vendorId
+      vendorId,
+
+      tenantId || 'default'
 
     );
 
