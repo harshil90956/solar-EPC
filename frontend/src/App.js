@@ -146,18 +146,16 @@ const AppInner = () => {
   // ── Auth guard: redirect to login if no user ──
   if (!user) return <LoginPage />;
 
-  // ── Role guard: redirect to dashboard if no access ──
-  // Uses resolvePermission for custom role support (User Override → Custom Role → Base RBAC)
+  // ── Module access guard ──
+  // Admin / superadmin: full access to all enabled modules
+  // Custom role / employee: only modules where view = true in Role Builder
   const hasAccess = (page) => {
     if (page === 'dashboard') return true;
     if (!isModuleEnabled(page)) return false;
-    // Check view permission using resolvePermission
+    const userRole = (user?.role || '').toLowerCase();
+    if (user?.isSuperAdmin || userRole === 'admin' || userRole === 'superadmin') return true;
     const roleId = user?.roleId || user?.role;
-    const canView = resolvePermission(user?.id, roleId, page, 'view');
-    
-    // For employees with custom roles, if no explicit permission but has roleId, allow access
-    const hasCustomRole = user?.roleId && user?.roleId.startsWith('custom_');
-    return canView || hasCustomRole;
+    return resolvePermission(user?.id, roleId, page, 'view');
   };
 
   const entry = PAGE_MAP[currentPage];

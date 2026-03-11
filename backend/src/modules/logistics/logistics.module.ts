@@ -4,9 +4,11 @@ import { LogisticsController } from './controllers/logistics.controller';
 import { LogisticsService } from './services/logistics.service';
 import { Dispatch, DispatchSchema } from './schemas/dispatch.schema';
 import { Vendor, VendorSchema } from './schemas/vendor.schema';
+import { PurchaseOrder, PurchaseOrderSchema } from '../procurement/schemas/purchase-order.schema';
 import { InventoryModule } from '../inventory/inventory.module';
 import { SettingsModule } from '../settings/settings.module';
 import { InstallationModule } from '../installation/installation.module';
+import { ProcurementModule } from '../procurement/procurement.module';
 import { RequestLoggingMiddleware } from '../../common/middleware/request-logging.middleware';
 import { LoggingGuard } from '../../common/guards/logging.guard';
 
@@ -14,11 +16,13 @@ import { LoggingGuard } from '../../common/guards/logging.guard';
   imports: [
     MongooseModule.forFeature([
       { name: Dispatch.name, schema: DispatchSchema },
-      { name: Vendor.name, schema: VendorSchema }
+      { name: 'LogisticsVendor', schema: VendorSchema },
+      { name: PurchaseOrder.name, schema: PurchaseOrderSchema }
     ]),
     InventoryModule,
     SettingsModule,
     InstallationModule,
+    ProcurementModule,
   ],
   controllers: [LogisticsController],
   providers: [LogisticsService, LoggingGuard],

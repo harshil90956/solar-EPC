@@ -8,13 +8,13 @@ export class PurchaseOrder {
   @Prop({ required: true, unique: true })
   id!: string;
 
-  @Prop({ required: true, type: Types.ObjectId, ref: 'Vendor' })
+  @Prop({ required: true, type: Types.ObjectId, ref: 'LogisticsVendor' })
   vendorId!: Types.ObjectId;
 
   @Prop({ required: true })
   vendorName!: string;
 
-  @Prop({ required: true })
+  @Prop({ type: String, default: '' })
   items!: string;
 
   @Prop({ required: true })
