@@ -1375,13 +1375,37 @@ const CRMPage = () => {
       
       // Fetch all roles
       const rolesResult = await leadsApi.getRoles();
-      const rolesData = rolesResult.data?.data || rolesResult.data || [];
+      console.log('[ASSIGN] Roles API raw response:', rolesResult);
+      console.log('[ASSIGN] Roles response.data:', rolesResult.data);
+      
+      // apiClient interceptor returns response.data already.
+      // Expected body: { success: true, data: [...] }
+      const rolesBody = rolesResult?.data ?? rolesResult;
+      const rolesPayload = rolesBody?.success === true && rolesBody?.data != null ? rolesBody.data : rolesBody;
+      const rawRoles = Array.isArray(rolesPayload)
+        ? rolesPayload
+        : rolesPayload && typeof rolesPayload === 'object'
+          ? Object.values(rolesPayload)
+          : [];
+
+      const rolesData = (Array.isArray(rawRoles) ? rawRoles : [])
+        .map((r) => {
+          const id = r?._id || r?.id || r?.roleId;
+          const name = r?.name || r?.label;
+          if (!id || !name) return null;
+          return { ...r, _id: id, name };
+        })
+        .filter(Boolean);
+      
       console.log('[ASSIGN] Fetched roles:', rolesData);
-      setRoles(Array.isArray(rolesData) ? rolesData : []);
+      console.log('[ASSIGN] Roles count:', rolesData.length);
+      setRoles(rolesData);
       
       // Fetch all employees upfront
       const employeesResult = await leadsApi.getAllEmployees();
-      const employeesData = employeesResult.data?.data || employeesResult.data || [];
+      const employeesBody = employeesResult?.data ?? employeesResult;
+      const employeesPayload = employeesBody?.success === true && employeesBody?.data != null ? employeesBody.data : employeesBody;
+      const employeesData = employeesPayload?.data ?? employeesPayload ?? [];
       console.log('[ASSIGN] Fetched employees:', employeesData);
       setAllEmployees(Array.isArray(employeesData) ? employeesData : []);
       
@@ -1437,50 +1461,68 @@ const CRMPage = () => {
     }
   };
 
-  const handleRoleChange = async (roleName) => {
-    console.log('[ASSIGN] Role selected:', roleName);
+  const handleRoleChange = async (roleId) => {
+    console.log('[ASSIGN] Role selected:', roleId);
     
-    setSelectedRole(roleName);
+    setSelectedRole(roleId);
     setSelectedAssignUser('');
     setFilteredUsers([]);
 
-    if (!roleName) return;
+    if (!roleId) return;
 
-    // Filter employees by selected role using roleId matching
+    // Filter employees by selected role ID
     try {
       setUsersLoading(true);
       
-      // Find the role ID that matches the selected role name
-      const matchingRole = roles.find(r => {
-        const roleNameMatch = r.name?.toLowerCase() === roleName.toLowerCase();
-        return roleNameMatch;
-      });
+      console.log('[ASSIGN] All employees:', allEmployees);
+      console.log('[ASSIGN] Filtering employees for roleId:', roleId);
+
+      const selectedRoleLower = String(roleId || '').toLowerCase();
+      const selectedRoleObj = Array.isArray(roles)
+        ? roles.find((r) => String(r?._id || r?.id || '').toLowerCase() === selectedRoleLower)
+        : null;
+      const selectedRoleNameLower = String(selectedRoleObj?.name || selectedRoleObj?.label || '').toLowerCase();
       
-      console.log('[ASSIGN] Matching role found:', matchingRole);
+      // Build dropdown-ready list of employees whose role matches the selected role
+      const filtered = allEmployees.reduce((acc, emp) => {
+        const empRoleRaw = emp?.roleId;
+        const candidates = new Set(
+          [
+            empRoleRaw,
+            empRoleRaw?._id,
+            empRoleRaw?.id,
+            empRoleRaw?.roleId,
+            empRoleRaw?.label,
+            empRoleRaw?.name,
+          ]
+            .filter(Boolean)
+            .map((v) => String(v).toLowerCase())
+        );
+
+        const matches =
+          candidates.has(selectedRoleLower) ||
+          (selectedRoleNameLower ? candidates.has(selectedRoleNameLower) : false);
+
+        const empName = `${emp?.firstName || ''} ${emp?.lastName || ''}`.trim() || emp?.email;
+        console.log(
+          `[ASSIGN] Employee: ${empName}, emp.roleId: ${JSON.stringify(empRoleRaw)}, matches: ${matches}`
+        );
+
+        if (!matches) return acc;
+
+        const empId = emp?._id || emp?.id;
+        if (!empId) return acc;
+
+        acc.push({ ...emp, _id: empId, name: empName });
+        return acc;
+      }, []);
       
-      if (!matchingRole) {
-        console.warn(`No role found matching: ${roleName}`);
-        setFilteredUsers([]);
-        setUsersLoading(false);
-        return;
-      }
-      
-      const selectedRoleId = matchingRole._id || matchingRole.id;
-      
-      // Filter employees where emp.roleId matches the selected role ID
-      const filtered = allEmployees.filter(emp => {
-        // Create display name from firstName + lastName
-        emp.name = `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || emp.email;
-        
-        // Match by roleId (exact ID match, case-insensitive)
-        const empRoleId = emp.roleId?.toLowerCase() || '';
-        const selectedRoleIdLower = selectedRoleId.toLowerCase();
-        
-        return empRoleId === selectedRoleIdLower;
-      });
-      
-      console.log(`[ASSIGN] Filtered ${filtered.length} employees for role "${roleName}" (ID: ${selectedRoleId})`);
+      console.log(`[ASSIGN] Filtered ${filtered.length} employees for role ID "${roleId}"`);
       console.log('[ASSIGN] Filtered employees:', filtered);
+      
+      if (filtered.length === 0) {
+        console.warn(`[ASSIGN] No employees found with roleId: ${roleId}`);
+      }
       
       setFilteredUsers(filtered);
       
@@ -3202,14 +3244,16 @@ const CRMPage = () => {
 
       {/* ASSIGN LEADS MODAL */}
       {showAssignModal && (
-        <Modal
-          open={showAssignModal}
-          onClose={handleCloseAssignModal}
-          title={`Assign Leads (${assigningLeadIds.length})`}
-          footer={
-            <div className="flex gap-2 justify-end">
-              <Button variant="ghost" onClick={handleCloseAssignModal}>Cancel</Button>
-              <Button onClick={handleAssignLeads} disabled={assignLoading || !selectedAssignUser}>
+        <>
+          {console.log('[ASSIGN MODAL RENDER] Roles state:', roles, 'Count:', roles.length)}
+          <Modal
+            open={showAssignModal}
+            onClose={handleCloseAssignModal}
+            title={`Assign Leads (${assigningLeadIds.length})`}
+            footer={
+              <div className="flex gap-2 justify-end">
+                <Button variant="ghost" onClick={handleCloseAssignModal}>Cancel</Button>
+                <Button onClick={handleAssignLeads} disabled={assignLoading || !selectedAssignUser}>
                 {assignLoading ? 'Assigning...' : <><UserCheck size={13} /> Assign</>}
               </Button>
             </div>
@@ -3228,8 +3272,11 @@ const CRMPage = () => {
                 disabled={rolesLoading}
               >
                 <option value="">{rolesLoading ? 'Loading roles...' : 'Select Role'}</option>
+                {roles.length === 0 && !rolesLoading && (
+                  <option disabled>No roles available</option>
+                )}
                 {roles.map((role) => (
-                  <option key={role._id || role.id} value={role.name}>
+                  <option key={role._id || role.id} value={role._id || role.id}>
                     {role.name}
                   </option>
                 ))}
@@ -3262,6 +3309,7 @@ const CRMPage = () => {
             </FormField>
           </div>
         </Modal>
+        </>
       )}
 
       {/* SCORE BOOST MODAL */}
