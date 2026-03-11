@@ -301,21 +301,21 @@ const InventoryPage = () => {
   const [warehouseSearch, setWarehouseSearch] = useState('');
   const [warehousePage, setWarehousePage] = useState(1);
   const [warehousePageSize, setWarehousePageSize] = useState(10);
-  
+
   // Items table pagination (search already exists)
   const [itemsPage, setItemsPage] = useState(1);
   const [itemsPageSize, setItemsPageSize] = useState(10);
-  
+
   // Category table
   const [categorySearch, setCategorySearch] = useState('');
   const [categoryPage, setCategoryPage] = useState(1);
   const [categoryPageSize, setCategoryPageSize] = useState(10);
-  
+
   // Unit table
   const [unitSearch, setUnitSearch] = useState('');
   const [unitPage, setUnitPage] = useState(1);
   const [unitPageSize, setUnitPageSize] = useState(10);
-  
+
   // Warehouse items modal
   const [whItemsSearch, setWhItemsSearch] = useState('');
   const [whItemsPage, setWhItemsPage] = useState(1);
@@ -742,7 +742,7 @@ const InventoryPage = () => {
         available: (itemData.stock || 0) - (itemData.reserved || 0),
         lastUpdated: itemData.updatedAt || new Date().toISOString().split('T')[0]
       };
-      
+
       setInventory(prev => [...prev, newItem]);
       setShowAdd(false);
       setForm({ itemId: '', name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
@@ -767,21 +767,21 @@ const InventoryPage = () => {
         return;
       }
 
-      const updatedItem = await api.post(`/items/${item._id}/stock-in`, {
+      const response = await api.post(`/items/${item._id}/stock-in`, {
         quantity: parseInt(stockInForm.quantity),
         poReference: stockInForm.poReference,
         receivedDate: stockInForm.receivedDate,
         remarks: stockInForm.remarks,
         warehouse: stockInForm.warehouse,
       }, { headers: { 'x-tenant-id': TENANT_ID } });
-      
-      const itemData = updatedItem.data || updatedItem;
+
+      const itemData = response.data || response;
       setInventory(prev => prev.map(i => i._id === item._id ? {
         ...itemData,
         name: itemData.description || itemData.name,
         available: (itemData.stock || 0) - (itemData.reserved || 0)
       } : i));
-      
+
       setStockIn(false);
       setStockInForm({ itemId: '', quantity: '', poReference: '', receivedDate: '', remarks: '', warehouse: '' });
       alert('Stock added successfully!');
@@ -863,14 +863,14 @@ const InventoryPage = () => {
 
   const handleDeleteItem = async (item) => {
     if (!window.confirm('Are you sure you want to delete this item?')) return;
-    
+
     // Debug: Check if _id exists
     if (!item._id) {
       console.error('Item _id is missing:', item);
       alert(`Error: Cannot delete - Item _id is missing. ItemId: ${item.itemId}`);
       return;
     }
-    
+
     try {
       await api.delete(`/items/${item._id}`, { headers: { 'x-tenant-id': TENANT_ID } });
 
@@ -900,7 +900,7 @@ const InventoryPage = () => {
         issuedDate: stockOutForm.issuedDate,
         remarks: stockOutForm.remarks,
       }, { headers: { 'x-tenant-id': TENANT_ID } });
-      
+
       const itemData = updatedItem.data || updatedItem;
 
       // Create reservation record for the project
@@ -1198,7 +1198,7 @@ const InventoryPage = () => {
           {/* 5 Cards Row - One for each tab */}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
             {/* Inventory Card */}
-            <div 
+            <div
               onClick={() => setActiveTab('inventory')}
               className="relative overflow-hidden bg-gradient-to-br from-blue-500/40 to-blue-600/50 border border-blue-500/50 rounded-2xl p-5 shadow-lg cursor-pointer hover:scale-[1.02] transition-transform"
             >
@@ -1214,13 +1214,13 @@ const InventoryPage = () => {
                 </div>
               </div>
               <div className="relative mt-3 flex gap-2">
-                <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-black font-medium">₹{(dynamicStats.totalValue/100000).toFixed(1)}L value</span>
+                <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-black font-medium">₹{(dynamicStats.totalValue / 100000).toFixed(1)}L value</span>
                 <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-black font-medium">{dynamicStats.lowStockItems} low</span>
               </div>
             </div>
 
             {/* Warehouse Card */}
-            <div 
+            <div
               onClick={() => setActiveTab('warehouse')}
               className="relative overflow-hidden bg-gradient-to-br from-emerald-500/40 to-emerald-600/50 border border-emerald-500/50 rounded-2xl p-5 shadow-lg cursor-pointer hover:scale-[1.02] transition-transform"
             >
@@ -1241,7 +1241,7 @@ const InventoryPage = () => {
             </div>
 
             {/* Items Card */}
-            <div 
+            <div
               onClick={() => setActiveTab('items')}
               className="relative overflow-hidden bg-gradient-to-br from-violet-500/40 to-violet-600/50 border border-violet-500/50 rounded-2xl p-5 shadow-lg cursor-pointer hover:scale-[1.02] transition-transform"
             >
@@ -1263,7 +1263,7 @@ const InventoryPage = () => {
             </div>
 
             {/* Category Card */}
-            <div 
+            <div
               onClick={() => setActiveTab('category')}
               className="relative overflow-hidden bg-gradient-to-br from-amber-500/40 to-amber-600/50 border border-amber-500/50 rounded-2xl p-5 shadow-lg cursor-pointer hover:scale-[1.02] transition-transform"
             >
@@ -1289,7 +1289,7 @@ const InventoryPage = () => {
             </div>
 
             {/* Unit Card */}
-            <div 
+            <div
               onClick={() => setActiveTab('unit')}
               className="relative overflow-hidden bg-gradient-to-br from-cyan-500/40 to-cyan-600/50 border border-cyan-500/50 rounded-2xl p-5 shadow-lg cursor-pointer hover:scale-[1.02] transition-transform"
             >
@@ -1348,13 +1348,13 @@ const InventoryPage = () => {
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip 
-                    contentStyle={{ 
-                      background: 'var(--bg-surface)', 
-                      border: '1px solid var(--border-base)', 
-                      borderRadius: 8, 
-                      fontSize: 12 
-                    }} 
+                  <Tooltip
+                    contentStyle={{
+                      background: 'var(--bg-surface)',
+                      border: '1px solid var(--border-base)',
+                      borderRadius: 8,
+                      fontSize: 12
+                    }}
                   />
                   <Legend wrapperStyle={{ fontSize: 10 }} />
                 </PieChart>
@@ -1439,13 +1439,13 @@ const InventoryPage = () => {
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                   <XAxis dataKey="name" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <Tooltip 
-                    contentStyle={{ 
-                      background: 'var(--bg-surface)', 
-                      border: '1px solid var(--border-base)', 
-                      borderRadius: 8, 
-                      fontSize: 12 
-                    }} 
+                  <Tooltip
+                    contentStyle={{
+                      background: 'var(--bg-surface)',
+                      border: '1px solid var(--border-base)',
+                      borderRadius: 8,
+                      fontSize: 12
+                    }}
                   />
                   <Bar dataKey="count" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
                 </BarChart>
@@ -1467,14 +1467,14 @@ const InventoryPage = () => {
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                   <XAxis dataKey="name" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `₹${v}K`} />
-                  <Tooltip 
+                  <Tooltip
                     formatter={(value) => [`₹${value}K`, 'Value']}
-                    contentStyle={{ 
-                      background: 'var(--bg-surface)', 
-                      border: '1px solid var(--border-base)', 
-                      borderRadius: 8, 
-                      fontSize: 12 
-                    }} 
+                    contentStyle={{
+                      background: 'var(--bg-surface)',
+                      border: '1px solid var(--border-base)',
+                      borderRadius: 8,
+                      fontSize: 12
+                    }}
                   />
                   <Bar dataKey="value" fill="#10b981" radius={[4, 4, 0, 0]} />
                 </BarChart>
@@ -1494,12 +1494,12 @@ const InventoryPage = () => {
                 <AreaChart data={inventory.slice(0, 10).map(i => ({ name: (i.name || i.description || 'Unknown').slice(0, 15), stock: i.stock || 0, reserved: i.reserved || 0 }))} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorStock" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                     </linearGradient>
                     <linearGradient id="colorReserved" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
@@ -1530,8 +1530,8 @@ const InventoryPage = () => {
                 ]} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
@@ -1560,12 +1560,12 @@ const InventoryPage = () => {
                 ]} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorStockIn" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                     </linearGradient>
                     <linearGradient id="colorStockOut" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
@@ -1607,31 +1607,31 @@ const InventoryPage = () => {
 
           {/* Quick Actions */}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-            <button 
+            <button
               onClick={() => setActiveTab('inventory')}
               className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-600 hover:bg-blue-500/20 transition-colors text-sm font-medium flex items-center gap-2"
             >
               <Package size={16} /> View Inventory
             </button>
-            <button 
+            <button
               onClick={() => setActiveTab('warehouse')}
               className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 hover:bg-emerald-500/20 transition-colors text-sm font-medium flex items-center gap-2"
             >
               <Warehouse size={16} /> Manage Warehouses
             </button>
-            <button 
+            <button
               onClick={() => setActiveTab('items')}
               className="p-3 rounded-xl bg-violet-500/10 border border-violet-500/20 text-violet-600 hover:bg-violet-500/20 transition-colors text-sm font-medium flex items-center gap-2"
             >
               <Plus size={16} /> Add Items
             </button>
-            <button 
+            <button
               onClick={() => setActiveTab('category')}
               className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 hover:bg-amber-500/20 transition-colors text-sm font-medium flex items-center gap-2"
             >
               <Tag size={16} /> Categories
             </button>
-            <button 
+            <button
               onClick={() => setActiveTab('unit')}
               className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-600 hover:bg-cyan-500/20 transition-colors text-sm font-medium flex items-center gap-2"
             >
@@ -1810,9 +1810,9 @@ const InventoryPage = () => {
         <div className="space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2">
-              <Input 
-                placeholder="Search warehouses..." 
-                value={warehouseSearch} 
+              <Input
+                placeholder="Search warehouses..."
+                value={warehouseSearch}
                 onChange={(e) => { setWarehouseSearch(e.target.value); setWarehousePage(1); }}
                 className="h-9 text-xs w-64"
               />
@@ -1836,14 +1836,14 @@ const InventoryPage = () => {
               </thead>
               <tbody>
                 {(() => {
-                  const filteredWarehouses = warehouses.filter(w => 
+                  const filteredWarehouses = warehouses.filter(w =>
                     w.toLowerCase().includes(warehouseSearch.toLowerCase())
                   );
                   const paginatedWarehouses = filteredWarehouses.slice(
-                    (warehousePage - 1) * warehousePageSize, 
+                    (warehousePage - 1) * warehousePageSize,
                     warehousePage * warehousePageSize
                   );
-                  
+
                   if (warehouses.length === 0) {
                     return (
                       <tr>
@@ -1851,7 +1851,7 @@ const InventoryPage = () => {
                       </tr>
                     );
                   }
-                  
+
                   if (paginatedWarehouses.length === 0) {
                     return (
                       <tr>
@@ -1859,7 +1859,7 @@ const InventoryPage = () => {
                       </tr>
                     );
                   }
-                  
+
                   return paginatedWarehouses.map((w) => (
                     <tr
                       key={w}
@@ -1916,17 +1916,17 @@ const InventoryPage = () => {
                   <span className="text-xs text-[var(--text-muted)]">Page {warehousePage} of {Math.ceil(warehouses.filter(w => w.toLowerCase().includes(warehouseSearch.toLowerCase())).length / warehousePageSize)}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     disabled={warehousePage === 1}
                     onClick={() => setWarehousePage(p => p - 1)}
                   >
                     Previous
                   </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     disabled={warehousePage >= Math.ceil(warehouses.filter(w => w.toLowerCase().includes(warehouseSearch.toLowerCase())).length / warehousePageSize)}
                     onClick={() => setWarehousePage(p => p + 1)}
                   >
@@ -1951,7 +1951,7 @@ const InventoryPage = () => {
                 className="h-9 text-xs w-64"
               />
               <span className="text-xs text-[var(--text-muted)]">
-                {inventory.filter(item => item.name?.toLowerCase().includes(search.toLowerCase()) || 
+                {inventory.filter(item => item.name?.toLowerCase().includes(search.toLowerCase()) ||
                   item.itemId?.toLowerCase().includes(search.toLowerCase())).length} items
               </span>
             </div>
@@ -2048,8 +2048,8 @@ const InventoryPage = () => {
             </table>
             {/* Pagination */}
             {(() => {
-              const filteredCount = inventory.filter(item => 
-                item.name?.toLowerCase().includes(search.toLowerCase()) || 
+              const filteredCount = inventory.filter(item =>
+                item.name?.toLowerCase().includes(search.toLowerCase()) ||
                 item.itemId?.toLowerCase().includes(search.toLowerCase())
               ).length;
               if (filteredCount <= itemsPageSize) return null;
@@ -2059,17 +2059,17 @@ const InventoryPage = () => {
                     <span className="text-xs text-[var(--text-muted)]">Page {itemsPage} of {Math.ceil(filteredCount / itemsPageSize)}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       disabled={itemsPage === 1}
                       onClick={() => setItemsPage(p => p - 1)}
                     >
                       Previous
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       disabled={itemsPage >= Math.ceil(filteredCount / itemsPageSize)}
                       onClick={() => setItemsPage(p => p + 1)}
                     >
@@ -2097,7 +2097,7 @@ const InventoryPage = () => {
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${showCategoryCards ? 'bg-white border-gray-200 text-gray-700 shadow-sm' : 'bg-white border-gray-200 text-gray-700 shadow-sm'}`}
                 title={showCategoryCards ? 'Hide Cards' : 'Show Cards'}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500"><rect width="7" height="9" x="3" y="3" rx="1" /><rect width="7" height="5" x="14" y="3" rx="1" /><rect width="7" height="9" x="14" y="12" rx="1" /><rect width="7" height="5" x="3" y="16" rx="1" /></svg>
                 {showCategoryCards ? 'Hide Cards' : 'Show Cards'}
               </button>
               <Button onClick={() => setShowCategoryModal(true)}>
@@ -2108,38 +2108,38 @@ const InventoryPage = () => {
 
           {/* Items by Category - Cards */}
           {showCategoryCards && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {categories.map((cat, index) => {
-              const catItems = inventory.filter(i => i.category === cat);
-              if (catItems.length === 0) return null;
-              const colors = ['bg-gradient-to-br from-emerald-500/40 to-emerald-600/50 border-emerald-500/50', 'bg-gradient-to-br from-blue-500/40 to-blue-600/50 border-blue-500/50', 'bg-gradient-to-br from-amber-500/40 to-amber-600/50 border-amber-500/50', 'bg-gradient-to-br from-rose-500/40 to-rose-600/50 border-rose-500/50', 'bg-gradient-to-br from-violet-500/40 to-violet-600/50 border-violet-500/50', 'bg-gradient-to-br from-cyan-500/40 to-cyan-600/50 border-cyan-500/50', 'bg-gradient-to-br from-orange-500/40 to-orange-600/50 border-orange-500/50', 'bg-gradient-to-br from-pink-500/40 to-pink-600/50 border-pink-500/50'];
-              const iconColors = ['text-white', 'text-white', 'text-white', 'text-white', 'text-white', 'text-white', 'text-white', 'text-white'];
-              const bgColors = ['bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20'];
-              return (
-                <div key={cat} className={`${colors[index % colors.length]} border rounded-xl p-4 flex flex-col gap-2 hover:shadow-md transition-all`}>
-                  <div className="flex items-center justify-between">
-                    <div className={`w-10 h-10 rounded-xl ${bgColors[index % bgColors.length]} flex items-center justify-center shadow-sm`}>
-                      <Package size={20} className={iconColors[index % iconColors.length]} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {categories.map((cat, index) => {
+                const catItems = inventory.filter(i => i.category === cat);
+                if (catItems.length === 0) return null;
+                const colors = ['bg-gradient-to-br from-emerald-500/40 to-emerald-600/50 border-emerald-500/50', 'bg-gradient-to-br from-blue-500/40 to-blue-600/50 border-blue-500/50', 'bg-gradient-to-br from-amber-500/40 to-amber-600/50 border-amber-500/50', 'bg-gradient-to-br from-rose-500/40 to-rose-600/50 border-rose-500/50', 'bg-gradient-to-br from-violet-500/40 to-violet-600/50 border-violet-500/50', 'bg-gradient-to-br from-cyan-500/40 to-cyan-600/50 border-cyan-500/50', 'bg-gradient-to-br from-orange-500/40 to-orange-600/50 border-orange-500/50', 'bg-gradient-to-br from-pink-500/40 to-pink-600/50 border-pink-500/50'];
+                const iconColors = ['text-white', 'text-white', 'text-white', 'text-white', 'text-white', 'text-white', 'text-white', 'text-white'];
+                const bgColors = ['bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20'];
+                return (
+                  <div key={cat} className={`${colors[index % colors.length]} border rounded-xl p-4 flex flex-col gap-2 hover:shadow-md transition-all`}>
+                    <div className="flex items-center justify-between">
+                      <div className={`w-10 h-10 rounded-xl ${bgColors[index % bgColors.length]} flex items-center justify-center shadow-sm`}>
+                        <Package size={20} className={iconColors[index % iconColors.length]} />
+                      </div>
+                      <span className="text-xs font-medium text-white/80">{catItems.length} items</span>
                     </div>
-                    <span className="text-xs font-medium text-white/80">{catItems.length} items</span>
+                    <span className="text-sm font-semibold text-white">{cat}</span>
+                    <div className="flex flex-wrap gap-1">
+                      {catItems.slice(0, 3).map((item, idx) => (
+                        <span key={`${item.itemId}-${idx}`} className="text-[10px] px-2 py-1 bg-white/20 rounded text-white border border-white/30">
+                          {item.name || item.description}
+                        </span>
+                      ))}
+                      {catItems.length > 3 && (
+                        <span className="text-[10px] px-2 py-1 text-white/80">
+                          +{catItems.length - 3} more
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <span className="text-sm font-semibold text-white">{cat}</span>
-                  <div className="flex flex-wrap gap-1">
-                    {catItems.slice(0, 3).map((item, idx) => (
-                      <span key={`${item.itemId}-${idx}`} className="text-[10px] px-2 py-1 bg-white/20 rounded text-white border border-white/30">
-                        {item.name || item.description}
-                      </span>
-                    ))}
-                    {catItems.length > 3 && (
-                      <span className="text-[10px] px-2 py-1 text-white/80">
-                        +{catItems.length - 3} more
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
           )}
 
           {/* Categories Table - Now at BOTTOM */}
@@ -2220,7 +2220,7 @@ const InventoryPage = () => {
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${showUnitCards ? 'bg-white border-gray-200 text-gray-700 shadow-sm' : 'bg-white border-gray-200 text-gray-700 shadow-sm'}`}
                 title={showUnitCards ? 'Hide Cards' : 'Show Cards'}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500"><rect width="7" height="9" x="3" y="3" rx="1" /><rect width="7" height="5" x="14" y="3" rx="1" /><rect width="7" height="9" x="14" y="12" rx="1" /><rect width="7" height="5" x="3" y="16" rx="1" /></svg>
                 {showUnitCards ? 'Hide Cards' : 'Show Cards'}
               </button>
               <Button onClick={() => setShowUnitModal(true)}>
@@ -2231,38 +2231,38 @@ const InventoryPage = () => {
 
           {/* Items by Unit - Cards */}
           {showUnitCards && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {units.map((unit, index) => {
-              const unitItems = inventory.filter(i => i.unit === unit);
-              if (unitItems.length === 0) return null;
-              const colors = ['bg-gradient-to-br from-emerald-500/40 to-emerald-600/50 border-emerald-500/50', 'bg-gradient-to-br from-blue-500/40 to-blue-600/50 border-blue-500/50', 'bg-gradient-to-br from-amber-500/40 to-amber-600/50 border-amber-500/50', 'bg-gradient-to-br from-rose-500/40 to-rose-600/50 border-rose-500/50', 'bg-gradient-to-br from-violet-500/40 to-violet-600/50 border-violet-500/50', 'bg-gradient-to-br from-cyan-500/40 to-cyan-600/50 border-cyan-500/50', 'bg-gradient-to-br from-orange-500/40 to-orange-600/50 border-orange-500/50', 'bg-gradient-to-br from-pink-500/40 to-pink-600/50 border-pink-500/50'];
-              const iconColors = ['text-white', 'text-white', 'text-white', 'text-white', 'text-white', 'text-white', 'text-white', 'text-white'];
-              const bgColors = ['bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20'];
-              return (
-                <div key={unit} className={`${colors[index % colors.length]} border rounded-xl p-4 flex flex-col gap-2 hover:shadow-md transition-all`}>
-                  <div className="flex items-center justify-between">
-                    <div className={`w-10 h-10 rounded-xl ${bgColors[index % bgColors.length]} flex items-center justify-center shadow-sm`}>
-                      <Package size={20} className={iconColors[index % iconColors.length]} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {units.map((unit, index) => {
+                const unitItems = inventory.filter(i => i.unit === unit);
+                if (unitItems.length === 0) return null;
+                const colors = ['bg-gradient-to-br from-emerald-500/40 to-emerald-600/50 border-emerald-500/50', 'bg-gradient-to-br from-blue-500/40 to-blue-600/50 border-blue-500/50', 'bg-gradient-to-br from-amber-500/40 to-amber-600/50 border-amber-500/50', 'bg-gradient-to-br from-rose-500/40 to-rose-600/50 border-rose-500/50', 'bg-gradient-to-br from-violet-500/40 to-violet-600/50 border-violet-500/50', 'bg-gradient-to-br from-cyan-500/40 to-cyan-600/50 border-cyan-500/50', 'bg-gradient-to-br from-orange-500/40 to-orange-600/50 border-orange-500/50', 'bg-gradient-to-br from-pink-500/40 to-pink-600/50 border-pink-500/50'];
+                const iconColors = ['text-white', 'text-white', 'text-white', 'text-white', 'text-white', 'text-white', 'text-white', 'text-white'];
+                const bgColors = ['bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20'];
+                return (
+                  <div key={unit} className={`${colors[index % colors.length]} border rounded-xl p-4 flex flex-col gap-2 hover:shadow-md transition-all`}>
+                    <div className="flex items-center justify-between">
+                      <div className={`w-10 h-10 rounded-xl ${bgColors[index % bgColors.length]} flex items-center justify-center shadow-sm`}>
+                        <Package size={20} className={iconColors[index % iconColors.length]} />
+                      </div>
+                      <span className="text-xs font-medium text-white/80">{unitItems.length} items</span>
                     </div>
-                    <span className="text-xs font-medium text-white/80">{unitItems.length} items</span>
+                    <span className="text-sm font-semibold text-white">{unit}</span>
+                    <div className="flex flex-wrap gap-1">
+                      {unitItems.slice(0, 3).map((item, idx) => (
+                        <span key={`${item.itemId}-${idx}`} className="text-[10px] px-2 py-1 bg-white/20 rounded text-white border border-white/30">
+                          {item.name || item.description}
+                        </span>
+                      ))}
+                      {unitItems.length > 3 && (
+                        <span className="text-[10px] px-2 py-1 text-white/80">
+                          +{unitItems.length - 3} more
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <span className="text-sm font-semibold text-white">{unit}</span>
-                  <div className="flex flex-wrap gap-1">
-                    {unitItems.slice(0, 3).map((item, idx) => (
-                      <span key={`${item.itemId}-${idx}`} className="text-[10px] px-2 py-1 bg-white/20 rounded text-white border border-white/30">
-                        {item.name || item.description}
-                      </span>
-                    ))}
-                    {unitItems.length > 3 && (
-                      <span className="text-[10px] px-2 py-1 text-white/80">
-                        +{unitItems.length - 3} more
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
           )}
 
           {/* Units Table */}
@@ -2531,22 +2531,22 @@ const InventoryPage = () => {
         </div>}>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
-          <FormField label="Status">
-            <Select value={editForm.status} onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))}>
-              <option value="">Auto (calculated from stock)</option>
-              <option value="In Stock">In Stock</option>
-              <option value="Reserved">Reserved</option>
-              <option value="Low Stock">Low Stock</option>
-              <option value="Out of Stock">Out of Stock</option>
-            </Select>
-          </FormField>
-          <FormField label="Warehouse">
-            <Select value={editForm.warehouse} onChange={e => setEditForm(f => ({ ...f, warehouse: e.target.value }))}>
-              <option value="">Select Warehouse</option>
-              {warehouses.map(w => <option key={w}>{w}</option>)}
-            </Select>
-          </FormField>
-        </div>
+            <FormField label="Status">
+              <Select value={editForm.status} onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))}>
+                <option value="">Auto (calculated from stock)</option>
+                <option value="In Stock">In Stock</option>
+                <option value="Reserved">Reserved</option>
+                <option value="Low Stock">Low Stock</option>
+                <option value="Out of Stock">Out of Stock</option>
+              </Select>
+            </FormField>
+            <FormField label="Warehouse">
+              <Select value={editForm.warehouse} onChange={e => setEditForm(f => ({ ...f, warehouse: e.target.value }))}>
+                <option value="">Select Warehouse</option>
+                {warehouses.map(w => <option key={w}>{w}</option>)}
+              </Select>
+            </FormField>
+          </div>
         </div>
       </Modal>
 
