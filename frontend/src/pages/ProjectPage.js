@@ -3,7 +3,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   FolderOpen, Plus, Calendar, CheckCircle, Zap, TrendingUp, BarChart2,
   LayoutGrid, List, User, Clock, Trash2, Edit2, Clock3, History,
-  Eye, Check, EyeOff, Layers
+  Eye, Check, EyeOff, Layers, Download
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, PieChart, Pie, Cell } from 'recharts';
 import { PROJECT_STAGE_TREND } from '../data/mockData';
@@ -22,6 +22,7 @@ import { useAuditLog } from '../hooks/useAuditLog';
 import CanAccess, { CanCreate } from '../components/CanAccess';
 import { toast } from '../components/ui/Toast';
 import { api } from '../lib/apiClient';
+import ImportExport from '../components/ui/ImportExport';
 
 const fmt = CURRENCY.format;
 
@@ -174,6 +175,7 @@ const ProjectPage = () => {
   const [editingProject, setEditingProject] = useState(null);
   const [selected, setSelected] = useState(null);
   const [projects, setProjects] = useState([]);
+  const [selectedProjects, setSelectedProjects] = useState(new Set()); // For bulk selection
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [form, setForm] = useState({ customerName: '', site: '', systemSize: '', pm: '', value: '', estEndDate: '', email: '', mobileNumber: '', materials: [] });
@@ -332,6 +334,129 @@ const ProjectPage = () => {
 
   // Stage order for detecting backwards moves
   const STAGE_ORDER = ['Survey', 'Design', 'Quotation', 'Procurement', 'Installation', 'Commissioned', 'On Hold', 'Cancelled'];
+
+  // Import/Export fields definition
+  const PROJECT_IMPORT_FIELDS = [
+    { id: 'projectId', label: 'Project ID', required: false },
+    { id: 'customerName', label: 'Customer Name', required: true },
+    { id: 'site', label: 'Site Address', required: true },
+    { id: 'systemSize', label: 'System Size (kW)', required: true },
+    { id: 'pm', label: 'Project Manager', required: true },
+    { id: 'value', label: 'Project Value', required: false },
+    { id: 'status', label: 'Status', required: false },
+    { id: 'progress', label: 'Progress (%)', required: false },
+    { id: 'email', label: 'Email', required: false },
+    { id: 'mobileNumber', label: 'Mobile Number', required: false },
+    { id: 'estEndDate', label: 'Estimated End Date', required: false },
+    { id: 'startDate', label: 'Start Date', required: false },
+  ];
+
+  // Export handler
+  const handleExport = (format) => {
+    const dataToExport = filtered.map(p => ({
+      projectId: p.id,
+      customerName: p.customerName,
+      site: p.site,
+      systemSize: p.systemSize,
+      pm: p.pm,
+      value: p.value,
+      status: p.status,
+      progress: p.progress,
+      email: p.email || '',
+      mobileNumber: p.mobileNumber || '',
+      estEndDate: p.estEndDate || '',
+      startDate: p.startDate || '',
+    }));
+
+    if (format === 'csv') {
+      const headers = PROJECT_IMPORT_FIELDS.map(f => f.label).join(',');
+      const rows = dataToExport.map(row => 
+        PROJECT_IMPORT_FIELDS.map(f => {
+          const val = row[f.id] ?? '';
+          // Escape values with commas or quotes
+          if (String(val).includes(',') || String(val).includes('"')) {
+            return `"${String(val).replace(/"/g, '""')}"`;
+          }
+          return val;
+        }).join(',')
+      ).join('\n');
+      
+      const csvContent = [headers, rows].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `projects_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
+  // Import handler
+  const handleImport = async ({ file, mapping }) => {
+    try {
+      const Papa = await import('papaparse');
+      const text = await file.text();
+      
+      const { data } = Papa.parse(text, {
+        header: true,
+        skipEmptyLines: true,
+        dynamicTyping: true
+      });
+
+      // Filter valid rows
+      const validRows = data.filter(row => 
+        Object.values(row).some(v => v && String(v).trim() !== '')
+      );
+
+      // Process each row and create projects
+      const importedProjects = [];
+      for (const row of validRows) {
+        const newProject = {
+          projectId: row.projectId || `P${Date.now().toString().slice(-4)}${Math.random().toString(36).substr(2, 3).toUpperCase()}`,
+          customerName: row.customerName || row.customer || '',
+          site: row.site || row.siteAddress || '',
+          systemSize: parseFloat(row.systemSize) || 0,
+          pm: row.pm || row.projectManager || '',
+          value: parseFloat(row.value) || 0,
+          status: row.status || 'Survey',
+          progress: parseInt(row.progress) || 0,
+          email: row.email || '',
+          mobileNumber: row.mobileNumber || row.phone || '',
+          estEndDate: row.estEndDate || '',
+          startDate: row.startDate || new Date().toISOString().split('T')[0],
+          milestones: [
+            { name: 'Material Ready', status: 'Pending', date: null },
+            { name: 'Installation', status: 'Pending', date: null },
+            { name: 'Commission', status: 'Pending', date: null },
+            { name: 'Billing', status: 'Pending', date: null },
+            { name: 'Closure', status: 'Pending', date: null }
+          ],
+          materials: []
+        };
+
+        try {
+          const created = await api.post(`/projects?tenantId=${TENANT_ID}`, newProject);
+          const projectData = created?.data ?? created;
+          importedProjects.push({ ...projectData, id: projectData.projectId });
+        } catch (err) {
+          console.error('Failed to import project:', row, err);
+        }
+      }
+
+      // Update local state with imported projects
+      if (importedProjects.length > 0) {
+        setProjects(prev => [...prev, ...importedProjects]);
+        alert(`Successfully imported ${importedProjects.length} projects!`);
+      } else {
+        alert('No projects were imported. Please check your CSV file.');
+      }
+    } catch (err) {
+      console.error('Import error:', err);
+      alert('Failed to import projects: ' + err.message);
+    }
+  };
 
   const handleStageChange = async (id, newStage) => {
     // Get current user role from localStorage
@@ -1160,9 +1285,17 @@ const ProjectPage = () => {
                   className={`filter-chip ${progressFilter === p.value ? 'filter-chip-active' : ''}`}>{p.label}</button>
               ))}
             </div>
-            <Button size="sm" variant="secondary" onClick={() => setColToggleOpen(p => !p)}>
-              <Eye size={12} /> Columns
-            </Button>
+            <div className="flex items-center gap-2">
+              <ImportExport 
+                moduleName="Projects" 
+                fields={PROJECT_IMPORT_FIELDS}
+                onExport={handleExport}
+                onImport={handleImport}
+              />
+              <Button size="sm" variant="secondary" onClick={() => setColToggleOpen(p => !p)}>
+                <Eye size={12} /> Columns
+              </Button>
+            </div>
             {colToggleOpen && (
               <>
                 <div className="fixed inset-0 z-30" onClick={() => setColToggleOpen(false)} />
@@ -1196,7 +1329,52 @@ const ProjectPage = () => {
             onHiddenColsChange={setHiddenCols}
             hideColumnToggle={true}
             rowActions={ROW_ACTIONS} emptyText="No projects found."
-            onRowClick={row => setSelected(row)} />
+            onRowClick={row => setSelected(row)}
+            selectedRows={selectedProjects}
+            onSelectRows={setSelectedProjects}
+            bulkActions={[
+              { 
+                label: 'Export Selected', 
+                icon: Download, 
+                onClick: (selectedIds) => {
+                  const selectedData = filtered.filter(p => selectedIds.has(p.id));
+                  const dataToExport = selectedData.map(p => ({
+                    projectId: p.id,
+                    customerName: p.customerName,
+                    site: p.site,
+                    systemSize: p.systemSize,
+                    pm: p.pm,
+                    value: p.value,
+                    status: p.status,
+                    progress: p.progress,
+                    email: p.email || '',
+                    mobileNumber: p.mobileNumber || '',
+                    estEndDate: p.estEndDate || '',
+                    startDate: p.startDate || '',
+                  }));
+                  const headers = PROJECT_IMPORT_FIELDS.map(f => f.label).join(',');
+                  const rows = dataToExport.map(row => 
+                    PROJECT_IMPORT_FIELDS.map(f => {
+                      const val = row[f.id] ?? '';
+                      if (String(val).includes(',') || String(val).includes('"')) {
+                        return `"${String(val).replace(/"/g, '""')}"`;
+                      }
+                      return val;
+                    }).join(',')
+                  ).join('\n');
+                  const csvContent = [headers, rows].join('\n');
+                  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                  const link = document.createElement('a');
+                  const url = URL.createObjectURL(blob);
+                  link.setAttribute('href', url);
+                  link.setAttribute('download', `projects_selected_${new Date().toISOString().split('T')[0]}.csv`);
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  setSelectedProjects(new Set()); // Clear selection after export
+                }
+              }
+            ]} />
         </>
       )}
 
