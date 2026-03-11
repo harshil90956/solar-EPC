@@ -976,11 +976,17 @@ const AttendancePageV3 = () => {
           </div>
         </div>
 
-        {/* ==================== RIGHT SECTION - FULLCALENDAR (25%) ==================== */}
-        <div id="attendance-calendar-section" className="col-span-12 lg:col-span-3">
-          <div className="bg-white border border-[var(--border-base)] p-2 space-y-2">
+      {/* ==================== CALENDAR MODAL (ONLY IN MODAL, NOT ON PAGE) ==================== */}
+      {showCalendarModal && (
+        <Modal
+          open={showCalendarModal}
+          onClose={() => setShowCalendarModal(false)}
+          title="Attendance Calendar"
+          size="xl"
+        >
+          <div className="p-4">
             {/* Month/Year Filter Controls */}
-            <div className="flex items-center gap-2 mb-2 pb-2 border-b border-[var(--border-base)]">
+            <div className="flex items-center gap-2 mb-3 pb-3 border-b border-[var(--border-base)]">
               <Select
                 value={calendarMonth}
                 onChange={(e) => {
@@ -990,9 +996,9 @@ const AttendancePageV3 = () => {
                     calendarRef.current.getApi().gotoDate(new Date(calendarYear, newMonth, 1));
                   }
                 }}
-                className="h-7 text-xs flex-1"
+                className="h-9 flex-1"
               >
-                {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((month, idx) => (
+                {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map((month, idx) => (
                   <option key={idx} value={idx}>{month}</option>
                 ))}
               </Select>
@@ -1005,18 +1011,18 @@ const AttendancePageV3 = () => {
                     calendarRef.current.getApi().gotoDate(new Date(newYear, calendarMonth, 1));
                   }
                 }}
-                className="h-7 text-xs w-20"
+                className="h-9 w-24"
               >
                 {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map((year) => (
                   <option key={year} value={year}>{year}</option>
                 ))}
               </Select>
-            </div>
-            <div className="text-center text-xs text-[var(--text-muted)] mb-1">
-              {attendanceRecords.filter(r => {
-                const date = new Date(r.date);
-                return date.getMonth() === calendarMonth && date.getFullYear() === calendarYear;
-              }).length} records this month
+              <div className="ml-auto text-sm text-[var(--text-muted)]">
+                {attendanceRecords.filter(r => {
+                  const date = new Date(r.date);
+                  return date.getMonth() === calendarMonth && date.getFullYear() === calendarYear;
+                }).length} records this month
+              </div>
             </div>
 
             <style>{`
@@ -1136,140 +1142,30 @@ const AttendancePageV3 = () => {
             />
 
             {/* Calendar Legend */}
-            <div className="pt-2 border-t border-[var(--border-base)] space-y-1">
-              <p className="text-[9px] font-bold text-[var(--text-muted)] uppercase">Legend</p>
-              <div className="grid grid-cols-2 gap-1">
-                <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 rounded-full bg-[#22c55e]" />
-                  <span className="text-[9px] text-[var(--text-secondary)]">Present</span>
+            <div className="pt-3 border-t border-[var(--border-base)] mt-3 space-y-2">
+              <p className="text-xs font-bold text-[var(--text-muted)] uppercase">Legend</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded-full bg-[#22c55e]" />
+                  <span className="text-xs text-[var(--text-secondary)]">Present</span>
                 </div>
-                <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 rounded-full bg-[#ef4444]" />
-                  <span className="text-[9px] text-[var(--text-secondary)]">Absent</span>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded-full bg-[#ef4444]" />
+                  <span className="text-xs text-[var(--text-secondary)]">Absent</span>
                 </div>
-                <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 rounded-full bg-[#f59e0b]" />
-                  <span className="text-[9px] text-[var(--text-secondary)]">Late</span>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded-full bg-[#f59e0b]" />
+                  <span className="text-xs text-[var(--text-secondary)]">Late</span>
                 </div>
-                <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 rounded-full bg-[#3b82f6]" />
-                  <span className="text-[9px] text-[var(--text-secondary)]">WFH</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Selected Date Attendance Summary */}
-            {selectedCalendarDateForView && (
-              <div className="pt-2 border-t border-[var(--border-base)] space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase">
-                    {format(new Date(selectedCalendarDateForView), 'dd MMM yyyy')}
-                  </p>
-                  <button
-                    onClick={() => setSelectedCalendarDateForView(null)}
-                    className="text-[9px] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                  >
-                    Clear
-                  </button>
-                </div>
-
-                {/* Stats Summary */}
-                {(() => {
-                  const dayRecords = attendanceRecords.filter(r => {
-                    const recordDate = format(new Date(r.date), 'yyyy-MM-dd');
-                    return recordDate === selectedCalendarDateForView;
-                  });
-
-                  if (dayRecords.length === 0) {
-                    return <p className="text-xs text-[var(--text-muted)]">No records on this date</p>;
-                  }
-
-                  const present = dayRecords.filter(r => r.status === 'present').length;
-                  const absent = dayRecords.filter(r => r.status === 'absent').length;
-                  const late = dayRecords.filter(r => r.status === 'late').length;
-                  const halfDay = dayRecords.filter(r => r.status === 'half_day').length;
-                  const office = dayRecords.filter(r => r.type === 'office').length;
-                  const remote = dayRecords.filter(r => r.type === 'remote').length;
-
-                  return (
-                    <>
-                      {/* Status Stats */}
-                      <div className="grid grid-cols-2 gap-1">
-                        <div className="bg-emerald-50 border border-emerald-200 rounded p-1 text-center">
-                          <p className="text-sm font-bold text-emerald-600">{present}</p>
-                          <p className="text-[9px] text-emerald-600">Present</p>
-                        </div>
-                        <div className="bg-red-50 border border-red-200 rounded p-1 text-center">
-                          <p className="text-sm font-bold text-red-600">{absent}</p>
-                          <p className="text-[9px] text-red-600">Absent</p>
-                        </div>
-                        <div className="bg-amber-50 border border-amber-200 rounded p-1 text-center">
-                          <p className="text-sm font-bold text-amber-600">{late}</p>
-                          <p className="text-[9px] text-amber-600">Late</p>
-                        </div>
-                        <div className="bg-blue-50 border border-blue-200 rounded p-1 text-center">
-                          <p className="text-sm font-bold text-blue-600">{halfDay}</p>
-                          <p className="text-[9px] text-blue-600">Half Day</p>
-                        </div>
-                      </div>
-
-                      {/* Work Mode Stats */}
-                      <div className="flex gap-2 text-[10px]">
-                        <span className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">
-                          Office: {office}
-                        </span>
-                        <span className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">
-                          Remote: {remote}
-                        </span>
-                      </div>
-
-                      {/* Employee List */}
-                      <div className="space-y-1 max-h-32 overflow-y-auto">
-                        <p className="text-[9px] text-[var(--text-muted)]">{dayRecords.length} employee(s)</p>
-                        {dayRecords.map((record, idx) => (
-                          <div key={idx} className="flex items-center gap-2 p-1.5 bg-[var(--bg-elevated)] rounded text-[10px]">
-                            <div className="w-6 h-6 rounded-full flex items-center justify-center text-white font-bold text-[8px]"
-                              style={{ background: 'var(--primary)' }}>
-                              {record.employeeId?.firstName?.[0]}{record.employeeId?.lastName?.[0]}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium truncate">{record.employeeId?.firstName} {record.employeeId?.lastName}</p>
-                              <p className="text-[8px] text-[var(--text-muted)]">{record.status} • {record.type}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
-            )}
-
-            {/* Advanced Features */}
-            <div className="pt-2 border-t border-[var(--border-base)] space-y-1">
-              <p className="text-[9px] font-bold text-[var(--text-muted)] uppercase">Advanced Features</p>
-              <div className="space-y-0.5">
-                <div className="flex items-center gap-1.5 text-[10px] text-[var(--text-secondary)]">
-                  <MapPin size={10} style={{ color: 'var(--primary)' }} />
-                  GPS Location Tracking
-                </div>
-                <div className="flex items-center gap-1.5 text-[10px] text-[var(--text-secondary)]">
-                  <Camera size={10} style={{ color: 'var(--primary)' }} />
-                  Face Recognition
-                </div>
-                <div className="flex items-center gap-1.5 text-[10px] text-[var(--text-secondary)]">
-                  <QrCode size={10} style={{ color: 'var(--primary)' }} />
-                  QR Code Attendance
-                </div>
-                <div className="flex items-center gap-1.5 text-[10px] text-[var(--text-secondary)]">
-                  <Timer size={10} style={{ color: 'var(--primary)' }} />
-                  Auto Overtime Tracking
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded-full bg-[#3b82f6]" />
+                  <span className="text-xs text-[var(--text-secondary)]">WFH</span>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      </div>
+        </Modal>
+      )}
 
       {/* ==================== CHECK-IN MODAL ==================== */}
       {showCheckInModal && (
@@ -1411,7 +1307,8 @@ const AttendancePageV3 = () => {
           </div>
         </Modal>
       )}
-    </div>
+      </div>
+      </div>
   );
 };
 

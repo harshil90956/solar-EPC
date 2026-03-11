@@ -12,6 +12,9 @@ import {
   TrendingUp, TrendingDown, BarChart3, PenTool
 } from 'lucide-react';
 import { format } from 'date-fns';
+import FullCalendar from '@fullcalendar/react';
+import dayGridPlugin from '@fullcalendar/daygrid';
+import interactionPlugin from '@fullcalendar/interaction';
 import { siteSurveysApi } from '../services/siteSurveysApi';
 import { leadsApi } from '../services/leadsApi';
 import { employeeApi } from '../services/hrmApi';
@@ -1387,99 +1390,179 @@ const ActiveToCompleteModal = ({ isOpen, onClose, survey, onSubmit, isAdmin, onS
 };
 
 // ── Survey Details Modal (Paper Form Style) ───────────────────────────────────
+// ── VIEW DETAILS MODAL (Read-only) ──────────────────────────────────────────
 const SurveyDetailsModal = ({ isOpen, onClose, survey }) => {
-  if (!survey) return null;
+  if (!survey || !isOpen) return null;
+  
   const activeData = survey.activeData || {};
   const completeData = survey.completeData || {};
-  const roofDrawing = activeData.roofDrawing || { lines: [], dimensions: [], textLabels: [] };
-
-  const CheckboxGroup = ({ label, value, options }) => (
-    <div className="flex items-start gap-2 mb-2">
-      <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">{label}</span>
-      <div className="flex flex-wrap items-center gap-3">
-        {options.map(opt => (
-          <div key={opt.id} className="flex items-center gap-1">
-            <div className={`w-4 h-4 border border-gray-500 flex items-center justify-center ${value === opt.id ? 'bg-blue-600 border-blue-600' : 'bg-white'}`}>
-              {value === opt.id && <CheckCircle size={12} className="text-white" />}
-            </div>
-            <span className="text-sm text-gray-700">{opt.label}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
 
   return (
-    <Modal open={isOpen} onClose={onClose} title="" size="xl"
-      footer={<div className="flex justify-end"><Button variant="ghost" onClick={onClose}>Close</Button></div>}
-    >
-      <div className="bg-white p-6 max-h-[75vh] overflow-y-auto">
-        <div className="border-2 border-gray-800 p-4 bg-white">
-          <div className="flex items-start justify-between border-b-2 border-gray-800 pb-3 mb-4">
-            <div className="text-center flex-1"><h2 className="text-lg font-bold text-gray-900 border-2 border-gray-800 inline-block px-4 py-1">Pre-Sales Site Assessment Form</h2></div>
-            <div className="text-right">
-              <p className="text-sm text-gray-700">Date: <span className="border-b border-gray-600 px-2">{survey.createdAt ? format(new Date(survey.createdAt), 'dd/MM/yy') : '—'}</span></p>
-              <p className="text-xs text-gray-500 mt-1">Survey ID: {survey.surveyId}</p>
-              <div className="mt-2"><SurveyStatusBadge status={survey.status} /></div>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div className="flex items-center gap-2"><span className="text-sm font-semibold text-gray-700 whitespace-nowrap">Client Name/City:</span><span className="flex-1 border-b border-gray-400 px-2 py-1 text-sm">{survey.clientName} / {survey.city}</span></div>
-            <div className="flex items-center gap-2"><span className="text-sm font-semibold text-gray-700 whitespace-nowrap">Project Capacity:</span><span className="w-32 border-b border-gray-400 px-2 py-1 text-sm">{survey.projectCapacity || '—'}</span></div>
-          </div>
-          <div className="mb-3 border-b border-gray-300 pb-2"><CheckboxGroup label="Roof Type:" value={survey.roofType} options={ROOF_TYPES} /></div>
-          <div className="mb-3 border-b border-gray-300 pb-2"><CheckboxGroup label="Structure Type:" value={survey.structureType} options={STRUCTURE_TYPES} /></div>
-          <div className="mb-3 border-b border-gray-300 pb-2">
-            <CheckboxGroup label="Structure Height:" value={survey.structureHeight} options={STRUCTURE_HEIGHTS} />
-            {survey.customHeight && <div className="flex items-center gap-2 ml-20 mt-1"><span className="text-sm text-gray-500">Custom:</span><span className="border-b border-gray-400 px-2 py-0.5 text-sm">{survey.customHeight}</span></div>}
-          </div>
-          <div className="mb-3 border-b border-gray-300 pb-2"><CheckboxGroup label="Module:" value={survey.moduleType} options={MODULE_TYPES} /></div>
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div className="flex items-center gap-2"><span className="text-sm font-semibold text-gray-700 whitespace-nowrap">Solar Consultant:</span><span className="flex-1 border-b border-gray-400 px-2 py-1 text-sm">{survey.solarConsultant || '—'}</span></div>
-            <div className="flex items-center gap-2"><span className="text-sm font-semibold text-gray-700 whitespace-nowrap">Floors:</span><span className="w-16 border-b border-gray-400 px-2 py-1 text-sm text-center">{survey.floors || '—'}</span></div>
-          </div>
-          <div className="mb-4"><div className="flex items-center gap-2"><span className="text-sm font-semibold text-gray-700">Client Signature:</span><div className="flex-1 border-b-2 border-gray-800 h-8" /></div></div>
-          {roofDrawing.lines?.length > 0 && (
-            <div className="mb-4"><p className="text-sm font-semibold text-gray-700 mb-2">Roof Layout Drawing:</p><GridDrawingCanvas drawingData={roofDrawing} readOnly /></div>
-          )}
-          {activeData.siteImages?.length > 0 && (
-            <div className="mb-4">
-              <p className="text-sm font-semibold text-gray-700 mb-2">Site Photos:</p>
-              <div className="grid grid-cols-4 gap-2">{activeData.siteImages.map((img, idx) => <div key={idx} className="aspect-square border border-gray-300"><img src={img} alt={`Site ${idx + 1}`} className="w-full h-full object-cover" /></div>)}</div>
-            </div>
-          )}
-          {survey.notes && <div className="mb-4"><p className="text-sm font-semibold text-gray-700 mb-2">Notes:</p><div className="border border-gray-400 p-2 text-sm bg-gray-50">{survey.notes}</div></div>}
-          {survey.customFields?.filter(f => f.value).length > 0 && (
-            <div className="mb-4 pt-3 border-t border-dashed border-gray-300">
-              <p className="text-sm font-semibold text-gray-700 mb-2">Additional Fields:</p>
-              <div className="grid grid-cols-2 gap-2">
-                {survey.customFields.filter(f => f.value).map((field, idx) => (
-                  <div key={field.id || idx} className="flex items-start gap-2 border-b border-gray-200 pb-1">
-                    <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">{field.label}:</span>
-                    <span className="flex-1 border-b border-gray-400 px-2 py-0.5 text-sm">{field.value}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {survey.status === 'complete' && completeData && (
-            <div className="border-t-2 border-gray-800 pt-4 mt-4">
-              <h3 className="text-sm font-bold text-emerald-700 mb-3 flex items-center gap-2"><CheckCircle size={16} /> Completion Details</h3>
-              <div className="grid grid-cols-2 gap-4 mb-3">
-                <div className="flex items-center gap-2"><span className="text-sm font-semibold text-gray-700">Engineer:</span><span className="flex-1 border-b border-gray-400 px-2 py-1 text-sm">{completeData.engineerName || '—'}</span></div>
-                <div className="flex items-center gap-2"><span className="text-sm font-semibold text-gray-700">Completed:</span><span className="border-b border-gray-400 px-2 py-1 text-sm">{completeData.completionDate ? format(new Date(completeData.completionDate), 'dd/MM/yy') : '—'}</span></div>
-              </div>
-              {completeData.panelPlacementDetails && <div className="mb-3"><span className="text-sm font-semibold text-gray-700">Panel Placement:</span><div className="border border-gray-400 p-2 text-sm bg-gray-50 mt-1">{completeData.panelPlacementDetails}</div></div>}
-              {completeData.finalNotes && <div className="mb-3"><span className="text-sm font-semibold text-gray-700">Final Notes:</span><div className="border border-gray-400 p-2 text-sm bg-gray-50 mt-1">{completeData.finalNotes}</div></div>}
-              {completeData.finalImages?.length > 0 && (
-                <div className="mb-3"><p className="text-sm font-semibold text-gray-700 mb-2">Final Photos:</p><div className="grid grid-cols-4 gap-2">{completeData.finalImages.map((img, idx) => <div key={idx} className="aspect-square border border-gray-300"><img src={img} alt={`Final ${idx + 1}`} className="w-full h-full object-cover" /></div>)}</div></div>
-              )}
-              {completeData.engineerApproval && (
-                <div className="p-3 border-2 border-emerald-300 bg-emerald-50 flex items-center gap-2"><CheckCircle size={16} className="text-emerald-600" /><span className="text-sm font-semibold text-emerald-700">Engineer Approved — Survey Complete</span></div>
-              )}
-            </div>
-          )}
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      title="Survey Details"
+      size="lg"
+      footer={
+        <div className="flex justify-end">
+          <Button variant="ghost" onClick={onClose}>
+            Close
+          </Button>
         </div>
+      }
+    >
+      <div className="space-y-4 max-h-[70vh] overflow-y-auto">
+        {/* Header Section */}
+        <div className="bg-gradient-to-r from-primary/5 to-transparent p-4 rounded-lg border border-primary/20">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-gray-900 mb-1">{survey.clientName}</h3>
+              <p className="text-sm text-gray-600 flex items-center gap-1">
+                <MapPin size={14} /> {survey.city}
+              </p>
+            </div>
+            <div className="text-right">
+              <SurveyStatusBadge status={survey.status} />
+              <p className="text-xs text-gray-500 mt-2 font-mono">{survey.surveyId}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Key Information Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Customer Name */}
+          <div className="bg-gray-50 p-3 rounded-lg">
+            <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Customer Name</p>
+            <p className="text-sm font-medium text-gray-900">{survey.clientName}</p>
+          </div>
+
+          {/* Location */}
+          <div className="bg-gray-50 p-3 rounded-lg">
+            <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Location</p>
+            <p className="text-sm font-medium text-gray-900 flex items-center gap-1">
+              <MapPin size={14} className="text-gray-400" /> {survey.city}
+            </p>
+          </div>
+
+          {/* Capacity */}
+          <div className="bg-gray-50 p-3 rounded-lg">
+            <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Project Capacity</p>
+            <p className="text-sm font-medium text-gray-900 flex items-center gap-1">
+              <Zap size={14} className="text-yellow-500" /> {survey.projectCapacity || '—'} kWp
+            </p>
+          </div>
+
+          {/* Assigned Engineer */}
+          <div className="bg-gray-50 p-3 rounded-lg">
+            <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Assigned Engineer</p>
+            <p className="text-sm font-medium text-gray-900 flex items-center gap-1">
+              <User size={14} className="text-gray-400" /> {survey.engineer || 'Not Assigned'}
+            </p>
+          </div>
+
+          {/* Survey ID */}
+          <div className="bg-gray-50 p-3 rounded-lg">
+            <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Survey ID</p>
+            <p className="text-sm font-medium text-gray-900 font-mono">{survey.surveyId}</p>
+          </div>
+
+          {/* Survey Date */}
+          <div className="bg-gray-50 p-3 rounded-lg">
+            <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Survey Date</p>
+            <p className="text-sm font-medium text-gray-900 flex items-center gap-1">
+              <Calendar size={14} className="text-gray-400" />
+              {survey.createdAt ? format(new Date(survey.createdAt), 'dd MMM yyyy') : '—'}
+            </p>
+          </div>
+        </div>
+
+        {/* Technical Details */}
+        {(survey.roofType || survey.structureType || survey.moduleType) && (
+          <div className="border-t border-gray-200 pt-4">
+            <h4 className="text-sm font-bold text-gray-700 mb-3">Technical Specifications</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {survey.roofType && (
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Roof Type</p>
+                  <p className="text-sm font-medium text-gray-900 capitalize">{survey.roofType?.replace('_', ' ')}</p>
+                </div>
+              )}
+              {survey.structureType && (
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Structure Type</p>
+                  <p className="text-sm font-medium text-gray-900 capitalize">{survey.structureType?.replace('_', ' ')}</p>
+                </div>
+              )}
+              {survey.structureHeight && (
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Structure Height</p>
+                  <p className="text-sm font-medium text-gray-900">{survey.structureHeight}{survey.customHeight ? ` (${survey.customHeight})` : ''}</p>
+                </div>
+              )}
+              {survey.moduleType && (
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Module Type</p>
+                  <p className="text-sm font-medium text-gray-900 capitalize">{survey.moduleType}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Additional Details for Active/Complete Surveys */}
+        {survey.status === 'active' && activeData && (
+          <div className="border-t border-gray-200 pt-4">
+            <h4 className="text-sm font-bold text-gray-700 mb-3">Active Survey Details</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {activeData.engineerName && (
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Engineer Name</p>
+                  <p className="text-sm font-medium text-gray-900">{activeData.engineerName}</p>
+                </div>
+              )}
+              {activeData.installationDate && (
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Installation Date</p>
+                  <p className="text-sm font-medium text-gray-900">
+                    {format(new Date(activeData.installationDate), 'dd MMM yyyy')}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {survey.status === 'complete' && completeData && (
+          <div className="border-t border-gray-200 pt-4">
+            <h4 className="text-sm font-bold text-gray-700 mb-3">Completion Details</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {completeData.completionDate && (
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Completion Date</p>
+                  <p className="text-sm font-medium text-gray-900">
+                    {format(new Date(completeData.completionDate), 'dd MMM yyyy')}
+                  </p>
+                </div>
+              )}
+              {completeData.actualCapacity && (
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Actual Capacity</p>
+                  <p className="text-sm font-medium text-gray-900">{completeData.actualCapacity} kWp</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Notes */}
+        {survey.notes && (
+          <div className="border-t border-gray-200 pt-4">
+            <h4 className="text-sm font-bold text-gray-700 mb-2">Notes</h4>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <p className="text-sm text-gray-700">{survey.notes}</p>
+            </div>
+          </div>
+        )}
       </div>
     </Modal>
   );
@@ -1546,7 +1629,14 @@ const SiteSurveyPage = () => {
   const [pendingModalOpen, setPendingModalOpen]   = useState(false);
   const [completeModalOpen, setCompleteModalOpen] = useState(false);
   const [detailsModalOpen, setDetailsModalOpen]   = useState(false);
+  const [calendarModalOpen, setCalendarModalOpen] = useState(false);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
   const [selectedSurvey, setSelectedSurvey]       = useState(null);
+  
+  // Calendar State
+  const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth());
+  const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
+  const calendarRef = useRef(null);
 
   // Fetch surveys
   const fetchSurveys = useCallback(async () => {
@@ -1629,7 +1719,20 @@ const SiteSurveyPage = () => {
         activeTab={view}
         onTabChange={setView}
         actions={[
-          // Status filter pills as preTabsContent is used below
+          {
+            type: 'button',
+            label: 'Create Survey',
+            icon: Plus,
+            variant: 'primary',
+            onClick: () => setCreateModalOpen(true),
+          },
+          {
+            type: 'button',
+            label: 'View Calendar',
+            icon: Calendar,
+            variant: 'outline',
+            onClick: () => setCalendarModalOpen(true),
+          },
         ]}
       />
 
@@ -1768,7 +1871,426 @@ const SiteSurveyPage = () => {
         onClose={() => { setDetailsModalOpen(false); setSelectedSurvey(null); }}
         survey={selectedSurvey}
       />
+
+      {/* ==================== CALENDAR MODAL ==================== */}
+      {calendarModalOpen && (
+        <Modal
+          open={calendarModalOpen}
+          onClose={() => setCalendarModalOpen(false)}
+          title="Site Survey Calendar"
+          size="xl"
+        >
+          <div className="p-4">
+            {/* Month/Year Filter Controls */}
+            <div className="flex items-center gap-2 mb-3 pb-3 border-b border-[var(--border-base)]">
+              <Select
+                value={calendarMonth}
+                onChange={(e) => {
+                  const newMonth = parseInt(e.target.value);
+                  setCalendarMonth(newMonth);
+                  if (calendarRef.current) {
+                    calendarRef.current.getApi().gotoDate(new Date(calendarYear, newMonth, 1));
+                  }
+                }}
+                className="h-9 flex-1"
+              >
+                {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map((month, idx) => (
+                  <option key={idx} value={idx}>{month}</option>
+                ))}
+              </Select>
+              <Select
+                value={calendarYear}
+                onChange={(e) => {
+                  const newYear = parseInt(e.target.value);
+                  setCalendarYear(newYear);
+                  if (calendarRef.current) {
+                    calendarRef.current.getApi().gotoDate(new Date(newYear, calendarMonth, 1));
+                  }
+                }}
+                className="h-9 w-24"
+              >
+                {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map((year) => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </Select>
+              <div className="ml-auto text-sm text-[var(--text-muted)]">
+                {surveys.filter(r => {
+                  const date = new Date(r.createdAt || r.surveyDate || Date.now());
+                  return date.getMonth() === calendarMonth && date.getFullYear() === calendarYear;
+                }).length} surveys this month
+              </div>
+            </div>
+
+            <style>{`
+              .fc {
+                font-family: inherit;
+                font-size: 0.75rem;
+              }
+              .fc .fc-toolbar-title {
+                font-size: 0.875rem;
+                font-weight: 600;
+                color: var(--primary);
+              }
+              .fc .fc-button {
+                background: #f3f4f6;
+                border: 1px solid #d1d5db;
+                color: #374151;
+                font-weight: 500;
+                padding: 0.25rem 0.5rem;
+                border-radius: 0.25rem;
+                font-size: 0.75rem;
+              }
+              .fc .fc-button:hover {
+                background: #e5e7eb;
+              }
+              .fc .fc-button-primary {
+                background: var(--primary);
+                border-color: var(--primary);
+                color: white;
+              }
+              .fc .fc-button-primary:hover {
+                background: var(--primary-hover, var(--primary));
+              }
+              .fc .fc-col-header-cell {
+                padding: 0.25rem 0;
+                font-weight: 600;
+                color: #374151;
+                font-size: 0.7rem;
+              }
+              .fc .fc-col-header-cell.fc-day-sun {
+                color: #ef4444;
+              }
+              .fc .fc-daygrid-day {
+                border: 1px solid #e5e7eb;
+              }
+              .fc .fc-daygrid-day-number {
+                font-size: 0.75rem;
+                color: #6b7280;
+                padding: 0.25rem;
+              }
+              .fc .fc-day-today {
+                background: #fef3c7 !important;
+              }
+              .fc .fc-event {
+                font-size: 0.65rem;
+                padding: 0.0625rem 0.125rem;
+                border-radius: 0.125rem;
+                cursor: pointer;
+              }
+              .fc .fc-h-event .fc-event-main {
+                font-weight: 500;
+              }
+              .fc .fc-daygrid-event-harness {
+                margin: 1px 0;
+              }
+              .fc .fc-daygrid-day-events {
+                min-height: 1.5em;
+              }
+            `}</style>
+            <FullCalendar
+              ref={calendarRef}
+              plugins={[dayGridPlugin, interactionPlugin]}
+              initialView="dayGridMonth"
+              initialDate={new Date(calendarYear, calendarMonth, 1)}
+              headerToolbar={{
+                left: 'title',
+                center: '',
+                right: 'prev,next'
+              }}
+              datesSet={(dateInfo) => {
+                setCalendarMonth(dateInfo.view.currentStart.getMonth());
+                setCalendarYear(dateInfo.view.currentStart.getFullYear());
+              }}
+              events={surveys.map(survey => {
+                const surveyDate = new Date(survey.createdAt || survey.surveyDate || Date.now());
+                const statusConfig = {
+                  pending: { bg: '#fde68a', border: '#f59e0b', text: '#92400e' },
+                  active: { bg: '#86efac', border: '#22c55e', text: '#166534' },
+                  complete: { bg: '#bfdbfe', border: '#3b82f6', text: '#1e40af' }
+                };
+                const config = statusConfig[survey.status] || statusConfig.pending;
+                return {
+                  id: survey._id || survey.surveyId,
+                  title: `${survey.clientName || 'Survey'} - ${survey.city || ''}`,
+                  start: surveyDate,
+                  allDay: true,
+                  backgroundColor: config.bg,
+                  borderColor: config.border,
+                  textColor: config.text,
+                  extendedProps: {
+                    status: survey.status,
+                    client: survey.clientName,
+                    city: survey.city,
+                    capacity: survey.projectCapacity
+                  }
+                };
+              })}
+              height="auto"
+              dayMaxEvents={3}
+              eventClick={(info) => {
+                const survey = surveys.find(s => 
+                  (s._id === info.event.id) || (s.surveyId === info.event.id)
+                );
+                if (survey) {
+                  setSelectedSurvey(survey);
+                  setDetailsModalOpen(true);
+                  setCalendarModalOpen(false);
+                }
+              }}
+              eventMouseEnter={(info) => {
+                info.el.title = `${info.event.extendedProps.client} (${info.event.extendedProps.city})\nStatus: ${info.event.extendedProps.status}`;
+              }}
+            />
+
+            {/* Calendar Legend */}
+            <div className="pt-3 border-t border-[var(--border-base)] mt-3 space-y-2">
+              <p className="text-xs font-bold text-[var(--text-muted)] uppercase">Survey Status</p>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded-full bg-[#fde68a] border border-[#f59e0b]" />
+                  <span className="text-xs text-[var(--text-secondary)]">Pending</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded-full bg-[#86efac] border border-[#22c55e]" />
+                  <span className="text-xs text-[var(--text-secondary)]">Active</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded-full bg-[#bfdbfe] border border-[#3b82f6]" />
+                  <span className="text-xs text-[var(--text-secondary)]">Complete</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Survey Stats Summary */}
+            <div className="pt-3 border-t border-[var(--border-base)] mt-3 grid grid-cols-3 gap-2">
+              <div className="bg-amber-50 border border-amber-200 rounded p-2 text-center">
+                <p className="text-lg font-bold text-amber-600">{surveys.filter(s => s.status === 'pending').length}</p>
+                <p className="text-xs text-amber-600">Pending</p>
+              </div>
+              <div className="bg-emerald-50 border border-emerald-200 rounded p-2 text-center">
+                <p className="text-lg font-bold text-emerald-600">{surveys.filter(s => s.status === 'active').length}</p>
+                <p className="text-xs text-emerald-600">Active</p>
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded p-2 text-center">
+                <p className="text-lg font-bold text-blue-600">{surveys.filter(s => s.status === 'complete').length}</p>
+                <p className="text-xs text-blue-600">Complete</p>
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ==================== CREATE SURVEY MODAL ==================== */}
+      {createModalOpen && (
+        <CreateSurveyModal
+          isOpen={createModalOpen}
+          onClose={() => {
+            setCreateModalOpen(false);
+            setSelectedSurvey(null);
+          }}
+          onCreate={async (formData) => {
+            try {
+              // Generate unique survey ID
+              const timestamp = Date.now().toString(36).toUpperCase();
+              const randomPart = Math.random().toString(36).substring(2, 6).toUpperCase();
+              const surveyId = `SUR-${timestamp}-${randomPart}`;
+              
+              // Prepare survey data with defaults
+              const newSurvey = {
+                surveyId, // Auto-generated unique ID
+                clientName: formData.clientName,
+                city: formData.city,
+                projectCapacity: formData.projectCapacity || 'To be determined',
+                engineer: formData.engineer || 'Unassigned',
+                roofType: formData.roofType,
+                structureType: formData.structureType,
+                structureHeight: formData.structureHeight,
+                moduleType: formData.moduleType,
+                notes: formData.notes,
+                status: 'pending', // Default to pending status
+                floors: 1,
+                solarConsultant: user?.name || 'System',
+                createdAt: new Date().toISOString(),
+              };
+              
+              console.log('Creating new survey:', newSurvey);
+              
+              // Call API to create survey
+              const response = await siteSurveysApi.create(newSurvey);
+              const createdSurvey = response.data?.data || response.data;
+              
+              console.log('Survey created successfully:', createdSurvey);
+              
+              toast.success(`Survey ${surveyId} created and added to Pending list`);
+              setCreateModalOpen(false);
+              setSelectedSurvey(null);
+              
+              // Refresh the surveys list to show the new survey
+              await fetchSurveys();
+              
+            } catch (error) {
+              console.error('Error creating survey:', error);
+              const errorMsg = error.response?.data?.message || error.message || 'Failed to create survey';
+              toast.error(errorMsg);
+            }
+          }}
+        />
+      )}
     </div>
+  );
+};
+
+// ── CREATE SURVEY MODAL ──────────────────────────────────────────────────────
+const CreateSurveyModal = ({ isOpen, onClose, onCreate }) => {
+  const [formData, setFormData] = useState({
+    clientName: '',
+    city: '',
+    projectCapacity: '',
+    engineer: '',
+    roofType: '',
+    structureType: '',
+    structureHeight: '',
+    moduleType: '',
+    notes: '',
+  });
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    // Validate required fields
+    if (!formData.clientName || !formData.city || !formData.projectCapacity) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+    onCreate(formData);
+  };
+
+  return (
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      title="Create New Site Survey"
+      size="lg"
+      footer={
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={handleSubmit}>
+            <Plus size={16} /> Create Survey
+          </Button>
+        </div>
+      }
+    >
+      <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto p-1">
+        {/* Basic Information */}
+        <div className="space-y-3">
+          <h4 className="text-sm font-bold text-gray-700 border-b border-gray-200 pb-2">Basic Information</h4>
+          
+          <FormField label="Customer Name *" required>
+            <Input
+              value={formData.clientName}
+              onChange={(e) => setFormData({ ...formData, clientName: e.target.value })}
+              placeholder="Enter customer name"
+              required
+            />
+          </FormField>
+
+          <FormField label="Location / City *" required>
+            <Input
+              value={formData.city}
+              onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+              placeholder="Enter city name"
+              required
+            />
+          </FormField>
+
+          <FormField label="Project Capacity (kWp) *" required>
+            <Input
+              type="number"
+              value={formData.projectCapacity}
+              onChange={(e) => setFormData({ ...formData, projectCapacity: e.target.value })}
+              placeholder="e.g., 10"
+              required
+            />
+          </FormField>
+
+          <FormField label="Assigned Engineer">
+            <Input
+              value={formData.engineer}
+              onChange={(e) => setFormData({ ...formData, engineer: e.target.value })}
+              placeholder="Engineer name"
+            />
+          </FormField>
+        </div>
+
+        {/* Technical Specifications */}
+        <div className="space-y-3 pt-3">
+          <h4 className="text-sm font-bold text-gray-700 border-b border-gray-200 pb-2">Technical Specifications</h4>
+          
+          <FormField label="Roof Type">
+            <Select
+              value={formData.roofType}
+              onChange={(e) => setFormData({ ...formData, roofType: e.target.value })}
+            >
+              <option value="">Select roof type</option>
+              {ROOF_TYPES.map(type => (
+                <option key={type.id} value={type.id}>{type.label}</option>
+              ))}
+            </Select>
+          </FormField>
+
+          <FormField label="Structure Type">
+            <Select
+              value={formData.structureType}
+              onChange={(e) => setFormData({ ...formData, structureType: e.target.value })}
+            >
+              <option value="">Select structure type</option>
+              {STRUCTURE_TYPES.map(type => (
+                <option key={type.id} value={type.id}>{type.label}</option>
+              ))}
+            </Select>
+          </FormField>
+
+          <FormField label="Structure Height">
+            <Select
+              value={formData.structureHeight}
+              onChange={(e) => setFormData({ ...formData, structureHeight: e.target.value })}
+            >
+              <option value="">Select height</option>
+              {STRUCTURE_HEIGHTS.map(height => (
+                <option key={height.id} value={height.id}>{height.label}</option>
+              ))}
+            </Select>
+          </FormField>
+
+          <FormField label="Module Type">
+            <Select
+              value={formData.moduleType}
+              onChange={(e) => setFormData({ ...formData, moduleType: e.target.value })}
+            >
+              <option value="">Select module type</option>
+              {MODULE_TYPES.map(type => (
+                <option key={type.id} value={type.id}>{type.label}</option>
+              ))}
+            </Select>
+          </FormField>
+        </div>
+
+        {/* Additional Notes */}
+        <div className="space-y-3 pt-3">
+          <h4 className="text-sm font-bold text-gray-700 border-b border-gray-200 pb-2">Additional Information</h4>
+          
+          <FormField label="Notes">
+            <Textarea
+              value={formData.notes}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              placeholder="Any additional notes or instructions..."
+              rows={3}
+            />
+          </FormField>
+        </div>
+      </form>
+    </Modal>
   );
 };
 
