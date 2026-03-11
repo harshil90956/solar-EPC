@@ -142,8 +142,11 @@ export class ItemsService {
   }
 
   async stockIn(tenantId: string, id: string, quantity: number, poReference?: string, receivedDate?: string, remarks?: string) {
+    console.log(`[STOCK-IN] Received tenantId: ${tenantId}, itemId: ${id}`);
     // Resolve tenant code to actual ObjectId
     const actualTenantId = await this.getTenantId(tenantId);
+    console.log(`[STOCK-IN] Resolved actualTenantId: ${actualTenantId}`);
+    
     const item = await this.itemModel.findOne({
       tenantId: actualTenantId,
       _id: new Types.ObjectId(id),
@@ -151,6 +154,10 @@ export class ItemsService {
     }).exec();
 
     if (!item) {
+      console.log(`[STOCK-IN] Item not found. Query: { tenantId: ${actualTenantId}, _id: ${id}, isDeleted: false }`);
+      // Try to find item without tenant filter to debug
+      const itemAnyTenant = await this.itemModel.findById(id).exec();
+      console.log(`[STOCK-IN] Item without tenant filter:`, itemAnyTenant ? `Found (tenantId: ${itemAnyTenant.tenantId})` : 'Not found');
       throw new NotFoundException(`Item ${id} not found`);
     }
 

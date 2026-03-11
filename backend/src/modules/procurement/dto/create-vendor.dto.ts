@@ -1,10 +1,10 @@
-import { IsString, IsEmail, IsIn, IsNumber, Min, Max, IsOptional } from 'class-validator';
+import { IsString, IsEmail, IsNumber, Min, Max, IsOptional } from 'class-validator';
 
 export class CreateVendorDto {
   @IsString()
   name!: string;
 
-  @IsIn(['Panel', 'Inverter', 'BOS', 'Structure', 'Cable', 'Other'])
+  @IsString()
   category!: string;
 
   @IsString()
@@ -32,7 +32,7 @@ export class UpdateVendorDto {
   name?: string;
 
   @IsOptional()
-  @IsIn(['Panel', 'Inverter', 'BOS', 'Structure', 'Cable', 'Other'])
+  @IsString()
   category?: string;
 
   @IsOptional()

@@ -6770,25 +6770,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <FormField label="Start Date">
-                <Input
-                  type="date"
-                  value={amcEditForm.startDate}
-                  onChange={e => setAmcEditForm(prev => ({ ...prev, startDate: e.target.value }))}
-                  className="h-8 text-xs"
-                />
-              </FormField>
+            <FormField label="Start Date">
+              <Input
+                type="date"
+                value={amcEditForm.startDate}
+                onChange={e => setAmcEditForm(prev => ({ ...prev, startDate: e.target.value }))}
+                className="h-8 text-xs"
+              />
+            </FormField>
 
-              <FormField label="End Date">
-                <Input
-                  type="date"
-                  value={amcEditForm.endDate}
-                  onChange={e => setAmcEditForm(prev => ({ ...prev, endDate: e.target.value }))}
-                  className="h-8 text-xs"
-                />
-              </FormField>
-            </div>
+            <FormField label="End Date">
+              <Input
+                type="date"
+                value={amcEditForm.endDate}
+                onChange={e => setAmcEditForm(prev => ({ ...prev, endDate: e.target.value }))}
+                className="h-8 text-xs"
+              />
+            </FormField>
 
             <FormField label="Next Visit">
               <Input

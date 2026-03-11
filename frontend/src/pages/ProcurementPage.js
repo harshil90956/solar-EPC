@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   ShoppingCart, Plus, Truck, Package, CheckCircle, LayoutGrid, List, Calendar, Zap, Phone, Mail, Star, Edit, BarChart3,
-  TrendingUp, PieChart, BarChart, Activity, Users, IndianRupee, ChevronLeft, ChevronRight
+  TrendingUp, PieChart, BarChart, Activity, Users, IndianRupee, ChevronLeft, ChevronRight, Trash2
 } from 'lucide-react';
 import { StatusBadge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
@@ -727,6 +727,21 @@ const ProcurementPage = () => {
     }
   };
 
+  const handleDeletePO = async (po) => {
+    if (!guardDelete()) return;
+    if (!window.confirm(`Are you sure you want to delete PO ${po.id}?`)) return;
+    try {
+      await api.delete(`/procurement/purchase-orders/${po.id}`);
+      await fetchData();
+      setSelectedPO(null);
+      toast.success('Purchase Order deleted successfully');
+      logDelete('purchase_order', po.id);
+    } catch (error) {
+      console.error('Error deleting PO:', error);
+      toast.error('Failed to delete Purchase Order: ' + (error.response?.data?.error?.message || error.message || 'Unknown error'));
+    }
+  };
+
   const startEditingPO = () => {
     setEditedPO({ ...selectedPO });
     setIsEditingPO(true);
@@ -791,14 +806,26 @@ const ProcurementPage = () => {
 
   const fetchVendors = async () => {
     try {
-      const res = await api.get('/procurement/vendors');
-      console.log('Vendors API response:', res);
-      // Response interceptor returns data directly, not wrapped in response object
-      const vendorsData = Array.isArray(res) ? res : (res?.data || []);
-      console.log('Parsed vendors:', vendorsData);
+      // Fetch vendors from logistics_vendors collection
+      const res = await api.get('/logistics/vendors');
+      console.log('Logistics vendors API response:', res);
+      
+      // Handle response - API returns { success: true, data: [...] }
+      let vendorsData = [];
+      if (res && res.success && Array.isArray(res.data)) {
+        vendorsData = res.data;
+      } else if (Array.isArray(res)) {
+        vendorsData = res;
+      } else if (res && typeof res === 'object') {
+        vendorsData = res.data || [];
+      }
+      
+      console.log('Parsed logistics vendors:', vendorsData);
       setVendors(vendorsData);
     } catch (error) {
-      console.error('Error fetching vendors:', error);
+      console.error('Error fetching logistics vendors:', error);
+      toast.error('Failed to load vendors');
+      setVendors([]);
     }
   };
 
@@ -901,11 +928,15 @@ const ProcurementPage = () => {
     try {
       console.log('Creating PO with data:', newPO);
       if (!newPO.vendorId) {
-        alert('Please select a vendor');
+        toast.error('Please select a vendor');
         return;
       }
       if (!newPO.relatedProjectId) {
-        alert('Please select a project');
+        toast.error('Please select a project');
+        return;
+      }
+      if (!newPO.expectedDate) {
+        toast.error('Please select an expected delivery date');
         return;
       }
       const payload = {
@@ -919,8 +950,12 @@ const ProcurementPage = () => {
       await fetchData();
       setShowPO(false);
       setNewPO({ vendorId: '', items: '', totalAmount: '', expectedDate: '', relatedProjectId: '' });
+      toast.success('Purchase Order created successfully');
+      logCreate('purchase_order', res.data?.data?.id);
     } catch (error) {
       console.error('Error creating PO:', error);
+      const errorMsg = error.response?.data?.error || error.response?.data?.message || error.message || 'Failed to create Purchase Order';
+      toast.error(errorMsg);
     }
   };
 
@@ -1037,14 +1072,15 @@ const ProcurementPage = () => {
   };
   const pendingPOs = pos.filter(p => p && ['Draft', 'Ordered'].includes(p?.status)).length;
   const activePOs = pos.filter(p => p && p?.status !== 'Delivered' && p?.status !== 'Cancelled').length;
-  const totalSpend = pos.reduce((a, p) => a + (p?.totalAmount || 0), 0);
+  const totalSpend = pos.reduce((a, p) => a + (Number(p?.totalAmount) || 0), 0);
   const inTransit = pos.filter(p => p && p?.status === 'In Transit').length;
   const delivered = pos.filter(p => p && p?.status === 'Delivered').length;
 
   const PO_ACTIONS = [
     { label: 'View PO', icon: Package, onClick: row => setSelectedPO(row) },
-    { label: 'Mark Delivered', icon: CheckCircle, onClick: (row) => handlePOStageChange(row.id, 'Delivered') },
+    ...(can('procurement', 'edit') ? [{ label: 'Mark Delivered', icon: CheckCircle, onClick: (row) => handlePOStageChange(row.id, 'Delivered') }] : []),
     { label: 'Track Shipment', icon: Truck, onClick: () => { } },
+    ...(can('procurement', 'delete') ? [{ label: 'Delete', icon: Trash2, onClick: (row) => handleDeletePO(row), variant: 'danger' }] : []),
   ];
 
   if (loading) {
@@ -1063,7 +1099,9 @@ const ProcurementPage = () => {
             <button onClick={() => setPoView('table')} className={`view-toggle-btn ${poView === 'table' ? 'active' : ''}`} title="Table View"><List size={13} /></button>
             <button onClick={() => setPoView('visualization')} className={`view-toggle-btn ${poView === 'visualization' ? 'active' : ''}`} title="Visualization"><BarChart3 size={13} /></button>
           </div>
-          <Button onClick={() => setShowPO(true)}><Plus size={13} /> Create PO</Button>
+          {can('procurement', 'create') && (
+            <Button onClick={() => setShowPO(true)}><Plus size={13} /> Create PO</Button>
+          )}
         </div>
       </div>
       {/* Procurement KPI Cards with Descriptive Label */}
@@ -1182,9 +1220,12 @@ const ProcurementPage = () => {
               setNewPO({ ...newPO, vendorId: e.target.value });
             }}>
               <option value="">{vendors.length === 0 ? 'No vendors available - Add vendors in Logistics tab' : 'Select a vendor'}</option>
-              {vendors.map(v => (
-                <option key={v.id} value={v.id}>{v.name} ({v.id})</option>
-              ))}
+              {vendors.map(v => {
+                const vendorId = v._id || v.id;
+                return (
+                  <option key={vendorId} value={vendorId}>{v.name}</option>
+                );
+              })}
             </Select>
             {vendors.length === 0 && (
               <p className="text-xs text-red-400 mt-1">Please add vendors in Logistics → Vendors tab first</p>
@@ -1209,10 +1250,15 @@ const ProcurementPage = () => {
                 className="w-full h-9 px-3 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] text-[var(--text-primary)] text-sm cursor-pointer flex items-center justify-between hover:border-[var(--primary)] transition-colors"
               >
                 {newPO.relatedProjectId ? (
-                  <span className="truncate">
+                  <span className="truncate flex items-center gap-2">
                     {(() => {
                       const project = projects.find(p => (p.id || p._id) === newPO.relatedProjectId);
-                      return `${project?.id || project?._id || newPO.relatedProjectId} – ${getProjectDisplayName(project)}`;
+                      const customerName = getProjectDisplayName(project);
+                      return (
+                        <>
+                          <span className="font-medium">{customerName}</span>
+                        </>
+                      );
                     })()}
                   </span>
                 ) : (
@@ -1272,15 +1318,12 @@ const ProcurementPage = () => {
                             }`}
                         >
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-semibold text-[var(--primary)] px-1.5 py-0.5 rounded bg-[var(--primary)]/10">
-                              {p.id || p._id}
-                            </span>
                             <span className="text-sm text-[var(--text-primary)] truncate">
                               {getProjectDisplayName(p)}
                             </span>
                           </div>
                           {p.name && (
-                            <div className="text-xs text-[var(--text-muted)] mt-0.5 ml-8">
+                            <div className="text-xs text-[var(--text-muted)] mt-0.5">
                               {p.name}
                             </div>
                           )}
@@ -1312,9 +1355,14 @@ const ProcurementPage = () => {
                   <Button onClick={handleUpdatePO}><CheckCircle size={13} /> Save Changes</Button>
                 </>
               ) : (
-                <>
+                <>                  
                   <Button variant="ghost" onClick={() => setSelectedPO(null)}>Close</Button>
-                  <Button onClick={startEditingPO}><Edit size={13} /> Edit</Button>
+                  {can('procurement', 'delete') && (
+                    <Button variant="danger" onClick={() => handleDeletePO(selectedPO)}><Trash2 size={13} /> Delete</Button>
+                  )}
+                  {can('procurement', 'edit') && (
+                    <Button onClick={startEditingPO}><Edit size={13} /> Edit</Button>
+                  )}
                 </>
               )}
             </div>
@@ -1363,10 +1411,15 @@ const ProcurementPage = () => {
                       className="w-full h-9 px-3 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] text-[var(--text-primary)] text-sm cursor-pointer flex items-center justify-between hover:border-[var(--primary)] transition-colors"
                     >
                     {editedPO?.relatedProjectId ? (
-                      <span className="truncate">
+                      <span className="truncate flex items-center gap-2">
                         {(() => {
                           const project = projects.find(p => (p.id || p._id) === editedPO.relatedProjectId);
-                          return `${project?.id || project?._id || editedPO.relatedProjectId} – ${getProjectDisplayName(project)}`;
+                          const customerName = getProjectDisplayName(project);
+                          return (
+                            <>
+                              <span className="font-medium">{customerName}</span>
+                            </>
+                          );
                         })()}
                       </span>
                     ) : (
@@ -1426,15 +1479,12 @@ const ProcurementPage = () => {
                                 }`}
                             >
                               <div className="flex items-center gap-2">
-                                <span className="text-xs font-semibold text-[var(--primary)] px-1.5 py-0.5 rounded bg-[var(--primary)]/10">
-                                  {p.id || p._id}
-                                </span>
                                 <span className="text-sm text-[var(--text-primary)] truncate">
                                   {getProjectDisplayName(p)}
                                 </span>
                               </div>
                               {p.name && (
-                                <div className="text-xs text-[var(--text-muted)] mt-0.5 ml-8">
+                                <div className="text-xs text-[var(--text-muted)] mt-0.5">
                                   {p.name}
                                 </div>
                               )}
@@ -1454,7 +1504,13 @@ const ProcurementPage = () => {
                 ['Delivered Date', selectedPO.deliveredDate ?? '—'],
                 ['Related Project', (() => {
                   const project = projects.find(p => (p.id || p._id) === selectedPO.relatedProjectId);
-                  return project ? `${project.id || project._id} – ${getProjectDisplayName(project)}` : (selectedPO.relatedProjectId || '—');
+                  if (!project) return selectedPO.relatedProjectId || '—';
+                  const customerName = getProjectDisplayName(project);
+                  return (
+                    <span className="flex items-center gap-2">
+                      <span className="font-medium">{customerName}</span>
+                    </span>
+                  );
                 })()],
               ].map(([k, v]) => (
                 <div key={k} className="glass-card p-2">

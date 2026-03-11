@@ -60,7 +60,7 @@ async function bootstrap() {
   app.useGlobalInterceptors(new SuccessResponseInterceptor());
   app.useGlobalFilters(new GlobalExceptionFilter());
 
-  const port = Number(process.env.APP_PORT ?? 3001);
+  const port = Number(process.env.APP_PORT ?? 3000);
   await app.listen({ port, host: '0.0.0.0' });
 
   // Seed logistics data
@@ -90,19 +90,12 @@ async function bootstrap() {
     const procurementService = app.get(ProcurementService);
     // Use a system user with ALL dataScope for seeding (bypasses visibility filters)
     const systemUser = { id: 'system', dataScope: 'ALL' as const, tenantId: 'default' };
-    const vendors = await procurementService.findAllVendors('default', systemUser);
-    if (vendors.length === 0) {
-      const sampleVendors = [
-        { name: 'Tata Power Solar', category: 'Panel', contact: 'Rajesh Kumar', phone: '+91 98765 43210', email: 'sales@tatapowersolar.com', city: 'Mumbai', rating: 5 },
-        { name: 'Waaree Energies', category: 'Panel', contact: 'Sunil Patel', phone: '+91 98765 43211', email: 'contact@waaree.com', city: 'Surat', rating: 4 },
-        { name: 'Sungrow India', category: 'Inverter', contact: 'Priya Sharma', phone: '+91 98765 43212', email: 'india@sungrow.com', city: 'Bangalore', rating: 5 },
-        { name: 'ABB India', category: 'Inverter', contact: 'Vikram Mehta', phone: '+91 98765 43213', email: 'contact@abb.com', city: 'Ahmedabad', rating: 4 },
-        { name: 'Sterling Wilson', category: 'Structure', contact: 'Anil Gupta', phone: '+91 98765 43214', email: 'info@sterlingwilson.com', city: 'Pune', rating: 4 },
-      ];
-      for (const vendor of sampleVendors) {
-        await procurementService.createVendor(vendor, 'default');
+    if (String(process.env.SEED_PROCUREMENT_VENDORS ?? '').toLowerCase() === 'true') {
+      const vendors = await procurementService.findAllVendors('default', systemUser);
+      if (vendors.length === 0) {
+        // Sample vendors removed - no vendors will be seeded
+        console.log('✓ No sample vendors to seed');
       }
-      console.log('✓ Seeded 5 procurement vendors');
     }
   } catch (err: any) {
     console.log('Vendor seed skipped:', err.message);

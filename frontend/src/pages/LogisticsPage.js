@@ -1,6 +1,6 @@
 // Solar OS – EPC Edition — LogisticsPage.js
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Truck, Plus, MapPin, Package, CheckCircle, Clock, Zap, Navigation, LayoutGrid, List, Phone, Mail, Star, Edit, Building2, Store, Tag, MapPinned, BarChart3, PieChart, TrendingUp, Users, IndianRupee, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Truck, Plus, MapPin, Package, CheckCircle, Clock, Zap, Navigation, LayoutGrid, List, Phone, Mail, Star, Edit, Building2, Store, Tag, MapPinned, BarChart3, PieChart, TrendingUp, Users, IndianRupee, Calendar, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input, FormField, Select } from '../components/ui/Input';
@@ -10,6 +10,8 @@ import { Avatar } from '../components/ui/Avatar';
 import DataTable from '../components/ui/DataTable';
 import { APP_CONFIG } from '../config/app.config';
 import { api } from '../lib/apiClient';
+import { usePermissions } from '../hooks/usePermissions';
+import CanAccess from '../components/CanAccess';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api/v1';
 const TENANT_ID = 'solarcorp';
@@ -66,6 +68,7 @@ const VENDOR_COLUMNS = [
   { key: 'category', header: 'Category', render: v => <span className="text-xs text-[var(--text-secondary)]">{v}</span> },
   { key: 'contact', header: 'Contact', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
   { key: 'phone', header: 'Phone', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
+  { key: 'email', header: 'Email', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
   { key: 'city', header: 'City', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
   { key: 'totalOrders', header: 'Total Orders', sortable: true, render: v => <span className="text-xs font-bold text-[var(--text-primary)]">{v}</span> },
 ];
@@ -1078,6 +1081,7 @@ const DispatchVisualizationView = ({ dispatches }) => {
 
 /* ── Main Page ── */
 const LogisticsPage = () => {
+  const { can } = usePermissions();
   const [activeTab, setActiveTab] = useState('dispatches');
   const [view, setView] = useState('kanban');
   const [showVisualization, setShowVisualization] = useState(false);
@@ -1289,11 +1293,20 @@ const LogisticsPage = () => {
       }
       console.log('Creating vendor with data:', newVendor);
       const res = await api.post('/logistics/vendors', newVendor);
-      console.log('Vendor created:', res);
+      console.log('Vendor created response:', res);
+      
+      // Check if creation was successful
+      if (res.success === false) {
+        alert('Failed to create vendor: ' + (res.error || 'Unknown error'));
+        return;
+      }
+      
+      // Refresh vendors list immediately
       await fetchVendors();
       setShowVendorModal(false);
       setNewVendor({ name: '', category: '', city: '', contact: '', phone: '', email: '' });
       setSearch(''); // Clear search to show new vendor
+      alert('Vendor created successfully!');
     } catch (error) {
       console.error('Error creating vendor:', error);
       console.error('Error response:', error.response?.data);
@@ -1425,9 +1438,21 @@ const LogisticsPage = () => {
     setEditedDispatch(null);
   };
 
+  const handleDeleteDispatch = async (dispatch) => {
+    if (!window.confirm(`Are you sure you want to delete dispatch ${dispatch.id}?`)) return;
+    try {
+      await api.delete(`/logistics/dispatches/${dispatch.id}`);
+      await fetchData();
+      setSelected(null);
+      alert('Dispatch deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting dispatch:', error);
+      alert('Failed to delete dispatch: ' + (error.response?.data?.error?.message || error.message || 'Unknown error'));
+    }
+  };
+
   const handleUpdateDispatch = async () => {
     try {
-      if (!editedDispatch) return;
       const payload = {
         projectId: editedDispatch.projectId,
         customer: editedDispatch.customer,
@@ -1519,13 +1544,28 @@ const LogisticsPage = () => {
   const ROW_ACTIONS = [
     { label: 'View Details', icon: Package, onClick: row => setSelected(row) },
     { label: 'Track Shipment', icon: Navigation, onClick: () => { } },
-    { label: 'Mark Delivered', icon: CheckCircle, onClick: (row) => handleMarkDelivered(row) },
+    ...(can('logistics', 'edit') ? [{ label: 'Mark Delivered', icon: CheckCircle, onClick: (row) => handleMarkDelivered(row) }] : []),
+    ...(can('logistics', 'delete') ? [{ label: 'Delete', icon: Trash2, onClick: (row) => handleDeleteDispatch(row), variant: 'danger' }] : []),
   ];
+
+  const handleDeleteVendor = async (vendor) => {
+    if (!window.confirm(`Are you sure you want to delete vendor ${vendor.name}?`)) return;
+    try {
+      await api.delete(`/logistics/vendors/${vendor.id}`);
+      await fetchData();
+      setSelectedVendor(null);
+      alert('Vendor deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting vendor:', error);
+      alert('Failed to delete vendor: ' + (error.response?.data?.error?.message || error.message || 'Unknown error'));
+    }
+  };
 
   const VENDOR_ACTIONS = [
     { label: 'View Vendor', icon: Package, onClick: row => { setSelectedVendor(row); setIsEditingVendor(false); } },
-    { label: 'Edit Vendor', icon: Edit, onClick: row => { setSelectedVendor(row); setEditedVendor({ ...row }); setIsEditingVendor(true); } },
-    { label: 'Record Delivery', icon: Plus, onClick: row => { setSelectedVendor(row); setShowVendorDeliveryModal(true); } },
+    ...(can('logistics', 'edit') ? [{ label: 'Edit Vendor', icon: Edit, onClick: row => { setSelectedVendor(row); setEditedVendor({ ...row }); setIsEditingVendor(true); } }] : []),
+    ...(can('logistics', 'create') ? [{ label: 'Record Delivery', icon: Plus, onClick: row => { setSelectedVendor(row); setShowVendorDeliveryModal(true); } }] : []),
+    ...(can('logistics', 'delete') ? [{ label: 'Delete', icon: Trash2, onClick: (row) => handleDeleteVendor(row), variant: 'danger' }] : []),
     { label: 'Call Vendor', icon: Phone, onClick: row => handleCallVendor(row) },
     { label: 'Email Vendor', icon: Mail, onClick: row => handleEmailVendor(row) },
   ];
@@ -1592,7 +1632,7 @@ const LogisticsPage = () => {
           </>
         )}
         actions={[
-          { type: 'button', label: activeTab === 'dispatches' ? 'Schedule Dispatch' : 'Add Vendor', icon: Plus, variant: 'primary', onClick: () => activeTab === 'dispatches' ? setShowAdd(true) : setShowVendorModal(true) }
+          ...(can('logistics', 'create') ? [{ type: 'button', label: activeTab === 'dispatches' ? 'Schedule Dispatch' : 'Add Vendor', icon: Plus, variant: 'primary', onClick: () => activeTab === 'dispatches' ? setShowAdd(true) : setShowVendorModal(true) }] : [])
         ]}
       />
 
@@ -1884,8 +1924,13 @@ const LogisticsPage = () => {
               ) : (
                 <>
                   <Button variant="ghost" onClick={() => setSelected(null)}>Close</Button>
-                  <Button onClick={startEditingDispatch}><Edit size={13} /> Edit</Button>
-                  {selected.status !== 'Delivered' && (
+                  {can('logistics', 'delete') && (
+                    <Button variant="danger" onClick={() => handleDeleteDispatch(selected)}><Trash2 size={13} /> Delete</Button>
+                  )}
+                  {can('logistics', 'edit') && (
+                    <Button onClick={startEditingDispatch}><Edit size={13} /> Edit</Button>
+                  )}
+                  {can('logistics', 'edit') && selected.status !== 'Delivered' && (
                     <Button onClick={() => handleMarkDelivered(selected)}><CheckCircle size={13} /> Mark Delivered</Button>
                   )}
                 </>
@@ -2006,8 +2051,15 @@ const LogisticsPage = () => {
               ) : (
                 <>
                   <Button variant="ghost" onClick={() => setSelectedVendor(null)}>Close</Button>
-                  <Button onClick={startEditingVendor}><Edit size={13} /> Edit</Button>
-                  <Button onClick={() => { setShowVendorDeliveryModal(true); }}><Plus size={13} /> Record Delivery</Button>
+                  {can('logistics', 'delete') && (
+                    <Button variant="danger" onClick={() => handleDeleteVendor(selectedVendor)}><Trash2 size={13} /> Delete</Button>
+                  )}
+                  {can('logistics', 'edit') && (
+                    <Button onClick={startEditingVendor}><Edit size={13} /> Edit</Button>
+                  )}
+                  {can('logistics', 'create') && (
+                    <Button onClick={() => { setShowVendorDeliveryModal(true); }}><Plus size={13} /> Record Delivery</Button>
+                  )}
                   <Button onClick={() => handleCallVendor(selectedVendor)}><Phone size={13} /> Call</Button>
                   <Button onClick={() => handleEmailVendor(selectedVendor)}><Mail size={13} /> Email</Button>
                 </>

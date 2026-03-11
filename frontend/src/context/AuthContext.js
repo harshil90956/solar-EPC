@@ -46,6 +46,12 @@ export const AuthProvider = ({ children }) => {
           console.error('Invalid employee response:', res);
           throw new Error('Invalid response from server');
         }
+        // Decode JWT to extract tenantId
+        let tenantId = null;
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          tenantId = payload.tenantId || null;
+        } catch (e) { /* ignore */ }
         const authedUser = { 
           id, 
           employeeId, 
@@ -54,6 +60,7 @@ export const AuthProvider = ({ children }) => {
           email,
           role: 'Employee',
           roleId,
+          tenantId,
           isEmployee: true,
           permissions: {}, 
           token 

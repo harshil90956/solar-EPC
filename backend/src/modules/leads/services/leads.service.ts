@@ -7,10 +7,6 @@ import { Lead, LeadDocument } from '../schemas/lead.schema';
 import { CreateLeadDto, UpdateLeadDto, QueryLeadDto, AddActivityDto } from '../dto/lead.dto';
 import { LeadStatus, LeadStatusDocument } from '../../settings/schemas/lead-status.schema';
 import { buildVisibilityFilter, applyVisibilityFilter, buildCompleteFilter, canAccessRecord, UserWithVisibility } from '../../../common/utils/visibility-filter';
-<<<<<<< Updated upstream
-
-=======
->>>>>>> Stashed changes
 import { SiteSurveysService } from '../../survey/services/site-surveys.service';
 
 @Injectable()
