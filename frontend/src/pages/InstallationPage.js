@@ -13,7 +13,34 @@ import { Progress } from '../components/ui/Progress';
 import DataTable from '../components/ui/DataTable';
 import { toast } from '../components/ui/Toast';
 import CanAccess, { CanCreate, CanEdit, CanDelete } from '../components/CanAccess';
-import { Wrench, Plus, LayoutGrid, List, CalendarDays, CheckCircle, Camera, User, MapPin, Clock, Edit, AlertCircle, Download, Trash2, Eye, SortAsc, SortDesc, UserPlus, UserMinus, TrendingUp, BarChart3, PieChart as PieChartIcon, Activity, LayoutDashboard, X } from 'lucide-react';
+import { 
+  LayoutDashboard, 
+  LayoutGrid, 
+  List, 
+  Plus, 
+  Wrench, 
+  CheckCircle, 
+  User, 
+  Search, 
+  CalendarDays,
+  ClipboardList,
+  Activity,
+  MapPin,
+  Clock,
+  AlertCircle,
+  PieChart as PieChartIcon,
+  TrendingUp,
+  BarChart3,
+  Download,
+  UserPlus,
+  UserMinus,
+  Eye,
+  Edit,
+  Trash2,
+  Camera,
+  X,
+  Layers
+} from 'lucide-react';
 import { APP_CONFIG } from '../config/app.config';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, Legend, AreaChart, Area, LineChart, Line, ComposedChart } from 'recharts';
 
@@ -33,7 +60,7 @@ const InstallBadge = ({ value }) => {
     'Delayed': 'bg-red-100 text-red-600',
     'Completed': 'bg-emerald-100 text-emerald-600',
   };
-  return <span className={`inline-block px-2 py-0.5 rounded text-xs ${map[value]||''}`}>{value}</span>;
+  return <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${map[value]||''}`}>{value}</span>;
 };
 
 // Local cache for settings tasks (keeps stable shape)
@@ -113,7 +140,6 @@ const InstallCard = ({ log, onDragStart, onClick }) => {
     <div draggable onDragStart={onDragStart} onClick={onClick}
       className="glass-card p-3 cursor-grab active:cursor-grabbing hover:border-[var(--primary)]/40 transition-all">
       <div className="flex items-start justify-between mb-1">
-        <span className="text-[10px] font-mono text-[var(--accent-light)]">{log.installationId || log.id}</span>
         <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: stage?.bg, color: stage?.color }}>{progress}%</span>
       </div>
       <p className="text-xs font-semibold text-[var(--text-primary)] mb-0.5 leading-tight">{log.customerName || log.customer}</p>
@@ -258,7 +284,13 @@ const InstallKanbanBoard = ({ items, onCardClick, onDrop, canEdit }) => {
 
 const COLUMNS = [
   { key: 'installationId', header: 'Installation ID', sortable: true, render: (v) => <span className="font-mono text-xs font-semibold text-[var(--accent-light)]">{v}</span> },
-  { key: 'projectId', header: 'Project', sortable: true, render: (v) => <span className="text-xs">{typeof v === 'object' ? (v?.projectId || v?.id || '-') : (v || '-')}</span> },
+  { key: 'projectId', header: 'Project', sortable: true, render: (v) => {
+    if (!v) return '-';
+    if (typeof v === 'object') {
+      return <span className="text-xs font-semibold">{v.projectId || v.id || '-'}</span>;
+    }
+    return <span className="text-xs font-semibold">{v}</span>;
+  }},
   { key: 'customerName', header: 'Customer', sortable: true, render: (v, row) => (
     <div>
       <p className="text-xs font-semibold text-[var(--text-primary)]">{v || '-'}</p>
@@ -471,11 +503,12 @@ const InstallationCalendar = ({ logs, onOpenInstallation }) => {
               style={{ animationDelay: `${idx * 50}ms` }}
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-mono font-bold text-[var(--primary)]">{inst.installationId}</span>
                 <span
                   className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold"
                   style={{ backgroundColor: (STATUS_COLORS[inst.status] || '#94a3b8') + '22', color: STATUS_COLORS[inst.status] || '#94a3b8' }}
-                >{inst.status}</span>
+                >
+                  {inst.status}
+                </span>
               </div>
               <p className="text-xs font-semibold text-[var(--text-primary)] truncate">{inst.customerName || '—'}</p>
               {inst.siteAddress && <p className="text-[10px] text-[var(--text-muted)] truncate mt-0.5">📍 {inst.siteAddress}</p>}
@@ -802,23 +835,29 @@ const InstallationDashboard = ({ logs }) => {
             </div>
           </div>
           <ResponsiveContainer width="100%" height={320}>
-            <BarChart data={stats.technicianStats.slice(0, 8)} layout="horizontal" barSize={24}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
-              <XAxis type="number" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis dataKey="name" type="category" tick={{ fill: 'var(--text-primary)', fontSize: 11 }} axisLine={false} tickLine={false} width={100} />
-              <Tooltip
-                contentStyle={{
-                  background: 'var(--bg-surface)',
-                  border: '1px solid var(--border-base)',
-                  borderRadius: 12,
-                  fontSize: 12,
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-                }}
-              />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="total" name="Total Jobs" fill="#3b82f6" radius={[0, 6, 6, 0]} />
-              <Bar dataKey="completed" name="Completed" fill="#22c55e" radius={[0, 6, 6, 0]} />
-            </BarChart>
+            {stats.technicianStats.length > 0 ? (
+              <BarChart data={stats.technicianStats.slice(0, 8)} layout="horizontal" barSize={24} margin={{ left: 20, right: 20, top: 10, bottom: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+                <XAxis type="number" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} domain={[0, 'dataMax + 1']} />
+                <YAxis dataKey="name" type="category" tick={{ fill: 'var(--text-primary)', fontSize: 11 }} axisLine={false} tickLine={false} width={120} />
+                <Tooltip
+                  contentStyle={{
+                    background: 'var(--bg-surface)',
+                    border: '1px solid var(--border-base)',
+                    borderRadius: 12,
+                    fontSize: 12,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                  }}
+                />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Bar dataKey="total" name="Total Jobs" fill="#3b82f6" radius={[0, 6, 6, 0]} />
+                <Bar dataKey="completed" name="Completed" fill="#22c55e" radius={[0, 6, 6, 0]} />
+              </BarChart>
+            ) : (
+              <div className="flex items-center justify-center h-full text-[var(--text-muted)]">
+                No technician data available
+              </div>
+            )}
           </ResponsiveContainer>
         </div>
 
@@ -899,7 +938,9 @@ const InstallationDashboard = ({ logs }) => {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-mono font-bold text-[var(--primary)]">{log.installationId || log.id}</span>
+                  {log.installationId && !/^[0-9a-fA-F]{24}$/.test(log.installationId) && (
+                    <span className="text-[10px] font-mono font-bold text-[var(--primary)]">{log.installationId}</span>
+                  )}
                   <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: (INSTALL_STAGES.find(s => s.id === log.status)?.bg || '#94a3b822'), color: INSTALL_STAGES.find(s => s.id === log.status)?.color || '#94a3b8' }}>{log.status}</span>
                 </div>
                 <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{log.customerName || 'Customer'}</p>
@@ -945,6 +986,7 @@ const InstallationPage = () => {
   const taskPhotoInputRef = useRef(null);
   const [currentTaskForPhoto, setCurrentTaskForPhoto] = useState(null);
   const [photoModal, setPhotoModal] = useState({ open: false, photo: null });
+  const [showCardsInViews, setShowCardsInViews] = useState(true);
   const handleSort = useCallback(({ key, dir }) => setSort({ key, dir }), []);
 
   // sync settings cache
@@ -973,15 +1015,18 @@ const InstallationPage = () => {
   });
 
   // derive logs with normalized fields and progress
-  const logs = useMemo(() => (installationsRaw || []).map(l => ({
-    ...l,
-    installationId: l.installationId || l.id || l._id,
-    customerName: l.customerName || l.customer,
-    siteAddress: l.siteAddress || l.site,
-    technicianName: (l.technicianName && l.technicianName !== 'TBD') ? l.technicianName : (l.technician && l.technician !== 'TBD' ? l.technician : 'Not Assigned'),
-    tasks: (l.tasks && l.tasks.length) ? l.tasks : (getTasksFromSettings().map(t=>({ ...t, done:false }))),
-    progress: calculateProgress(l.tasks || getTasksFromSettings()),
-  })), [installationsRaw]);
+  const logs = useMemo(() => (installationsRaw || []).map(l => {
+    const normalizedTasks = (l.tasks && l.tasks.length) ? l.tasks : (getTasksFromSettings().map(t=>({ ...t, done:false })));
+    return {
+      ...l,
+      installationId: l.installationId || l.id || l._id,
+      customerName: l.customerName || l.customer,
+      siteAddress: l.siteAddress || l.site,
+      technicianName: (l.technicianName && l.technicianName !== 'TBD') ? l.technicianName : (l.technician && l.technician !== 'TBD' ? l.technician : 'Not Assigned'),
+      tasks: normalizedTasks,
+      progress: calculateProgress(normalizedTasks),
+    };
+  }), [installationsRaw]);
 
   // simple KPIs
   const active = logs.filter(l=>l.status==='In Progress').length;
@@ -995,12 +1040,13 @@ const InstallationPage = () => {
     const log = logs.find(x => x.installationId === id || x.id === id || x._id === id);
     if (!log) return;
     
-    // Check permission: either has edit permission OR is assigned user
+    // Check permission: either has edit permission OR is assigned user OR is employee/technician
     const isAssignedUser = log.technicianId === user?.id || 
                            log.technicianId === user?._id ||
                            log.assignedTo === user?.id ||
                            log.assignedTo === user?._id;
-    const canUpdate = can('installation','edit') || isAssignedUser;
+    const isEmployeeRole = user?.role?.toLowerCase() === 'employee' || user?.role?.toLowerCase() === 'technician';
+    const canUpdate = can('installation','edit') || isAssignedUser || isEmployeeRole;
     
     if (!canUpdate) return toast.error('Permission denied');
     // enforce completion rule
@@ -1027,8 +1073,13 @@ const InstallationPage = () => {
   // table pagination/filter/sort
   const filtered = useMemo(() => {
     let result = logs.filter(l => {
-      if (!search) return true;
+      // If search matches "Active", "Completed", or "Not Assigned", we filter by status/assignment
       const s = search.toLowerCase();
+      if (s === 'active') return l.status === 'In Progress';
+      if (s === 'completed') return l.status === 'Completed';
+      if (s === 'not assigned') return !l.technicianId && (!l.technicianName || l.technicianName === 'Not Assigned' || l.technicianName === 'TBD');
+      
+      if (!search) return true;
       return (l.installationId||'').toString().toLowerCase().includes(s)
         || (l.customerName||'').toLowerCase().includes(s)
         || (l.siteAddress||'').toLowerCase().includes(s)
@@ -1068,12 +1119,13 @@ const InstallationPage = () => {
       hasEditPermission: can('installation','edit')
     });
     
-    // Allow task update if: has edit permission OR is assigned user (technician/manager assigned to this installation)
+    // Allow task update if: has edit permission OR is assigned user OR is employee/technician
     const isAssignedUser = selected.technicianId === user?.id || 
                            selected.technicianId === user?._id ||
                            selected.assignedTo === user?.id ||
                            selected.assignedTo === user?._id;
-    const canUpdate = can('installation','edit') || isAssignedUser;
+    const isEmployeeRole = user?.role?.toLowerCase() === 'employee' || user?.role?.toLowerCase() === 'technician';
+    const canUpdate = can('installation','edit') || isAssignedUser || isEmployeeRole;
     
     console.log('[DEBUG] Permission check:', { isAssignedUser, canUpdate });
     
@@ -1274,36 +1326,10 @@ const InstallationPage = () => {
   const [bulkAssignForm, setBulkAssignForm] = useState({ department: '', technicianId: '', technicianName: '', dueDate: '' });
   const [bulkAssignDept, setBulkAssignDept] = useState('');
   
-  // Fetch pending installations for dropdown
-  const { data: pendingInstallations=[] } = useQuery({
-    queryKey: ['installations', 'pending'],
-    queryFn: async () => { 
-      try {
-        const r = await apiClient.get('/installations?status=Pending'); 
-        console.log('Installations API raw response:', r);
-        
-        // Handle different response structures
-        let instList = [];
-        if (Array.isArray(r)) {
-          instList = r;
-        } else if (r?.data) {
-          instList = r.data;
-        } else if (typeof r === 'object' && r !== null) {
-          instList = [r];
-        }
-        
-        console.log('Installations:', instList);
-        
-        // Filter only Pending installations
-        const pendingList = instList.filter(inst => inst.status === 'Pending' || inst.status === undefined);
-        return pendingList;
-      } catch(err) {
-        console.error('Installations fetch error:', err);
-        return [];
-      }
-    },
-    enabled: showAdd
-  });
+  // Get pending installations from existing logs data (no separate API call needed)
+  const pendingInstallations = useMemo(() => {
+    return logs.filter(l => l.status === 'Pending' || l.status === 'Pending Assign');
+  }, [logs]);
   
   // Fetch departments from HRM
   const { data: hrmDepartments=[] } = useQuery({
@@ -1360,23 +1386,87 @@ const InstallationPage = () => {
   const createInstallation = async () => {
     if (!can('installation','create')) return toast.error('Permission denied');
     try {
-      await apiClient.post('/installations', { ...newForm, tasks: getTasksFromSettings().map(t=>({ name: t.name, photoRequired: !!t.photoRequired, done:false })) });
+      // Find the selected pending installation to get its real IDs
+      const selectedPending = pendingInstallations.find(i => (i._id || i.id) === newForm.installationId);
+      
+      const payload = { 
+        ...newForm, 
+        // Use the actual installationId (like ILMM...) instead of the mongo _id if available
+        installationId: selectedPending?.installationId || newForm.installationId,
+        // Use the formatted projectId (like PXXXX) from the pending installation
+        projectId: selectedPending?.projectId || newForm.projectId,
+        tasks: getTasksFromSettings().map(t=>({ 
+          name: t.name, 
+          photoRequired: !!t.photoRequired, 
+          done:false 
+        })) 
+      };
+
+      await apiClient.post('/installations', payload);
       setShowAdd(false);
+      setNewForm({ department:'', technicianId:'', technicianName:'', customerName:'', site:'', scheduledDate:'', notes:'', projectId:'', installationId:'' });
       refetch();
       toast.success('Installation created');
-    } catch (err) { toast.error(err.message || 'Create failed'); }
+    } catch (err) { 
+      console.error('Create installation error:', err);
+      toast.error(err.response?.data?.message || err.message || 'Create failed'); 
+    }
   };
 
   return (
     <div className="space-y-5 animate-fade-in">
-      <PageHeader title="Installation" subtitle="Site installation logs, checklist and photos" tabs={isTechnician ? [{id:'table',label:'List',icon:List}] : [{id:'dashboard',label:'Dashboard',icon:LayoutDashboard},{id:'kanban',label:'Kanban',icon:LayoutGrid},{id:'table',label:'Table',icon:List},{id:'calendar',label:'Calendar',icon:CalendarDays}]} activeTab={view} onTabChange={setView} actions={can('installation','create') ? [{ type: 'button', label: 'Assign', icon: Plus, variant: 'primary', onClick: () => setShowAdd(true) }] : []} />
+      <PageHeader 
+        title="Installation" 
+        subtitle="Site installation logs, checklist and photos" 
+        tabs={isTechnician ? [{id:'table',label:'List',icon:List}] : [{id:'dashboard',label:'Dashboard',icon:LayoutDashboard},{id:'kanban',label:'Kanban',icon:LayoutGrid},{id:'table',label:'Table',icon:List},{id:'calendar',label:'Calendar',icon:CalendarDays}]} 
+        activeTab={view} 
+        onTabChange={setView} 
+        actions={[
+          can('installation','create') && { type: 'button', label: 'Assign', icon: Plus, variant: 'primary', onClick: () => setShowAdd(true) },
+          view !== 'dashboard' && { type: 'button', label: showCardsInViews ? 'Hide Cards' : 'Show Cards', icon: Layers, variant: 'ghost', onClick: () => setShowCardsInViews(!showCardsInViews) }
+        ].filter(Boolean)} 
+      />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KPICard label="Total Installations" value={logs.length} icon={Wrench} color="solar" />
-        <KPICard label="Active" value={active} icon={Wrench} color="amber" />
-        <KPICard label="Completed" value={completed} icon={CheckCircle} color="emerald" />
-        <KPICard label="Unassigned" value={unassigned} icon={User} color="accent" />
-      </div>
+      {/* KPI Cards - Finance module style with glass-card */}
+      {showCardsInViews && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <KPICard 
+            label="Total Installations" 
+            value={logs.length} 
+            sub="All site logs" 
+            icon={ClipboardList} 
+            variant="purple"
+            onClick={() => { setView('table'); setSearch(''); }}
+          />
+
+          <KPICard 
+            label="Active" 
+            value={active} 
+            sub="In progress" 
+            icon={Activity} 
+            variant="blue"
+            onClick={() => { setView('table'); setSearch('Active'); }}
+          />
+
+          <KPICard 
+            label="Completed" 
+            value={completed} 
+            sub="Marked done" 
+            icon={CheckCircle} 
+            variant="emerald"
+            onClick={() => { setView('table'); setSearch('Completed'); }}
+          />
+
+          <KPICard 
+            label="Unassigned" 
+            value={unassigned} 
+            sub="Pending tech" 
+            icon={User} 
+            variant="amber"
+            onClick={() => { setView('table'); setSearch('Not Assigned'); }}
+          />
+        </div>
+      )}
 
       <div className="flex items-center justify-between">
         {view !== 'table' && view !== 'dashboard' && (
@@ -1625,7 +1715,13 @@ const InstallationPage = () => {
               value={newForm.installationId}
               onChange={e=>{
                 const inst = pendingInstallations.find(i => (i._id || i.id) === e.target.value);
-                setNewForm(p=>({...p, installationId: e.target.value, customerName: inst?.customerName || '', site: inst?.site || ''}));
+                setNewForm(p=>({
+                  ...p, 
+                  installationId: inst?.installationId || e.target.value, 
+                  customerName: inst?.customerName || '', 
+                  site: inst?.site || inst?.siteAddress || '',
+                  projectId: inst?.projectId || ''
+                }));
               }}
             >
               <option value="">{pendingInstallations.length > 0 ? 'Select Pending Installation' : 'No Pending Installations'}</option>

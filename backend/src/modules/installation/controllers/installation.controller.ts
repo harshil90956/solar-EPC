@@ -157,12 +157,19 @@ export class InstallationController {
     @Body() statusDto: UpdateInstallationStatusDto,
     @Request() req: AuthenticatedRequest,
   ) {
-    // Check if user is technician - allow status update even without edit permission
+    // Check if user is technician or employee - allow status update even without edit permission
     const user = req.user as any;
-    const isTechnician = user.role?.toLowerCase() === 'technician' || 
-                         await this.installationService.isAssignedTechnician(id, user.userId);
+    const userId = user.id || user.userId;
+    const role = user.role?.toLowerCase();
     
-    if (!isTechnician && !user.can?.('installation', 'edit')) {
+    const isTechnicianOrEmployee = role === 'technician' || 
+                                   role === 'employee' ||
+                                   role === 'admin' ||
+                                   user.dataScope === 'ALL' ||
+                                   user.dataScope === 'ASSIGNED' ||
+                                   await this.installationService.isAssignedTechnician(id, userId);
+    
+    if (!isTechnicianOrEmployee && !user.can?.('installation', 'edit')) {
       throw new ForbiddenException('Permission denied');
     }
     
@@ -179,13 +186,20 @@ export class InstallationController {
     @Body() tasksDto: UpdateInstallationTasksDto,
     @Request() req: AuthenticatedRequest,
   ) {
-    // Check if user is technician - allow tasks update even without edit permission
+    // Check if user is technician or employee - allow tasks update even without edit permission
     const user = req.user as any;
     const userId = user.id || user.userId; // Support both formats
-    const isTechnician = user.role?.toLowerCase() === 'technician' || 
-                         await this.installationService.isAssignedTechnician(id, userId);
+    const role = user.role?.toLowerCase();
     
-    if (!isTechnician && !user.can?.('installation', 'edit')) {
+    const isTechnicianOrEmployee = role === 'technician' || 
+                                   role === 'employee' ||
+                                   role === 'admin' || // Explicitly allow admin
+                                   user.dataScope === 'ALL' || // Allow if has broad data scope
+                                   user.dataScope === 'ASSIGNED' ||
+                                   await this.installationService.isAssignedTechnician(id, userId);
+    
+    // Fallback: If not explicitly allowed above, check broad permission
+    if (!isTechnicianOrEmployee && !user.can?.('installation', 'edit')) {
       throw new ForbiddenException('Permission denied');
     }
     
