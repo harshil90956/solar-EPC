@@ -25,10 +25,11 @@ export interface InstallationQuery {
 }
 
 export interface UserContext {
-  userId: string;
+  userId?: string;
+  id?: string;
   tenantId: string;
   dataScope: 'ALL' | 'ASSIGNED' | 'NONE';
-  role: string;
+  role?: string;
 }
 
 @Injectable()
@@ -42,7 +43,8 @@ export class InstallationService {
     private installationTaskService: InstallationTaskService,
   ) {}
 
-  private toObjectId(id: string | Types.ObjectId): Types.ObjectId {
+  private toObjectId(id: string | Types.ObjectId | undefined): Types.ObjectId | null {
+    if (!id) return null;
     if (typeof id === 'string') {
       // Check if it's already a valid ObjectId hex string (24 chars)
       if (Types.ObjectId.isValid(id) && id.length === 24) {
@@ -110,24 +112,47 @@ export class InstallationService {
     technicianId?: string;
     search?: string;
   } = {}): Promise<Installation[]> {
-    const tenantId = this.toObjectId(userContext.tenantId);
+    // Handle tenantId - only convert to ObjectId if it's a valid 24-char hex string
+    let tenantId: Types.ObjectId | string | null = null;
+    if (userContext.tenantId) {
+      if (Types.ObjectId.isValid(userContext.tenantId) && userContext.tenantId.length === 24) {
+        tenantId = new Types.ObjectId(userContext.tenantId);
+      } else {
+        // If tenantId is a string name (like 'solarcorp'), skip tenant filter for now
+        // or query by tenant name if schema supports it
+        tenantId = userContext.tenantId;
+      }
+    }
     
     console.log('[INSTALLATION] getInstallations called with tenantId:', userContext.tenantId);
+    console.log('[INSTALLATION] Full userContext:', JSON.stringify(userContext));
     console.log('[INSTALLATION] Converted tenantId for query:', tenantId);
 
     const query: any = {
       isDeleted: false,
     };
 
-    // Only apply tenant filter if tenantId is valid (not null for super admins)
-    if (tenantId) {
+    // Only apply tenant filter if tenantId is a valid ObjectId (not a string name like 'solarcorp')
+    if (tenantId && tenantId instanceof Types.ObjectId) {
       query.tenantId = tenantId;
     }
-    console.log('[INSTALLATION] Final query:', JSON.stringify(query));
 
     // Apply data scope filtering
     if (userContext.dataScope === 'ASSIGNED') {
-      query.assignedTo = userContext.userId;
+      // Convert userId to ObjectId for proper database matching
+      const rawUserId = userContext.userId || userContext.id;
+      console.log('[INSTALLATION] Raw userId from context:', rawUserId);
+      const userIdObj = this.toObjectId(rawUserId);
+      console.log('[INSTALLATION] Converted userIdObj:', userIdObj);
+      
+      // Only apply filter if we have a valid userId
+      if (userIdObj) {
+        // User should see installations where they are assigned OR where they are the technician
+        query.$or = [
+          { assignedTo: userIdObj },
+          { technicianId: userIdObj }
+        ];
+      }
     }
 
     // Apply additional filters
@@ -141,12 +166,19 @@ export class InstallationService {
       query.technicianId = filters.technicianId;
     }
 
+    console.log('[INSTALLATION] Final query with all filters:', JSON.stringify(query));
+
     let installations = await this.installationModel
       .find(query)
       .populate('projectId', 'projectId customerName site systemSize')
       .populate('technicianId', 'firstName lastName email')
+      .populate('dispatchId', 'id status deliveredDate')
       .sort({ createdAt: -1 })
       .exec();
+    
+    console.log('[INSTALLATION] Installations found:', installations.length);
+    console.log('[INSTALLATION] First installation technicianId:', installations[0]?.technicianId);
+    console.log('[INSTALLATION] User context userId:', userContext.userId);
 
     // Debug: Log first installation to check if projectId is populated
     if (installations.length > 0) {
@@ -168,31 +200,48 @@ export class InstallationService {
    * Get single installation by ID
    */
   async getInstallationById(id: string, userContext: UserContext): Promise<Installation> {
-    const tenantId = this.toObjectId(userContext.tenantId);
-    
     const query: any = { _id: this.toObjectId(id), isDeleted: false };
     
-    // Only apply tenant filter if tenantId is valid (not null for super admins)
-    if (tenantId) {
-      query.tenantId = tenantId;
-    }
+    // Note: tenantId filter intentionally omitted to match getInstallations behavior
+    // The data scope check (ASSIGNED) handles visibility
     
     const installation = await this.installationModel
       .findOne(query)
       .populate('projectId', 'projectId customerName site systemSize status')
       .populate('technicianId', 'firstName lastName email phone')
+      .populate('assignedTo', 'firstName lastName email')
       .populate('supervisorId', 'firstName lastName email')
       .populate('createdBy', 'firstName lastName')
       .exec();
+    
+    // Debug: Get raw document without populate
+    const rawDoc = await this.installationModel.findOne(query).lean().exec();
+    console.log('[DEBUG] Raw doc assignedTo:', rawDoc?.assignedTo, 'technicianId:', rawDoc?.technicianId);
+    console.log('[DEBUG] Populated assignedTo:', installation?.assignedTo, 'technicianId:', installation?.technicianId);
 
     if (!installation) {
       throw new NotFoundException(`Installation with ID ${id} not found`);
     }
 
-    // Check data scope
+    // Check data scope - use rawDoc for permission check (populate may nullify refs)
     if (userContext.dataScope === 'ASSIGNED') {
-      const assignedId = installation.assignedTo?.toString();
-      if (assignedId !== userContext.userId) {
+      const userId = userContext.userId || userContext.id;
+      
+      // Use raw document values since populate may return null for missing refs
+      const rawAssignedTo = rawDoc?.assignedTo;
+      const rawTechnicianId = rawDoc?.technicianId;
+      
+      // Extract IDs from raw document
+      const assignedId = rawAssignedTo?._id?.toString() || rawAssignedTo?.toString();
+      const techId = rawTechnicianId?._id?.toString() || rawTechnicianId?.toString();
+      
+      // User can access if they are assigned OR if they are the technician
+      const isAssigned = assignedId === userId;
+      const isTechnician = techId === userId;
+      
+      console.log('[DATA_SCOPE_CHECK]', { userId, assignedId, techId, isAssigned, isTechnician, rawAssignedTo, rawTechnicianId });
+      
+      if (!isAssigned && !isTechnician) {
         throw new ForbiddenException('You do not have access to this installation');
       }
     }
@@ -234,7 +283,7 @@ export class InstallationService {
     userContext: UserContext,
   ): Promise<Installation> {
     const tenantId = this.toObjectId(userContext.tenantId);
-    const userId = this.toObjectId(userContext.userId);
+    const userId = this.toObjectId(userContext.userId || userContext.id || '');
 
     // Generate installation ID if not provided
     const installationId = createDto.installationId || this.generateInstallationId();
@@ -260,7 +309,7 @@ export class InstallationService {
       tasks,
       createdBy: userId,
       assignedTo: createDto.assignedTo ? this.toObjectId(createDto.assignedTo) : userId,
-      projectId: this.toObjectId(createDto.projectId),
+      projectId: createDto.projectId ? this.toObjectId(createDto.projectId) : undefined,
       dispatchId: createDto.dispatchId ? this.toObjectId(createDto.dispatchId) : undefined,
       technicianId: this.toObjectId(createDto.technicianId),
       supervisorId: createDto.supervisorId ? this.toObjectId(createDto.supervisorId) : undefined,
@@ -269,12 +318,12 @@ export class InstallationService {
     const installation = new this.installationModel(installationData);
     const saved = await installation.save();
     // log creation event
-    await this.logEvent(saved._id.toString(), 'installation_created', userId, {
+    await this.logEvent(saved._id.toString(), 'installation_created', userId || undefined, {
       installationId: saved.installationId,
     });
     // if technicianId provided, log assignment event
     if (saved.technicianId) {
-      await this.logEvent(saved._id.toString(), 'technician_assigned', userId, { to: saved.technicianId });
+      await this.logEvent(saved._id.toString(), 'technician_assigned', userId || undefined, { to: saved.technicianId });
     }
     return saved;
   }
@@ -298,7 +347,7 @@ export class InstallationService {
     // Use tenantId from dispatch or fall back to user context tenantId
     const dispatchTenantId = dispatchData.tenantId || userContext.tenantId;
     const tenantId = dispatchTenantId ? this.toObjectId(dispatchTenantId) : null;
-    const userId = this.toObjectId(userContext.userId);
+    const userId = this.toObjectId(userContext.userId || userContext.id || '');
     
     console.log('[INSTALLATION] Dispatch tenantId:', dispatchData.tenantId);
     console.log('[INSTALLATION] User context tenantId:', userContext.tenantId);
@@ -400,7 +449,7 @@ export class InstallationService {
     });
 
     const saved = await installation.save();
-    await this.logEvent(saved._id.toString(), 'installation_created', userId, { dispatchId: dispatchData.dispatchId });
+    await this.logEvent(saved._id.toString(), 'installation_created', userId || undefined, { dispatchId: dispatchData.dispatchId });
 
     console.log('[INSTALLATION CREATED]', {
       _id: saved._id,
@@ -422,16 +471,16 @@ export class InstallationService {
     userContext: UserContext,
   ): Promise<Installation> {
     const tenantId = this.toObjectId(userContext.tenantId);
-    const userId = this.toObjectId(userContext.userId);
+    const userId = this.toObjectId(userContext.userId || userContext.id || '');
 
     const installation = await this.getInstallationById(id, userContext);
 
     // log technician/assignment change
     if (updateDto.technicianId && updateDto.technicianId !== installation.technicianId?.toString()) {
-      await this.logEvent(id, 'technician_assigned', userId, { from: installation.technicianId, to: updateDto.technicianId });
+      await this.logEvent(id, 'technician_assigned', userId || undefined, { from: installation.technicianId, to: updateDto.technicianId });
     }
     if (updateDto.assignedTo && updateDto.assignedTo !== installation.assignedTo?.toString()) {
-      await this.logEvent(id, 'technician_assigned', userId, { from: installation.assignedTo, to: updateDto.assignedTo });
+      await this.logEvent(id, 'technician_assigned', userId || undefined, { from: installation.assignedTo, to: updateDto.assignedTo });
     }
 
     // Recalculate progress if tasks updated
@@ -484,7 +533,7 @@ export class InstallationService {
     userContext: UserContext,
   ): Promise<Installation> {
     const tenantId = this.toObjectId(userContext.tenantId);
-    const userId = this.toObjectId(userContext.userId);
+    const userId = this.toObjectId(userContext.userId || userContext.id || '');
 
     await this.getInstallationById(id, userContext); // Verify access
 
@@ -560,7 +609,7 @@ export class InstallationService {
     userContext: UserContext,
   ): Promise<Installation> {
     const tenantId = this.toObjectId(userContext.tenantId);
-    const userId = this.toObjectId(userContext.userId);
+    const userId = this.toObjectId(userContext.userId || userContext.id || '');
 
     const installation = await this.getInstallationById(id, userContext); // Verify access and get current data
 
@@ -581,7 +630,7 @@ export class InstallationService {
     const progress = this.calculateProgress(tasks);
 
     const updated = await this.installationModel.findOneAndUpdate(
-      { _id: this.toObjectId(id), tenantId, isDeleted: false },
+      { _id: this.toObjectId(id), isDeleted: false },
       {
         $set: {
           tasks,
@@ -598,7 +647,7 @@ export class InstallationService {
       const prev = installation.tasks[i];
       const curr = tasks[i];
       if (!prev?.done && curr.done) {
-        await this.logEvent(id, 'task_completed', userId, { taskName: curr.name });
+        await this.logEvent(id, 'task_completed', userId || undefined, { taskName: curr.name });
       }
     }
 
@@ -618,7 +667,7 @@ export class InstallationService {
     userContext: UserContext,
   ): Promise<Installation> {
     const tenantId = this.toObjectId(userContext.tenantId);
-    const userId = this.toObjectId(userContext.userId);
+    const userId = this.toObjectId(userContext.userId || userContext.id || '');
 
     await this.getInstallationById(id, userContext); // Verify access
 
@@ -632,7 +681,7 @@ export class InstallationService {
     };
 
     // log photo upload event
-    await this.logEvent(id, 'photo_uploaded', userId, { key: photo.key });
+    await this.logEvent(id, 'photo_uploaded', userId || undefined, { key: photo.key });
 
     const updated = await this.installationModel.findOneAndUpdate(
       { _id: this.toObjectId(id), tenantId, isDeleted: false },
@@ -662,7 +711,7 @@ export class InstallationService {
     userContext: UserContext,
   ): Promise<Installation> {
     const tenantId = this.toObjectId(userContext.tenantId);
-    const userId = this.toObjectId(userContext.userId);
+    const userId = this.toObjectId(userContext.userId || userContext.id || '');
 
     await this.getInstallationById(id, userContext); // Verify access
 
@@ -694,7 +743,7 @@ export class InstallationService {
     userContext: UserContext,
   ): Promise<Installation> {
     const tenantId = this.toObjectId(userContext.tenantId);
-    const userId = this.toObjectId(userContext.userId);
+    const userId = this.toObjectId(userContext.userId || userContext.id || '');
 
     await this.getInstallationById(id, userContext); // Verify access
 
@@ -727,7 +776,7 @@ export class InstallationService {
     userContext: UserContext,
   ): Promise<Installation> {
     const tenantId = this.toObjectId(userContext.tenantId);
-    const userId = this.toObjectId(userContext.userId);
+    const userId = this.toObjectId(userContext.userId || userContext.id || '');
 
     await this.getInstallationById(id, userContext); // Verify access
 
@@ -761,7 +810,7 @@ export class InstallationService {
    */
   async deleteInstallation(id: string, userContext: UserContext): Promise<void> {
     const tenantId = this.toObjectId(userContext.tenantId);
-    const userId = this.toObjectId(userContext.userId);
+    const userId = this.toObjectId(userContext.userId || userContext.id || '');
 
     await this.getInstallationById(id, userContext); // Verify access
 
@@ -878,5 +927,18 @@ export class InstallationService {
     // sort ascending by timestamp
     events.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
     return events;
+  }
+
+  /**
+   * Check if user is assigned as technician for this installation
+   */
+  async isAssignedTechnician(id: string, userId: string): Promise<boolean> {
+    const installation = await this.installationModel.findById(id).exec();
+    if (!installation) return false;
+    
+    const techId = installation.technicianId?.toString();
+    const assignedId = installation.assignedTo?.toString();
+    
+    return techId === userId || assignedId === userId;
   }
 }

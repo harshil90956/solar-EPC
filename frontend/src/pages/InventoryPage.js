@@ -732,7 +732,8 @@ const InventoryPage = () => {
         status: 'In Stock',
       }, { headers: { 'x-tenant-id': TENANT_ID } });
 
-      const itemData = response.data || response;
+      const createdItem = response;
+      const itemData = createdItem.data || createdItem;
       const newItem = {
         ...itemData,
         _id: itemData._id || itemData.id,

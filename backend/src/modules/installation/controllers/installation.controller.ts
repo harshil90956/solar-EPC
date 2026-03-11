@@ -9,6 +9,7 @@ import {
   Query,
   UseGuards,
   Request,
+  ForbiddenException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
@@ -40,11 +41,13 @@ export class InstallationController {
   constructor(private readonly installationService: InstallationService) {}
 
   private getUserContext(req: AuthenticatedRequest): UserContext {
+    const user = req.user as any;
     return {
-      userId: req.user.userId,
-      tenantId: req.user.tenantId,
-      dataScope: req.user.dataScope,
-      role: req.user.role,
+      userId: user.userId,
+      id: user.id,
+      tenantId: user.tenantId,
+      dataScope: user.dataScope,
+      role: user.role,
     };
   }
 
@@ -128,27 +131,45 @@ export class InstallationController {
 
   /**
    * Update installation status
+   * Technicians can update status even without edit permission
    */
   @Patch(':id/status')
-  @RequirePermission('installation', 'edit')
   async updateStatus(
     @Param('id') id: string,
     @Body() statusDto: UpdateInstallationStatusDto,
     @Request() req: AuthenticatedRequest,
   ) {
+    // Check if user is technician - allow status update even without edit permission
+    const user = req.user as any;
+    const isTechnician = user.role?.toLowerCase() === 'technician' || 
+                         await this.installationService.isAssignedTechnician(id, user.userId);
+    
+    if (!isTechnician && !user.can?.('installation', 'edit')) {
+      throw new ForbiddenException('Permission denied');
+    }
+    
     return this.installationService.updateStatus(id, statusDto, this.getUserContext(req));
   }
 
   /**
    * Update installation tasks
+   * Technicians can update tasks even without edit permission
    */
   @Patch(':id/tasks')
-  @RequirePermission('installation', 'edit')
   async updateTasks(
     @Param('id') id: string,
     @Body() tasksDto: UpdateInstallationTasksDto,
     @Request() req: AuthenticatedRequest,
   ) {
+    // Check if user is technician - allow tasks update even without edit permission
+    const user = req.user as any;
+    const isTechnician = user.role?.toLowerCase() === 'technician' || 
+                         await this.installationService.isAssignedTechnician(id, user.userId);
+    
+    if (!isTechnician && !user.can?.('installation', 'edit')) {
+      throw new ForbiddenException('Permission denied');
+    }
+    
     return this.installationService.updateTasks(id, tasksDto, this.getUserContext(req));
   }
 
