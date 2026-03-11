@@ -34,10 +34,10 @@ const getStockStatus = (item) => {
     return statusMap[item.status] || item.status;
   }
   // Otherwise calculate from stock values
-  // Priority: Reserved > Out of Stock > Low Stock > In Stock
-  if (item.reserved > 0) return 'reserved';
+  // Priority: Out of Stock > Low Stock > Reserved > Available
   if (item.available === 0) return 'out-of-stock';
   if (item.available <= item.minStock) return 'low-stock';
+  if (item.reserved > 0) return 'reserved';
   return 'available';
 };
 
@@ -792,27 +792,30 @@ const InventoryPage = () => {
     }
   };
 
-  // Fetch reservations when selected item changes
+  // Fetch reservations when viewing item details
   useEffect(() => {
-    if (selected?.itemId) {
-      console.log('Selected item for reservations:', selected);
-      fetchItemReservations(selected.itemId);
-    } else {
-      setItemReservations([]);
+    if (selected?._id) {
+      console.log('[FRONTEND] Selected item for reservation fetch:', selected);
+      console.log('[FRONTEND] itemId:', selected.itemId, '_id:', selected._id);
+      // Try both _id and itemId
+      const itemIdToFetch = selected.itemId || selected._id;
+      fetchItemReservations(itemIdToFetch);
     }
   }, [selected?._id, selected?.itemId]);
 
   const fetchItemReservations = async (itemId) => {
     setLoadingReservations(true);
     try {
-      console.log('Fetching reservations for itemId:', itemId);
+      console.log('[FRONTEND] Fetching reservations for itemId:', itemId);
+      console.log('[FRONTEND] TENANT_ID:', TENANT_ID);
       const data = await api.get(`/inventory/reservations/by-item/${itemId}`);
-      console.log('Raw API response:', data);
+      console.log('[FRONTEND] Raw API response:', data);
       const reservations = data.data || data || [];
-      console.log('Processed reservations:', reservations);
+      console.log('[FRONTEND] Processed reservations:', reservations);
+      console.log('[FRONTEND] Number of reservations:', reservations.length);
       setItemReservations(reservations);
     } catch (err) {
-      console.error('Error fetching reservations:', err);
+      console.error('[FRONTEND] Error fetching reservations:', err);
       setItemReservations([]);
     } finally {
       setLoadingReservations(false);
@@ -2645,19 +2648,19 @@ const InventoryPage = () => {
                   let projectName = 'Unknown Project';
                   let isDeleted = false;
 
-                  if (projectFromRes?.customerName || projectFromRes?.name) {
+                  // First priority: Look up in projects array (most current data)
+                  if (projectFromList?.customerName || projectFromList?.name) {
+                    projectName = projectFromList.customerName || projectFromList.name;
+                    isDeleted = projectFromList.deleted || projectFromList.isDeleted;
+                  } else if (projectFromRes?.customerName || projectFromRes?.name) {
                     // Project info embedded in reservation
                     projectName = projectFromRes.customerName || projectFromRes.name;
                     isDeleted = projectFromRes.deleted || projectFromRes.isDeleted;
                   } else if (projectNameFromRes) {
-                    // Project name stored in reservation
+                    // Project name stored directly in reservation
                     projectName = projectNameFromRes;
                     // Mark as deleted if project not found in active projects list
-                    isDeleted = !projectFromList;
-                  } else if (projectFromList?.customerName || projectFromList?.name) {
-                    // Project found in active list
-                    projectName = projectFromList.customerName || projectFromList.name;
-                    isDeleted = projectFromList.deleted || projectFromList.isDeleted;
+                    isDeleted = true;
                   } else {
                     // Project not found anywhere - show ID as unknown but mark deleted
                     projectName = res.projectId || 'Unknown Project';

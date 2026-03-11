@@ -315,39 +315,37 @@ export class InventoryService {
 
 
   async getReservationsByItem(tenantCode: string, itemId: string) {
+    console.log(`[getReservationsByItem] Fetching for itemId: ${itemId}, tenantCode: ${tenantCode}`);
 
-    // Use native MongoDB driver to bypass mongoose schema casting
+    const tenantId = await this.getTenantId(tenantCode);
+    console.log(`[getReservationsByItem] Resolved tenantId:`, tenantId);
 
-    const collection = this.reservationModel.db.collection('reservations');
-
-    
-
-    return collection
-
-      .find({
-
-        $and: [
-
-          { itemId },
-
-          { $or: [
-
-            { tenantId: tenantCode },  // String format (old)
-
-            { tenantId: { $type: 'objectId' } }  // Will match if converted
-
-          ]},
-
-          { status: { $in: ['active', 'fulfilled', 'Reserved'] } }
-
+    // TEMPORARY: Return ALL reservations for this tenant to debug manual reservations
+    const allReservations = await this.reservationModel
+      .find({ 
+        $or: [
+          { tenantId: tenantCode },  // String format
+          { tenantId: tenantId }     // ObjectId format
         ]
-
+        // NO status filter - see ALL reservations
       })
-
       .sort({ reservedDate: -1 })
-
-      .toArray();
-
+      .exec();
+    
+    console.log(`[getReservationsByItem] Found ${allReservations.length} total reservations:`, JSON.stringify(allReservations.map(r => ({ projectId: r.projectId, itemId: r.itemId, qty: r.quantity, status: r.status }))));
+    
+    // Filter by itemId in memory for now
+    const searchItemIds = [itemId];
+    if (itemId.startsWith('INV')) {
+      searchItemIds.push(itemId.replace(/^INV/, ''));
+    } else {
+      searchItemIds.push('INV' + itemId);
+    }
+    
+    const filtered = allReservations.filter(r => searchItemIds.includes(r.itemId));
+    console.log(`[getReservationsByItem] Filtered to ${filtered.length} reservations for itemId ${itemId}`);
+    
+    return filtered;
   }
 
 
