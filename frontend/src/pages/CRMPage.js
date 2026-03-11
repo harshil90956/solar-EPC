@@ -736,6 +736,7 @@ const CRMPage = () => {
   const [error, setError] = useState(null);
   const [totalLeads, setTotalLeads] = useState(0);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [selected, setSelected] = useState(new Set());
@@ -749,6 +750,8 @@ const CRMPage = () => {
   const [trackerLeadId, setTrackerLeadId] = useState(null);
   const [timelineData, setTimelineData] = useState([]);
   const [activityData, setActivityData] = useState([]);
+
+  const editingLeadOriginalRef = useRef(null);
 
   // Lead Assignment Modal State
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -1019,8 +1022,26 @@ const CRMPage = () => {
       const params = {
         page,
         limit: pageSize,
-        search,
+        search: debouncedSearch,
       };
+
+      // Wire existing UI filters to backend where supported (single-value)
+      if (Array.isArray(filterStages) && filterStages.length === 1) {
+        params.statusKey = filterStages[0];
+      }
+      if (Array.isArray(filterSources) && filterSources.length === 1) {
+        params.source = filterSources[0];
+      }
+      if (Array.isArray(filterScoreRanges) && filterScoreRanges.length === 1) {
+        const r = filterScoreRanges[0];
+        if (r?.min !== '' && r?.min !== undefined) params.minScore = r.min;
+        if (r?.max !== '' && r?.max !== undefined) params.maxScore = r.max;
+      }
+      if (Array.isArray(filterValueRanges) && filterValueRanges.length === 1) {
+        const r = filterValueRanges[0];
+        if (r?.min !== '' && r?.min !== undefined) params.minValue = r.min;
+        if (r?.max !== '' && r?.max !== undefined && r?.max !== '∞') params.maxValue = r.max;
+      }
 
       // Add date range filter
       const { startDate, endDate } = getDateRangeFromPreset(dateRangeFilter.type);
@@ -1039,10 +1060,19 @@ const CRMPage = () => {
         params.quickFilter = quickFilter;
       }
       const result = await leadsApi.getAll(params);
-      // Handle nested response structure: { success: true, data: { data: [], total: 0 } }
-      const leadsData = result.data?.data || result.data || [];
+
+      // Backend returns: { success, data: [], total, page, pages }
+      const leadsData = Array.isArray(result?.data) ? result.data : (result?.data?.data || result?.data || []);
       console.log('[DEBUG] Raw leads from API:', leadsData.slice(0, 3).map(l => ({ name: l.name, status: l.status, statusKey: l.statusKey })));
-      const totalCount = result.data?.total || result.total || 0;
+      const totalCount = Number(result?.total || result?.data?.total || 0);
+      const currentPage = Number(result?.page || page || 1);
+      const totalPages = Number(result?.pages || 1);
+
+      if (currentPage > totalPages && totalPages > 0) {
+        setPage(totalPages);
+        return;
+      }
+
       setActiveLeads(leadsData);
       setTotalLeads(totalCount);
       setError(null);
@@ -1052,11 +1082,19 @@ const CRMPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, search, sort.key, sort.dir, quickFilter, dateRangeFilter.type, getDateRangeFromPreset]);
+  }, [page, pageSize, debouncedSearch, sort.key, sort.dir, quickFilter, dateRangeFilter.type, getDateRangeFromPreset, filterStages, filterSources, filterScoreRanges, filterValueRanges]);
 
   useEffect(() => {
     fetchLeads();
   }, [fetchLeads]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   // Row Actions with real API calls
   const handleViewLead = (lead) => {
@@ -1069,6 +1107,7 @@ const CRMPage = () => {
   };
 
   const handleEditLead = (lead) => {
+    editingLeadOriginalRef.current = lead;
     setEditingLead(lead);
     setShowEditModal(true);
   };
@@ -1078,8 +1117,10 @@ const CRMPage = () => {
     try {
       setActionLoading(true);
 
+      const originalAssignedTo = (editingLeadOriginalRef.current || {})?.assignedTo;
+
       // Handle lead assignment if changed
-      if (editingLead.assignedTo && editingLead.assignedTo !== selectedLead?.assignedTo) {
+      if (editingLead.assignedTo && editingLead.assignedTo !== originalAssignedTo) {
         await leadsApi.assignLead(editingLead._id, editingLead.assignedTo);
       }
 
@@ -1103,11 +1144,11 @@ const CRMPage = () => {
       // If detail modal is open, refresh it
       if (selectedLead && selectedLead._id === editingLead._id) {
         const updated = await leadsApi.getById(editingLead._id);
-        setSelectedLead(updated.data || updated);
+        setSelectedLead(updated?.data?.data || updated?.data || updated);
       }
     } catch (err) {
       console.error('Failed to update lead:', err);
-      // Alert removed as per user request - no alerts on lead pages
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to update lead');
     } finally {
       setActionLoading(false);
     }
@@ -1117,7 +1158,7 @@ const CRMPage = () => {
     try {
       setActionLoading(true);
       const duplicated = await leadsApi.duplicate(lead._id);
-      logCreate(duplicated.data || duplicated);
+      logCreate(duplicated?.data?.data || duplicated?.data || duplicated);
       fetchLeads(); // Refresh list
     } catch (err) {
       console.error('Failed to duplicate lead:', err);
@@ -1148,6 +1189,8 @@ const CRMPage = () => {
       await leadsApi.delete(lead._id);
       logDelete(lead);
       toast.success(`Lead "${lead.name}" deleted successfully`);
+      setActiveLeads((prev) => (Array.isArray(prev) ? prev.filter((l) => l?._id !== lead._id) : prev));
+      setTotalLeads((prev) => Math.max(0, Number(prev || 0) - 1));
       fetchLeads(); // Refresh list
       if (selectedLead && selectedLead._id === lead._id) {
         setSelectedLead(null); // Close detail modal
@@ -1203,7 +1246,7 @@ const CRMPage = () => {
       setActionLoading(true);
 
       // Update lead stage to 'survey'
-      await leadsApi.update(lead._id || lead.id, { stage: 'survey' });
+      await leadsApi.updateStage(lead._id || lead.id, 'survey');
 
       // Create a pending survey for this lead
       const surveyData = {
@@ -1317,6 +1360,8 @@ const CRMPage = () => {
       await leadsApi.bulkDelete(selectedIds);
       logDelete({ ids: selectedIds });
       toast.success(`${selectedIds.length} leads deleted successfully`);
+      setActiveLeads((prev) => (Array.isArray(prev) ? prev.filter((l) => !selectedIds.includes(l?._id)) : prev));
+      setTotalLeads((prev) => Math.max(0, Number(prev || 0) - Number(selectedIds?.length || 0)));
       fetchLeads();
       setSelected(new Set());
     } catch (err) {
@@ -1715,20 +1760,8 @@ const CRMPage = () => {
       );
     }
 
-    // Search filter
-    if (search) {
-      const searchLower = search.toLowerCase();
-      result = result.filter(lead =>
-        lead.name?.toLowerCase().includes(searchLower) ||
-        lead.email?.toLowerCase().includes(searchLower) ||
-        lead.company?.toLowerCase().includes(searchLower) ||
-        lead.phone?.includes(search) ||
-        lead.source?.toLowerCase().includes(searchLower)
-      );
-    }
-
     return result;
-  }, [enhancedLeads, quickFilter, filterStages, filterScoreRanges, filterValueRanges, filterSources, search]);
+  }, [enhancedLeads, quickFilter, filterStages, filterScoreRanges, filterValueRanges, filterSources]);
 
   // Sort handler for DataTable
   const handleSort = useCallback(({ key, dir }) => {
@@ -1801,27 +1834,10 @@ const CRMPage = () => {
     setPage(1);
   };
   const sortedLeads = useMemo(() => {
-    if (!sort.key) return filteredLeads;
-
-    return [...filteredLeads].sort((a, b) => {
-      let aVal = a[sort.key];
-      let bVal = b[sort.key];
-
-      // Handle null/undefined values
-      if (aVal == null) aVal = '';
-      if (bVal == null) bVal = '';
-
-      // String comparison
-      if (typeof aVal === 'string') {
-        aVal = aVal.toLowerCase();
-        bVal = bVal.toLowerCase();
-      }
-
-      if (aVal < bVal) return sort.dir === 'asc' ? -1 : 1;
-      if (aVal > bVal) return sort.dir === 'asc' ? 1 : -1;
-      return 0;
-    });
-  }, [filteredLeads, sort]);
+    // Sorting is handled by backend via `fetchLeads` params.
+    // Keep local list order as received.
+    return filteredLeads;
+  }, [filteredLeads]);
 
   const columns = useMemo(() => {
     const allColumns = [
@@ -1906,16 +1922,17 @@ const CRMPage = () => {
 
       // Use backend API for import
       const result = await leadsApi.importLeads(file);
-      const { inserted, updated, failed, errors } = result.data || result;
+      const payload = result?.data?.data || result?.data || result;
+      const { inserted, updated, failed, errors } = payload || {};
       
       // Log import activity
-      logCreate({ id: 'import', name: `Imported ${inserted} leads from ${file.name}` });
+      logCreate({ id: 'import', name: `Imported ${inserted || 0} leads from ${file.name}` });
       
       // Show result
-      if (failed === 0) {
-        toast.success(`${inserted} leads imported, ${updated} updated successfully`, { id: 'import' });
+      if ((failed || 0) === 0) {
+        toast.success(`${inserted || 0} leads imported, ${updated || 0} updated successfully`, { id: 'import' });
       } else {
-        toast.success(`${inserted} imported, ${updated} updated, ${failed} failed`, { id: 'import' });
+        toast.success(`${inserted || 0} imported, ${updated || 0} updated, ${failed || 0} failed`, { id: 'import' });
         if (errors && errors.length > 0) {
           console.error('Import errors:', errors);
         }
@@ -2570,7 +2587,7 @@ const CRMPage = () => {
               {/* Results Count */}
               <div className="flex justify-end pt-2 mt-2 border-t border-[var(--border-base)]">
                 <span className="text-[10px] text-[var(--text-muted)]">
-                  {filteredLeads.length} leads found
+                  {totalLeads} leads found
                 </span>
               </div>
             </div>
@@ -2579,7 +2596,7 @@ const CRMPage = () => {
             columns={columns}
             data={sortedLeads}
             rowKey="_id"
-            total={sortedLeads.length}
+            total={totalLeads}
             page={page}
             pageSize={pageSize}
             onPageChange={setPage}
@@ -2631,38 +2648,10 @@ const CRMPage = () => {
             onSelectRows={setSelected}
             bulkActions={[
               ...(can('crm', 'export') ? [{
-                label: 'Export', icon: Download, onClick: (selectedIds) => {
-                  if (guardExport()) {
-                    const selectedIdSet = new Set(selectedIds.map(id => String(id)));
-                    const dataToExport = selectedIds.length > 0
-                      ? sortedLeads.filter(lead => selectedIdSet.has(String(lead._id)))
-                      : sortedLeads;
-                    const headers = ['Name', 'Company', 'Email', 'Phone', 'Stage', 'Source', 'Value', 'Score', 'City'];
-                    const csvContent = [
-                      headers.join(','),
-                      ...dataToExport.map(lead => [
-                        `"${lead.name || ''}"`,
-                        `"${lead.company || ''}"`,
-                        `"${lead.email || ''}"`,
-                        `"${lead.phone || ''}"`,
-                        `"${statusMap?.[lead.statusKey]?.label || lead.statusKey || ''}"`,
-                        `"${lead.source || ''}"`,
-                        lead.value || 0,
-                        lead.score || 0,
-                        `"${lead.city || ''}"`
-                      ].join(','))
-                    ].join('\n');
-
-                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                    const link = document.createElement('a');
-                    const url = URL.createObjectURL(blob);
-                    link.setAttribute('href', url);
-                    link.setAttribute('download', `leads_export_${new Date().toISOString().split('T')[0]}.csv`);
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    alert(`Exported ${dataToExport.length} leads to CSV!`);
-                  }
+                label: 'Export',
+                icon: Download,
+                onClick: (selectedIds) => {
+                  if (guardExport()) handleBulkExport(selectedIds);
                 }
               }] : []),
               ...(can('crm', 'edit') ? [{ label: 'Score Boost', icon: Brain, onClick: (selectedIds) => { if (guardEdit()) handleOpenScoreBoostModal(selectedIds); } }] : []),
@@ -3100,52 +3089,6 @@ const CRMPage = () => {
             </div>
           </div>
         </>
-      )}
-
-      {/* SCORE EDIT MODAL */}
-      {showScoreEditModal && scoreEditingLead && (
-        <Modal
-          open={showScoreEditModal}
-          onClose={() => { setShowScoreEditModal(false); setScoreEditingLead(null); }}
-          title={`Edit Score — ${scoreEditingLead.name}`}
-          footer={
-            <div className="flex gap-2 justify-end">
-              <Button variant="ghost" onClick={() => { setShowScoreEditModal(false); setScoreEditingLead(null); }}>Cancel</Button>
-              <Button onClick={handleSaveScore} disabled={actionLoading}>
-                {actionLoading ? 'Saving...' : 'Update Score'}
-              </Button>
-            </div>
-          }
-        >
-          <div className="space-y-4">
-            <div className="flex items-center gap-3 p-4 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)]">
-              <div className="w-12 h-12 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center font-bold text-lg">
-                {scoreEditingLead.name[0]}
-              </div>
-              <div>
-                <p className="font-semibold text-[var(--text-primary)]">{scoreEditingLead.name}</p>
-                <p className="text-xs text-[var(--text-muted)]">{scoreEditingLead.company || 'Individual'}</p>
-              </div>
-            </div>
-            <FormField label="Score (0-100)">
-              <Input
-                type="number"
-                min="0"
-                max="100"
-                value={newScore}
-                onChange={(e) => setNewScore(e.target.value)}
-                placeholder="Enter score between 0 and 100"
-              />
-            </FormField>
-            <div className="flex gap-2">
-              <Button variant="secondary" size="sm" onClick={() => setNewScore('0')}>0</Button>
-              <Button variant="secondary" size="sm" onClick={() => setNewScore('25')}>25</Button>
-              <Button variant="secondary" size="sm" onClick={() => setNewScore('50')}>50</Button>
-              <Button variant="secondary" size="sm" onClick={() => setNewScore('75')}>75</Button>
-              <Button variant="secondary" size="sm" onClick={() => setNewScore('100')}>100</Button>
-            </div>
-          </div>
-        </Modal>
       )}
 
       {/* SCORE EDIT MODAL */}

@@ -99,7 +99,7 @@ export const leadsApi = {
 
   // Bulk delete leads - DELETE /api/v1/leads/bulk
   async bulkDelete(ids) {
-    return api.delete('/leads/bulk', { data: { leadIds: ids } });
+    return api.post('/leads/bulk/delete', { leadIds: ids });
   },
 
   // Bulk update stage
