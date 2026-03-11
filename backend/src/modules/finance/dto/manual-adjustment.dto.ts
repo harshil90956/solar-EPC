@@ -25,4 +25,8 @@ export class CreateManualAdjustmentDto {
 
   @IsDateString()
   date!: string;
+
+  @IsOptional()
+  @IsString()
+  tenantId?: string;
 }
