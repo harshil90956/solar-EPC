@@ -245,7 +245,7 @@ export class LeadsService {
     };
 
     // Calculate initial score and SLA
-    leadData.score = createLeadDto.score ?? 0;
+    leadData.score = createLeadDto.score ?? this.calculateScore(leadData);
     leadData.slaBreached = this.checkSlaBreached(leadData);
     leadData.activeAutomation = this.applyAutomation(leadData);
 
@@ -1329,9 +1329,8 @@ export class LeadsService {
     fileExtension: string,
     tenantId?: string,
     user?: UserWithVisibility
-  ): Promise<{ success: boolean; inserted: number; updated: number; failed: number; errors: Array<{ row: number; reason: string }> }> {
+  ): Promise<{ inserted: number; updated: number; failed: number; errors: Array<{ row: number; reason: string }> }> {
     const result = {
-      success: true,
       inserted: 0,
       updated: 0,
       failed: 0,
@@ -1344,6 +1343,11 @@ export class LeadsService {
       
       // Debug logging: Log initial row count
       console.log(`[IMPORT] Initial rows parsed: ${rows.length}`);
+      
+      // Debug: Log CSV headers from first row keys
+      if (rows.length > 0) {
+        console.log(`[IMPORT] CSV Headers detected:`, Object.keys(rows[0]));
+      }
       
       // Filter out empty rows and rows with only formatting artifacts
       rows = this.filterValidRows(rows);
@@ -1368,17 +1372,30 @@ export class LeadsService {
         const rowNumber = i + 1;
 
         try {
-          // Validate required field
-          if (!row.name && !row.firstName && !row.lastName) {
-            result.errors.push({ row: rowNumber, reason: 'Missing name' });
+          // Debug: Log raw row keys for first few rows
+          if (i < 3) {
+            console.log(`[IMPORT] Row ${rowNumber} - Raw keys:`, Object.keys(row));
+            console.log(`[IMPORT] Row ${rowNumber} - Raw data:`, JSON.stringify(row));
+          }
+
+          // Normalize row data FIRST
+          const normalizedData = this.normalizeRowData(row, knownFields);
+
+          // Debug: Log normalized data for first few rows
+          if (i < 3) {
+            console.log(`[IMPORT] Row ${rowNumber} - Normalized data:`, JSON.stringify(normalizedData));
+          }
+
+          // Validate required field AFTER normalization
+          // Only 'name' is required, all other fields are optional
+          if (!normalizedData.name || normalizedData.name.trim() === '') {
+            result.errors.push({ row: rowNumber, reason: 'Missing name (required field)' });
             result.failed++;
+            console.log(`[IMPORT] Row ${rowNumber} FAILED: Missing name`);
             continue;
           }
 
-          // Normalize row data
-          const normalizedData = this.normalizeRowData(row, knownFields);
-
-          // Check for duplicate by email or phone
+          // Check for duplicate by email or phone using $or query
           const duplicate = await this.findDuplicate(
             normalizedData.email,
             normalizedData.phone,
@@ -1386,11 +1403,11 @@ export class LeadsService {
           );
 
           if (duplicate) {
-            // Update existing lead
+            // Update existing lead - convert duplicates to updates
             const updateData = this.buildUpdateData(normalizedData);
             updateData.lastContact = new Date();
             
-            // Handle activity logs if present
+            // Handle activity logs if present - use $push to append
             if (normalizedData.activityLogs && normalizedData.activityLogs.length > 0) {
               const activities = normalizedData.activityLogs.map((log: string) => ({
                 type: 'import',
@@ -1399,18 +1416,35 @@ export class LeadsService {
                 by: user?.id || 'System',
                 timestamp: new Date(),
               }));
-              updateData.$push = { activities: { $each: activities } };
+              
+              // Use $push to append activities instead of overwriting
+              bulkOps.push({
+                updateOne: {
+                  filter: tenantId
+                    ? { _id: duplicate._id, tenantId: this.toObjectId(tenantId) }
+                    : { _id: duplicate._id },
+                  update: {
+                    $set: updateData,
+                    $push: { activities: { $each: activities } }
+                  },
+                },
+              });
+            } else {
+              // No activity logs, simple update
+              bulkOps.push({
+                updateOne: {
+                  filter: tenantId
+                    ? { _id: duplicate._id, tenantId: this.toObjectId(tenantId) }
+                    : { _id: duplicate._id },
+                  update: { $set: updateData },
+                },
+              });
             }
-
-            bulkOps.push({
-              updateOne: {
-                filter: { _id: duplicate._id },
-                update: { $set: updateData },
-              },
-            });
+            
             result.updated++;
+            console.log(`[IMPORT] Row ${rowNumber} - Updated existing lead (ID: ${duplicate._id})`);
           } else {
-            // Create new lead
+            // Create new lead - no duplicates found
             const leadId = `LEAD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
             const now = new Date();
 
@@ -1464,6 +1498,7 @@ export class LeadsService {
               insertOne: { document: leadData },
             });
             result.inserted++;
+            console.log(`[IMPORT] Row ${rowNumber} - Inserted new lead (ID: ${leadId})`);
           }
 
           // Execute batch when size reached
@@ -1474,9 +1509,24 @@ export class LeadsService {
             }
           }
         } catch (error: any) {
+          // Handle any unexpected errors during insert/update
+          console.error(`[IMPORT] Row ${rowNumber} - Error:`, error.message);
+          
+          // Add to failed rows
           result.errors.push({ row: rowNumber, reason: error.message || 'Unknown error' });
           result.failed++;
         }
+      }
+
+      // Log summary of import results
+      console.log(`[IMPORT] Final results: inserted=${result.inserted}, updated=result.updated, failed=result.failed`);
+      
+      // Log all errors if any failures occurred
+      if (result.failed > 0) {
+        console.log(`[IMPORT] Failed rows details:`);
+        result.errors.forEach((err, idx) => {
+          console.log(`  Row ${err.row}: ${err.reason}`);
+        });
       }
 
       return result;
@@ -1536,11 +1586,118 @@ export class LeadsService {
       customFields: {},
     };
 
+    // Define comprehensive field mapping for CSV headers
+    const fieldMapping: Record<string, string> = {
+      // Name variations
+      'name': 'name',
+      'fullname': 'name',
+      'full_name': 'name',
+      'customername': 'name',
+      'customer_name': 'name',
+      'contactname': 'name',
+      'contact_name': 'name',
+      'leadname': 'name',
+      'lead_name': 'name',
+      
+      // First/Last name
+      'firstname': 'firstName',
+      'first_name': 'firstName',
+      'lastname': 'lastName',
+      'last_name': 'lastName',
+      
+      // Email variations
+      'email': 'email',
+      'emailaddress': 'email',
+      'email_address': 'email',
+      'primaryemail': 'email',
+      'primary_email': 'email',
+      'e_mail': 'email',
+      
+      // Phone variations
+      'phone': 'phone',
+      'phonenumber': 'phone',
+      'phone_number': 'phone',
+      'mobile': 'phone',
+      'mobilenumber': 'phone',
+      'mobile_number': 'phone',
+      'cellphone': 'phone',
+      'cell_phone': 'phone',
+      'contactnumber': 'phone',
+      'contact_number': 'phone',
+      'telephone': 'phone',
+      'tel': 'phone',
+      
+      // Company variations
+      'company': 'company',
+      'companyname': 'company',
+      'company_name': 'company',
+      'businessname': 'company',
+      'business_name': 'company',
+      'organization': 'company',
+      'organisation': 'company',
+      
+      // Stage/Status variations
+      'stage': 'statusKey',
+      'status': 'statusKey',
+      'leadstage': 'statusKey',
+      'lead_stage': 'statusKey',
+      'dealstage': 'statusKey',
+      'deal_stage': 'statusKey',
+      'opportunitystage': 'statusKey',
+      'opportunity_stage': 'statusKey',
+      
+      // Source variations
+      'source': 'source',
+      'leadsource': 'source',
+      'lead_source': 'source',
+      'origin': 'source',
+      'channel': 'source',
+      
+      // Value variations
+      'value': 'value',
+      'dealvalue': 'value',
+      'deal_value': 'value',
+      'leadvalue': 'value',
+      'lead_value': 'value',
+      'opportunityvalue': 'value',
+      'opportunity_value': 'value',
+      'amount': 'value',
+      'price': 'value',
+      
+      // Score variations
+      'score': 'score',
+      'leadscore': 'score',
+      'lead_score': 'score',
+      'priority': 'score',
+      'rating': 'score',
+      
+      // City variations
+      'city': 'city',
+      'location': 'city',
+      'area': 'city',
+      'region': 'city',
+      
+      // State variations
+      'state': 'state',
+      'province': 'state',
+      
+      // Activity log variations
+      'activitylog': 'activityLogs',
+      'activity_log': 'activityLogs',
+      'activitylogs': 'activityLogs',
+      'activity_logs': 'activityLogs',
+      'activities': 'activityLogs',
+      'notes': 'activityLogs',
+      'comments': 'activityLogs',
+      'remarks': 'activityLogs',
+    };
+
     // Normalize header names
     const normalizedRow: any = {};
     Object.keys(row).forEach((key) => {
       const normalizedKey = this.normalizeHeader(key);
-      normalizedRow[normalizedKey] = row[key];
+      const mappedKey = fieldMapping[normalizedKey] || normalizedKey;
+      normalizedRow[mappedKey] = row[key];
     });
 
     // Process each field
@@ -1548,7 +1705,7 @@ export class LeadsService {
       const value = normalizedRow[key];
       if (value === undefined || value === null || value === '') return;
 
-      // Map known fields
+      // Map known fields with special handling
       if (key === 'firstname' || key === 'first_name') {
         normalized.firstName = String(value).trim();
       } else if (key === 'lastname' || key === 'last_name') {
@@ -1560,14 +1717,18 @@ export class LeadsService {
         normalized.score = isNaN(numScore) ? 0 : Math.min(Math.max(numScore, 0), 100);
       } else if (key === 'value') {
         normalized.value = this.normalizeValue(value);
-      } else if (key === 'activity_logs' || key === 'activities' || key === 'activitylogs') {
+      } else if (key === 'activityLogs') {
+        // Handle activity logs - can be pipe-separated or single entry
         const logs = String(value).split('|').map((s) => s.trim()).filter((s) => s);
         normalized.activityLogs = logs;
       } else if (knownFields.includes(key)) {
+        // Handle other known schema fields
         normalized[key] = this.normalizeField(key, value);
       } else {
-        // Store unknown fields in customFields
-        normalized.customFields[key] = value;
+        // Store unknown fields in customFields (dynamic custom field creation)
+        // Normalize the key name for storage (e.g., "Building Type" -> "building_type")
+        const customFieldKey = this.normalizeHeader(key);
+        normalized.customFields[customFieldKey] = value;
       }
     });
 
@@ -1580,7 +1741,7 @@ export class LeadsService {
       normalized.name = String(normalizedRow.name).trim();
     }
 
-    // Remove firstName/lastName from top level
+    // Remove firstName/lastName from top level after combining
     delete normalized.firstName;
     delete normalized.lastName;
 
@@ -1593,6 +1754,27 @@ export class LeadsService {
       .trim()
       .replace(/\s+/g, '_')
       .replace(/[^a-z0-9_]/g, '');
+  }
+
+  // Generate CSV import documentation with supported columns
+  getImportDocumentation(): { standardFields: Array<{column: string; field: string; description: string}>; activityLogSupport: boolean; customFieldSupport: boolean } {
+    return {
+      standardFields: [
+        { column: 'Name / Full Name / Customer Name', field: 'name', description: 'Lead full name (required)' },
+        { column: 'Email / Email Address', field: 'email', description: 'Customer email address' },
+        { column: 'Phone / Phone Number / Mobile', field: 'phone', description: 'Contact phone number' },
+        { column: 'Company / Company Name', field: 'company', description: 'Company or organization name' },
+        { column: 'Stage / Status', field: 'statusKey', description: 'Lead stage (new, contacted, qualified, proposal, negotiation, won, lost)' },
+        { column: 'Source / Lead Source', field: 'source', description: 'Lead source (website, referral, campaign, ads, etc.)' },
+        { column: 'Value / Deal Value / Amount', field: 'value', description: 'Deal value in currency' },
+        { column: 'Score / Lead Score', field: 'score', description: 'Lead score (0-100)' },
+        { column: 'City / Location', field: 'city', description: 'Customer city' },
+        { column: 'State / Province', field: 'state', description: 'Customer state' },
+        { column: 'Activity Log / Notes / Comments', field: 'activityLogs', description: 'Activity notes (use | separator for multiple entries)' },
+      ],
+      activityLogSupport: true,
+      customFieldSupport: true,
+    };
   }
 
   private normalizeValue(value: any): number {
