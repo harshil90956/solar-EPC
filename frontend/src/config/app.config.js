@@ -32,7 +32,7 @@ export const CURRENCY = {
             return `₹${(n / 100000).toFixed(2)} Lakhs`;
         }
         if (n >= 1000) { // 1 Thousand or more
-            return `₹${(n / 1000).toFixed(0)}K`;
+            return `₹${parseFloat((n / 1000).toFixed(1))}K`;
         }
         return `₹${n.toLocaleString('en-IN')}`;
     },

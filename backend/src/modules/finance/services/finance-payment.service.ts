@@ -12,12 +12,24 @@ export class FinancePaymentService {
     @InjectModel(FinancePayment.name) private readonly financePaymentModel: Model<FinancePaymentDocument>,
     @InjectModel(Invoice.name) private readonly invoiceModel: Model<InvoiceDocument>,
     @InjectModel(Expense.name) private readonly expenseModel: Model<ExpenseDocument>,
+    @InjectModel('PurchaseOrder') private readonly purchaseOrderModel: Model<any>,
   ) {}
 
   private toObjectId(id: string | undefined): Types.ObjectId | undefined {
     if (!id) return undefined;
     const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(id);
-    if (!isValidObjectId) return undefined;
+    if (!isValidObjectId) {
+      // For invalid ObjectIds (like vendor custom IDs "V001"), create a deterministic ObjectId
+      try {
+        // Create a deterministic ObjectId from the string
+        const hash = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        const hexString = (hash % 16777215).toString(16).padStart(6, '0');
+        const paddedId = ('000000000000000000000000' + hexString).slice(-24);
+        return new Types.ObjectId(paddedId);
+      } catch {
+        return undefined;
+      }
+    }
     try {
       return new Types.ObjectId(id);
     } catch {
@@ -26,15 +38,34 @@ export class FinancePaymentService {
   }
 
   async initiatePayment(tenantId: string, dto: RecordPaymentDto, userId?: string): Promise<FinancePayment> {
+    console.log('[initiatePayment] Received DTO:', JSON.stringify({
+      paymentType: dto.paymentType,
+      referenceType: dto.referenceType,
+      referenceId: dto.referenceId,
+      referenceIdLength: dto.referenceId?.length,
+      referenceIdType: typeof dto.referenceId,
+      amount: dto.amount,
+      paymentMethod: dto.paymentMethod,
+      paymentDate: dto.paymentDate,
+    }, null, 2));
+
     const paymentNumber = await this.generatePaymentNumber(tenantId);
 
     let invoiceId: Types.ObjectId | undefined;
     let vendorId: Types.ObjectId | undefined;
 
     if (dto.referenceType === 'Invoice') {
-      invoiceId = new Types.ObjectId(dto.referenceId);
+      invoiceId = this.toObjectId(dto.referenceId);
+      if (!invoiceId) {
+        throw new BadRequestException(`Invalid invoice ID format: ${dto.referenceId}. Must be a valid MongoDB ObjectId.`);
+      }
+    } else if (dto.referenceType === 'Vendor') {
+      vendorId = this.toObjectId(dto.referenceId);
+      if (!vendorId) {
+        throw new BadRequestException(`Invalid vendor ID format: "${dto.referenceId}" (length: ${dto.referenceId?.length}, type: ${typeof dto.referenceId}). This should be a valid MongoDB ObjectId or vendor custom ID like "V001".`);
+      }
     } else {
-      vendorId = new Types.ObjectId(dto.referenceId);
+      throw new BadRequestException(`Invalid referenceType: ${dto.referenceType}. Must be 'Invoice' or 'Vendor'.`);
     }
 
     const methodDetails: any = {};
@@ -47,7 +78,7 @@ export class FinancePaymentService {
       paymentNumber,
       paymentType: dto.paymentType,
       referenceType: dto.referenceType,
-      referenceId: new Types.ObjectId(dto.referenceId),
+      referenceId: invoiceId || vendorId,
       invoiceId,
       vendorId,
       amount: dto.amount,
@@ -57,7 +88,7 @@ export class FinancePaymentService {
       paymentDate: new Date(dto.paymentDate),
       methodDetails,
       notes: dto.notes,
-      createdBy: userId ? new Types.ObjectId(userId) : undefined,
+      createdBy: userId ? this.toObjectId(userId) : undefined,
       isDeleted: false,
     });
 
@@ -253,9 +284,16 @@ export class FinancePaymentService {
   }
 
   async updateInvoicePayment(tenantId: string, invoiceId: string, paymentAmount: number): Promise<void> {
+    const invoiceObjectId = this.toObjectId(invoiceId);
+    const tenantObjectId = this.toObjectId(tenantId);
+    
+    if (!invoiceObjectId) {
+      throw new NotFoundException('Invalid invoice ID format');
+    }
+    
     const invoice = await this.invoiceModel.findOne({
-      _id: new Types.ObjectId(invoiceId),
-      tenantId: new Types.ObjectId(tenantId),
+      _id: invoiceObjectId,
+      tenantId: tenantObjectId,
     });
 
     if (!invoice) {
@@ -278,7 +316,7 @@ export class FinancePaymentService {
 
     // Update the invoice
     await this.invoiceModel.findOneAndUpdate(
-      { _id: new Types.ObjectId(invoiceId), tenantId: new Types.ObjectId(tenantId) },
+      { _id: invoiceObjectId, tenantId: tenantObjectId },
       {
         $set: {
           paid: newPaid,
@@ -307,6 +345,40 @@ export class FinancePaymentService {
     });
 
     await expense.save();
+
+    // Update Purchase Order(s) for this vendor - add payment to oldest unpaid POs first
+    await this.updateVendorPurchaseOrders(tenantId, dto.referenceId, dto.amount);
+  }
+
+  async updateVendorPurchaseOrders(tenantId: string, vendorId: string, paymentAmount: number): Promise<void> {
+    // Find all POs for this vendor with outstanding balance
+    const vendorPOs = await this.purchaseOrderModel.find({
+      tenantId: new Types.ObjectId(tenantId),
+      vendorId: new Types.ObjectId(vendorId),
+      status: { $ne: 'Cancelled' },
+    }).sort({ orderedDate: 1 }).lean();
+
+    let remainingPayment = paymentAmount;
+
+    for (const po of vendorPOs) {
+      if (remainingPayment <= 0) break;
+
+      const poTotal = Number(po.totalAmount || 0);
+      const poPaid = Number(po.amountPaid || 0);
+      const poOutstanding = poTotal - poPaid;
+
+      if (poOutstanding > 0) {
+        const paymentForThisPO = Math.min(remainingPayment, poOutstanding);
+        const newPaid = poPaid + paymentForThisPO;
+
+        await this.purchaseOrderModel.findOneAndUpdate(
+          { _id: po._id },
+          { $set: { amountPaid: newPaid } }
+        );
+
+        remainingPayment -= paymentForThisPO;
+      }
+    }
   }
 
   async generatePaymentNumber(tenantId: string): Promise<string> {

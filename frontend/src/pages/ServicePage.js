@@ -1013,6 +1013,9 @@ const ServicePage = ({ onNavigate, initialTab }) => {
   // Main view state: 'dashboard' | 'kanban' | 'table'
   const [buttonView, setButtonView] = useState('dashboard');
 
+  // Toggle for showing/hiding status cards in kanban/table views
+  const [showKanbanTableCards, setShowKanbanTableCards] = useState(false);
+
 
 
   // Set active tab from initialTab prop when navigating from dashboard
@@ -4394,8 +4397,8 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
       <PageHeader
-        title="Service & AMC"
-        subtitle="Support tickets · maintenance · AMC contracts · warranty claims"
+        title={buttonView === 'dashboard' ? 'Service & AMC Dashboard' : 'Service & AMC'}
+        subtitle={buttonView === 'dashboard' ? 'Real-time overview of tickets, AMC contracts, visits, and team performance' : 'Support tickets · maintenance · AMC contracts · warranty claims'}
         preTabsContent={
           <div className="flex items-center gap-1 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-base)] p-1">
             <button
@@ -4699,7 +4702,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
           {/* Dashboard View - Exactly as per screenshot */}
           <div className="grid grid-cols-4 gap-4 mb-6">
             {/* Row 1 */}
-            <div className="bg-blue-200/70 rounded-xl p-4 border border-blue-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setButtonView('table'); setActiveTab('tickets'); }}>
+            <div className="bg-blue-200/70 rounded-xl p-4 border border-blue-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setButtonView('table'); setActiveTab('tickets'); setTicketStatus('All'); }}>
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-xs font-medium text-blue-600 mb-1">TOTAL TICKETS</p>
@@ -4712,7 +4715,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
               </div>
             </div>
 
-            <div className="bg-orange-200/70 rounded-xl p-4 border border-orange-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setButtonView('table'); setActiveTab('tickets'); }}>
+            <div className="bg-orange-200/70 rounded-xl p-4 border border-orange-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setButtonView('table'); setActiveTab('tickets'); setTicketStatus('Open'); }}>
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-xs font-medium text-orange-600 mb-1">OPEN TICKETS</p>
@@ -4725,7 +4728,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
               </div>
             </div>
 
-            <div className="bg-purple-200/70 rounded-xl p-4 border border-purple-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setButtonView('table'); setActiveTab('tickets'); }}>
+            <div className="bg-purple-200/70 rounded-xl p-4 border border-purple-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setButtonView('table'); setActiveTab('tickets'); setTicketStatus('Scheduled'); }}>
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-xs font-medium text-purple-600 mb-1">SCHEDULED</p>
@@ -4738,7 +4741,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
               </div>
             </div>
 
-            <div className="bg-yellow-200/70 rounded-xl p-4 border border-yellow-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setButtonView('table'); setActiveTab('tickets'); }}>
+            <div className="bg-yellow-200/70 rounded-xl p-4 border border-yellow-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setButtonView('table'); setActiveTab('tickets'); setTicketStatus('In Progress'); }}>
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-xs font-medium text-yellow-600 mb-1">IN PROGRESS</p>
@@ -4752,7 +4755,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
             </div>
 
             {/* Row 2 */}
-            <div className="bg-emerald-200/70 rounded-xl p-4 border border-emerald-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setButtonView('table'); setActiveTab('tickets'); }}>
+            <div className="bg-emerald-200/70 rounded-xl p-4 border border-emerald-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setButtonView('table'); setActiveTab('tickets'); setTicketStatus('Resolved'); }}>
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-xs font-medium text-emerald-600 mb-1">RESOLVED</p>
@@ -4765,7 +4768,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
               </div>
             </div>
 
-            <div className="bg-gray-200/70 rounded-xl p-4 border border-gray-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setButtonView('table'); setActiveTab('tickets'); }}>
+            <div className="bg-gray-200/70 rounded-xl p-4 border border-gray-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setButtonView('table'); setActiveTab('tickets'); setTicketStatus('Closed'); }}>
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-xs font-medium text-gray-600 mb-1">CLOSED</p>
@@ -5012,9 +5015,20 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
       {buttonView === 'kanban' && (
         <>
+          {/* View Cards Toggle Button */}
+          <div className="flex justify-end mb-2">
+            <button
+              onClick={() => setShowKanbanTableCards(!showKanbanTableCards)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--bg-elevated)] border border-[var(--border-base)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-all duration-150"
+            >
+              <LayoutGrid size={14} />
+              {showKanbanTableCards ? 'Hide Cards' : 'View Cards'}
+            </button>
+          </div>
           {/* Status Summary Cards */}
-          <div className="grid grid-cols-6 gap-3 mb-4">
-            <div className="bg-red-100 rounded-xl p-4 border border-red-200">
+          {showKanbanTableCards && (
+          <div className="grid grid-cols-7 gap-3 mb-4">
+            <div className="bg-red-100 rounded-xl p-4 border border-red-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setTicketStatus('Open'); }}>
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-xs font-medium text-red-600 mb-1">OPEN TICKETS</p>
@@ -5025,7 +5039,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
                 </div>
               </div>
             </div>
-            <div className="bg-blue-100 rounded-xl p-4 border border-blue-200">
+            <div className="bg-blue-100 rounded-xl p-4 border border-blue-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setTicketStatus('Scheduled'); }}>
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-xs font-medium text-blue-600 mb-1">SCHEDULED</p>
@@ -5036,7 +5050,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
                 </div>
               </div>
             </div>
-            <div className="bg-yellow-100 rounded-xl p-4 border border-yellow-200">
+            <div className="bg-yellow-100 rounded-xl p-4 border border-yellow-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setTicketStatus('In Progress'); }}>
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-xs font-medium text-yellow-600 mb-1">IN PROGRESS</p>
@@ -5047,7 +5061,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
                 </div>
               </div>
             </div>
-            <div className="bg-emerald-100 rounded-xl p-4 border border-emerald-200">
+            <div className="bg-emerald-100 rounded-xl p-4 border border-emerald-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setTicketStatus('Resolved'); }}>
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-xs font-medium text-emerald-600 mb-1">RESOLVED</p>
@@ -5058,7 +5072,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
                 </div>
               </div>
             </div>
-            <div className="bg-gray-100 rounded-xl p-4 border border-gray-200">
+            <div className="bg-gray-100 rounded-xl p-4 border border-gray-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setTicketStatus('Closed'); }}>
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-xs font-medium text-gray-600 mb-1">CLOSED</p>
@@ -5069,7 +5083,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
                 </div>
               </div>
             </div>
-            <div className="bg-indigo-100 rounded-xl p-4 border border-indigo-200">
+            <div className="bg-indigo-100 rounded-xl p-4 border border-indigo-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setButtonView('table'); setActiveTab('amc'); }}>
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-xs font-medium text-indigo-600 mb-1">AMC CONTRACTS</p>
@@ -5080,7 +5094,19 @@ const ServicePage = ({ onNavigate, initialTab }) => {
                 </div>
               </div>
             </div>
+            <div className="bg-cyan-100 rounded-xl p-4 border border-cyan-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setButtonView('table'); setActiveTab('schedule-visit'); }}>
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs font-medium text-cyan-600 mb-1">SCHEDULE VISIT</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{dynamicVisitStats.total}</h3>
+                </div>
+                <div className="bg-cyan-200 p-2 rounded-lg">
+                  <Calendar size={18} className="text-cyan-600" />
+                </div>
+              </div>
+            </div>
           </div>
+          )}
           <div className="space-y-3">
             <div className="flex flex-wrap gap-2 items-center">
               <span className="text-xs text-[var(--text-muted)] mr-1">Status:</span>
@@ -5100,9 +5126,20 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
       {buttonView === 'table' && (
         <>
+          {/* View Cards Toggle Button */}
+          <div className="flex justify-end mb-2">
+            <button
+              onClick={() => setShowKanbanTableCards(!showKanbanTableCards)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--bg-elevated)] border border-[var(--border-base)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-all duration-150"
+            >
+              <LayoutGrid size={14} />
+              {showKanbanTableCards ? 'Hide Cards' : 'View Cards'}
+            </button>
+          </div>
           {/* Status Summary Cards */}
-          <div className="grid grid-cols-6 gap-3 mb-4">
-            <div className="bg-red-100 rounded-xl p-4 border border-red-200">
+          {showKanbanTableCards && (
+          <div className="grid grid-cols-7 gap-3 mb-4">
+            <div className="bg-red-100 rounded-xl p-4 border border-red-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setActiveTab('tickets'); setTicketStatus('Open'); }}>
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-xs font-medium text-red-600 mb-1">OPEN TICKETS</p>
@@ -5113,7 +5150,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
                 </div>
               </div>
             </div>
-            <div className="bg-blue-100 rounded-xl p-4 border border-blue-200">
+            <div className="bg-blue-100 rounded-xl p-4 border border-blue-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setActiveTab('tickets'); setTicketStatus('Scheduled'); }}>
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-xs font-medium text-blue-600 mb-1">SCHEDULED</p>
@@ -5124,7 +5161,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
                 </div>
               </div>
             </div>
-            <div className="bg-yellow-100 rounded-xl p-4 border border-yellow-200">
+            <div className="bg-yellow-100 rounded-xl p-4 border border-yellow-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setActiveTab('tickets'); setTicketStatus('In Progress'); }}>
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-xs font-medium text-yellow-600 mb-1">IN PROGRESS</p>
@@ -5135,7 +5172,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
                 </div>
               </div>
             </div>
-            <div className="bg-emerald-100 rounded-xl p-4 border border-emerald-200">
+            <div className="bg-emerald-100 rounded-xl p-4 border border-emerald-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setActiveTab('tickets'); setTicketStatus('Resolved'); }}>
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-xs font-medium text-emerald-600 mb-1">RESOLVED</p>
@@ -5146,7 +5183,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
                 </div>
               </div>
             </div>
-            <div className="bg-gray-100 rounded-xl p-4 border border-gray-200">
+            <div className="bg-gray-100 rounded-xl p-4 border border-gray-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setActiveTab('tickets'); setTicketStatus('Closed'); }}>
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-xs font-medium text-gray-600 mb-1">CLOSED</p>
@@ -5157,7 +5194,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
                 </div>
               </div>
             </div>
-            <div className="bg-indigo-100 rounded-xl p-4 border border-indigo-200">
+            <div className="bg-indigo-100 rounded-xl p-4 border border-indigo-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setActiveTab('amc'); }}>
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-xs font-medium text-indigo-600 mb-1">AMC CONTRACTS</p>
@@ -5168,7 +5205,19 @@ const ServicePage = ({ onNavigate, initialTab }) => {
                 </div>
               </div>
             </div>
+            <div className="bg-cyan-100 rounded-xl p-4 border border-cyan-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setActiveTab('schedule-visit'); }}>
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs font-medium text-cyan-600 mb-1">SCHEDULE VISIT</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{dynamicVisitStats.total}</h3>
+                </div>
+                <div className="bg-cyan-200 p-2 rounded-lg">
+                  <Calendar size={18} className="text-cyan-600" />
+                </div>
+              </div>
+            </div>
           </div>
+          )}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="tickets">Support Tickets ({tickets.length})</TabsTrigger>

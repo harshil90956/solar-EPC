@@ -304,9 +304,16 @@ export class InventoryService {
 
     return this.reservationModel
 
-      .find({ tenantId, projectId, status: { $in: ['active', 'fulfilled'] } })
+      .find({ 
+        $or: [
+          { tenantId: tenantId },
+          { tenantId: tenantId.toString() },
+        ],
+        projectId, 
+        status: { $in: ['active', 'fulfilled'] } 
+      })
 
-      .sort({ reservedDate: -1 })
+      .sort({ createdAt: -1 })
 
       .exec();
 
@@ -315,37 +322,27 @@ export class InventoryService {
 
 
   async getReservationsByItem(tenantCode: string, itemId: string) {
-    console.log(`[getReservationsByItem] Fetching for itemId: ${itemId}, tenantCode: ${tenantCode}`);
-
     const tenantId = await this.getTenantId(tenantCode);
-    console.log(`[getReservationsByItem] Resolved tenantId:`, tenantId);
 
-    // TEMPORARY: Return ALL reservations for this tenant to debug manual reservations
-    const allReservations = await this.reservationModel
-      .find({ 
-        $or: [
-          { tenantId: tenantCode },  // String format
-          { tenantId: tenantId }     // ObjectId format
-        ]
-        // NO status filter - see ALL reservations
-      })
-      .sort({ reservedDate: -1 })
-      .exec();
-    
-    console.log(`[getReservationsByItem] Found ${allReservations.length} total reservations:`, JSON.stringify(allReservations.map(r => ({ projectId: r.projectId, itemId: r.itemId, qty: r.quantity, status: r.status }))));
-    
-    // Filter by itemId in memory for now
+    // Build itemId variants to match across different ID formats
     const searchItemIds = [itemId];
     if (itemId.startsWith('INV')) {
       searchItemIds.push(itemId.replace(/^INV/, ''));
     } else {
       searchItemIds.push('INV' + itemId);
     }
-    
-    const filtered = allReservations.filter(r => searchItemIds.includes(r.itemId));
-    console.log(`[getReservationsByItem] Filtered to ${filtered.length} reservations for itemId ${itemId}`);
-    
-    return filtered;
+
+    return this.reservationModel
+      .find({
+        $or: [
+          { tenantId: tenantId },
+          { tenantId: tenantId.toString() },
+        ],
+        itemId: { $in: searchItemIds },
+        status: { $in: ['active', 'fulfilled'] },
+      })
+      .sort({ createdAt: -1 })
+      .exec();
   }
 
 

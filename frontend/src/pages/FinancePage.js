@@ -2,7 +2,15 @@
 
 
 
+
+
+
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+
+
+
+
 
 
 
@@ -10,7 +18,15 @@ import * as XLSX from 'xlsx';
 
 
 
+
+
+
+
 import {
+
+
+
+
 
 
 
@@ -18,13 +34,27 @@ import {
 
 
 
+
+
+
+
   CheckCircle, Clock, Zap, FileText, Plus, IndianRupee,
+
+
 
   LayoutGrid, List, Calendar, AlertCircle, RefreshCw,
 
+
+
   Edit, Download, Trash2, Loader2, X, BarChart3, Eye, EyeOff,
 
+
+
 } from 'lucide-react';
+
+
+
+
 
 
 
@@ -32,7 +62,15 @@ import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContai
 
 
 
+
+
+
+
 import { financeApi } from '../lib/financeApi';
+
+
+
+
 
 
 
@@ -40,7 +78,15 @@ import { api } from '../lib/apiClient';
 
 
 
+
+
+
+
 import { StatusBadge } from '../components/ui/Badge';
+
+
+
+
 
 
 
@@ -48,7 +94,15 @@ import { Button } from '../components/ui/Button';
 
 
 
+
+
+
+
 import { Modal } from '../components/ui/Modal';
+
+
+
+
 
 
 
@@ -56,7 +110,15 @@ import { Input, FormField, Select } from '../components/ui/Input';
 
 
 
+
+
+
+
 import { toast } from '../components/ui/Toast';
+
+
+
+
 
 
 
@@ -64,7 +126,15 @@ import { KPICard } from '../components/ui/KPICard';
 
 
 
+
+
+
+
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/Tabs';
+
+
+
+
 
 
 
@@ -72,7 +142,15 @@ import DataTable from '../components/ui/DataTable';
 
 
 
+
+
+
+
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
+
+
+
+
 
 
 
@@ -80,7 +158,15 @@ import { useSettings } from '../context/SettingsContext';
 
 
 
+
+
+
+
 import { usePermissions } from '../hooks/usePermissions';
+
+
+
+
 
 
 
@@ -88,32 +174,69 @@ import { format, subMonths } from 'date-fns';
 
 
 
+
+
+
+
 import FinanceDashboard from '../components/finance/FinanceDashboard';
 
+
+
 import CalendarFilter from '../components/finance/CalendarFilter';
+
+
+
+
 
 
 
 const fmt = CURRENCY.format;
 
 
+
+
+
 /* ── Invoice stage definitions ──────────────────────────────────────────────── */
+
+
+
+
 
 
 
 const INV_STAGES = [
 
+
+
   { id: 'Draft', label: 'Draft', color: '#64748b', bg: 'rgba(100,116,139,0.12)' },
+
+
 
   { id: 'Sent', label: 'Sent', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
 
+
+
   { id: 'Partial', label: 'Partial', color: '#3b82f6', bg: 'rgba(59,130,246,0.12)' },
+
+
 
   { id: 'Paid', label: 'Paid', color: '#22c55e', bg: 'rgba(34,197,94,0.12)' },
 
+
+
   { id: 'Overdue', label: 'Overdue', color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
 
+
+
 ];
+
+
+
+
+
+
+
+
 
 
 
@@ -125,7 +248,15 @@ const INV_STAGES = [
 
 
 
+
+
+
+
 const InvCard = ({ inv, onDragStart, onClick }) => {
+
+
+
+
 
 
 
@@ -133,7 +264,15 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
   const isOverdue = inv.status === 'Overdue';
+
+
+
+
 
 
 
@@ -141,7 +280,15 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
   return (
+
+
+
+
 
 
 
@@ -149,7 +296,15 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
       draggable
+
+
+
+
 
 
 
@@ -157,7 +312,15 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
       onClick={() => onClick(inv)}
+
+
+
+
 
 
 
@@ -165,7 +328,15 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
     >
+
+
+
+
 
 
 
@@ -173,7 +344,15 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
         <span className="text-[10px] font-mono text-[var(--accent-light)]">{displayId}</span>
+
+
+
+
 
 
 
@@ -181,7 +360,15 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
       </div>
+
+
+
+
 
 
 
@@ -189,11 +376,23 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
       <div className="grid grid-cols-2 gap-1 text-[10px]">
 
 
 
+
+
+
+
         <div className="glass-card p-1.5 text-center">
+
+
+
+
 
 
 
@@ -201,11 +400,23 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
           <p className="font-bold text-[var(--text-primary)]">{fmt(inv.amount)}</p>
 
 
 
+
+
+
+
         </div>
+
+
+
+
 
 
 
@@ -213,7 +424,15 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
           <p className="text-[var(--text-muted)]">Balance</p>
+
+
+
+
 
 
 
@@ -221,11 +440,23 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
         </div>
 
 
 
+
+
+
+
       </div>
+
+
+
+
 
 
 
@@ -233,7 +464,15 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
         <div className="flex justify-between text-[9px] text-[var(--text-muted)] mb-0.5">
+
+
+
+
 
 
 
@@ -241,7 +480,15 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
         </div>
+
+
+
+
 
 
 
@@ -249,7 +496,15 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
           <div className={`h-full rounded-full ${balancePct === 100 ? 'bg-emerald-400' : 'bg-[var(--accent)]'}`}
+
+
+
+
 
 
 
@@ -257,11 +512,23 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
         </div>
 
 
 
+
+
+
+
       </div>
+
+
+
+
 
 
 
@@ -269,7 +536,15 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
         <Calendar size={9} /><span>Due: {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : '—'}</span>
+
+
+
+
 
 
 
@@ -277,7 +552,15 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
       </div>
+
+
+
+
 
 
 
@@ -285,11 +568,27 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
   );
 
 
 
+
+
+
+
 };
+
+
+
+
+
+
+
+
 
 
 
@@ -301,7 +600,15 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
 const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
+
+
+
+
 
 
 
@@ -309,7 +616,15 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
   const [dragOver, setDragOver] = useState(null);
+
+
+
+
 
 
 
@@ -317,7 +632,15 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
     <div className="overflow-x-auto pb-3">
+
+
+
+
 
 
 
@@ -325,7 +648,15 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
         {INV_STAGES.map(stage => {
+
+
+
+
 
 
 
@@ -333,9 +664,17 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
           const cards = invoices.filter(i =>
 
+
+
             i.status === stage.id || (stage.id === 'Sent' && i.status === 'Pending')
 
+
+
           );
+
+
+
+
 
 
 
@@ -343,7 +682,15 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
           return (
+
+
+
+
 
 
 
@@ -351,7 +698,15 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
               className={`flex flex-col w-60 rounded-xl border transition-colors ${dragOver === stage.id ? 'border-[var(--primary)]/50 bg-[var(--primary)]/5' : 'border-[var(--border-base)] bg-[var(--bg-surface)]'}`}
+
+
+
+
 
 
 
@@ -359,7 +714,15 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
               onDragLeave={() => setDragOver(null)}
+
+
+
+
 
 
 
@@ -367,7 +730,15 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
             >
+
+
+
+
 
 
 
@@ -375,7 +746,15 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
                 <div className="flex items-center gap-2">
+
+
+
+
 
 
 
@@ -383,11 +762,23 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
                   <span className="text-xs font-semibold text-[var(--text-primary)]">{stage.label}</span>
 
 
 
+
+
+
+
                 </div>
+
+
+
+
 
 
 
@@ -395,7 +786,15 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
                   {colAmt > 0 && <span className="text-[10px] text-[var(--text-muted)]">{fmt(colAmt)}</span>}
+
+
+
+
 
 
 
@@ -403,7 +802,15 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
                     style={{ background: stage.bg, color: stage.color }}>{cards.length}</span>
+
+
+
+
 
 
 
@@ -411,7 +818,15 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
               </div>
+
+
+
+
 
 
 
@@ -419,7 +834,15 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
                 {cards.map(inv => (
+
+
+
+
 
 
 
@@ -427,7 +850,15 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
                     onDragStart={id => { draggingId.current = id; }}
+
+
+
+
 
 
 
@@ -435,7 +866,15 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
                   />
+
+
+
+
 
 
 
@@ -443,7 +882,15 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
                 {cards.length === 0 && (
+
+
+
+
 
 
 
@@ -451,7 +898,15 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
                     <p className="text-[11px] text-[var(--text-faint)]">Drop here</p>
+
+
+
+
 
 
 
@@ -459,7 +914,15 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
                 )}
+
+
+
+
 
 
 
@@ -467,7 +930,15 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
             </div>
+
+
+
+
 
 
 
@@ -475,7 +946,15 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
         })}
+
+
+
+
 
 
 
@@ -483,11 +962,23 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
     </div>
 
 
 
+
+
+
+
   );
+
+
+
+
 
 
 
@@ -499,7 +990,19 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
 /* ── Table columns ──────────────────────────────────────────────────────────── */
+
+
+
+
 
 
 
@@ -507,7 +1010,15 @@ const INVOICE_COLUMNS = [
 
 
 
+
+
+
+
   { key: 'invoiceNumber', header: 'Invoice #', render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span> },
+
+
+
+
 
 
 
@@ -515,7 +1026,15 @@ const INVOICE_COLUMNS = [
 
 
 
+
+
+
+
   { key: 'email', header: 'Email', render: v => <span className="text-xs text-[var(--text-muted)]">{v || '—'}</span> },
+
+
+
+
 
 
 
@@ -523,7 +1042,15 @@ const INVOICE_COLUMNS = [
 
 
 
+
+
+
+
   { key: 'paid', header: 'Paid', render: v => <span className="text-xs text-emerald-400 font-bold">{fmt(v)}</span> },
+
+
+
+
 
 
 
@@ -531,7 +1058,15 @@ const INVOICE_COLUMNS = [
 
 
 
+
+
+
+
   { key: 'status', header: 'Status', render: v => <StatusBadge domain="invoice" value={v} /> },
+
+
+
+
 
 
 
@@ -539,7 +1074,15 @@ const INVOICE_COLUMNS = [
 
 
 
+
+
+
+
   { key: 'dueDate', header: 'Due Date', render: v => <span className="text-xs text-[var(--text-muted)]">{v ? new Date(v).toLocaleDateString() : '—'}</span> },
+
+
+
+
 
 
 
@@ -581,7 +1124,19 @@ const INVOICE_COLUMNS = [
 
 
 
+
+
+
+
 ];
+
+
+
+
+
+
+
+
 
 
 
@@ -593,7 +1148,15 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 
 
+
+
+
+
   if (!active || !payload?.length) return null;
+
+
+
+
 
 
 
@@ -601,7 +1164,15 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 
 
+
+
+
+
     <div className="bg-[var(--bg-surface)] border border-[var(--border-base)] rounded-lg px-3 py-2 shadow-xl text-xs">
+
+
+
+
 
 
 
@@ -609,7 +1180,15 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 
 
+
+
+
+
       {payload.map((p, i) => <p key={i} style={{ color: p.color }} className="my-0.5">{p.name}: {fmt(p.value)}</p>)}
+
+
+
+
 
 
 
@@ -617,7 +1196,15 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 
 
+
+
+
+
   );
+
+
+
+
 
 
 
@@ -629,7 +1216,23 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 
 
-const INV_STATUS_FILTERS = ['All', 'Draft', 'Sent', 'Partial', 'Paid', 'Overdue'];
+
+
+
+
+
+
+
+
+const INV_STATUS_FILTERS = ['All', 'Draft', 'Sent', 'Partial', 'Paid', 'Overdue', 'Outstanding'];
+
+
+
+
+
+
+
+
 
 
 
@@ -641,7 +1244,15 @@ const INV_STATUS_FILTERS = ['All', 'Draft', 'Sent', 'Partial', 'Paid', 'Overdue'
 
 
 
+
+
+
+
   PAGE
+
+
+
+
 
 
 
@@ -649,11 +1260,23 @@ const INV_STATUS_FILTERS = ['All', 'Draft', 'Sent', 'Partial', 'Paid', 'Overdue'
 
 
 
+
+
+
+
 const FinancePage = ({ onNavigate }) => {
+
+
 
   const { isActionEnabled } = useSettings();
 
+
+
   const { can } = usePermissions();
+
+
+
+
 
 
 
@@ -661,19 +1284,37 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
   // Main view mode: 'dashboard', 'kanban', 'table'
+
+
 
   const [mainView, setMainView] = useState('dashboard');
 
+
+
   // Active tab in table view: 'invoices', 'payables', 'transactions'
+
+
 
   const [activeTab, setActiveTab] = useState('invoices');
 
 
 
+
+
+
+
   // Table view summary cards visibility (default hidden)
 
+
+
   const [showSummaryCards, setShowSummaryCards] = useState(true);
+
+
+
+
 
 
 
@@ -681,7 +1322,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   const [invStatus, setInvStatus] = useState('All');
+
+
+
+
 
 
 
@@ -689,42 +1338,83 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   const [pageSize, setPageSizeState] = useState(() => {
+
+
 
     const saved = localStorage.getItem('finance_invoice_pageSize');
 
+
+
     return saved ? parseInt(saved, 10) : APP_CONFIG.defaultPageSize;
 
+
+
   });
+
+
 
 
 
   const setPageSize = (size) => {
 
+
+
     localStorage.setItem('finance_invoice_pageSize', String(size));
+
+
 
     setPageSizeState(size);
 
+
+
   };
+
+
 
   const [dateRange, setDateRange] = useState({
 
+
+
     start: format(subMonths(new Date(), 6), 'yyyy-MM-dd'),
+
+
 
     end: format(new Date(), 'yyyy-MM-dd')
 
+
+
   });
+
+
 
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
+
+
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
 
+
+
   // Calendar filter year state - for filtering data by year
+
   const [calendarFilterYear, setCalendarFilterYear] = useState('all');
+
   // Calendar filter month state - for displaying selected month in calendar
+
   const [calendarFilterMonth, setCalendarFilterMonth] = useState(undefined);
 
+
+
   const [showInvoice, setShowInvoice] = useState(false);
+
+
+
+
 
 
 
@@ -732,7 +1422,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   const [customers, setCustomers] = useState([]);
+
+
+
+
 
 
 
@@ -740,7 +1438,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   const [error, setError] = useState(null);
+
+
+
+
 
 
 
@@ -748,7 +1454,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   const [invoices, setInvoices] = useState([]);
+
+
+
+
 
 
 
@@ -756,7 +1470,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   const [dashboardStats, setDashboardStats] = useState(null);
+
+
+
+
 
 
 
@@ -764,7 +1486,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   const [cashFlow, setCashFlow] = useState([]);
+
+
+
+
 
 
 
@@ -772,7 +1502,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   const [payables, setPayables] = useState([]);
+
+
+
+
 
 
 
@@ -780,7 +1518,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   const [projects, setProjects] = useState([]);
+
+
+
+
 
 
 
@@ -788,7 +1534,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   const [canCreateInvoice, setCanCreateInvoice] = useState(true);
+
+
+
+
 
 
 
@@ -796,7 +1550,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   const [selectedProjectContractValue, setSelectedProjectContractValue] = useState(null);
+
+
+
+
 
 
 
@@ -808,7 +1570,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   // Reminder modal state
+
+
+
+
 
 
 
@@ -816,7 +1590,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   const [selectedReminderInvoice, setSelectedReminderInvoice] = useState(null);
+
+
+
+
 
 
 
@@ -824,7 +1606,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     reminderType: 'Gentle',
+
+
+
+
 
 
 
@@ -832,7 +1622,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     messageBody: '',
+
+
+
+
 
 
 
@@ -840,7 +1638,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   const [sendingReminder, setSendingReminder] = useState(false);
+
+
+
+
 
 
 
@@ -852,7 +1658,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   // Timeline drawer state
+
+
+
+
 
 
 
@@ -860,11 +1678,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   const [timelineInvoice, setTimelineInvoice] = useState(null);
 
 
 
+
+
+
+
   const [timelineData, setTimelineData] = useState([]);
+
+
+
+
 
 
 
@@ -876,7 +1706,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   // Edit invoice modal state
+
+
+
+
 
 
 
@@ -884,7 +1726,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   const [editInvoiceTarget, setEditInvoiceTarget] = useState(null);
+
+
+
+
 
 
 
@@ -892,7 +1742,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     invoiceNumber: '',
+
+
+
+
 
 
 
@@ -900,7 +1758,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     amount: '',
+
+
+
+
 
 
 
@@ -908,7 +1774,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     dueDate: '',
+
+
+
+
 
 
 
@@ -916,7 +1790,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     description: '',
+
+
+
+
 
 
 
@@ -924,7 +1806,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     status: '',
+
+
+
+
 
 
 
@@ -932,13 +1822,31 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   const [newInvoiceErrors, setNewInvoiceErrors] = useState({});
+
+
+
+
 
 
 
   const [savingEditInvoice, setSavingEditInvoice] = useState(false);
 
+
+
   const [editModalError, setEditModalError] = useState(null);
+
+
+
+
+
+
+
+
 
 
 
@@ -950,11 +1858,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   const [showDeleteInvoice, setShowDeleteInvoice] = useState(false);
 
 
 
+
+
+
+
   const [deleteInvoiceTarget, setDeleteInvoiceTarget] = useState(null);
+
+
+
+
 
 
 
@@ -966,7 +1886,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   // Assign invoice modal state
+
+
+
+
 
 
 
@@ -974,7 +1906,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   const [assignInvoiceTarget, setAssignInvoiceTarget] = useState(null);
+
+
+
+
 
 
 
@@ -986,7 +1926,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   // Form state for new invoice
+
+
+
+
 
 
 
@@ -994,7 +1946,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     invoiceNumber: '',
+
+
+
+
 
 
 
@@ -1002,7 +1962,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     customerName: '',
+
+
+
+
 
 
 
@@ -1010,7 +1978,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     invoiceDate: '',
+
+
+
+
 
 
 
@@ -1018,7 +1994,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     paymentTerms: '',
+
+
+
+
 
 
 
@@ -1026,11 +2010,27 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     email: '',
 
 
 
+
+
+
+
   });
+
+
+
+
+
+
+
+
 
 
 
@@ -1042,7 +2042,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   const [showRecordPayment, setShowRecordPayment] = useState(false);
+
+
+
+
 
 
 
@@ -1050,7 +2058,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     paymentType: 'Customer Payment',
+
+
+
+
 
 
 
@@ -1058,11 +2074,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     referenceId: '',
 
 
 
+
+
+
+
     amount: '',
+
+
+
+
 
 
 
@@ -1070,7 +2098,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     paymentDate: new Date().toISOString().slice(0, 10),
+
+
+
+
 
 
 
@@ -1078,11 +2114,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     notes: '',
 
 
 
+
+
+
+
   });
+
+
+
+
 
 
 
@@ -1090,149 +2138,317 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   const [submittingPayment, setSubmittingPayment] = useState(false);
+
+
+
+
 
 
 
   // Manual Adjustment state
 
+
+
   const [showAdjustModal, setShowAdjustModal] = useState(false);
+
+
 
   const [adjustForm, setAdjustForm] = useState({
 
+
+
     type: 'credit',
+
+
 
     category: '',
 
+
+
     amount: '',
+
+
 
     reason: '',
 
+
+
     reference: '',
+
+
 
     date: new Date().toISOString().slice(0, 10),
 
+
+
+    selectedInvoiceId: '',
+
+
+
+    selectedVendorId: '',
+
+
+
+    paymentMethod: 'Bank Transfer',
+
+
+
   });
+
+
 
   const [adjustErrors, setAdjustErrors] = useState({});
 
+
+
   const [adjustError, setAdjustError] = useState(null);
+
+
 
   const [submittingAdjust, setSubmittingAdjust] = useState(false);
 
+
+
   const [manualAdjustments, setManualAdjustments] = useState([]);
+
+
 
   const [manualBalance, setManualBalance] = useState(0);
 
+
+
   // Adjustment categories state
+
+
 
   const [adjustmentCategories, setAdjustmentCategories] = useState([]);
 
+
+
   const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
+
+
 
   const [newCategory, setNewCategory] = useState({
 
+
+
     categoryName: '',
+
+
 
     type: 'credit',
 
+
+
   });
+
+
 
   const [addingCategory, setAddingCategory] = useState(false);
 
+
+
   // Journal entries state
+
+
 
   const [journalEntries, setJournalEntries] = useState([]);
 
+
+
   const [selectedJournalEntry, setSelectedJournalEntry] = useState(null);
 
+
+
   const [selectedJournalEntryIndex, setSelectedJournalEntryIndex] = useState(null);
+
+
 
   const [showJournalEntryModal, setShowJournalEntryModal] = useState(false);
 
 
 
+
+
+
+
   const journalTotals = useMemo(() => {
 
+
+
     let debitTotal = 0;
+
+
 
     let creditTotal = 0;
 
 
 
+
+
+
+
     (journalEntries || []).forEach((entry) => {
+
+
 
       (entry?.lines || []).forEach((line) => {
 
+
+
         const d = Number(line?.debitAmount || 0);
+
+
 
         const c = Number(line?.creditAmount || 0);
 
+
+
         if (!Number.isNaN(d)) debitTotal += d;
+
+
 
         if (!Number.isNaN(c)) creditTotal += c;
 
+
+
       });
 
+
+
     });
+
+
+
+
 
 
 
     return { debitTotal, creditTotal };
 
+
+
   }, [journalEntries]);
 
+
+
   // Filtered data by selected year from calendar
+
   const filteredInvoicesByYear = useMemo(() => {
+
     if (calendarFilterYear === 'all') return invoices;
+
     return invoices.filter(inv => {
+
       const invoiceDate = new Date(inv.invoiceDate || inv.createdAt);
+
       return invoiceDate.getFullYear().toString() === calendarFilterYear;
-    });
-  }, [invoices, calendarFilterYear]);
 
-  const filteredJournalEntriesByYear = useMemo(() => {
+    });
+
+}, [invoices, calendarFilterYear]);
+
+const filteredJournalEntriesByYear = useMemo(() => {
+    console.log('Filtering journal entries:', {
+        totalEntries: journalEntries.length,
+        filterYear: calendarFilterYear,
+        entries: journalEntries.map(e => ({ id: e.id, date: e.date, type: e.type }))
+    });
+    
     if (calendarFilterYear === 'all') return journalEntries;
-    return journalEntries.filter(entry => {
-      const entryDate = new Date(entry.date || entry.createdAt);
-      return entryDate.getFullYear().toString() === calendarFilterYear;
-    });
-  }, [journalEntries, calendarFilterYear]);
 
-  const filteredManualAdjustmentsByYear = useMemo(() => {
-    if (calendarFilterYear === 'all') return manualAdjustments;
-    return manualAdjustments.filter(adj => {
-      const adjDate = new Date(adj.date || adj.createdAt);
-      return adjDate.getFullYear().toString() === calendarFilterYear;
+    return journalEntries.filter(entry => {
+        const entryDate = new Date(entry.date || entry.createdAt);
+        const entryYear = entryDate.getFullYear().toString();
+        const matches = entryYear === calendarFilterYear;
+        console.log('Entry filter check:', {
+            entryId: entry.id,
+            entryDate: entry.date,
+            parsedYear: entryYear,
+            filterYear: calendarFilterYear,
+            matches: matches
+        });
+        return matches;
     });
+}, [journalEntries, calendarFilterYear]);
+
+const filteredManualAdjustmentsByYear = useMemo(() => {
+
+    if (calendarFilterYear === 'all') return manualAdjustments;
+
+    return manualAdjustments.filter(adj => {
+
+      const adjDate = new Date(adj.date || adj.createdAt);
+
+      return adjDate.getFullYear().toString() === calendarFilterYear;
+
+    });
+
   }, [manualAdjustments, calendarFilterYear]);
 
+
+
   const filteredPayablesByYear = useMemo(() => {
+
     if (calendarFilterYear === 'all') return payables;
+
     return payables.filter(p => {
+
       if (!p.lastPurchaseOrderDate) return false;
+
       const poDate = new Date(p.lastPurchaseOrderDate);
+
       return poDate.getFullYear().toString() === calendarFilterYear;
+
     });
+
   }, [payables, calendarFilterYear]);
 
+
+
   // Extract unique years from invoice data for the calendar filter
+
   const availableYears = useMemo(() => {
+
     const years = new Set();
+
     (invoices || []).forEach(inv => {
+
       const date = new Date(inv.invoiceDate || inv.createdAt);
+
       if (!isNaN(date.getTime())) {
+
         years.add(date.getFullYear());
+
       }
+
     });
+
     (journalEntries || []).forEach(entry => {
+
       const date = new Date(entry.date || entry.createdAt);
+
       if (!isNaN(date.getTime())) {
+
         years.add(date.getFullYear());
+
       }
+
     });
+
     return Array.from(years).sort((a, b) => b - a); // Sort descending
+
   }, [invoices, journalEntries]);
+
+
+
+
 
 
 
@@ -1240,11 +2456,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   useEffect(() => {
 
 
 
+
+
+
+
     fetchData();
+
+
+
+
 
 
 
@@ -1256,7 +2484,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   const fetchData = async () => {
+
+
+
+
 
 
 
@@ -1264,7 +2504,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       if (!canViewFinance) {
+
+
+
+
 
 
 
@@ -1272,7 +2520,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         setError('This action is disabled from module settings.');
+
+
+
+
 
 
 
@@ -1280,11 +2536,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       }
 
 
 
+
+
+
+
       setLoading(true);
+
+
+
+
 
 
 
@@ -1296,31 +2564,63 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       const [
+
+
 
         invoicesRes,
 
+
+
         paymentsRes,
+
+
 
         vendorExpensesRes,
 
+
+
         statsRes,
+
+
 
         vendorsRes,
 
+
+
         posRes,
+
+
 
         manualAdjustmentsRes,
 
+
+
         manualBalanceRes,
+
+
 
         categoriesRes,
 
+
+
         journalEntriesRes,
+
+
 
         transactionAnalyticsRes,
 
+
+
       ] = await Promise.all([
+
+
+
+
 
 
 
@@ -1328,7 +2628,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         financeApi.getPayments(),
+
+
+
+
 
 
 
@@ -1336,7 +2644,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         financeApi.getDashboardStats(),
+
+
+
+
 
 
 
@@ -1344,7 +2660,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         api.get('/procurement/purchase-orders'),
+
+
+
+
 
 
 
@@ -1352,7 +2676,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         financeApi.getManualAdjustmentBalance(),
+
+
+
+
 
 
 
@@ -1360,7 +2692,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         financeApi.getJournalEntries(),
+
+
+
+
 
 
 
@@ -1368,7 +2708,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       ]);
+
+
+
+
 
 
 
@@ -1380,7 +2728,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       const payments = paymentsRes || [];
+
+
+
+
 
 
 
@@ -1388,7 +2744,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       const vendorExpenses = vendorExpensesRes || [];
+
+
+
+
 
 
 
@@ -1396,95 +2760,191 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       // Set manual adjustments and balance
 
+
+
       setManualAdjustments(manualAdjustmentsRes || []);
+
+
 
       setManualBalance(manualBalanceRes?.balance || 0);
 
 
 
+
+
+
+
       // Set adjustment categories
+
+
 
       setAdjustmentCategories(categoriesRes || []);
 
 
 
+
+
+
+
       // Set journal entries
+
+
 
       setJournalEntries(journalEntriesRes || []);
 
 
 
+
+
+
+
       // Set transaction analytics
+
+
 
       setTransactionAnalytics(transactionAnalyticsRes || null);
 
 
 
+
+
+
+
       // Vendor Payables (from Procurement Purchase Orders)
+
+
 
       const vendors = Array.isArray(vendorsRes)
 
+
+
         ? vendorsRes
+
+
 
         : (vendorsRes?.data || []);
 
+
+
       const purchaseOrders = Array.isArray(posRes)
 
+
+
         ? posRes
+
+
 
         : (posRes?.data || []);
 
 
 
+
+
+
+
       const safeDate = (d) => {
+
+
 
         if (!d) return null;
 
+
+
         if (d instanceof Date) {
+
+
 
           return Number.isNaN(d.getTime()) ? null : d;
 
+
+
         }
+
+
 
         if (typeof d === 'string') {
 
+
+
           const m = d.trim().match(/^([0-3]\d)[-\/](0\d|1[0-2])[-\/](\d{4})$/);
+
+
 
           if (m) {
 
+
+
             const day = Number(m[1]);
+
+
 
             const month = Number(m[2]);
 
+
+
             const year = Number(m[3]);
+
+
 
             const dt = new Date(year, month - 1, day);
 
+
+
             return Number.isNaN(dt.getTime()) ? null : dt;
+
+
 
           }
 
+
+
         }
+
+
 
         const dt = new Date(d);
 
+
+
         return Number.isNaN(dt.getTime()) ? null : dt;
 
+
+
       };
+
+
+
+
 
 
 
       const getMonthKey = (dt) => {
 
+
+
         const y = dt.getFullYear();
+
+
 
         const m = String(dt.getMonth() + 1).padStart(2, '0');
 
+
+
         return `${y}-${m}`;
 
+
+
       };
+
+
+
+
 
 
 
@@ -1492,35 +2952,71 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       const buildLastNMonths = (n) => {
+
+
 
         const now = new Date();
 
+
+
         const start = new Date(now.getFullYear(), now.getMonth(), 1);
+
+
 
         const months = [];
 
+
+
         for (let i = n - 1; i >= 0; i -= 1) {
+
+
 
           const d = new Date(start.getFullYear(), start.getMonth() - i, 1);
 
+
+
           months.push({
+
+
 
             key: getMonthKey(d),
 
+
+
             month: getMonthLabel(d),
+
+
 
             start: new Date(d.getFullYear(), d.getMonth(), 1),
 
+
+
             end: new Date(d.getFullYear(), d.getMonth() + 1, 1),
+
+
 
           });
 
+
+
         }
+
+
 
         return months;
 
+
+
       };
+
+
+
+
 
 
 
@@ -1528,17 +3024,35 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       const allowedInvoiceStatuses = new Set(['Paid', 'Partial', 'Pending']);
+
+
+
+
 
 
 
       const invoiceCreatedAt = (inv) => safeDate(inv?.invoiceDate) || safeDate(inv?.createdAt);
 
+
+
       const paymentDate = (p) => safeDate(p?.paymentDate) || safeDate(p?.createdAt);
+
+
 
       const expenseCreatedAt = (exp) => safeDate(exp?.createdAt) || safeDate(exp?.expenseDate);
 
+
+
       const expensePaidAt = (exp) => safeDate(exp?.expenseDate) || safeDate(exp?.updatedAt) || safeDate(exp?.createdAt);
+
+
+
+
 
 
 
@@ -1546,85 +3060,169 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       const revenueCostSeries = months.map((m) => {
+
+
 
         const revenue = invoicesForCharts.reduce((sum, inv) => {
 
+
+
           const dt = invoiceCreatedAt(inv);
+
+
 
           if (!dt || dt < m.start || dt >= m.end) return sum;
 
+
+
           return sum + Number(inv?.amount || inv?.invoiceAmount || 0);
 
+
+
         }, 0);
+
+
+
+
 
 
 
         const cost = (vendorExpenses || []).reduce((sum, exp) => {
 
+
+
           const dt = expenseCreatedAt(exp);
+
+
 
           if (!dt || dt < m.start || dt >= m.end) return sum;
 
+
+
           return sum + Number(exp?.amount || exp?.payableAmount || 0);
 
+
+
         }, 0);
+
+
+
+
 
 
 
         return { month: m.month, revenue, cost };
 
+
+
       });
+
+
+
+
 
 
 
       const cashFlowSeries = months.map((m) => {
 
+
+
         // Inflow: Use invoices.paid instead of payments (like backend getBalance)
+
+
 
         const inflow = (invoicesRes || []).reduce((sum, inv) => {
 
+
+
           // For paid invoices, use invoiceDate if paidDate is missing
+
+
 
           let dt = safeDate(inv?.paidDate);
 
+
+
           if (!dt && inv?.status === 'Paid') {
+
+
 
             dt = safeDate(inv?.invoiceDate) || safeDate(inv?.updatedAt) || safeDate(inv?.createdAt);
 
+
+
           }
+
+
 
           if (!dt || dt < m.start || dt >= m.end) return sum;
 
+
+
           // Use paid amount (or amount if status is Paid)
+
+
 
           const paid = Number(inv?.paid || 0);
 
+
+
           const amount = Number(inv?.amount || 0);
+
+
 
           const effectivePaid = (paid === 0 && inv?.status === 'Paid') ? amount : paid;
 
+
+
           return sum + effectivePaid;
 
+
+
         }, 0);
+
+
+
+
 
 
 
         const outflow = (vendorExpenses || []).reduce((sum, exp) => {
 
+
+
           if (String(exp?.status || '').toLowerCase() !== 'paid') return sum;
+
+
 
           const dt = expensePaidAt(exp);
 
+
+
           if (!dt || dt < m.start || dt >= m.end) return sum;
 
+
+
           return sum + Number(exp?.amount || exp?.paidAmount || 0);
+
+
 
         }, 0);
 
 
 
+
+
+
+
         return { month: m.month, inflow, outflow };
+
+
 
       });
 
@@ -1632,7 +3230,11 @@ const FinancePage = ({ onNavigate }) => {
 
       console.log('FinancePage CashFlow debug:', {
 
+
+
         months: months.map(m => ({ month: m.month, start: m.start.toISOString(), end: m.end.toISOString() })),
+
+
 
         invoicesCount: invoicesRes?.length || 0,
 
@@ -1642,17 +3244,29 @@ const FinancePage = ({ onNavigate }) => {
 
           amount: inv.amount,
 
+
+
           paid: inv.paid,
+
+
 
           invoiceDate: inv.invoiceDate,
 
           paidDate: inv.paidDate
 
+
+
         })),
 
         cashFlowSeries
 
+
+
       });
+
+
+
+
 
 
 
@@ -1660,49 +3274,99 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       setCashFlow(cashFlowSeries);
+
+
+
+
 
 
 
       // Calculate monthly income/expense trend from manual adjustments only
 
+
+
       const adjustmentTrendSeries = months.map((m) => {
+
+
 
         const income = (manualAdjustmentsRes || [])
 
+
+
           .filter(adj => adj.type === 'credit')
+
+
 
           .reduce((sum, adj) => {
 
+
+
             const dt = safeDate(adj?.date) || safeDate(adj?.createdAt);
+
+
 
             if (!dt || dt < m.start || dt >= m.end) return sum;
 
+
+
             return sum + Number(adj?.amount || 0);
 
+
+
           }, 0);
+
+
+
+
 
 
 
         const expense = (manualAdjustmentsRes || [])
 
+
+
           .filter(adj => adj.type === 'debit')
+
+
 
           .reduce((sum, adj) => {
 
+
+
             const dt = safeDate(adj?.date) || safeDate(adj?.createdAt);
+
+
 
             if (!dt || dt < m.start || dt >= m.end) return sum;
 
+
+
             return sum + Number(adj?.amount || 0);
+
+
 
           }, 0);
 
 
 
+
+
+
+
         return { month: m.month, income, expense };
 
+
+
       });
+
+
+
+
 
 
 
@@ -1710,119 +3374,239 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       const computePaymentStatus = (po) => {
+
+
 
         const total = Number(po?.totalAmount || 0);
 
+
+
         const paid = Number(po?.amountPaid || 0);
+
+
 
         const raw = po?.paymentStatus;
 
+
+
         if (raw) return raw;
+
+
 
         if (paid <= 0) return 'Unpaid';
 
+
+
         if (paid >= total) return 'Paid';
 
+
+
         return 'Partially Paid';
+
+
 
       };
 
 
 
+
+
+
+
       const vendorRows = (vendors || [])
+
+
 
         .map((v) => {
 
+
+
           const vendorObjectId = v?._id;
+
+
 
           if (!vendorObjectId) return null;
 
 
 
+
+
+
+
           const vendorPos = (purchaseOrders || []).filter((po) => {
+
+
 
             const poVendorId = (po?.vendorId && typeof po.vendorId === 'object') ? po.vendorId?._id : po?.vendorId;
 
+
+
             return String(poVendorId) === String(vendorObjectId);
 
+
+
           });
+
+
+
+
 
 
 
           const payablePos = vendorPos.filter((po) => {
 
+
+
             const status = computePaymentStatus(po);
 
+
+
             return status === 'Unpaid' || status === 'Partially Paid';
+
+
 
           });
 
 
 
+
+
+
+
           const totals = payablePos.reduce(
+
+
 
             (acc, po) => {
 
+
+
               const total = Number(po?.totalAmount || 0);
+
+
 
               const paid = Number(po?.amountPaid || 0);
 
+
+
               acc.totalPurchaseOrders += 1;
+
+
 
               acc.totalPayableAmount += total;
 
+
+
               acc.amountPaid += paid;
+
+
 
               acc.outstandingAmount += Math.max(0, total - paid);
 
+
+
               if (po?.orderedDate) {
+
+
 
                 if (!acc.lastPurchaseOrderDate || String(po.orderedDate) > String(acc.lastPurchaseOrderDate)) {
 
+
+
                   acc.lastPurchaseOrderDate = po.orderedDate;
+
+
 
                 }
 
+
+
               }
+
+
 
               return acc;
 
+
+
             },
+
+
 
             {
 
+
+
               vendorName: v?.name || v?.vendorName || '—',
+
+
 
               vendorId: v?.id || v?._id,
 
+
+
               vendorObjectId,
+
+
 
               totalPurchaseOrders: 0,
 
+
+
               totalPayableAmount: 0,
+
+
 
               amountPaid: 0,
 
+
+
               outstandingAmount: 0,
+
+
 
               lastPurchaseOrderDate: '',
 
+
+
             }
+
+
 
           );
 
 
 
+
+
+
+
           if (totals.outstandingAmount <= 0) return null;
+
+
 
           return totals;
 
+
+
         })
+
+
 
         .filter(Boolean)
 
+
+
         .sort((a, b) => (String(b.lastPurchaseOrderDate || '')).localeCompare(String(a.lastPurchaseOrderDate || '')));
+
+
+
+
 
 
 
@@ -1830,7 +3614,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     } catch (err) {
+
+
+
+
 
 
 
@@ -1838,7 +3630,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     } finally {
+
+
+
+
 
 
 
@@ -1846,43 +3646,87 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     }
 
 
 
+
+
+
+
   };
+
+
+
+
 
 
 
   const guardCreate = () => {
 
+
+
     if (!can('finance', 'create')) {
+
+
 
       toast.error('Permission denied: Cannot create invoices');
 
+
+
       return false;
+
+
 
     }
 
+
+
     return true;
 
+
+
   };
+
+
+
+
 
 
 
   const guardApprove = () => {
 
+
+
     if (!can('finance', 'approve')) {
+
+
 
       toast.error('Permission denied: Cannot approve/record payments');
 
+
+
       return false;
+
+
 
     }
 
+
+
     return true;
 
+
+
   };
+
+
+
+
 
 
 
@@ -1890,23 +3734,47 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   const canViewFinance = canFinance('view');
+
+
+
+
 
 
 
   const financePermissions = {
 
+
+
     create: canFinance('create'),
+
+
 
     edit: canFinance('edit'),
 
+
+
     delete: canFinance('delete'),
+
+
 
     export: canFinance('export'),
 
+
+
     assign: canFinance('assign'),
 
+
+
   };
+
+
+
+
 
 
 
@@ -1914,7 +3782,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   const canDeleteInvoice = (inv) => canFinance('delete') && inv?.status !== 'Paid';
+
+
+
+
 
 
 
@@ -1926,7 +3802,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   const toDateInputValue = (d) => {
+
+
+
+
 
 
 
@@ -1934,7 +3822,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     const dt = new Date(d);
+
+
+
+
 
 
 
@@ -1942,11 +3838,27 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     return dt.toISOString().slice(0, 10);
 
 
 
+
+
+
+
   };
+
+
+
+
+
+
+
+
 
 
 
@@ -1958,7 +3870,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     if (!canEditInvoice(row)) return;
+
+
+
+
 
 
 
@@ -1966,7 +3886,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     setEditInvoice({
+
+
+
+
 
 
 
@@ -1974,7 +3902,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       customerName: row?.customerName || '',
+
+
+
+
 
 
 
@@ -1982,7 +3918,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       invoiceDate: toDateInputValue(row?.invoiceDate),
+
+
+
+
 
 
 
@@ -1990,7 +3934,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       paymentTerms: row?.paymentTerms || '',
+
+
+
+
 
 
 
@@ -1998,7 +3950,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       email: row?.email || '',
+
+
+
+
 
 
 
@@ -2006,17 +3966,39 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     });
+
+
+
+
 
 
 
     setEditModalError(null);
 
+
+
     setShowEditInvoice(true);
 
 
 
+
+
+
+
   };
+
+
+
+
+
+
+
+
 
 
 
@@ -2026,173 +4008,345 @@ const FinancePage = ({ onNavigate }) => {
 
   const handleSaveEditInvoice = async () => {
 
+
+
     if (!editInvoiceTarget) return;
+
+
+
+
 
 
 
     if (!editInvoice.invoiceNumber.trim()) {
 
+
+
       setEditModalError('Invoice Number is required');
+
+
 
       return;
 
+
+
     }
+
+
+
+
 
 
 
     if (!editInvoice.customerName.trim()) {
 
+
+
       setEditModalError('Customer Name is required');
+
+
 
       return;
 
+
+
     }
+
+
+
+
 
 
 
     if (!editInvoice.amount || parseFloat(editInvoice.amount) <= 0) {
 
+
+
       setEditModalError('Valid Invoice Amount is required');
+
+
 
       return;
 
+
+
     }
+
+
+
+
 
 
 
     if (!editInvoice.invoiceDate) {
 
+
+
       setEditModalError('Invoice Date is required');
+
+
 
       return;
 
+
+
     }
+
+
+
+
 
 
 
     if (!editInvoice.dueDate) {
 
+
+
       setEditModalError('Due Date is required');
+
+
 
       return;
 
+
+
     }
+
+
+
+
 
 
 
     // Status validation (same as Kanban view)
 
+
+
     const previousStatus = editInvoiceTarget?.status;
+
+
 
     const newStatus = editInvoice.status;
 
 
 
+
+
+
+
     if (previousStatus && previousStatus !== newStatus) {
+
+
 
       const order = {
 
+
+
         Draft: 0,
+
+
 
         Sent: 1,
 
+
+
         Pending: 2,
+
+
 
         Partial: 3,
 
+
+
         Paid: 4,
+
+
 
         Overdue: 5,
 
+
+
       };
+
+
+
+
 
 
 
       const isBackward = order[newStatus] < order[previousStatus];
 
+
+
       if (isBackward) {
+
+
 
         setEditModalError('Invoice status cannot be moved backward.');
 
+
+
         return;
 
+
+
       }
+
+
+
+
 
 
 
       const allowedTransitions = new Set([
 
+
+
         'Draft->Sent',
+
+
 
         'Draft->Pending',
 
+
+
         'Sent->Pending',
+
+
 
         'Sent->Partial',
 
+
+
         'Pending->Partial',
+
+
 
         'Partial->Paid',
 
+
+
         'Pending->Overdue',
+
+
 
         'Partial->Overdue',
 
+
+
         'Sent->Overdue',
+
+
 
       ]);
 
 
 
+
+
+
+
       const key = `${previousStatus}->${newStatus}`;
+
+
 
       if (!allowedTransitions.has(key)) {
 
+
+
         setEditModalError('Invalid invoice status transition');
+
+
 
         return;
 
+
+
       }
+
+
 
     }
 
 
 
+
+
+
+
     const invoiceId = editInvoiceTarget?._id || editInvoiceTarget?.id;
+
+
 
     if (!invoiceId) return;
 
 
 
+
+
+
+
     try {
 
+
+
       setSavingEditInvoice(true);
+
+
 
       setEditModalError(null);
 
 
 
+
+
+
+
       const dto = {
+
+
 
         invoiceNumber: editInvoice.invoiceNumber.trim(),
 
+
+
         customerName: editInvoice.customerName.trim(),
+
+
 
         amount: parseFloat(editInvoice.amount),
 
+
+
         invoiceDate: editInvoice.invoiceDate,
+
+
 
         dueDate: editInvoice.dueDate,
 
+
+
         ...(editInvoice.email ? { email: editInvoice.email.trim() } : {}),
+
+
 
         ...(editInvoice.status ? { status: editInvoice.status } : {}),
 
+
+
         ...(editInvoice.paymentTerms ? { paymentTerms: editInvoice.paymentTerms } : {}),
+
+
 
         ...(editInvoice.description ? { description: editInvoice.description } : {}),
 
+
+
       };
+
+
+
+
 
 
 
@@ -2200,25 +4354,55 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       setShowEditInvoice(false);
+
+
 
       setEditInvoiceTarget(null);
 
+
+
       toast.success('Invoice updated successfully');
+
+
 
       await fetchData();
 
+
+
     } catch (err) {
+
+
 
       setEditModalError(err.message || 'Failed to update invoice');
 
+
+
     } finally {
+
+
 
       setSavingEditInvoice(false);
 
+
+
     }
 
+
+
   };
+
+
+
+
+
+
+
+
 
 
 
@@ -2230,7 +4414,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     if (!canDeleteInvoice(row)) return;
+
+
+
+
 
 
 
@@ -2238,7 +4430,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     setError(null);
+
+
+
+
 
 
 
@@ -2246,7 +4446,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   };
+
+
+
+
+
+
+
+
 
 
 
@@ -2258,7 +4470,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     if (!canAssignInvoice(row)) return;
+
+
+
+
 
 
 
@@ -2266,7 +4486,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     setAssignToUser('');
+
+
+
+
 
 
 
@@ -2274,11 +4502,27 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     setShowAssignInvoice(true);
 
 
 
+
+
+
+
   };
+
+
+
+
+
+
+
+
 
 
 
@@ -2290,7 +4534,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     if (!assignInvoiceTarget) return;
+
+
+
+
 
 
 
@@ -2298,7 +4550,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       setError('Please select a user.');
+
+
+
+
 
 
 
@@ -2306,7 +4566,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     }
+
+
+
+
 
 
 
@@ -2314,7 +4582,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     setShowAssignInvoice(false);
+
+
+
+
 
 
 
@@ -2322,11 +4598,27 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     setAssignToUser('');
 
 
 
+
+
+
+
   };
+
+
+
+
+
+
+
+
 
 
 
@@ -2338,11 +4630,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     if (!deleteInvoiceTarget) return;
 
 
 
+
+
+
+
     const invoiceId = deleteInvoiceTarget?._id || deleteInvoiceTarget?.id;
+
+
+
+
 
 
 
@@ -2354,7 +4658,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
     try {
+
+
+
+
 
 
 
@@ -2362,7 +4678,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       setError(null);
+
+
+
+
 
 
 
@@ -2370,7 +4694,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       setShowDeleteInvoice(false);
+
+
+
+
 
 
 
@@ -2378,7 +4710,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       await fetchData();
+
+
+
+
 
 
 
@@ -2386,7 +4726,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       setError(err.message || 'Failed to delete invoice');
+
+
+
+
 
 
 
@@ -2394,7 +4742,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       setDeletingInvoice(false);
+
+
+
+
 
 
 
@@ -2402,35 +4758,75 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   };
+
+
+
+
 
 
 
   // Generate next invoice number based on existing invoices
 
+
+
   const getNextInvoiceNumber = () => {
+
+
 
     const prefix = 'INV-';
 
+
+
     const numbers = invoices
+
+
 
       .map(inv => inv.invoiceNumber)
 
+
+
       .filter(num => num && num.startsWith(prefix))
+
+
 
       .map(num => {
 
+
+
         const match = num.match(/INV-(\d+)/);
+
+
 
         return match ? parseInt(match[1], 10) : 0;
 
+
+
       });
+
+
 
     const maxNum = numbers.length > 0 ? Math.max(...numbers) : 0;
 
+
+
     return `${prefix}${String(maxNum + 1).padStart(3, '0')}`;
 
+
+
   };
+
+
+
+
+
+
+
+
 
 
 
@@ -2442,7 +4838,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     if (!canFinance('export')) return;
+
+
+
+
 
 
 
@@ -2450,7 +4854,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       const s = v == null ? '' : String(v);
+
+
+
+
 
 
 
@@ -2458,7 +4870,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       const escaped = s.replace(/"/g, '""');
+
+
+
+
 
 
 
@@ -2466,7 +4886,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     };
+
+
+
+
 
 
 
@@ -2474,7 +4902,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       'Invoice #',
+
+
+
+
 
 
 
@@ -2482,7 +4918,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       'Amount',
+
+
+
+
 
 
 
@@ -2490,7 +4934,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       'Balance',
+
+
+
+
 
 
 
@@ -2498,7 +4950,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       'Invoice Date',
+
+
+
+
 
 
 
@@ -2506,7 +4966,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       'Paid On',
+
+
+
+
 
 
 
@@ -2514,7 +4982,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     const rows = (invoices || []).map((row) => {
+
+
+
+
 
 
 
@@ -2522,7 +4998,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         row?.invoiceNumber || row?.id || '',
+
+
+
+
 
 
 
@@ -2530,7 +5014,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         row?.amount ?? '',
+
+
+
+
 
 
 
@@ -2538,7 +5030,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         row?.balance ?? '',
+
+
+
+
 
 
 
@@ -2546,7 +5046,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         row?.invoiceDate ? new Date(row.invoiceDate).toLocaleDateString() : '',
+
+
+
+
 
 
 
@@ -2554,7 +5062,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         row?.paidDate ? new Date(row.paidDate).toLocaleDateString() : '',
+
+
+
+
 
 
 
@@ -2562,7 +5078,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       return cols.map(safe).join(',');
+
+
+
+
 
 
 
@@ -2570,7 +5094,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     const csv = [header, ...rows].join('\n');
+
+
+
+
 
 
 
@@ -2578,7 +5110,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     const url = URL.createObjectURL(blob);
+
+
+
+
 
 
 
@@ -2586,7 +5126,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     a.href = url;
+
+
+
+
 
 
 
@@ -2594,7 +5142,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     document.body.appendChild(a);
+
+
+
+
 
 
 
@@ -2602,11 +5158,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     a.remove();
 
 
 
+
+
+
+
     URL.revokeObjectURL(url);
+
+
+
+
 
 
 
@@ -2618,7 +5186,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   useEffect(() => {
+
+
+
+
 
 
 
@@ -2626,7 +5206,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     let mounted = true;
+
+
+
+
 
 
 
@@ -2634,7 +5222,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       try {
+
+
+
+
 
 
 
@@ -2642,7 +5238,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           financeApi.getCustomers(),
+
+
+
+
 
 
 
@@ -2650,11 +5254,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         ]);
 
 
 
+
+
+
+
         if (!mounted) return;
+
+
+
+
 
 
 
@@ -2662,7 +5278,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         setProjects(Array.isArray(projectsRes) ? projectsRes : []);
+
+
+
+
 
 
 
@@ -2670,7 +5294,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         if (!mounted) return;
+
+
+
+
 
 
 
@@ -2678,7 +5310,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         setProjects([]);
+
+
+
+
 
 
 
@@ -2686,7 +5326,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     })();
+
+
+
+
+
+
+
+
 
 
 
@@ -2698,7 +5350,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     setNewInvoice(prev => ({
+
+
+
+
 
 
 
@@ -2706,7 +5366,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       invoiceNumber: getNextInvoiceNumber(),
+
+
+
+
 
 
 
@@ -2718,7 +5386,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
     return () => {
+
+
+
+
 
 
 
@@ -2726,7 +5406,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     };
+
+
+
+
 
 
 
@@ -2738,7 +5426,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   // Fetch project status and allowed payment terms when project is selected
+
+
+
+
 
 
 
@@ -2746,7 +5446,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     if (!newInvoice.projectId) {
+
+
+
+
 
 
 
@@ -2754,7 +5462,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       setCanCreateInvoice(true);
+
+
+
+
 
 
 
@@ -2762,7 +5478,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       setSelectedProjectContractValue(null);
+
+
+
+
 
 
 
@@ -2770,7 +5494,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -2782,7 +5518,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     latestProjectIdRef.current = newInvoice.projectId;
+
+
+
+
 
 
 
@@ -2790,11 +5534,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     setAllowedPaymentTerms([]);
 
 
 
+
+
+
+
     setCanCreateInvoice(false);
+
+
+
+
 
 
 
@@ -2804,17 +5560,37 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
     // Try to get email from projects list immediately
+
+
 
     const selectedProjectFromList = projects.find(p => (p._id || p.id) === newInvoice.projectId);
 
+
+
     if (selectedProjectFromList?.email) {
+
+
 
       setNewInvoice(prev => ({ ...prev, email: selectedProjectFromList.email }));
 
+
+
       console.log('Email from projects list:', selectedProjectFromList.email);
 
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -2826,11 +5602,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     (async () => {
 
 
 
+
+
+
+
       try {
+
+
+
+
 
 
 
@@ -2842,7 +5630,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
         // Fetch project details from main projects endpoint
+
+
+
+
 
 
 
@@ -2850,11 +5650,27 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         if (!mounted) return;
 
 
 
+
+
+
+
         if (latestProjectIdRef.current !== requestedProjectId) return;
+
+
+
+
+
+
+
+
 
 
 
@@ -2866,47 +5682,93 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         const customerName = projectRes?.customerName || projectRes?.data?.customerName || projectRes?.project?.customerName || '';
+
+
 
         const customerEmail = projectRes?.email || projectRes?.data?.email || projectRes?.project?.email || projectRes?.customerEmail || projectRes?.data?.customerEmail || projectRes?.project?.customerEmail || '';
 
 
 
+
+
         console.log('Project Response:', projectRes);
+
+
 
         console.log('Extracted Email:', customerEmail);
 
 
 
+
+
+
+
         // Get contract value from projects list (already loaded)
+
+
 
         const selectedProject = projects.find(p => (p._id || p.id) === requestedProjectId);
 
+
+
         const contractValueFromList = selectedProject?.value ?? selectedProject?.contractValue ?? selectedProject?.contractAmount;
+
+
 
         const contractValueRaw =
 
+
+
           contractValueFromList ??
+
+
 
           projectRes?.value ??
 
+
+
           projectRes?.data?.value ??
+
+
 
           projectRes?.project?.value ??
 
+
+
           projectRes?.contractValue ??
+
+
 
           projectRes?.data?.contractValue ??
 
+
+
           projectRes?.project?.contractValue ??
+
+
 
           projectRes?.contractAmount ??
 
+
+
           projectRes?.data?.contractAmount ??
+
+
 
           projectRes?.project?.contractAmount;
 
+
+
         const contractValue = Number(contractValueRaw);
+
+
+
+
 
 
 
@@ -2914,11 +5776,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           console.error('Project status is empty/undefined. Full response:', projectRes);
 
 
 
+
+
+
+
         }
+
+
+
+
 
 
 
@@ -2926,23 +5800,51 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         setNewInvoice(prev => ({ ...prev, customerName, email: customerEmail }));
+
+
+
+
 
 
 
         if (!Number.isNaN(contractValue) && contractValue > 0) {
 
+
+
           setSelectedProjectContractValue(contractValue);
+
+
 
           setNewInvoice(prev => ({ ...prev, amount: String(contractValue) }));
 
+
+
           setNewInvoiceErrors(prev => ({ ...prev, amount: undefined }));
+
+
 
         } else {
 
+
+
           setSelectedProjectContractValue(null);
 
+
+
         }
+
+
+
+
+
+
+
+
 
 
 
@@ -2954,7 +5856,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         if (!projectStatus) {
+
+
+
+
 
 
 
@@ -2962,7 +5872,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           setCanCreateInvoice(false);
+
+
+
+
 
 
 
@@ -2970,11 +5888,27 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           return;
 
 
 
+
+
+
+
         }
+
+
+
+
+
+
+
+
 
 
 
@@ -2986,7 +5920,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         console.log('Fetching allowed terms for status:', projectStatus);
+
+
+
+
 
 
 
@@ -2994,11 +5936,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         console.log('Allowed terms response:', termsRes);
 
 
 
+
+
+
+
         if (!mounted) return;
+
+
+
+
 
 
 
@@ -3010,11 +5964,27 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
         const allowedTerms = termsRes?.allowedTerms || [];
 
 
 
+
+
+
+
         setAllowedPaymentTerms(allowedTerms);
+
+
+
+
 
 
 
@@ -3026,7 +5996,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
         // Clear payment term if not in allowed list
+
+
+
+
 
 
 
@@ -3034,7 +6016,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           setNewInvoice(prev => ({ ...prev, paymentTerms: '' }));
+
+
+
+
 
 
 
@@ -3042,7 +6032,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       } catch (err) {
+
+
+
+
 
 
 
@@ -3050,7 +6048,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         if (!mounted) return;
+
+
+
+
 
 
 
@@ -3058,7 +6064,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         setCanCreateInvoice(false);
+
+
+
+
 
 
 
@@ -3066,11 +6080,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         setSelectedProjectContractValue(null);
 
 
 
+
+
+
+
       }
+
+
+
+
 
 
 
@@ -3082,7 +6108,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
     return () => {
+
+
+
+
 
 
 
@@ -3090,7 +6128,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     };
+
+
+
+
 
 
 
@@ -3102,83 +6148,171 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   const handleStageChange = async (id, newStage) => {
+
+
+
+
 
 
 
     const existing = (invoices || []).find(i => String(i._id || i.id) === String(id));
 
+
+
     const previousStatus = existing?.status;
+
+
+
+
 
 
 
     if (previousStatus && previousStatus !== newStage) {
 
+
+
       const order = {
+
+
 
         Draft: 0,
 
+
+
         Sent: 1,
+
+
 
         Pending: 2,
 
+
+
         Partial: 3,
+
+
 
         Paid: 4,
 
+
+
         Overdue: 5,
+
+
 
       };
 
 
 
+
+
+
+
       const isBackward = order[newStage] < order[previousStatus];
+
+
 
       if (isBackward) {
 
+
+
         toast.error('Invoice status cannot be moved backward.');
+
+
 
         return;
 
+
+
       }
+
+
+
+
 
 
 
       const allowedTransitions = new Set([
 
+
+
         'Draft->Sent',
+
+
 
         'Draft->Pending',
 
+
+
         'Sent->Pending',
+
+
 
         'Sent->Partial',
 
+
+
         'Pending->Partial',
+
+
 
         'Partial->Paid',
 
+
+
         'Pending->Overdue',
+
+
 
         'Partial->Overdue',
 
+
+
         'Sent->Overdue',
+
+
 
       ]);
 
 
 
+
+
+
+
       const key = `${previousStatus}->${newStage}`;
+
+
 
       if (!allowedTransitions.has(key)) {
 
+
+
         toast.error('Invalid invoice status transition');
+
+
 
         return;
 
+
+
       }
 
+
+
     }
+
+
+
+
 
 
 
@@ -3186,7 +6320,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       await financeApi.updateInvoiceStatus(id, newStage);
+
+
+
+
 
 
 
@@ -3194,7 +6336,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     } catch (err) {
+
+
+
+
 
 
 
@@ -3202,11 +6352,27 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     }
 
 
 
+
+
+
+
   };
+
+
+
+
+
+
+
+
 
 
 
@@ -3218,57 +6384,115 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     // Validation
+
+
+
+
 
 
 
     const nextErrors = {};
 
+
+
     if (!newInvoice.invoiceNumber.trim()) nextErrors.invoiceNumber = 'Invoice Number is required';
+
+
 
     if (!newInvoice.projectId) nextErrors.projectId = 'Project is required';
 
+
+
     if (!newInvoice.amount || parseFloat(newInvoice.amount) <= 0) nextErrors.amount = 'Valid Invoice Amount is required';
 
+
+
     if (!newInvoice.invoiceDate) nextErrors.invoiceDate = 'Invoice Date is required';
+
+
 
     if (!newInvoice.dueDate) nextErrors.dueDate = 'Due Date is required';
 
 
 
+
+
+
+
     if (
+
+
 
       newInvoice.projectId &&
 
+
+
       selectedProjectContractValue !== null &&
+
+
 
       !Number.isNaN(Number(newInvoice.amount)) &&
 
+
+
       Number(newInvoice.amount) > Number(selectedProjectContractValue)
+
+
 
     ) {
 
+
+
       nextErrors.amount = 'Invoice amount cannot exceed the project contract value';
 
+
+
     }
+
+
+
+
 
 
 
     if (newInvoice.invoiceDate && newInvoice.dueDate && String(newInvoice.dueDate) < String(newInvoice.invoiceDate)) {
 
+
+
       nextErrors.dueDate = 'Due Date must be on/after Invoice Date';
 
+
+
     }
+
+
+
+
 
 
 
     if (Object.keys(nextErrors).length > 0) {
 
+
+
       setNewInvoiceErrors(nextErrors);
+
+
 
       return;
 
+
+
     }
+
+
+
+
 
 
 
@@ -3276,7 +6500,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     const invoiceNumberExists = (invoices || []).some(
+
+
+
+
 
 
 
@@ -3284,7 +6516,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     );
+
+
+
+
 
 
 
@@ -3292,7 +6532,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       setNewInvoiceErrors(prev => ({ ...prev, invoiceNumber: 'Invoice Number already exists' }));
+
+
+
+
 
 
 
@@ -3300,7 +6548,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     }
+
+
+
+
 
 
 
@@ -3312,7 +6568,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       setSubmitting(true);
+
+
+
+
 
 
 
@@ -3320,7 +6584,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       setNewInvoiceErrors({});
+
+
+
+
 
 
 
@@ -3332,7 +6604,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       const invoiceData = {
+
+
+
+
 
 
 
@@ -3340,7 +6620,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         projectId: newInvoice.projectId || undefined,
+
+
+
+
 
 
 
@@ -3348,9 +6636,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         customerName: newInvoice.customerName.trim(),
 
+
+
         email: newInvoice.email?.trim() || undefined,
+
+
+
+
 
 
 
@@ -3358,7 +6656,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         invoiceDate: newInvoice.invoiceDate,
+
+
+
+
 
 
 
@@ -3366,7 +6672,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         ...(newInvoice.paymentTerms && { paymentTerms: newInvoice.paymentTerms }),
+
+
+
+
 
 
 
@@ -3374,7 +6688,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       };
+
+
+
+
 
 
 
@@ -3386,7 +6708,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       setShowInvoice(false);
+
+
+
+
 
 
 
@@ -3394,7 +6724,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         invoiceNumber: getNextInvoiceNumber(),
+
+
+
+
 
 
 
@@ -3402,7 +6740,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         customerName: '',
+
+
+
+
 
 
 
@@ -3410,7 +6756,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         invoiceDate: '',
+
+
+
+
 
 
 
@@ -3418,7 +6772,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         paymentTerms: '',
+
+
+
+
 
 
 
@@ -3426,7 +6788,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         email: '',
+
+
+
+
 
 
 
@@ -3434,7 +6804,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       setNewInvoiceErrors({});
+
+
+
+
 
 
 
@@ -3442,11 +6820,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       setAllowedPaymentTerms([]);
 
 
 
+
+
+
+
       setCanCreateInvoice(true);
+
+
+
+
 
 
 
@@ -3458,7 +6848,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       // Refresh data to show new invoice
+
+
+
+
 
 
 
@@ -3466,7 +6864,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     } catch (err) {
+
+
+
+
 
 
 
@@ -3474,7 +6880,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     } finally {
+
+
+
+
 
 
 
@@ -3482,7 +6896,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     }
+
+
+
+
 
 
 
@@ -3494,7 +6916,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   const handleSendReminder = async () => {
+
+
+
+
 
 
 
@@ -3506,7 +6940,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
     // Validation
+
+
+
+
 
 
 
@@ -3514,11 +6960,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       setError('Customer email is required');
 
 
 
+
+
+
+
       return;
+
+
+
+
 
 
 
@@ -3530,11 +6988,27 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
     try {
 
 
 
+
+
+
+
       setSendingReminder(true);
+
+
+
+
 
 
 
@@ -3546,7 +7020,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
       await financeApi.sendInvoiceReminder(selectedReminderInvoice._id || selectedReminderInvoice.id, {
+
+
+
+
 
 
 
@@ -3554,7 +7040,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         customerEmail: reminderForm.customerEmail.trim(),
+
+
+
+
 
 
 
@@ -3562,7 +7056,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       });
+
+
+
+
+
+
+
+
 
 
 
@@ -3578,7 +7084,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       // Close modal after 2 seconds
+
+
+
+
 
 
 
@@ -3586,11 +7100,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         setShowReminderModal(false);
 
 
 
+
+
+
+
         setSelectedReminderInvoice(null);
+
+
+
+
 
 
 
@@ -3630,17 +7156,43 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   const clampAmount = (val, max) => {
+
+
 
     const num = Number(val);
 
+
+
     if (Number.isNaN(num) || num <= 0) return '';
+
+
 
     if (typeof max === 'number' && max > 0) return String(Math.min(num, max));
 
+
+
     return String(num);
 
+
+
   };
+
+
+
+
+
+
+
+
 
 
 
@@ -3652,7 +7204,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     // Validation
+
+
+
+
 
 
 
@@ -3660,21 +7220,43 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     if (!recordPayment.referenceId) nextErrors.referenceId = recordPayment.paymentType === 'Customer Payment' ? 'Invoice is required' : 'Vendor is required';
+
+
+
+
 
 
 
     const maxAmount = Number(recordPayment.maxAmount || 0);
 
+
+
     const amountNum = Number(recordPayment.amount);
+
+
 
     if (!recordPayment.amount || Number.isNaN(amountNum) || amountNum <= 0) nextErrors.amount = 'Valid amount greater than 0 is required';
 
+
+
     if (maxAmount > 0 && amountNum > maxAmount) nextErrors.amount = `Amount cannot exceed ₹${maxAmount}`;
+
+
 
     if (!recordPayment.paymentDate) nextErrors.paymentDate = 'Payment date is required';
 
+
+
     if (!recordPayment.paymentMethod) nextErrors.paymentMethod = 'Payment method is required';
+
+
+
+
 
 
 
@@ -3682,11 +7264,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       setRecordPaymentErrors(nextErrors);
 
 
 
+
+
+
+
       return;
+
+
+
+
 
 
 
@@ -3698,7 +7292,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
     try {
+
+
+
+
 
 
 
@@ -3706,7 +7312,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       setError(null);
+
+
+
+
 
 
 
@@ -3718,23 +7332,51 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
       const paymentData = {
+
+
 
         paymentType: recordPayment.paymentType,
 
+
+
         referenceType: recordPayment.referenceType,
+
+
 
         referenceId: recordPayment.referenceId,
 
+
+
         amount: parseFloat(recordPayment.amount),
+
+
 
         paymentDate: recordPayment.paymentDate,
 
+
+
         paymentMethod: recordPayment.paymentMethod,
+
+
 
         notes: recordPayment.notes?.trim() || undefined,
 
+
+
       };
+
+
+
+
 
 
 
@@ -3742,35 +7384,75 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       setShowRecordPayment(false);
+
+
+
+
 
 
 
       setRecordPayment({
 
+
+
         paymentType: 'Customer Payment',
+
+
 
         referenceType: 'Invoice',
 
+
+
         referenceId: '',
+
+
 
         amount: '',
 
+
+
         maxAmount: 0,
+
+
 
         paymentDate: new Date().toISOString().slice(0, 10),
 
+
+
         paymentMethod: 'Bank Transfer',
 
+
+
         notes: '',
+
+
 
       });
 
 
 
+
+
+
+
       // Refresh data
 
+
+
       await fetchData();
+
+
+
+
+
+
+
+
 
 
 
@@ -3782,7 +7464,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       setError(err.message || 'Failed to record payment');
+
+
+
+
 
 
 
@@ -3790,7 +7480,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       setSubmittingPayment(false);
+
+
+
+
 
 
 
@@ -3798,7 +7496,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   };
+
+
+
+
+
+
+
+
 
 
 
@@ -3808,165 +7518,450 @@ const FinancePage = ({ onNavigate }) => {
 
   const handleSubmitAdjustment = async () => {
 
+
+
     const nextErrors = {};
+
+
 
     const amountNum = Number(adjustForm.amount);
 
+
+
     if (!adjustForm.amount || Number.isNaN(amountNum) || amountNum <= 0) {
+
+
 
       nextErrors.amount = 'Amount must be greater than 0';
 
+
+
     }
+
+
 
     if (!adjustForm.date) {
 
+
+
       nextErrors.date = 'Date is required';
 
+
+
     }
+
+
 
     if (!adjustForm.category) {
 
+
+
       nextErrors.category = 'Category is required';
 
+
+
     }
+
+
+
+    // Validate invoice selection for Invoice Amount Received
+    if (adjustForm.type === 'credit' && adjustForm.category === 'Invoice Amount Received' && !adjustForm.selectedInvoiceId) {
+      nextErrors.selectedInvoiceId = 'Please select an invoice';
+    }
+
+    // Validate vendor selection for Vendor Payment
+    if (adjustForm.type === 'debit' && adjustForm.category === 'Vendor Payment' && !adjustForm.selectedVendorId) {
+      nextErrors.selectedVendorId = 'Please select a vendor';
+    }
+
+    // Validate payment amount doesn't exceed outstanding for invoice payments only
+    if (adjustForm.type === 'credit' && adjustForm.category === 'Invoice Amount Received' && adjustForm.selectedInvoiceId) {
+      const inv = invoices.find(i => (i._id || i.id) === adjustForm.selectedInvoiceId);
+      if (inv) {
+        const outstanding = inv.amount - (inv.paid || 0);
+        if (amountNum > outstanding) {
+          nextErrors.amount = `Amount cannot exceed outstanding balance of ${fmt(outstanding)}`;
+        }
+      }
+    }
+
+    // Validate amount doesn't exceed cash position for debit transactions
+    if (adjustForm.type === 'debit') {
+      if (amountNum > manualBalance) {
+        nextErrors.amount = `Amount cannot exceed available cash position of ${fmt(manualBalance)}`;
+        toast.error(`Cannot debit more than available cash position of ${fmt(manualBalance)}`);
+      }
+      
+      // Additional validation for vendor payments - also check outstanding amount
+      if (adjustForm.category === 'Vendor Payment' && adjustForm.selectedVendorId) {
+        const vendor = payables.find(p => String(p.vendorObjectId || p.vendorId) === adjustForm.selectedVendorId);
+        if (vendor && amountNum > (vendor.outstandingAmount || 0)) {
+          nextErrors.amount = `Amount cannot exceed outstanding balance of ${fmt(vendor.outstandingAmount)}`;
+          toast.error(`Amount cannot exceed outstanding balance of ${fmt(vendor.outstandingAmount)}`);
+        }
+      }
+    }
+
+
+
+
 
 
 
     if (Object.keys(nextErrors).length > 0) {
 
+
+
       setAdjustErrors(nextErrors);
+
+
 
       return;
 
+
+
     }
+
+
+
+
 
 
 
     try {
 
+
+
       setSubmittingAdjust(true);
 
+
+
       setAdjustError(null);
 
 
 
-      // First create the manual adjustment
-
-      const result = await financeApi.createManualAdjustment({
-
-        type: adjustForm.type,
-
-        category: adjustForm.category,
-
-        amount: amountNum,
-
-        reason: adjustForm.reason?.trim() || undefined,
-
-        reference: adjustForm.reference?.trim() || undefined,
-
-        date: adjustForm.date,
-
-      });
 
 
 
-      // Also create a transaction for this adjustment
 
-      try {
-
-        const transactionNumber = `TXN-ADJ-${Date.now().toString().slice(-6)}`;
-
-        await financeApi.createTransaction({
-
-          transactionNumber: transactionNumber,
-
-          type: adjustForm.type === 'credit' ? 'Income' : 'Expense',
-
+      // Handle Invoice Payment (Credit - Invoice Amount Received)
+      if (adjustForm.type === 'credit' && adjustForm.category === 'Invoice Amount Received' && adjustForm.selectedInvoiceId) {
+        const inv = invoices.find(i => (i._id || i.id) === adjustForm.selectedInvoiceId);
+        
+        console.log('Processing invoice payment:', {
+          invoiceId: adjustForm.selectedInvoiceId,
+          invoiceNumber: inv?.invoiceNumber,
           amount: amountNum,
-
-          transactionDate: adjustForm.date,
-
-          description: `Manual adjustment: ${adjustForm.reason || adjustForm.type}`,
-
-          category: adjustForm.category || 'Manual Adjustment',
-
+          currentPaid: inv?.paid || 0,
+          outstanding: inv?.amount - (inv?.paid || 0)
+        });
+        
+        // Create journal entry directly for UI display - Double entry format
+        const invoiceJournalEntry = {
+          id: `inv-${Date.now()}`,
+          date: adjustForm.date,
+          description: `Invoice payment: ${inv?.customerName || 'Customer'}`,
+          type: 'Income',
+          category: 'Invoice Payment',
+          referenceId: adjustForm.selectedInvoiceId,
+          transactionNumber: `TXN-INV-${Date.now().toString().slice(-6)}`,
           status: 'Completed',
+          narration: adjustForm.reason || `Payment received from ${inv?.customerName || 'Customer'}`,
+          createdAt: new Date(adjustForm.date + 'T00:00:00.000Z'),
+          lines: [
+            {
+              accountName: 'Cash/Bank A/c',
+              debitAmount: amountNum,
+              creditAmount: 0,
+              description: 'Cash/Bank A/c'
+            },
+            {
+              accountName: inv?.customerName || 'Customer',
+              debitAmount: 0,
+              creditAmount: amountNum,
+              description: `To ${inv?.customerName || 'Customer'}`
+            }
+          ]
+        };
+        
+        console.log('Created invoice journal entry:', invoiceJournalEntry);
+        
+        // Add to journalEntries state immediately
+        setJournalEntries(prev => {
+          console.log('Adding to journalEntries. Current count:', prev.length);
+          const updated = [invoiceJournalEntry, ...prev];
+          console.log('Updated journalEntries count:', updated.length);
+          return updated;
+        });
+        
+        // Save to backend with tenantId
+        try {
+          const tenantId = localStorage.getItem('tenantId') || 'solarcorp';
+          console.log('Saving to backend with tenantId:', tenantId);
+          await financeApi.createManualAdjustment({
+            type: 'credit',
+            category: 'Invoice Payment',
+            amount: amountNum,
+            reason: adjustForm.reason || `Payment received from ${inv?.customerName || 'Customer'}`,
+            reference: adjustForm.selectedInvoiceId,
+            date: adjustForm.date,
+            tenantId
+          });
+          console.log('✅ Saved to backend');
+        } catch (err) {
+          console.error('Backend save error:', err?.response?.data || err?.message);
+        }
+        
+        // Update local invoice state
+        setInvoices(prev => prev.map(inv => {
+          if ((inv._id || inv.id) === adjustForm.selectedInvoiceId) {
+            const newPaid = (inv.paid || 0) + amountNum;
+            const newBalance = inv.amount - newPaid;
+            const newStatus = newBalance <= 0 ? 'Paid' : 'Partial';
+            return { ...inv, paid: newPaid, balance: newBalance, status: newStatus };
+          }
+          return inv;
+        }));
 
-          referenceId: adjustForm.reference || undefined,
+        // Update manual balance locally (increase cash position for credit)
+        setManualBalance(prev => prev + amountNum);
 
+        setShowAdjustModal(false);
+        setAdjustForm({
+          type: 'credit',
+          category: '',
+          amount: '',
+          reason: '',
+          reference: '',
+          date: new Date().toISOString().slice(0, 10),
+          selectedInvoiceId: '',
+          selectedVendorId: '',
+          paymentMethod: 'Bank Transfer',
+        });
+        setAdjustErrors({});
+        setAdjustError(null);
+
+        toast.success(`Payment of ${fmt(amountNum)} recorded for invoice successfully`);
+        return;
+      }
+
+      // Handle Vendor Payment (Debit - Vendor Payment) - Direct Update Method
+      if (adjustForm.type === 'debit' && adjustForm.category === 'Vendor Payment' && adjustForm.selectedVendorId) {
+        const vendor = payables.find(p => String(p.vendorObjectId || p.vendorId) === adjustForm.selectedVendorId);
+        
+        console.log('Processing vendor payment:', {
+          vendorId: adjustForm.selectedVendorId,
+          vendorName: vendor?.vendorName,
+          amount: amountNum,
+          outstandingAmount: vendor?.outstandingAmount
+        });
+        
+        // Create journal entry directly for UI display - Double entry format
+        const journalEntry = {
+          id: `ven-${Date.now()}`,
+          date: adjustForm.date,
+          description: `Vendor payment: ${vendor?.vendorName || 'Vendor'}`,
+          type: 'Expense',
+          category: 'Vendor Bill Payment',
+          referenceId: adjustForm.selectedVendorId,
+          transactionNumber: `TXN-VEN-${Date.now().toString().slice(-6)}`,
+          status: 'Completed',
+          narration: adjustForm.reason || `Payment made to ${vendor?.vendorName || 'Vendor'}`,
+          createdAt: new Date(adjustForm.date + 'T00:00:00.000Z'),
+          lines: [
+            {
+              accountName: vendor?.vendorName || 'Vendor',
+              debitAmount: amountNum,
+              creditAmount: 0,
+              description: `${vendor?.vendorName || 'Vendor'}`
+            },
+            {
+              accountName: 'Cash/Bank A/c',
+              debitAmount: 0,
+              creditAmount: amountNum,
+              description: 'To Cash/Bank A/c'
+            }
+          ]
+        };
+        
+        console.log('Created vendor journal entry:', journalEntry);
+        
+        // Add to journalEntries state immediately
+        setJournalEntries(prev => {
+          console.log('Adding to journalEntries. Current count:', prev.length);
+          const updated = [journalEntry, ...prev];
+          console.log('Updated journalEntries count:', updated.length);
+          return updated;
         });
 
-        console.log('Transaction created for manual adjustment');
+        // Save to backend with tenantId
+        try {
+          const tenantId = localStorage.getItem('tenantId') || 'solarcorp';
+          console.log('Saving to backend with tenantId:', tenantId);
+          await financeApi.createManualAdjustment({
+            type: 'debit',
+            category: 'Vendor Payment',
+            amount: amountNum,
+            reason: adjustForm.reason || `Payment made to ${vendor?.vendorName || 'Vendor'}`,
+            reference: adjustForm.selectedVendorId,
+            date: adjustForm.date,
+            tenantId
+          });
+          console.log('✅ Saved to backend');
+        } catch (err) {
+          console.error('Backend save error:', err?.response?.data || err?.message);
+        }
 
-      } catch (txnErr) {
+        // Update local payables state to reflect the payment
+        setPayables(prev => {
+          const updatedPayables = prev.map(p => {
+            if (String(p.vendorObjectId || p.vendorId) === adjustForm.selectedVendorId) {
+              const newPaid = (p.amountPaid || 0) + amountNum;
+              const newOutstanding = (p.outstandingAmount || 0) - amountNum;
+              return { 
+                ...p, 
+                amountPaid: newPaid, 
+                outstandingAmount: newOutstanding,
+                status: newOutstanding <= 0 ? 'Paid' : 'Partial'
+              };
+            }
+            return p;
+          });
+          return updatedPayables;
+        });
 
-        console.error('Failed to create transaction for adjustment:', txnErr);
+        // Update manual balance locally (reduce cash position for debit)
+        setManualBalance(prev => prev - amountNum);
 
-        // Don't fail the whole operation if transaction creation fails
+        setShowAdjustModal(false);
+        setAdjustForm({
+          type: 'credit',
+          category: '',
+          amount: '',
+          reason: '',
+          reference: '',
+          date: new Date().toISOString().slice(0, 10),
+          selectedInvoiceId: '',
+          selectedVendorId: '',
+          paymentMethod: 'Bank Transfer',
+        });
+        setAdjustErrors({});
+        setAdjustError(null);
 
+        toast.success(`Vendor payment of ${fmt(amountNum)} to ${vendor?.vendorName || 'Vendor'} recorded successfully`);
+        return;
       }
 
-
-
-      setShowAdjustModal(false);
-
-      setAdjustForm({
-
-        type: 'credit',
-
-        category: '',
-
-        amount: '',
-
-        reason: '',
-
-        reference: '',
-
-        date: new Date().toISOString().slice(0, 10),
-
+      // Default: Create manual adjustment for other categories
+      console.log('Creating manual adjustment for category:', adjustForm.category);
+      console.log('Current manual balance before adjustment:', manualBalance);
+      console.log('Adjustment details:', { type: adjustForm.type, amount: amountNum, category: adjustForm.category });
+      
+      // Create journal entry directly for UI display - Double entry format
+      const adjustmentJournalEntry = {
+        id: `adj-${Date.now()}`,
+        date: adjustForm.date,
+        description: `Manual adjustment: ${adjustForm.reason || adjustForm.type}`,
+        type: adjustForm.type === 'debit' ? 'Expense' : 'Income',
+        category: adjustForm.category || 'Manual Adjustment',
+        referenceId: adjustForm.reference,
+        transactionNumber: `TXN-ADJ-${Date.now().toString().slice(-6)}`,
+        status: 'Completed',
+        narration: adjustForm.reason || `${adjustForm.type} adjustment - ${adjustForm.category}`,
+        createdAt: new Date(adjustForm.date + 'T00:00:00.000Z'),
+        lines: adjustForm.type === 'debit' ? [
+          {
+            accountName: adjustForm.category || 'Expense',
+            debitAmount: amountNum,
+            creditAmount: 0,
+            description: `${adjustForm.category || 'Expense'}`
+          },
+          {
+            accountName: 'Cash/Bank A/c',
+            debitAmount: 0,
+            creditAmount: amountNum,
+            description: 'To Cash/Bank A/c'
+          }
+        ] : [
+          {
+            accountName: 'Cash/Bank A/c',
+            debitAmount: amountNum,
+            creditAmount: 0,
+            description: 'Cash/Bank A/c'
+          },
+          {
+            accountName: adjustForm.category || 'Income',
+            debitAmount: 0,
+            creditAmount: amountNum,
+            description: `To ${adjustForm.category || 'Income'}`
+          }
+        ]
+      };
+      
+      console.log('Created manual adjustment journal entry:', adjustmentJournalEntry);
+      
+      // Add to journalEntries state immediately
+      setJournalEntries(prev => {
+        console.log('Adding to journalEntries. Current count:', prev.length);
+        const updated = [adjustmentJournalEntry, ...prev];
+        console.log('Updated journalEntries count:', updated.length);
+        return updated;
       });
 
+      // Save to backend with tenantId
+      try {
+        const tenantId = localStorage.getItem('tenantId') || 'solarcorp';
+        console.log('Saving to backend with tenantId:', tenantId);
+        await financeApi.createManualAdjustment({
+          type: adjustForm.type,
+          category: adjustForm.category || 'Manual Adjustment',
+          amount: amountNum,
+          reason: adjustForm.reason,
+          reference: adjustForm.reference,
+          date: adjustForm.date,
+          tenantId
+        });
+        console.log('✅ Saved to backend');
+      } catch (err) {
+        console.error('Backend save error:', err?.response?.data || err?.message);
+      }
+
+      // Update manual balance locally
+      setManualBalance(prev => {
+        const newBalance = adjustForm.type === 'credit' ? prev + amountNum : prev - amountNum;
+        console.log('Updating manual balance:', { old: prev, new: newBalance, amount: amountNum, type: adjustForm.type });
+        return newBalance;
+      });
+      
+      console.log('Manual adjustment completed successfully');
+
+      setShowAdjustModal(false);
+      setAdjustForm({
+        type: 'credit',
+        category: '',
+        amount: '',
+        reason: '',
+        reference: '',
+        date: new Date().toISOString().slice(0, 10),
+        selectedInvoiceId: '',
+        selectedVendorId: '',
+        paymentMethod: 'Bank Transfer',
+      });
       setAdjustErrors({});
-
       setAdjustError(null);
-
-
-
-      // Update local state with new adjustment and balance
-
-      if (result?.adjustment) {
-
-        setManualAdjustments(prev => [result.adjustment, ...prev]);
-
-      }
-
-      if (typeof result?.balance === 'number') {
-
-        setManualBalance(result.balance);
-
-      }
-
-
-
-      // Refresh all data to update dashboard charts and transactions tab
-
-      await fetchData();
-
-
 
       toast.success(`Manual ${adjustForm.type} of ${fmt(amountNum)} recorded successfully`);
 
     } catch (err) {
-
+      console.error('Error in handleSubmitAdjustment:', err);
       setAdjustError(err.message || 'Failed to record adjustment');
-
     } finally {
-
       setSubmittingAdjust(false);
-
     }
-
   };
+
+
+
 
 
 
@@ -3978,7 +7973,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     try {
+
+
+
+
 
 
 
@@ -3986,7 +7989,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       const data = await financeApi.getInvoiceTimeline(invoiceId);
+
+
+
+
 
 
 
@@ -3994,7 +8005,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     } catch (err) {
+
+
+
+
 
 
 
@@ -4002,7 +8021,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       setTimelineData([]);
+
+
+
+
 
 
 
@@ -4010,11 +8037,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       setLoadingTimeline(false);
 
 
 
+
+
+
+
     }
+
+
+
+
 
 
 
@@ -4026,7 +8065,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   const filteredInvoices = useMemo(() =>
+
+
+
+
 
 
 
@@ -4040,15 +8091,55 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         // Handle Pending status showing as Sent in UI
 
-        (invStatus === 'Sent' && inv.status === 'Pending')
+
+
+
+
+
+
+        (invStatus === 'Sent' && inv.status === 'Pending') ||
+
+
+
+
+
+
+
+        // Handle Outstanding filter - show Draft, Sent, Partial, Overdue (exclude Paid)
+
+
+
+
+
+
+
+        (invStatus === 'Outstanding' && ['Draft', 'Sent', 'Partial', 'Overdue', 'Pending'].includes(inv.status))
+
+
+
+
+
+
 
       ) &&
 
 
 
+
+
+
+
       inv.customerName?.toLowerCase().includes(invSearch.toLowerCase())
+
+
+
+
 
 
 
@@ -4062,6 +8153,8 @@ const FinancePage = ({ onNavigate }) => {
 
   const paginatedInvoices = useMemo(() =>
 
+
+
     filteredInvoices.slice((page - 1) * pageSize, page * pageSize),
 
     [filteredInvoices, page, pageSize]);
@@ -4072,225 +8165,441 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   const safeDateForSummary = (d) => {
+
+
 
     if (!d) return null;
 
+
+
     if (d instanceof Date) {
+
+
 
       return Number.isNaN(d.getTime()) ? null : d;
 
+
+
     }
+
+
 
     if (typeof d === 'string') {
 
+
+
       const m = d.trim().match(/^([0-3]\d)[-\/](0\d|1[0-2])[-\/](\d{4})$/);
+
+
 
       if (m) {
 
+
+
         const day = Number(m[1]);
+
+
 
         const month = Number(m[2]);
 
+
+
         const year = Number(m[3]);
+
+
 
         const dt = new Date(year, month - 1, day);
 
+
+
         return Number.isNaN(dt.getTime()) ? null : dt;
+
+
 
       }
 
+
+
     }
+
+
 
     const dt = new Date(d);
 
+
+
     return Number.isNaN(dt.getTime()) ? null : dt;
 
+
+
   };
+
+
+
+
 
 
 
   // Filter data based on date range
 
+
+
   const filteredRevenueData = useMemo(() => {
+
+
 
     return (monthlyRevenue || []).filter(item => {
 
+
+
       const itemDate = new Date(item.month + ' 01, ' + selectedYear);
+
+
 
       return itemDate >= new Date(dateRange.start) && itemDate <= new Date(dateRange.end);
 
+
+
     });
 
+
+
   }, [dateRange, selectedYear]);
+
+
+
+
 
 
 
   const filteredCashFlowData = useMemo(() => {
 
+
+
     return (cashFlow || []).filter(item => {
+
+
 
       const itemDate = new Date(item.month + ' 01, ' + selectedYear);
 
+
+
       return itemDate >= new Date(dateRange.start) && itemDate <= new Date(dateRange.end);
 
+
+
     });
+
+
 
   }, [dateRange, selectedYear]);
 
 
 
+
+
+
+
   const exportInvoiceCsv = (row) => {
+
+
 
     const r = row || {};
 
+
+
     const headers = ['Invoice Number', 'Customer', 'Status', 'Amount', 'Paid', 'Balance', 'Invoice Date', 'Due Date'];
+
+
 
     const values = [
 
+
+
       r.invoiceNumber || r.id || '',
+
+
 
       r.customerName || '',
 
+
+
       r.status || '',
+
+
 
       r.amount ?? '',
 
+
+
       r.paid ?? '',
+
+
 
       r.balance ?? '',
 
+
+
       r.invoiceDate || '',
+
+
 
       r.dueDate || '',
 
+
+
     ];
+
+
 
     const csv = `${headers.join(',')}\n${values.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')}\n`;
 
+
+
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+
+
 
     const url = URL.createObjectURL(blob);
 
+
+
     const a = document.createElement('a');
+
+
 
     a.href = url;
 
+
+
     a.download = `invoice_${r.invoiceNumber || r.id || 'export'}.csv`;
+
+
 
     document.body.appendChild(a);
 
+
+
     a.click();
+
+
 
     a.remove();
 
+
+
     URL.revokeObjectURL(url);
+
+
 
   };
 
 
 
+
+
+
+
   const exportJournalEntriesCsv = () => {
 
+
+
     // Prepare data rows
+
+
 
     const rows = [];
 
 
 
+
+
     journalEntries.forEach(entry => {
+
+
 
       const date = entry.date ? new Date(entry.date).toISOString().slice(0, 10) : '';
 
+
+
       const narration = entry.narration || '';
 
+
+
       const debitLines = entry.lines?.filter(l => l.debitAmount > 0) || [];
+
+
 
       const creditLines = entry.lines?.filter(l => l.creditAmount > 0) || [];
 
 
 
+
+
       // Add debit lines
+
+
 
       debitLines.forEach((line, idx) => {
 
+
+
         rows.push({
+
+
 
           Date: idx === 0 ? date : '',
 
+
+
           Particulars: `${line.accountName} Dr.`,
+
+
 
           'Ledger / Account': line.accountName || '',
 
+
+
           'Debit Amount (Dr.)': line.debitAmount || 0,
+
+
 
           'Credit Amount (Cr.)': '',
 
+
+
           'Narration / Notes': idx === 0 ? narration : ''
+
+
 
         });
 
+
+
       });
+
+
 
 
 
       // Add credit lines
 
+
+
       creditLines.forEach((line) => {
+
+
 
         rows.push({
 
+
+
           Date: '',
+
+
 
           Particulars: `To ${line.accountName}`,
 
+
+
           'Ledger / Account': line.accountName || '',
+
+
 
           'Debit Amount (Dr.)': '',
 
+
+
           'Credit Amount (Cr.)': line.creditAmount || 0,
+
+
 
           'Narration / Notes': ''
 
+
+
         });
 
+
+
       });
+
+
 
     });
 
 
 
+
+
     // Create worksheet
+
+
 
     const ws = XLSX.utils.json_to_sheet(rows);
 
 
 
+
+
     // Set column widths
+
+
 
     ws['!cols'] = [
 
+
+
       { wch: 12 },  // Date
+
+
 
       { wch: 35 },  // Particulars
 
+
+
       { wch: 25 },  // Ledger / Account
+
+
 
       { wch: 18 },  // Debit Amount
 
+
+
       { wch: 18 },  // Credit Amount
 
+
+
       { wch: 40 }   // Narration
+
+
 
     ];
 
 
 
+
+
     // Create workbook
+
+
 
     const wb = XLSX.utils.book_new();
 
+
+
     XLSX.utils.book_append_sheet(wb, ws, 'Journal Entries');
+
+
 
 
 
@@ -4298,265 +8607,533 @@ const FinancePage = ({ onNavigate }) => {
 
     XLSX.writeFile(wb, `journal_entries_${new Date().toISOString().slice(0, 10)}.xlsx`);
 
+
+
   };
+
+
 
   const INV_ACTIONS = [
 
+
+
     { label: 'View Invoice', icon: FileText, onClick: row => setSelected(row) },
+
+
 
     ...(canFinance('edit') ? [
 
+
+
       {
+
+
 
         label: 'Edit',
 
+
+
         icon: Edit,
 
+
+
         show: (row) => row?.status !== 'Paid',
+
+
 
         onClick: (row) => openEditInvoice(row),
 
+
+
       },
 
+
+
     ] : []),
+
+
 
     ...(canFinance('export') ? [
 
+
+
       {
+
+
 
         label: 'Export',
 
+
+
         icon: Download,
+
+
 
         onClick: (row) => exportInvoiceCsv(row),
 
+
+
       },
 
+
+
     ] : []),
+
+
 
     ...(canFinance('assign') ? [
 
+
+
       {
+
+
 
         label: 'Assign',
 
+
+
         icon: Zap,
+
+
 
         show: (row) => ['Draft', 'Pending', 'Partial', 'Overdue'].includes(row?.status),
 
+
+
         onClick: (row) => openAssignInvoice(row),
+
+
 
       },
 
+
+
     ] : []),
+
+
 
     ...(canFinance('delete') ? [
 
+
+
       {
+
+
 
         label: 'Delete',
 
+
+
         icon: Trash2,
+
+
 
         danger: true,
 
+
+
         show: (row) => row?.status !== 'Paid',
+
+
 
         onClick: (row) => openDeleteInvoice(row),
 
+
+
       },
+
+
 
     ] : []),
 
+
+
     {
+
+
 
       label: 'Send Reminder',
 
+
+
       icon: Clock,
+
+
 
       show: (row) => !['Draft', 'Paid'].includes(row?.status) && (row?.balance > 0),
 
+
+
       onClick: (row) => {
+
+
 
         setSelectedReminderInvoice(row);
 
+
+
         setReminderForm({
+
+
 
           reminderType: 'Gentle',
 
+
+
           customerEmail: row?.email || '',
+
+
 
           messageBody: '',
 
+
+
         });
+
+
 
         setShowReminderModal(true);
 
+
+
         setReminderSuccess(false);
+
+
 
         setError(null);
 
+
+
       },
 
+
+
     },
+
+
 
   ];
 
 
 
+
+
+
+
   const filteredRowActions = INV_ACTIONS.filter(action => {
+
+
 
     switch (action.label) {
 
+
+
       case 'Edit':
+
+
 
         return !!financePermissions?.edit;
 
+
+
       case 'Delete':
+
+
 
         return !!financePermissions?.delete;
 
+
+
       case 'Export':
+
+
 
         return !!financePermissions?.export;
 
+
+
       case 'Assign':
+
+
 
         return !!financePermissions?.assign;
 
+
+
       default:
+
+
 
         return true;
 
+
+
     }
+
+
 
   });
 
 
 
+
+
+
+
   // Helper functions to calculate paid and balance from invoice data
+
+
 
   const getPaidAmount = (inv) => {
 
+
+
     if (inv.status === 'Paid') return Number(inv.amount || 0);
+
+
 
     if (inv.status === 'Partial') return Number(inv.paid || inv.amountPaid || 0);
 
+
+
     return Number(inv.paid || 0);
 
+
+
   };
+
+
+
+
 
 
 
   const getBalance = (inv) => {
 
+
+
     if (inv.status === 'Paid') return 0;
+
+
 
     const amount = Number(inv.amount || 0);
 
+
+
     const paid = getPaidAmount(inv);
+
+
 
     return amount - paid;
 
+
+
   };
+
+
+
+
 
 
 
   // Calculate KPI values from real data
 
+
+
   const revenueCurrent = dashboardStats?.totalRevenue || 0;
+
+
+
+
 
 
 
   // Calculate total collected from invoices
 
+
+
   const totalCollected = (invoices || []).reduce((sum, inv) => sum + getPaidAmount(inv), 0);
+
+
+
+
 
 
 
   // Calculate total receivables (outstanding balance only)
 
+
+
   const receivables = (invoices || []).reduce((sum, inv) => sum + getBalance(inv), 0);
+
+
+
+
 
 
 
   // Calculate payables total for display
 
+
+
   const payablesTotal = payables.reduce((sum, p) => sum + (p.outstandingAmount || 0), 0);
+
+
+
+
 
 
 
   // Cash position is the manualBalance (matches dashboard calculation)
 
+
+
   const cashPosition = manualBalance;
+
+
+
+
 
 
 
   const isInCurrentMonth = (dt) => {
 
+
+
     if (!dt) return false;
+
+
 
     const now = new Date();
 
+
+
     return dt.getFullYear() === now.getFullYear() && dt.getMonth() === now.getMonth();
 
+
+
   };
+
+
+
+
 
 
 
   const safeDate = (d) => {
 
+
+
     if (!d) return null;
+
+
 
     const dt = new Date(d);
 
+
+
     return Number.isNaN(dt.getTime()) ? null : dt;
+
+
 
   };
 
 
 
+
+
+
+
   const currentMonthInvoiced = (invoices || []).reduce((sum, inv) => {
+
+
 
     const dt = safeDate(inv?.invoiceDate) || safeDate(inv?.createdAt);
 
+
+
     if (!isInCurrentMonth(dt)) return sum;
+
+
 
     return sum + Number(inv?.amount || inv?.invoiceAmount || 0);
 
+
+
   }, 0);
+
+
+
+
 
 
 
   const currentMonthCollected = (invoices || []).reduce((sum, inv) => {
 
+
+
     const dt = safeDate(inv?.invoiceDate) || safeDate(inv?.createdAt);
+
+
 
     if (!isInCurrentMonth(dt)) return sum;
 
+
+
     return sum + getPaidAmount(inv);
 
+
+
   }, 0);
+
+
+
+
 
 
 
   const currentMonthOutstanding = (invoices || []).reduce((sum, inv) => {
 
+
+
     const dt = safeDate(inv?.invoiceDate) || safeDate(inv?.createdAt);
+
+
 
     if (!isInCurrentMonth(dt)) return sum;
 
+
+
     return sum + getBalance(inv);
+
+
 
   }, 0);
 
 
 
+
+
+
+
   const currentMonthCollectionRate = currentMonthInvoiced > 0
+
+
 
     ? Math.round((currentMonthCollected / currentMonthInvoiced) * 100)
 
+
+
     : 0;
+
+
+
+
+
+
+
+
 
 
 
@@ -4568,7 +9145,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     return (
+
+
+
+
 
 
 
@@ -4576,7 +9161,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         <div className="glass-card p-6 text-center max-w-md">
+
+
+
+
 
 
 
@@ -4584,7 +9177,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-2">Error Loading Data</h3>
+
+
+
+
 
 
 
@@ -4592,7 +9193,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         </div>
+
+
+
+
 
 
 
@@ -4600,11 +9209,27 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     );
 
 
 
+
+
+
+
   }
+
+
+
+
+
+
+
+
 
 
 
@@ -4616,7 +9241,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     return (
+
+
+
+
 
 
 
@@ -4624,7 +9257,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         <div className="flex flex-col items-center gap-3">
+
+
+
+
 
 
 
@@ -4632,7 +9273,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           <p className="text-sm text-[var(--text-muted)]">Loading finance data...</p>
+
+
+
+
 
 
 
@@ -4640,7 +9289,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       </div>
+
+
+
+
 
 
 
@@ -4648,7 +9305,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   }
+
+
+
+
+
+
+
+
 
 
 
@@ -4660,7 +9329,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     return (
+
+
+
+
 
 
 
@@ -4668,7 +9345,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         <div className="glass-card p-6 text-center max-w-md">
+
+
+
+
 
 
 
@@ -4676,7 +9361,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-2">Error Loading Data</h3>
+
+
+
+
 
 
 
@@ -4684,7 +9377,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           <Button onClick={fetchData}><Plus size={13} /> Retry</Button>
+
+
+
+
 
 
 
@@ -4692,11 +9393,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       </div>
 
 
 
+
+
+
+
     );
+
+
+
+
 
 
 
@@ -4708,11 +9421,27 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   return (
 
 
 
-    <div className="animate-fade-in space-y-5">
+
+
+
+
+    <div className="animate-fade-in space-y-5 -mt-10">
+
+
+
+
 
 
 
@@ -4720,7 +9449,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         <div>
+
+
+
+
 
 
 
@@ -4728,134 +9465,257 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           <p className="text-xs text-[var(--text-muted)] mt-0.5">Revenue · receivables · payables · cash flow · invoices</p>
 
 
 
+
+
+
+
         </div>
+
+
+
+
 
 
 
         <div className="flex items-center gap-2">
 
+
+
           <CalendarFilter 
+
             onDateChange={(dateInfo) => {
+
               if (dateInfo) {
+
                 setCalendarFilterYear(dateInfo.year.toString());
+
                 setCalendarFilterMonth(dateInfo.month); // undefined for full year
+
               } else {
+
                 setCalendarFilterYear('all');
+
                 setCalendarFilterMonth(undefined);
+
               }
+
             }}
+
             initialYear={calendarFilterYear !== 'all' ? parseInt(calendarFilterYear) : undefined}
+
             initialMonth={calendarFilterMonth}
+
             availableYears={availableYears}
+
           />
+
+
 
           <div className="h-6 w-px bg-[var(--border-base)] mx-1" />
 
 
 
+
+
+
+
           {/* Action Buttons - Row 1: View Toggle + New Invoice, Row 2: Adjust & Record */}
+
+
 
           <div className="flex flex-col gap-2">
 
+
+
             <div className="flex items-center gap-2">
+
+
 
               {/* View Toggle Buttons */}
 
+
+
               <div className="flex items-center gap-1 bg-[var(--bg-elevated)] rounded-lg p-1 border border-[var(--border-base)]">
 
+
+
                 <button
+
+
 
                   onClick={() => setMainView('dashboard')}
 
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${mainView === 'dashboard'
 
+
+
                       ? 'bg-[var(--primary)] text-white shadow-sm'
+
+
 
                       : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
 
                     }`}
 
+
+
                 >
+
+
 
                   <BarChart3 size={14} /> Dashboard
 
+
+
                 </button>
 
+
+
                 <button
+
+
 
                   onClick={() => setMainView('kanban')}
 
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${mainView === 'kanban'
 
+
+
                       ? 'bg-[var(--primary)] text-white shadow-sm'
+
+
 
                       : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
 
                     }`}
 
+
+
                 >
+
+
 
                   <LayoutGrid size={14} /> Kanban
 
+
+
                 </button>
 
+
+
                 <button
+
+
 
                   onClick={() => setMainView('table')}
 
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${mainView === 'table'
 
+
+
                       ? 'bg-[var(--primary)] text-white shadow-sm'
+
+
 
                       : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
 
                     }`}
 
+
+
                 >
+
+
 
                   <List size={14} /> Table
 
+
+
                 </button>
 
+
+
               </div>
+
+
 
               {financePermissions?.create && (
 
+
+
                 <Button onClick={() => setShowInvoice(true)}><Plus size={13} /> New Invoice</Button>
+
+
 
               )}
 
+
+
             </div>
+
+
 
             <div className="flex gap-2 justify-end">
 
+
+
               <Button variant="outline" onClick={() => setShowAdjustModal(true)}><TrendingUp size={13} /> Adjust Amount</Button>
+
+
 
             </div>
 
+
+
             {mainView === 'table' && (
+
+
 
               <div className="flex justify-end">
 
+
+
                 <Button variant="outline" onClick={() => setShowSummaryCards(!showSummaryCards)}>
+
+
 
                   {showSummaryCards ? <EyeOff size={13} /> : <Eye size={13} />}
 
+
+
                 </Button>
+
+
 
               </div>
 
+
+
             )}
+
+
 
           </div>
 
 
 
+
+
+
+
         </div>
+
+
+
+
 
 
 
@@ -4863,48 +9723,93 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       {/* Dashboard View */}
 
+
+
       {mainView === 'dashboard' && (
+
         <>
+
           {calendarFilterYear !== 'all' && filteredInvoicesByYear.length === 0 && filteredJournalEntriesByYear.length === 0 && filteredManualAdjustmentsByYear.length === 0 ? (
+
             <div className="flex flex-col items-center justify-center py-16 px-4">
+
               <div className="text-6xl mb-4">📅</div>
+
               <h3 className="text-lg font-semibold text-gray-700 mb-2">No data available for the selected period</h3>
+
               <p className="text-sm text-gray-500 text-center max-w-md mb-4">
+
                 There are no invoices, journal entries, or transactions recorded for {calendarFilterYear}.
+
               </p>
+
               <button
+
                 onClick={() => { setCalendarFilterYear('all'); setCalendarFilterMonth(undefined); }}
+
                 className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+
               >
+
                 Show All Data
+
               </button>
+
             </div>
+
           ) : (
+
         <FinanceDashboard
+
+
 
           isOpen={true}
 
           onClose={() => { }}
 
+
+
           dashboardStats={dashboardStats}
+
+
 
           payables={payables}
 
+
+
           invoices={calendarFilterYear === 'all' ? invoices : filteredInvoicesByYear}
+
+
 
           payments={payments}
 
+
+
           manualAdjustments={calendarFilterYear === 'all' ? manualAdjustments : filteredManualAdjustmentsByYear}
+
+
 
           monthlyRevenue={monthlyRevenue}
 
+
+
           cashFlow={cashFlow}
+
+
 
           manualBalance={manualBalance}
 
+
+
           transactionAnalytics={transactionAnalytics}
+
+
 
           adjustmentTrend={adjustmentTrend}
 
@@ -4912,55 +9817,107 @@ const FinancePage = ({ onNavigate }) => {
 
           onStatusClick={() => { }}
 
+
+
         />
+
           )}
+
         </>
 
+
+
       )}
+
+
+
+
 
 
 
       {/* Kanban View */}
 
+
+
       {mainView === 'kanban' && (
+
+
 
         <div className="space-y-3">
 
+
+
           <div className="flex flex-wrap gap-2 items-center">
+
+
 
             <span className="text-xs text-[var(--text-muted)] mr-1">Status:</span>
 
+
+
             {INV_STATUS_FILTERS.map(s => (
+
+
 
               <button key={s} onClick={() => { setInvStatus(s); setPage(1); }}
 
+
+
                 className={`filter-chip ${invStatus === s ? 'filter-chip-active' : ''}`}>{s}</button>
+
+
 
             ))}
 
+
+
             <div className="flex items-center gap-2 ml-auto">
+
+
 
               <Input placeholder="Search invoices..." value={invSearch}
 
+
+
                 onChange={e => { setInvSearch(e.target.value); setPage(1); }}
+
+
 
                 className="h-8 text-xs w-44" />
 
+
+
             </div>
+
+
 
           </div>
 
+
+
           <InvKanbanBoard invoices={filteredInvoices} onStageChange={handleStageChange} onCardClick={setSelected} />
 
+
+
         </div>
+
+
 
       )}
 
 
 
+
+
+
+
       {/* Table View - Original Content */}
 
+
+
       {mainView === 'table' && (
+
+
 
         <>
 
@@ -4977,6 +9934,10 @@ const FinancePage = ({ onNavigate }) => {
                 <KPICard className="glass-card bg-white" label="Receivables" value={fmt(receivables)} sub="Outstanding" icon={Clock} variant="amber" />
 
                 <KPICard className="glass-card bg-white" label="Payables" value={fmt(payablesTotal)} sub="Due" icon={TrendingDown} variant="red" />
+
+
+
+
 
               </div>
 
@@ -5005,6 +9966,8 @@ const FinancePage = ({ onNavigate }) => {
                       <p className="text-[11px] text-[var(--text-muted)] mb-1">{stat.label}</p>
 
                       <p className={`text-base font-black ${stat.color}`}>{stat.value}</p>
+
+
 
                     </div>
 
@@ -5097,6 +10060,8 @@ const FinancePage = ({ onNavigate }) => {
 
 
                       className="h-8 text-xs w-44" />
+
+
 
 
 
@@ -5576,7 +10541,17 @@ const FinancePage = ({ onNavigate }) => {
 
         </>
 
+
+
       )}
+
+
+
+
+
+
+
+
 
 
 
@@ -5588,7 +10563,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       <Modal isOpen={showInvoice} onClose={() => { setShowInvoice(false); setError(null); setNewInvoiceErrors({}); }} title="Create Invoice"
+
+
+
+
 
 
 
@@ -5596,7 +10579,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           <div className="flex gap-2 justify-end">
+
+
+
+
 
 
 
@@ -5604,7 +10595,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             <Button onClick={handleCreateInvoice} disabled={submitting}>
+
+
+
+
 
 
 
@@ -5612,7 +10611,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               {submitting ? ' Creating...' : ' Create Invoice'}
+
+
+
+
 
 
 
@@ -5620,7 +10627,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           </div>
+
+
+
+
 
 
 
@@ -5628,7 +10643,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         <div className="space-y-3 pb-20">
+
+
+
+
 
 
 
@@ -5636,7 +10659,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+
+
+
+
 
 
 
@@ -5644,11 +10675,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             </div>
 
 
 
+
+
+
+
           )}
+
+
+
+
 
 
 
@@ -5656,7 +10699,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm">
+
+
+
+
 
 
 
@@ -5664,7 +10715,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             </div>
+
+
+
+
 
 
 
@@ -5672,7 +10731,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           <div className="grid grid-cols-2 gap-3">
+
+
+
+
 
 
 
@@ -5684,17 +10751,33 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 value={newInvoice.invoiceNumber}
+
+
+
+
 
 
 
                 onChange={e => {
 
+
+
                   const v = e.target.value;
+
+
 
                   setNewInvoice({ ...newInvoice, invoiceNumber: v });
 
+
+
                   if (newInvoiceErrors.invoiceNumber) setNewInvoiceErrors(prev => ({ ...prev, invoiceNumber: undefined }));
+
+
 
                 }}
 
@@ -5704,19 +10787,39 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               />
+
+
+
+
 
 
 
               {newInvoiceErrors.invoiceNumber ? (
 
+
+
                 <div className="text-[11px] text-red-400 mt-1">{newInvoiceErrors.invoiceNumber}</div>
+
+
 
               ) : null}
 
 
 
+
+
+
+
             </FormField>
+
+
+
+
 
 
 
@@ -5724,7 +10827,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               <Select
+
+
+
+
 
 
 
@@ -5732,15 +10843,31 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 onChange={e => {
+
+
 
                   const v = e.target.value;
 
+
+
                   setNewInvoice({ ...newInvoice, projectId: v });
+
+
 
                   if (newInvoiceErrors.projectId) setNewInvoiceErrors(prev => ({ ...prev, projectId: undefined }));
 
+
+
                 }}
+
+
+
+
 
 
 
@@ -5748,7 +10875,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 <option value="">Select Project</option>
+
+
+
+
 
 
 
@@ -5756,7 +10891,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                   <option key={p._id || p.id} value={p._id || p.id}>{p.name || p.customerName}</option>
+
+
+
+
 
 
 
@@ -5764,15 +10907,31 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               </Select>
+
+
+
+
 
 
 
               {newInvoiceErrors.projectId ? (
 
+
+
                 <div className="text-[11px] text-red-400 mt-1">{newInvoiceErrors.projectId}</div>
 
+
+
               ) : null}
+
+
+
+
 
 
 
@@ -5780,11 +10939,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           </div>
 
 
 
+
+
+
+
           <div className="grid grid-cols-2 gap-3">
+
+
+
+
 
 
 
@@ -5800,37 +10971,73 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 value={newInvoice.amount}
+
+
+
+
 
 
 
                 onChange={e => {
 
+
+
                   const v = e.target.value;
+
+
 
                   setNewInvoice({ ...newInvoice, amount: v });
 
+
+
                   const num = Number(v);
+
+
 
                   if (
 
+
+
                     newInvoice.projectId &&
+
+
 
                     selectedProjectContractValue !== null &&
 
+
+
                     !Number.isNaN(num) &&
+
+
 
                     num > Number(selectedProjectContractValue)
 
+
+
                   ) {
+
+
 
                     setNewInvoiceErrors(prev => ({ ...prev, amount: 'Invoice amount cannot exceed the project contract value' }));
 
+
+
                   } else if (newInvoiceErrors.amount) {
+
+
 
                     setNewInvoiceErrors(prev => ({ ...prev, amount: undefined }));
 
+
+
                   }
+
+
 
                 }}
 
@@ -5840,19 +11047,39 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               />
+
+
+
+
 
 
 
               {newInvoiceErrors.amount ? (
 
+
+
                 <div className="text-[11px] text-red-400 mt-1">{newInvoiceErrors.amount}</div>
+
+
 
               ) : null}
 
 
 
+
+
+
+
             </FormField>
+
+
+
+
 
 
 
@@ -5868,19 +11095,39 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 value={newInvoice.invoiceDate}
+
+
+
+
 
 
 
                 onChange={e => {
 
+
+
                   const v = e.target.value;
+
+
 
                   setNewInvoice({ ...newInvoice, invoiceDate: v });
 
+
+
                   if (newInvoiceErrors.invoiceDate) setNewInvoiceErrors(prev => ({ ...prev, invoiceDate: undefined }));
 
+
+
                 }}
+
+
+
+
 
 
 
@@ -5888,11 +11135,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               {newInvoiceErrors.invoiceDate ? (
+
+
 
                 <div className="text-[11px] text-red-400 mt-1">{newInvoiceErrors.invoiceDate}</div>
 
+
+
               ) : null}
+
+
+
+
 
 
 
@@ -5900,11 +11159,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           </div>
 
 
 
+
+
+
+
           <div className="grid grid-cols-2 gap-3">
+
+
+
+
 
 
 
@@ -5920,7 +11191,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 value={newInvoice.dueDate}
+
+
+
+
 
 
 
@@ -5928,15 +11207,31 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 onChange={e => {
+
+
 
                   const v = e.target.value;
 
+
+
                   setNewInvoice({ ...newInvoice, dueDate: v });
+
+
 
                   if (newInvoiceErrors.dueDate) setNewInvoiceErrors(prev => ({ ...prev, dueDate: undefined }));
 
+
+
                 }}
+
+
+
+
 
 
 
@@ -5944,15 +11239,31 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               {newInvoiceErrors.dueDate ? (
 
+
+
                 <div className="text-[11px] text-red-400 mt-1">{newInvoiceErrors.dueDate}</div>
+
+
 
               ) : null}
 
 
 
+
+
+
+
             </FormField>
+
+
+
+
 
 
 
@@ -5964,6 +11275,10 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 value={newInvoice.paymentTerms}
 
 
@@ -5972,7 +11287,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 disabled={!canCreateInvoice || allowedPaymentTerms.length === 0}
+
+
+
+
 
 
 
@@ -5980,7 +11303,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 <option value="">
+
+
+
+
 
 
 
@@ -5988,7 +11319,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 </option>
+
+
+
+
 
 
 
@@ -5996,7 +11335,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                   <option key={term} value={term}>{term}</option>
+
+
+
+
 
 
 
@@ -6004,7 +11351,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               </Select>
+
+
+
+
 
 
 
@@ -6012,7 +11367,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           </div>
+
+
+
+
 
 
 
@@ -6020,23 +11383,45 @@ const FinancePage = ({ onNavigate }) => {
 
             <Input
 
+
+
               type="email"
+
+
 
               value={newInvoice.email}
 
+
+
               onChange={e => setNewInvoice({ ...newInvoice, email: e.target.value })}
+
+
 
               placeholder="customer@example.com"
 
+
+
               disabled={!newInvoice.projectId}
 
+
+
             />
+
+
 
           </FormField>
 
 
 
+
+
+
+
         </div>
+
+
+
+
 
 
 
@@ -6048,7 +11433,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
       {/* Invoice Detail Modal */}
+
+
+
+
 
 
 
@@ -6056,7 +11453,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         <Modal isOpen={!!selected} onClose={() => setSelected(null)} title={`Invoice — ${selected.invoiceNumber || selected.id}`}
+
+
+
+
 
 
 
@@ -6064,7 +11469,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             <div className="flex gap-2 justify-end">
+
+
+
+
 
 
 
@@ -6072,7 +11485,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             </div>
+
+
+
+
 
 
 
@@ -6080,7 +11501,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           <div className="grid grid-cols-2 gap-3 text-xs">
+
+
+
+
 
 
 
@@ -6088,7 +11517,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               ['Invoice #', selected.invoiceNumber || selected.id],
+
+
+
+
 
 
 
@@ -6096,7 +11533,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               ['Email', selected.email || '—'],
+
+
+
+
 
 
 
@@ -6104,7 +11549,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               ['Amount Paid', fmt(selected.paid || 0)],
+
+
+
+
 
 
 
@@ -6112,7 +11565,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               ['Status', <StatusBadge domain="invoice" value={selected.status} />],
+
+
+
+
 
 
 
@@ -6120,7 +11581,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               ['Due Date', selected.dueDate ? new Date(selected.dueDate).toLocaleDateString() : '—'],
+
+
+
+
 
 
 
@@ -6128,7 +11597,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               ['Last Reminder', selected.lastReminderSentAt ? new Date(selected.lastReminderSentAt).toLocaleDateString() : '—'],
+
+
+
+
 
 
 
@@ -6136,7 +11613,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             ].map(([k, v]) => (
+
+
+
+
 
 
 
@@ -6144,7 +11629,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 <div className="text-[var(--text-muted)] mb-0.5">{k}</div>
+
+
+
+
 
 
 
@@ -6152,7 +11645,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               </div>
+
+
+
+
 
 
 
@@ -6160,7 +11661,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           </div>
+
+
+
+
 
 
 
@@ -6168,7 +11677,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       )}
+
+
+
+
+
+
+
+
 
 
 
@@ -6180,7 +11701,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       {showEditInvoice && editInvoiceTarget && (
+
+
+
+
 
 
 
@@ -6188,7 +11717,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           open={showEditInvoice}
+
+
+
+
 
 
 
@@ -6196,7 +11733,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             if (savingEditInvoice) return;
+
+
+
+
 
 
 
@@ -6204,7 +11749,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             setEditInvoiceTarget(null);
+
+
+
+
 
 
 
@@ -6212,7 +11765,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           }}
+
+
+
+
 
 
 
@@ -6220,7 +11781,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           footer={
+
+
+
+
 
 
 
@@ -6228,7 +11797,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               <Button
+
+
+
+
 
 
 
@@ -6236,7 +11813,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 onClick={() => {
+
+
+
+
 
 
 
@@ -6244,7 +11829,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                   setShowEditInvoice(false);
+
+
+
+
 
 
 
@@ -6252,7 +11845,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                   setEditModalError(null);
+
+
+
+
 
 
 
@@ -6260,7 +11861,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 disabled={savingEditInvoice}
+
+
+
+
 
 
 
@@ -6268,11 +11877,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 Cancel
 
 
 
+
+
+
+
               </Button>
+
+
+
+
 
 
 
@@ -6280,7 +11901,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 {savingEditInvoice ? <Loader2 size={13} className="animate-spin" /> : <Edit size={13} />}
+
+
+
+
 
 
 
@@ -6288,7 +11917,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               </Button>
+
+
+
+
 
 
 
@@ -6296,7 +11933,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           }
+
+
+
+
 
 
 
@@ -6304,7 +11949,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           <div className="space-y-3 pb-20">
+
+
+
+
 
 
 
@@ -6312,7 +11965,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+
+
+
+
 
 
 
@@ -6320,7 +11981,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               </div>
+
+
+
+
 
 
 
@@ -6332,7 +12001,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
             <div className="grid grid-cols-2 gap-3">
+
+
+
+
 
 
 
@@ -6340,7 +12021,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 <Input
+
+
+
+
 
 
 
@@ -6348,7 +12037,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                   onChange={e => setEditInvoice({ ...editInvoice, invoiceNumber: e.target.value })}
+
+
+
+
 
 
 
@@ -6356,7 +12053,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                   disabled={savingEditInvoice}
+
+
+
+
 
 
 
@@ -6364,7 +12069,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               </FormField>
+
+
+
+
 
 
 
@@ -6372,7 +12085,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 <Input
+
+
+
+
 
 
 
@@ -6380,7 +12101,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                   onChange={e => setEditInvoice({ ...editInvoice, customerName: e.target.value })}
+
+
+
+
 
 
 
@@ -6388,7 +12117,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                   disabled={savingEditInvoice}
+
+
+
+
 
 
 
@@ -6396,7 +12133,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               </FormField>
+
+
+
+
 
 
 
@@ -6408,7 +12153,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
             <div className="grid grid-cols-2 gap-3">
+
+
+
+
 
 
 
@@ -6416,7 +12173,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 <Input
+
+
+
+
 
 
 
@@ -6424,7 +12189,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                   value={editInvoice.amount}
+
+
+
+
 
 
 
@@ -6432,7 +12205,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                   placeholder="280000"
+
+
+
+
 
 
 
@@ -6440,11 +12221,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 />
 
 
 
+
+
+
+
               </FormField>
+
+
+
+
 
 
 
@@ -6452,11 +12245,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 <Input
 
 
 
+
+
+
+
                   type="date"
+
+
+
+
 
 
 
@@ -6464,7 +12269,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                   onChange={e => setEditInvoice({ ...editInvoice, invoiceDate: e.target.value })}
+
+
+
+
 
 
 
@@ -6472,11 +12285,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 />
 
 
 
+
+
+
+
               </FormField>
+
+
+
+
 
 
 
@@ -6488,7 +12313,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
             <div className="grid grid-cols-2 gap-3">
+
+
+
+
 
 
 
@@ -6496,7 +12333,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 <Input
+
+
+
+
 
 
 
@@ -6504,7 +12349,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                   value={editInvoice.dueDate}
+
+
+
+
 
 
 
@@ -6512,7 +12365,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                   disabled={savingEditInvoice}
+
+
+
+
 
 
 
@@ -6520,7 +12381,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               </FormField>
+
+
+
+
 
 
 
@@ -6528,7 +12397,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 <Select
+
+
+
+
 
 
 
@@ -6536,7 +12413,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                   onChange={e => setEditInvoice({ ...editInvoice, status: e.target.value })}
+
+
+
+
 
 
 
@@ -6544,7 +12429,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 >
+
+
+
+
 
 
 
@@ -6552,7 +12445,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                   <option value="Draft">Draft</option>
+
+
+
+
 
 
 
@@ -6560,7 +12461,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                   <option value="Partial">Partial</option>
+
+
+
+
 
 
 
@@ -6568,7 +12477,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                   <option value="Overdue">Overdue</option>
+
+
+
+
 
 
 
@@ -6576,11 +12493,27 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               </FormField>
 
 
 
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -6592,11 +12525,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               <FormField label="Payment Terms">
 
 
 
+
+
+
+
                 <Input
+
+
+
+
 
 
 
@@ -6604,7 +12549,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                   onChange={e => setEditInvoice({ ...editInvoice, paymentTerms: e.target.value })}
+
+
+
+
 
 
 
@@ -6612,7 +12565,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                   disabled={savingEditInvoice}
+
+
+
+
 
 
 
@@ -6620,7 +12581,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               </FormField>
+
+
+
+
 
 
 
@@ -6628,7 +12597,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 <Input
+
+
+
+
 
 
 
@@ -6636,7 +12613,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                   value={editInvoice.email}
+
+
+
+
 
 
 
@@ -6644,7 +12629,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                   placeholder="customer@example.com"
+
+
+
+
 
 
 
@@ -6652,7 +12645,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 />
+
+
+
+
 
 
 
@@ -6660,7 +12661,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             </div>
+
+
+
+
 
 
 
@@ -6668,11 +12677,27 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         </Modal>
 
 
 
+
+
+
+
       )}
+
+
+
+
+
+
+
+
 
 
 
@@ -6684,7 +12709,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       {showDeleteInvoice && deleteInvoiceTarget && (
+
+
+
+
 
 
 
@@ -6692,7 +12725,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           open={showDeleteInvoice}
+
+
+
+
 
 
 
@@ -6700,7 +12741,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             if (deletingInvoice) return;
+
+
+
+
 
 
 
@@ -6708,7 +12757,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             setDeleteInvoiceTarget(null);
+
+
+
+
 
 
 
@@ -6716,7 +12773,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           }}
+
+
+
+
 
 
 
@@ -6724,7 +12789,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           footer={
+
+
+
+
 
 
 
@@ -6732,7 +12805,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               <Button
+
+
+
+
 
 
 
@@ -6740,7 +12821,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 onClick={() => {
+
+
+
+
 
 
 
@@ -6748,7 +12837,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                   setShowDeleteInvoice(false);
+
+
+
+
 
 
 
@@ -6756,7 +12853,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                   setError(null);
+
+
+
+
 
 
 
@@ -6764,7 +12869,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 disabled={deletingInvoice}
+
+
+
+
 
 
 
@@ -6772,11 +12885,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 Cancel
 
 
 
+
+
+
+
               </Button>
+
+
+
+
 
 
 
@@ -6784,7 +12909,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 {deletingInvoice ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+
+
+
+
 
 
 
@@ -6792,11 +12925,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               </Button>
 
 
 
+
+
+
+
             </div>
+
+
+
+
 
 
 
@@ -6804,7 +12949,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         >
+
+
+
+
 
 
 
@@ -6812,7 +12965,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             {error && (
+
+
+
+
 
 
 
@@ -6820,7 +12981,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 {error}
+
+
+
+
 
 
 
@@ -6828,7 +12997,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             )}
+
+
+
+
 
 
 
@@ -6836,7 +13013,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               <p className="text-sm text-[var(--text-primary)] font-semibold">Are you sure you want to delete this invoice?</p>
+
+
+
+
 
 
 
@@ -6844,7 +13029,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               <p className="text-xs text-[var(--text-muted)] mt-2">This cannot be undone.</p>
+
+
+
+
 
 
 
@@ -6852,7 +13045,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           </div>
+
+
+
+
 
 
 
@@ -6860,7 +13061,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       )}
+
+
+
+
+
+
+
+
 
 
 
@@ -6872,7 +13085,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       {showAssignInvoice && assignInvoiceTarget && (
+
+
+
+
 
 
 
@@ -6880,7 +13101,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           open={showAssignInvoice}
+
+
+
+
 
 
 
@@ -6888,7 +13117,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             setShowAssignInvoice(false);
+
+
+
+
 
 
 
@@ -6896,7 +13133,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             setAssignToUser('');
+
+
+
+
 
 
 
@@ -6904,7 +13149,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           title={`Assign Invoice — ${assignInvoiceTarget.invoiceNumber || assignInvoiceTarget.id}`}
+
+
+
+
 
 
 
@@ -6912,7 +13165,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             <div className="flex gap-2 justify-end">
+
+
+
+
 
 
 
@@ -6920,7 +13181,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 variant="ghost"
+
+
+
+
 
 
 
@@ -6928,7 +13197,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                   setShowAssignInvoice(false);
+
+
+
+
 
 
 
@@ -6936,7 +13213,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                   setAssignToUser('');
+
+
+
+
 
 
 
@@ -6944,7 +13229,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               >
+
+
+
+
 
 
 
@@ -6952,7 +13245,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               </Button>
+
+
+
+
 
 
 
@@ -6960,7 +13261,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 Save
+
+
+
+
 
 
 
@@ -6968,7 +13277,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             </div>
+
+
+
+
 
 
 
@@ -6976,7 +13293,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         >
+
+
+
+
 
 
 
@@ -6984,7 +13309,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             {error && (
+
+
+
+
 
 
 
@@ -6992,7 +13325,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 {error}
+
+
+
+
 
 
 
@@ -7000,7 +13341,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             )}
+
+
+
+
 
 
 
@@ -7008,7 +13357,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               <Select value={assignToUser} onChange={(e) => setAssignToUser(e.target.value)}>
+
+
+
+
 
 
 
@@ -7016,7 +13373,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               </Select>
+
+
+
+
 
 
 
@@ -7024,11 +13389,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           </div>
 
 
 
+
+
+
+
         </Modal>
+
+
+
+
 
 
 
@@ -7040,7 +13417,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
       {/* Send Reminder Modal */}
+
+
+
+
 
 
 
@@ -7064,7 +13453,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             setSelectedReminderInvoice(null);
+
+
+
+
 
 
 
@@ -7072,7 +13469,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             setReminderSuccess(false);
+
+
+
+
 
 
 
@@ -7084,11 +13489,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           title={`Send Reminder — ${selectedReminderInvoice.invoiceNumber || selectedReminderInvoice.id}`}
 
 
 
+
+
+
+
           footer={
+
+
+
+
 
 
 
@@ -7112,7 +13529,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                   setSelectedReminderInvoice(null);
+
+
+
+
 
 
 
@@ -7120,7 +13545,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                   setReminderSuccess(false);
+
+
+
+
 
 
 
@@ -7132,7 +13565,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 disabled={sendingReminder}
+
+
+
+
 
 
 
@@ -7140,7 +13581,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 Cancel
+
+
+
+
 
 
 
@@ -7156,7 +13605,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 disabled={sendingReminder || reminderSuccess}
+
+
+
+
 
 
 
@@ -7164,7 +13621,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 {sendingReminder ? <Loader2 size={13} className="animate-spin" /> : <Clock size={13} />}
+
+
+
+
 
 
 
@@ -7172,7 +13637,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               </Button>
+
+
+
+
 
 
 
@@ -7180,7 +13653,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           }
+
+
+
+
 
 
 
@@ -7188,7 +13669,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           <div className="space-y-4">
+
+
+
+
 
 
 
@@ -7196,7 +13685,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+
+
+
+
 
 
 
@@ -7204,11 +13701,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               </div>
 
 
 
+
+
+
+
             )}
+
+
+
+
 
 
 
@@ -7216,7 +13725,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm">
+
+
+
+
 
 
 
@@ -7224,11 +13741,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               </div>
 
 
 
+
+
+
+
             )}
+
+
+
+
 
 
 
@@ -7240,11 +13769,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             <div className="grid grid-cols-2 gap-3 text-xs">
 
 
 
+
+
+
+
               <div className="glass-card p-2">
+
+
+
+
 
 
 
@@ -7252,7 +13793,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 <div className="font-semibold text-[var(--text-primary)]">{selectedReminderInvoice.invoiceNumber || selectedReminderInvoice.id}</div>
+
+
+
+
 
 
 
@@ -7260,7 +13809,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               <div className="glass-card p-2">
+
+
+
+
 
 
 
@@ -7268,7 +13825,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 <div className="font-semibold text-[var(--text-primary)]">{selectedReminderInvoice.customerName}</div>
+
+
+
+
 
 
 
@@ -7276,7 +13841,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               <div className="glass-card p-2">
+
+
+
+
 
 
 
@@ -7284,11 +13857,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 <div className="font-semibold text-red-400">{fmt(selectedReminderInvoice.balance || 0)}</div>
 
 
 
+
+
+
+
               </div>
+
+
+
+
 
 
 
@@ -7296,7 +13881,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 <div className="text-[var(--text-muted)] mb-0.5">Due Date</div>
+
+
+
+
 
 
 
@@ -7304,7 +13897,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               </div>
+
+
+
+
 
 
 
@@ -7316,7 +13917,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
             {/* Reminder Type */}
+
+
+
+
 
 
 
@@ -7328,6 +13941,10 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 value={reminderForm.reminderType}
 
 
@@ -7336,7 +13953,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 disabled={sendingReminder || reminderSuccess}
+
+
+
+
 
 
 
@@ -7344,7 +13969,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 <option value="Gentle">Gentle Reminder</option>
+
+
+
+
 
 
 
@@ -7352,7 +13985,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 <option value="Overdue">Overdue</option>
+
+
+
+
 
 
 
@@ -7360,7 +14001,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -7372,6 +14025,10 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             <FormField label="Customer Email">
 
 
@@ -7380,7 +14037,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 type="email"
+
+
+
+
 
 
 
@@ -7392,7 +14057,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 placeholder="customer@example.com"
+
+
+
+
 
 
 
@@ -7400,11 +14073,27 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               />
 
 
 
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -7416,11 +14105,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             <FormField label="Message (Optional)">
 
 
 
+
+
+
+
               <textarea
+
+
+
+
 
 
 
@@ -7432,7 +14133,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 placeholder="Enter custom message or leave blank for default template..."
+
+
+
+
 
 
 
@@ -7440,7 +14149,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 className="w-full h-32 rounded-lg border border-[var(--border-base)] bg-[var(--bg-elevated)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] focus:border-[var(--border-active)] transition-all duration-150 text-xs px-3 py-2 resize-none"
+
+
+
+
 
 
 
@@ -7448,7 +14165,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             </FormField>
+
+
+
+
 
 
 
@@ -7456,7 +14181,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         </Modal>
+
+
+
+
 
 
 
@@ -7468,11 +14201,27 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
       {/* Timeline Drawer */}
 
 
 
+
+
+
+
       {showTimeline && timelineInvoice && (
+
+
+
+
 
 
 
@@ -7488,7 +14237,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             onClick={() => { setShowTimeline(false); setTimelineInvoice(null); setTimelineData([]); }}
+
+
+
+
 
 
 
@@ -7496,7 +14253,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           <div className="relative w-full max-w-md bg-[var(--bg-surface)] border-l border-[var(--border-base)] h-full overflow-y-auto animate-slide-in-right">
+
+
+
+
 
 
 
@@ -7504,7 +14269,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               <div>
+
+
+
+
 
 
 
@@ -7512,7 +14285,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 <p className="text-xs text-[var(--text-muted)]">{timelineInvoice.invoiceNumber || timelineInvoice.id}</p>
+
+
+
+
 
 
 
@@ -7524,7 +14305,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 onClick={() => { setShowTimeline(false); setTimelineInvoice(null); setTimelineData([]); }}
+
+
+
+
 
 
 
@@ -7532,7 +14321,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               >
+
+
+
+
 
 
 
@@ -7540,7 +14337,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               </button>
+
+
+
+
 
 
 
@@ -7552,7 +14357,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
             <div className="p-4 space-y-4">
+
+
+
+
 
 
 
@@ -7560,7 +14377,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 <div className="flex items-center justify-center py-8">
+
+
+
+
 
 
 
@@ -7568,7 +14393,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 </div>
+
+
+
+
 
 
 
@@ -7576,7 +14409,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 <div className="text-center py-8">
+
+
+
+
 
 
 
@@ -7584,7 +14425,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                   <p className="text-sm text-[var(--text-muted)]">No timeline activity found.</p>
+
+
+
+
 
 
 
@@ -7592,7 +14441,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               ) : (
+
+
+
+
 
 
 
@@ -7600,7 +14457,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                   {timelineData.map((activity, index) => (
+
+
+
+
 
 
 
@@ -7608,7 +14473,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                       <div className="flex flex-col items-center">
+
+
+
+
 
 
 
@@ -7616,7 +14489,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                           {activity.action === 'INVOICE_CREATED' && <FileText size={14} className="text-blue-400" />}
+
+
+
+
 
 
 
@@ -7624,7 +14505,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                           {activity.action === 'STATUS_CHANGED' && <RefreshCw size={14} className="text-purple-400" />}
+
+
+
+
 
 
 
@@ -7632,7 +14521,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                           {activity.action === 'REMINDER_SENT' && <Clock size={14} className="text-orange-400" />}
+
+
+
+
 
 
 
@@ -7640,7 +14537,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                         {index < timelineData.length - 1 && (
+
+
+
+
 
 
 
@@ -7648,7 +14553,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                         )}
+
+
+
+
 
 
 
@@ -7656,7 +14569,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                       <div className="flex-1 pb-4">
+
+
+
+
 
 
 
@@ -7664,7 +14585,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                           <div className="flex items-center justify-between mb-2">
+
+
+
+
 
 
 
@@ -7672,11 +14601,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                               {activity.action.replace(/_/g, ' ')}
 
 
 
+
+
+
+
                             </span>
+
+
+
+
 
 
 
@@ -7696,7 +14637,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                                 year: 'numeric',
+
+
+
+
 
 
 
@@ -7704,7 +14653,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                                 minute: '2-digit'
+
+
+
+
 
 
 
@@ -7712,7 +14669,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                             </span>
+
+
+
+
 
 
 
@@ -7724,7 +14689,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                           {activity.metadata && (
+
+
+
+
 
 
 
@@ -7732,7 +14705,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                               {activity.action === 'PAYMENT_ADDED' && (
+
+
+
+
 
 
 
@@ -7740,7 +14721,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                               )}
+
+
+
+
 
 
 
@@ -7748,11 +14737,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                                 <p>{activity.metadata.previousStatus} → {activity.metadata.newStatus}</p>
 
 
 
+
+
+
+
                               )}
+
+
+
+
 
 
 
@@ -7760,11 +14761,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                                 <p>Reminder sent to {activity.metadata.sentTo}</p>
 
 
 
+
+
+
+
                               )}
+
+
+
+
 
 
 
@@ -7772,7 +14785,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                                 <p>Amount: {fmt(activity.metadata.amount || 0)} for {activity.metadata.customerName}</p>
+
+
+
+
 
 
 
@@ -7780,11 +14801,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                             </div>
 
 
 
+
+
+
+
                           )}
+
+
+
+
 
 
 
@@ -7796,7 +14829,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                             <p className="text-[10px] text-[var(--text-faint)] mt-2">
+
+
+
+
 
 
 
@@ -7804,7 +14845,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                             </p>
+
+
+
+
 
 
 
@@ -7812,7 +14861,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                         </div>
+
+
+
+
 
 
 
@@ -7820,7 +14877,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                     </div>
+
+
+
+
 
 
 
@@ -7828,7 +14893,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 </div>
+
+
+
+
 
 
 
@@ -7836,7 +14909,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             </div>
+
+
+
+
 
 
 
@@ -7844,11 +14925,27 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         </div>
 
 
 
+
+
+
+
       )}
+
+
+
+
+
+
+
+
 
 
 
@@ -7872,6 +14969,10 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           if (submittingPayment) return;
 
 
@@ -7880,7 +14981,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           setError(null);
+
+
+
+
 
 
 
@@ -7888,7 +14997,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         }}
+
+
+
+
 
 
 
@@ -7896,7 +15013,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         footer={
+
+
+
+
 
 
 
@@ -7916,6 +15041,10 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 if (submittingPayment) return;
 
 
@@ -7924,7 +15053,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 setError(null);
+
+
+
+
 
 
 
@@ -7932,7 +15069,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               }}
+
+
+
+
 
 
 
@@ -7940,11 +15085,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             >
 
 
 
+
+
+
+
               Cancel
+
+
+
+
 
 
 
@@ -7956,7 +15113,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               onClick={handleRecordPayment}
+
+
+
+
 
 
 
@@ -7964,7 +15129,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             >
+
+
+
+
 
 
 
@@ -7972,7 +15145,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               {submittingPayment ? ' Recording...' : ' Record Payment'}
+
+
+
+
 
 
 
@@ -7980,7 +15161,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           </div>
+
+
+
+
 
 
 
@@ -7988,7 +15177,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       >
+
+
+
+
 
 
 
@@ -7996,7 +15193,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           {error && (
+
+
+
+
 
 
 
@@ -8004,11 +15209,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               {error}
 
 
 
+
+
+
+
             </div>
+
+
+
+
 
 
 
@@ -8020,7 +15237,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
           <div className="grid grid-cols-2 gap-3">
+
+
+
+
 
 
 
@@ -8028,7 +15257,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               <Select
+
+
+
+
 
 
 
@@ -8036,7 +15273,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 onChange={e => {
+
+
+
+
 
 
 
@@ -8052,7 +15297,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                     paymentType: newType,
+
+
+
+
 
 
 
@@ -8060,7 +15313,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                     referenceId: '',
+
+
+
+
 
 
 
@@ -8068,7 +15329,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                     invoiceNumber: '',
+
+
+
+
 
 
 
@@ -8076,7 +15345,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                     amount: '',
+
+
+
+
 
 
 
@@ -8084,7 +15361,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                   });
+
+
+
+
 
 
 
@@ -8092,7 +15377,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 }}
+
+
+
+
 
 
 
@@ -8100,7 +15393,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               >
+
+
+
+
 
 
 
@@ -8108,7 +15409,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 <option value="Vendor Payment">Vendor Payment</option>
+
+
+
+
 
 
 
@@ -8116,7 +15425,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -8128,7 +15449,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               <Select
+
+
+
+
 
 
 
@@ -8136,7 +15465,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 onChange={e => {
+
+
+
+
 
 
 
@@ -8144,7 +15481,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                   if (recordPaymentErrors.referenceId) setRecordPaymentErrors(prev => ({ ...prev, referenceId: undefined }));
+
+
+
+
 
 
 
@@ -8152,7 +15497,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 disabled={submittingPayment}
+
+
+
+
 
 
 
@@ -8160,7 +15513,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 {recordPayment.paymentType === 'Customer Payment' ? (
+
+
+
+
 
 
 
@@ -8168,7 +15529,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 ) : (
+
+
+
+
 
 
 
@@ -8176,7 +15545,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 )}
+
+
+
+
 
 
 
@@ -8184,7 +15561,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             </FormField>
+
+
+
+
 
 
 
@@ -8196,7 +15581,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
           <FormField label={recordPayment.paymentType === 'Customer Payment' ? 'Select Invoice' : 'Select Vendor'}>
+
+
+
+
 
 
 
@@ -8204,7 +15601,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               value={recordPayment.referenceId}
+
+
+
+
 
 
 
@@ -8212,73 +15617,147 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 const nextId = e.target.value;
+
+
+
+
 
 
 
                 if (!nextId) {
 
+
+
                   setRecordPayment({ ...recordPayment, referenceId: '', customerName: '', invoiceNumber: '', vendorName: '', amount: '', maxAmount: 0 });
+
+
 
                   if (recordPaymentErrors.referenceId) setRecordPaymentErrors(prev => ({ ...prev, referenceId: undefined }));
 
+
+
                   return;
 
+
+
                 }
+
+
+
+
 
 
 
                 if (recordPayment.paymentType === 'Customer Payment') {
 
+
+
                   const inv = (invoices || []).find(i => String(i._id || i.id) === String(nextId));
+
+
 
                   const outstanding = Number(inv?.balance ?? inv?.balanceDue ?? (Number(inv?.amount || 0) - Number(inv?.paid || 0)));
 
+
+
                   const max = Math.max(0, outstanding || 0);
+
+
 
                   setRecordPayment({
 
+
+
                     ...recordPayment,
 
+
+
                     referenceId: nextId,
+
+
 
                     customerName: inv?.customerName || '',
 
+
+
                     invoiceNumber: inv?.invoiceNumber || '',
+
+
 
                     vendorName: '',
 
+
+
                     maxAmount: max,
+
+
 
                     amount: max > 0 ? String(max) : '',
 
+
+
                   });
+
+
 
                 } else {
 
+
+
                   const v = (payables || []).find(p => String(p.vendorObjectId || p.vendorId) === String(nextId));
+
+
 
                   const max = Math.max(0, Number(v?.outstandingAmount || 0));
 
+
+
                   setRecordPayment({
+
+
 
                     ...recordPayment,
 
+
+
                     referenceId: nextId,
+
+
 
                     vendorName: v?.vendorName || '',
 
+
+
                     customerName: '',
+
+
 
                     invoiceNumber: '',
 
+
+
                     maxAmount: max,
+
+
 
                     amount: max > 0 ? String(max) : '',
 
+
+
                   });
 
+
+
                 }
+
+
+
+
 
 
 
@@ -8286,7 +15765,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               }}
+
+
+
+
 
 
 
@@ -8294,7 +15781,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             >
+
+
+
+
 
 
 
@@ -8303,6 +15798,10 @@ const FinancePage = ({ onNavigate }) => {
 
 
               {recordPayment.paymentType === 'Customer Payment'
+
+
+
+
 
 
 
@@ -8326,6 +15825,10 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 : payables.map(p => (
 
 
@@ -8346,7 +15849,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               }
+
+
+
+
 
 
 
@@ -8354,7 +15865,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             {recordPaymentErrors.referenceId && (
+
+
+
+
 
 
 
@@ -8362,7 +15881,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             )}
+
+
+
+
 
 
 
@@ -8374,7 +15901,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
           <div className="grid grid-cols-2 gap-3">
+
+
+
+
 
 
 
@@ -8386,7 +15925,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 type="number"
+
+
+
+
 
 
 
@@ -8394,13 +15941,27 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 onChange={e => {
+
+
+
+
 
 
 
                   const v = clampAmount(e.target.value, Number(recordPayment.maxAmount || 0));
 
+
+
                   setRecordPayment({ ...recordPayment, amount: v });
+
+
+
+
 
 
 
@@ -8408,7 +15969,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 }}
+
+
+
+
 
 
 
@@ -8416,7 +15985,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 max={recordPayment.maxAmount || undefined}
+
+
+
+
 
 
 
@@ -8424,7 +16001,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               />
+
+
+
+
 
 
 
@@ -8432,7 +16017,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 <div className="text-[11px] text-red-400 mt-1">{recordPaymentErrors.amount}</div>
+
+
+
+
 
 
 
@@ -8440,7 +16033,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -8456,7 +16061,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 type="date"
+
+
+
+
 
 
 
@@ -8464,7 +16077,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 onChange={e => {
+
+
+
+
 
 
 
@@ -8472,7 +16093,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                   if (recordPaymentErrors.paymentDate) setRecordPaymentErrors(prev => ({ ...prev, paymentDate: undefined }));
+
+
+
+
 
 
 
@@ -8480,7 +16109,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 disabled={submittingPayment}
+
+
+
+
 
 
 
@@ -8488,7 +16125,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               {recordPaymentErrors.paymentDate && (
+
+
+
+
 
 
 
@@ -8496,7 +16141,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               )}
+
+
+
+
 
 
 
@@ -8504,7 +16157,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
           </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -8516,7 +16181,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             <Select
+
+
+
+
 
 
 
@@ -8524,7 +16197,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               onChange={e => {
+
+
+
+
 
 
 
@@ -8532,7 +16213,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
                 if (recordPaymentErrors.paymentMethod) setRecordPaymentErrors(prev => ({ ...prev, paymentMethod: undefined }));
+
+
+
+
 
 
 
@@ -8540,7 +16229,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               disabled={submittingPayment}
+
+
+
+
 
 
 
@@ -8548,7 +16245,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               <option value="Cash">Cash</option>
+
+
+
+
 
 
 
@@ -8556,7 +16261,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               <option value="UPI">UPI</option>
+
+
+
+
 
 
 
@@ -8564,7 +16277,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               <option value="Other">Other</option>
+
+
+
+
 
 
 
@@ -8572,7 +16293,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             {recordPaymentErrors.paymentMethod && (
+
+
+
+
 
 
 
@@ -8580,11 +16309,27 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             )}
 
 
 
+
+
+
+
           </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -8596,7 +16341,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             <textarea
+
+
+
+
 
 
 
@@ -8604,7 +16357,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               onChange={e => setRecordPayment({ ...recordPayment, notes: e.target.value })}
+
+
+
+
 
 
 
@@ -8612,7 +16373,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
               disabled={submittingPayment}
+
+
+
+
 
 
 
@@ -8620,7 +16389,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
             />
+
+
+
+
 
 
 
@@ -8628,521 +16405,1185 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         </div>
 
 
 
+
+
+
+
       </Modal>
+
+
+
+
 
 
 
       {/* Manual Adjustment Modal */}
 
+
+
       <Modal
+
+
 
         isOpen={showAdjustModal}
 
+
+
         onClose={() => {
+
+
 
           if (submittingAdjust) return;
 
+
+
           setShowAdjustModal(false);
+
+
 
           setAdjustError(null);
 
+
+
           setAdjustErrors({});
+
+
 
         }}
 
+
+
         title="Manual Adjustment"
+
+
 
         footer={
 
+
+
           <div className="flex gap-2 justify-end">
+
+
 
             <Button
 
+
+
               variant="ghost"
+
+
 
               onClick={() => {
 
+
+
                 if (submittingAdjust) return;
+
+
 
                 setShowAdjustModal(false);
 
+
+
                 setAdjustError(null);
+
+
 
                 setAdjustErrors({});
 
+
+
               }}
+
+
 
               disabled={submittingAdjust}
 
+
+
             >
+
+
 
               Cancel
 
+
+
             </Button>
+
+
 
             <Button onClick={handleSubmitAdjustment} disabled={submittingAdjust}>
 
+
+
               {submittingAdjust ? <Loader2 size={13} className="animate-spin" /> : <TrendingUp size={13} />}
+
+
 
               {submittingAdjust ? ' Saving...' : ' Save Adjustment'}
 
+
+
             </Button>
+
+
 
           </div>
 
+
+
         }
+
+
 
       >
 
+
+
         <div className="space-y-[64px] pb-4">
+
+
 
           {adjustError && (
 
+
+
             <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+
+
 
               {adjustError}
 
+
+
             </div>
+
+
 
           )}
 
 
 
+
+
+
+
           <div className="grid grid-cols-2 gap-3">
+
+
 
             <FormField label="Type">
 
+
+
               <Select
+
+
 
                 value={adjustForm.type}
 
+
+
                 onChange={e => {
+
+
 
                   setAdjustForm({ ...adjustForm, type: e.target.value, category: '' });
 
+
+
                   if (adjustErrors.type) setAdjustErrors(prev => ({ ...prev, type: undefined }));
+
+
 
                 }}
 
+
+
                 disabled={submittingAdjust}
+
+
 
               >
 
+
+
                 <option value="credit">Credit (+ Add Amount)</option>
+
+
 
                 <option value="debit">Debit (- Subtract Amount)</option>
 
+
+
               </Select>
 
+
+
             </FormField>
+
+
+
+
 
 
 
             <FormField label="Category *">
 
+
+
               <Select
+
+
 
                 value={adjustForm.category}
 
+
+
                 onChange={e => {
+
+
 
                   const value = e.target.value;
 
+
+
                   if (value === '__add_new__') {
+
+
 
                     setShowAddCategoryModal(true);
 
+
+
                     setNewCategory({ categoryName: '', type: adjustForm.type });
+
+
 
                     return;
 
+
+
                   }
+
+
 
                   setAdjustForm({ ...adjustForm, category: value });
 
+
+
                   if (adjustErrors.category) setAdjustErrors(prev => ({ ...prev, category: undefined }));
+
+
 
                 }}
 
+
+
                 disabled={submittingAdjust}
+
+
 
               >
 
+
+
                 <option value="">Select Category</option>
+
+
 
                 {adjustmentCategories
 
+
+
                   .filter(cat => cat.type === adjustForm.type)
+
+
 
                   .map(cat => (
 
+
+
                     <option key={cat._id || cat.id} value={cat.categoryName}>
+
+
 
                       {cat.categoryName}
 
+
+
                     </option>
+
+
 
                   ))}
 
+
+
+                {/* Always include special payment categories */}
+                {adjustForm.type === 'credit' && (
+                  <option value="Invoice Amount Received">Invoice Amount Received</option>
+                )}
+                {adjustForm.type === 'debit' && (
+                  <option value="Vendor Payment">Vendor Payment</option>
+                )}
+
+
                 <option value="__add_new__">+ Add New Category</option>
+
+
 
               </Select>
 
+
+
               {adjustErrors.category && (
+
+
 
                 <div className="text-[11px] text-red-400 mt-1">{adjustErrors.category}</div>
 
+
+
               )}
+
+
 
             </FormField>
 
+
+
           </div>
+
+
+
+          {/* Invoice Selection for Customer Payment (Credit - Invoice Amount Received) */}
+          {adjustForm.type === 'credit' && adjustForm.category === 'Invoice Amount Received' && (
+            <div className="mt-4">
+              <FormField label="Select Invoice *">
+                <Select
+                  value={adjustForm.selectedInvoiceId}
+                  onChange={e => {
+                    const selectedInv = invoices.find(inv => (inv._id || inv.id) === e.target.value);
+                    setAdjustForm({ 
+                      ...adjustForm, 
+                      selectedInvoiceId: e.target.value,
+                      amount: selectedInv ? String(selectedInv.amount - (selectedInv.paid || 0)) : ''
+                    });
+                    if (adjustErrors.selectedInvoiceId) setAdjustErrors(prev => ({ ...prev, selectedInvoiceId: undefined }));
+                  }}
+                  disabled={submittingAdjust}
+                >
+                  <option value="">Select an invoice</option>
+                  {invoices
+                    .filter(inv => ['Sent', 'Partial', 'Overdue', 'Pending'].includes(inv.status))
+                    .map(inv => {
+                      const id = inv._id || inv.id;
+                      return (
+                        <option key={id} value={id}>
+                          {inv.invoiceNumber} - {inv.customerName} | Total: {fmt(inv.amount)} | Outstanding: {fmt(inv.amount - (inv.paid || 0))}
+                        </option>
+                      );
+                    })}
+                </Select>
+                {adjustErrors.selectedInvoiceId && (
+                  <div className="text-[11px] text-red-400 mt-1">{adjustErrors.selectedInvoiceId}</div>
+                )}
+                {adjustForm.selectedInvoiceId && (
+                  <div className="text-[11px] text-[var(--text-muted)] mt-2">
+                    {(() => {
+                      const inv = invoices.find(i => (i._id || i.id) === adjustForm.selectedInvoiceId);
+                      if (!inv) return null;
+                      const outstanding = inv.amount - (inv.paid || 0);
+                      return (
+                        <div className="p-2 bg-[var(--bg-elevated)] rounded border border-[var(--border-muted)]">
+                          <div className="font-medium">Invoice Details:</div>
+                          <div>Customer: {inv.customerName}</div>
+                          <div>Total Amount: {fmt(inv.amount)}</div>
+                          <div>Paid: {fmt(inv.paid || 0)}</div>
+                          <div className="font-semibold text-amber-400">Outstanding: {fmt(outstanding)}</div>
+                          <div className="text-[10px] text-gray-500 mt-1">ID: {inv._id || inv.id}</div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+              </FormField>
+            </div>
+          )}
+
+          {/* Vendor Selection for Vendor Payment (Debit - Vendor Payment) */}
+          {adjustForm.type === 'debit' && adjustForm.category === 'Vendor Payment' && (
+            <div className="mt-4">
+              <FormField label="Select Vendor *">
+                <Select
+                  value={adjustForm.selectedVendorId}
+                  onChange={e => {
+                    const selectedVendor = payables.find(p => String(p.vendorObjectId || p.vendorId) === e.target.value);
+                    setAdjustForm({ 
+                      ...adjustForm, 
+                      selectedVendorId: e.target.value,
+                      amount: selectedVendor ? String(selectedVendor.outstandingAmount) : ''
+                    });
+                    if (adjustErrors.selectedVendorId) setAdjustErrors(prev => ({ ...prev, selectedVendorId: undefined }));
+                  }}
+                  disabled={submittingAdjust}
+                >
+                  <option value="">Select a vendor</option>
+                  {(() => {
+                    console.log('Vendor dropdown - payables data:', payables);
+                    console.log('Vendor dropdown - filtered payables:', payables.filter(p => (p.outstandingAmount || 0) > 0));
+                    
+                    const vendorsWithOutstanding = payables.filter(p => (p.outstandingAmount || 0) > 0);
+                    
+                    if (vendorsWithOutstanding.length === 0) {
+                      return (
+                        <option disabled>No vendors with outstanding payments found</option>
+                      );
+                    }
+                    
+                    return vendorsWithOutstanding.map(p => (
+                      <option key={p.vendorObjectId || p.vendorId} value={String(p.vendorObjectId || p.vendorId)}>
+                        {p.vendorName} | Outstanding: {fmt(p.outstandingAmount)}
+                      </option>
+                    ));
+                  })()}
+                </Select>
+                {adjustErrors.selectedVendorId && (
+                  <div className="text-[11px] text-red-400 mt-1">{adjustErrors.selectedVendorId}</div>
+                )}
+                {adjustForm.selectedVendorId && (
+                  <div className="text-[11px] text-[var(--text-muted)] mt-2">
+                    {(() => {
+                      const vendor = payables.find(p => String(p.vendorObjectId || p.vendorId) === adjustForm.selectedVendorId);
+                      if (!vendor) return null;
+                      return (
+                        <div className="p-2 bg-[var(--bg-elevated)] rounded border border-[var(--border-muted)]">
+                          <div className="font-medium">Vendor Details:</div>
+                          <div>Vendor: {vendor.vendorName}</div>
+                          <div>Total Payable: {fmt(vendor.totalPayableAmount)}</div>
+                          <div>Paid: {fmt(vendor.amountPaid || 0)}</div>
+                          <div className="font-semibold text-amber-400">Outstanding: {fmt(vendor.outstandingAmount)}</div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+              </FormField>
+            </div>
+          )}
+
+          {/* Payment Method for Invoice/Vendor Payments */}
+          {(adjustForm.category === 'Invoice Amount Received' || adjustForm.category === 'Vendor Payment') && (
+            <div className="mt-4">
+              <FormField label="Payment Method">
+                <Select
+                  value={adjustForm.paymentMethod}
+                  onChange={e => setAdjustForm({ ...adjustForm, paymentMethod: e.target.value })}
+                  disabled={submittingAdjust}
+                >
+                  <option value="Bank Transfer">Bank Transfer</option>
+                  <option value="Cash">Cash</option>
+                  <option value="UPI">UPI</option>
+                  <option value="Cheque">Cheque</option>
+                  <option value="Card">Card</option>
+                  <option value="NEFT">NEFT</option>
+                  <option value="RTGS">RTGS</option>
+                </Select>
+              </FormField>
+            </div>
+          )}
 
 
 
           <div className="grid grid-cols-2 gap-3 mt-4">
 
+
+
             <FormField label="Amount (₹)">
+
+
 
               <Input
 
+
+
                 type="number"
+
+
 
                 value={adjustForm.amount}
 
+
+
                 onChange={e => {
+
+
 
                   setAdjustForm({ ...adjustForm, amount: e.target.value });
 
+
+
                   if (adjustErrors.amount) setAdjustErrors(prev => ({ ...prev, amount: undefined }));
+
+
 
                 }}
 
+
+
                 placeholder="Enter amount"
+
+
 
                 disabled={submittingAdjust}
 
+
+
               />
+
+
 
               {adjustErrors.amount && (
 
+
+
                 <div className="text-[11px] text-red-400 mt-1">{adjustErrors.amount}</div>
+
+
 
               )}
 
+
+
             </FormField>
+
+
+
+
 
 
 
             <FormField label="Date">
 
+
+
               <Input
+
+
 
                 type="date"
 
+
+
                 value={adjustForm.date}
+
+
 
                 onChange={e => {
 
+
+
                   setAdjustForm({ ...adjustForm, date: e.target.value });
+
+
 
                   if (adjustErrors.date) setAdjustErrors(prev => ({ ...prev, date: undefined }));
 
+
+
                 }}
+
+
 
                 disabled={submittingAdjust}
 
+
+
               />
+
+
 
               {adjustErrors.date && (
 
+
+
                 <div className="text-[11px] text-red-400 mt-1">{adjustErrors.date}</div>
+
+
 
               )}
 
+
+
             </FormField>
+
+
 
           </div>
 
 
 
+
+
+
+
           <div className="mt-4">
+
+
 
             <FormField label="Reason (Optional)">
 
+
+
               <Input
+
+
 
                 value={adjustForm.reason}
 
+
+
                 onChange={e => setAdjustForm({ ...adjustForm, reason: e.target.value })}
+
+
 
                 placeholder="e.g., Year-end adjustment, Correction"
 
+
+
                 disabled={submittingAdjust}
+
+
 
               />
 
+
+
             </FormField>
 
+
+
           </div>
+
+
+
+
 
 
 
           <div className="mt-4">
 
+
+
             <FormField label="Reference (Optional)">
+
+
 
               <Input
 
+
+
                 value={adjustForm.reference}
+
+
 
                 onChange={e => setAdjustForm({ ...adjustForm, reference: e.target.value })}
 
+
+
                 placeholder="e.g., ADJ-001, Journal entry reference"
+
+
 
                 disabled={submittingAdjust}
 
+
+
               />
+
+
 
             </FormField>
 
+
+
           </div>
+
+
 
         </div>
 
+
+
       </Modal>
+
+
+
+
 
 
 
       {/* Add New Category Modal */}
 
+
+
       <Modal
+
+
 
         isOpen={showAddCategoryModal}
 
+
+
         onClose={() => {
+
+
 
           if (addingCategory) return;
 
+
+
           setShowAddCategoryModal(false);
+
+
 
           setNewCategory({ categoryName: '', type: 'credit' });
 
+
+
         }}
+
+
 
         title="Add New Category"
 
+
+
         footer={
+
+
 
           <div className="flex gap-2 justify-end">
 
+
+
             <Button
+
+
 
               variant="ghost"
 
+
+
               onClick={() => {
+
+
 
                 if (addingCategory) return;
 
+
+
                 setShowAddCategoryModal(false);
+
+
 
                 setNewCategory({ categoryName: '', type: 'credit' });
 
+
+
               }}
+
+
 
               disabled={addingCategory}
 
+
+
             >
+
+
 
               Cancel
 
+
+
             </Button>
+
+
 
             <Button
 
+
+
               onClick={async () => {
+
+
 
                 if (!newCategory.categoryName.trim()) {
 
+
+
                   toast.error('Category name is required');
+
+
 
                   return;
 
+
+
                 }
+
+
 
                 try {
 
+
+
                   setAddingCategory(true);
+
+
 
                   const result = await financeApi.createAdjustmentCategory({
 
+
+
                     categoryName: newCategory.categoryName.trim(),
+
+
 
                     type: newCategory.type,
 
+
+
                   });
+
+
 
                   // Add new category to list and select it
 
+
+
                   const newCat = result?.category || result;
+
+
 
                   if (newCat) {
 
+
+
                     setAdjustmentCategories(prev => [...prev, newCat]);
+
+
 
                     // If the new category type matches current form type, select it
 
+
+
                     if (newCat.type === adjustForm.type) {
+
+
 
                       setAdjustForm(prev => ({ ...prev, category: newCat.categoryName }));
 
+
+
                     }
+
+
 
                   }
 
+
+
                   toast.success(`Category "${newCategory.categoryName}" created successfully`);
+
+
 
                   setShowAddCategoryModal(false);
 
+
+
                   setNewCategory({ categoryName: '', type: 'credit' });
+
+
 
                 } catch (err) {
 
+
+
                   toast.error(err.message || 'Failed to create category');
+
+
 
                 } finally {
 
+
+
                   setAddingCategory(false);
+
+
 
                 }
 
+
+
               }}
+
+
 
               disabled={addingCategory}
 
+
+
             >
+
+
 
               {addingCategory ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
 
+
+
               {addingCategory ? ' Saving...' : ' Save Category'}
+
+
 
             </Button>
 
+
+
           </div>
+
+
 
         }
 
+
+
       >
+
+
 
         <div className="space-y-4 pb-4">
 
+
+
           <FormField label="Category Name">
+
+
 
             <Input
 
+
+
               value={newCategory.categoryName}
+
+
 
               onChange={e => setNewCategory({ ...newCategory, categoryName: e.target.value })}
 
+
+
               placeholder="e.g., Customer Advance, Bank Charges"
 
+
+
               disabled={addingCategory}
+
+
 
               autoFocus
 
+
+
             />
 
+
+
           </FormField>
+
+
 
           <FormField label="Type">
 
+
+
             <Select
+
+
 
               value={newCategory.type}
 
+
+
               onChange={e => setNewCategory({ ...newCategory, type: e.target.value })}
+
+
 
               disabled={addingCategory}
 
+
+
             >
+
+
 
               <option value="credit">Credit</option>
 
+
+
               <option value="debit">Debit</option>
+
+
 
             </Select>
 
+
+
           </FormField>
 
+
+
         </div>
+
+
 
       </Modal>
 
 
 
+
+
+
+
       {/* Journal Entry Detail Modal */}
+
+
 
       {showJournalEntryModal && selectedJournalEntry && (
 
+
+
         <Modal
+
+
 
           isOpen={showJournalEntryModal}
 
+
+
           onClose={() => {
+
+
 
             setShowJournalEntryModal(false);
 
+
+
             setSelectedJournalEntry(null);
+
+
 
             setSelectedJournalEntryIndex(null);
 
+
+
           }}
+
+
 
           title={`Journal Entry — JE-${String(selectedJournalEntryIndex || 1).padStart(3, '0')}`}
 
+
+
           footer={
+
+
 
             <div className="flex gap-2 justify-end">
 
+
+
               <Button
+
+
 
                 variant="ghost"
 
+
+
                 onClick={() => {
+
+
 
                   setShowJournalEntryModal(false);
 
+
+
                   setSelectedJournalEntry(null);
+
+
 
                   setSelectedJournalEntryIndex(null);
 
+
+
                 }}
+
+
 
               >
 
+
+
                 Close
+
+
 
               </Button>
 
+
+
             </div>
+
+
 
           }
 
+
+
         >
+
+
 
           <div className="space-y-4 pb-4">
 
+
+
             {/* Entry Info */}
+
+
 
             <div className="grid grid-cols-2 gap-3 text-xs">
 
+
+
               <div className="glass-card p-2">
 
+
+
                 <div className="text-[var(--text-muted)] mb-0.5">Date</div>
+
+
 
                 <div className="font-semibold text-[var(--text-primary)]">
 
@@ -9154,27 +17595,51 @@ const FinancePage = ({ onNavigate }) => {
 
                     year: 'numeric'
 
+
+
                   })}
+
+
 
                 </div>
 
+
+
               </div>
 
+
+
               <div className="glass-card p-2">
+
+
 
                 <div className="text-[var(--text-muted)] mb-0.5">Reference</div>
 
+
+
                 <div className="font-semibold text-[var(--text-primary)]">
+
+
 
                   {selectedJournalEntry.reference || '—'}
 
+
+
                 </div>
+
+
 
               </div>
 
+
+
               <div className="glass-card p-2">
 
+
+
                 <div className="text-[var(--text-muted)] mb-0.5">Category</div>
+
+
 
                 <div className="font-semibold text-[var(--text-primary)]">
 
@@ -9182,199 +17647,387 @@ const FinancePage = ({ onNavigate }) => {
 
                     ? selectedJournalEntry.narration.split(':')[0]?.trim()
 
+
+
                     : (selectedJournalEntry.category || '—')}
+
+
 
                 </div>
 
+
+
               </div>
+
+
 
               <div className="glass-card p-2">
 
+
+
                 <div className="text-[var(--text-muted)] mb-0.5">Type</div>
+
+
 
                 <div className={`font-semibold ${selectedJournalEntry.type === 'credit' ? 'text-emerald-400' : 'text-red-400'}`}>
 
+
+
                   {selectedJournalEntry.type === 'credit' ? 'Credit (+)' : 'Debit (-)'}
+
+
 
                 </div>
 
+
+
               </div>
 
+
+
             </div>
+
+
+
+
 
 
 
             {/* Journal Lines Table */}
 
+
+
             <div className="border border-[var(--border-base)] rounded-lg overflow-hidden">
+
+
 
               {/* Table Header */}
 
+
+
               <div className="grid grid-cols-12 text-[11px] font-semibold text-[var(--text-primary)] border-b-2 border-[var(--border-base)] p-2 bg-[var(--bg-surface)]">
+
+
 
                 <div className="col-span-6 border-r-2 border-[var(--border-base)] px-1">Account</div>
 
+
+
                 <div className="col-span-3 border-r-2 border-[var(--border-base)] px-1 text-right">Debit (₹)</div>
+
+
 
                 <div className="col-span-3 pl-1 text-right">Credit (₹)</div>
 
+
+
               </div>
+
+
 
 
 
               {/* Debit Lines */}
 
+
+
               {(selectedJournalEntry.lines || [])
 
+
+
                 .filter(l => l.debitAmount > 0)
+
+
 
                 .map((line, idx) => (
 
                   <div
 
+
+
                     key={`debit-${idx}`}
+
+
 
                     className="grid grid-cols-12 text-xs border-b border-[var(--border-muted)]"
 
+
+
                   >
+
+
 
                     <div className="col-span-6 border-r-2 border-[var(--border-base)] px-3 py-2 text-[var(--text-primary)]">
 
+
+
                       {line.accountName} <span className="text-[var(--text-muted)]">Dr.</span>
 
+
+
                     </div>
+
+
 
                     <div className="col-span-3 border-r-2 border-[var(--border-base)] px-3 py-2 text-right font-medium text-[var(--text-primary)]">
 
+
+
                       {fmt(line.debitAmount)}
+
+
 
                     </div>
 
+
+
                     <div className="col-span-3 px-3 py-2 text-right">-</div>
+
+
 
                   </div>
 
+
+
                 ))}
+
+
 
 
 
               {/* Credit Lines */}
 
+
+
               {(selectedJournalEntry.lines || [])
 
+
+
                 .filter(l => l.creditAmount > 0)
+
+
 
                 .map((line, idx) => (
 
                   <div
 
+
+
                     key={`credit-${idx}`}
+
+
 
                     className="grid grid-cols-12 text-xs border-b border-[var(--border-muted)]"
 
+
+
                   >
+
+
 
                     <div className="col-span-6 border-r-2 border-[var(--border-base)] px-3 py-2 text-[var(--text-primary)] pl-6">
 
+
+
                       <span className="text-[var(--text-muted)]">To</span> {line.accountName}
 
+
+
                     </div>
+
+
 
                     <div className="col-span-3 border-r-2 border-[var(--border-base)] px-3 py-2 text-right">-</div>
 
+
+
                     <div className="col-span-3 px-3 py-2 text-right font-medium text-[var(--text-primary)]">
+
+
 
                       {fmt(line.creditAmount)}
 
+
+
                     </div>
 
+
+
                   </div>
+
+
 
                 ))}
 
 
 
+
+
               {/* Total Row */}
+
+
 
               <div className="grid grid-cols-12 text-xs font-semibold bg-[var(--bg-surface)] p-2 border-t-2 border-[var(--border-base)]">
 
+
+
                 <div className="col-span-6 border-r-2 border-[var(--border-base)] px-1">Total</div>
+
+
 
                 <div className="col-span-3 border-r-2 border-[var(--border-base)] px-1 text-right">
 
+
+
                   {fmt((selectedJournalEntry.lines || [])
+
+
 
                     .reduce((sum, l) => sum + (l.debitAmount || 0), 0))}
 
+
+
                 </div>
+
+
 
                 <div className="col-span-3 pl-1 text-right">
 
+
+
                   {fmt((selectedJournalEntry.lines || [])
+
+
 
                     .reduce((sum, l) => sum + (l.creditAmount || 0), 0))}
 
+
+
                 </div>
+
+
 
               </div>
 
+
+
             </div>
+
+
+
+
 
 
 
             {/* Narration */}
 
+
+
             {selectedJournalEntry.narration && (
+
+
 
               <div className="glass-card p-3">
 
+
+
                 <div className="text-[var(--text-muted)] mb-1 text-xs">Narration</div>
+
+
 
                 <div className="text-sm text-[var(--text-primary)] italic">
 
+
+
                   ({selectedJournalEntry.narration})
+
+
 
                 </div>
 
+
+
               </div>
 
+
+
             )}
+
+
+
+
 
 
 
             {/* Reason */}
 
+
+
             {selectedJournalEntry.reason && (
+
+
 
               <div className="glass-card p-3">
 
+
+
                 <div className="text-[var(--text-muted)] mb-1 text-xs">Reason</div>
+
+
 
                 <div className="text-sm text-[var(--text-primary)]">
 
+
+
                   {selectedJournalEntry.reason}
+
+
 
                 </div>
 
+
+
               </div>
+
+
 
             )}
 
 
 
+
+
+
+
             {/* Created Info */}
+
+
 
             <div className="text-[10px] text-[var(--text-muted)] text-right">
 
+
+
               Created: {selectedJournalEntry.createdAt ? new Date(selectedJournalEntry.createdAt).toLocaleString('en-IN') : '—'}
+
+
 
             </div>
 
+
+
           </div>
+
+
 
         </Modal>
 
+
+
       )}
+
+
+
+
 
 
 
@@ -9382,7 +18035,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   );
+
+
+
+
 
 
 
@@ -9390,5 +18051,11 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
 export default FinancePage;
+
+
 

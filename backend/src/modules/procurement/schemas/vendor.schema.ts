@@ -3,7 +3,7 @@ import { HydratedDocument, Types } from 'mongoose';
 
 export type VendorDocument = HydratedDocument<Vendor>;
 
-@Schema({ timestamps: true, collection: 'vendors' })
+@Schema({ timestamps: true, collection: 'logistics_vendors' })
 export class Vendor {
   @Prop({ required: true, unique: true })
   id!: string;
@@ -11,7 +11,7 @@ export class Vendor {
   @Prop({ required: true })
   name!: string;
 
-  @Prop({ required: true, enum: ['Panel', 'Inverter', 'BOS', 'Structure', 'Cable', 'Other'] })
+  @Prop({ required: true, type: String })
   category!: string;
 
   @Prop({ required: true })

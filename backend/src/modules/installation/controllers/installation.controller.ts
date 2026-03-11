@@ -272,4 +272,14 @@ export class InstallationController {
       status,
     });
   }
+
+  /**
+   * Check overdue installations and mark as Delayed
+   * Automatically runs to find installations past due date
+   */
+  @Post('check-overdue')
+  @RequirePermission('installation', 'edit')
+  async checkOverdue(@Request() req: AuthenticatedRequest) {
+    return this.installationService.checkOverdueInstallations(this.getUserContext(req));
+  }
 }

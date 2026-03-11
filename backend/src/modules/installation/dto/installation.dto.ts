@@ -1,5 +1,5 @@
 import { PartialType } from '@nestjs/mapped-types';
-import { IsString, IsNumber, IsOptional, IsEnum, Min, Max, IsArray, ValidateNested, IsBoolean, IsDateString, IsMongoId } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsEnum, Min, Max, IsArray, ValidateNested, IsBoolean, IsDateString, IsMongoId, ValidateIf } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class TaskItemDto {
@@ -82,7 +82,7 @@ export class CreateInstallationDto {
   projectId?: string;
 
   @IsOptional()
-  @IsMongoId()
+  @IsString()
   dispatchId?: string;
 
   @IsString()
@@ -92,7 +92,7 @@ export class CreateInstallationDto {
   site!: string;
 
   @IsOptional()
-  @IsMongoId()
+  @IsString()
   technicianId?: string;
 
   @IsOptional()
@@ -100,7 +100,7 @@ export class CreateInstallationDto {
   technicianName?: string;
 
   @IsOptional()
-  @IsMongoId()
+  @IsString()
   supervisorId?: string;
 
   @IsOptional()
@@ -119,8 +119,8 @@ export class CreateInstallationDto {
   endTime?: string;
 
   @IsOptional()
-  @IsEnum(['Pending', 'In Progress', 'Delayed', 'Completed'])
-  status?: 'Pending' | 'In Progress' | 'Delayed' | 'Completed';
+  @IsEnum(['Pending Assign', 'Pending', 'In Progress', 'Delayed', 'Completed'])
+  status?: 'Pending Assign' | 'Pending' | 'In Progress' | 'Delayed' | 'Completed';
 
   @IsOptional()
   @IsNumber()
@@ -149,15 +149,15 @@ export class CreateInstallationDto {
   materialsUsed?: MaterialUsedDto[];
 
   @IsOptional()
-  @IsMongoId()
+  @IsString()
   assignedTo?: string;
 }
 
 export class UpdateInstallationDto extends PartialType(CreateInstallationDto) {}
 
 export class UpdateInstallationStatusDto {
-  @IsEnum(['Pending', 'In Progress', 'Delayed', 'Completed'])
-  status!: 'Pending' | 'In Progress' | 'Delayed' | 'Completed';
+  @IsEnum(['Pending Assign', 'Pending', 'In Progress', 'Delayed', 'Completed'])
+  status!: 'Pending Assign' | 'Pending' | 'In Progress' | 'Delayed' | 'Completed';
 
   @IsOptional()
   @IsString()

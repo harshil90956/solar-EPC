@@ -35,8 +35,8 @@ export class LogisticsController {
   }
 
   @Patch('dispatches/:id')
-  async update(@Param('id') id: string, @Body() updateDto: Partial<Dispatch>) {
-    const data = await this.logisticsService.update(id, updateDto);
+  async update(@Param('id') id: string, @Body() updateDto: Partial<Dispatch>, @Req() req: any) {
+    const data = await this.logisticsService.update(id, updateDto, req.user);
     return { success: true, data, message: 'Dispatch updated successfully' };
   }
 
@@ -78,12 +78,13 @@ export class LogisticsController {
   @Post('vendors')
   async createVendor(@Body() createDto: CreateLogisticsVendorDto) {
     try {
+      console.log('[VENDOR CREATE] Received data:', JSON.stringify(createDto));
       const data = await this.logisticsService.createVendor(createDto);
+      console.log('[VENDOR CREATE] Saved vendor:', JSON.stringify(data));
       return { success: true, data, message: 'Vendor created successfully' };
     } catch (error: any) {
-      console.error('Error creating vendor:', error);
-      console.error('Error response:', error.response?.data || error.message);
-      return { success: false, error: error.response?.data?.error || error.response?.data?.message || error.message || 'Unknown error', code: error.code };
+      console.error('[VENDOR CREATE] Error:', error.message, error.stack);
+      return { success: false, error: error.message || 'Unknown error', code: error.code };
     }
   }
 
@@ -111,8 +112,10 @@ export class LogisticsController {
     @Param('id') id: string,
     @Body('itemName') itemName: string,
     @Body('quantity') quantity: number,
+    @Req() req: any,
   ) {
-    const data = await this.logisticsService.vendorDelivery(id, itemName, quantity);
+    const tenantId = req.headers['x-tenant-id'] || req.user?.tenantId || 'default';
+    const data = await this.logisticsService.vendorDelivery(id, itemName, quantity, tenantId);
     return { success: true, data, message: 'Stock added to inventory from vendor' };
   }
 }
