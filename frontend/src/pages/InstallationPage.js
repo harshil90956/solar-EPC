@@ -995,12 +995,13 @@ const InstallationPage = () => {
     const log = logs.find(x => x.installationId === id || x.id === id || x._id === id);
     if (!log) return;
     
-    // Check permission: either has edit permission OR is assigned user
+    // Check permission: either has edit permission OR is assigned user OR is employee/technician
     const isAssignedUser = log.technicianId === user?.id || 
                            log.technicianId === user?._id ||
                            log.assignedTo === user?.id ||
                            log.assignedTo === user?._id;
-    const canUpdate = can('installation','edit') || isAssignedUser;
+    const isEmployeeRole = user?.role?.toLowerCase() === 'employee' || user?.role?.toLowerCase() === 'technician';
+    const canUpdate = can('installation','edit') || isAssignedUser || isEmployeeRole;
     
     if (!canUpdate) return toast.error('Permission denied');
     // enforce completion rule
@@ -1068,12 +1069,13 @@ const InstallationPage = () => {
       hasEditPermission: can('installation','edit')
     });
     
-    // Allow task update if: has edit permission OR is assigned user (technician/manager assigned to this installation)
+    // Allow task update if: has edit permission OR is assigned user OR is employee/technician
     const isAssignedUser = selected.technicianId === user?.id || 
                            selected.technicianId === user?._id ||
                            selected.assignedTo === user?.id ||
                            selected.assignedTo === user?._id;
-    const canUpdate = can('installation','edit') || isAssignedUser;
+    const isEmployeeRole = user?.role?.toLowerCase() === 'employee' || user?.role?.toLowerCase() === 'technician';
+    const canUpdate = can('installation','edit') || isAssignedUser || isEmployeeRole;
     
     console.log('[DEBUG] Permission check:', { isAssignedUser, canUpdate });
     

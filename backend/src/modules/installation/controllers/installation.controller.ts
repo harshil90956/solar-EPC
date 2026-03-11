@@ -157,12 +157,14 @@ export class InstallationController {
     @Body() statusDto: UpdateInstallationStatusDto,
     @Request() req: AuthenticatedRequest,
   ) {
-    // Check if user is technician - allow status update even without edit permission
+    // Check if user is technician or employee - allow status update even without edit permission
     const user = req.user as any;
-    const isTechnician = user.role?.toLowerCase() === 'technician' || 
-                         await this.installationService.isAssignedTechnician(id, user.userId);
+    const isTechnicianOrEmployee = user.role?.toLowerCase() === 'technician' || 
+                                   user.role?.toLowerCase() === 'employee' ||
+                                   user.dataScope === 'ASSIGNED' ||
+                                   await this.installationService.isAssignedTechnician(id, user.userId);
     
-    if (!isTechnician && !user.can?.('installation', 'edit')) {
+    if (!isTechnicianOrEmployee && !user.can?.('installation', 'edit')) {
       throw new ForbiddenException('Permission denied');
     }
     
@@ -179,13 +181,15 @@ export class InstallationController {
     @Body() tasksDto: UpdateInstallationTasksDto,
     @Request() req: AuthenticatedRequest,
   ) {
-    // Check if user is technician - allow tasks update even without edit permission
+    // Check if user is technician or employee - allow tasks update even without edit permission
     const user = req.user as any;
     const userId = user.id || user.userId; // Support both formats
-    const isTechnician = user.role?.toLowerCase() === 'technician' || 
-                         await this.installationService.isAssignedTechnician(id, userId);
+    const isTechnicianOrEmployee = user.role?.toLowerCase() === 'technician' || 
+                                   user.role?.toLowerCase() === 'employee' ||
+                                   user.dataScope === 'ASSIGNED' ||
+                                   await this.installationService.isAssignedTechnician(id, userId);
     
-    if (!isTechnician && !user.can?.('installation', 'edit')) {
+    if (!isTechnicianOrEmployee && !user.can?.('installation', 'edit')) {
       throw new ForbiddenException('Permission denied');
     }
     
