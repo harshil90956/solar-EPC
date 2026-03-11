@@ -157,6 +157,10 @@ const InstallKanbanBoard = ({ items, onCardClick, onDrop, canEdit }) => {
           .filter(Boolean)
           .map(stage => {
             const cards = items.filter(i => {
+              // Show 'Pending' or 'Pending Assign' in the 'Pending Assign' column
+              if (stage.id === 'Pending Assign') {
+                return i.status === 'Pending Assign' || i.status === 'Pending';
+              }
               return i.status === stage.id;
             });
             const avgProgress = cards.length ? Math.round(cards.reduce((a, i) => a + calculateProgress(i.tasks), 0) / cards.length) : 0;
