@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Edit, Trash2, Mail, Phone, MapPin, Calendar, Briefcase, DollarSign, Filter, Download, RefreshCw } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Mail, Phone, MapPin, Calendar, Briefcase, DollarSign, Filter, Download, RefreshCw, Eye, X, User, Building, Shield, Clock, CheckCircle, XCircle, Star } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import DataTable from '../components/ui/DataTable';
@@ -9,6 +9,97 @@ import { KPICard } from '../components/ui/KPICard';
 import { toast } from '../components/ui/Toast';
 import { employeeApi, departmentApi } from '../services/hrmApi';
 import { useSettings } from '../context/SettingsContext';
+
+// ── Employee Detail View Modal ─────────────────────────────────────────────
+const EmployeeViewModal = ({ employee, onClose, onEdit, inline = false }) => {
+  if (!employee) return null;
+  const initial = `${employee.firstName?.[0] || ''}${employee.lastName?.[0] || ''}`.toUpperCase();
+  const statusColor = employee.status === 'active' ? 'text-emerald-500 bg-emerald-500/10' : 'text-red-500 bg-red-500/10';
+  const InfoRow = ({ icon: Icon, label, value, accent }) => (
+    <div className="flex items-start gap-3 py-2.5 border-b border-[var(--border-muted)] last:border-0">
+      <div className="w-8 h-8 rounded-lg bg-[var(--bg-elevated)] flex items-center justify-center flex-shrink-0 mt-0.5">
+        <Icon size={15} className="text-[var(--text-muted)]" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[11px] text-[var(--text-faint)] uppercase tracking-wide font-medium">{label}</p>
+        <p className={`text-sm font-semibold mt-0.5 truncate ${accent || 'text-[var(--text-primary)]'}`}>{value || '—'}</p>
+      </div>
+    </div>
+  );
+
+  const content = (
+    <div className="space-y-0">
+      {/* Hero Header */}
+      <div className="relative overflow-hidden rounded-xl mb-5 p-6 bg-gradient-to-br from-[var(--primary)]/20 via-[var(--primary)]/5 to-transparent border border-[var(--border-base)]">
+        <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-[var(--primary)]/10 -translate-y-8 translate-x-8" />
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[var(--primary)] to-[var(--accent)] text-white flex items-center justify-center font-bold text-xl shadow-lg">{initial}</div>
+          <div className="flex-1">
+            <h2 className="text-xl font-bold text-[var(--text-primary)]">{employee.firstName} {employee.lastName}</h2>
+            <p className="text-sm text-[var(--text-muted)] mt-0.5">{employee.roleId || 'Employee'}</p>
+            <div className="flex items-center gap-2 mt-2">
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${statusColor}`}>{employee.status || 'active'}</span>
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-[var(--bg-elevated)] text-[var(--text-muted)] border border-[var(--border-muted)]">{employee.employeeId}</span>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-2xl font-bold text-[var(--primary)]">₹{Number(employee.salary || 0).toLocaleString()}</p>
+            <p className="text-xs text-[var(--text-faint)]">Monthly Salary</p>
+          </div>
+        </div>
+      </div>
+      {/* Info Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6">
+        <div className="glass-card p-4">
+          <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3 flex items-center gap-1.5"><User size={13} /> Personal Info</h3>
+          <InfoRow icon={Mail} label="Email" value={employee.email} />
+          <InfoRow icon={Phone} label="Phone" value={employee.phone} />
+          <InfoRow icon={MapPin} label="Address" value={employee.address} />
+        </div>
+        <div className="glass-card p-4">
+          <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3 flex items-center gap-1.5"><Building size={13} /> Work Info</h3>
+          <InfoRow icon={Briefcase} label="Department" value={employee.department} accent="text-[var(--primary)]" />
+          <InfoRow icon={Shield} label="Role" value={employee.roleId} />
+          <InfoRow icon={Calendar} label="Joining Date" value={employee.joiningDate ? new Date(employee.joiningDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'} />
+        </div>
+      </div>
+      {/* Emergency Contact */}
+      {(employee.emergencyContact || employee.emergencyPhone) && (
+        <div className="glass-card p-4 mt-4">
+          <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3 flex items-center gap-1.5"><Star size={13} /> Emergency Contact</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <InfoRow icon={User} label="Contact Name" value={employee.emergencyContact} />
+            <InfoRow icon={Phone} label="Contact Phone" value={employee.emergencyPhone} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // Inline mode — render without Modal wrapper
+  if (inline) {
+    return (
+      <div>
+        {content}
+        <div className="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-[var(--border-muted)]">
+          <button onClick={() => { onClose(); onEdit(employee); }} className="flex items-center gap-1.5 px-4 py-1.5 text-xs rounded-xl bg-[var(--primary)] text-white hover:opacity-90 transition-opacity"><Edit size={13} /> Edit Employee</button>
+        </div>
+      </div>
+    );
+  }
+
+  // Modal mode
+  return (
+    <Modal open={!!employee} onClose={onClose} title="" size="lg" footer={
+      <div className="flex items-center justify-between">
+        <button onClick={onClose} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-xl border border-[var(--border-base)] text-[var(--text-muted)] hover:bg-[var(--bg-elevated)] transition-colors"><X size={13} /> Close</button>
+        <button onClick={() => { onClose(); onEdit(employee); }} className="flex items-center gap-1.5 px-4 py-1.5 text-xs rounded-xl bg-[var(--primary)] text-white hover:opacity-90 transition-opacity"><Edit size={13} /> Edit Employee</button>
+      </div>
+    }>
+      {content}
+    </Modal>
+  );
+};
 
 const EmployeesPage = () => {
   const { customRoles } = useSettings();
@@ -22,6 +113,7 @@ const EmployeesPage = () => {
   // Modal states
   const [showModal, setShowModal] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
+  const [viewEmployee, setViewEmployee] = useState(null);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -46,6 +138,9 @@ const EmployeesPage = () => {
     inactive: 0,
     departments: 0
   });
+
+  // KPI filter state - shows filtered data in table instead of modal
+  const [kpiFilter, setKpiFilter] = useState(null); // 'all' | 'active' | 'inactive' | null
 
   useEffect(() => {
     fetchEmployees();
@@ -174,7 +269,14 @@ const EmployeesPage = () => {
       emp.email?.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesDept = departmentFilter === 'all' || emp.department === departmentFilter;
-    const matchesStatus = statusFilter === 'all' || emp.status === statusFilter;
+    
+    // KPI filter takes precedence over manual status filter
+    let matchesStatus = true;
+    if (kpiFilter) {
+      matchesStatus = emp.status === kpiFilter;
+    } else {
+      matchesStatus = statusFilter === 'all' || emp.status === statusFilter;
+    }
 
     return matchesSearch && matchesDept && matchesStatus;
   });
@@ -338,6 +440,16 @@ const EmployeesPage = () => {
           icon={Briefcase}
           variant="blue"
           sub="All employees"
+          onClick={() => { 
+            setKpiFilter(null); 
+            setStatusFilter('all'); 
+            // Auto-expand first employee
+            setTimeout(() => {
+              if (filteredEmployees.length > 0) {
+                setViewEmployee(filteredEmployees[0]);
+              }
+            }, 100);
+          }}
         />
         <KPICard
           label="Active Employees"
@@ -346,6 +458,15 @@ const EmployeesPage = () => {
           variant="emerald"
           trend={`${stats.total > 0 ? Math.round((stats.active / stats.total) * 100) : 0}%`}
           trendUp={true}
+          onClick={() => { 
+            setKpiFilter('active'); 
+            setStatusFilter('all'); 
+            // Auto-expand first active employee
+            setTimeout(() => {
+              const firstActive = employees.find(emp => emp.status === 'active');
+              setViewEmployee(firstActive || null);
+            }, 100);
+          }}
         />
         <KPICard
           label="Inactive"
@@ -354,13 +475,22 @@ const EmployeesPage = () => {
           variant="red"
           trend={`${stats.total > 0 ? Math.round((stats.inactive / stats.total) * 100) : 0}%`}
           trendUp={false}
+          onClick={() => { 
+            setKpiFilter('inactive'); 
+            setStatusFilter('all'); 
+            // Auto-expand first inactive employee
+            setTimeout(() => {
+              const firstInactive = employees.find(emp => emp.status === 'inactive');
+              setViewEmployee(firstInactive || null);
+            }, 100);
+          }}
         />
         <KPICard
           label="Departments"
           value={stats.departments}
           icon={MapPin}
           variant="amber"
-          sub="Unique depts"
+          sub="unique depts"
         />
       </div>
 
@@ -415,8 +545,14 @@ const EmployeesPage = () => {
         <DataTable
           columns={columns}
           data={filteredEmployees}
-          emptyText="No employees found."
+          emptyText={kpiFilter ? `No ${kpiFilter} employees found.` : "No employees found."}
           loading={loading}
+          expandedRowKey={viewEmployee?._id}
+          renderExpanded={(emp) => (
+            <div className="p-4 border-t border-[var(--border-muted)] bg-gradient-to-b from-white to-[var(--bg-elevated)]">
+              <EmployeeViewModal employee={emp} onClose={() => setViewEmployee(null)} onEdit={(e) => handleEdit(e)} inline />
+            </div>
+          )}
         />
       </div>
 
