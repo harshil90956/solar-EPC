@@ -48,6 +48,9 @@ export class Attendance {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Tenant', index: true })
   tenantId?: Types.ObjectId;
 
+  @Prop({ default: false })
+  isEarlyExit!: boolean;
+
   @Prop({ type: Date })
   createdAt!: Date;
 }

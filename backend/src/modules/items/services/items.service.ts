@@ -197,6 +197,32 @@ export class ItemsService {
       { new: true },
     ).exec();
 
+    // Create reservation record for project
+    if (projectId) {
+      console.log(`[STOCK-OUT] Creating reservation for project ${projectId}, item ${item.itemId}, qty ${quantity}`);
+      try {
+        const reservation = new this.reservationModel({
+          reservationId: `RES-${Date.now()}`,
+          itemId: item.itemId,
+          projectId: projectId,
+          quantity: quantity,
+          status: 'active',
+          notes: remarks || `Stock issued on ${issuedDate || new Date().toISOString().split('T')[0]}`,
+          tenantId: actualTenantId,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+        console.log('[STOCK-OUT] Reservation object created:', reservation);
+        const saved = await reservation.save();
+        console.log('[STOCK-OUT] Reservation saved successfully:', saved);
+      } catch (err) {
+        console.error('[STOCK-OUT] Failed to create reservation record:', err);
+        // Don't fail the stock-out if reservation creation fails
+      }
+    } else {
+      console.log('[STOCK-OUT] No projectId provided, skipping reservation creation');
+    }
+
     return { data: updated, message: `Stock out successful. Issued ${quantity} units to project ${projectId || 'N/A'}.` };
   }
 }

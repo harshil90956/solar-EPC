@@ -93,6 +93,11 @@ export class AttendanceService {
       attendance.status = AttendanceStatus.HALF_DAY;
     }
     
+    // Check for Early Exit (before 6:00 PM)
+    const earlyExitThreshold = new Date();
+    earlyExitThreshold.setHours(18, 0, 0, 0);
+    attendance.isEarlyExit = checkOut < earlyExitThreshold;
+    
     if (checkOutDto.notes) {
       attendance.notes = checkOutDto.notes;
     }

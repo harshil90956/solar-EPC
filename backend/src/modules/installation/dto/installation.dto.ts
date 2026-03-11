@@ -1,5 +1,5 @@
 import { PartialType } from '@nestjs/mapped-types';
-import { IsString, IsNumber, IsOptional, IsEnum, Min, Max, IsArray, ValidateNested, IsBoolean, IsDateString, IsMongoId } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsEnum, Min, Max, IsArray, ValidateNested, IsBoolean, IsDateString, IsMongoId, ValidateIf } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class TaskItemDto {
@@ -15,6 +15,10 @@ export class TaskItemDto {
   @IsOptional()
   @IsMongoId()
   completedBy?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  photoRequired?: boolean;
 }
 
 export class PhotoItemDto {
@@ -69,14 +73,16 @@ export class CustomerSignOffDto {
 }
 
 export class CreateInstallationDto {
+  @IsOptional()
   @IsString()
-  installationId!: string;
-
-  @IsMongoId()
-  projectId!: string;
+  installationId?: string;
 
   @IsOptional()
-  @IsMongoId()
+  @IsString()
+  projectId?: string;
+
+  @IsOptional()
+  @IsString()
   dispatchId?: string;
 
   @IsString()
@@ -85,14 +91,16 @@ export class CreateInstallationDto {
   @IsString()
   site!: string;
 
-  @IsMongoId()
-  technicianId!: string;
-
+  @IsOptional()
   @IsString()
-  technicianName!: string;
+  technicianId?: string;
 
   @IsOptional()
-  @IsMongoId()
+  @IsString()
+  technicianName?: string;
+
+  @IsOptional()
+  @IsString()
   supervisorId?: string;
 
   @IsOptional()
@@ -111,8 +119,8 @@ export class CreateInstallationDto {
   endTime?: string;
 
   @IsOptional()
-  @IsEnum(['Pending', 'In Progress', 'Delayed', 'Completed'])
-  status?: 'Pending' | 'In Progress' | 'Delayed' | 'Completed';
+  @IsEnum(['Pending Assign', 'Pending', 'In Progress', 'Delayed', 'Completed'])
+  status?: 'Pending Assign' | 'Pending' | 'In Progress' | 'Delayed' | 'Completed';
 
   @IsOptional()
   @IsNumber()
@@ -141,21 +149,15 @@ export class CreateInstallationDto {
   materialsUsed?: MaterialUsedDto[];
 
   @IsOptional()
-  @IsMongoId()
+  @IsString()
   assignedTo?: string;
 }
 
 export class UpdateInstallationDto extends PartialType(CreateInstallationDto) {}
 
 export class UpdateInstallationStatusDto {
-  @IsEnum(['Pending', 'In Progress', 'Delayed', 'Completed'])
-  status!: 'Pending' | 'In Progress' | 'Delayed' | 'Completed';
-
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  @Max(100)
-  progress?: number;
+  @IsEnum(['Pending Assign', 'Pending', 'In Progress', 'Delayed', 'Completed'])
+  status!: 'Pending Assign' | 'Pending' | 'In Progress' | 'Delayed' | 'Completed';
 
   @IsOptional()
   @IsString()

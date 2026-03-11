@@ -35,8 +35,8 @@ export class LogisticsController {
   }
 
   @Patch('dispatches/:id')
-  async update(@Param('id') id: string, @Body() updateDto: Partial<Dispatch>) {
-    const data = await this.logisticsService.update(id, updateDto);
+  async update(@Param('id') id: string, @Body() updateDto: Partial<Dispatch>, @Req() req: any) {
+    const data = await this.logisticsService.update(id, updateDto, req.user);
     return { success: true, data, message: 'Dispatch updated successfully' };
   }
 

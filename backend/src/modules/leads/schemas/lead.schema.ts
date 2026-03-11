@@ -69,6 +69,9 @@ export class Lead {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', index: true })
   assignedTo?: Types.ObjectId;
 
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', index: true })
+  assignedBy?: Types.ObjectId;
+
   @Prop({ type: Number, default: 0 })
   kw!: number;
 
@@ -164,6 +167,7 @@ export const LeadSchema = SchemaFactory.createForClass(Lead);
 // Multi-tenant security indexes
 LeadSchema.index({ tenantId: 1, createdBy: 1 }); // For AGENT role queries
 LeadSchema.index({ tenantId: 1, assignedTo: 1 }); // For AGENT/MANAGER role queries
+LeadSchema.index({ tenantId: 1, assignedBy: 1 }); // For tracking who assigned leads
 LeadSchema.index({ tenantId: 1, createdBy: 1, assignedTo: 1 }); // Compound index for visibility queries
 LeadSchema.index({ tenantId: 1, statusKey: 1 }); // For dashboard analytics
 LeadSchema.index({ tenantId: 1, createdAt: -1 }); // For recent leads queries

@@ -38,7 +38,7 @@ async function bootstrap() {
   }
 
   app.enableCors({
-    origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:8000', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001', 'http://127.0.0.1:8000'],
+    origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:8000', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001', 'http://127.0.0.1:3002', 'http://127.0.0.1:8000'],
     credentials: true,
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'x-tenant-id', 'X-Tenant-Id', 'tenant-id', 'X-Requested-With', 'Accept'],
@@ -53,12 +53,19 @@ async function bootstrap() {
     new ValidationPipe({
       whitelist: true,
       transform: true,
-      forbidNonWhitelisted: true,
+      forbidNonWhitelisted: false,
+      transformOptions: { enableImplicitConversion: true },
     }),
   );
 
   app.useGlobalInterceptors(new SuccessResponseInterceptor());
   app.useGlobalFilters(new GlobalExceptionFilter());
+
+  // Add root path handler to stop browser health check 404 spam
+  app.setGlobalPrefix('api');
+  await app.register(async (instance: any) => {
+    instance.get('/', async () => ({ status: 'ok', message: 'Solar EPC API Server' }));
+  });
 
   const port = Number(process.env.APP_PORT ?? 3000);
   await app.listen({ port, host: '0.0.0.0' });

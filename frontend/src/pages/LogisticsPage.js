@@ -1383,7 +1383,38 @@ const LogisticsPage = () => {
 
   const handleStageChange = async (id, newStatus) => {
     try {
+      // Update the dispatch status
       await api.patch(`/logistics/dispatches/${id}/status`, { status: newStatus });
+      
+      // If status changed to Delivered, create an installation record
+      if (newStatus === 'Delivered') {
+        const dispatch = dispatches.find(d => d.id === id);
+        if (dispatch) {
+          try {
+            const installationData = {
+              projectId: dispatch.projectId,
+              customerName: dispatch.customer,
+              site: dispatch.to, // Delivery location becomes installation site (field name must be 'site')
+              dispatchId: dispatch.id, // Link to the dispatch
+              status: 'Pending Assign',
+              scheduledDate: new Date().toISOString(), // Required field - set to current date
+              technicianId: null, // Required by schema but can be null for unassigned
+              technicianName: 'Not Assigned', // Required field - placeholder until assigned
+              progress: 0, // Default progress
+              notes: `Auto-created from delivered dispatch ${dispatch.id}. Items: ${dispatch.items}`,
+              tasks: [] // Will use default tasks from settings
+            };
+            
+            console.log('Creating installation from delivered dispatch:', installationData);
+            await api.post('/installations', installationData);
+            console.log('Installation created successfully');
+          } catch (installError) {
+            console.error('Failed to create installation:', installError.response?.data || installError.message);
+            // Don't fail the entire operation, just log the error
+          }
+        }
+      }
+      
       setDispatches(prev => prev.map(d => d.id === id ? { ...d, status: newStatus } : d));
       // Clear cached stats so KPI cards recalculate from updated dispatches
       setStats({});
@@ -1420,11 +1451,38 @@ const LogisticsPage = () => {
 
   const handleMarkDelivered = async (dispatch) => {
     try {
+      // First, mark the dispatch as delivered
       await api.patch(`/logistics/dispatches/${dispatch.id}/status`, { status: 'Delivered' });
+      
+      // Then, create an installation record with "Pending Assign" status
+      try {
+        const installationData = {
+          projectId: dispatch.projectId,
+          customerName: dispatch.customer,
+          site: dispatch.to, // Delivery location becomes installation site (field name must be 'site')
+          dispatchId: dispatch.id, // Link to the dispatch
+          status: 'Pending Assign',
+          scheduledDate: new Date().toISOString(), // Required field - set to current date
+          technicianId: null, // Required by schema but can be null for unassigned
+          technicianName: 'Not Assigned', // Required field - placeholder until assigned
+          progress: 0, // Default progress
+          notes: `Auto-created from delivered dispatch ${dispatch.id}. Items: ${dispatch.items}`,
+          tasks: [] // Will use default tasks from settings
+        };
+        
+        console.log('Creating installation from delivered dispatch:', installationData);
+        await api.post('/installations', installationData);
+        console.log('Installation created successfully');
+      } catch (installError) {
+        console.error('Failed to create installation:', installError.response?.data || installError.message);
+        // Don't fail the entire operation, just log the error
+      }
+      
       await fetchData();
       setSelected(null);
     } catch (error) {
       console.error('Error marking as delivered:', error);
+      throw error; // Re-throw to handle in UI
     }
   };
 

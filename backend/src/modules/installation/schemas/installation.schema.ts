@@ -7,6 +7,7 @@ export interface TaskItem {
   done: boolean;
   completedAt?: Date;
   completedBy?: Types.ObjectId;
+  photoRequired?: boolean;
 }
 
 export interface PhotoItem {
@@ -29,10 +30,10 @@ export class Installation extends Document {
   @Prop({ required: true, unique: true })
   installationId!: string;
 
-  @Prop({ type: Types.ObjectId, ref: 'Project', required: true, index: true })
-  projectId!: Types.ObjectId;
+  @Prop({ type: Types.ObjectId, ref: 'Project', required: false, index: true })
+  projectId?: Types.ObjectId;
 
-  @Prop({ type: String, ref: 'Dispatch', required: false, index: true })
+  @Prop({ type: String, required: false, index: true })
   dispatchId?: string;
 
   @Prop({ required: true })
@@ -41,8 +42,8 @@ export class Installation extends Document {
   @Prop({ required: true })
   site!: string;
 
-  @Prop({ type: Types.ObjectId, ref: 'User', required: true, index: true })
-  technicianId!: Types.ObjectId;
+  @Prop({ type: Types.ObjectId, ref: 'User', required: false, index: true })
+  technicianId?: Types.ObjectId;
 
   @Prop({ required: true })
   technicianName!: string;
@@ -53,8 +54,14 @@ export class Installation extends Document {
   @Prop({ required: false })
   supervisorName?: string;
 
-  @Prop({ required: true })
-  scheduledDate!: Date;
+  @Prop({ required: false })
+  scheduledDate?: Date;
+
+  @Prop({ required: false })
+  dueDate?: Date;
+
+  @Prop({ required: false, default: 0 })
+  delayDays?: number;
 
   @Prop({ required: false })
   startTime?: Date;
@@ -64,7 +71,7 @@ export class Installation extends Document {
 
   @Prop({
     required: true,
-    enum: ['Pending', 'In Progress', 'Delayed', 'Completed'],
+    enum: ['Pending Assign', 'Pending', 'In Progress', 'Delayed', 'Completed'],
     default: 'Pending',
     index: true,
   })
@@ -79,6 +86,7 @@ export class Installation extends Document {
       done: { type: Boolean, default: false },
       completedAt: { type: Date, required: false },
       completedBy: { type: Types.ObjectId, ref: 'User', required: false },
+      photoRequired: { type: Boolean, default: false },
     }],
     default: [],
   })
@@ -96,6 +104,23 @@ export class Installation extends Document {
     default: [],
   })
   photos!: PhotoItem[];
+
+  // timeline / activity events
+  @Prop({
+    type: [{
+      eventType: { type: String, required: true },
+      userId: { type: Types.ObjectId, ref: 'User', required: false },
+      timestamp: { type: Date, default: Date.now },
+      metadata: { type: Object, required: false },
+    }],
+    default: [],
+  })
+  events!: {
+    eventType: string;
+    userId?: Types.ObjectId;
+    timestamp: Date;
+    metadata?: any;
+  }[];
 
   @Prop({ default: '' })
   notes!: string;
@@ -144,8 +169,8 @@ export class Installation extends Document {
   @Prop({ type: Types.ObjectId, ref: 'Commissioning', required: false })
   commissioningId?: Types.ObjectId;
 
-  @Prop(BaseSchemaDefinition.tenantId)
-  tenantId!: Types.ObjectId;
+  @Prop({ type: Types.ObjectId, required: false })
+  tenantId?: Types.ObjectId;
 
   @Prop(BaseSchemaDefinition.isDeleted)
   isDeleted!: boolean;

@@ -9,7 +9,8 @@ import {
   Query,
   HttpCode,
   HttpStatus,
-  Patch
+  Patch,
+  Request,
 } from '@nestjs/common';
 import { SiteSurveysService } from '../services/site-surveys.service';
 import {
@@ -33,9 +34,11 @@ export class SiteSurveysController {
 
   // Get all surveys with filters
   @Get()
-  findAll(@Query() query: QuerySiteSurveyDto) {
+  findAll(@Query() query: QuerySiteSurveyDto, @Request() req: any) {
     console.log('[SITE-SURVEYS] API called with query:', query);
-    return this.siteSurveysService.findAll(query);
+    const tenantId = req?.tenant?.id;
+    const user = req?.user;
+    return this.siteSurveysService.findAll(query, tenantId, user);
   }
 
   // Get statistics
