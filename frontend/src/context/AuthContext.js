@@ -41,7 +41,7 @@ export const AuthProvider = ({ children }) => {
       
       if (isEmployee) {
         // Employee login response structure
-        const { token, id, employeeId, firstName, lastName, roleId } = data || {};
+        const { token, id, employeeId, firstName, lastName, roleId, dataScope } = data || {};
         if (!token) {
           console.error('Invalid employee response:', res);
           throw new Error('Invalid response from server');
@@ -54,6 +54,7 @@ export const AuthProvider = ({ children }) => {
           email,
           role: 'Employee',
           roleId,
+          dataScope,
           isEmployee: true,
           permissions: {}, 
           token 
@@ -74,7 +75,7 @@ export const AuthProvider = ({ children }) => {
       const permissions = getRolePermissions(userData.role);
       // Normalize role: capitalize first letter (admin -> Admin)
       const normalizedRole = userData.role ? userData.role.charAt(0).toUpperCase() + userData.role.slice(1).toLowerCase() : userData.role;
-      const authedUser = { ...userData, role: normalizedRole, permissions, token: accessToken };
+      const authedUser = { ...userData, role: normalizedRole, dataScope: userData.dataScope, permissions, token: accessToken };
       localStorage.setItem(TOKEN_KEY, accessToken);
       localStorage.setItem(USER_KEY, JSON.stringify(authedUser));
       setUser(authedUser);

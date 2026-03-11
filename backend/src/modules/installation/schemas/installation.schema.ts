@@ -58,6 +58,12 @@ export class Installation extends Document {
   scheduledDate!: Date;
 
   @Prop({ required: false })
+  dueDate?: Date;
+
+  @Prop({ required: false, default: 0 })
+  delayDays?: number;
+
+  @Prop({ required: false })
   startTime?: Date;
 
   @Prop({ required: false })
@@ -65,7 +71,7 @@ export class Installation extends Document {
 
   @Prop({
     required: true,
-    enum: ['Pending', 'In Progress', 'Delayed', 'Completed'],
+    enum: ['Pending Assign', 'Pending', 'In Progress', 'Delayed', 'Completed'],
     default: 'Pending',
     index: true,
   })
