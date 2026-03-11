@@ -1408,6 +1408,10 @@ const FinancePage = ({ onNavigate }) => {
 
   const [calendarFilterMonth, setCalendarFilterMonth] = useState(undefined);
 
+  // Calendar filter day state - for Today filter (exact day, 0=no day filter)
+
+  const [calendarFilterDay, setCalendarFilterDay] = useState(undefined);
+
 
 
   const [showInvoice, setShowInvoice] = useState(false);
@@ -2347,36 +2351,57 @@ const FinancePage = ({ onNavigate }) => {
     return invoices.filter(inv => {
 
       const invoiceDate = new Date(inv.invoiceDate || inv.createdAt);
+      const createdAtDate = inv.createdAt ? new Date(inv.createdAt) : null;
 
-      return invoiceDate.getFullYear().toString() === calendarFilterYear;
+      if (calendarFilterDay !== undefined) {
+        // Today mode: match if invoiceDate OR createdAt is today
+        const year = parseInt(calendarFilterYear);
+        const month = calendarFilterMonth;
+        const day = calendarFilterDay;
+        const invoiceDateMatch = invoiceDate.getFullYear() === year && invoiceDate.getMonth() === month && invoiceDate.getDate() === day;
+        const createdAtMatch = createdAtDate && createdAtDate.getFullYear() === year && createdAtDate.getMonth() === month && createdAtDate.getDate() === day;
+        return invoiceDateMatch || createdAtMatch;
+      }
+
+      if (invoiceDate.getFullYear().toString() !== calendarFilterYear) return false;
+      if (calendarFilterMonth !== undefined && invoiceDate.getMonth() !== calendarFilterMonth) return false;
+      return true;
 
     });
 
-}, [invoices, calendarFilterYear]);
+}, [invoices, calendarFilterYear, calendarFilterMonth, calendarFilterDay]);
 
 const filteredJournalEntriesByYear = useMemo(() => {
-    console.log('Filtering journal entries:', {
-        totalEntries: journalEntries.length,
-        filterYear: calendarFilterYear,
-        entries: journalEntries.map(e => ({ id: e.id, date: e.date, type: e.type }))
-    });
-    
     if (calendarFilterYear === 'all') return journalEntries;
 
     return journalEntries.filter(entry => {
         const entryDate = new Date(entry.date || entry.createdAt);
-        const entryYear = entryDate.getFullYear().toString();
-        const matches = entryYear === calendarFilterYear;
-        console.log('Entry filter check:', {
-            entryId: entry.id,
-            entryDate: entry.date,
-            parsedYear: entryYear,
-            filterYear: calendarFilterYear,
-            matches: matches
-        });
-        return matches;
+        const entryCreatedAt = entry.createdAt ? new Date(entry.createdAt) : null;
+        if (calendarFilterDay !== undefined) {
+          const year = parseInt(calendarFilterYear);
+          const entryDateMatch = entryDate.getFullYear() === year && entryDate.getMonth() === calendarFilterMonth && entryDate.getDate() === calendarFilterDay;
+          const createdMatch = entryCreatedAt && entryCreatedAt.getFullYear() === year && entryCreatedAt.getMonth() === calendarFilterMonth && entryCreatedAt.getDate() === calendarFilterDay;
+          return entryDateMatch || createdMatch;
+        }
+        if (entryDate.getFullYear().toString() !== calendarFilterYear) return false;
+        if (calendarFilterMonth !== undefined && entryDate.getMonth() !== calendarFilterMonth) return false;
+        return true;
     });
-}, [journalEntries, calendarFilterYear]);
+}, [journalEntries, calendarFilterYear, calendarFilterMonth, calendarFilterDay]);
+
+const filteredJournalTotals = useMemo(() => {
+    let debitTotal = 0;
+    let creditTotal = 0;
+    (filteredJournalEntriesByYear || []).forEach((entry) => {
+      (entry?.lines || []).forEach((line) => {
+        const d = Number(line?.debitAmount || 0);
+        const c = Number(line?.creditAmount || 0);
+        if (!Number.isNaN(d)) debitTotal += d;
+        if (!Number.isNaN(c)) creditTotal += c;
+      });
+    });
+    return { debitTotal, creditTotal };
+}, [filteredJournalEntriesByYear]);
 
 const filteredManualAdjustmentsByYear = useMemo(() => {
 
@@ -2385,12 +2410,22 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
     return manualAdjustments.filter(adj => {
 
       const adjDate = new Date(adj.date || adj.createdAt);
+      const adjCreatedAt = adj.createdAt ? new Date(adj.createdAt) : null;
 
-      return adjDate.getFullYear().toString() === calendarFilterYear;
+      if (calendarFilterDay !== undefined) {
+        const year = parseInt(calendarFilterYear);
+        const adjDateMatch = adjDate.getFullYear() === year && adjDate.getMonth() === calendarFilterMonth && adjDate.getDate() === calendarFilterDay;
+        const createdMatch = adjCreatedAt && adjCreatedAt.getFullYear() === year && adjCreatedAt.getMonth() === calendarFilterMonth && adjCreatedAt.getDate() === calendarFilterDay;
+        return adjDateMatch || createdMatch;
+      }
+
+      if (adjDate.getFullYear().toString() !== calendarFilterYear) return false;
+      if (calendarFilterMonth !== undefined && adjDate.getMonth() !== calendarFilterMonth) return false;
+      return true;
 
     });
 
-  }, [manualAdjustments, calendarFilterYear]);
+  }, [manualAdjustments, calendarFilterYear, calendarFilterMonth, calendarFilterDay]);
 
 
 
@@ -2404,11 +2439,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
       const poDate = new Date(p.lastPurchaseOrderDate);
 
-      return poDate.getFullYear().toString() === calendarFilterYear;
+      if (poDate.getFullYear().toString() !== calendarFilterYear) return false;
+      if (calendarFilterMonth !== undefined && poDate.getMonth() !== calendarFilterMonth) return false;
+      if (calendarFilterDay !== undefined && poDate.getDate() !== calendarFilterDay) return false;
+      return true;
 
     });
 
-  }, [payables, calendarFilterYear]);
+  }, [payables, calendarFilterYear, calendarFilterMonth, calendarFilterDay]);
 
 
 
@@ -8938,10 +8976,11 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
   // Calculate KPI values from real data
+  // Use filteredInvoicesByYear so values respect the selected month/year filter
 
 
 
-  const revenueCurrent = dashboardStats?.totalRevenue || 0;
+  const revenueCurrent = (filteredInvoicesByYear || []).reduce((sum, inv) => sum + Number(inv?.amount || inv?.invoiceAmount || 0), 0);
 
 
 
@@ -8953,7 +8992,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-  const totalCollected = (invoices || []).reduce((sum, inv) => sum + getPaidAmount(inv), 0);
+  const totalCollected = (filteredInvoicesByYear || []).reduce((sum, inv) => sum + getPaidAmount(inv), 0);
 
 
 
@@ -8965,7 +9004,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-  const receivables = (invoices || []).reduce((sum, inv) => sum + getBalance(inv), 0);
+  const receivables = (filteredInvoicesByYear || []).reduce((sum, inv) => sum + getBalance(inv), 0);
 
 
 
@@ -8977,7 +9016,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-  const payablesTotal = payables.reduce((sum, p) => sum + (p.outstandingAmount || 0), 0);
+  const payablesTotal = (filteredPayablesByYear || []).reduce((sum, p) => sum + (p.outstandingAmount || 0), 0);
 
 
 
@@ -8985,11 +9024,18 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-  // Cash position is the manualBalance (matches dashboard calculation)
+  // Cash position = collected - payables, filtered by calendar selection
 
 
 
-  const cashPosition = manualBalance;
+  const cashPosition = (() => {
+    if (calendarFilterYear === 'all') return manualBalance;
+    // For filtered period: inflow (invoice payments + credit adjustments) - outflow (payables + debit adjustments)
+    const filteredAdj = filteredManualAdjustmentsByYear || [];
+    const adjCredits = filteredAdj.filter(a => a.type === 'credit').reduce((s, a) => s + Number(a.amount || 0), 0);
+    const adjDebits = filteredAdj.filter(a => a.type === 'debit').reduce((s, a) => s + Number(a.amount || 0), 0);
+    return (totalCollected + adjCredits) - (payablesTotal + adjDebits);
+  })();
 
 
 
@@ -9003,12 +9049,18 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
     if (!dt) return false;
 
-
-
+    // If a month filter is selected, use it; otherwise use today's month
+    if (calendarFilterYear !== 'all' && calendarFilterMonth !== undefined) {
+      if (calendarFilterDay !== undefined) {
+        // For day filter, caller should check both invoiceDate and createdAt separately
+        return dt.getFullYear().toString() === calendarFilterYear && dt.getMonth() === calendarFilterMonth && dt.getDate() === calendarFilterDay;
+      }
+      return dt.getFullYear().toString() === calendarFilterYear && dt.getMonth() === calendarFilterMonth;
+    }
+    if (calendarFilterYear !== 'all') {
+      return dt.getFullYear().toString() === calendarFilterYear;
+    }
     const now = new Date();
-
-
-
     return dt.getFullYear() === now.getFullYear() && dt.getMonth() === now.getMonth();
 
 
@@ -9045,15 +9097,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-  const currentMonthInvoiced = (invoices || []).reduce((sum, inv) => {
-
-
-
+  // Helper: checks if an invoice matches the current period filter (handles Today OR logic)
+  const isInvoiceInCurrentPeriod = (inv) => {
+    if (calendarFilterDay !== undefined && calendarFilterYear !== 'all') {
+      // Today mode: match if invoiceDate OR createdAt is today
+      const year = parseInt(calendarFilterYear);
+      const dtInv = safeDate(inv?.invoiceDate);
+      const dtCreated = safeDate(inv?.createdAt);
+      const checkDate = (d) => d && d.getFullYear() === year && d.getMonth() === calendarFilterMonth && d.getDate() === calendarFilterDay;
+      return checkDate(dtInv) || checkDate(dtCreated);
+    }
     const dt = safeDate(inv?.invoiceDate) || safeDate(inv?.createdAt);
+    return isInCurrentMonth(dt);
+  };
 
 
 
-    if (!isInCurrentMonth(dt)) return sum;
+  const currentMonthInvoiced = (filteredInvoicesByYear || []).reduce((sum, inv) => {
 
 
 
@@ -9069,15 +9129,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-  const currentMonthCollected = (invoices || []).reduce((sum, inv) => {
-
-
-
-    const dt = safeDate(inv?.invoiceDate) || safeDate(inv?.createdAt);
-
-
-
-    if (!isInCurrentMonth(dt)) return sum;
+  const currentMonthCollected = (filteredInvoicesByYear || []).reduce((sum, inv) => {
 
 
 
@@ -9093,15 +9145,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-  const currentMonthOutstanding = (invoices || []).reduce((sum, inv) => {
-
-
-
-    const dt = safeDate(inv?.invoiceDate) || safeDate(inv?.createdAt);
-
-
-
-    if (!isInCurrentMonth(dt)) return sum;
+  const currentMonthOutstanding = (filteredInvoicesByYear || []).reduce((sum, inv) => {
 
 
 
@@ -9499,11 +9543,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
                 setCalendarFilterMonth(dateInfo.month); // undefined for full year
 
+                setCalendarFilterDay(dateInfo.day); // undefined unless Today selected
+
               } else {
 
                 setCalendarFilterYear('all');
 
                 setCalendarFilterMonth(undefined);
+
+                setCalendarFilterDay(undefined);
 
               }
 
@@ -9745,13 +9793,16 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
               <p className="text-sm text-gray-500 text-center max-w-md mb-4">
 
-                There are no invoices, journal entries, or transactions recorded for {calendarFilterYear}.
+                {calendarFilterMonth !== undefined
+                  ? `There are no invoices, journal entries, or transactions recorded for ${new Date(parseInt(calendarFilterYear), calendarFilterMonth, 1).toLocaleString('default', { month: 'long' })} ${calendarFilterYear}.`
+                  : `There are no invoices, journal entries, or transactions recorded for ${calendarFilterYear}.`
+                }
 
               </p>
 
               <button
 
-                onClick={() => { setCalendarFilterYear('all'); setCalendarFilterMonth(undefined); }}
+                onClick={() => { setCalendarFilterYear('all'); setCalendarFilterMonth(undefined); setCalendarFilterDay(undefined); }}
 
                 className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
 
@@ -9807,11 +9858,21 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+          cashPosition={cashPosition}
+
+
+
           transactionAnalytics={transactionAnalytics}
 
 
 
           adjustmentTrend={adjustmentTrend}
+
+          calendarFilterYear={calendarFilterYear}
+
+          calendarFilterMonth={calendarFilterMonth}
+
+          calendarFilterDay={calendarFilterDay}
 
           onInvoicesClick={() => { }}
 
@@ -9995,7 +10056,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-              <TabsTrigger value="invoices">Invoices ({invoices.length})</TabsTrigger>
+              <TabsTrigger value="invoices">Invoices ({calendarFilterYear === 'all' ? invoices.length : filteredInvoicesByYear.length})</TabsTrigger>
 
 
 
@@ -10003,7 +10064,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-              <TabsTrigger value="transactions">Transactions ({manualAdjustments.length})</TabsTrigger>
+              <TabsTrigger value="transactions">Transactions ({calendarFilterYear === 'all' ? manualAdjustments.length : filteredManualAdjustmentsByYear.length})</TabsTrigger>
 
 
 
@@ -10287,7 +10348,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
                   <h3 className="text-sm font-semibold text-[var(--text-primary)]">Journal Entries</h3>
 
-                  {canFinance('export') && journalEntries.length > 0 && (
+                  {canFinance('export') && (calendarFilterYear === 'all' ? journalEntries : filteredJournalEntriesByYear).length > 0 && (
 
                     <Button size="sm" onClick={exportJournalEntriesCsv}>
 
@@ -10301,7 +10362,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-                {journalEntries.length === 0 ? (
+                {(calendarFilterYear === 'all' ? journalEntries : filteredJournalEntriesByYear).length === 0 ? (
 
 
 
@@ -10335,7 +10396,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-                    {[...journalEntries].reverse().map((entry, entryIdx) => (
+                    {[...(calendarFilterYear === 'all' ? journalEntries : filteredJournalEntriesByYear)].reverse().map((entry, entryIdx) => (
 
                       <div
 
@@ -10513,9 +10574,9 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
                       <div className="col-span-1 border-r border-[var(--border-base)] px-1 py-2"></div>
 
-                      <div className="col-span-2 border-r border-[var(--border-base)] px-1 py-2 text-right">{fmt(journalTotals.debitTotal)}</div>
+                      <div className="col-span-2 border-r border-[var(--border-base)] px-1 py-2 text-right">{fmt(filteredJournalTotals.debitTotal)}</div>
 
-                      <div className="col-span-1 pl-1 py-2 text-right">{fmt(journalTotals.creditTotal)}</div>
+                      <div className="col-span-1 pl-1 py-2 text-right">{fmt(filteredJournalTotals.creditTotal)}</div>
 
                     </div>
 
@@ -16729,13 +16790,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-                {/* Always include special payment categories */}
-                {adjustForm.type === 'credit' && (
-                  <option value="Invoice Amount Received">Invoice Amount Received</option>
-                )}
-                {adjustForm.type === 'debit' && (
-                  <option value="Vendor Payment">Vendor Payment</option>
-                )}
+                {/* Special payment categories are already included in adjustmentCategories from API */}
 
 
                 <option value="__add_new__">+ Add New Category</option>

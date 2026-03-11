@@ -16,6 +16,7 @@ const CalendarFilter = ({ onDateChange, initialYear, initialMonth, availableYear
   const [viewMonth, setViewMonth] = useState(initialMonth !== undefined ? initialMonth : currentDate.getMonth());
   const [selectedYear, setSelectedYear] = useState(initialYear || currentDate.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(initialMonth !== undefined ? initialMonth : currentDate.getMonth());
+  const [isToday, setIsToday] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [isYearDropdownOpen, setIsYearDropdownOpen] = useState(false);
 
@@ -38,6 +39,7 @@ const CalendarFilter = ({ onDateChange, initialYear, initialMonth, availableYear
   const selectMonth = (monthIndex) => {
     setSelectedMonth(monthIndex);
     setSelectedYear(viewYear);
+    setIsToday(false);
     
     // Calculate date range for the selected month or full year
     let startDate, endDate;
@@ -60,6 +62,8 @@ const CalendarFilter = ({ onDateChange, initialYear, initialMonth, availableYear
       onDateChange({
         year: viewYear,
         month: monthIndex,
+        day: undefined,
+        isToday: false,
         monthName: monthIndex !== undefined && monthIndex !== null ? months[monthIndex] : null,
         startDate: startDateStr,
         endDate: endDateStr,
@@ -78,19 +82,23 @@ const CalendarFilter = ({ onDateChange, initialYear, initialMonth, availableYear
     const today = new Date();
     const currentYear = today.getFullYear();
     const currentMonth = today.getMonth();
+    const currentDay = today.getDate();
     
     setViewYear(currentYear);
     setViewMonth(currentMonth);
     setSelectedYear(currentYear);
     setSelectedMonth(currentMonth);
+    setIsToday(true);
     
-    const startDate = new Date(currentYear, currentMonth, 1);
-    const endDate = new Date(currentYear, currentMonth + 1, 0);
+    const startDate = new Date(currentYear, currentMonth, currentDay);
+    const endDate = new Date(currentYear, currentMonth, currentDay, 23, 59, 59);
     
     if (onDateChange) {
       onDateChange({
         year: currentYear,
         month: currentMonth,
+        day: currentDay,
+        isToday: true,
         monthName: months[currentMonth],
         startDate: startDate.toISOString().split('T')[0],
         endDate: endDate.toISOString().split('T')[0],
@@ -104,6 +112,7 @@ const CalendarFilter = ({ onDateChange, initialYear, initialMonth, availableYear
 
   // Clear/reset filter (show all data)
   const clearFilter = () => {
+    setIsToday(false);
     if (onDateChange) {
       onDateChange(null);
     }
@@ -123,6 +132,7 @@ const CalendarFilter = ({ onDateChange, initialYear, initialMonth, availableYear
       // When initialYear is undefined (all data), reset to current date for display
       setSelectedYear(null);
       setViewYear(currentDate.getFullYear());
+      setIsToday(false);
     }
     
     if (initialMonth !== undefined) {
@@ -131,6 +141,7 @@ const CalendarFilter = ({ onDateChange, initialYear, initialMonth, availableYear
     } else {
       setSelectedMonth(null);
       setViewMonth(currentDate.getMonth());
+      setIsToday(false);
     }
   }, [initialYear, initialMonth]);
 
@@ -146,11 +157,13 @@ const CalendarFilter = ({ onDateChange, initialYear, initialMonth, availableYear
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
 
-  const displayText = selectedYear 
-    ? (selectedMonth !== undefined && selectedMonth !== null 
-        ? `${months[selectedMonth]} ${selectedYear}`
-        : `${selectedYear}`)
-    : 'All Data';
+  const displayText = isToday
+    ? 'Today'
+    : selectedYear 
+      ? (selectedMonth !== undefined && selectedMonth !== null 
+          ? `${months[selectedMonth]} ${selectedYear}`
+          : `${selectedYear}`)
+      : 'All Data';
 
   return (
     <div className="calendar-filter-container relative">
