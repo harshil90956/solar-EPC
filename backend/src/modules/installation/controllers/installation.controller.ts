@@ -159,10 +159,15 @@ export class InstallationController {
   ) {
     // Check if user is technician or employee - allow status update even without edit permission
     const user = req.user as any;
-    const isTechnicianOrEmployee = user.role?.toLowerCase() === 'technician' || 
-                                   user.role?.toLowerCase() === 'employee' ||
+    const userId = user.id || user.userId;
+    const role = user.role?.toLowerCase();
+    
+    const isTechnicianOrEmployee = role === 'technician' || 
+                                   role === 'employee' ||
+                                   role === 'admin' ||
+                                   user.dataScope === 'ALL' ||
                                    user.dataScope === 'ASSIGNED' ||
-                                   await this.installationService.isAssignedTechnician(id, user.userId);
+                                   await this.installationService.isAssignedTechnician(id, userId);
     
     if (!isTechnicianOrEmployee && !user.can?.('installation', 'edit')) {
       throw new ForbiddenException('Permission denied');
@@ -184,11 +189,16 @@ export class InstallationController {
     // Check if user is technician or employee - allow tasks update even without edit permission
     const user = req.user as any;
     const userId = user.id || user.userId; // Support both formats
-    const isTechnicianOrEmployee = user.role?.toLowerCase() === 'technician' || 
-                                   user.role?.toLowerCase() === 'employee' ||
+    const role = user.role?.toLowerCase();
+    
+    const isTechnicianOrEmployee = role === 'technician' || 
+                                   role === 'employee' ||
+                                   role === 'admin' || // Explicitly allow admin
+                                   user.dataScope === 'ALL' || // Allow if has broad data scope
                                    user.dataScope === 'ASSIGNED' ||
                                    await this.installationService.isAssignedTechnician(id, userId);
     
+    // Fallback: If not explicitly allowed above, check broad permission
     if (!isTechnicianOrEmployee && !user.can?.('installation', 'edit')) {
       throw new ForbiddenException('Permission denied');
     }
