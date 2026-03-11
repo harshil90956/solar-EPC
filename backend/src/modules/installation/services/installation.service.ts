@@ -684,7 +684,29 @@ export class InstallationService {
     const tenantId = this.toObjectId(userContext.tenantId);
     const userId = this.toObjectId(userContext.userId || userContext.id || '');
 
-    await this.getInstallationById(id, userContext); // Verify access
+    // Verify access by checking if installation exists and user has permission
+    const installation = await this.installationModel.findOne({
+      _id: this.toObjectId(id),
+      isDeleted: false,
+    });
+
+    if (!installation) {
+      throw new NotFoundException(`Installation with ID ${id} not found`);
+    }
+
+    // Check data scope permissions
+    if (userContext.dataScope === 'ASSIGNED') {
+      const rawAssignedTo = installation.assignedTo?.toString();
+      const rawTechnicianId = installation.technicianId?.toString();
+      const currentUserId = userContext.userId || userContext.id;
+      
+      const isAssigned = rawAssignedTo === currentUserId;
+      const isTechnician = rawTechnicianId === currentUserId;
+      
+      if (!isAssigned && !isTechnician) {
+        throw new ForbiddenException('You do not have access to this installation');
+      }
+    }
 
     const photo = {
       url: photoDto.url,
@@ -699,7 +721,7 @@ export class InstallationService {
     await this.logEvent(id, 'photo_uploaded', userId || undefined, { key: photo.key });
 
     const updated = await this.installationModel.findOneAndUpdate(
-      { _id: this.toObjectId(id), tenantId, isDeleted: false },
+      { _id: this.toObjectId(id), isDeleted: false },
       {
         $push: { photos: photo },
         $set: {
@@ -725,13 +747,12 @@ export class InstallationService {
     photoKey: string,
     userContext: UserContext,
   ): Promise<Installation> {
-    const tenantId = this.toObjectId(userContext.tenantId);
     const userId = this.toObjectId(userContext.userId || userContext.id || '');
 
     await this.getInstallationById(id, userContext); // Verify access
 
     const updated = await this.installationModel.findOneAndUpdate(
-      { _id: this.toObjectId(id), tenantId, isDeleted: false },
+      { _id: this.toObjectId(id), isDeleted: false },
       {
         $pull: { photos: { key: photoKey } },
         $set: {
