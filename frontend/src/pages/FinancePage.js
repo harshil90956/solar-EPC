@@ -1310,7 +1310,7 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-  const [showSummaryCards, setShowSummaryCards] = useState(true);
+  const [showSummaryCards, setShowSummaryCards] = useState(false);
 
 
 
@@ -2448,6 +2448,20 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
   }, [payables, calendarFilterYear, calendarFilterMonth, calendarFilterDay]);
 
+  const filteredPaymentsByYear = useMemo(() => {
+    if (calendarFilterYear === 'all') return payments;
+    return payments.filter(p => {
+      const paymentDate = new Date(p.paymentDate || p.date || p.createdAt);
+      if (calendarFilterDay !== undefined) {
+        const year = parseInt(calendarFilterYear);
+        return paymentDate.getFullYear() === year && paymentDate.getMonth() === calendarFilterMonth && paymentDate.getDate() === calendarFilterDay;
+      }
+      if (paymentDate.getFullYear().toString() !== calendarFilterYear) return false;
+      if (calendarFilterMonth !== undefined && paymentDate.getMonth() !== calendarFilterMonth) return false;
+      return true;
+    });
+  }, [payments, calendarFilterYear, calendarFilterMonth, calendarFilterDay]);
+
 
 
   // Extract unique years from invoice data for the calendar filter
@@ -2513,6 +2527,20 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+    // Periodic refetch of manual adjustments and journal entries to keep Transactions tab in sync with database
+    const intervalId = setInterval(async () => {
+      try {
+        const adjustments = await financeApi.getManualAdjustments();
+        setManualAdjustments(adjustments || []);
+        const entries = await financeApi.getJournalEntries();
+        setJournalEntries(entries || []);
+      } catch (err) {
+        console.error('Failed to refresh data:', err);
+      }
+    }, 5000); // Refresh every 5 seconds
+
+    return () => clearInterval(intervalId);
 
   }, []);
 
@@ -7746,6 +7774,10 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
             tenantId
           });
           console.log('✅ Saved to backend');
+          
+          // Refetch journal entries to ensure data matches database
+          const updatedEntries = await financeApi.getJournalEntries();
+          setJournalEntries(updatedEntries || []);
         } catch (err) {
           console.error('Backend save error:', err?.response?.data || err?.message);
         }
@@ -7846,6 +7878,10 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
             tenantId
           });
           console.log('✅ Saved to backend');
+          
+          // Refetch journal entries to ensure data matches database
+          const updatedEntries = await financeApi.getJournalEntries();
+          setJournalEntries(updatedEntries || []);
         } catch (err) {
           console.error('Backend save error:', err?.response?.data || err?.message);
         }
@@ -7960,6 +7996,10 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
           tenantId
         });
         console.log('✅ Saved to backend');
+        
+        // Refetch journal entries to ensure data matches database
+        const updatedEntries = await financeApi.getJournalEntries();
+        setJournalEntries(updatedEntries || []);
       } catch (err) {
         console.error('Backend save error:', err?.response?.data || err?.message);
       }
@@ -9029,12 +9069,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
   const cashPosition = (() => {
-    if (calendarFilterYear === 'all') return manualBalance;
-    // For filtered period: inflow (invoice payments + credit adjustments) - outflow (payables + debit adjustments)
-    const filteredAdj = filteredManualAdjustmentsByYear || [];
-    const adjCredits = filteredAdj.filter(a => a.type === 'credit').reduce((s, a) => s + Number(a.amount || 0), 0);
-    const adjDebits = filteredAdj.filter(a => a.type === 'debit').reduce((s, a) => s + Number(a.amount || 0), 0);
-    return (totalCollected + adjCredits) - (payablesTotal + adjDebits);
+    // Cash Position should always reflect the TRUE cash balance
+    // Formula: Opening Balance + All Credits - All Debits
+    const openingBalance = manualBalance || 0;
+    const adjCredits = (manualAdjustments || []).filter(a => a.type === 'credit').reduce((s, a) => s + Number(a.amount || 0), 0);
+    const adjDebits = (manualAdjustments || []).filter(a => a.type === 'debit').reduce((s, a) => s + Number(a.amount || 0), 0);
+    const result = openingBalance + adjCredits - adjDebits;
+    console.log('Cash Position Debug:', { openingBalance, adjCredits, adjDebits, result, manualAdjustmentsCount: manualAdjustments?.length });
+    return result;
   })();
 
 
@@ -9489,7 +9531,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-      <div className="page-header">
+      <div className="page-header flex-wrap gap-2">
 
 
 
@@ -9505,7 +9547,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-          <h1 className="heading-page">Finance</h1>
+          <h1 className="heading-page text-xl sm:text-2xl">Finance</h1>
 
 
 
@@ -9513,7 +9555,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-          <p className="text-xs text-[var(--text-muted)] mt-0.5">Revenue · receivables · payables · cash flow · invoices</p>
+          <p className="text-xs text-[var(--text-muted)] mt-0.5 hidden sm:block">Revenue · receivables · payables · cash flow · invoices</p>
 
 
 
@@ -9715,7 +9757,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-              <Button variant="outline" onClick={() => setShowAdjustModal(true)}><TrendingUp size={13} /> Adjust Amount</Button>
+              <Button variant="outline" onClick={() => setShowAdjustModal(true)}><TrendingUp size={13} /> Adjust</Button>
 
 
 
@@ -9830,15 +9872,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-          payables={payables}
+          payables={filteredPayablesByYear}
 
 
 
-          invoices={calendarFilterYear === 'all' ? invoices : filteredInvoicesByYear}
+          invoices={filteredInvoicesByYear}
 
 
 
-          payments={payments}
+          payments={filteredPaymentsByYear}
 
 
 
