@@ -2082,7 +2082,7 @@ const ProjectTypeConfigPanel = () => {
 
 // ─── PANEL H: INSTALLATION TASK BUILDER ─────────────────────────────────────
 const InstallationTasksPanel = () => {
-    const { installationTasks, updateInstallationTasks, getInstallationTasks } = useSettings();
+    const { installationTasks, updateInstallationTasks } = useSettings();
     const { user } = useAuth();
     const [tasks, setTasks] = useState(installationTasks || []);
     const [newName, setNewName] = useState('');

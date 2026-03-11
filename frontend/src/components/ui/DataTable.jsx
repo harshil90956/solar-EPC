@@ -94,6 +94,10 @@ const DataTable = ({
 
     hideSearch = false,
 
+    expandedRowKey = null,      // key of the currently expanded row
+
+    renderExpanded = null,      // (row) => ReactNode — content to show inside expanded row
+
 }) => {
 
     // Support both flat props and pagination object for backward compatibility
@@ -539,8 +543,8 @@ const DataTable = ({
                             ) : data.map((row, index) => {
                                 if (!row) return null;
                                 return (
+                                    <React.Fragment key={row[rowKey] || index}>
                                     <tr
-                                        key={row[rowKey] || index}
                                         className="table-row border-b border-[var(--border-base)] last:border-0 group cursor-pointer"
                                         onClick={() => onRowClick?.(row)}
                                     >
@@ -567,7 +571,7 @@ const DataTable = ({
 
                                         {visibleColumns.map(col => (
 
-                                            <td key={`${row[rowKey]}-${col.key}`} className="px-3 py-2 text-[12px] text-[var(--text-primary)]">
+                                            <td key={`${row[rowKey] ?? index}-${col.key}`} className="px-3 py-2 text-[12px] text-[var(--text-primary)]">
 
                                                 {col.render ? col.render(row[col.key], row) : row[col.key] ?? '—'}
 
@@ -603,6 +607,18 @@ const DataTable = ({
                                         )}
 
                                     </tr>
+
+                                    {/* ── Inline expanded detail row ── */}
+                                    {renderExpanded && expandedRowKey === (row[rowKey] || index) && (
+                                        <tr className="border-b border-[var(--border-base)] bg-[var(--bg-elevated)]">
+                                            <td colSpan={visibleColumns.length + (bulkActions.length ? 1 : 0) + (allRowActions.length ? 1 : 0)} className="px-0 py-0">
+                                                <div className="animate-fade-in">
+                                                    {renderExpanded(row)}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )}
+                                    </React.Fragment>
                                 );
                             })}
                         </tbody>
