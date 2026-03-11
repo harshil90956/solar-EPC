@@ -27,10 +27,18 @@ export class AdjustmentCategoryService {
     if (tid) {
       query.tenantId = tid;
     }
-    return this.categoryModel
+    const results = await this.categoryModel
       .find(query)
       .sort({ categoryName: 1 })
       .lean();
+    // Deduplicate by categoryName + type (case-insensitive)
+    const seen = new Set<string>();
+    return results.filter((cat: any) => {
+      const key = `${(cat.categoryName || '').toLowerCase()}__${cat.type}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }
 
   async findByType(tenantId: string, type: 'credit' | 'debit'): Promise<AdjustmentCategory[]> {
@@ -39,10 +47,18 @@ export class AdjustmentCategoryService {
     if (tid) {
       query.tenantId = tid;
     }
-    return this.categoryModel
+    const results = await this.categoryModel
       .find(query)
       .sort({ categoryName: 1 })
       .lean();
+    // Deduplicate by categoryName (case-insensitive)
+    const seen = new Set<string>();
+    return results.filter((cat: any) => {
+      const key = (cat.categoryName || '').toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }
 
   async create(tenantId: string, dto: CreateAdjustmentCategoryDto, userId?: string): Promise<AdjustmentCategory> {

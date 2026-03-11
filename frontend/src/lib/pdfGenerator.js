@@ -82,24 +82,25 @@ export const generateEstimatePDF = (estimate, company = SUNVORA_COMPANY) => {
   // Document Title Box (overlapping header and content)
   doc.setFillColor(255, 255, 255);
   doc.setDrawColor(...borderColor);
-  doc.roundedRect(pageWidth - 80, 55, 65, 35, 3, 3, 'FD');
+  doc.roundedRect(pageWidth - 80, 55, 65, 40, 3, 3, 'FD');
 
   // Teal left border on estimate box
   doc.setFillColor(...primaryColor);
-  doc.roundedRect(pageWidth - 80, 55, 4, 35, 2, 2, 'F');
+  doc.roundedRect(pageWidth - 80, 55, 4, 40, 2, 2, 'F');
 
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...primaryColor);
-  doc.text('ESTIMATE', pageWidth - 70, 68);
+  doc.text('ESTIMATE', pageWidth - 70, 65);
 
-  doc.setFontSize(10);
+  doc.setFontSize(9);
   doc.setTextColor(...textColor);
-  doc.text(`#${estimate.estimateNumber}`, pageWidth - 70, 76);
+  doc.text(`#${estimate.estimateNumber}`, pageWidth - 70, 73);
+  
   doc.setFontSize(8);
   doc.setTextColor(100, 100, 100);
   const today = new Date(estimate.createdAt || Date.now()).toLocaleDateString('en-IN');
-  doc.text(`Date: ${today}`, pageWidth - 70, 82);
+  doc.text(`Date: ${today}`, pageWidth - 70, 80);
   doc.text(`Valid: 30 days`, pageWidth - 70, 87);
 
   y = 100;
@@ -195,9 +196,9 @@ export const generateEstimatePDF = (estimate, company = SUNVORA_COMPANY) => {
 
   y += 28;
 
-  // === EQUIPMENT TABLE ===
+  // === EQUIPMENT TABLE (Left Side - 65% width) ===
   doc.setFillColor(...lightGray);
-  doc.rect(15, y - 8, pageWidth - 30, 10, 'F');
+  doc.rect(15, y - 8, pageWidth - 120, 10, 'F');
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
@@ -206,16 +207,16 @@ export const generateEstimatePDF = (estimate, company = SUNVORA_COMPANY) => {
 
   y += 5;
 
-  // Table headers
+  // Table headers with better column configuration
   const headers = [['Item', 'Description', 'Qty', 'Unit Price', 'Total']];
 
-  // Table data with better formatting
+  // Table data with better formatting and text wrapping
   const data = estimate.items?.map(item => [
-    item.name,
-    `${item.brand} ${item.model}${item.description ? ' - ' + item.description : ''}`,
-    item.quantity.toString(),
-    `₹ ${item.unitPrice?.toLocaleString('en-IN')}`,
-    `₹ ${item.total?.toLocaleString('en-IN')}`
+    item.name || '',
+    `${item.brand || ''} ${item.model || ''}${item.description ? ' - ' + item.description : ''}`.trim(),
+    item.quantity?.toString() || '0',
+    `₹ ${item.unitPrice?.toLocaleString('en-IN') || '0'}`,
+    `₹ ${item.total?.toLocaleString('en-IN') || '0'}`
   ]) || [];
 
   autoTable(doc, {
@@ -226,53 +227,66 @@ export const generateEstimatePDF = (estimate, company = SUNVORA_COMPANY) => {
     headStyles: {
       fillColor: primaryColor,
       textColor: [255, 255, 255],
-      fontSize: 9,
+      fontSize: 8,
       fontStyle: 'bold',
-      halign: 'center'
+      halign: 'center',
+      valign: 'middle'
     },
     styles: {
-      fontSize: 8,
-      cellPadding: 4,
+      fontSize: 7,
+      cellPadding: 3,
       lineColor: borderColor,
-      lineWidth: 0.5
+      lineWidth: 0.5,
+      minCellHeight: 10,
+      halign: 'left',
+      valign: 'middle'
     },
     columnStyles: {
-      0: { cellWidth: 35, fontStyle: 'bold' },
-      1: { cellWidth: 'auto' },
-      2: { cellWidth: 15, halign: 'center' },
-      3: { cellWidth: 30, halign: 'right' },
-      4: { cellWidth: 30, halign: 'right', fontStyle: 'bold' }
+      0: { cellWidth: 22, fontStyle: 'bold', minCellHeight: 10, halign: 'left' },
+      1: { cellWidth: 'auto', minCellHeight: 10, halign: 'left' },
+      2: { cellWidth: 14, halign: 'center', minCellHeight: 10 },
+      3: { cellWidth: 28, halign: 'right', minCellHeight: 10 },
+      4: { cellWidth: 28, halign: 'right', fontStyle: 'bold', minCellHeight: 10 }
     },
-    margin: { left: 15, right: 15 },
-    alternateRowStyles: { fillColor: [250, 250, 250] }
+    margin: { left: 15, right: 95 },
+    alternateRowStyles: { fillColor: [250, 250, 250] },
+    didParseCell: function(data) {
+      // Add text wrapping for description column
+      if (data.section === 'body' && data.column.index === 1) {
+        const text = data.cell.raw;
+        const splitText = doc.splitTextToSize(text, 50);
+        data.cell.styles.minCellHeight = splitText.length * 4 + 6;
+      }
+    },
+    didDrawCell: function(data) {
+      // Ensure proper text alignment in cells
+      if (data.section === 'head') {
+        data.cell.styles.halign = 'center';
+      }
+    }
   });
 
   // Get the final Y position after table
-  y = doc.lastAutoTable.finalY + 10;
+  const tableEndY = doc.lastAutoTable.finalY + 10;
 
-  // === COST SUMMARY ===
-  // Check if we need a new page
-  if (y > pageHeight - 100) {
-    doc.addPage();
-    y = 25;
-  }
-
-  // Draw cost summary box with professional styling
-  const summaryX = pageWidth - 95;
-  const summaryWidth = 80;
+  // === COST SUMMARY (Right Side - 35% width) ===
+  // Position cost summary on the right side, aligned with the table start
+  const summaryX = pageWidth - 90;
+  const summaryWidth = 75;
+  const summaryY = y; // Align with table start
 
   // Box header
   doc.setFillColor(...primaryColor);
-  doc.roundedRect(summaryX, y, summaryWidth, 12, 2, 2, 'F');
+  doc.roundedRect(summaryX, summaryY, summaryWidth, 12, 2, 2, 'F');
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(255, 255, 255);
-  doc.text('COST SUMMARY', summaryX + summaryWidth / 2, y + 8, { align: 'center' });
+  doc.text('COST SUMMARY', summaryX + summaryWidth / 2, summaryY + 8, { align: 'center' });
 
   // Box body
   doc.setFillColor(255, 255, 255);
   doc.setDrawColor(...borderColor);
-  doc.roundedRect(summaryX, y + 12, summaryWidth, 75, 2, 2, 'FD');
+  doc.roundedRect(summaryX, summaryY + 12, summaryWidth, 85, 2, 2, 'FD');
 
   const costs = [
     { label: 'Equipment Cost:', value: estimate.equipmentCost || 0 },
@@ -282,29 +296,29 @@ export const generateEstimatePDF = (estimate, company = SUNVORA_COMPANY) => {
     { label: 'Miscellaneous:', value: estimate.miscellaneousCost || 0 },
   ];
 
-  let costY = y + 20;
+  let costY = summaryY + 20;
   costs.forEach(cost => {
     if (cost.value > 0) {
-      doc.setFontSize(9);
+      doc.setFontSize(8.5);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(80, 80, 80);
-      doc.text(cost.label, summaryX + 8, costY);
+      doc.text(cost.label, summaryX + 6, costY);
 
       doc.setTextColor(...textColor);
-      doc.text(`₹${cost.value?.toLocaleString('en-IN')}`, summaryX + summaryWidth - 8, costY, { align: 'right' });
-      costY += 7;
+      doc.text(`₹${cost.value?.toLocaleString('en-IN')}`, summaryX + summaryWidth - 6, costY, { align: 'right' });
+      costY += 8;
     }
   });
 
   // Subtotal line
-  costY += 2;
+  costY += 3;
   doc.setDrawColor(...borderColor);
   doc.line(summaryX + 5, costY - 3, summaryX + summaryWidth - 5, costY - 3);
 
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...textColor);
-  doc.text('Subtotal:', summaryX + 8, costY + 4);
-  doc.text(`₹${estimate.subtotal?.toLocaleString('en-IN')}`, summaryX + summaryWidth - 8, costY + 4, { align: 'right' });
+  doc.text('Subtotal:', summaryX + 6, costY + 4);
+  doc.text(`₹${estimate.subtotal?.toLocaleString('en-IN')}`, summaryX + summaryWidth - 6, costY + 4, { align: 'right' });
 
   // GST
   costY += 8;

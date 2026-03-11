@@ -26,33 +26,26 @@ export class LeadsService {
 
   private buildCompleteFilter(tenantId?: string, user?: UserWithVisibility, baseFilter: any = {}): any {
     const filter = { ...baseFilter };
-    
-    // Apply tenant filter
+
+    // Enforce tenant isolation strictly
     const tid = this.toObjectId(tenantId);
+    if (!tid && !(user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin')) {
+      // Match nothing when tenant context is missing
+      return { $and: [filter, { _id: { $in: [] as any[] } }] };
+    }
+
     if (tid) {
-      filter.$or = [
-        { tenantId: tid },
-        { tenantId: { $exists: false } },
-        { tenantId: null },
-      ];
-    } else {
-      filter.$or = [
-        { tenantId: { $exists: false } },
-        { tenantId: null },
-      ];
+      filter.tenantId = tid;
     }
-    
-    // Apply visibility filter
-    if (user?.dataScope === 'ASSIGNED') {
-      filter.$and = filter.$and || [];
-      filter.$and.push({
-        $or: [
-          { assignedTo: user.id },
-          { createdBy: user.id },
-        ],
-      });
+
+    // Apply role visibility rules
+    if (user && !(user.isSuperAdmin || user.role?.toLowerCase() === 'superadmin')) {
+      const visibilityFilter = buildVisibilityFilter(user);
+      if (visibilityFilter && Object.keys(visibilityFilter).length > 0) {
+        return applyVisibilityFilter(filter, user);
+      }
     }
-    
+
     return filter;
   }
 
@@ -85,11 +78,8 @@ export class LeadsService {
       // Valid tenantId - match this specific tenant
       filter.tenantId = tid;
     } else {
-      // No valid tenantId - match leads with no tenantId OR leads with null tenantId
-      filter.$or = [
-        { tenantId: { $exists: false } },
-        { tenantId: null },
-      ];
+      // No valid tenantId - enforce strict isolation (match nothing)
+      return { $and: [filter, { _id: { $in: [] as any[] } }] };
     }
     
     Logger.log(`[DEBUG] buildTenantFilter - tenantId: ${tenantId}, tid: ${tid}, filter: ${JSON.stringify(filter)}`, 'LeadsService');
@@ -100,9 +90,6 @@ export class LeadsService {
     const cacheKey = `${tenantId || 'default'}:${key}`;
     const now = Date.now();
     const cached = this.dashboardCache.get(cacheKey);
-    
-    // TEMP: Clear cache to force fresh data
-    this.dashboardCache.clear();
     
     if (cached && now - cached.ts <= this.dashboardCacheTtlMs) {
       Logger.log(`[DEBUG] Cache hit for ${cacheKey}`, 'LeadsService');
@@ -234,7 +221,7 @@ export class LeadsService {
   // CRUD OPERATIONS
   // ============================================
 
-  async create(createLeadDto: CreateLeadDto, tenantId?: string): Promise<Lead> {
+  async create(createLeadDto: CreateLeadDto, tenantId?: string, user?: UserWithVisibility): Promise<Lead> {
     const now = new Date();
     const leadId = `LEAD-${Date.now()}`;
 
@@ -244,7 +231,7 @@ export class LeadsService {
       type: 'created',
       ts: this.formatTimestamp(now),
       note: 'Lead created',
-      by: 'System',
+      by: user?.id || 'System',
       timestamp: now,
     }];
 
@@ -258,12 +245,16 @@ export class LeadsService {
     };
 
     // Calculate initial score and SLA
-    leadData.score = this.calculateScore(leadData);
+    leadData.score = createLeadDto.score ?? this.calculateScore(leadData);
     leadData.slaBreached = this.checkSlaBreached(leadData);
     leadData.activeAutomation = this.applyAutomation(leadData);
 
     if (tenantId) {
       leadData.tenantId = this.toObjectId(tenantId);
+    }
+
+    if (user?._id) {
+      leadData.createdBy = new Types.ObjectId(user._id.toString());
     }
 
     const createdLead = new this.leadModel(leadData);
@@ -294,7 +285,8 @@ export class LeadsService {
     } = query;
 
     // Build complete filter with tenant and visibility
-    const filter = this.buildCompleteFilter(tenantId, user, {});
+    // Never return soft-deleted leads in list views
+    const filter = this.buildCompleteFilter(tenantId, user, { isDeleted: { $ne: true } });
 
     // Apply quick filters
     if (quickFilter) {
@@ -399,18 +391,13 @@ export class LeadsService {
   }
 
   async findOne(id: string, tenantId?: string, user?: UserWithVisibility): Promise<Lead> {
-    const filter: any = { 
+    const filter: any = this.buildCompleteFilter(tenantId, user, {
       $or: [
         { _id: Types.ObjectId.isValid(id) ? new Types.ObjectId(id) : undefined },
         { leadId: id }
       ].filter(Boolean),
-      isDeleted: { $ne: true } 
-    };
-    
-    const tid = this.toObjectId(tenantId);
-    if (tid) {
-      filter.$and = [{ $or: [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }] }];
-    }
+      isDeleted: { $ne: true }
+    });
 
     const lead = await this.leadModel.findOne(filter).lean().exec();
     
@@ -430,35 +417,31 @@ export class LeadsService {
   }
 
   // Find lead by ID without tenant restrictions (for internal use)
-  async findOneById(id: string): Promise<Lead | null> {
-    const filter: any = { 
+  async findOneById(id: string, tenantId?: string, user?: UserWithVisibility): Promise<Lead | null> {
+    const base: any = {
       $or: [
         { _id: Types.ObjectId.isValid(id) ? new Types.ObjectId(id) : undefined },
         { leadId: id }
       ].filter(Boolean),
-      isDeleted: { $ne: true } 
+      isDeleted: { $ne: true }
     };
 
+    const filter: any = tenantId || user ? this.buildCompleteFilter(tenantId, user, base) : base;
     const lead = await this.leadModel.findOne(filter).lean().exec();
     return lead as Lead | null;
   }
 
-  async update(id: string, updateLeadDto: UpdateLeadDto, tenantId?: string): Promise<Lead> {
-    const filter: any = { 
+  async update(id: string, updateLeadDto: UpdateLeadDto, tenantId?: string, user?: UserWithVisibility): Promise<Lead> {
+    const filter: any = this.buildCompleteFilter(tenantId, user, {
       $or: [
         { _id: Types.ObjectId.isValid(id) ? new Types.ObjectId(id) : undefined },
         { leadId: id }
       ].filter(Boolean),
-      isDeleted: { $ne: true } 
-    };
+      isDeleted: { $ne: true }
+    });
     
-    const tid = this.toObjectId(tenantId);
-    if (tid) {
-      filter.$and = [{ $or: [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }] }];
-    }
-
     // Check if lead exists first
-    const existingLead = await this.leadModel.findOne(filter).lean().exec();
+    const existingLead = await this.leadModel.findOne(filter).exec();
     if (!existingLead) {
       throw new NotFoundException('Lead not found');
     }
@@ -498,7 +481,7 @@ export class LeadsService {
         type: 'stage_change',
         ts: this.formatTimestamp(now),
         note: `Stage changed from ${existingLead.statusKey} to ${updateData.statusKey}`,
-        by: 'System',
+        by: user?.id || 'System',
         timestamp: now,
       };
       
@@ -545,37 +528,49 @@ export class LeadsService {
     return updatedLead;
   }
 
-  async remove(id: string, tenantId?: string): Promise<void> {
+  async remove(id: string, tenantId?: string, user?: UserWithVisibility): Promise<void> {
     const orConditions: any[] = [];
     
     if (Types.ObjectId.isValid(id)) {
       orConditions.push({ _id: new Types.ObjectId(id) });
     }
     orConditions.push({ leadId: id });
-    
-    const filter: any = { 
-      $or: orConditions,
-      isDeleted: { $ne: true } 
-    };
-    
-    const tid = this.toObjectId(tenantId);
-    if (tid) {
-      filter.$and = [{ $or: [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }] }];
-    }
 
-    const result = await this.leadModel.findOneAndUpdate(
-      filter,
-      { $set: { isDeleted: true, deletedAt: new Date() } },
-      { new: true },
-    ).exec();
-    
-    if (!result) {
+    // Build visibility/tenant filter WITHOUT isDeleted constraint so delete becomes idempotent
+    const baseFilter: any = this.buildCompleteFilter(tenantId, user, {
+      $or: orConditions,
+    });
+
+    const existing = await this.leadModel.findOne(baseFilter).lean().exec();
+    if (!existing) {
       throw new NotFoundException('Lead not found');
     }
+
+    // Idempotent delete: if already deleted, treat as success
+    if ((existing as any).isDeleted === true) {
+      return;
+    }
+
+    const now = new Date();
+    const activity = {
+      type: 'deleted',
+      ts: this.formatTimestamp(now),
+      note: `Lead deleted`,
+      by: user?.id || 'System',
+      timestamp: now,
+    };
+
+    await this.leadModel.updateOne(
+      { ...baseFilter, isDeleted: { $ne: true } },
+      {
+        $set: { isDeleted: true, deletedAt: now },
+        $push: { activities: activity },
+      },
+    ).exec();
   }
 
-  async duplicate(id: string, tenantId?: string): Promise<Lead> {
-    const originalLead = await this.findOne(id, tenantId);
+  async duplicate(id: string, tenantId?: string, user?: UserWithVisibility): Promise<Lead> {
+    const originalLead = await this.findOne(id, tenantId, user);
 
     const duplicatedData: CreateLeadDto = {
       name: `${originalLead.name} (Copy)`,
@@ -594,22 +589,17 @@ export class LeadsService {
       notes: `Duplicated from ${originalLead.name}. ${originalLead.notes || ''}`,
     };
 
-    return this.create(duplicatedData, tenantId);
+    return this.create(duplicatedData, tenantId, user);
   }
 
-  async addActivity(id: string, activityDto: AddActivityDto, tenantId?: string): Promise<Lead> {
-    const filter: any = { 
+  async addActivity(id: string, activityDto: AddActivityDto, tenantId?: string, user?: UserWithVisibility): Promise<Lead> {
+    const filter: any = this.buildCompleteFilter(tenantId, user, {
       $or: [
         { _id: Types.ObjectId.isValid(id) ? new Types.ObjectId(id) : undefined },
         { leadId: id }
       ].filter(Boolean),
-      isDeleted: { $ne: true } 
-    };
-    
-    const tid = this.toObjectId(tenantId);
-    if (tid) {
-      filter.$and = [{ $or: [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }] }];
-    }
+      isDeleted: { $ne: true }
+    });
 
     const lead = await this.leadModel.findOne(filter).exec();
     if (!lead) {
@@ -645,20 +635,15 @@ export class LeadsService {
     });
   }
 
-  async bulkArchive(ids: string[], tenantId?: string): Promise<{ modified: number }> {
+  async bulkArchive(ids: string[], tenantId?: string, user?: UserWithVisibility): Promise<{ modified: number }> {
     const objectIds = ids.filter(id => Types.ObjectId.isValid(id)).map(id => new Types.ObjectId(id));
-    const filter: any = { 
+    const filter: any = this.buildCompleteFilter(tenantId, user, {
       $or: [
         { _id: { $in: objectIds } },
         { leadId: { $in: ids } }
       ],
-      isDeleted: { $ne: true } 
-    };
-    
-    const tid = this.toObjectId(tenantId);
-    if (tid) {
-      filter.$and = [{ $or: [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }] }];
-    }
+      isDeleted: { $ne: true }
+    });
 
     const result = await this.leadModel.updateMany(
       filter,
@@ -667,7 +652,7 @@ export class LeadsService {
     return { modified: result.modifiedCount };
   }
 
-  async bulkDelete(ids: string[], tenantId?: string): Promise<{ modified: number }> {
+  async bulkDelete(ids: string[], tenantId?: string, user?: UserWithVisibility): Promise<{ modified: number }> {
     if (!ids || ids.length === 0) {
       return { modified: 0 };
     }
@@ -695,37 +680,51 @@ export class LeadsService {
       return { modified: 0 };
     }
     
-    const filter: any = { 
-      $or: orConditions
-    };
-    
-    const tid = this.toObjectId(tenantId);
-    if (tid) {
-      filter.$and = [{ $or: [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }] }];
+    const filter: any = this.buildCompleteFilter(tenantId, user, {
+      $or: orConditions,
+      isDeleted: { $ne: true },
+    });
+
+    const matched = await this.leadModel.countDocuments(filter);
+    if (matched === 0) {
+      return { modified: 0 };
     }
+
+    const now = new Date();
+    const activity = {
+      type: 'deleted',
+      ts: this.formatTimestamp(now),
+      note: `Lead deleted (bulk)` ,
+      by: user?.id || 'System',
+      timestamp: now,
+    };
 
     const result = await this.leadModel.updateMany(
       filter,
-      { $set: { isDeleted: true, deletedAt: new Date() } },
+      {
+        $set: { isDeleted: true, deletedAt: now },
+        $push: { activities: activity },
+      },
     );
+
+    if (result.modifiedCount !== matched) {
+      throw new BadRequestException(`Bulk delete partially failed: matched ${matched}, modified ${result.modifiedCount}`);
+    }
     return { modified: result.modifiedCount };
   }
 
-  async bulkUpdateStage(ids: string[], stage: string, tenantId?: string): Promise<{ modified: number }> {
+  async bulkUpdateStage(ids: string[], stage: string, tenantId?: string, user?: UserWithVisibility): Promise<{ modified: number }> {
+    await this.assertValidStatusKey(stage, tenantId);
+
     // Find leads by IDs (supports both MongoDB _id and leadId)
     const objectIds = ids.filter(id => Types.ObjectId.isValid(id)).map(id => new Types.ObjectId(id));
-    const filter: any = { 
+    const filter: any = this.buildCompleteFilter(tenantId, user, {
       $or: [
         { _id: { $in: objectIds } },
         { leadId: { $in: ids } }
       ],
-      isDeleted: { $ne: true } 
-    };
-    
-    const tid = this.toObjectId(tenantId);
-    if (tid) {
-      filter.$and = [{ $or: [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }] }];
-    }
+      isDeleted: { $ne: true }
+    });
 
     // Find all matching leads
     const leads = await this.leadModel.find(filter).exec();
@@ -733,46 +732,57 @@ export class LeadsService {
     // Update each lead individually to trigger hooks and add activities
     let modified = 0;
     const now = new Date();
+
+    const failures: Array<{ id: string; message: string }> = [];
     
     for (const lead of leads) {
-      const oldStage = (lead as any).statusKey;
-      
-      // Update stage
-      (lead as any).statusKey = stage;
-      lead.lastContact = now;
-      
-      // Add stage change activity
-      lead.activities.push({
-        type: 'stage_change',
-        ts: this.formatTimestamp(now),
-        note: `Stage changed from ${oldStage} to ${stage}`,
-        by: 'System',
-        timestamp: now,
-      });
-      
-      // Recalculate metrics
-      lead.score = this.calculateScore(lead);
-      lead.slaBreached = this.checkSlaBreached(lead);
-      lead.activeAutomation = this.applyAutomation(lead);
+      const leadId = (lead as any)?._id?.toString() || (lead as any)?.leadId || 'unknown';
+      try {
+        const oldStage = (lead as any).statusKey;
+        
+        // Update stage
+        (lead as any).statusKey = stage;
+        lead.lastContact = now;
+        
+        // Add stage change activity
+        lead.activities.push({
+          type: 'stage_change',
+          ts: this.formatTimestamp(now),
+          note: `Stage changed from ${oldStage} to ${stage}`,
+          by: user?.id || 'System',
+          timestamp: now,
+        });
+        
+        // Recalculate metrics
+        lead.score = this.calculateScore(lead);
+        lead.slaBreached = this.checkSlaBreached(lead);
+        lead.activeAutomation = this.applyAutomation(lead);
 
-      // Auto-create site survey when stage changes to 'site_survey' or 'survey'
-      if (stage === 'site_survey' || stage === 'survey') {
-        try {
-          await this.siteSurveysService.createFromLead({
-            leadId: (lead as any)._id.toString(),
-            clientName: lead.name,
-            city: lead.city || 'Unknown',
-            projectCapacity: lead.kw ? `${lead.kw} kW` : 'To be determined',
-            engineer: lead.assignedTo?.toString() || 'Unassigned',
-          });
-          Logger.log(`Auto-created site survey for lead ${lead.leadId} via bulkUpdateStage`, 'LeadsService');
-        } catch (error: any) {
-          Logger.error(`Failed to auto-create site survey for lead ${lead.leadId}: ${error.message}`, 'LeadsService');
+        // Auto-create site survey when stage changes to 'site_survey' or 'survey'
+        if (stage === 'site_survey' || stage === 'survey') {
+          try {
+            await this.siteSurveysService.createFromLead({
+              leadId: (lead as any)._id.toString(),
+              clientName: lead.name,
+              city: lead.city || 'Unknown',
+              projectCapacity: lead.kw ? `${lead.kw} kW` : 'To be determined',
+              engineer: lead.assignedTo?.toString() || 'Unassigned',
+            });
+            Logger.log(`Auto-created site survey for lead ${lead.leadId} via bulkUpdateStage`, 'LeadsService');
+          } catch (error: any) {
+            Logger.error(`Failed to auto-create site survey for lead ${lead.leadId}: ${error.message}`, 'LeadsService');
+          }
         }
+        
+        await lead.save();
+        modified++;
+      } catch (error: any) {
+        failures.push({ id: leadId, message: error?.message || 'Unknown error' });
       }
-      
-      await lead.save();
-      modified++;
+    }
+
+    if (failures.length > 0) {
+      throw new BadRequestException(`Bulk stage update partially failed: ${modified} succeeded, ${failures.length} failed`);
     }
     
     return { modified };
@@ -1095,14 +1105,8 @@ export class LeadsService {
     });
   }
 
-  async recalculateAllScores(tenantId?: string): Promise<{ updated: number }> {
-    const filter: any = { isDeleted: { $ne: true } };
-    
-    const tid = this.toObjectId(tenantId);
-    if (tid) {
-      filter.$or = [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }];
-    }
-
+  async recalculateAllScores(tenantId?: string, user?: UserWithVisibility): Promise<{ updated: number }> {
+    const filter: any = this.buildCompleteFilter(tenantId, user, { isDeleted: { $ne: true } });
     const leads = await this.leadModel.find(filter).exec();
     let updated = 0;
 
@@ -1198,11 +1202,17 @@ export class LeadsService {
     };
   }
 
-  async updateStage(id: string, stage: string, user: string = 'System', tenantId?: string): Promise<{ lead: Lead; tracker: any }> {
+  async updateStage(
+    id: string,
+    stage: string,
+    userId: string = 'System',
+    tenantId?: string,
+    user?: UserWithVisibility
+  ): Promise<{ lead: Lead; tracker: any }> {
     // Validate stage
     await this.assertValidStatusKey(stage, tenantId);
     
-    const lead = await this.findOne(id, tenantId);
+    const lead = await this.findOne(id, tenantId, user);
     const oldStage = lead.statusKey;
     
     if (oldStage === stage) {
@@ -1222,7 +1232,7 @@ export class LeadsService {
       type: 'stage_change',
       ts: this.formatTimestamp(now),
       note: `Stage changed from ${oldStage} to ${stage}`,
-      by: user,
+      by: userId,
       timestamp: now,
     };
     updateData.$push = { activities: activity };
@@ -1277,18 +1287,13 @@ export class LeadsService {
     }
 
     // Update lead
-    const filter: any = { 
+    const filter: any = this.buildCompleteFilter(tenantId, user, {
       $or: [
         { _id: Types.ObjectId.isValid(id) ? new Types.ObjectId(id) : undefined },
         { leadId: id }
       ].filter(Boolean),
-      isDeleted: { $ne: true } 
-    };
-    
-    const tid = this.toObjectId(tenantId);
-    if (tid) {
-      filter.$and = [{ $or: [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }] }];
-    }
+      isDeleted: { $ne: true }
+    });
 
     const updatedLead = await this.leadModel.findOneAndUpdate(
       filter,
@@ -1301,7 +1306,7 @@ export class LeadsService {
     }
 
     // Get updated tracker
-    const tracker = await this.getTracker(id, tenantId);
+    const tracker = await this.getTracker(id, tenantId, user);
 
     return { lead: updatedLead, tracker };
   }
@@ -1324,9 +1329,8 @@ export class LeadsService {
     fileExtension: string,
     tenantId?: string,
     user?: UserWithVisibility
-  ): Promise<{ success: boolean; inserted: number; updated: number; failed: number; errors: Array<{ row: number; reason: string }> }> {
+  ): Promise<{ inserted: number; updated: number; failed: number; errors: Array<{ row: number; reason: string }> }> {
     const result = {
-      success: true,
       inserted: 0,
       updated: 0,
       failed: 0,
@@ -1339,6 +1343,11 @@ export class LeadsService {
       
       // Debug logging: Log initial row count
       console.log(`[IMPORT] Initial rows parsed: ${rows.length}`);
+      
+      // Debug: Log CSV headers from first row keys
+      if (rows.length > 0) {
+        console.log(`[IMPORT] CSV Headers detected:`, Object.keys(rows[0]));
+      }
       
       // Filter out empty rows and rows with only formatting artifacts
       rows = this.filterValidRows(rows);
@@ -1363,17 +1372,30 @@ export class LeadsService {
         const rowNumber = i + 1;
 
         try {
-          // Validate required field
-          if (!row.name && !row.firstName && !row.lastName) {
-            result.errors.push({ row: rowNumber, reason: 'Missing name' });
+          // Debug: Log raw row keys for first few rows
+          if (i < 3) {
+            console.log(`[IMPORT] Row ${rowNumber} - Raw keys:`, Object.keys(row));
+            console.log(`[IMPORT] Row ${rowNumber} - Raw data:`, JSON.stringify(row));
+          }
+
+          // Normalize row data FIRST
+          const normalizedData = this.normalizeRowData(row, knownFields);
+
+          // Debug: Log normalized data for first few rows
+          if (i < 3) {
+            console.log(`[IMPORT] Row ${rowNumber} - Normalized data:`, JSON.stringify(normalizedData));
+          }
+
+          // Validate required field AFTER normalization
+          // Only 'name' is required, all other fields are optional
+          if (!normalizedData.name || normalizedData.name.trim() === '') {
+            result.errors.push({ row: rowNumber, reason: 'Missing name (required field)' });
             result.failed++;
+            console.log(`[IMPORT] Row ${rowNumber} FAILED: Missing name`);
             continue;
           }
 
-          // Normalize row data
-          const normalizedData = this.normalizeRowData(row, knownFields);
-
-          // Check for duplicate by email or phone
+          // Check for duplicate by email or phone using $or query
           const duplicate = await this.findDuplicate(
             normalizedData.email,
             normalizedData.phone,
@@ -1381,11 +1403,11 @@ export class LeadsService {
           );
 
           if (duplicate) {
-            // Update existing lead
+            // Update existing lead - convert duplicates to updates
             const updateData = this.buildUpdateData(normalizedData);
             updateData.lastContact = new Date();
             
-            // Handle activity logs if present
+            // Handle activity logs if present - use $push to append
             if (normalizedData.activityLogs && normalizedData.activityLogs.length > 0) {
               const activities = normalizedData.activityLogs.map((log: string) => ({
                 type: 'import',
@@ -1394,18 +1416,35 @@ export class LeadsService {
                 by: user?.id || 'System',
                 timestamp: new Date(),
               }));
-              updateData.$push = { activities: { $each: activities } };
+              
+              // Use $push to append activities instead of overwriting
+              bulkOps.push({
+                updateOne: {
+                  filter: tenantId
+                    ? { _id: duplicate._id, tenantId: this.toObjectId(tenantId) }
+                    : { _id: duplicate._id },
+                  update: {
+                    $set: updateData,
+                    $push: { activities: { $each: activities } }
+                  },
+                },
+              });
+            } else {
+              // No activity logs, simple update
+              bulkOps.push({
+                updateOne: {
+                  filter: tenantId
+                    ? { _id: duplicate._id, tenantId: this.toObjectId(tenantId) }
+                    : { _id: duplicate._id },
+                  update: { $set: updateData },
+                },
+              });
             }
-
-            bulkOps.push({
-              updateOne: {
-                filter: { _id: duplicate._id },
-                update: { $set: updateData },
-              },
-            });
+            
             result.updated++;
+            console.log(`[IMPORT] Row ${rowNumber} - Updated existing lead (ID: ${duplicate._id})`);
           } else {
-            // Create new lead
+            // Create new lead - no duplicates found
             const leadId = `LEAD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
             const now = new Date();
 
@@ -1459,6 +1498,7 @@ export class LeadsService {
               insertOne: { document: leadData },
             });
             result.inserted++;
+            console.log(`[IMPORT] Row ${rowNumber} - Inserted new lead (ID: ${leadId})`);
           }
 
           // Execute batch when size reached
@@ -1469,9 +1509,24 @@ export class LeadsService {
             }
           }
         } catch (error: any) {
+          // Handle any unexpected errors during insert/update
+          console.error(`[IMPORT] Row ${rowNumber} - Error:`, error.message);
+          
+          // Add to failed rows
           result.errors.push({ row: rowNumber, reason: error.message || 'Unknown error' });
           result.failed++;
         }
+      }
+
+      // Log summary of import results
+      console.log(`[IMPORT] Final results: inserted=${result.inserted}, updated=result.updated, failed=result.failed`);
+      
+      // Log all errors if any failures occurred
+      if (result.failed > 0) {
+        console.log(`[IMPORT] Failed rows details:`);
+        result.errors.forEach((err, idx) => {
+          console.log(`  Row ${err.row}: ${err.reason}`);
+        });
       }
 
       return result;
@@ -1531,11 +1586,118 @@ export class LeadsService {
       customFields: {},
     };
 
+    // Define comprehensive field mapping for CSV headers
+    const fieldMapping: Record<string, string> = {
+      // Name variations
+      'name': 'name',
+      'fullname': 'name',
+      'full_name': 'name',
+      'customername': 'name',
+      'customer_name': 'name',
+      'contactname': 'name',
+      'contact_name': 'name',
+      'leadname': 'name',
+      'lead_name': 'name',
+      
+      // First/Last name
+      'firstname': 'firstName',
+      'first_name': 'firstName',
+      'lastname': 'lastName',
+      'last_name': 'lastName',
+      
+      // Email variations
+      'email': 'email',
+      'emailaddress': 'email',
+      'email_address': 'email',
+      'primaryemail': 'email',
+      'primary_email': 'email',
+      'e_mail': 'email',
+      
+      // Phone variations
+      'phone': 'phone',
+      'phonenumber': 'phone',
+      'phone_number': 'phone',
+      'mobile': 'phone',
+      'mobilenumber': 'phone',
+      'mobile_number': 'phone',
+      'cellphone': 'phone',
+      'cell_phone': 'phone',
+      'contactnumber': 'phone',
+      'contact_number': 'phone',
+      'telephone': 'phone',
+      'tel': 'phone',
+      
+      // Company variations
+      'company': 'company',
+      'companyname': 'company',
+      'company_name': 'company',
+      'businessname': 'company',
+      'business_name': 'company',
+      'organization': 'company',
+      'organisation': 'company',
+      
+      // Stage/Status variations
+      'stage': 'statusKey',
+      'status': 'statusKey',
+      'leadstage': 'statusKey',
+      'lead_stage': 'statusKey',
+      'dealstage': 'statusKey',
+      'deal_stage': 'statusKey',
+      'opportunitystage': 'statusKey',
+      'opportunity_stage': 'statusKey',
+      
+      // Source variations
+      'source': 'source',
+      'leadsource': 'source',
+      'lead_source': 'source',
+      'origin': 'source',
+      'channel': 'source',
+      
+      // Value variations
+      'value': 'value',
+      'dealvalue': 'value',
+      'deal_value': 'value',
+      'leadvalue': 'value',
+      'lead_value': 'value',
+      'opportunityvalue': 'value',
+      'opportunity_value': 'value',
+      'amount': 'value',
+      'price': 'value',
+      
+      // Score variations
+      'score': 'score',
+      'leadscore': 'score',
+      'lead_score': 'score',
+      'priority': 'score',
+      'rating': 'score',
+      
+      // City variations
+      'city': 'city',
+      'location': 'city',
+      'area': 'city',
+      'region': 'city',
+      
+      // State variations
+      'state': 'state',
+      'province': 'state',
+      
+      // Activity log variations
+      'activitylog': 'activityLogs',
+      'activity_log': 'activityLogs',
+      'activitylogs': 'activityLogs',
+      'activity_logs': 'activityLogs',
+      'activities': 'activityLogs',
+      'notes': 'activityLogs',
+      'comments': 'activityLogs',
+      'remarks': 'activityLogs',
+    };
+
     // Normalize header names
     const normalizedRow: any = {};
     Object.keys(row).forEach((key) => {
       const normalizedKey = this.normalizeHeader(key);
-      normalizedRow[normalizedKey] = row[key];
+      const mappedKey = fieldMapping[normalizedKey] || normalizedKey;
+      normalizedRow[mappedKey] = row[key];
     });
 
     // Process each field
@@ -1543,7 +1705,7 @@ export class LeadsService {
       const value = normalizedRow[key];
       if (value === undefined || value === null || value === '') return;
 
-      // Map known fields
+      // Map known fields with special handling
       if (key === 'firstname' || key === 'first_name') {
         normalized.firstName = String(value).trim();
       } else if (key === 'lastname' || key === 'last_name') {
@@ -1555,14 +1717,18 @@ export class LeadsService {
         normalized.score = isNaN(numScore) ? 0 : Math.min(Math.max(numScore, 0), 100);
       } else if (key === 'value') {
         normalized.value = this.normalizeValue(value);
-      } else if (key === 'activity_logs' || key === 'activities' || key === 'activitylogs') {
+      } else if (key === 'activityLogs') {
+        // Handle activity logs - can be pipe-separated or single entry
         const logs = String(value).split('|').map((s) => s.trim()).filter((s) => s);
         normalized.activityLogs = logs;
       } else if (knownFields.includes(key)) {
+        // Handle other known schema fields
         normalized[key] = this.normalizeField(key, value);
       } else {
-        // Store unknown fields in customFields
-        normalized.customFields[key] = value;
+        // Store unknown fields in customFields (dynamic custom field creation)
+        // Normalize the key name for storage (e.g., "Building Type" -> "building_type")
+        const customFieldKey = this.normalizeHeader(key);
+        normalized.customFields[customFieldKey] = value;
       }
     });
 
@@ -1575,7 +1741,7 @@ export class LeadsService {
       normalized.name = String(normalizedRow.name).trim();
     }
 
-    // Remove firstName/lastName from top level
+    // Remove firstName/lastName from top level after combining
     delete normalized.firstName;
     delete normalized.lastName;
 
@@ -1588,6 +1754,27 @@ export class LeadsService {
       .trim()
       .replace(/\s+/g, '_')
       .replace(/[^a-z0-9_]/g, '');
+  }
+
+  // Generate CSV import documentation with supported columns
+  getImportDocumentation(): { standardFields: Array<{column: string; field: string; description: string}>; activityLogSupport: boolean; customFieldSupport: boolean } {
+    return {
+      standardFields: [
+        { column: 'Name / Full Name / Customer Name', field: 'name', description: 'Lead full name (required)' },
+        { column: 'Email / Email Address', field: 'email', description: 'Customer email address' },
+        { column: 'Phone / Phone Number / Mobile', field: 'phone', description: 'Contact phone number' },
+        { column: 'Company / Company Name', field: 'company', description: 'Company or organization name' },
+        { column: 'Stage / Status', field: 'statusKey', description: 'Lead stage (new, contacted, qualified, proposal, negotiation, won, lost)' },
+        { column: 'Source / Lead Source', field: 'source', description: 'Lead source (website, referral, campaign, ads, etc.)' },
+        { column: 'Value / Deal Value / Amount', field: 'value', description: 'Deal value in currency' },
+        { column: 'Score / Lead Score', field: 'score', description: 'Lead score (0-100)' },
+        { column: 'City / Location', field: 'city', description: 'Customer city' },
+        { column: 'State / Province', field: 'state', description: 'Customer state' },
+        { column: 'Activity Log / Notes / Comments', field: 'activityLogs', description: 'Activity notes (use | separator for multiple entries)' },
+      ],
+      activityLogSupport: true,
+      customFieldSupport: true,
+    };
   }
 
   private normalizeValue(value: any): number {
@@ -1731,21 +1918,20 @@ export class LeadsService {
 
     // Get tenantId from authenticated user (never from frontend)
     const tid = this.toObjectId(user.tenantId?.toString());
+    if (!tid && !(user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin')) {
+      throw new ForbiddenException('Tenant context missing');
+    }
     const assignedToId = new Types.ObjectId(assignedTo);
     const assignedById = user._id;
 
     // STEP 3: Verify lead belongs to same tenant
-    const leadFilter: any = {
+    const leadFilter: any = this.buildCompleteFilter(tid?.toString(), user, {
       $or: [
         { _id: Types.ObjectId.isValid(id) ? new Types.ObjectId(id) : undefined },
         { leadId: id }
       ].filter(Boolean),
       isDeleted: { $ne: true }
-    };
-    
-    if (tid) {
-      leadFilter.$and = [{ $or: [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }] }];
-    }
+    });
 
     const lead = await this.leadModel.findOne(leadFilter).lean().exec();
     if (!lead) {
@@ -1754,14 +1940,10 @@ export class LeadsService {
 
     // STEP 4: Verify target user belongs to same tenant
     if (tid) {
-      const targetUser = await this.userModel.findOne({
-        _id: assignedToId,
-        $or: [
-          { tenantId: tid },
-          { tenantId: { $exists: false } },
-          { tenantId: null },
-        ],
-      }).lean().exec();
+      const targetUser = await this.userModel
+        .findOne({ _id: assignedToId, tenantId: tid })
+        .lean()
+        .exec();
 
       if (!targetUser) {
         throw new BadRequestException('Target user does not belong to your tenant');
@@ -1811,20 +1993,20 @@ export class LeadsService {
   // ============================================
 
   async exportLeads(ids: string[], tenantId?: string, user?: UserWithVisibility): Promise<{ csv: string; filename: string }> {
-    const objectIds = ids.filter(id => Types.ObjectId.isValid(id)).map(id => new Types.ObjectId(id));
-    const filter: any = {
-      $or: [
-        { _id: { $in: objectIds } },
-        { leadId: { $in: ids } }
-      ],
-      isDeleted: { $ne: true }
-    };
-
-    const tid = this.toObjectId(tenantId);
-    if (tid) {
-      filter.$and = [{ $or: [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }] }];
+    const safeIds = Array.isArray(ids) ? ids : [];
+    const objectIds = safeIds.filter(id => Types.ObjectId.isValid(id)).map(id => new Types.ObjectId(id));
+    const orConditions: any[] = [];
+    if (safeIds.length > 0) {
+      if (objectIds.length > 0) orConditions.push({ _id: { $in: objectIds } });
+      orConditions.push({ leadId: { $in: safeIds } });
     }
 
+    const base: any = { isDeleted: { $ne: true } };
+    if (orConditions.length > 0) {
+      base.$or = orConditions;
+    }
+
+    const filter: any = this.buildCompleteFilter(tenantId, user, base);
     const leads = await this.leadModel.find(filter).lean().exec();
 
     // Generate CSV
@@ -1858,29 +2040,50 @@ export class LeadsService {
   // BULK UPDATE SCORE
   // ============================================
 
-  async bulkUpdateScore(ids: string[], scoreIncrease: number, tenantId?: string): Promise<{ modified: number }> {
+  async bulkUpdateScore(ids: string[], scoreIncrease: number, tenantId?: string, user?: UserWithVisibility): Promise<{ modified: number }> {
     if (!ids || ids.length === 0) {
       return { modified: 0 };
     }
 
-    const objectIds = ids.filter(id => Types.ObjectId.isValid(id)).map(id => new Types.ObjectId(id));
-    const filter: any = {
-      $or: [
-        { _id: { $in: objectIds } },
-        { leadId: { $in: ids } }
-      ],
-      isDeleted: { $ne: true }
-    };
-
-    const tid = this.toObjectId(tenantId);
-    if (tid) {
-      filter.$and = [{ $or: [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }] }];
+    if (typeof scoreIncrease !== 'number' || Number.isNaN(scoreIncrease)) {
+      throw new BadRequestException('scoreIncrease must be a number');
     }
+
+    const objectIds = ids.filter(id => Types.ObjectId.isValid(id)).map(id => new Types.ObjectId(id));
+    const orConditions: any[] = [];
+    if (objectIds.length > 0) orConditions.push({ _id: { $in: objectIds } });
+    orConditions.push({ leadId: { $in: ids } });
+
+    const filter: any = this.buildCompleteFilter(tenantId, user, {
+      $or: orConditions,
+      isDeleted: { $ne: true },
+    });
+
+    const matched = await this.leadModel.countDocuments(filter);
+    if (matched === 0) {
+      return { modified: 0 };
+    }
+
+    const now = new Date();
+    const activity = {
+      type: 'score_boost',
+      ts: this.formatTimestamp(now),
+      note: `Score boosted by ${scoreIncrease}`,
+      by: user?.id || 'System',
+      timestamp: now,
+    };
 
     const result = await this.leadModel.updateMany(
       filter,
-      { $inc: { score: scoreIncrease } }
+      {
+        $inc: { score: scoreIncrease },
+        $push: { activities: activity },
+      }
     );
+
+    if (result.modifiedCount !== matched) {
+      throw new BadRequestException(`Bulk score update partially failed: matched ${matched}, modified ${result.modifiedCount}`);
+    }
 
     return { modified: result.modifiedCount };
   }

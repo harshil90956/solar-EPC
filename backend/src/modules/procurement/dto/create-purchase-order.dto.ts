@@ -1,13 +1,16 @@
 import { IsString, IsNumber, IsIn, IsOptional, IsMongoId, IsNotEmpty } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreatePurchaseOrderDto {
   @IsString()
   @IsNotEmpty()
   vendorId!: string;
 
+  @IsOptional()
   @IsString()
-  items!: string;
+  items?: string;
 
+  @Type(() => Number)
   @IsNumber()
   totalAmount!: number;
 
@@ -34,6 +37,7 @@ export class UpdatePurchaseOrderDto {
   items?: string;
 
   @IsOptional()
+  @Type(() => Number)
   @IsNumber()
   totalAmount?: number;
 

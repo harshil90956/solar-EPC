@@ -21,9 +21,10 @@ const fmt = (amount) => {
 };
 
 const formatL = (value) => {
-  if (!value || isNaN(value)) return '₹0L';
+  if (!value || isNaN(value) || value === 0) return '₹0';
   // Always show in Lakhs with ₹ symbol
-  return `₹${Math.round(value / 100000)}L`;
+  const lakhs = Math.round(value / 100000);
+  return lakhs === 0 ? '₹0' : `₹${lakhs}L`;
 };
 
 const formatAxisCurrency = (value) => {
@@ -89,8 +90,9 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 // Section 1: Financial Overview Cards with Animations
-const FinancialOverview = ({ dashboardStats, payablesTotal, manualBalance, onInvoicesClick, onPayablesClick, invoices }) => {
-  const revenueCurrent = dashboardStats?.totalRevenue || 0;
+const FinancialOverview = ({ dashboardStats, payablesTotal, manualBalance, cashPosition, onInvoicesClick, onPayablesClick, onReceivablesClick, invoices }) => {
+  // Compute totalRevenue from filtered invoices passed in
+  const revenueCurrent = (invoices || []).reduce((sum, inv) => sum + Number(inv.amount || 0), 0);
   
   // Helper to get paid amount from invoice
   const getPaidAmount = (inv) => {
@@ -117,9 +119,8 @@ const FinancialOverview = ({ dashboardStats, payablesTotal, manualBalance, onInv
     return (invoices || []).reduce((sum, inv) => sum + getPaidAmount(inv), 0);
   }, [invoices]);
   
-  // Cash Position is the manualBalance which already includes:
-  // Customer Payments + Credit Adjustments - Debit Adjustments - Vendor Payments
-  const cashPosition = manualBalance;
+  // Use passed cashPosition (already calendar-filtered in FinancePage)
+  const cashPositionVal = cashPosition !== undefined ? cashPosition : manualBalance;
 
   const cards = [
     {
@@ -134,12 +135,12 @@ const FinancialOverview = ({ dashboardStats, payablesTotal, manualBalance, onInv
     },
     {
       label: 'Cash Position',
-      value: cashPosition,
+      value: cashPositionVal,
       sub: 'Collected - Payables',
       icon: IndianRupee,
       accentColor: '#3b82f6',
       gradient: 'from-blue-500/20 to-blue-500/5',
-      trend: cashPosition >= 0 ? '+8%' : '-5%',
+      trend: cashPositionVal >= 0 ? '+8%' : '-5%',
       onClick: null,
     },
     {
@@ -150,7 +151,7 @@ const FinancialOverview = ({ dashboardStats, payablesTotal, manualBalance, onInv
       accentColor: '#f59e0b',
       gradient: 'from-amber-500/20 to-amber-500/5',
       trend: '-3%',
-      onClick: null,
+      onClick: onReceivablesClick,
     },
     {
       label: 'Payables',
@@ -203,7 +204,7 @@ const FinancialOverview = ({ dashboardStats, payablesTotal, manualBalance, onInv
 };
 
 // Section 2: Cashflow Summary Cards
-const CashflowSummary = ({ dashboardStats, collectionRate, invoices, onCollectedClick, onInvoicedClick }) => {
+const CashflowSummary = ({ dashboardStats, collectionRate, invoices, totalRevenue, onCollectedClick, onInvoicedClick, onOutstandingClick }) => {
   // Helper to get paid amount from invoice
   const getPaidAmount = (inv) => {
     if (inv.status === 'Paid') return Number(inv.amount || 0);
@@ -230,7 +231,7 @@ const CashflowSummary = ({ dashboardStats, collectionRate, invoices, onCollected
   const cards = [
     {
       label: 'Total Invoiced',
-      value: dashboardStats?.totalRevenue || 0,
+      value: totalRevenue,
       icon: FileText,
       color: '#64748b',
       clickable: true,
@@ -247,6 +248,7 @@ const CashflowSummary = ({ dashboardStats, collectionRate, invoices, onCollected
       value: outstanding,
       icon: Clock,
       color: '#f59e0b',
+      clickable: true,
     },
   ];
 
@@ -257,7 +259,7 @@ const CashflowSummary = ({ dashboardStats, collectionRate, invoices, onCollected
           key={card.label}
           className={`glass-card p-4 text-center rounded-xl hover:shadow-lg hover:scale-[1.02] transition-all duration-300 animate-fade-in ${card.clickable ? 'cursor-pointer' : ''}`}
           style={{ animationDelay: `${index * 75}ms` }}
-          onClick={card.clickable ? (card.label === 'Collected' ? onCollectedClick : onInvoicedClick) : undefined}
+          onClick={card.clickable ? (card.label === 'Collected' ? onCollectedClick : card.label === 'Outstanding' ? onOutstandingClick : onInvoicedClick) : undefined}
         >
           <div className="flex items-center justify-center gap-2 mb-2">
             <card.icon size={18} style={{ color: card.color }} />
@@ -284,13 +286,122 @@ const CashflowSummary = ({ dashboardStats, collectionRate, invoices, onCollected
   );
 };
 
+// Helper: build last 6 month buckets from current or selected date
+const buildMonthBuckets = (calendarFilterYear, calendarFilterMonth) => {
+  const months = [];
+  // If a specific year/month selected, show 6 months ending at selected month; else last 6 months
+  let endYear, endMonth;
+  if (calendarFilterYear && calendarFilterYear !== 'all') {
+    endYear = parseInt(calendarFilterYear);
+    endMonth = calendarFilterMonth !== undefined && calendarFilterMonth !== null ? calendarFilterMonth : new Date().getMonth();
+  } else {
+    const now = new Date();
+    endYear = now.getFullYear();
+    endMonth = now.getMonth();
+  }
+  for (let i = 5; i >= 0; i--) {
+    let y = endYear;
+    let m = endMonth - i;
+    while (m < 0) { m += 12; y--; }
+    const start = new Date(y, m, 1);
+    const end = new Date(y, m + 1, 1);
+    months.push({
+      label: start.toLocaleString('en-IN', { month: 'short' }),
+      key: `${y}-${String(m + 1).padStart(2, '0')}`,
+      start,
+      end,
+    });
+  }
+  return months;
+};
+
+// Helper: compute revenue+cost series from filtered invoices and adjustments
+const computeRevenueCostSeries = (invoices, manualAdjustments, calendarFilterYear, calendarFilterMonth) => {
+  const months = buildMonthBuckets(calendarFilterYear, calendarFilterMonth);
+  return months.map(m => {
+    const revenue = (invoices || []).reduce((sum, inv) => {
+      const dt = new Date(inv.invoiceDate || inv.createdAt);
+      if (dt < m.start || dt >= m.end) return sum;
+      return sum + Number(inv.amount || 0);
+    }, 0);
+    const cost = (manualAdjustments || []).filter(a => a.type === 'debit').reduce((sum, adj) => {
+      const dt = new Date(adj.date || adj.createdAt);
+      if (dt < m.start || dt >= m.end) return sum;
+      return sum + Number(adj.amount || 0);
+    }, 0);
+    return { month: m.label, revenue, cost };
+  });
+};
+
+// Helper: compute cashflow series
+const computeCashFlowSeries = (invoices, manualAdjustments, calendarFilterYear, calendarFilterMonth) => {
+  const months = buildMonthBuckets(calendarFilterYear, calendarFilterMonth);
+  return months.map(m => {
+    const inflow = (invoices || []).reduce((sum, inv) => {
+      let dt = inv.paidDate ? new Date(inv.paidDate) : null;
+      if (!dt && inv.status === 'Paid') dt = new Date(inv.invoiceDate || inv.createdAt);
+      if (!dt || dt < m.start || dt >= m.end) return sum;
+      const paid = Number(inv.paid || 0);
+      const amount = Number(inv.amount || 0);
+      return sum + ((paid === 0 && inv.status === 'Paid') ? amount : paid);
+    }, 0) + (manualAdjustments || []).filter(a => a.type === 'credit').reduce((sum, adj) => {
+      const dt = new Date(adj.date || adj.createdAt);
+      if (dt < m.start || dt >= m.end) return sum;
+      return sum + Number(adj.amount || 0);
+    }, 0);
+    const outflow = (manualAdjustments || []).filter(a => a.type === 'debit').reduce((sum, adj) => {
+      const dt = new Date(adj.date || adj.createdAt);
+      if (dt < m.start || dt >= m.end) return sum;
+      return sum + Number(adj.amount || 0);
+    }, 0);
+    return { month: m.label, inflow, outflow };
+  });
+};
+
+// Helper: compute adjustment trend
+const computeAdjustmentTrend = (manualAdjustments, calendarFilterYear, calendarFilterMonth) => {
+  const months = buildMonthBuckets(calendarFilterYear, calendarFilterMonth);
+  return months.map(m => {
+    const income = (manualAdjustments || []).filter(a => a.type === 'credit').reduce((sum, adj) => {
+      const dt = new Date(adj.date || adj.createdAt);
+      if (dt < m.start || dt >= m.end) return sum;
+      return sum + Number(adj.amount || 0);
+    }, 0);
+    const expense = (manualAdjustments || []).filter(a => a.type === 'debit').reduce((sum, adj) => {
+      const dt = new Date(adj.date || adj.createdAt);
+      if (dt < m.start || dt >= m.end) return sum;
+      return sum + Number(adj.amount || 0);
+    }, 0);
+    return { month: m.label, income, expense };
+  });
+};
+
+// Helper: compute transaction analytics (income/expense by category)
+const computeTransactionAnalytics = (manualAdjustments) => {
+  const incomeMap = {};
+  const expenseMap = {};
+  (manualAdjustments || []).forEach(adj => {
+    const cat = adj.category || adj.categoryName || (adj.type === 'credit' ? 'Other Income' : 'Other Expense');
+    const amt = Number(adj.amount || 0);
+    if (adj.type === 'credit') {
+      incomeMap[cat] = (incomeMap[cat] || 0) + amt;
+    } else {
+      expenseMap[cat] = (expenseMap[cat] || 0) + amt;
+    }
+  });
+  return {
+    incomeByCategory: Object.entries(incomeMap).map(([category, amount]) => ({ category, amount })).sort((a, b) => b.amount - a.amount),
+    expenseByCategory: Object.entries(expenseMap).map(([category, amount]) => ({ category, amount })).sort((a, b) => b.amount - a.amount),
+  };
+};
+
 // Chart 1: Revenue vs Cost
 const RevenueVsCostChart = ({ monthlyRevenue }) => {
   return (
     <div className="glass-card p-5 rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 animate-fade-in">
       <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2">
         <BarChart3 size={16} className="text-emerald-400" />
-        Revenue vs Cost (6 Months)
+        Revenue vs Cost
       </h3>
       <ResponsiveContainer width="100%" height={260}>
         <BarChart data={monthlyRevenue} barSize={28} barGap={6} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -337,7 +448,7 @@ const CashFlowTrendChart = ({ cashFlow }) => {
     <div className="glass-card p-5 rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 animate-fade-in" style={{ animationDelay: '100ms' }}>
       <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2">
         <Activity size={16} className="text-cyan-400" />
-        Cash Flow Trend (6 Months)
+        Cash Flow Trend
       </h3>
       <ResponsiveContainer width="100%" height={260}>
         <AreaChart data={cashFlow} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -588,21 +699,76 @@ const VendorPayablesChart = ({ payables }) => {
   );
 };
 
-// Chart 6: Monthly Collection Performance
-const MonthlyCollectionChart = ({ monthlyRevenue, cashFlow }) => {
+// Chart 6: Collection Performance
+const MonthlyCollectionChart = ({ invoices, payments, calendarFilterYear, calendarFilterMonth, calendarFilterDay }) => {
   const data = useMemo(() => {
-    return monthlyRevenue.map((m, index) => ({
-      month: m.month,
-      invoices: m.revenue,
-      payments: cashFlow[index]?.inflow || 0,
-    }));
-  }, [monthlyRevenue, cashFlow]);
+    // If calendarFilterDay is set, we're in "Today" mode - show single day data
+    if (calendarFilterDay !== undefined) {
+      // For Today view, calculate based on the selected day only
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      
+      const invoiceTotal = (invoices || []).reduce((sum, inv) => {
+        try {
+          const dt = new Date(inv.invoiceDate || inv.createdAt);
+          if (!isNaN(dt.getTime()) && dt >= todayStart && dt <= todayEnd) {
+            return sum + Number(inv.amount || 0);
+          }
+        } catch (e) {
+          console.error('Error processing invoice date:', e);
+        }
+        return sum;
+      }, 0);
+      
+      const paymentTotal = (payments || []).reduce((sum, p) => {
+        try {
+          const dt = new Date(p.paymentDate || p.createdAt);
+          if (!isNaN(dt.getTime()) && dt >= todayStart && dt <= todayEnd) {
+            return sum + Number(p.amount || 0);
+          }
+        } catch (e) {
+          console.error('Error processing payment date:', e);
+        }
+        return sum;
+      }, 0);
+      
+      return [{ month: 'Today', invoices: invoiceTotal, payments: paymentTotal }];
+    }
+    
+    // Normal month-based calculation
+    const months = buildMonthBuckets(calendarFilterYear, calendarFilterMonth);
+    return months.map(m => {
+      const invoiceTotal = (invoices || []).reduce((sum, inv) => {
+        const dt = new Date(inv.invoiceDate || inv.createdAt);
+        if (dt < m.start || dt >= m.end) return sum;
+        return sum + Number(inv.amount || 0);
+      }, 0);
+      const paymentTotal = (payments || []).reduce((sum, p) => {
+        const dt = new Date(p.paymentDate || p.createdAt);
+        if (dt < m.start || dt >= m.end) return sum;
+        return sum + Number(p.amount || 0);
+      }, 0);
+      return { month: m.label, invoices: invoiceTotal, payments: paymentTotal };
+    });
+  }, [invoices, payments, calendarFilterYear, calendarFilterMonth, calendarFilterDay]);
+
+  // Dynamic title based on calendar filter
+  const getDynamicTitle = () => {
+    if (calendarFilterDay !== undefined) return 'Today Collection';
+    if (calendarFilterMonth !== undefined && calendarFilterYear !== 'all') {
+      const monthName = new Date(parseInt(calendarFilterYear), calendarFilterMonth).toLocaleString('en-IN', { month: 'long' });
+      return `${monthName} ${calendarFilterYear} Collection`;
+    }
+    if (calendarFilterYear !== 'all') return `${calendarFilterYear} Collection`;
+    return 'Collection Performance';
+  };
 
   return (
     <div className="glass-card p-5 rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 animate-fade-in" style={{ animationDelay: '500ms' }}>
       <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2">
         <TrendIcon size={16} className="text-indigo-400" />
-        Monthly Collection Performance
+        {getDynamicTitle()}
       </h3>
       <ResponsiveContainer width="100%" height={260}>
         <LineChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -618,6 +784,7 @@ const MonthlyCollectionChart = ({ monthlyRevenue, cashFlow }) => {
             tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
             axisLine={false}
             tickLine={false}
+            domain={[0, 'auto']}
           />
           <Tooltip content={<CustomTooltip />} />
           <Legend iconSize={10} wrapperStyle={{ fontSize: 11, paddingTop: 10 }} />
@@ -773,37 +940,18 @@ const ExpenseByCategoryChart = ({ transactionAnalytics }) => {
   );
 };
 
-// Chart 9: Monthly Income vs Expense Trend
+// Chart 9: Income vs Expense Trend
 const IncomeExpenseTrendChart = ({ adjustmentTrend }) => {
   const data = useMemo(() => {
-    // Build last 6 months with actual adjustment data
-    const months = [];
-    const now = new Date();
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      months.push({
-        key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
-        label: d.toLocaleString('en-IN', { month: 'short' }),
-        income: 0,
-        expense: 0,
-      });
-    }
-    
-    // Populate with actual data from adjustmentTrend
-    if (adjustmentTrend && adjustmentTrend.length > 0) {
-      adjustmentTrend.forEach((trendItem) => {
-        const monthData = months.find(month => month.label === trendItem.month);
-        if (monthData) {
-          monthData.income = trendItem.income || 0;
-          monthData.expense = trendItem.expense || 0;
-        }
-      });
-    }
-    
-    return months;
+    if (!adjustmentTrend || adjustmentTrend.length === 0) return [];
+    return adjustmentTrend.map(item => ({
+      label: item.month,
+      income: item.income || 0,
+      expense: item.expense || 0,
+    }));
   }, [adjustmentTrend]);
 
-  if (!adjustmentTrend || adjustmentTrend.length === 0) {
+  if (!data || data.length === 0) {
     return (
       <div className="glass-card p-5 rounded-2xl shadow-lg h-[320px] flex items-center justify-center">
         <p className="text-sm text-[var(--text-muted)]">No trend data available</p>
@@ -815,7 +963,7 @@ const IncomeExpenseTrendChart = ({ adjustmentTrend }) => {
     <div className="glass-card p-5 rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 animate-fade-in" style={{ animationDelay: '700ms' }}>
       <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2">
         <Activity size={16} className="text-blue-400" />
-        Monthly Income vs Expense
+        Income vs Expense
       </h3>
       <ResponsiveContainer width="100%" height={220}>
         <LineChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
@@ -970,15 +1118,19 @@ const FinanceDashboard = ({
   monthlyRevenue,
   cashFlow,
   manualBalance,
+  cashPosition,
   transactionAnalytics,
   adjustmentTrend,
+  calendarFilterYear,
+  calendarFilterMonth,
+  calendarFilterDay,
   onInvoicesClick,
   onPayablesClick,
   onCollectedClick,
+  onReceivablesClick,
+  onOutstandingClick,
   onStatusClick,
 }) => {
-  if (!isOpen) return null;
-
   // Helper functions for calculations
   const getPaidAmount = (inv) => {
     if (inv.status === 'Paid') return Number(inv.amount || 0);
@@ -986,7 +1138,7 @@ const FinanceDashboard = ({
     return Number(inv.paid || 0);
   };
 
-  // Calculate total revenue and collected from invoices
+  // Calculate total revenue and collected from FILTERED invoices
   const totalRevenue = (invoices || []).reduce((sum, inv) => sum + Number(inv.amount || 0), 0);
   const totalCollected = (invoices || []).reduce((sum, inv) => sum + getPaidAmount(inv), 0);
 
@@ -995,7 +1147,28 @@ const FinanceDashboard = ({
     ? Math.round((totalCollected / totalRevenue) * 100)
     : 0;
 
-  const payablesTotal = payables.reduce((sum, p) => sum + (p.outstandingAmount || 0), 0);
+  const payablesTotal = (payables || []).reduce((sum, p) => sum + (p.outstandingAmount || 0), 0);
+
+  // Compute all chart data from filtered data (hooks must be before any early return)
+  const computedMonthlyRevenue = useMemo(
+    () => computeRevenueCostSeries(invoices, manualAdjustments, calendarFilterYear, calendarFilterMonth),
+    [invoices, manualAdjustments, calendarFilterYear, calendarFilterMonth]
+  );
+  const computedCashFlow = useMemo(
+    () => computeCashFlowSeries(invoices, manualAdjustments, calendarFilterYear, calendarFilterMonth),
+    [invoices, manualAdjustments, calendarFilterYear, calendarFilterMonth]
+  );
+  const computedAdjustmentTrend = useMemo(
+    () => computeAdjustmentTrend(manualAdjustments, calendarFilterYear, calendarFilterMonth),
+    [manualAdjustments, calendarFilterYear, calendarFilterMonth]
+  );
+  const computedTransactionAnalytics = useMemo(
+    () => computeTransactionAnalytics(manualAdjustments),
+    [manualAdjustments]
+  );
+
+  // Early return AFTER all hooks
+  if (!isOpen) return null;
 
   return (
     <div className="space-y-6 pb-6">
@@ -1021,8 +1194,10 @@ const FinanceDashboard = ({
           dashboardStats={dashboardStats}
           payablesTotal={payablesTotal}
           manualBalance={manualBalance}
+          cashPosition={cashPosition !== undefined ? cashPosition : manualBalance}
           onInvoicesClick={onInvoicesClick}
           onPayablesClick={onPayablesClick}
+          onReceivablesClick={onReceivablesClick}
           invoices={invoices}
         />
       </section>
@@ -1035,9 +1210,11 @@ const FinanceDashboard = ({
         <CashflowSummary
           dashboardStats={dashboardStats}
           collectionRate={collectionRate}
+          totalRevenue={totalRevenue}
           invoices={invoices}
           onCollectedClick={onCollectedClick}
           onInvoicedClick={onInvoicesClick}
+          onOutstandingClick={onOutstandingClick}
         />
       </section>
 
@@ -1047,9 +1224,9 @@ const FinanceDashboard = ({
           Financial Analytics
         </h2>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          <IncomeByCategoryChart transactionAnalytics={transactionAnalytics} />
-          <ExpenseByCategoryChart transactionAnalytics={transactionAnalytics} />
-          <IncomeExpenseTrendChart adjustmentTrend={adjustmentTrend} />
+          <IncomeByCategoryChart transactionAnalytics={computedTransactionAnalytics} />
+          <ExpenseByCategoryChart transactionAnalytics={computedTransactionAnalytics} />
+          <IncomeExpenseTrendChart adjustmentTrend={computedAdjustmentTrend} />
         </div>
       </section>
 
@@ -1059,8 +1236,8 @@ const FinanceDashboard = ({
           Financial Trends
         </h2>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          <RevenueVsCostChart monthlyRevenue={monthlyRevenue} />
-          <CashFlowTrendChart cashFlow={cashFlow} />
+          <RevenueVsCostChart monthlyRevenue={computedMonthlyRevenue} />
+          <CashFlowTrendChart cashFlow={computedCashFlow} />
         </div>
       </section>
 
@@ -1082,7 +1259,7 @@ const FinanceDashboard = ({
         </h2>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <VendorPayablesChart payables={payables} />
-          <MonthlyCollectionChart monthlyRevenue={monthlyRevenue} cashFlow={cashFlow} />
+          <MonthlyCollectionChart invoices={invoices} payments={payments} calendarFilterYear={calendarFilterYear} calendarFilterMonth={calendarFilterMonth} calendarFilterDay={calendarFilterDay} />
         </div>
       </section>
     </div>

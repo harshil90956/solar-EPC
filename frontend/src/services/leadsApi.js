@@ -99,7 +99,7 @@ export const leadsApi = {
 
   // Bulk delete leads - DELETE /api/v1/leads/bulk
   async bulkDelete(ids) {
-    return api.delete('/leads/bulk', { data: { leadIds: ids } });
+    return api.post('/leads/bulk/delete', { leadIds: ids });
   },
 
   // Bulk update stage
@@ -129,7 +129,12 @@ export const leadsApi = {
 
   // Get all roles
   async getRoles() {
-    return api.get('/roles');
+    return api.get('/settings/custom-roles');
+  },
+
+  // Get all employees (for lead assignment)
+  async getAllEmployees() {
+    return api.get('/hrm/employees');
   },
 
   // Get users by role
@@ -149,5 +154,10 @@ export const leadsApi = {
     return apiClient.post('/leads/import', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
+  },
+
+  // Get CSV import documentation
+  async getImportDocumentation() {
+    return api.get('/leads/import/documentation');
   },
 };

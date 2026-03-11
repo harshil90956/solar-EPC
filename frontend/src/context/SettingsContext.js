@@ -133,7 +133,7 @@ export const SettingsProvider = ({ children }) => {
                                 color: r.color,
                                 bg: r.bg,
                                 isCustom: r.isCustom,
-                                dataScope: r.dataScope || 'ASSIGNED',
+                                dataScope: r.dataScope || 'ALL',
                                 permissions: perms,
                             };
                         }
@@ -400,7 +400,7 @@ export const SettingsProvider = ({ children }) => {
                     color: r.color,
                     bg: r.bg,
                     isCustom: true,
-                    dataScope: r.dataScope || 'ASSIGNED',
+                    dataScope: r.dataScope || 'ALL',
                     permissions: perms,
                     createdAt: r.createdAt,
                     updatedAt: r.updatedAt,
@@ -473,7 +473,7 @@ export const SettingsProvider = ({ children }) => {
         const resolvedBaseRole = incoming ? (incoming.baseRole ?? null) : (baseRole || null);
         const resolvedColor = incoming?.color || '#8b5cf6';
         const resolvedBg = incoming?.bg || 'rgba(139,92,246,0.12)';
-        const resolvedDataScope = incoming?.dataScope;
+        const resolvedDataScope = incoming?.dataScope || 'ALL';
 
         try {
             const id = `custom_${Date.now()}`;
@@ -820,10 +820,13 @@ export const SettingsProvider = ({ children }) => {
 
         if (customRole) {
             const perm = customRole.permissions?.[moduleId]?.[actionId];
-            // Explicit true = allow, explicit false = deny, undefined = deny (not allow by default)
+            // Explicit true = allow, explicit false = deny
+            // For 'view': undefined means allow by default (hide only if explicitly set false)
+            // For other actions (create/edit/delete): undefined means deny
             if (perm === true) return true;
             if (perm === false) return false;
-            return false;
+            if (actionId === 'view') return true; // show module unless explicitly denied
+            return false; // create/edit/delete denied if not explicitly granted
         }
 
         // 3. Base RBAC - try normalized role ID first, then original

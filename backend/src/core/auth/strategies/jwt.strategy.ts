@@ -109,7 +109,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     // Priority for dataScope resolution:
     // 1. CustomRole from database (explicit setting)
     // 2. JWT payload dataScope
-    // 3. Only default to ALL for Admin if no explicit setting found
+    // 3. Default: ALL for admins AND custom-role users (they see all data unless explicitly set to ASSIGNED)
     const customRoleDataScope = (customRole as any)?.dataScope;
     const payloadDataScope = payload.dataScope;
     
@@ -125,9 +125,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       effectiveDataScope = payloadDataScope;
       this.logger.debug(`JWT DataScope - Using payload.dataScope: ${effectiveDataScope}`);
     } else {
-      // Only default based on role if no explicit setting
-      effectiveDataScope = isAdminLike ? 'ALL' : 'ASSIGNED';
-      this.logger.debug(`JWT DataScope - Using default (no explicit setting): ${effectiveDataScope}`);
+      // Default: ALL for admins and custom-role users; ASSIGNED only for plain non-admin base roles
+      effectiveDataScope = (isAdminLike || customRoleId) ? 'ALL' : 'ASSIGNED';
+      this.logger.debug(`JWT DataScope - Using default: ${effectiveDataScope}`);
     }
 
     this.logger.debug(`JWT Validate - userId: ${userId}, dataScope: ${effectiveDataScope}, isAdminLike: ${isAdminLike}`);

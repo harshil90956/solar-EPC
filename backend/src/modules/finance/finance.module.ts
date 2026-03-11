@@ -2,6 +2,7 @@
 import { MongooseModule } from '@nestjs/mongoose';
 import { SettingsModule } from '../settings/settings.module';
 import { FinanceController } from './controllers/finance.controller';
+import { Tenant, TenantSchema } from '../../core/tenant/schemas/tenant.schema';
 
 import { InvoiceService, PaymentService, ExpenseService, TransactionService, FinancePaymentService, ManualAdjustmentService, AdjustmentCategoryService, JournalEntryService } from './services';
 
@@ -21,7 +22,8 @@ import { Invoice, InvoiceSchema, Payment, PaymentSchema, Expense, ExpenseSchema,
       { name: ManualAdjustment.name, schema: ManualAdjustmentSchema },
       { name: AdjustmentCategory.name, schema: AdjustmentCategorySchema },
       { name: JournalEntry.name, schema: JournalEntrySchema },
-
+      { name: 'PurchaseOrder', schema: require('../procurement/schemas/purchase-order.schema').PurchaseOrderSchema },
+      { name: Tenant.name, schema: TenantSchema },
     ]),
     SettingsModule,
   ],

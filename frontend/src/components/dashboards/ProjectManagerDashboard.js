@@ -55,7 +55,6 @@ const ProjectManagerDashboard = ({ onNavigate }) => {
         {
             label: 'Active Projects',
             value: PROJECT_OVERVIEW.activeProjects.toString(),
-            sub: `${PROJECT_OVERVIEW.completedProjects} completed • ${fmtPct(PROJECT_OVERVIEW.projectSuccessRate)} success rate`,
             icon: Briefcase,
             accent: C.primary,
             trend: '+5 this month',
@@ -64,7 +63,6 @@ const ProjectManagerDashboard = ({ onNavigate }) => {
         {
             label: 'On-Time Delivery',
             value: `${PROJECT_OVERVIEW.onTimeDelivery}%`,
-            sub: `${PROJECT_OVERVIEW.avgProjectDuration} days avg duration`,
             icon: CheckCircle,
             accent: '#10b981',
             trend: '+2.1% improved',
@@ -73,7 +71,6 @@ const ProjectManagerDashboard = ({ onNavigate }) => {
         {
             label: 'Team Utilization',
             value: `${PROJECT_OVERVIEW.teamUtilization}%`,
-            sub: `${PROJECT_OVERVIEW.teamMembers} team members • optimal capacity`,
             icon: Users,
             accent: C.secondary,
             trend: '+4.3% efficient',
@@ -82,7 +79,6 @@ const ProjectManagerDashboard = ({ onNavigate }) => {
         {
             label: 'Budget Performance',
             value: `${Math.abs(PROJECT_OVERVIEW.budgetVariance)}%`,
-            sub: `Under budget • quality score ${PROJECT_OVERVIEW.qualityScore}/5.0`,
             icon: Target,
             accent: '#f59e0b',
             trend: 'Under budget',

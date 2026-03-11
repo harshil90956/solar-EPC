@@ -25,6 +25,8 @@ export function usePermissions() {
         : user;
 
     const role = effectiveUser?.role ?? '';
+    // Use roleId first (custom role id like 'custom_xxx'), fall back to role ('Employee', 'Admin', etc.)
+    const roleId = effectiveUser?.roleId || role;
     const userId = effectiveUser?.id ?? null;
 
     /**
@@ -32,9 +34,9 @@ export function usePermissions() {
      * Full priority chain: User Override → Custom Role → Base RBAC + feature flag gate.
      */
     const can = useCallback((moduleId, actionId) => {
-        if (!userId) return hasPermission(role, moduleId, actionId);
-        return resolvePermission(userId, role, moduleId, actionId);
-    }, [userId, role, hasPermission, resolvePermission]);
+        if (!userId) return hasPermission(roleId, moduleId, actionId);
+        return resolvePermission(userId, roleId, moduleId, actionId);
+    }, [userId, roleId, hasPermission, resolvePermission]);
 
     /** featureOn(moduleId, featureId) — sub-feature flag */
     const featureOn = useCallback((moduleId, featureId) =>
@@ -50,7 +52,7 @@ export function usePermissions() {
 
     return {
         can, featureOn, moduleOn, actionOn,
-        role, user: effectiveUser,
+        role, roleId, user: effectiveUser,
         flags, rbac,
         isViewAs: !!viewAsUserId,
         viewAsUser: viewAsUserId ? enrichedUsers?.find(u => u.id === viewAsUserId) : null,

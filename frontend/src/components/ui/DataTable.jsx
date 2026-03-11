@@ -571,7 +571,7 @@ const DataTable = ({
 
                                         {visibleColumns.map(col => (
 
-                                            <td key={`${row[rowKey]}-${col.key}`} className="px-3 py-2 text-[12px] text-[var(--text-primary)]">
+                                            <td key={`${row[rowKey] ?? index}-${col.key}`} className="px-3 py-2 text-[12px] text-[var(--text-primary)]">
 
                                                 {col.render ? col.render(row[col.key], row) : row[col.key] ?? '—'}
 

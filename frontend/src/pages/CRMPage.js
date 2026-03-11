@@ -44,6 +44,8 @@ import CanAccess, { CanCreate, CanEdit, CanDelete, CanView } from '../components
 import { toast } from '../components/ui/Toast';
 import LeadAnalyticsDashboard from '../components/dashboard/LeadAnalyticsDashboard.js';
 
+// Helper function for formatting currency
+
 // UserSelect component for lead assignment
 const UserSelect = ({ value, onChange, placeholder }) => {
   const { users } = useAuth();
@@ -736,6 +738,7 @@ const CRMPage = () => {
   const [error, setError] = useState(null);
   const [totalLeads, setTotalLeads] = useState(0);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [selected, setSelected] = useState(new Set());
@@ -750,6 +753,8 @@ const CRMPage = () => {
   const [timelineData, setTimelineData] = useState([]);
   const [activityData, setActivityData] = useState([]);
 
+  const editingLeadOriginalRef = useRef(null);
+
   // Lead Assignment Modal State
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [assigningLeadIds, setAssigningLeadIds] = useState([]);
@@ -758,6 +763,7 @@ const CRMPage = () => {
   const [roles, setRoles] = useState([]);
   const [selectedRole, setSelectedRole] = useState('');
   const [filteredUsers, setFilteredUsers] = useState([]);
+  const [allEmployees, setAllEmployees] = useState([]);
   const [rolesLoading, setRolesLoading] = useState(false);
   const [usersLoading, setUsersLoading] = useState(false);
 
@@ -815,29 +821,8 @@ const CRMPage = () => {
   const [scoreBoostValue, setScoreBoostValue] = useState(10);
   const [scoreBoostLoading, setScoreBoostLoading] = useState(false);
 
-  const overviewQ = useQuery({
-    queryKey: ['leads-dashboard-overview'],
-    queryFn: () => leadsApi.getDashboardOverview(),
-    enabled: view === 'dashboard',
-  });
-
-  const funnelQ = useQuery({
-    queryKey: ['leads-dashboard-funnel'],
-    queryFn: () => leadsApi.getDashboardFunnel(),
-    enabled: view === 'dashboard',
-  });
-
-  const sourceQ = useQuery({
-    queryKey: ['leads-dashboard-source'],
-    queryFn: () => leadsApi.getDashboardSource(),
-    enabled: view === 'dashboard',
-  });
-
-  const trendQ = useQuery({
-    queryKey: ['leads-dashboard-trend'],
-    queryFn: () => leadsApi.getDashboardTrend(),
-    enabled: view === 'dashboard',
-  });
+  // Dashboard queries removed - handled by LeadAnalyticsDashboard component
+  // to avoid duplicate API calls
   const [sort, setSort] = useState({ key: null, dir: 'asc' });
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const [showColumnsDropdown, setShowColumnsDropdown] = useState(false);
@@ -1019,8 +1004,26 @@ const CRMPage = () => {
       const params = {
         page,
         limit: pageSize,
-        search,
+        search: debouncedSearch,
       };
+
+      // Wire existing UI filters to backend where supported (single-value)
+      if (Array.isArray(filterStages) && filterStages.length === 1) {
+        params.statusKey = filterStages[0];
+      }
+      if (Array.isArray(filterSources) && filterSources.length === 1) {
+        params.source = filterSources[0];
+      }
+      if (Array.isArray(filterScoreRanges) && filterScoreRanges.length === 1) {
+        const r = filterScoreRanges[0];
+        if (r?.min !== '' && r?.min !== undefined) params.minScore = r.min;
+        if (r?.max !== '' && r?.max !== undefined) params.maxScore = r.max;
+      }
+      if (Array.isArray(filterValueRanges) && filterValueRanges.length === 1) {
+        const r = filterValueRanges[0];
+        if (r?.min !== '' && r?.min !== undefined) params.minValue = r.min;
+        if (r?.max !== '' && r?.max !== undefined && r?.max !== '∞') params.maxValue = r.max;
+      }
 
       // Add date range filter
       const { startDate, endDate } = getDateRangeFromPreset(dateRangeFilter.type);
@@ -1039,10 +1042,19 @@ const CRMPage = () => {
         params.quickFilter = quickFilter;
       }
       const result = await leadsApi.getAll(params);
-      // Handle nested response structure: { success: true, data: { data: [], total: 0 } }
-      const leadsData = result.data?.data || result.data || [];
+
+      // Backend returns: { success, data: [], total, page, pages }
+      const leadsData = Array.isArray(result?.data) ? result.data : (result?.data?.data || result?.data || []);
       console.log('[DEBUG] Raw leads from API:', leadsData.slice(0, 3).map(l => ({ name: l.name, status: l.status, statusKey: l.statusKey })));
-      const totalCount = result.data?.total || result.total || 0;
+      const totalCount = Number(result?.total || result?.data?.total || 0);
+      const currentPage = Number(result?.page || page || 1);
+      const totalPages = Number(result?.pages || 1);
+
+      if (currentPage > totalPages && totalPages > 0) {
+        setPage(totalPages);
+        return;
+      }
+
       setActiveLeads(leadsData);
       setTotalLeads(totalCount);
       setError(null);
@@ -1052,15 +1064,28 @@ const CRMPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, search, sort.key, sort.dir, quickFilter, dateRangeFilter.type, getDateRangeFromPreset]);
+  }, [page, pageSize, debouncedSearch, sort.key, sort.dir, quickFilter, dateRangeFilter.type, getDateRangeFromPreset, filterStages, filterSources, filterScoreRanges, filterValueRanges]);
 
   useEffect(() => {
     fetchLeads();
   }, [fetchLeads]);
 
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
   // Row Actions with real API calls
   const handleViewLead = (lead) => {
-    setSelectedLead(lead);
+    // Reset previous selection first to prevent stale data
+    setSelectedLead(null);
+    // Then set new lead after a micro-task to ensure clean render
+    setTimeout(() => {
+      setSelectedLead(lead);
+    }, 0);
   };
 
   const handleViewTracker = (lead) => {
@@ -1069,6 +1094,7 @@ const CRMPage = () => {
   };
 
   const handleEditLead = (lead) => {
+    editingLeadOriginalRef.current = lead;
     setEditingLead(lead);
     setShowEditModal(true);
   };
@@ -1078,8 +1104,10 @@ const CRMPage = () => {
     try {
       setActionLoading(true);
 
+      const originalAssignedTo = (editingLeadOriginalRef.current || {})?.assignedTo;
+
       // Handle lead assignment if changed
-      if (editingLead.assignedTo && editingLead.assignedTo !== selectedLead?.assignedTo) {
+      if (editingLead.assignedTo && editingLead.assignedTo !== originalAssignedTo) {
         await leadsApi.assignLead(editingLead._id, editingLead.assignedTo);
       }
 
@@ -1103,11 +1131,11 @@ const CRMPage = () => {
       // If detail modal is open, refresh it
       if (selectedLead && selectedLead._id === editingLead._id) {
         const updated = await leadsApi.getById(editingLead._id);
-        setSelectedLead(updated.data || updated);
+        setSelectedLead(updated?.data?.data || updated?.data || updated);
       }
     } catch (err) {
       console.error('Failed to update lead:', err);
-      // Alert removed as per user request - no alerts on lead pages
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to update lead');
     } finally {
       setActionLoading(false);
     }
@@ -1117,7 +1145,7 @@ const CRMPage = () => {
     try {
       setActionLoading(true);
       const duplicated = await leadsApi.duplicate(lead._id);
-      logCreate(duplicated.data || duplicated);
+      logCreate(duplicated?.data?.data || duplicated?.data || duplicated);
       fetchLeads(); // Refresh list
     } catch (err) {
       console.error('Failed to duplicate lead:', err);
@@ -1148,6 +1176,8 @@ const CRMPage = () => {
       await leadsApi.delete(lead._id);
       logDelete(lead);
       toast.success(`Lead "${lead.name}" deleted successfully`);
+      setActiveLeads((prev) => (Array.isArray(prev) ? prev.filter((l) => l?._id !== lead._id) : prev));
+      setTotalLeads((prev) => Math.max(0, Number(prev || 0) - 1));
       fetchLeads(); // Refresh list
       if (selectedLead && selectedLead._id === lead._id) {
         setSelectedLead(null); // Close detail modal
@@ -1203,7 +1233,7 @@ const CRMPage = () => {
       setActionLoading(true);
 
       // Update lead stage to 'survey'
-      await leadsApi.update(lead._id || lead.id, { stage: 'survey' });
+      await leadsApi.updateStage(lead._id || lead.id, 'survey');
 
       // Create a pending survey for this lead
       const surveyData = {
@@ -1317,6 +1347,8 @@ const CRMPage = () => {
       await leadsApi.bulkDelete(selectedIds);
       logDelete({ ids: selectedIds });
       toast.success(`${selectedIds.length} leads deleted successfully`);
+      setActiveLeads((prev) => (Array.isArray(prev) ? prev.filter((l) => !selectedIds.includes(l?._id)) : prev));
+      setTotalLeads((prev) => Math.max(0, Number(prev || 0) - Number(selectedIds?.length || 0)));
       fetchLeads();
       setSelected(new Set());
     } catch (err) {
@@ -1335,15 +1367,32 @@ const CRMPage = () => {
     setFilteredUsers([]);
     setShowAssignModal(true);
 
-    // Load roles when modal opens
+    // Load roles and employees when modal opens
     try {
       setRolesLoading(true);
-      const result = await leadsApi.getRoles();
-      const rolesData = result.data?.data || result.data || [];
+      
+      console.log('[ASSIGN] Opening Assign Leads modal...');
+      
+      // Fetch all roles
+      const rolesResult = await leadsApi.getRoles();
+      const rolesData = rolesResult.data?.data || rolesResult.data || [];
+      console.log('[ASSIGN] Fetched roles:', rolesData);
       setRoles(Array.isArray(rolesData) ? rolesData : []);
+      
+      // Fetch all employees upfront
+      const employeesResult = await leadsApi.getAllEmployees();
+      const employeesData = employeesResult.data?.data || employeesResult.data || [];
+      console.log('[ASSIGN] Fetched employees:', employeesData);
+      setAllEmployees(Array.isArray(employeesData) ? employeesData : []);
+      
+      if (rolesData.length === 0) {
+        console.warn('[ASSIGN] No roles found in system');
+      }
+      
     } catch (err) {
-      console.error('Failed to fetch roles:', err);
+      console.error('Failed to fetch roles/employees:', err);
       setRoles([]);
+      setAllEmployees([]);
     } finally {
       setRolesLoading(false);
     }
@@ -1355,6 +1404,7 @@ const CRMPage = () => {
     setSelectedAssignUser('');
     setSelectedRole('');
     setFilteredUsers([]);
+    setAllEmployees([]);
   };
 
   // Score Boost Handlers
@@ -1387,21 +1437,55 @@ const CRMPage = () => {
     }
   };
 
-  const handleRoleChange = async (roleId) => {
-    setSelectedRole(roleId);
+  const handleRoleChange = async (roleName) => {
+    console.log('[ASSIGN] Role selected:', roleName);
+    
+    setSelectedRole(roleName);
     setSelectedAssignUser('');
     setFilteredUsers([]);
 
-    if (!roleId) return;
+    if (!roleName) return;
 
-    // Fetch users by selected role
+    // Filter employees by selected role using roleId matching
     try {
       setUsersLoading(true);
-      const result = await leadsApi.getUsersByRole(roleId);
-      const usersData = result.data?.data || result.data || [];
-      setFilteredUsers(Array.isArray(usersData) ? usersData : []);
+      
+      // Find the role ID that matches the selected role name
+      const matchingRole = roles.find(r => {
+        const roleNameMatch = r.name?.toLowerCase() === roleName.toLowerCase();
+        return roleNameMatch;
+      });
+      
+      console.log('[ASSIGN] Matching role found:', matchingRole);
+      
+      if (!matchingRole) {
+        console.warn(`No role found matching: ${roleName}`);
+        setFilteredUsers([]);
+        setUsersLoading(false);
+        return;
+      }
+      
+      const selectedRoleId = matchingRole._id || matchingRole.id;
+      
+      // Filter employees where emp.roleId matches the selected role ID
+      const filtered = allEmployees.filter(emp => {
+        // Create display name from firstName + lastName
+        emp.name = `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || emp.email;
+        
+        // Match by roleId (exact ID match, case-insensitive)
+        const empRoleId = emp.roleId?.toLowerCase() || '';
+        const selectedRoleIdLower = selectedRoleId.toLowerCase();
+        
+        return empRoleId === selectedRoleIdLower;
+      });
+      
+      console.log(`[ASSIGN] Filtered ${filtered.length} employees for role "${roleName}" (ID: ${selectedRoleId})`);
+      console.log('[ASSIGN] Filtered employees:', filtered);
+      
+      setFilteredUsers(filtered);
+      
     } catch (err) {
-      console.error('Failed to fetch users by role:', err);
+      console.error('Failed to filter employees by role:', err);
       setFilteredUsers([]);
     } finally {
       setUsersLoading(false);
@@ -1715,20 +1799,8 @@ const CRMPage = () => {
       );
     }
 
-    // Search filter
-    if (search) {
-      const searchLower = search.toLowerCase();
-      result = result.filter(lead =>
-        lead.name?.toLowerCase().includes(searchLower) ||
-        lead.email?.toLowerCase().includes(searchLower) ||
-        lead.company?.toLowerCase().includes(searchLower) ||
-        lead.phone?.includes(search) ||
-        lead.source?.toLowerCase().includes(searchLower)
-      );
-    }
-
     return result;
-  }, [enhancedLeads, quickFilter, filterStages, filterScoreRanges, filterValueRanges, filterSources, search]);
+  }, [enhancedLeads, quickFilter, filterStages, filterScoreRanges, filterValueRanges, filterSources]);
 
   // Sort handler for DataTable
   const handleSort = useCallback(({ key, dir }) => {
@@ -1801,27 +1873,10 @@ const CRMPage = () => {
     setPage(1);
   };
   const sortedLeads = useMemo(() => {
-    if (!sort.key) return filteredLeads;
-
-    return [...filteredLeads].sort((a, b) => {
-      let aVal = a[sort.key];
-      let bVal = b[sort.key];
-
-      // Handle null/undefined values
-      if (aVal == null) aVal = '';
-      if (bVal == null) bVal = '';
-
-      // String comparison
-      if (typeof aVal === 'string') {
-        aVal = aVal.toLowerCase();
-        bVal = bVal.toLowerCase();
-      }
-
-      if (aVal < bVal) return sort.dir === 'asc' ? -1 : 1;
-      if (aVal > bVal) return sort.dir === 'asc' ? 1 : -1;
-      return 0;
-    });
-  }, [filteredLeads, sort]);
+    // Sorting is handled by backend via `fetchLeads` params.
+    // Keep local list order as received.
+    return filteredLeads;
+  }, [filteredLeads]);
 
   const columns = useMemo(() => {
     const allColumns = [
@@ -1902,26 +1957,36 @@ const CRMPage = () => {
     
     try {
       setActionLoading(true);
-      toast.loading('Importing leads...', { id: 'import' });
+      toast.info('Importing leads...');
 
       // Use backend API for import
       const result = await leadsApi.importLeads(file);
-      const { inserted, updated, failed, errors } = result.data || result;
+      const payload = result?.data?.data || result?.data || result;
+      const { inserted, updated, failed, errors } = payload || {};
       
       // Log import activity
-      logCreate({ id: 'import', name: `Imported ${inserted} leads from ${file.name}` });
+      logCreate({ id: 'import', name: `Imported ${inserted || 0} leads from ${file.name}` });
       
       // Show result
-      if (failed === 0) {
-        toast.success(`${inserted} leads imported, ${updated} updated successfully`, { id: 'import' });
+      if ((failed || 0) === 0) {
+        toast.success(`${inserted || 0} leads imported, ${updated || 0} updated successfully`, { id: 'import' });
       } else {
-        toast.success(`${inserted} imported, ${updated} updated, ${failed} failed`, { id: 'import' });
+        toast.success(`${inserted || 0} imported, ${updated || 0} updated, ${failed || 0} skipped`, { id: 'import' });
         if (errors && errors.length > 0) {
           console.error('Import errors:', errors);
+          // Show detailed error message for first few failures
+          const errorSummary = errors.slice(0, 5).map(e => `Row ${e.row}: ${e.reason}`).join('\n');
+          const remainingErrors = errors.length - 5;
+          const fullErrorMessage = `${errorSummary}${remainingErrors > 0 ? `\n... and ${remainingErrors} more errors` : ''}`;
+          console.log('Detailed import errors:\n', fullErrorMessage);
         }
       }
-      
-      fetchLeads(); // Refresh list
+
+      const wasPageOne = page === 1;
+      setPage(1);
+      if (wasPageOne) {
+        await fetchLeads();
+      }
     } catch (err) {
       console.error('Import failed:', err);
       toast.error(err?.response?.data?.message || 'Failed to import leads', { id: 'import' });
@@ -2570,7 +2635,7 @@ const CRMPage = () => {
               {/* Results Count */}
               <div className="flex justify-end pt-2 mt-2 border-t border-[var(--border-base)]">
                 <span className="text-[10px] text-[var(--text-muted)]">
-                  {filteredLeads.length} leads found
+                  {totalLeads} leads found
                 </span>
               </div>
             </div>
@@ -2579,7 +2644,7 @@ const CRMPage = () => {
             columns={columns}
             data={sortedLeads}
             rowKey="_id"
-            total={sortedLeads.length}
+            total={totalLeads}
             page={page}
             pageSize={pageSize}
             onPageChange={setPage}
@@ -2631,38 +2696,10 @@ const CRMPage = () => {
             onSelectRows={setSelected}
             bulkActions={[
               ...(can('crm', 'export') ? [{
-                label: 'Export', icon: Download, onClick: (selectedIds) => {
-                  if (guardExport()) {
-                    const selectedIdSet = new Set(selectedIds.map(id => String(id)));
-                    const dataToExport = selectedIds.length > 0
-                      ? sortedLeads.filter(lead => selectedIdSet.has(String(lead._id)))
-                      : sortedLeads;
-                    const headers = ['Name', 'Company', 'Email', 'Phone', 'Stage', 'Source', 'Value', 'Score', 'City'];
-                    const csvContent = [
-                      headers.join(','),
-                      ...dataToExport.map(lead => [
-                        `"${lead.name || ''}"`,
-                        `"${lead.company || ''}"`,
-                        `"${lead.email || ''}"`,
-                        `"${lead.phone || ''}"`,
-                        `"${statusMap?.[lead.statusKey]?.label || lead.statusKey || ''}"`,
-                        `"${lead.source || ''}"`,
-                        lead.value || 0,
-                        lead.score || 0,
-                        `"${lead.city || ''}"`
-                      ].join(','))
-                    ].join('\n');
-
-                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                    const link = document.createElement('a');
-                    const url = URL.createObjectURL(blob);
-                    link.setAttribute('href', url);
-                    link.setAttribute('download', `leads_export_${new Date().toISOString().split('T')[0]}.csv`);
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    alert(`Exported ${dataToExport.length} leads to CSV!`);
-                  }
+                label: 'Export',
+                icon: Download,
+                onClick: (selectedIds) => {
+                  if (guardExport()) handleBulkExport(selectedIds);
                 }
               }] : []),
               ...(can('crm', 'edit') ? [{ label: 'Score Boost', icon: Brain, onClick: (selectedIds) => { if (guardEdit()) handleOpenScoreBoostModal(selectedIds); } }] : []),
@@ -2783,7 +2820,7 @@ const CRMPage = () => {
           <Modal
             open={!!selectedLead}
             onClose={() => setSelectedLead(null)}
-            title={`Lead Details — ${selectedLead.name}`}
+            title={`Lead Details — ${selectedLead.name || 'Unknown'}`}
             footer={
               <div className="flex gap-2 justify-end">
                 <Button variant="ghost" onClick={() => setSelectedLead(null)}>Close</Button>
@@ -2800,17 +2837,17 @@ const CRMPage = () => {
                 <div
                   className="w-16 h-16 rounded-2xl flex items-center justify-center text-xl font-bold shrink-0 shadow-lg"
                   style={{
-                    background: `linear-gradient(135deg, ${avatarColor(selectedLead.name)}30, ${avatarColor(selectedLead.name)}10)`,
-                    color: avatarColor(selectedLead.name),
-                    border: `2px solid ${avatarColor(selectedLead.name)}35`,
+                    background: `linear-gradient(135deg, ${avatarColor(selectedLead.name || '')}30, ${avatarColor(selectedLead.name || '')}10)`,
+                    color: avatarColor(selectedLead.name || ''),
+                    border: `2px solid ${avatarColor(selectedLead.name || '')}35`,
                   }}
                 >
-                  {selectedLead.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                  {(selectedLead.name || '').split(' ').map(n => n[0]).join('').slice(0, 2)}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <h3 className="text-lg font-bold text-[var(--text-primary)]">{selectedLead.name}</h3>
+                      <h3 className="text-lg font-bold text-[var(--text-primary)]">{selectedLead.name || 'Unknown Lead'}</h3>
                       <p className="text-xs text-[var(--text-muted)] mt-0.5 flex items-center gap-1">
                         <Building2 size={11} /> {selectedLead.company || 'Individual'}
                       </p>
@@ -2835,13 +2872,13 @@ const CRMPage = () => {
                 </div>
               </div>
 
-              {/* Info grid */}
+              {/* Info grid - STRICT field mapping from selectedLead */}
               <div className="grid grid-cols-2 gap-2.5">
                 {[
-                  ['Email', selectedLead.email, Mail, 'blue'],
-                  ['Phone', selectedLead.phone, Phone, 'emerald'],
-                  ['City', `${selectedLead.city || '—'}, ${selectedLead.state || ''}`, MapPin, 'purple'],
-                  ['Source', selectedLead.source, BarChart2, 'amber'],
+                  ['Email', selectedLead.email || '—', Mail, 'blue'],
+                  ['Phone', selectedLead.phone || '—', Phone, 'emerald'],
+                  ['City', `${selectedLead.city || '—'}${selectedLead.state ? `, ${selectedLead.state}` : ''}`, MapPin, 'purple'],
+                  ['Source', selectedLead.source || '—', BarChart2, 'amber'],
                   ['Pipeline Value', fmt(selectedLead.value || 0), DollarSign, 'green'],
                   ['System Size', `${selectedLead.kw || selectedLead.capacity || '0 kW'}`, Zap, 'yellow'],
                   ['Roof Area', `${selectedLead.roofArea || '—'} m²`, Activity, 'cyan'],
@@ -2857,32 +2894,47 @@ const CRMPage = () => {
                         </div>
                         <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">{label}</span>
                       </div>
-                      <p className="text-xs font-semibold text-[var(--text-primary)] truncate">{val}</p>
+                      <p className="text-xs font-semibold text-[var(--text-primary)] truncate" title={val}>{val}</p>
                     </div>
                   );
                 })}
               </div>
 
-              {/* Recent Activity */}
-              {selectedLead.activities && selectedLead.activities.length > 0 && (
+              {/* Recent Activity - Display activities array from selectedLead */}
+              {selectedLead?.activities && selectedLead.activities.length > 0 && (
                 <div>
                   <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2">Recent Activity</p>
                   <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                    {selectedLead.activities.slice(0, 4).map((act, idx) => (
-                      <div key={act.id || `activity-${idx}`} className="flex gap-2.5 text-xs">
-                        <div className="w-6 h-6 rounded-full bg-[var(--bg-elevated)] border border-[var(--border-base)] flex items-center justify-center shrink-0 mt-0.5">
-                          {act.type === 'call' && <Phone size={10} className="text-emerald-400" />}
-                          {act.type === 'email' && <Mail size={10} className="text-blue-400" />}
-                          {act.type === 'whatsapp' && <MessageSquare size={10} className="text-emerald-400" />}
-                          {act.type === 'note' && <Activity size={10} className="text-amber-400" />}
-                          {act.type === 'stage_change' && <GitCommit size={10} className="text-purple-400" />}
+                    {(() => {
+                      // Deduplicate activities by note + timestamp combination
+                      const uniqueActivities = Array.from(
+                        new Map(
+                          selectedLead.activities.map((act, i) => {
+                            // Create unique key from note, timestamp, and index as fallback
+                            const uniqueKey = `${act.note || ''}-${act.ts || act.timestamp || ''}-${i}`;
+                            return [uniqueKey, { ...act, _uniqueKey: uniqueKey }];
+                          })
+                        ).values()
+                      );
+                      
+                      return uniqueActivities.slice(0, 4).map((act, idx) => (
+                        <div key={act._id || act._uniqueKey || `activity-${idx}`} className="flex gap-2.5 text-xs">
+                          <div className="w-6 h-6 rounded-full bg-[var(--bg-elevated)] border border-[var(--border-base)] flex items-center justify-center shrink-0 mt-0.5">
+                            {act.type === 'call' && <Phone size={10} className="text-emerald-400" />}
+                            {act.type === 'email' && <Mail size={10} className="text-blue-400" />}
+                            {act.type === 'whatsapp' && <MessageSquare size={10} className="text-emerald-400" />}
+                            {act.type === 'note' && <Activity size={10} className="text-amber-400" />}
+                            {act.type === 'stage_change' && <GitCommit size={10} className="text-purple-400" />}
+                            {act.type === 'import' && <Download size={10} className="text-cyan-400" />}
+                            {act.type === 'created' && <Plus size={10} className="text-green-400" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[var(--text-secondary)] leading-relaxed">{act.note || 'No description'}</p>
+                            <p className="text-[10px] text-[var(--text-muted)] mt-0.5">{act.ts || act.timestamp || '—'} · {act.by || 'System'}</p>
+                          </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[var(--text-secondary)] leading-relaxed">{act.note}</p>
-                          <p className="text-[10px] text-[var(--text-muted)] mt-0.5">{act.ts} · {act.by}</p>
-                        </div>
-                      </div>
-                    ))}
+                      ));
+                    })()}
                   </div>
                 </div>
               )}
@@ -3148,52 +3200,6 @@ const CRMPage = () => {
         </Modal>
       )}
 
-      {/* SCORE EDIT MODAL */}
-      {showScoreEditModal && scoreEditingLead && (
-        <Modal
-          open={showScoreEditModal}
-          onClose={() => { setShowScoreEditModal(false); setScoreEditingLead(null); }}
-          title={`Edit Score — ${scoreEditingLead.name}`}
-          footer={
-            <div className="flex gap-2 justify-end">
-              <Button variant="ghost" onClick={() => { setShowScoreEditModal(false); setScoreEditingLead(null); }}>Cancel</Button>
-              <Button onClick={handleSaveScore} disabled={actionLoading}>
-                {actionLoading ? 'Saving...' : 'Update Score'}
-              </Button>
-            </div>
-          }
-        >
-          <div className="space-y-4">
-            <div className="flex items-center gap-3 p-4 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)]">
-              <div className="w-12 h-12 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center font-bold text-lg">
-                {scoreEditingLead.name[0]}
-              </div>
-              <div>
-                <p className="font-semibold text-[var(--text-primary)]">{scoreEditingLead.name}</p>
-                <p className="text-xs text-[var(--text-muted)]">{scoreEditingLead.company || 'Individual'}</p>
-              </div>
-            </div>
-            <FormField label="Score (0-100)">
-              <Input
-                type="number"
-                min="0"
-                max="100"
-                value={newScore}
-                onChange={(e) => setNewScore(e.target.value)}
-                placeholder="Enter score between 0 and 100"
-              />
-            </FormField>
-            <div className="flex gap-2">
-              <Button variant="secondary" size="sm" onClick={() => setNewScore('0')}>0</Button>
-              <Button variant="secondary" size="sm" onClick={() => setNewScore('25')}>25</Button>
-              <Button variant="secondary" size="sm" onClick={() => setNewScore('50')}>50</Button>
-              <Button variant="secondary" size="sm" onClick={() => setNewScore('75')}>75</Button>
-              <Button variant="secondary" size="sm" onClick={() => setNewScore('100')}>100</Button>
-            </div>
-          </div>
-        </Modal>
-      )}
-
       {/* ASSIGN LEADS MODAL */}
       {showAssignModal && (
         <Modal
@@ -3223,7 +3229,7 @@ const CRMPage = () => {
               >
                 <option value="">{rolesLoading ? 'Loading roles...' : 'Select Role'}</option>
                 {roles.map((role) => (
-                  <option key={role._id || role.id} value={role._id || role.id}>
+                  <option key={role._id || role.id} value={role.name}>
                     {role.name}
                   </option>
                 ))}
@@ -3242,7 +3248,9 @@ const CRMPage = () => {
                     ? 'Select role first'
                     : usersLoading
                       ? 'Loading users...'
-                      : 'Select User'
+                      : filteredUsers.length === 0
+                        ? 'No users available for this role'
+                        : 'Select User'
                   }
                 </option>
                 {filteredUsers.map((user) => (

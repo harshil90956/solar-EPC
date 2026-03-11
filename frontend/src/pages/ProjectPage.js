@@ -3,7 +3,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   FolderOpen, Plus, Calendar, CheckCircle, Zap, TrendingUp, BarChart2,
   LayoutGrid, List, User, Clock, Trash2, Edit2, Clock3, History,
-  Eye, Check, EyeOff, Layers
+  Eye, Check, EyeOff, Layers, Download
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, PieChart, Pie, Cell } from 'recharts';
 import { PROJECT_STAGE_TREND } from '../data/mockData';
@@ -22,6 +22,7 @@ import { useAuditLog } from '../hooks/useAuditLog';
 import CanAccess, { CanCreate } from '../components/CanAccess';
 import { toast } from '../components/ui/Toast';
 import { api } from '../lib/apiClient';
+import ImportExport from '../components/ui/ImportExport';
 
 const fmt = CURRENCY.format;
 
@@ -161,8 +162,11 @@ const ProjectPage = () => {
   const [pageSize, setPageSize] = useState(APP_CONFIG.defaultPageSize);
   const [showAdd, setShowAdd] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
-  const [showStatus, setShowStatus] = useState(false);
+  const [showCardsInViews, setShowCardsInViews] = useState(true);
+  const [showBackwardsConfirm, setShowBackwardsConfirm] = useState(false);
+  const [backwardsMoveData, setBackwardsMoveData] = useState(null);
   const [showTimeline, setShowTimeline] = useState(false);
+  const [showStatus, setShowStatus] = useState(false);
   const [showActivity, setShowActivity] = useState(false);
   const [timelineProject, setTimelineProject] = useState(null);
   const [activityProject, setActivityProject] = useState(null);
@@ -171,6 +175,7 @@ const ProjectPage = () => {
   const [editingProject, setEditingProject] = useState(null);
   const [selected, setSelected] = useState(null);
   const [projects, setProjects] = useState([]);
+  const [selectedProjects, setSelectedProjects] = useState(new Set()); // For bulk selection
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [form, setForm] = useState({ customerName: '', site: '', systemSize: '', pm: '', value: '', estEndDate: '', email: '', mobileNumber: '', materials: [] });
@@ -183,7 +188,6 @@ const ProjectPage = () => {
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [hiddenCols, setHiddenCols] = useState(new Set());
-  const [showCardsInViews, setShowCardsInViews] = useState(false);
   const [colToggleOpen, setColToggleOpen] = useState(false);
   const [projectStats, setProjectStats] = useState(null);
   const [projectsByStage, setProjectsByStage] = useState([]);
@@ -328,6 +332,132 @@ const ProjectPage = () => {
     fetchProjectReservations();
   }, [selected?.projectId]);
 
+  // Stage order for detecting backwards moves
+  const STAGE_ORDER = ['Survey', 'Design', 'Quotation', 'Procurement', 'Installation', 'Commissioned', 'On Hold', 'Cancelled'];
+
+  // Import/Export fields definition
+  const PROJECT_IMPORT_FIELDS = [
+    { id: 'projectId', label: 'Project ID', required: false },
+    { id: 'customerName', label: 'Customer Name', required: true },
+    { id: 'site', label: 'Site Address', required: true },
+    { id: 'systemSize', label: 'System Size (kW)', required: true },
+    { id: 'pm', label: 'Project Manager', required: true },
+    { id: 'value', label: 'Project Value', required: false },
+    { id: 'status', label: 'Status', required: false },
+    { id: 'progress', label: 'Progress (%)', required: false },
+    { id: 'email', label: 'Email', required: false },
+    { id: 'mobileNumber', label: 'Mobile Number', required: false },
+    { id: 'estEndDate', label: 'Estimated End Date', required: false },
+    { id: 'startDate', label: 'Start Date', required: false },
+  ];
+
+  // Export handler
+  const handleExport = (format) => {
+    const dataToExport = filtered.map(p => ({
+      projectId: p.id,
+      customerName: p.customerName,
+      site: p.site,
+      systemSize: p.systemSize,
+      pm: p.pm,
+      value: p.value,
+      status: p.status,
+      progress: p.progress,
+      email: p.email || '',
+      mobileNumber: p.mobileNumber || '',
+      estEndDate: p.estEndDate || '',
+      startDate: p.startDate || '',
+    }));
+
+    if (format === 'csv') {
+      const headers = PROJECT_IMPORT_FIELDS.map(f => f.label).join(',');
+      const rows = dataToExport.map(row => 
+        PROJECT_IMPORT_FIELDS.map(f => {
+          const val = row[f.id] ?? '';
+          // Escape values with commas or quotes
+          if (String(val).includes(',') || String(val).includes('"')) {
+            return `"${String(val).replace(/"/g, '""')}"`;
+          }
+          return val;
+        }).join(',')
+      ).join('\n');
+      
+      const csvContent = [headers, rows].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `projects_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
+  // Import handler
+  const handleImport = async ({ file, mapping }) => {
+    try {
+      const Papa = await import('papaparse');
+      const text = await file.text();
+      
+      const { data } = Papa.parse(text, {
+        header: true,
+        skipEmptyLines: true,
+        dynamicTyping: true
+      });
+
+      // Filter valid rows
+      const validRows = data.filter(row => 
+        Object.values(row).some(v => v && String(v).trim() !== '')
+      );
+
+      // Process each row and create projects
+      const importedProjects = [];
+      for (const row of validRows) {
+        const newProject = {
+          projectId: row.projectId || `P${Date.now().toString().slice(-4)}${Math.random().toString(36).substr(2, 3).toUpperCase()}`,
+          customerName: row.customerName || row.customer || '',
+          site: row.site || row.siteAddress || '',
+          systemSize: parseFloat(row.systemSize) || 0,
+          pm: row.pm || row.projectManager || '',
+          value: parseFloat(row.value) || 0,
+          status: row.status || 'Survey',
+          progress: parseInt(row.progress) || 0,
+          email: row.email || '',
+          mobileNumber: row.mobileNumber || row.phone || '',
+          estEndDate: row.estEndDate || '',
+          startDate: row.startDate || new Date().toISOString().split('T')[0],
+          milestones: [
+            { name: 'Material Ready', status: 'Pending', date: null },
+            { name: 'Installation', status: 'Pending', date: null },
+            { name: 'Commission', status: 'Pending', date: null },
+            { name: 'Billing', status: 'Pending', date: null },
+            { name: 'Closure', status: 'Pending', date: null }
+          ],
+          materials: []
+        };
+
+        try {
+          const created = await api.post(`/projects?tenantId=${TENANT_ID}`, newProject);
+          const projectData = created?.data ?? created;
+          importedProjects.push({ ...projectData, id: projectData.projectId });
+        } catch (err) {
+          console.error('Failed to import project:', row, err);
+        }
+      }
+
+      // Update local state with imported projects
+      if (importedProjects.length > 0) {
+        setProjects(prev => [...prev, ...importedProjects]);
+        alert(`Successfully imported ${importedProjects.length} projects!`);
+      } else {
+        alert('No projects were imported. Please check your CSV file.');
+      }
+    } catch (err) {
+      console.error('Import error:', err);
+      alert('Failed to import projects: ' + err.message);
+    }
+  };
+
   const handleStageChange = async (id, newStage) => {
     // Get current user role from localStorage
     const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -339,24 +469,73 @@ const ProjectPage = () => {
       return;
     }
 
-    // Optimistic update
     const project = projects.find(p => p.id === id);
-    setProjects(prev => prev.map(p => p.id === id ? { ...p, status: newStage } : p));
+    const currentStage = project?.status;
+    
+    // Check if this is a backwards move
+    const currentIndex = STAGE_ORDER.indexOf(currentStage);
+    const newIndex = STAGE_ORDER.indexOf(newStage);
+    const isBackwardsMove = newIndex < currentIndex;
+
+    // If backwards move, show confirmation dialog
+    if (isBackwardsMove && currentStage !== newStage) {
+      setBackwardsMoveData({ id, newStage, currentStage, projectName: project?.customerName });
+      setShowBackwardsConfirm(true);
+      return;
+    }
+
+    // Proceed with stage change
+    await executeStageChange(id, newStage);
+  };
+
+  const executeStageChange = async (id, newStage) => {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userRole = user?.role;
+    const project = projects.find(p => p.id === id);
+    const currentStage = project?.status;
+    
+    // Calculate progress based on stage movement
+    const totalStages = STAGE_ORDER.length - 2; // Exclude On Hold and Cancelled
+    const currentIndex = STAGE_ORDER.indexOf(newStage);
+    let newProgress = project?.progress || 0;
+    
+    if (currentIndex >= 0 && currentIndex < totalStages) {
+      // Calculate percentage based on stage position
+      newProgress = Math.round(((currentIndex + 1) / totalStages) * 100);
+    } else if (newStage === 'Commissioned') {
+      newProgress = 100;
+    } else if (newStage === 'On Hold') {
+      // Keep existing progress when on hold
+      newProgress = project?.progress || 0;
+    }
+    
+    // Optimistic update
+    setProjects(prev => prev.map(p => p.id === id ? { ...p, status: newStage, progress: newProgress } : p));
     logStatusChange(project, project.status, newStage);
 
     // API call to update status
     try {
-      await api.patch(`/projects/${id}/status?tenantId=${TENANT_ID}`, { status: newStage, userRole });
+      await api.patch(`/projects/${id}/status?tenantId=${TENANT_ID}`, { status: newStage, progress: newProgress, userRole });
     } catch (err) {
       console.error('Error updating project status:', err);
       alert(err.message || 'Failed to update project status');
       // Revert the change
-      setProjects(prev => prev.map(p => p.id === id ? { ...p, status: p.status } : p));
+      setProjects(prev => prev.map(p => p.id === id ? { ...p, status: project.status, progress: project.progress } : p));
     }
   };
 
-  // Define the correct stage order
-  const STAGE_ORDER = ['Survey', 'Design', 'Quotation', 'Procurement', 'Installation', 'Commissioned', 'On Hold'];
+  const handleConfirmBackwardsMove = async () => {
+    if (backwardsMoveData) {
+      await executeStageChange(backwardsMoveData.id, backwardsMoveData.newStage);
+    }
+    setShowBackwardsConfirm(false);
+    setBackwardsMoveData(null);
+  };
+
+  const handleCancelBackwardsMove = () => {
+    setShowBackwardsConfirm(false);
+    setBackwardsMoveData(null);
+  };
 
   // Sort projects by stage according to the defined order
   const sortedProjectsByStage = useMemo(() => {
@@ -1106,9 +1285,17 @@ const ProjectPage = () => {
                   className={`filter-chip ${progressFilter === p.value ? 'filter-chip-active' : ''}`}>{p.label}</button>
               ))}
             </div>
-            <Button size="sm" variant="secondary" onClick={() => setColToggleOpen(p => !p)}>
-              <Eye size={12} /> Columns
-            </Button>
+            <div className="flex items-center gap-2">
+              <ImportExport 
+                moduleName="Projects" 
+                fields={PROJECT_IMPORT_FIELDS}
+                onExport={handleExport}
+                onImport={handleImport}
+              />
+              <Button size="sm" variant="secondary" onClick={() => setColToggleOpen(p => !p)}>
+                <Eye size={12} /> Columns
+              </Button>
+            </div>
             {colToggleOpen && (
               <>
                 <div className="fixed inset-0 z-30" onClick={() => setColToggleOpen(false)} />
@@ -1142,7 +1329,52 @@ const ProjectPage = () => {
             onHiddenColsChange={setHiddenCols}
             hideColumnToggle={true}
             rowActions={ROW_ACTIONS} emptyText="No projects found."
-            onRowClick={row => setSelected(row)} />
+            onRowClick={row => setSelected(row)}
+            selectedRows={selectedProjects}
+            onSelectRows={setSelectedProjects}
+            bulkActions={[
+              { 
+                label: 'Export Selected', 
+                icon: Download, 
+                onClick: (selectedIds) => {
+                  const selectedData = filtered.filter(p => selectedIds.has(p.id));
+                  const dataToExport = selectedData.map(p => ({
+                    projectId: p.id,
+                    customerName: p.customerName,
+                    site: p.site,
+                    systemSize: p.systemSize,
+                    pm: p.pm,
+                    value: p.value,
+                    status: p.status,
+                    progress: p.progress,
+                    email: p.email || '',
+                    mobileNumber: p.mobileNumber || '',
+                    estEndDate: p.estEndDate || '',
+                    startDate: p.startDate || '',
+                  }));
+                  const headers = PROJECT_IMPORT_FIELDS.map(f => f.label).join(',');
+                  const rows = dataToExport.map(row => 
+                    PROJECT_IMPORT_FIELDS.map(f => {
+                      const val = row[f.id] ?? '';
+                      if (String(val).includes(',') || String(val).includes('"')) {
+                        return `"${String(val).replace(/"/g, '""')}"`;
+                      }
+                      return val;
+                    }).join(',')
+                  ).join('\n');
+                  const csvContent = [headers, rows].join('\n');
+                  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                  const link = document.createElement('a');
+                  const url = URL.createObjectURL(blob);
+                  link.setAttribute('href', url);
+                  link.setAttribute('download', `projects_selected_${new Date().toISOString().split('T')[0]}.csv`);
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  setSelectedProjects(new Set()); // Clear selection after export
+                }
+              }
+            ]} />
         </>
       )}
 
@@ -1202,46 +1434,6 @@ const ProjectPage = () => {
             </FormField>
             <FormField label="Estimated End Date"><Input type="date" value={form.estEndDate} onChange={e => setForm(f => ({ ...f, estEndDate: e.target.value }))} /></FormField>
           </div>
-
-          {/* Materials Section */}
-          <div className="border-t border-[var(--border-base)] pt-3 mt-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-xs font-semibold text-[var(--text-primary)]">Required Materials</div>
-              <Button variant="ghost" size="sm" onClick={addMaterial}><Plus size={13} /> Add Item</Button>
-            </div>
-            {form.materials.map((material, index) => (
-              <div key={index} className="space-y-2 mb-3 p-3 bg-[var(--bg-tertiary)] rounded-lg">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-[var(--text-muted)]">Item #{index + 1}</span>
-                  <Button variant="ghost" size="sm" className="text-red-500" onClick={() => removeMaterial(index)}>
-                    <Trash2 size={12} />
-                  </Button>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <FormField label="Item">
-                    <Select value={material.itemId} onChange={e => updateMaterial(index, 'itemId', e.target.value)}>
-                      <option value="">{itemsLoading ? 'Loading...' : 'Select Item'}</option>
-                      {items.map(item => (
-                        <option key={item._id || item.id} value={item._id || item.id}>
-                          {item.description || item.name} ({item.warehouse}) - Stock: {item.stock || 0}
-                        </option>
-                      ))}
-                    </Select>
-                  </FormField>
-                  <FormField label="Quantity">
-                    <Input type="number" placeholder="50" value={material.quantity} onChange={e => updateMaterial(index, 'quantity', e.target.value)} />
-                  </FormField>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <FormField label="Issue Date"><Input type="date" value={material.issuedDate} onChange={e => updateMaterial(index, 'issuedDate', e.target.value)} /></FormField>
-                  <FormField label="Remarks"><Input placeholder="Notes..." value={material.remarks} onChange={e => updateMaterial(index, 'remarks', e.target.value)} /></FormField>
-                </div>
-              </div>
-            ))}
-            {form.materials.length === 0 && (
-              <p className="text-xs text-[var(--text-muted)] text-center py-4">No materials added. Click "Add Item" to select materials for this project.</p>
-            )}
-          </div>
         </div>
       </Modal>
 
@@ -1272,46 +1464,6 @@ const ProjectPage = () => {
               </Select>
             </FormField>
             <FormField label="Estimated End Date"><Input type="date" value={editForm.estEndDate} onChange={e => setEditForm(f => ({ ...f, estEndDate: e.target.value }))} /></FormField>
-          </div>
-
-          {/* Materials Section */}
-          <div className="border-t border-[var(--border-base)] pt-3 mt-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-xs font-semibold text-[var(--text-primary)]">Required Materials</div>
-              <Button variant="ghost" size="sm" onClick={addEditMaterial}><Plus size={13} /> Add Item</Button>
-            </div>
-            {(editForm.materials || []).map((material, index) => (
-              <div key={index} className="space-y-2 mb-3 p-3 bg-[var(--bg-tertiary)] rounded-lg">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-[var(--text-muted)]">Item #{index + 1}</span>
-                  <Button variant="ghost" size="sm" className="text-red-500" onClick={() => removeEditMaterial(index)}>
-                    <Trash2 size={12} />
-                  </Button>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <FormField label="Item">
-                    <Select value={material.itemId} onChange={e => updateEditMaterial(index, 'itemId', e.target.value)}>
-                      <option value="">{itemsLoading ? 'Loading...' : 'Select Item'}</option>
-                      {items.map(item => (
-                        <option key={item._id || item.id} value={item._id || item.id}>
-                          {item.description || item.name} ({item.warehouse}) - Stock: {item.stock || 0}
-                        </option>
-                      ))}
-                    </Select>
-                  </FormField>
-                  <FormField label="Quantity">
-                    <Input type="number" placeholder="50" value={material.quantity} onChange={e => updateEditMaterial(index, 'quantity', e.target.value)} />
-                  </FormField>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <FormField label="Issue Date"><Input type="date" value={material.issuedDate} onChange={e => updateEditMaterial(index, 'issuedDate', e.target.value)} /></FormField>
-                  <FormField label="Remarks"><Input placeholder="Notes..." value={material.remarks} onChange={e => updateEditMaterial(index, 'remarks', e.target.value)} /></FormField>
-                </div>
-              </div>
-            ))}
-            {(!editForm.materials || editForm.materials.length === 0) && (
-              <p className="text-xs text-[var(--text-muted)] text-center py-4">No materials added. Click "Add Item" to select materials for this project.</p>
-            )}
           </div>
         </div>
       </Modal>
@@ -1430,20 +1582,19 @@ const ProjectPage = () => {
                     {projectReservations.map((res, idx) => {
                       const item = items.find(i => i.itemId === res.itemId || i._id === res.itemId);
                       const itemName = item?.description || item?.name || res.itemId;
+                      const category = item?.category || 'Item';
+                      // Extract date from notes (format: "Stock issued on YYYY-MM-DD")
+                      const dateMatch = res.notes?.match(/(\d{4}-\d{2}-\d{2})/);
+                      const issuedDate = dateMatch ? dateMatch[1] : (res.createdAt ? res.createdAt.split('T')[0] : '—');
                       return (
                         <div key={`res-${idx}`} className="glass-card p-2 flex items-center justify-between border-l-2 border-amber-400">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-400/20 text-amber-400">{res.status}</span>
-                              <span className="text-xs font-medium text-[var(--text-primary)]">{itemName}</span>
-                            </div>
-                            <div className="text-[10px] text-[var(--text-muted)]">Qty: {res.quantity} | Reserved: {res.reservedDate || '—'}</div>
+                          <div className="flex-1">
+                            <div className="text-xs font-semibold text-[var(--text-primary)]">{itemName} ({category})</div>
+                            <div className="text-[10px] text-[var(--text-muted)]">Qty: {res.quantity} | Issued: {issuedDate}</div>
                           </div>
-                          {res.notes && (
-                            <div className="text-[10px] text-[var(--text-faint)] max-w-[150px] truncate" title={res.notes}>
-                              {res.notes}
-                            </div>
-                          )}
+                          <div className="text-right">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-400/20 text-amber-400">{res.status}</span>
+                          </div>
                         </div>
                       );
                     })}
@@ -1564,6 +1715,25 @@ const ProjectPage = () => {
           </div>
         </Modal>
       )}
+
+      {/* Backwards Move Confirmation Modal */}
+      <Modal open={showBackwardsConfirm} onClose={handleCancelBackwardsMove} title="Confirm Backwards Move"
+        footer={<div className="flex gap-2 justify-end">
+          <Button variant="ghost" onClick={handleCancelBackwardsMove}>Cancel</Button>
+          <Button variant="primary" onClick={handleConfirmBackwardsMove}>Yes, Move Backwards</Button>
+        </div>}>
+        <div className="space-y-3">
+          <p className="text-sm text-[var(--text-secondary)]">
+            Are you sure you want to move project <strong>{backwardsMoveData?.projectName}</strong> backwards?
+          </p>
+          <div className="flex items-center gap-2 text-sm">
+            <span className="px-2 py-1 rounded bg-[var(--bg-elevated)] text-[var(--text-muted)]">{backwardsMoveData?.currentStage}</span>
+            <span>→</span>
+            <span className="px-2 py-1 rounded bg-[var(--primary)]/10 text-[var(--primary)]">{backwardsMoveData?.newStage}</span>
+          </div>
+          <p className="text-xs text-[var(--text-faint)]">This action will revert the project to an earlier stage.</p>
+        </div>
+      </Modal>
 
     </div>
   );

@@ -40,6 +40,455 @@ const COMPANY_DATA = {
 };
 
 // ============================================================
+// 2-PAGE PROFESSIONAL QUOTATION FORMAT
+// Compact, clean, and professional layout
+// ============================================================
+
+export const generate2PageProfessionalPDF = (data, companyData = null) => {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  const company = companyData || {
+    name: 'SUNOVA ENERGY PVT. LTD.',
+    tagline: 'Best Value & Quality Solar Solution',
+    address: 'Surat, Gujarat, India',
+    phone: '+91 98765 43210',
+    tollfree: '1800 XXX XXXX',
+    email: 'info@sunova.com',
+    website: 'www.sunova.com',
+    gstin: '24ABCDE1234F1Z5',
+  };
+
+  // Colors
+  const C = {
+    primary: [0, 105, 92],       // Dark Teal
+    primaryLight: [0, 150, 136], // Light Teal
+    accent: [255, 152, 0],       // Orange/Gold
+    white: [255, 255, 255],
+    black: [0, 0, 0],
+    gray: [97, 97, 97],
+    lightGray: [250, 250, 250],
+    border: [224, 224, 224],
+  };
+
+  const pageWidth = doc.internal.pageSize.width;
+  const pageHeight = doc.internal.pageSize.height;
+  const margin = 15;
+
+  // ============================================
+  // PAGE 1: COVER
+  // ============================================
+  
+  // Header bar
+  doc.setFillColor(...C.primary);
+  doc.rect(0, 0, pageWidth, 40, 'F');
+  
+  // Company name on header
+  doc.setFontSize(22);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...C.white);
+  doc.text(company.name, margin, 18);
+  
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.text(company.tagline, margin, 26);
+  
+  // Contact info right
+  doc.setFontSize(8);
+  doc.text(`${company.phone} | ${company.email}`, pageWidth - margin, 15, { align: 'right' });
+  doc.text(`GSTIN: ${company.gstin}`, pageWidth - margin, 22, { align: 'right' });
+  doc.text(company.website, pageWidth - margin, 29, { align: 'right' });
+  
+  // Quotation badge box
+  const badgeX = pageWidth - 75;
+  doc.setFillColor(...C.white);
+  doc.setDrawColor(...C.primary);
+  doc.roundedRect(badgeX, 48, 60, 35, 3, 3, 'FD');
+  
+  // Teal accent on badge
+  doc.setFillColor(...C.primary);
+  doc.roundedRect(badgeX, 48, 5, 35, 2, 2, 'F');
+  
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...C.primary);
+  doc.text('QUOTATION', badgeX + 12, 62);
+  
+  doc.setFontSize(10);
+  doc.setTextColor(C.gray);
+  doc.text(`#${data.quotationNumber || 'QTN-XXXXXX'}`, badgeX + 12, 72);
+  doc.setFontSize(8);
+  doc.text(`Date: ${data.quotationDate || new Date().toISOString().split('T')[0]}`, badgeX + 12, 79);
+
+  // CUSTOMER DETAILS BOX
+  let y = 55;
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...C.primary);
+  doc.text('CUSTOMER DETAILS', margin, y);
+  
+  y += 8;
+  doc.setFillColor(...C.lightGray);
+  doc.setDrawColor(...C.border);
+  doc.roundedRect(margin, y, 100, 35, 3, 3, 'FD');
+  
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...C.black);
+  doc.text(data.customerName || 'Customer Name', margin + 5, y + 12);
+  
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(C.gray);
+  doc.text(data.companyName || data.customerName || '', margin + 5, y + 20);
+  doc.text(data.customerAddress || 'Address not provided', margin + 5, y + 28);
+  
+  // PROJECT DETAILS BOX
+  y += 45;
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...C.primary);
+  doc.text('PROJECT DETAILS', margin, y);
+  
+  y += 8;
+  doc.setFillColor(...C.lightGray);
+  doc.roundedRect(margin, y, pageWidth - margin * 2, 40, 3, 3, 'FD');
+  
+  // Project info grid
+  const col1X = margin + 5;
+  const col2X = pageWidth / 2;
+  
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(C.gray);
+  doc.text('Project Name:', col1X, y + 12);
+  doc.text('System Capacity:', col2X, y + 12);
+  doc.text('Project Type:', col1X, y + 22);
+  doc.text('Installation:', col2X, y + 22);
+  doc.text('Description:', col1X, y + 32);
+  
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...C.black);
+  doc.text(data.projectName || 'Solar Project', col1X + 30, y + 12);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`${data.systemCapacity || 5} kW`, col2X + 30, y + 12);
+  doc.setFont('helvetica', 'normal');
+  doc.text(data.projectType || 'Commercial', col1X + 30, y + 22);
+  doc.text(data.installationType || 'Rooftop', col2X + 30, y + 22);
+  doc.text(data.description ? data.description.substring(0, 50) + '...' : 'Grid-tied solar system', col1X + 30, y + 32);
+
+  // ============================================
+  // PAGE 2: EQUIPMENT & COST (Side by Side)
+  // ============================================
+  doc.addPage();
+  
+  // Header
+  doc.setFillColor(...C.primary);
+  doc.rect(0, 0, pageWidth, 18, 'F');
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...C.white);
+  doc.text(company.name, margin, 12);
+  doc.setFontSize(8);
+  doc.text(`Quotation #${data.quotationNumber || 'QTN-XXXXXX'}`, pageWidth - margin, 12, { align: 'right' });
+  
+  const eqMargin = margin;
+  const eqWidth = 115;
+  const costX = eqMargin + eqWidth + 8;
+  const costWidth = pageWidth - costX - margin;
+  let currentY = 28;
+  
+  // --- LEFT: EQUIPMENT & MATERIALS ---
+  
+  // Section Header
+  doc.setFillColor(...C.primary);
+  doc.roundedRect(eqMargin, currentY, eqWidth, 10, 2, 2, 'F');
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...C.white);
+  doc.text('EQUIPMENT & MATERIALS', eqMargin + 5, currentY + 7);
+  
+  currentY += 12;
+  
+  // Equipment items (use your data; fallback only if empty)
+  const equipmentItems = (data.items && Array.isArray(data.items) && data.items.length > 0)
+    ? data.items
+    : [
+      { name: 'Solar PV Module 550W', description: 'High-efficiency monocrystalline solar panel', quantity: 20 },
+      { name: 'Grid Tie Inverter', description: '10kW three-phase solar inverter', quantity: 1 },
+      { name: 'Mounting Structure', description: 'Galvanized iron mounting with clamps', quantity: 1 },
+      { name: 'DC Cables', description: '4 sq.mm solar DC cable UV resistant', quantity: 100 },
+      { name: 'AC Cables', description: '3.5C x 35 sq.mm copper AC cable', quantity: 50 },
+      { name: 'Earthing Kit', description: 'Complete earthing system', quantity: 1 },
+      { name: 'Lightning Arrestor', description: 'ESE lightning protection', quantity: 1 },
+      { name: 'Installation', description: 'Complete installation & commissioning', quantity: 1 },
+    ];
+
+  const equipmentTableBody = equipmentItems.map((item, idx) => [
+    String(idx + 1),
+    String(item?.name ?? ''),
+    String(item?.description ?? ''),
+    String(item?.quantity ?? ''),
+  ]);
+
+  autoTable(doc, {
+    startY: currentY,
+    head: [['No.', 'Item', 'Specification', 'Qty']],
+    body: equipmentTableBody,
+    theme: 'grid',
+    styles: {
+      font: 'helvetica',
+      fontSize: 8.5,
+      cellPadding: 2.5,
+      lineColor: C.border,
+      lineWidth: 0.2,
+      textColor: [0, 0, 0],
+      overflow: 'linebreak',
+      valign: 'top',
+    },
+    headStyles: {
+      fillColor: [245, 245, 245],
+      textColor: C.primary,
+      fontStyle: 'bold',
+      halign: 'center',
+    },
+    alternateRowStyles: { fillColor: [250, 250, 250] },
+    columnStyles: {
+      0: { cellWidth: 10, halign: 'center', fontStyle: 'bold' },
+      1: { cellWidth: 38, fontStyle: 'bold' },
+      2: { cellWidth: 54 },
+      3: { cellWidth: 13, halign: 'center', fontStyle: 'bold' },
+    },
+    margin: {
+      left: eqMargin,
+      right: pageWidth - (eqMargin + eqWidth),
+    },
+    tableWidth: eqWidth,
+  });
+
+  const equipmentEndY = doc.lastAutoTable.finalY + 2;
+  
+  // Equipment footer
+  doc.setFillColor(238, 238, 238);
+  doc.rect(eqMargin, equipmentEndY, eqWidth, 12, 'F');
+  doc.setDrawColor(...C.border);
+  doc.rect(eqMargin, equipmentEndY, eqWidth, 12, 'S');
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(C.gray);
+  const totalQty = equipmentItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
+  doc.text(`Items: ${equipmentItems.length}  |  Total Qty: ${totalQty}`, eqMargin + eqWidth - 5, equipmentEndY + 7.5, { align: 'right' });
+  
+  // --- RIGHT: COST SUMMARY ---
+  
+  let costY = 28;
+  
+  // Cost box header
+  doc.setFillColor(...C.primary);
+  doc.roundedRect(costX, costY, costWidth, 12, 2, 2, 'F');
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...C.white);
+  doc.text('COST SUMMARY', costX + costWidth/2, costY + 8, { align: 'center' });
+  
+  costY += 14;
+  
+  // Calculate costs
+  const subtotal = data.subtotal || 250000;
+  const gstRate = data.gstRate || 18;
+  const gstAmount = data.gstAmount || Math.round(subtotal * gstRate / 100);
+  const total = data.total || subtotal + gstAmount;
+  const perKW = Math.round(subtotal / (data.systemCapacity || 5));
+  
+  // Cost box background
+  doc.setFillColor(...C.white);
+  doc.setDrawColor(...C.primary);
+  doc.roundedRect(costX, costY, costWidth, 100, 2, 2, 'FD');
+  
+  // Cost rows
+  const costs = [
+    { label: 'Equipment', value: Math.round(subtotal * 0.70) },
+    { label: 'Installation', value: Math.round(subtotal * 0.15) },
+    { label: 'Engineering', value: Math.round(subtotal * 0.08) },
+    { label: 'Transport', value: Math.round(subtotal * 0.04) },
+    { label: 'Miscellaneous', value: Math.round(subtotal * 0.03) },
+  ];
+  
+  let rowY = costY + 8;
+  costs.forEach(cost => {
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(C.gray);
+    doc.text(cost.label, costX + 5, rowY);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...C.black);
+    doc.text(`₹${formatCurrency(cost.value)}`, costX + costWidth - 5, rowY, { align: 'right' });
+    rowY += 10;
+  });
+  
+  // Divider
+  doc.setDrawColor(...C.border);
+  doc.line(costX + 5, rowY, costX + costWidth - 5, rowY);
+  rowY += 6;
+  
+  // Subtotal
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...C.black);
+  doc.text('Subtotal', costX + 5, rowY);
+  doc.text(`₹${formatCurrency(subtotal)}`, costX + costWidth - 5, rowY, { align: 'right' });
+  rowY += 10;
+  
+  // GST (highlighted)
+  doc.setFillColor(232, 245, 233);
+  doc.rect(costX, rowY - 4, costWidth, 10, 'F');
+  doc.setFontSize(9);
+  doc.setTextColor(...C.primary);
+  doc.text(`GST ${gstRate}%`, costX + 5, rowY + 2);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`₹${formatCurrency(gstAmount)}`, costX + costWidth - 5, rowY + 2, { align: 'right' });
+  rowY += 12;
+  
+  // Grand Total
+  doc.setFillColor(...C.primary);
+  doc.roundedRect(costX, rowY - 2, costWidth, 16, 2, 2, 'F');
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...C.white);
+  doc.text('Grand Total', costX + 5, rowY + 7);
+  doc.setFontSize(12);
+  doc.text(`₹${formatCurrency(total)}`, costX + costWidth - 5, rowY + 7, { align: 'right' });
+  
+  // Stats below cost box
+  const statsY = costY + 110;
+  doc.setFillColor(...C.lightGray);
+  doc.roundedRect(costX, statsY, costWidth, 30, 2, 2, 'FD');
+  
+  const stats = [
+    { val: `${data.systemCapacity || 5}`, lbl: 'kW' },
+    { val: `${equipmentItems.length}`, lbl: 'Items' },
+    { val: `₹${formatCurrency(perKW)}`, lbl: 'Per kW' },
+  ];
+  
+  let statX = costX + 8;
+  stats.forEach(stat => {
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...C.primary);
+    doc.text(stat.val, statX + 10, statsY + 12, { align: 'center' });
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(C.gray);
+    doc.text(stat.lbl, statX + 10, statsY + 18, { align: 'center' });
+    statX += 22;
+  });
+  
+  // --- BOTTOM SECTIONS ---
+  
+  let bottomY = Math.max(equipmentEndY + 20, statsY + 45);
+  if (bottomY > pageHeight - 60) bottomY = pageHeight - 60;
+  
+  // Payment Terms
+  doc.setFillColor(255, 248, 225);
+  doc.setDrawColor(255, 160, 0);
+  doc.roundedRect(eqMargin, bottomY, eqWidth, 35, 2, 2, 'FD');
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(230, 81, 0);
+  doc.text('PAYMENT TERMS', eqMargin + 5, bottomY + 8);
+  
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...C.black);
+  const terms = data.paymentTerms || [
+    { stage: 'Advance with Order', pct: '40%' },
+    { stage: 'On Material Delivery', pct: '40%' },
+    { stage: 'After Commissioning', pct: '20%' },
+  ];
+  let termRowY = bottomY + 16;
+  terms.forEach((term, i) => {
+    doc.text(`${i + 1}. ${term.stage}`, eqMargin + 5, termRowY);
+    doc.setFont('helvetica', 'bold');
+    doc.text(term.pct, eqMargin + eqWidth - 10, termRowY, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+    termRowY += 8;
+  });
+  
+  // Scope of Work
+  doc.setFillColor(232, 245, 233);
+  doc.setDrawColor(76, 175, 80);
+  doc.roundedRect(costX, bottomY, costWidth, 35, 2, 2, 'FD');
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(46, 125, 50);
+  doc.text('SCOPE OF WORK', costX + 5, bottomY + 8);
+  
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...C.black);
+  const scopes = data.scopeOfWork || [
+    'Site survey & design',
+    'Equipment supply',
+    'Installation',
+    'Net metering support',
+    '5-year maintenance',
+  ];
+  let scopeRowY = bottomY + 16;
+  scopes.slice(0, 5).forEach(scope => {
+    doc.text(`• ${scope}`, costX + 5, scopeRowY);
+    scopeRowY += 5;
+  });
+  
+  // Footer
+  const footerY = pageHeight - 25;
+  
+  // Terms
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...C.primary);
+  doc.text('Terms & Conditions:', margin, footerY);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(C.gray);
+  doc.setFontSize(7);
+  doc.text('1. Valid for 30 days  2. Delivery 4-6 weeks  3. Prices excl. civil works', margin + 35, footerY);
+  
+  // Signatures
+  doc.setDrawColor(150, 150, 150);
+  doc.line(margin, footerY + 12, margin + 50, footerY + 12);
+  doc.line(pageWidth - margin - 50, footerY + 12, pageWidth - margin, footerY + 12);
+  
+  doc.setFontSize(8);
+  doc.text('Customer Signature', margin, footerY + 17);
+  doc.text('Date & Stamp', margin, footerY + 22);
+  doc.text('Authorized Signatory', pageWidth - margin - 50, footerY + 17);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...C.primary);
+  doc.text('For Sunova Energy', pageWidth - margin, footerY + 22, { align: 'right' });
+  
+  // Page number
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(C.gray);
+  doc.text('Page 2 of 2', pageWidth - margin - 10, pageHeight - 10, { align: 'right' });
+  doc.text('Page 1 of 2', pageWidth - margin - 10, pageHeight - 5, { align: 'right' });
+  
+  return doc.output('blob');
+};
+
+// Helper function to download the 2-page PDF
+export const download2PagePDF = (data, filename = null) => {
+  const pdfBlob = generate2PageProfessionalPDF(data);
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(pdfBlob);
+  link.download = filename || `Quotation_${data.quotationNumber || Date.now()}.pdf`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+};
+
+// ============================================================
 // HELPER FUNCTIONS
 // ============================================================
 
@@ -811,15 +1260,30 @@ const renderQuotationBody = (doc, data, company, C) => {
   const margin = 20;
   let y = 50;
 
+  const drawRightFittedText = (text, xRight, yPos, maxWidth, baseFontSize, fontStyle = 'bold') => {
+    const originalSize = doc.getFontSize();
+    const originalFont = doc.getFont();
+    let size = baseFontSize;
+    doc.setFont('helvetica', fontStyle);
+    doc.setFontSize(size);
+    while (size > 6 && doc.getTextWidth(String(text)) > maxWidth) {
+      size -= 0.5;
+      doc.setFontSize(size);
+    }
+    doc.text(String(text), xRight, yPos, { align: 'right' });
+    doc.setFont(originalFont.fontName, originalFont.fontStyle);
+    doc.setFontSize(originalSize);
+  };
+
   // Document Title - ESTIMATE on right side
   const estimateX = pageWidth - margin - 70;
   doc.setFillColor(255, 255, 255);
   doc.setDrawColor(...C.primary);
-  doc.roundedRect(estimateX, y - 5, 70, 35, 3, 3, 'FD');
+  doc.roundedRect(estimateX, y - 5, 70, 42, 3, 3, 'FD');
 
   // Teal accent bar on left
   doc.setFillColor(...C.primary);
-  doc.rect(estimateX, y - 5, 6, 35, 'F');
+  doc.rect(estimateX, y - 5, 6, 42, 'F');
 
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
@@ -835,7 +1299,7 @@ const renderQuotationBody = (doc, data, company, C) => {
   doc.setFont('helvetica', 'normal');
   const today = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
   doc.text(`Date: ${data.quotationDate || today}`, estimateX + 12, y + 26);
-  doc.text(`Valid: 30 days`, estimateX + 12, y + 32);
+  doc.text(`Valid: 30 days`, estimateX + 12, y + 33);
 
   y += 45;
 
@@ -910,90 +1374,115 @@ const renderQuotationBody = (doc, data, company, C) => {
   doc.text('EQUIPMENT & MATERIALS', margin, y);
   y += 8;
 
-  // Table Header with Teal background
+  // Equipment table (autoTable prevents row overlap/mixing)
   const tableWidth = pageWidth - margin * 2;
-  const colWidths = [32, 75, 18, 32, 42];
-  const colPositions = [margin, margin + colWidths[0], margin + colWidths[0] + colWidths[1], margin + colWidths[0] + colWidths[1] + colWidths[2], margin + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3]];
-
-  doc.setFillColor(...C.primary);
-  doc.rect(margin, y, tableWidth, 12, 'F');
-
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(255, 255, 255);
-  doc.text('Item', colPositions[0] + 5, y + 8);
-  doc.text('Description', colPositions[1] + 5, y + 8);
-  doc.text('Qty', colPositions[2] + 5, y + 8);
-  doc.text('Unit Price', colPositions[3] + 5, y + 8);
-  doc.text('Total', colPositions[4] + 5, y + 8);
-
-  // Table Rows
-  y += 12;
-  const items = data.items || [
-    { name: 'Solar Panel 550W', description: 'Waaree WS-550 - High efficiency monocrystalline', quantity: 10, unitPrice: 11500 },
-    { name: 'String Inverter 5kW', description: 'Growatt MAX 50KTL3 LV - 3-phase grid-tied inverter', quantity: 1, unitPrice: 16500 },
-    { name: 'Mounting Structure', description: 'Sterling SS RF-01 - Aluminum structure with clamps', quantity: 1, unitPrice: 32500 },
-    { name: 'DC Cable 4mm', description: 'Polycab PV-4MM - Solar DC cable 100m', quantity: 1, unitPrice: 11200 },
-    { name: 'AC Cable 6mm', description: 'Polycab AC-6MM - AC cable 50m', quantity: 1, unitPrice: 18000 },
-    { name: 'Earthing Kit', description: 'Generic EARTH-01 - Complete earthing system', quantity: 1, unitPrice: 11500 },
-    { name: 'Lightning Arrestor', description: 'Phoenix LA-100 - Class B surge protection', quantity: 1, unitPrice: 11100 },
-  ];
-
+  const tableStartY = y;
   let subtotal = 0;
 
-  items.forEach((item, index) => {
-    const amount = item.quantity * item.unitPrice;
+  const items = (data.items && Array.isArray(data.items) && data.items.length > 0)
+    ? data.items
+    : [
+      { name: 'Solar Panel 550W', description: 'Waaree WS-550 - High efficiency monocrystalline', quantity: 10, unitPrice: 11500 },
+      { name: 'String Inverter 5kW', description: 'Growatt MAX 50KTL3 LV - 3-phase grid-tied inverter', quantity: 1, unitPrice: 16500 },
+      { name: 'Mounting Structure', description: 'Sterling SS RF-01 - Aluminum structure with clamps', quantity: 1, unitPrice: 32500 },
+      { name: 'DC Cable 4mm', description: 'Polycab PV-4MM - Solar DC cable 100m', quantity: 1, unitPrice: 11200 },
+      { name: 'AC Cable 6mm', description: 'Polycab AC-6MM - AC cable 50m', quantity: 1, unitPrice: 18000 },
+      { name: 'Earthing Kit', description: 'Generic EARTH-01 - Complete earthing system', quantity: 1, unitPrice: 11500 },
+      { name: 'Lightning Arrestor', description: 'Phoenix LA-100 - Class B surge protection', quantity: 1, unitPrice: 11100 },
+    ];
+
+  const tableBody = items.map((item) => {
+    const qty = Number(item?.quantity ?? 0);
+    const unitPrice = Number(item?.unitPrice ?? 0);
+    const amount = qty * unitPrice;
     subtotal += amount;
-
-    // Alternate row colors
-    if (index % 2 === 0) {
-      doc.setFillColor(248, 248, 248);
-      doc.rect(margin, y, tableWidth, 10, 'F');
-    }
-
-    // Row border
-    doc.setDrawColor(220, 220, 220);
-    doc.line(margin, y + 10, margin + tableWidth, y + 10);
-
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(50, 50, 50);
-    doc.text(item.name, colPositions[0] + 3, y + 7);
-
-    // Truncate description if too long
-    let desc = item.description;
-    if (desc.length > 45) desc = desc.substring(0, 42) + '...';
-    doc.text(desc, colPositions[1] + 3, y + 7);
-
-    doc.text(item.quantity.toString(), colPositions[2] + 9, y + 7, { align: 'center' });
-    doc.text(`₹${item.unitPrice.toLocaleString('en-IN')}`, colPositions[3] + 30, y + 7, { align: 'right' });
-    doc.text(`₹${amount.toLocaleString('en-IN')}`, colPositions[4] + 40, y + 7, { align: 'right' });
-
-    y += 10;
+    return [
+      String(item?.name ?? ''),
+      String(item?.description ?? ''),
+      String(qty),
+      `₹${unitPrice.toLocaleString('en-IN')}`,
+      `₹${amount.toLocaleString('en-IN')}`,
+    ];
   });
 
-  // Table bottom border
-  doc.setDrawColor(...C.primary);
-  doc.line(margin, y, margin + tableWidth, y);
+  autoTable(doc, {
+    startY: tableStartY,
+    head: [['Item', 'Description', 'Qty', 'Unit Price', 'Total']],
+    body: tableBody,
+    theme: 'grid',
+    tableWidth,
+    margin: { left: margin, right: pageWidth - (margin + tableWidth) },
+    styles: {
+      font: 'helvetica',
+      fontSize: 6.5,
+      cellPadding: 1.6,
+      lineColor: [220, 220, 220],
+      lineWidth: 0.2,
+      overflow: 'linebreak',
+      valign: 'top',
+      textColor: [50, 50, 50],
+    },
+    headStyles: {
+      fillColor: C.primary,
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      halign: 'center',
+    },
+    alternateRowStyles: { fillColor: [248, 248, 248] },
+    columnStyles: {
+      0: { cellWidth: 22, fontStyle: 'bold' },
+      1: { cellWidth: 60 },
+      2: { cellWidth: 12, halign: 'center', fontStyle: 'bold' },
+      3: { cellWidth: 30, halign: 'right' },
+      4: { cellWidth: 30, halign: 'right', fontStyle: 'bold' },
+    },
+    didParseCell: (hookData) => {
+      if (hookData.section !== 'body') return;
+      if (hookData.column.index !== 3 && hookData.column.index !== 4) return;
 
-  // COST SUMMARY Box on Right
-  y -= items.length * 10 - 15;
-  const summaryWidth = 70;
-  const summaryX = pageWidth - margin - summaryWidth;
+      const text = Array.isArray(hookData.cell.text) ? hookData.cell.text.join(' ') : String(hookData.cell.text ?? '');
+      const padding = (hookData.cell.styles.cellPadding ?? 0);
+      const maxWidth = hookData.cell.width - padding * 2;
+
+      // shrink font size until it fits the numeric cell width
+      let size = hookData.cell.styles.fontSize ?? 6.5;
+      const originalFont = doc.getFont();
+      while (size > 5) {
+        doc.setFont('helvetica', hookData.cell.styles.fontStyle || 'normal');
+        doc.setFontSize(size);
+        if (doc.getTextWidth(text) <= maxWidth) break;
+        size -= 0.5;
+      }
+      hookData.cell.styles.fontSize = size;
+      doc.setFont(originalFont.fontName, originalFont.fontStyle);
+    },
+  });
+
+  const tableEndY = doc.lastAutoTable?.finalY ?? (tableStartY + 10);
+  y = tableEndY + 6;
+
+  // Move Cost Summary + signature to next page to avoid any overlap with long equipment tables
+  doc.addPage();
+  renderQuotationHeader(doc, company, C);
+  y = 50;
+
+  // COST SUMMARY (full width on new page)
+  const summaryWidth = pageWidth - margin * 2;
+  const summaryX = margin;
+  const summaryY = y;
 
   // Summary Header
   doc.setFillColor(...C.primary);
-  doc.roundedRect(summaryX, y, summaryWidth, 12, 2, 2, 'F');
+  doc.roundedRect(summaryX, summaryY, summaryWidth, 12, 2, 2, 'F');
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(255, 255, 255);
-  doc.text('COST SUMMARY', summaryX + summaryWidth / 2, y + 8, { align: 'center' });
+  doc.text('COST SUMMARY', summaryX + summaryWidth / 2, summaryY + 8, { align: 'center' });
 
   // Summary Body
-  doc.setFillColor(250, 250, 250);
-  doc.roundedRect(summaryX, y + 12, summaryWidth, 60, 0, 0, 'FD');
+  doc.setFillColor(255, 255, 255);
   doc.setDrawColor(200, 200, 200);
-  doc.line(summaryX, y + 12, summaryX + summaryWidth, y + 12);
+  doc.roundedRect(summaryX, summaryY + 12, summaryWidth, 75, 2, 2, 'FD');
 
   const equipmentCost = subtotal;
   const installationCost = Math.round(subtotal * 0.15);
@@ -1005,29 +1494,29 @@ const renderQuotationBody = (doc, data, company, C) => {
   const gstAmount = Math.round(totalBeforeGst * gstRate / 100);
   const grandTotal = totalBeforeGst + gstAmount;
 
-  let sy = y + 22;
+  let sy = summaryY + 22;
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(80, 80, 80);
 
   doc.text('Equipment Cost:', summaryX + 5, sy);
-  doc.text(`₹${equipmentCost.toLocaleString('en-IN')}`, summaryX + summaryWidth - 8, sy, { align: 'right' });
+  drawRightFittedText(`₹${equipmentCost.toLocaleString('en-IN')}`, summaryX + summaryWidth - 8, sy, 55, 8.5, 'bold');
   sy += 8;
 
   doc.text('Installation Cost:', summaryX + 5, sy);
-  doc.text(`₹${installationCost.toLocaleString('en-IN')}`, summaryX + summaryWidth - 8, sy, { align: 'right' });
+  drawRightFittedText(`₹${installationCost.toLocaleString('en-IN')}`, summaryX + summaryWidth - 8, sy, 55, 8.5, 'bold');
   sy += 8;
 
   doc.text('Engineering Cost:', summaryX + 5, sy);
-  doc.text(`₹${engineeringCost.toLocaleString('en-IN')}`, summaryX + summaryWidth - 8, sy, { align: 'right' });
+  drawRightFittedText(`₹${engineeringCost.toLocaleString('en-IN')}`, summaryX + summaryWidth - 8, sy, 55, 8.5, 'bold');
   sy += 8;
 
   doc.text('Transportation:', summaryX + 5, sy);
-  doc.text(`₹${transportation.toLocaleString('en-IN')}`, summaryX + summaryWidth - 8, sy, { align: 'right' });
+  drawRightFittedText(`₹${transportation.toLocaleString('en-IN')}`, summaryX + summaryWidth - 8, sy, 55, 8.5, 'bold');
   sy += 8;
 
   doc.text('Miscellaneous:', summaryX + 5, sy);
-  doc.text(`₹${miscellaneous.toLocaleString('en-IN')}`, summaryX + summaryWidth - 8, sy, { align: 'right' });
+  drawRightFittedText(`₹${miscellaneous.toLocaleString('en-IN')}`, summaryX + summaryWidth - 8, sy, 55, 8.5, 'bold');
   sy += 10;
 
   // Divider line
@@ -1035,11 +1524,11 @@ const renderQuotationBody = (doc, data, company, C) => {
   doc.line(summaryX + 5, sy - 3, summaryX + summaryWidth - 5, sy - 3);
 
   doc.text('Subtotal:', summaryX + 5, sy);
-  doc.text(`₹${totalBeforeGst.toLocaleString('en-IN')}`, summaryX + summaryWidth - 8, sy, { align: 'right' });
+  drawRightFittedText(`₹${totalBeforeGst.toLocaleString('en-IN')}`, summaryX + summaryWidth - 8, sy, 55, 8.5, 'bold');
   sy += 8;
 
   doc.text(`GST (${gstRate}%):`, summaryX + 5, sy);
-  doc.text(`₹${gstAmount.toLocaleString('en-IN')}`, summaryX + summaryWidth - 8, sy, { align: 'right' });
+  drawRightFittedText(`₹${gstAmount.toLocaleString('en-IN')}`, summaryX + summaryWidth - 8, sy, 55, 8.5, 'bold');
   sy += 10;
 
   // Grand Total Box
@@ -1049,10 +1538,11 @@ const renderQuotationBody = (doc, data, company, C) => {
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(255, 255, 255);
   doc.text('GRAND TOTAL:', summaryX + 5, sy + 5);
-  doc.text(`₹${grandTotal.toLocaleString('en-IN')}`, summaryX + summaryWidth - 8, sy + 5, { align: 'right' });
+  drawRightFittedText(`₹${grandTotal.toLocaleString('en-IN')}`, summaryX + summaryWidth - 8, sy + 5, 70, 10, 'bold');
 
-  // Move y to after table
-  y = Math.max(y + 80, 200);
+  // Move y to after summary
+  const summaryEndY = summaryY + 12 + 75;
+  y = summaryEndY + 20;
 
   // TERMS & CONDITIONS
   doc.setFontSize(11);
@@ -1097,16 +1587,21 @@ const renderQuotationBody = (doc, data, company, C) => {
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(80, 80, 80);
-  doc.text('Authorized Signature', margin, 275);
-  doc.text('Customer Acceptance', pageWidth - margin - 40, 275);
+  const pageHeight = doc.internal.pageSize.height;
+  const signatureBlockHeight = 18;
+  const footerReserved = 25;
+  const signatureY = Math.min(y + 15, pageHeight - footerReserved - signatureBlockHeight);
+
+  doc.text('Authorized Signature', margin, signatureY + 8);
+  doc.text('Customer Acceptance', pageWidth - margin - 40, signatureY + 8);
 
   doc.setDrawColor(150, 150, 150);
-  doc.line(margin, 272, margin + 45, 272);
-  doc.line(pageWidth - margin - 45, 272, pageWidth - margin, 272);
+  doc.line(margin, signatureY + 5, margin + 45, signatureY + 5);
+  doc.line(pageWidth - margin - 45, signatureY + 5, pageWidth - margin, signatureY + 5);
 
   doc.setFontSize(8);
-  doc.text('For Sunvora Energy Pvt. Ltd.', margin, 280);
-  doc.text('Date & Stamp', pageWidth - margin - 40, 280);
+  doc.text('For Sunvora Energy Pvt. Ltd.', margin, signatureY + 13);
+  doc.text('Date & Stamp', pageWidth - margin - 40, signatureY + 13);
 };
 
 export const generateQuotationPDF = (data, company = COMPANY_DATA) => {
@@ -1120,7 +1615,12 @@ export const generateQuotationPDF = (data, company = COMPANY_DATA) => {
 
   renderQuotationHeader(doc, company, C);
   renderQuotationBody(doc, data, company, C);
-  renderQuotationFooter(doc, 1, 1, company, C);
+
+  const totalPages = doc.getNumberOfPages();
+  for (let pageNum = 1; pageNum <= totalPages; pageNum += 1) {
+    doc.setPage(pageNum);
+    renderQuotationFooter(doc, pageNum, totalPages, company, C);
+  }
 
   return doc.output('blob');
 };
@@ -1202,7 +1702,7 @@ export const downloadRayzonPDF = (data, company, filename) => {
 };
 
 // ============================================================
-// BACKWARD COMPATIBILITY
+// BACKWARD COMPATIBILITY & EXPORTS
 // ============================================================
 
 export const generateCustomPDF = generateRayzonPDF;

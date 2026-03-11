@@ -304,9 +304,16 @@ export class InventoryService {
 
     return this.reservationModel
 
-      .find({ tenantId, projectId, status: { $in: ['active', 'fulfilled'] } })
+      .find({ 
+        $or: [
+          { tenantId: tenantId },
+          { tenantId: tenantId.toString() },
+        ],
+        projectId, 
+        status: { $in: ['active', 'fulfilled'] } 
+      })
 
-      .sort({ reservedDate: -1 })
+      .sort({ createdAt: -1 })
 
       .exec();
 
@@ -315,39 +322,27 @@ export class InventoryService {
 
 
   async getReservationsByItem(tenantCode: string, itemId: string) {
+    const tenantId = await this.getTenantId(tenantCode);
 
-    // Use native MongoDB driver to bypass mongoose schema casting
+    // Build itemId variants to match across different ID formats
+    const searchItemIds = [itemId];
+    if (itemId.startsWith('INV')) {
+      searchItemIds.push(itemId.replace(/^INV/, ''));
+    } else {
+      searchItemIds.push('INV' + itemId);
+    }
 
-    const collection = this.reservationModel.db.collection('reservations');
-
-    
-
-    return collection
-
+    return this.reservationModel
       .find({
-
-        $and: [
-
-          { itemId },
-
-          { $or: [
-
-            { tenantId: tenantCode },  // String format (old)
-
-            { tenantId: { $type: 'objectId' } }  // Will match if converted
-
-          ]},
-
-          { status: { $in: ['active', 'fulfilled', 'Reserved'] } }
-
-        ]
-
+        $or: [
+          { tenantId: tenantId },
+          { tenantId: tenantId.toString() },
+        ],
+        itemId: { $in: searchItemIds },
+        status: { $in: ['active', 'fulfilled'] },
       })
-
-      .sort({ reservedDate: -1 })
-
-      .toArray();
-
+      .sort({ createdAt: -1 })
+      .exec();
   }
 
 

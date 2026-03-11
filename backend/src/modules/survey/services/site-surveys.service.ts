@@ -10,6 +10,7 @@ import {
   MoveToCompleteDto
 } from '../dto/site-survey.dto';
 import { LeadsService } from '../../leads/services/leads.service';
+import { UserWithVisibility } from '../../../common/utils/visibility-filter';
 
 @Injectable()
 export class SiteSurveysService {
@@ -42,7 +43,11 @@ export class SiteSurveysService {
   }
 
   // Find all surveys with filters - populates fresh lead data
-  async findAll(query: QuerySiteSurveyDto): Promise<{ data: any[]; total: number; page: number; limit: number }> {
+  async findAll(
+    query: QuerySiteSurveyDto,
+    tenantId?: string,
+    user?: UserWithVisibility,
+  ): Promise<{ data: any[]; total: number; page: number; limit: number }> {
     const {
       status,
       city,
@@ -107,8 +112,7 @@ export class SiteSurveysService {
             return surveyObj;
           }
           
-          // Use findOneById which doesn't have tenant restrictions
-          const lead = await this.leadsService.findOneById(survey.leadId);
+          const lead = await this.leadsService.findOneById(survey.leadId, tenantId, user);
           
           console.log(`[DEBUG] Lead lookup result for ${survey.leadId}:`, lead ? 'FOUND' : 'NOT FOUND');
           

@@ -1,7 +1,7 @@
 // Solar OS – EPC Edition — InventoryPage.js
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
-  Package, Plus, AlertTriangle, Warehouse, ArrowUp, ArrowDown, Zap, LayoutGrid, List, Edit2, Trash2, Eye, ArrowRightLeft, Scale, Tag, LayoutDashboard, TrendingUp, BarChart2, PieChartIcon, Activity, DollarSign, Target, Layers
+  Package, Plus, AlertTriangle, Warehouse, ArrowUp, ArrowDown, Zap, LayoutGrid, List, Edit2, Trash2, Eye, ArrowRightLeft, Scale, Tag, LayoutDashboard, TrendingUp, BarChart2, PieChartIcon, Activity, DollarSign, Target, Layers, Download
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, Legend, AreaChart, Area } from 'recharts';
 import { StatusBadge } from '../components/ui/Badge';
@@ -21,24 +21,42 @@ const PROJECT_API_BASE_URL = process.env.REACT_APP_PROJECT_API_BASE_URL || 'http
 const TENANT_ID = 'solarcorp';
 
 const getStockStatus = (item) => {
-  // If explicit status is set, return the stage ID format
-  if (item.status) {
-    const statusMap = {
-      'In Stock': 'available',
-      'Reserved': 'reserved',
-      'Partially Reserved': 'reserved',
-      'Available': 'available',
-      'Low Stock': 'low-stock',
-      'Out of Stock': 'out-of-stock'
-    };
-    return statusMap[item.status] || item.status;
-  }
-  // Otherwise calculate from stock values
-  // Priority: Reserved > Out of Stock > Low Stock > In Stock
-  if (item.reserved > 0) return 'reserved';
-  if (item.available === 0) return 'out-of-stock';
-  if (item.available <= item.minStock) return 'low-stock';
+  const available = (item.stock || 0) - (item.reserved || 0);
+  // Priority: Out of Stock > Low Stock > Reserved > Available
+  if (available === 0) return 'out-of-stock';
+  if (available < (item.minStock || 0)) return 'low-stock';
+  if ((item.reserved || 0) > 0) return 'reserved';
   return 'available';
+};
+
+// ── Export Helper ─────────────────────────────────────────────────────────────
+const exportToCSV = (data, filename, columns) => {
+  if (!data || data.length === 0) {
+    alert('No data to export');
+    return;
+  }
+  
+  const headers = columns.map(c => c.header).join(',');
+  const rows = data.map(row => 
+    columns.map(col => {
+      const val = row[col.key] ?? '';
+      // Escape values with commas or quotes
+      if (String(val).includes(',') || String(val).includes('"')) {
+        return `"${String(val).replace(/"/g, '""')}"`;
+      }
+      return val;
+    }).join(',')
+  ).join('\n');
+  
+  const csvContent = [headers, rows].join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.setAttribute('href', url);
+  link.setAttribute('download', `${filename}_${new Date().toISOString().split('T')[0]}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 };
 
 // ── Kanban columns ─────────────────────────────────────────────────────────────
@@ -54,14 +72,17 @@ const COLUMNS = [
   { key: 'name', header: 'Item Name', sortable: true, render: v => <span className="text-xs font-semibold text-[var(--text-primary)]">{v}</span> },
   { key: 'category', header: 'Category', render: v => <span className="text-xs text-[var(--text-secondary)]">{v}</span> },
   { key: 'stock', header: 'Total Stock', sortable: true, render: (v, row) => <span className="text-xs font-bold text-[var(--text-primary)]">{v} {row.unit}</span> },
-  { key: 'reserved', header: 'Reserved', render: (v, row) => <span className="text-xs text-amber-400">{v} {row.unit}</span> },
+  { key: 'reserved', header: 'Reserved', render: (v, row) => <span className="text-xs text-amber-400">{v || 0} {row.unit}</span> },
   {
-    key: 'available', header: 'Available', sortable: true, render: (v, row) => (
-      <div className="flex items-center gap-2 min-w-[80px]">
-        <span className="text-xs font-bold text-emerald-400">{v}</span>
-        <Progress value={Math.round((v / row.stock) * 100)} className="h-1.5 w-16" />
-      </div>
-    )
+    key: 'stock', header: 'Available', sortable: true, render: (v, row) => {
+      const avail = (v || 0) - (row.reserved || 0);
+      return (
+        <div className="flex items-center gap-2 min-w-[80px]">
+          <span className="text-xs font-bold text-emerald-400">{avail}</span>
+          <Progress value={v > 0 ? Math.round((avail / v) * 100) : 0} className="h-1.5 w-16" />
+        </div>
+      );
+    }
   },
   { key: 'minStock', header: 'Min Stock', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
   { key: 'rate', header: 'Unit Rate', sortable: true, render: v => <span className="text-xs text-[var(--text-muted)]">₹{v.toLocaleString('en-IN')}</span> },
@@ -73,7 +94,8 @@ const CATEGORY_FILTERS = ['All', 'Panel', 'Inverter', 'BOS', 'Structure'];
 
 /* ── Inventory Kanban Card ── */
 const InvCard = ({ item, onDragStart, onClick }) => {
-  const statusPct = Math.round((item.available / item.stock) * 100);
+  const available = (item.stock || 0) - (item.reserved || 0);
+  const reservedPct = item.stock > 0 ? Math.round((item.reserved || 0) / item.stock * 100) : 0;
   const status = getStockStatus(item);
   const stage = INV_STAGES.find(s => s.id === status);
   return (
@@ -88,18 +110,14 @@ const InvCard = ({ item, onDragStart, onClick }) => {
         <Warehouse size={12} className="text-[var(--accent-light)]" />
         <span className="text-[11px] font-medium text-[var(--accent-light)]">{item.warehouse}</span>
       </div>
-      <Progress value={statusPct} className="h-1 mb-2" />
-      <div className="grid grid-cols-3 gap-1 text-center">
+      <Progress value={100 - reservedPct} className="h-1 mb-2" />
+      <div className="grid grid-cols-2 gap-1 text-center">
         <div>
-          <p className="text-[9px] text-[var(--text-faint)]">Stock</p>
-          <p className="text-[11px] font-bold text-[var(--text-primary)]">{item.stock}</p>
+          <p className="text-[9px] text-[var(--text-faint)]">Available</p>
+          <p className="text-[11px] font-bold text-emerald-400">{available}</p>
         </div>
         <div>
-          <p className="text-[9px] text-[var(--text-faint)]">Avail</p>
-          <p className="text-[11px] font-bold text-emerald-400">{item.available}</p>
-        </div>
-        <div>
-          <p className="text-[9px] text-[var(--text-faint)]">Rsv</p>
+          <p className="text-[9px] text-[var(--text-faint)]">Reserved</p>
           <p className="text-[11px] font-bold text-amber-400">{item.reserved || 0}</p>
         </div>
       </div>
@@ -112,13 +130,13 @@ const InvCard = ({ item, onDragStart, onClick }) => {
           ))}
         </div>
       )}
-      {item.available <= item.minStock && item.available > 0 && (
+      {available <= item.minStock && available > 0 && (
         <div className="flex items-center gap-1 mt-1.5 text-[10px] text-amber-400">
           <AlertTriangle size={9} /> Below min stock ({item.minStock})
         </div>
       )}
       <div className="mt-1.5 text-[10px] font-bold text-[var(--text-secondary)]">
-        ₹{(item.available * item.rate).toLocaleString('en-IN')}
+        ₹{(item.stock * item.rate).toLocaleString('en-IN')}
       </div>
       <div className="mt-1 text-[9px] text-[var(--text-faint)]">
         Min: {item.minStock || 0} {item.unit}
@@ -188,7 +206,7 @@ const InvKanbanBoard = ({ items, onCardClick, onDrop }) => {
           .filter(Boolean)
           .map(stage => {
             const cards = items.filter(i => getStockStatus(i) === stage.id);
-            const totalVal = cards.reduce((a, i) => a + i.available * i.rate, 0);
+            const totalVal = cards.reduce((a, i) => a + ((i.stock || 0) - (i.reserved || 0)) * i.rate, 0);
             return (
               <div key={stage.id}
                 className={`flex flex-col w-72 sm:w-60 rounded-xl border transition-colors ${dragOver === stage.id ? 'border-[var(--primary)]/50 bg-[var(--primary)]/5' : 'border-[var(--border-base)] bg-[var(--bg-surface)]'}`}
@@ -253,7 +271,7 @@ const InventoryPage = () => {
   const [itemReservations, setItemReservations] = useState([]);
   const [loadingReservations, setLoadingReservations] = useState(false);
   const [form, setForm] = useState({ itemId: '', name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
-  const [stockInForm, setStockInForm] = useState({ itemId: '', quantity: '', poReference: '', receivedDate: '', remarks: '', warehouse: '' });
+  const [stockInForm, setStockInForm] = useState({ itemId: '', quantity: '', poId: '', poReference: '', receivedDate: '', remarks: '', warehouse: '' });
   const [warehouses, setWarehouses] = useState([]);
   const [newWarehouse, setNewWarehouse] = useState('');
   const [showWarehouseModal, setShowWarehouseModal] = useState(false);
@@ -274,12 +292,13 @@ const InventoryPage = () => {
   const [showUnitModal, setShowUnitModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
-  const [editForm, setEditForm] = useState({ name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
+  const [editForm, setEditForm] = useState({ name: '', category: '', unit: '', minStock: '', rate: '', status: '' });
   const [showStockOut, setShowStockOut] = useState(false);
   const [stockOutForm, setStockOutForm] = useState({ itemId: '', quantity: '', projectId: '', issuedDate: '', remarks: '' });
   const [inventory, setInventory] = useState([]);
   const [items, setItems] = useState([]); // Items from Items module
   const [projects, setProjects] = useState([]); // Projects for reservation display
+  const [purchaseOrders, setPurchaseOrders] = useState([]); // POs for Stock In
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [stats, setStats] = useState({ totalItems: 0, totalValue: 0, lowStockItems: 0, outOfStockItems: 0 });
@@ -295,6 +314,13 @@ const InventoryPage = () => {
   const [showCardsInViews, setShowCardsInViews] = useState(false); // Toggle KPI cards in list/kanban view
   const [showCategoryCards, setShowCategoryCards] = useState(true); // Toggle cards in Category tab
   const [showUnitCards, setShowUnitCards] = useState(true); // Toggle cards in Unit tab
+
+  // Bulk selection states for all tables
+  const [selectedInventoryItems, setSelectedInventoryItems] = useState(new Set());
+  const [selectedWarehouses, setSelectedWarehouses] = useState(new Set());
+  const [selectedItems, setSelectedItems] = useState(new Set());
+  const [selectedCategories, setSelectedCategories] = useState(new Set());
+  const [selectedUnits, setSelectedUnits] = useState(new Set());
 
   // Pagination and search states for different tables
   // Warehouse table
@@ -654,18 +680,33 @@ const InventoryPage = () => {
       }
     };
 
+    // Fetch Purchase Orders for Stock In PO selector
+    const fetchPurchaseOrders = async () => {
+      try {
+        const res = await api.get('/procurement/purchase-orders', { headers: { 'x-tenant-id': TENANT_ID } });
+        const posData = Array.isArray(res) ? res : (Array.isArray(res.data) ? res.data : (res.data?.data || []));
+        setPurchaseOrders(posData);
+      } catch (err) {
+        // silent fail
+      }
+    };
+
     fetchProjects();
+    fetchPurchaseOrders();
   }, []);
 
   // Calculate dynamic stats from inventory
   const dynamicStats = useMemo(() => {
     const totalItems = inventory.length;
     const totalValue = inventory.reduce((a, i) => a + (i.stock || 0) * (i.rate || 0), 0);
-    const lowStockItems = inventory.filter(i => ((i.stock || 0) - (i.reserved || 0)) <= (i.minStock || 0) && ((i.stock || 0) - (i.reserved || 0)) > 0).length;
-    const outOfStockItems = inventory.filter(i => (i.stock || 0) === 0).length;
-    const reservedItems = inventory.reduce((a, i) => a + (i.reserved || 0), 0);
+    
+    // Use getStockStatus logic to match Kanban columns exactly
+    const lowStockItems = inventory.filter(i => getStockStatus(i) === 'low-stock').length;
+    const outOfStockItems = inventory.filter(i => getStockStatus(i) === 'out-of-stock').length;
+    const reservedItems = inventory.filter(i => getStockStatus(i) === 'reserved').length;
+    const availableItems = inventory.filter(i => getStockStatus(i) === 'available').length;
 
-    return { totalItems, totalValue, lowStockItems, outOfStockItems, reservedItems };
+    return { totalItems, totalValue, lowStockItems, outOfStockItems, reservedItems, availableItems };
   }, [inventory]);
 
   const warehouseItems = useMemo(() => {
@@ -775,15 +816,21 @@ const InventoryPage = () => {
         warehouse: stockInForm.warehouse,
       }, { headers: { 'x-tenant-id': TENANT_ID } });
 
-      const itemData = response.data || response;
-      setInventory(prev => prev.map(i => i._id === item._id ? {
-        ...itemData,
-        name: itemData.description || itemData.name,
-        available: (itemData.stock || 0) - (itemData.reserved || 0)
-      } : i));
+      // Reload all inventory to reflect any new warehouse records created
+      const allItems = await api.get('/items');
+      let itemsArray = Array.isArray(allItems) ? allItems : (allItems.data || []);
+      const inventoryData = itemsArray.map(i => ({
+        ...i,
+        _id: i._id || i.id,
+        name: i.description || i.name || 'Unnamed Item',
+        reserved: i.reserved || 0,
+        available: (i.stock || 0) - (i.reserved || 0),
+        lastUpdated: i.updatedAt || new Date().toISOString().split('T')[0],
+      }));
+      setInventory(inventoryData);
 
       setStockIn(false);
-      setStockInForm({ itemId: '', quantity: '', poReference: '', receivedDate: '', remarks: '', warehouse: '' });
+      setStockInForm({ itemId: '', quantity: '', poId: '', poReference: '', receivedDate: '', remarks: '', warehouse: '' });
       alert('Stock added successfully!');
     } catch (err) {
       alert(err.message || 'Failed to add stock. Please try again.');
@@ -792,27 +839,30 @@ const InventoryPage = () => {
     }
   };
 
-  // Fetch reservations when selected item changes
+  // Fetch reservations when viewing item details
   useEffect(() => {
-    if (selected?.itemId) {
-      console.log('Selected item for reservations:', selected);
-      fetchItemReservations(selected.itemId);
-    } else {
-      setItemReservations([]);
+    if (selected?._id) {
+      console.log('[FRONTEND] Selected item for reservation fetch:', selected);
+      console.log('[FRONTEND] itemId:', selected.itemId, '_id:', selected._id);
+      // Try both _id and itemId
+      const itemIdToFetch = selected.itemId || selected._id;
+      fetchItemReservations(itemIdToFetch);
     }
   }, [selected?._id, selected?.itemId]);
 
   const fetchItemReservations = async (itemId) => {
     setLoadingReservations(true);
     try {
-      console.log('Fetching reservations for itemId:', itemId);
+      console.log('[FRONTEND] Fetching reservations for itemId:', itemId);
+      console.log('[FRONTEND] TENANT_ID:', TENANT_ID);
       const data = await api.get(`/inventory/reservations/by-item/${itemId}`);
-      console.log('Raw API response:', data);
+      console.log('[FRONTEND] Raw API response:', data);
       const reservations = data.data || data || [];
-      console.log('Processed reservations:', reservations);
+      console.log('[FRONTEND] Processed reservations:', reservations);
+      console.log('[FRONTEND] Number of reservations:', reservations.length);
       setItemReservations(reservations);
     } catch (err) {
-      console.error('Error fetching reservations:', err);
+      console.error('[FRONTEND] Error fetching reservations:', err);
       setItemReservations([]);
     } finally {
       setLoadingReservations(false);
@@ -843,16 +893,26 @@ const InventoryPage = () => {
         unit: editForm.unit,
         minStock: parseInt(editForm.minStock) || 0,
         rate: parseFloat(editForm.rate) || 0,
-        warehouse: editForm.warehouse,
         status: editForm.status || undefined
       };
 
       const updatedItem = await apiClient.patch(`/inventory/${editingItem.itemId}`, updateData, { params: { tenantId: TENANT_ID } });
       const itemData = updatedItem.data || updatedItem;
-      setInventory(prev => prev.map(i => i.itemId === editingItem.itemId ? itemData : i));
+      
+      // Transform the item data to match frontend format
+      const transformedItem = {
+        ...itemData,
+        _id: itemData._id || itemData.id,
+        name: itemData.description || itemData.name || 'Unnamed Item',
+        reserved: itemData.reserved || 0,
+        available: (itemData.stock || 0) - (itemData.reserved || 0),
+        lastUpdated: itemData.updatedAt || new Date().toISOString().split('T')[0],
+      };
+      
+      setInventory(prev => prev.map(i => i.itemId === editingItem.itemId ? transformedItem : i));
       setShowEdit(false);
       setEditingItem(null);
-      setEditForm({ name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
+      setEditForm({ name: '', category: '', unit: '', minStock: '', rate: '', status: '' });
       alert('Item updated successfully!');
     } catch (err) {
       alert(err.message || 'Failed to update item. Please try again.');
@@ -923,7 +983,17 @@ const InventoryPage = () => {
         }
       }
 
-      setInventory(prev => prev.map(i => i._id === item._id ? itemData : i));
+      // Transform the item data to match frontend format (same as handleStockIn)
+      const transformedItem = {
+        ...itemData,
+        _id: itemData._id || itemData.id,
+        name: itemData.description || itemData.name || 'Unnamed Item',
+        reserved: itemData.reserved || 0,
+        available: (itemData.stock || 0) - (itemData.reserved || 0),
+        lastUpdated: itemData.updatedAt || new Date().toISOString().split('T')[0],
+      };
+
+      setInventory(prev => prev.map(i => i._id === item._id ? transformedItem : i));
       setShowStockOut(false);
       setStockOutForm({ itemId: '', quantity: '', projectId: '', issuedDate: '', remarks: '' });
       alert('Stock issued successfully! Project reservation recorded.');
@@ -1124,7 +1194,14 @@ const InventoryPage = () => {
   const ROW_ACTIONS = [
     { label: 'View Details', icon: Package, onClick: row => setSelected(row) },
     { label: 'Edit', icon: Edit2, onClick: row => handleEditClick(row) },
-    { label: 'Stock In', icon: ArrowUp, onClick: row => { setStockInForm({ ...stockInForm, itemId: row.itemId }); setStockIn(true); } },
+    { label: 'Stock In', icon: ArrowUp, onClick: row => { 
+      setStockInForm({ 
+        ...stockInForm, 
+        itemId: row.itemId,
+        warehouse: row.warehouse || '' // Auto-select the item's current warehouse
+      }); 
+      setStockIn(true); 
+    } },
     { label: 'Stock Out', icon: ArrowDown, onClick: row => { setStockOutForm({ ...stockOutForm, itemId: row.itemId }); setShowStockOut(true); } },
     { label: 'Delete', icon: Trash2, onClick: row => handleDeleteItem(row), danger: true },
   ];
@@ -1200,90 +1277,86 @@ const InventoryPage = () => {
             {/* Inventory Card */}
             <div
               onClick={() => setActiveTab('inventory')}
-              className="relative overflow-hidden bg-gradient-to-br from-blue-500/40 to-blue-600/50 border border-blue-500/50 rounded-2xl p-5 shadow-lg cursor-pointer hover:scale-[1.02] transition-transform"
+              className="relative overflow-hidden bg-gradient-to-br from-blue-100 to-sky-200 border border-blue-200 rounded-2xl p-5 cursor-pointer hover:shadow-md transition-all"
             >
-              <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
               <div className="relative flex items-start justify-between">
                 <div>
-                  <p className="text-xs font-bold text-blue-900 uppercase tracking-wider">Total Stock</p>
-                  <p className="text-3xl font-bold text-black mt-2">{inventory.reduce((sum, i) => sum + (i.stock || 0), 0)}</p>
-                  <p className="text-xs text-black/70 mt-1">Total quantity in inventory</p>
+                  <p className="text-xs font-bold text-blue-700 uppercase tracking-wider">Total Stock</p>
+                  <p className="text-3xl font-bold text-gray-800 mt-2">{inventory.reduce((sum, i) => sum + (i.stock || 0), 0)}</p>
+                  <p className="text-xs text-gray-500 mt-1">Total quantity in inventory</p>
                 </div>
-                <div className="w-12 h-12 rounded-xl bg-blue-500/30 flex items-center justify-center backdrop-blur-sm">
+                <div className="w-12 h-12 rounded-xl bg-blue-200 flex items-center justify-center">
                   <Package size={24} className="text-blue-700" />
                 </div>
               </div>
               <div className="relative mt-3 flex gap-2">
-                <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-black font-medium">₹{(dynamicStats.totalValue / 100000).toFixed(1)}L value</span>
-                <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-black font-medium">{dynamicStats.lowStockItems} low</span>
+                <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-gray-700 font-medium">₹{(dynamicStats.totalValue / 100000).toFixed(1)}L value</span>
+                <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-gray-700 font-medium">{dynamicStats.lowStockItems} low</span>
               </div>
             </div>
 
             {/* Warehouse Card */}
             <div
               onClick={() => setActiveTab('warehouse')}
-              className="relative overflow-hidden bg-gradient-to-br from-emerald-500/40 to-emerald-600/50 border border-emerald-500/50 rounded-2xl p-5 shadow-lg cursor-pointer hover:scale-[1.02] transition-transform"
+              className="relative overflow-hidden bg-gradient-to-br from-emerald-100 to-green-200 border border-emerald-200 rounded-2xl p-5 cursor-pointer hover:shadow-md transition-all"
             >
-              <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
               <div className="relative flex items-start justify-between">
                 <div>
-                  <p className="text-xs font-bold text-emerald-900 uppercase tracking-wider">Warehouse</p>
-                  <p className="text-3xl font-bold text-black mt-2">{warehouses.length}</p>
-                  <p className="text-xs text-black/70 mt-1">Active warehouses</p>
+                  <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Warehouse</p>
+                  <p className="text-3xl font-bold text-gray-800 mt-2">{warehouses.length}</p>
+                  <p className="text-xs text-gray-500 mt-1">Active warehouses</p>
                 </div>
-                <div className="w-12 h-12 rounded-xl bg-emerald-500/30 flex items-center justify-center backdrop-blur-sm">
+                <div className="w-12 h-12 rounded-xl bg-emerald-200 flex items-center justify-center">
                   <Warehouse size={24} className="text-emerald-700" />
                 </div>
               </div>
               <div className="relative mt-3 flex gap-2">
-                <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-black font-medium">{inventory.length} items stored</span>
+                <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-gray-700 font-medium">{inventory.length} items stored</span>
               </div>
             </div>
 
             {/* Items Card */}
             <div
               onClick={() => setActiveTab('items')}
-              className="relative overflow-hidden bg-gradient-to-br from-violet-500/40 to-violet-600/50 border border-violet-500/50 rounded-2xl p-5 shadow-lg cursor-pointer hover:scale-[1.02] transition-transform"
+              className="relative overflow-hidden bg-gradient-to-br from-violet-100 to-purple-200 border border-violet-200 rounded-2xl p-5 cursor-pointer hover:shadow-md transition-all"
             >
-              <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
               <div className="relative flex items-start justify-between">
                 <div>
-                  <p className="text-xs font-bold text-violet-900 uppercase tracking-wider">Items</p>
-                  <p className="text-3xl font-bold text-black mt-2">{new Set(inventory.map(i => i.itemId)).size}</p>
-                  <p className="text-xs text-black/70 mt-1">Unique items in system</p>
+                  <p className="text-xs font-bold text-violet-700 uppercase tracking-wider">Items</p>
+                  <p className="text-3xl font-bold text-gray-800 mt-2">{new Set(inventory.map(i => i.itemId)).size}</p>
+                  <p className="text-xs text-gray-500 mt-1">Unique items in system</p>
                 </div>
-                <div className="w-12 h-12 rounded-xl bg-violet-500/30 flex items-center justify-center backdrop-blur-sm">
+                <div className="w-12 h-12 rounded-xl bg-violet-200 flex items-center justify-center">
                   <Package size={24} className="text-violet-700" />
                 </div>
               </div>
               <div className="relative mt-3 flex gap-2">
-                <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-black font-medium">{inventory.length} total entries</span>
-                <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-black font-medium">{categories.length} categories</span>
+                <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-gray-700 font-medium">{inventory.length} total entries</span>
+                <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-gray-700 font-medium">{categories.length} categories</span>
               </div>
             </div>
 
             {/* Category Card */}
             <div
               onClick={() => setActiveTab('category')}
-              className="relative overflow-hidden bg-gradient-to-br from-amber-500/40 to-amber-600/50 border border-amber-500/50 rounded-2xl p-5 shadow-lg cursor-pointer hover:scale-[1.02] transition-transform"
+              className="relative overflow-hidden bg-gradient-to-br from-amber-100 to-orange-200 border border-amber-200 rounded-2xl p-5 cursor-pointer hover:shadow-md transition-all"
             >
-              <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
               <div className="relative flex items-start justify-between">
                 <div>
-                  <p className="text-xs font-bold text-amber-900 uppercase tracking-wider">Category</p>
-                  <p className="text-3xl font-bold text-black mt-2">{categories.length}</p>
-                  <p className="text-xs text-black/70 mt-1">Item categories</p>
+                  <p className="text-xs font-bold text-amber-700 uppercase tracking-wider">Category</p>
+                  <p className="text-3xl font-bold text-gray-800 mt-2">{categories.length}</p>
+                  <p className="text-xs text-gray-500 mt-1">Item categories</p>
                 </div>
-                <div className="w-12 h-12 rounded-xl bg-amber-500/30 flex items-center justify-center backdrop-blur-sm">
+                <div className="w-12 h-12 rounded-xl bg-amber-200 flex items-center justify-center">
                   <Tag size={24} className="text-amber-700" />
                 </div>
               </div>
               <div className="relative mt-3 flex gap-2 flex-wrap">
                 {categories.slice(0, 2).map((cat, i) => (
-                  <span key={cat} className="text-[10px] px-2 py-1 bg-white/80 rounded text-black font-medium">{cat}</span>
+                  <span key={cat} className="text-[10px] px-2 py-1 bg-white/80 rounded text-gray-700 font-medium">{cat}</span>
                 ))}
                 {categories.length > 2 && (
-                  <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-black font-medium">+{categories.length - 2}</span>
+                  <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-gray-700 font-medium">+{categories.length - 2}</span>
                 )}
               </div>
             </div>
@@ -1291,25 +1364,24 @@ const InventoryPage = () => {
             {/* Unit Card */}
             <div
               onClick={() => setActiveTab('unit')}
-              className="relative overflow-hidden bg-gradient-to-br from-cyan-500/40 to-cyan-600/50 border border-cyan-500/50 rounded-2xl p-5 shadow-lg cursor-pointer hover:scale-[1.02] transition-transform"
+              className="relative overflow-hidden bg-gradient-to-br from-cyan-100 to-teal-200 border border-cyan-200 rounded-2xl p-5 cursor-pointer hover:shadow-md transition-all"
             >
-              <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
               <div className="relative flex items-start justify-between">
                 <div>
-                  <p className="text-xs font-bold text-cyan-900 uppercase tracking-wider">Unit</p>
-                  <p className="text-3xl font-bold text-black mt-2">{units.length}</p>
-                  <p className="text-xs text-black/70 mt-1">Measurement units</p>
+                  <p className="text-xs font-bold text-cyan-700 uppercase tracking-wider">Unit</p>
+                  <p className="text-3xl font-bold text-gray-800 mt-2">{units.length}</p>
+                  <p className="text-xs text-gray-500 mt-1">Measurement units</p>
                 </div>
-                <div className="w-12 h-12 rounded-xl bg-cyan-500/30 flex items-center justify-center backdrop-blur-sm">
+                <div className="w-12 h-12 rounded-xl bg-cyan-200 flex items-center justify-center">
                   <Scale size={24} className="text-cyan-700" />
                 </div>
               </div>
               <div className="relative mt-3 flex gap-2 flex-wrap">
                 {units.slice(0, 3).map((unit, i) => (
-                  <span key={unit} className="text-[10px] px-2 py-1 bg-white/80 rounded text-black font-medium">{unit}</span>
+                  <span key={unit} className="text-[10px] px-2 py-1 bg-white/80 rounded text-gray-700 font-medium">{unit}</span>
                 ))}
                 {units.length > 3 && (
-                  <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-black font-medium">+{units.length - 3}</span>
+                  <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-gray-700 font-medium">+{units.length - 3}</span>
                 )}
               </div>
             </div>
@@ -1666,73 +1738,68 @@ const InventoryPage = () => {
 
           {showCardsInViews && (
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-              <div className="relative overflow-hidden bg-gradient-to-br from-blue-500/40 to-blue-600/50 border border-blue-500/50 rounded-2xl p-5 shadow-lg">
-                <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+              <div className="relative overflow-hidden bg-gradient-to-br from-blue-100 to-sky-200 border border-blue-200 rounded-2xl p-5 shadow-lg">
                 <div className="relative flex items-start justify-between">
                   <div>
-                    <p className="text-xs font-bold text-white/90 uppercase tracking-wider">Total Stock</p>
-                    <p className="text-3xl font-bold text-white mt-2">{inventory.reduce((sum, i) => sum + (i.stock || 0), 0)}</p>
-                    <p className="text-xs text-white/80 mt-1">Total quantity in inventory</p>
+                    <p className="text-xs font-bold text-blue-700 uppercase tracking-wider">Total Stock</p>
+                    <p className="text-3xl font-bold text-gray-800 mt-2">{inventory.reduce((sum, i) => sum + (i.stock || 0), 0)}</p>
+                    <p className="text-xs text-gray-500 mt-1">Total quantity in inventory</p>
                   </div>
-                  <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
-                    <Package size={24} className="text-white" />
+                  <div className="w-12 h-12 rounded-xl bg-blue-200 flex items-center justify-center">
+                    <Package size={24} className="text-blue-700" />
                   </div>
                 </div>
               </div>
               {/* Card 2: Reserved Items - Swapped to position 2 */}
-              <div className="relative overflow-hidden bg-gradient-to-br from-violet-500/40 to-violet-600/50 border border-violet-500/50 rounded-2xl p-5 shadow-lg">
-                <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+              <div className="relative overflow-hidden bg-gradient-to-br from-violet-100 to-purple-200 border border-violet-200 rounded-2xl p-5 shadow-lg">
                 <div className="relative flex items-start justify-between">
                   <div>
-                    <p className="text-xs font-bold text-white/90 uppercase tracking-wider">Reserved Items</p>
-                    <p className="text-3xl font-bold text-white mt-2">{dynamicStats.reservedItems}</p>
-                    <p className="text-xs text-white/80 mt-1">Allocated to projects</p>
+                    <p className="text-xs font-bold text-violet-700 uppercase tracking-wider">Reserved Items</p>
+                    <p className="text-3xl font-bold text-gray-800 mt-2">{dynamicStats.reservedItems}</p>
+                    <p className="text-xs text-gray-500 mt-1">Allocated to projects</p>
                   </div>
-                  <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
-                    <Package size={24} className="text-white" />
+                  <div className="w-12 h-12 rounded-xl bg-violet-200 flex items-center justify-center">
+                    <Package size={24} className="text-violet-700" />
                   </div>
                 </div>
               </div>
 
-              <div className="relative overflow-hidden bg-gradient-to-br from-amber-500/40 to-amber-600/50 border border-amber-500/50 rounded-2xl p-5 shadow-lg">
-                <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+              <div className="relative overflow-hidden bg-gradient-to-br from-amber-100 to-orange-200 border border-amber-200 rounded-2xl p-5 shadow-lg">
                 <div className="relative flex items-start justify-between">
                   <div>
-                    <p className="text-xs font-bold text-white/90 uppercase tracking-wider">Low Stock</p>
-                    <p className="text-3xl font-bold text-white mt-2">{dynamicStats.lowStockItems}</p>
-                    <p className="text-xs text-white/80 mt-1">Items need reorder</p>
+                    <p className="text-xs font-bold text-amber-700 uppercase tracking-wider">Low Stock</p>
+                    <p className="text-3xl font-bold text-gray-800 mt-2">{dynamicStats.lowStockItems}</p>
+                    <p className="text-xs text-gray-500 mt-1">Items need reorder</p>
                   </div>
-                  <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
-                    <AlertTriangle size={24} className="text-white" />
+                  <div className="w-12 h-12 rounded-xl bg-amber-200 flex items-center justify-center">
+                    <AlertTriangle size={24} className="text-amber-700" />
                   </div>
                 </div>
               </div>
 
-              <div className="relative overflow-hidden bg-gradient-to-br from-rose-500/40 to-rose-600/50 border border-rose-500/50 rounded-2xl p-5 shadow-lg">
-                <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+              <div className="relative overflow-hidden bg-gradient-to-br from-rose-100 to-rose-200 border border-rose-200 rounded-2xl p-5 shadow-lg">
                 <div className="relative flex items-start justify-between">
                   <div>
-                    <p className="text-xs font-bold text-white/90 uppercase tracking-wider">Out of Stock</p>
-                    <p className="text-3xl font-bold text-white mt-2">{dynamicStats.outOfStockItems}</p>
-                    <p className="text-xs text-white/80 mt-1">Immediate action needed</p>
+                    <p className="text-xs font-bold text-rose-700 uppercase tracking-wider">Out of Stock</p>
+                    <p className="text-3xl font-bold text-gray-800 mt-2">{dynamicStats.outOfStockItems}</p>
+                    <p className="text-xs text-gray-500 mt-1">Immediate action needed</p>
                   </div>
-                  <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
-                    <AlertTriangle size={24} className="text-white" />
+                  <div className="w-12 h-12 rounded-xl bg-rose-200 flex items-center justify-center">
+                    <AlertTriangle size={24} className="text-rose-700" />
                   </div>
                 </div>
               </div>
 
               {/* Card 5: Inventory Value - Swapped to position 5 */}
-              <div className="relative overflow-hidden bg-gradient-to-br from-emerald-500/40 to-emerald-600/50 border border-emerald-500/50 rounded-2xl p-5 shadow-lg">
-                <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+              <div className="relative overflow-hidden bg-gradient-to-br from-emerald-100 to-green-200 border border-emerald-200 rounded-2xl p-5 shadow-lg">
                 <div className="relative flex items-start justify-between">
                   <div>
-                    <p className="text-xs font-bold text-white/90 uppercase tracking-wider">Inventory Value</p>
-                    <p className="text-xl font-bold text-white mt-2">₹{(dynamicStats.totalValue / 100000).toFixed(1)}L</p>
-                    <p className="text-xs text-white/80 mt-1">At current rates</p>
+                    <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Inventory Value</p>
+                    <p className="text-xl font-bold text-gray-800 mt-2">₹{(dynamicStats.totalValue / 100000).toFixed(1)}L</p>
+                    <p className="text-xs text-gray-500 mt-1">At current rates</p>
                   </div>
-                  <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
-                    <Warehouse size={24} className="text-white" />
+                  <div className="w-12 h-12 rounded-xl bg-emerald-200 flex items-center justify-center">
+                    <Warehouse size={24} className="text-emerald-700" />
                   </div>
                 </div>
               </div>
@@ -1759,13 +1826,46 @@ const InventoryPage = () => {
 
           {view === 'table' ? (
             <>
-              <div className="flex flex-wrap gap-2 items-center">
-                <span className="text-xs text-[var(--text-muted)] mr-1">Category:</span>
-                {CATEGORY_FILTERS.map(c => (
-                  <button key={c} onClick={() => { setCatFilter(c); setPage(1); }}
-                    className={`filter-chip ${catFilter === c ? 'filter-chip-active' : ''}`}>{c}</button>
-                ))}
-                <div className="ml-auto">
+              <div className="flex flex-wrap gap-2 items-center justify-between">
+                <div className="flex flex-wrap gap-2 items-center">
+                  <span className="text-xs text-[var(--text-muted)] mr-1">Category:</span>
+                  {CATEGORY_FILTERS.map(c => (
+                    <button key={c} onClick={() => { setCatFilter(c); setPage(1); }}
+                      className={`filter-chip ${catFilter === c ? 'filter-chip-active' : ''}`}>{c}</button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => exportToCSV(
+                    filtered.map(item => ({
+                      itemId: item.itemId,
+                      name: item.name || item.description,
+                      category: item.category,
+                      warehouse: item.warehouse || '',
+                      unit: item.unit,
+                      rate: item.rate,
+                      stock: item.stock,
+                      reserved: item.reserved,
+                      minStock: item.minStock,
+                      available: (item.stock || 0) - (item.reserved || 0),
+                      status: getStockStatus(item)
+                    })),
+                    'inventory',
+                    [
+                      { key: 'itemId', header: 'Item ID' },
+                      { key: 'name', header: 'Item Name' },
+                      { key: 'category', header: 'Category' },
+                      { key: 'warehouse', header: 'Warehouse' },
+                      { key: 'unit', header: 'Unit' },
+                      { key: 'rate', header: 'Rate (₹)' },
+                      { key: 'stock', header: 'Total Stock' },
+                      { key: 'reserved', header: 'Reserved' },
+                      { key: 'minStock', header: 'Min Stock' },
+                      { key: 'available', header: 'Available' },
+                      { key: 'status', header: 'Status' }
+                    ]
+                  )}>
+                    <Download size={14} /> Export
+                  </Button>
                   <Input placeholder="Search inventory…" value={search}
                     onChange={e => { setSearch(e.target.value); setPage(1); }} className="h-8 text-xs w-52" />
                 </div>
@@ -1775,7 +1875,65 @@ const InventoryPage = () => {
                 onPageSizeChange={s => { setPageSize(s); setPage(1); }}
                 search={search} onSearch={v => { setSearch(v); setPage(1); }}
                 rowActions={ROW_ACTIONS} emptyText="No inventory items found."
-                onRowClick={setSelected} />
+                onRowClick={setSelected}
+                selectedRows={selectedInventoryItems}
+                onSelectRows={setSelectedInventoryItems}
+                rowKey="_id"
+                bulkActions={[
+                  {
+                    label: 'Export Selected',
+                    icon: Download,
+                    onClick: (selectedIds) => {
+                      const selectedData = filtered.filter(i => selectedIds.has(i._id));
+                      const dataToExport = selectedData.map(item => ({
+                        itemId: item.itemId,
+                        name: item.name || item.description,
+                        category: item.category,
+                        warehouse: item.warehouse || '',
+                        unit: item.unit,
+                        rate: item.rate,
+                        stock: item.stock,
+                        reserved: item.reserved,
+                        minStock: item.minStock,
+                        available: (item.stock || 0) - (item.reserved || 0),
+                        status: getStockStatus(item)
+                      }));
+                      const columns = [
+                        { key: 'itemId', header: 'Item ID' },
+                        { key: 'name', header: 'Item Name' },
+                        { key: 'category', header: 'Category' },
+                        { key: 'warehouse', header: 'Warehouse' },
+                        { key: 'unit', header: 'Unit' },
+                        { key: 'rate', header: 'Rate (₹)' },
+                        { key: 'stock', header: 'Total Stock' },
+                        { key: 'reserved', header: 'Reserved' },
+                        { key: 'minStock', header: 'Min Stock' },
+                        { key: 'available', header: 'Available' },
+                        { key: 'status', header: 'Status' }
+                      ];
+                      const headers = columns.map(c => c.header).join(',');
+                      const rows = dataToExport.map(row =>
+                        columns.map(col => {
+                          const val = row[col.key] ?? '';
+                          if (String(val).includes(',') || String(val).includes('"')) {
+                            return `"${String(val).replace(/"/g, '""')}"`;
+                          }
+                          return val;
+                        }).join(',')
+                      ).join('\n');
+                      const csvContent = [headers, rows].join('\n');
+                      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                      const link = document.createElement('a');
+                      const url = URL.createObjectURL(blob);
+                      link.setAttribute('href', url);
+                      link.setAttribute('download', `inventory_selected_${new Date().toISOString().split('T')[0]}.csv`);
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                      setSelectedInventoryItems(new Set());
+                    }
+                  }
+                ]} />
             </>
           ) : (
             <>
@@ -1820,15 +1978,87 @@ const InventoryPage = () => {
                 {warehouses.filter(w => w.toLowerCase().includes(warehouseSearch.toLowerCase())).length} warehouses
               </span>
             </div>
-            <Button onClick={() => setShowWarehouseModal(true)}>
-              <Plus size={14} /> Add Warehouse
-            </Button>
+            <div className="flex items-center gap-2">
+              {selectedWarehouses.size > 0 && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => {
+                    const selectedData = warehouses.filter(w => selectedWarehouses.has(w)).map(w => ({
+                      warehouse: w,
+                      itemsCount: inventory.filter(i => i.warehouse === w).length
+                    }));
+                    const columns = [{ key: 'warehouse', header: 'Warehouse' }, { key: 'itemsCount', header: 'Items Count' }];
+                    const headers = columns.map(c => c.header).join(',');
+                    const rows = selectedData.map(row =>
+                      columns.map(col => {
+                        const val = row[col.key] ?? '';
+                        if (String(val).includes(',') || String(val).includes('"')) {
+                          return `"${String(val).replace(/"/g, '""')}"`;
+                        }
+                        return val;
+                      }).join(',')
+                    ).join('\n');
+                    const csvContent = [headers, rows].join('\n');
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement('a');
+                    const url = URL.createObjectURL(blob);
+                    link.setAttribute('href', url);
+                    link.setAttribute('download', `warehouses_selected_${new Date().toISOString().split('T')[0]}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    setSelectedWarehouses(new Set());
+                  }}
+                >
+                  <Download size={14} /> Export Selected ({selectedWarehouses.size})
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={() => exportToCSV(
+                warehouses.filter(w => w.toLowerCase().includes(warehouseSearch.toLowerCase())).map(w => ({ 
+                  warehouse: w, 
+                  itemsCount: inventory.filter(i => i.warehouse === w).length 
+                })),
+                'warehouses',
+                [{ key: 'warehouse', header: 'Warehouse' }, { key: 'itemsCount', header: 'Items Count' }]
+              )}>
+                <Download size={14} /> Export All
+              </Button>
+              <Button onClick={() => setShowWarehouseModal(true)}>
+                <Plus size={14} /> Add Warehouse
+              </Button>
+            </div>
           </div>
 
           <div className="glass-card overflow-hidden">
             <table className="w-full text-left">
               <thead>
                 <tr className="border-b border-[var(--border-base)] bg-[var(--bg-elevated)]">
+                  <th className="w-10 px-3 py-3">
+                    <input
+                      type="checkbox"
+                      checked={warehouses.filter(w => w.toLowerCase().includes(warehouseSearch.toLowerCase())).length > 0 && 
+                        warehouses.filter(w => w.toLowerCase().includes(warehouseSearch.toLowerCase())).every(w => selectedWarehouses.has(w))}
+                      onChange={() => {
+                        const filteredWarehouses = warehouses.filter(w => w.toLowerCase().includes(warehouseSearch.toLowerCase()));
+                        const allSelected = filteredWarehouses.every(w => selectedWarehouses.has(w));
+                        if (allSelected) {
+                          setSelectedWarehouses(prev => {
+                            const next = new Set(prev);
+                            filteredWarehouses.forEach(w => next.delete(w));
+                            return next;
+                          });
+                        } else {
+                          setSelectedWarehouses(prev => {
+                            const next = new Set(prev);
+                            filteredWarehouses.forEach(w => next.add(w));
+                            return next;
+                          });
+                        }
+                      }}
+                      className="w-3.5 h-3.5 accent-[var(--primary)] cursor-pointer"
+                    />
+                  </th>
                   <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Warehouse</th>
                   <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Items</th>
                   <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase text-right">Actions</th>
@@ -1847,7 +2077,7 @@ const InventoryPage = () => {
                   if (warehouses.length === 0) {
                     return (
                       <tr>
-                        <td colSpan={3} className="px-4 py-8 text-center text-[var(--text-muted)]">No warehouses</td>
+                        <td colSpan={4} className="px-4 py-8 text-center text-[var(--text-muted)]">No warehouses</td>
                       </tr>
                     );
                   }
@@ -1855,7 +2085,7 @@ const InventoryPage = () => {
                   if (paginatedWarehouses.length === 0) {
                     return (
                       <tr>
-                        <td colSpan={3} className="px-4 py-8 text-center text-[var(--text-muted)]">No warehouses found</td>
+                        <td colSpan={4} className="px-4 py-8 text-center text-[var(--text-muted)]">No warehouses found</td>
                       </tr>
                     );
                   }
@@ -1866,6 +2096,21 @@ const InventoryPage = () => {
                       className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)] cursor-pointer"
                       onClick={() => setViewingWarehouse(w)}
                     >
+                      <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedWarehouses.has(w)}
+                          onChange={() => {
+                            setSelectedWarehouses(prev => {
+                              const next = new Set(prev);
+                              if (next.has(w)) next.delete(w);
+                              else next.add(w);
+                              return next;
+                            });
+                          }}
+                          className="w-3.5 h-3.5 accent-[var(--primary)] cursor-pointer"
+                        />
+                      </td>
                       <td className="px-4 py-3">
                         <span className="text-sm font-medium text-[var(--text-primary)]">{w}</span>
                       </td>
@@ -1956,6 +2201,89 @@ const InventoryPage = () => {
               </span>
             </div>
             <div className="flex gap-2">
+              {selectedItems.size > 0 && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => {
+                    const selectedData = inventory.filter(item => selectedItems.has(item._id || item.itemId));
+                    const dataToExport = selectedData.map(item => ({
+                      itemId: item.itemId,
+                      name: item.name || item.description,
+                      category: item.category,
+                      warehouse: item.warehouse || '',
+                      unit: item.unit,
+                      rate: item.rate,
+                      stock: item.stock,
+                      reserved: item.reserved,
+                      minStock: item.minStock
+                    }));
+                    const columns = [
+                      { key: 'itemId', header: 'Item ID' },
+                      { key: 'name', header: 'Description' },
+                      { key: 'category', header: 'Category' },
+                      { key: 'warehouse', header: 'Warehouse' },
+                      { key: 'unit', header: 'Unit' },
+                      { key: 'rate', header: 'Rate (₹)' },
+                      { key: 'stock', header: 'Stock' },
+                      { key: 'reserved', header: 'Reserved' },
+                      { key: 'minStock', header: 'Min Stock' }
+                    ];
+                    const headers = columns.map(c => c.header).join(',');
+                    const rows = dataToExport.map(row =>
+                      columns.map(col => {
+                        const val = row[col.key] ?? '';
+                        if (String(val).includes(',') || String(val).includes('"')) {
+                          return `"${String(val).replace(/"/g, '""')}"`;
+                        }
+                        return val;
+                      }).join(',')
+                    ).join('\n');
+                    const csvContent = [headers, rows].join('\n');
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement('a');
+                    const url = URL.createObjectURL(blob);
+                    link.setAttribute('href', url);
+                    link.setAttribute('download', `items_selected_${new Date().toISOString().split('T')[0]}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    setSelectedItems(new Set());
+                  }}
+                >
+                  <Download size={14} /> Export Selected ({selectedItems.size})
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={() => exportToCSV(
+                inventory
+                  .filter(item => item.name?.toLowerCase().includes(search.toLowerCase()) ||
+                    item.itemId?.toLowerCase().includes(search.toLowerCase()))
+                  .map(item => ({
+                    itemId: item.itemId,
+                    name: item.name || item.description,
+                    category: item.category,
+                    warehouse: item.warehouse || '',
+                    unit: item.unit,
+                    rate: item.rate,
+                    stock: item.stock,
+                    reserved: item.reserved,
+                    minStock: item.minStock
+                  })),
+                'items',
+                [
+                  { key: 'itemId', header: 'Item ID' },
+                  { key: 'name', header: 'Description' },
+                  { key: 'category', header: 'Category' },
+                  { key: 'warehouse', header: 'Warehouse' },
+                  { key: 'unit', header: 'Unit' },
+                  { key: 'rate', header: 'Rate (₹)' },
+                  { key: 'stock', header: 'Stock' },
+                  { key: 'reserved', header: 'Reserved' },
+                  { key: 'minStock', header: 'Min Stock' }
+                ]
+              )}>
+                <Download size={14} /> Export All
+              </Button>
               <Button variant="outline" onClick={() => setShowAdd(true)}>
                 <Plus size={14} /> Add Item
               </Button>
@@ -1967,6 +2295,35 @@ const InventoryPage = () => {
             <table className="w-full text-left">
               <thead>
                 <tr className="border-b border-[var(--border-base)] bg-[var(--bg-elevated)]">
+                  <th className="w-10 px-3 py-3">
+                    <input
+                      type="checkbox"
+                      checked={inventory.filter(item => item.name?.toLowerCase().includes(search.toLowerCase()) ||
+                        item.itemId?.toLowerCase().includes(search.toLowerCase())).length > 0 &&
+                        inventory.filter(item => item.name?.toLowerCase().includes(search.toLowerCase()) ||
+                          item.itemId?.toLowerCase().includes(search.toLowerCase()))
+                          .every(item => selectedItems.has(item._id || item.itemId))}
+                      onChange={() => {
+                        const filteredItems = inventory.filter(item => item.name?.toLowerCase().includes(search.toLowerCase()) ||
+                          item.itemId?.toLowerCase().includes(search.toLowerCase()));
+                        const allSelected = filteredItems.every(item => selectedItems.has(item._id || item.itemId));
+                        if (allSelected) {
+                          setSelectedItems(prev => {
+                            const next = new Set(prev);
+                            filteredItems.forEach(item => next.delete(item._id || item.itemId));
+                            return next;
+                          });
+                        } else {
+                          setSelectedItems(prev => {
+                            const next = new Set(prev);
+                            filteredItems.forEach(item => next.add(item._id || item.itemId));
+                            return next;
+                          });
+                        }
+                      }}
+                      className="w-3.5 h-3.5 accent-[var(--primary)] cursor-pointer"
+                    />
+                  </th>
                   <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Item ID</th>
                   <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Description</th>
                   <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Category</th>
@@ -1979,7 +2336,7 @@ const InventoryPage = () => {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-[var(--text-muted)]">
+                    <td colSpan={8} className="px-4 py-8 text-center text-[var(--text-muted)]">
                       <div className="flex items-center justify-center gap-2">
                         <div className="w-4 h-4 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
                         Loading items...
@@ -1988,7 +2345,7 @@ const InventoryPage = () => {
                   </tr>
                 ) : inventory.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-[var(--text-muted)]">
+                    <td colSpan={8} className="px-4 py-8 text-center text-[var(--text-muted)]">
                       <Package size={32} className="mx-auto mb-2 text-[var(--text-faint)]" />
                       <p>No items found</p>
                     </td>
@@ -2001,6 +2358,22 @@ const InventoryPage = () => {
                       <tr key={item._id || item.itemId}
                         onClick={() => setSelected(item)}
                         className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)] cursor-pointer">
+                        <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selectedItems.has(item._id || item.itemId)}
+                            onChange={() => {
+                              setSelectedItems(prev => {
+                                const next = new Set(prev);
+                                const id = item._id || item.itemId;
+                                if (next.has(id)) next.delete(id);
+                                else next.add(id);
+                                return next;
+                              });
+                            }}
+                            className="w-3.5 h-3.5 accent-[var(--primary)] cursor-pointer"
+                          />
+                        </td>
                         <td className="px-4 py-3">
                           <span className="text-xs font-mono text-[var(--accent-light)]">{item.itemId}</span>
                         </td>
@@ -2009,6 +2382,9 @@ const InventoryPage = () => {
                         </td>
                         <td className="px-4 py-3">
                           <span className="text-xs text-[var(--text-secondary)]">{item.category}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs text-[var(--text-secondary)]">{item.warehouse || '—'}</span>
                         </td>
                         <td className="px-4 py-3">
                           <span className="text-xs text-[var(--text-secondary)]">{item.unit}</span>
@@ -2100,6 +2476,51 @@ const InventoryPage = () => {
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500"><rect width="7" height="9" x="3" y="3" rx="1" /><rect width="7" height="5" x="14" y="3" rx="1" /><rect width="7" height="9" x="14" y="12" rx="1" /><rect width="7" height="5" x="3" y="16" rx="1" /></svg>
                 {showCategoryCards ? 'Hide Cards' : 'Show Cards'}
               </button>
+              {selectedCategories.size > 0 && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => {
+                    const selectedData = categories.filter(cat => selectedCategories.has(cat)).map(cat => ({
+                      category: cat,
+                      itemsCount: inventory.filter(i => i.category === cat).length
+                    }));
+                    const columns = [{ key: 'category', header: 'Category Name' }, { key: 'itemsCount', header: 'Items Count' }];
+                    const headers = columns.map(c => c.header).join(',');
+                    const rows = selectedData.map(row =>
+                      columns.map(col => {
+                        const val = row[col.key] ?? '';
+                        if (String(val).includes(',') || String(val).includes('"')) {
+                          return `"${String(val).replace(/"/g, '""')}"`;
+                        }
+                        return val;
+                      }).join(',')
+                    ).join('\n');
+                    const csvContent = [headers, rows].join('\n');
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement('a');
+                    const url = URL.createObjectURL(blob);
+                    link.setAttribute('href', url);
+                    link.setAttribute('download', `categories_selected_${new Date().toISOString().split('T')[0]}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    setSelectedCategories(new Set());
+                  }}
+                >
+                  <Download size={14} /> Export Selected ({selectedCategories.size})
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={() => exportToCSV(
+                categories.map(cat => ({
+                  category: cat,
+                  itemsCount: inventory.filter(i => i.category === cat).length
+                })),
+                'categories',
+                [{ key: 'category', header: 'Category Name' }, { key: 'itemsCount', header: 'Items Count' }]
+              )}>
+                <Download size={14} /> Export All
+              </Button>
               <Button onClick={() => setShowCategoryModal(true)}>
                 <Plus size={14} /> Add Category
               </Button>
@@ -2112,26 +2533,26 @@ const InventoryPage = () => {
               {categories.map((cat, index) => {
                 const catItems = inventory.filter(i => i.category === cat);
                 if (catItems.length === 0) return null;
-                const colors = ['bg-gradient-to-br from-emerald-500/40 to-emerald-600/50 border-emerald-500/50', 'bg-gradient-to-br from-blue-500/40 to-blue-600/50 border-blue-500/50', 'bg-gradient-to-br from-amber-500/40 to-amber-600/50 border-amber-500/50', 'bg-gradient-to-br from-rose-500/40 to-rose-600/50 border-rose-500/50', 'bg-gradient-to-br from-violet-500/40 to-violet-600/50 border-violet-500/50', 'bg-gradient-to-br from-cyan-500/40 to-cyan-600/50 border-cyan-500/50', 'bg-gradient-to-br from-orange-500/40 to-orange-600/50 border-orange-500/50', 'bg-gradient-to-br from-pink-500/40 to-pink-600/50 border-pink-500/50'];
-                const iconColors = ['text-white', 'text-white', 'text-white', 'text-white', 'text-white', 'text-white', 'text-white', 'text-white'];
-                const bgColors = ['bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20'];
+                const colors = ['bg-gradient-to-br from-emerald-100 to-emerald-200 border-emerald-200', 'bg-gradient-to-br from-blue-100 to-sky-200 border-blue-200', 'bg-gradient-to-br from-amber-100 to-orange-200 border-amber-200', 'bg-gradient-to-br from-rose-100 to-rose-200 border-rose-200', 'bg-gradient-to-br from-violet-100 to-purple-200 border-violet-200', 'bg-gradient-to-br from-cyan-100 to-teal-200 border-cyan-200', 'bg-gradient-to-br from-orange-100 to-orange-200 border-orange-200', 'bg-gradient-to-br from-pink-100 to-pink-200 border-pink-200'];
+                const iconColors = ['text-emerald-700', 'text-blue-700', 'text-amber-700', 'text-rose-700', 'text-violet-700', 'text-cyan-700', 'text-orange-700', 'text-pink-700'];
+                const bgColors = ['bg-emerald-200', 'bg-blue-200', 'bg-amber-200', 'bg-rose-200', 'bg-violet-200', 'bg-cyan-200', 'bg-orange-200', 'bg-pink-200'];
                 return (
                   <div key={cat} className={`${colors[index % colors.length]} border rounded-xl p-4 flex flex-col gap-2 hover:shadow-md transition-all`}>
                     <div className="flex items-center justify-between">
                       <div className={`w-10 h-10 rounded-xl ${bgColors[index % bgColors.length]} flex items-center justify-center shadow-sm`}>
                         <Package size={20} className={iconColors[index % iconColors.length]} />
                       </div>
-                      <span className="text-xs font-medium text-white/80">{catItems.length} items</span>
+                      <span className="text-xs font-medium text-gray-700">{catItems.length} items</span>
                     </div>
-                    <span className="text-sm font-semibold text-white">{cat}</span>
+                    <span className="text-sm font-semibold text-gray-800">{cat}</span>
                     <div className="flex flex-wrap gap-1">
                       {catItems.slice(0, 3).map((item, idx) => (
-                        <span key={`${item.itemId}-${idx}`} className="text-[10px] px-2 py-1 bg-white/20 rounded text-white border border-white/30">
+                        <span key={`${item.itemId}-${idx}`} className="text-[10px] px-2 py-1 bg-white/80 rounded text-gray-700 border border-white/30">
                           {item.name || item.description}
                         </span>
                       ))}
                       {catItems.length > 3 && (
-                        <span className="text-[10px] px-2 py-1 text-white/80">
+                        <span className="text-[10px] px-2 py-1 text-gray-500">
                           +{catItems.length - 3} more
                         </span>
                       )}
@@ -2149,6 +2570,21 @@ const InventoryPage = () => {
               <table className="w-full text-left">
                 <thead>
                   <tr className="border-b border-[var(--border-base)] bg-[var(--bg-elevated)]">
+                    <th className="w-10 px-3 py-3">
+                      <input
+                        type="checkbox"
+                        checked={categories.length > 0 && categories.every(cat => selectedCategories.has(cat))}
+                        onChange={() => {
+                          const allSelected = categories.every(cat => selectedCategories.has(cat));
+                          if (allSelected) {
+                            setSelectedCategories(new Set());
+                          } else {
+                            setSelectedCategories(new Set(categories));
+                          }
+                        }}
+                        className="w-3.5 h-3.5 accent-[var(--primary)] cursor-pointer"
+                      />
+                    </th>
                     <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Category Name</th>
                     <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Items Count</th>
                     <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase text-right">Actions</th>
@@ -2161,6 +2597,21 @@ const InventoryPage = () => {
                       className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)] cursor-pointer"
                       onClick={() => setViewingCategory(cat)}
                     >
+                      <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedCategories.has(cat)}
+                          onChange={() => {
+                            setSelectedCategories(prev => {
+                              const next = new Set(prev);
+                              if (next.has(cat)) next.delete(cat);
+                              else next.add(cat);
+                              return next;
+                            });
+                          }}
+                          className="w-3.5 h-3.5 accent-[var(--primary)] cursor-pointer"
+                        />
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 rounded-lg bg-[var(--bg-elevated)] flex items-center justify-center">
@@ -2223,6 +2674,51 @@ const InventoryPage = () => {
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500"><rect width="7" height="9" x="3" y="3" rx="1" /><rect width="7" height="5" x="14" y="3" rx="1" /><rect width="7" height="9" x="14" y="12" rx="1" /><rect width="7" height="5" x="3" y="16" rx="1" /></svg>
                 {showUnitCards ? 'Hide Cards' : 'Show Cards'}
               </button>
+              {selectedUnits.size > 0 && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => {
+                    const selectedData = units.filter(unit => selectedUnits.has(unit)).map(unit => ({
+                      unit: unit,
+                      itemsCount: inventory.filter(i => i.unit === unit).length
+                    }));
+                    const columns = [{ key: 'unit', header: 'Unit Name' }, { key: 'itemsCount', header: 'Items Count' }];
+                    const headers = columns.map(c => c.header).join(',');
+                    const rows = selectedData.map(row =>
+                      columns.map(col => {
+                        const val = row[col.key] ?? '';
+                        if (String(val).includes(',') || String(val).includes('"')) {
+                          return `"${String(val).replace(/"/g, '""')}"`;
+                        }
+                        return val;
+                      }).join(',')
+                    ).join('\n');
+                    const csvContent = [headers, rows].join('\n');
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement('a');
+                    const url = URL.createObjectURL(blob);
+                    link.setAttribute('href', url);
+                    link.setAttribute('download', `units_selected_${new Date().toISOString().split('T')[0]}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    setSelectedUnits(new Set());
+                  }}
+                >
+                  <Download size={14} /> Export Selected ({selectedUnits.size})
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={() => exportToCSV(
+                units.map(unit => ({
+                  unit: unit,
+                  itemsCount: inventory.filter(i => i.unit === unit).length
+                })),
+                'units',
+                [{ key: 'unit', header: 'Unit Name' }, { key: 'itemsCount', header: 'Items Count' }]
+              )}>
+                <Download size={14} /> Export All
+              </Button>
               <Button onClick={() => setShowUnitModal(true)}>
                 <Plus size={14} /> Add Unit
               </Button>
@@ -2235,26 +2731,26 @@ const InventoryPage = () => {
               {units.map((unit, index) => {
                 const unitItems = inventory.filter(i => i.unit === unit);
                 if (unitItems.length === 0) return null;
-                const colors = ['bg-gradient-to-br from-emerald-500/40 to-emerald-600/50 border-emerald-500/50', 'bg-gradient-to-br from-blue-500/40 to-blue-600/50 border-blue-500/50', 'bg-gradient-to-br from-amber-500/40 to-amber-600/50 border-amber-500/50', 'bg-gradient-to-br from-rose-500/40 to-rose-600/50 border-rose-500/50', 'bg-gradient-to-br from-violet-500/40 to-violet-600/50 border-violet-500/50', 'bg-gradient-to-br from-cyan-500/40 to-cyan-600/50 border-cyan-500/50', 'bg-gradient-to-br from-orange-500/40 to-orange-600/50 border-orange-500/50', 'bg-gradient-to-br from-pink-500/40 to-pink-600/50 border-pink-500/50'];
-                const iconColors = ['text-white', 'text-white', 'text-white', 'text-white', 'text-white', 'text-white', 'text-white', 'text-white'];
-                const bgColors = ['bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20', 'bg-white/20'];
+                const colors = ['bg-gradient-to-br from-emerald-100 to-emerald-200 border-emerald-200', 'bg-gradient-to-br from-blue-100 to-sky-200 border-blue-200', 'bg-gradient-to-br from-amber-100 to-orange-200 border-amber-200', 'bg-gradient-to-br from-rose-100 to-rose-200 border-rose-200', 'bg-gradient-to-br from-violet-100 to-purple-200 border-violet-200', 'bg-gradient-to-br from-cyan-100 to-teal-200 border-cyan-200', 'bg-gradient-to-br from-orange-100 to-orange-200 border-orange-200', 'bg-gradient-to-br from-pink-100 to-pink-200 border-pink-200'];
+                const iconColors = ['text-emerald-700', 'text-blue-700', 'text-amber-700', 'text-rose-700', 'text-violet-700', 'text-cyan-700', 'text-orange-700', 'text-pink-700'];
+                const bgColors = ['bg-emerald-200', 'bg-blue-200', 'bg-amber-200', 'bg-rose-200', 'bg-violet-200', 'bg-cyan-200', 'bg-orange-200', 'bg-pink-200'];
                 return (
                   <div key={unit} className={`${colors[index % colors.length]} border rounded-xl p-4 flex flex-col gap-2 hover:shadow-md transition-all`}>
                     <div className="flex items-center justify-between">
                       <div className={`w-10 h-10 rounded-xl ${bgColors[index % bgColors.length]} flex items-center justify-center shadow-sm`}>
                         <Package size={20} className={iconColors[index % iconColors.length]} />
                       </div>
-                      <span className="text-xs font-medium text-white/80">{unitItems.length} items</span>
+                      <span className="text-xs font-medium text-gray-700">{unitItems.length} items</span>
                     </div>
-                    <span className="text-sm font-semibold text-white">{unit}</span>
+                    <span className="text-sm font-semibold text-gray-800">{unit}</span>
                     <div className="flex flex-wrap gap-1">
                       {unitItems.slice(0, 3).map((item, idx) => (
-                        <span key={`${item.itemId}-${idx}`} className="text-[10px] px-2 py-1 bg-white/20 rounded text-white border border-white/30">
+                        <span key={`${item.itemId}-${idx}`} className="text-[10px] px-2 py-1 bg-white/80 rounded text-gray-700 border border-white/30">
                           {item.name || item.description}
                         </span>
                       ))}
                       {unitItems.length > 3 && (
-                        <span className="text-[10px] px-2 py-1 text-white/80">
+                        <span className="text-[10px] px-2 py-1 text-gray-500">
                           +{unitItems.length - 3} more
                         </span>
                       )}
@@ -2272,6 +2768,21 @@ const InventoryPage = () => {
               <table className="w-full text-left">
                 <thead>
                   <tr className="border-b border-[var(--border-base)] bg-[var(--bg-elevated)]">
+                    <th className="w-10 px-3 py-3">
+                      <input
+                        type="checkbox"
+                        checked={units.length > 0 && units.every(unit => selectedUnits.has(unit))}
+                        onChange={() => {
+                          const allSelected = units.every(unit => selectedUnits.has(unit));
+                          if (allSelected) {
+                            setSelectedUnits(new Set());
+                          } else {
+                            setSelectedUnits(new Set(units));
+                          }
+                        }}
+                        className="w-3.5 h-3.5 accent-[var(--primary)] cursor-pointer"
+                      />
+                    </th>
                     <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Unit Name</th>
                     <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Items Count</th>
                     <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase text-right">Actions</th>
@@ -2284,6 +2795,21 @@ const InventoryPage = () => {
                       className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)] cursor-pointer"
                       onClick={() => setViewingUnit(unit)}
                     >
+                      <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedUnits.has(unit)}
+                          onChange={() => {
+                            setSelectedUnits(prev => {
+                              const next = new Set(prev);
+                              if (next.has(unit)) next.delete(unit);
+                              else next.add(unit);
+                              return next;
+                            });
+                          }}
+                          className="w-3.5 h-3.5 accent-[var(--primary)] cursor-pointer"
+                        />
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 rounded-lg bg-[var(--bg-elevated)] flex items-center justify-center">
@@ -2502,9 +3028,35 @@ const InventoryPage = () => {
         </div>}>
         <div className="space-y-3">
           <FormField label="Item">
-            <Select value={stockInForm.itemId} onChange={e => setStockInForm(f => ({ ...f, itemId: e.target.value }))}>
+            <Select 
+              value={stockInForm.itemId} 
+              onChange={e => {
+                const selectedItem = inventory.find(i => i.itemId === e.target.value);
+                setStockInForm(f => ({ 
+                  ...f, 
+                  itemId: e.target.value,
+                  warehouse: selectedItem?.warehouse || f.warehouse // Auto-select item's warehouse
+                }));
+              }}
+            >
               <option value="">Select Item</option>
               {inventory.map(i => <option key={i._id} value={i.itemId}>{i.name || i.description} ({i.warehouse}) - Stock: {i.stock || 0}</option>)}
+            </Select>
+          </FormField>
+          <FormField label="Purchase Order (PO)">
+            <Select
+              value={stockInForm.poId}
+              onChange={e => {
+                const po = purchaseOrders.find(p => p.id === e.target.value || p._id === e.target.value);
+                setStockInForm(f => ({ ...f, poId: e.target.value, poReference: po ? po.id : '' }));
+              }}
+            >
+              <option value="">Select PO (optional)</option>
+              {purchaseOrders.map(po => (
+                <option key={po._id || po.id} value={po.id || po._id}>
+                  {po.id} — {po.vendorName} | ₹{(po.totalAmount || 0).toLocaleString('en-IN')} | {po.status}
+                </option>
+              ))}
             </Select>
           </FormField>
           <div className="grid grid-cols-2 gap-3">
@@ -2525,7 +3077,7 @@ const InventoryPage = () => {
       <Modal open={showEdit} onClose={() => setShowEdit(false)} title={`Edit Item — ${editingItem?.itemId}`}
         footer={<div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={() => setShowEdit(false)}>Cancel</Button>
-          <Button onClick={handleUpdateItem} disabled={submitting || !editForm.name || !editForm.category || !editForm.warehouse}>
+          <Button onClick={handleUpdateItem} disabled={submitting || !editForm.name || !editForm.category}>
             {submitting ? 'Saving...' : 'Save Changes'}
           </Button>
         </div>}>
@@ -2538,12 +3090,6 @@ const InventoryPage = () => {
                 <option value="Reserved">Reserved</option>
                 <option value="Low Stock">Low Stock</option>
                 <option value="Out of Stock">Out of Stock</option>
-              </Select>
-            </FormField>
-            <FormField label="Warehouse">
-              <Select value={editForm.warehouse} onChange={e => setEditForm(f => ({ ...f, warehouse: e.target.value }))}>
-                <option value="">Select Warehouse</option>
-                {warehouses.map(w => <option key={w}>{w}</option>)}
               </Select>
             </FormField>
           </div>
@@ -2586,10 +3132,12 @@ const InventoryPage = () => {
           <div className="grid grid-cols-2 gap-3 text-xs mb-4">
             {[
               ['Item ID', selected.itemId], ['Category', selected.category],
-              ['Unit', selected.unit], ['Total Stock', `${selected.stock} ${selected.unit}`],
-              ['Reserved', `${selected.reserved} ${selected.unit}`], ['Available', `${selected.available} ${selected.unit}`],
+              ['Warehouse', selected.warehouse || '—'], ['Unit', selected.unit],
+              ['Total Stock', `${selected.stock} ${selected.unit}`],
+              ['Reserved', `${selected.reserved || 0} ${selected.unit}`], ['Available', `${(selected.stock || 0) - (selected.reserved || 0)} ${selected.unit}`],
               ['Min Stock', `${selected.minStock} ${selected.unit}`], ['Unit Rate', `₹${selected.rate.toLocaleString('en-IN')}`],
               ['Total Value', fmt(selected.stock * selected.rate)],
+              ...(selected.poReference ? [['PO Reference', selected.poReference]] : []),
               ['Status', <StatusBadge domain="inventory" value={getStockStatus(selected)} />],
               ['Last Updated', selected.lastUpdated],
             ].map(([k, v]) => (
@@ -2612,7 +3160,7 @@ const InventoryPage = () => {
                       <span className="text-xs font-medium text-[var(--text-primary)]">{wh.warehouse}</span>
                     </div>
                     <div className="text-xs text-[var(--text-secondary)]">
-                      Stock: {wh.stock} {selected.unit} | Avail: {wh.available} {selected.unit}
+                      Stock: {wh.stock} {selected.unit} | Avail: {(wh.stock || 0) - (wh.reserved || 0)} {selected.unit}
                     </div>
                   </div>
                 ))}
@@ -2645,19 +3193,19 @@ const InventoryPage = () => {
                   let projectName = 'Unknown Project';
                   let isDeleted = false;
 
-                  if (projectFromRes?.customerName || projectFromRes?.name) {
+                  // First priority: Look up in projects array (most current data)
+                  if (projectFromList?.customerName || projectFromList?.name) {
+                    projectName = projectFromList.customerName || projectFromList.name;
+                    isDeleted = projectFromList.deleted || projectFromList.isDeleted;
+                  } else if (projectFromRes?.customerName || projectFromRes?.name) {
                     // Project info embedded in reservation
                     projectName = projectFromRes.customerName || projectFromRes.name;
                     isDeleted = projectFromRes.deleted || projectFromRes.isDeleted;
                   } else if (projectNameFromRes) {
-                    // Project name stored in reservation
+                    // Project name stored directly in reservation
                     projectName = projectNameFromRes;
                     // Mark as deleted if project not found in active projects list
-                    isDeleted = !projectFromList;
-                  } else if (projectFromList?.customerName || projectFromList?.name) {
-                    // Project found in active list
-                    projectName = projectFromList.customerName || projectFromList.name;
-                    isDeleted = projectFromList.deleted || projectFromList.isDeleted;
+                    isDeleted = true;
                   } else {
                     // Project not found anywhere - show ID as unknown but mark deleted
                     projectName = res.projectId || 'Unknown Project';
