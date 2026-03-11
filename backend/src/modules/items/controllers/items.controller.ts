@@ -89,9 +89,10 @@ export class ItemsController {
     @Body('poReference') poReference?: string,
     @Body('receivedDate') receivedDate?: string,
     @Body('remarks') remarks?: string,
+    @Body('warehouse') warehouse?: string,
   ) {
     const tenantId = headerTenantId || queryTenantId;
-    return this.itemsService.stockIn(tenantId, id, quantity, poReference, receivedDate, remarks);
+    return this.itemsService.stockIn(tenantId, id, quantity, poReference, receivedDate, remarks, warehouse);
   }
 
   @Post(':id/stock-out')

@@ -141,9 +141,8 @@ export class ItemsService {
     return { message: `${ids.length} items deleted successfully` };
   }
 
-  async stockIn(tenantId: string, id: string, quantity: number, poReference?: string, receivedDate?: string, remarks?: string) {
+  async stockIn(tenantId: string, id: string, quantity: number, poReference?: string, receivedDate?: string, remarks?: string, warehouse?: string) {
     console.log(`[STOCK-IN] Received tenantId: ${tenantId}, itemId: ${id}`);
-    // Resolve tenant code to actual ObjectId
     const actualTenantId = await this.getTenantId(tenantId);
     console.log(`[STOCK-IN] Resolved actualTenantId: ${actualTenantId}`);
     
@@ -155,16 +154,65 @@ export class ItemsService {
 
     if (!item) {
       console.log(`[STOCK-IN] Item not found. Query: { tenantId: ${actualTenantId}, _id: ${id}, isDeleted: false }`);
-      // Try to find item without tenant filter to debug
       const itemAnyTenant = await this.itemModel.findById(id).exec();
       console.log(`[STOCK-IN] Item without tenant filter:`, itemAnyTenant ? `Found (tenantId: ${itemAnyTenant.tenantId})` : 'Not found');
       throw new NotFoundException(`Item ${id} not found`);
     }
 
+    // If warehouse differs from current item's warehouse → create new record for that warehouse
+    if (warehouse && warehouse !== item.warehouse) {
+      // Check if a record already exists for this item + warehouse combo
+      const existingWarehouseRecord = await this.itemModel.findOne({
+        tenantId: actualTenantId,
+        itemId: item.itemId,
+        warehouse,
+        isDeleted: false,
+      }).exec();
+
+      if (existingWarehouseRecord) {
+        // Update the existing warehouse record
+        const updated = await this.itemModel.findOneAndUpdate(
+          { tenantId: actualTenantId, _id: existingWarehouseRecord._id },
+          {
+            $inc: { stock: quantity },
+            ...(poReference ? { $set: { poReference } } : {}),
+          },
+          { new: true },
+        ).exec();
+        return { data: updated, message: `Stock in successful. Added ${quantity} units to ${warehouse}.` };
+      } else {
+        // Create a new item record for this warehouse (clone of original item, new warehouse + stock)
+        const newWarehouseItem = new this.itemModel({
+          itemId: item.itemId,
+          description: item.description,
+          longDescription: item.longDescription,
+          rate: item.rate,
+          tax1: item.tax1,
+          tax2: item.tax2,
+          unit: item.unit,
+          category: item.category,
+          warehouse,
+          stock: quantity,
+          reserved: 0,
+          minStock: item.minStock,
+          status: item.status,
+          itemGroupId: item.itemGroupId,
+          itemGroupName: item.itemGroupName,
+          tenantId: actualTenantId,
+          isDeleted: false,
+          ...(poReference ? { poReference } : {}),
+        });
+        const saved = await newWarehouseItem.save();
+        return { data: saved, message: `Stock in successful. Created ${quantity} units in ${warehouse}.` };
+      }
+    }
+
+    // Same warehouse or no warehouse specified → update existing record
     const updated = await this.itemModel.findOneAndUpdate(
       { tenantId: actualTenantId, _id: new Types.ObjectId(id) },
       { 
         $inc: { stock: quantity },
+        ...(poReference || warehouse ? { $set: { ...(poReference ? { poReference } : {}), ...(warehouse ? { warehouse } : {}) } } : {}),
       },
       { new: true },
     ).exec();
@@ -185,14 +233,14 @@ export class ItemsService {
       throw new NotFoundException(`Item ${id} not found`);
     }
 
-    if ((item.stock || 0) < quantity) {
-      throw new NotFoundException(`Insufficient stock. Available: ${item.stock || 0}`);
+    if ((item.stock || 0) - (item.reserved || 0) < quantity) {
+      throw new NotFoundException(`Insufficient available stock. Available: ${(item.stock || 0) - (item.reserved || 0)}`);
     }
 
     const updated = await this.itemModel.findOneAndUpdate(
       { tenantId: actualTenantId, _id: new Types.ObjectId(id) },
       { 
-        $inc: { stock: -quantity, reserved: quantity },
+        $inc: { reserved: quantity },
       },
       { new: true },
     ).exec();
@@ -208,9 +256,7 @@ export class ItemsService {
           quantity: quantity,
           status: 'active',
           notes: remarks || `Stock issued on ${issuedDate || new Date().toISOString().split('T')[0]}`,
-          tenantId: actualTenantId,
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          tenantId: new Types.ObjectId(actualTenantId),
         });
         console.log('[STOCK-OUT] Reservation object created:', reservation);
         const saved = await reservation.save();
