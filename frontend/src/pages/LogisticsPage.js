@@ -198,8 +198,14 @@ const VendorCard = ({ vendor, onClick, onEdit }) => {
 };
 
 /* ── Vendor Kanban Board ── */
-const VendorKanbanBoard = ({ vendors, onCardClick, onEditVendor }) => {
-  console.log('VendorKanbanBoard received vendors:', vendors?.length, vendors);
+const VendorKanbanBoard = ({ vendors, categories, onCardClick, onEditVendor }) => {
+  console.log('VendorKanbanBoard received vendors:', vendors?.length, vendors, 'categories:', categories);
+  // Build dynamic category list with colors from static config
+  const categoryConfig = categories.map(catName => {
+    const staticConfig = VENDOR_CATEGORIES.find(c => c.id === catName) || VENDOR_CATEGORIES[VENDOR_CATEGORIES.length - 1];
+    return { id: catName, label: catName, color: staticConfig.color, bg: staticConfig.bg };
+  });
+  
   return (
     <div className="overflow-x-auto pb-3">
       {/* Clear Label: Vendors by Category */}
@@ -209,8 +215,8 @@ const VendorKanbanBoard = ({ vendors, onCardClick, onEditVendor }) => {
         <span className="text-xs text-[var(--text-muted)]">({vendors?.length || 0} total vendors)</span>
       </div>
       <div className="flex gap-3 min-w-max">
-        {VENDOR_CATEGORIES.map(category => {
-          const cards = vendors.filter(v => v.category === category.id || (category.id === 'Other' && !VENDOR_CATEGORIES.some(c => c.id === v.category)));
+        {categoryConfig.map(category => {
+          const cards = vendors.filter(v => v.category === category.id || (category.id === 'Other' && !categoryConfig.some(c => c.id === v.category)));
           return (
             <div key={category.id}
               className="flex flex-col w-64 rounded-xl border border-[var(--border-base)] bg-[var(--bg-surface)]">
@@ -1116,11 +1122,8 @@ const LogisticsPage = () => {
   const [showVendorModal, setShowVendorModal] = useState(false);
   const [newVendor, setNewVendor] = useState({ name: '', category: '', city: '', contact: '', phone: '', email: '' });
 
-  // Categories state - load from localStorage (same as InventoryPage)
-  const [vendorCategories, setVendorCategories] = useState(() => {
-    const saved = localStorage.getItem('itemCategories');
-    return saved ? JSON.parse(saved) : ['Panel', 'Inverter', 'BOS', 'Structure', 'Cable', 'Transport', 'Other'];
-  });
+  // Categories state - loaded from API (same source as InventoryPage)
+  const [vendorCategories, setVendorCategories] = useState([]);
 
   // Warehouses state - load from localStorage (same as InventoryPage)
   const [warehouses, setWarehouses] = useState(() => {
@@ -1194,24 +1197,8 @@ const LogisticsPage = () => {
     fetchData();
     fetchProjects();
     fetchVendors();
+    fetchVendorCategories();
   }, []);
-
-  // Listen for storage changes to update categories dynamically
-  useEffect(() => {
-    const handleStorageChange = () => {
-      const saved = localStorage.getItem('itemCategories');
-      if (saved) {
-        setVendorCategories(JSON.parse(saved));
-      }
-    };
-    
-    // Check for changes when modal opens
-    handleStorageChange();
-    
-    // Also listen for storage events from other tabs/windows
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, [showVendorModal]);
 
   // Listen for storage changes to update warehouses dynamically
   useEffect(() => {
@@ -1229,6 +1216,18 @@ const LogisticsPage = () => {
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [showAdd]);
+
+  // Fetch categories from API (same as InventoryPage)
+  const fetchVendorCategories = async () => {
+    try {
+      const data = await api.get('/lookups/categories', { headers: { 'x-tenant-id': TENANT_ID } });
+      const categoriesArray = Array.isArray(data) ? data : (data.data || []);
+      setVendorCategories(categoriesArray.map(c => c.name));
+    } catch (err) {
+      console.error('Failed to fetch categories:', err);
+      setVendorCategories([]); // No hardcoded fallback
+    }
+  };
 
   // Fetch vendors from backend
   const fetchVendors = async () => {
@@ -1851,6 +1850,7 @@ const LogisticsPage = () => {
                   v.city?.toLowerCase().includes(vendorSearch.toLowerCase()) ||
                   v.category?.toLowerCase().includes(vendorSearch.toLowerCase())
                 )} 
+                categories={vendorCategories}
                 onCardClick={setSelectedVendor}
                 onEditVendor={(vendor) => {
                   setSelectedVendor(vendor);
