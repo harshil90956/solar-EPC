@@ -10,7 +10,12 @@ import {
   UseGuards,
   Request,
   ForbiddenException,
+  HttpCode,
+  HttpStatus,
+  BadRequestException,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
 import { PermissionGuard } from '../../settings/guards/permission.guard';
@@ -34,6 +39,19 @@ interface AuthenticatedRequest {
     role: string;
   };
 }
+
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { randomUUID } from 'crypto';
+
+const s3Client = new S3Client({
+  region: process.env.AWS_REGION || 'ap-southeast-2',
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+  },
+});
+
+const BUCKET_NAME = process.env.AWS_S3_BUCKET || 'enacle-crm';
 
 @Controller('installations')
 @UseGuards(JwtAuthGuard, TenantGuard, PermissionGuard)
@@ -163,8 +181,9 @@ export class InstallationController {
   ) {
     // Check if user is technician - allow tasks update even without edit permission
     const user = req.user as any;
+    const userId = user.id || user.userId; // Support both formats
     const isTechnician = user.role?.toLowerCase() === 'technician' || 
-                         await this.installationService.isAssignedTechnician(id, user.userId);
+                         await this.installationService.isAssignedTechnician(id, userId);
     
     if (!isTechnician && !user.can?.('installation', 'edit')) {
       throw new ForbiddenException('Permission denied');
@@ -184,19 +203,6 @@ export class InstallationController {
     @Request() req: AuthenticatedRequest,
   ) {
     return this.installationService.addPhoto(id, photoDto, this.getUserContext(req));
-  }
-
-  /**
-   * Remove photo from installation
-   */
-  @Delete(':id/photos/:photoKey')
-  @RequirePermission('installation', 'edit')
-  async removePhoto(
-    @Param('id') id: string,
-    @Param('photoKey') photoKey: string,
-    @Request() req: AuthenticatedRequest,
-  ) {
-    return this.installationService.removePhoto(id, photoKey, this.getUserContext(req));
   }
 
   /**
@@ -274,12 +280,160 @@ export class InstallationController {
   }
 
   /**
+   * Upload photos for installation tasks
+   */
+  @Post('upload/task-photos')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermission('installation', 'edit')
+  async uploadTaskPhotos(@Request() req: any, @Body() body: any) {
+    // Check if image data is provided (base64 encoded)
+    const imageData = body?.image;
+    
+    if (!imageData) {
+      throw new BadRequestException('No image data found. Please send image as base64 string in "image" field');
+    }
+
+    // Get task info from body fields
+    const taskName = body?.taskName || 'general';
+    const installationId = body?.installationId;
+
+    // Validate and decode base64 image
+    let base64Data: string;
+    let fileMimetype: string;
+    
+    try {
+      // Remove data URL prefix if present
+      base64Data = imageData.replace(/^data:image\/\w+;base64,/, '');
+      
+      // Determine mime type from base64 header or default to jpeg
+      if (imageData.startsWith('data:image/png')) {
+        fileMimetype = 'image/png';
+      } else if (imageData.startsWith('data:image/webp')) {
+        fileMimetype = 'image/webp';
+      } else {
+        fileMimetype = 'image/jpeg';
+      }
+    } catch (error) {
+      throw new BadRequestException('Invalid base64 image format');
+    }
+    
+    const fileBuffer = Buffer.from(base64Data, 'base64');
+
+    // Validate mime type
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+    if (!allowedMimes.includes(fileMimetype)) {
+      throw new BadRequestException('Only JPEG, PNG, and WebP images are allowed');
+    }
+
+    // Upload to S3
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const ext = fileMimetype === 'image/png' ? '.png' : fileMimetype === 'image/webp' ? '.webp' : '.jpg';
+    const key = `installations/${installationId || 'unknown'}/${taskName}-${uniqueSuffix}${ext}`;
+
+    try {
+      await s3Client.send(new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: key,
+        Body: fileBuffer,
+        ContentType: fileMimetype,
+      }));
+    } catch (s3Error) {
+      console.error('S3 upload error:', s3Error);
+      throw new BadRequestException('Failed to upload image to S3');
+    }
+
+    const photoUrl = `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'ap-southeast-2'}.amazonaws.com/${key}`;
+    console.log('Generated S3 URL:', photoUrl);
+    console.log('Bucket:', BUCKET_NAME, 'Region:', process.env.AWS_REGION || 'ap-southeast-2');
+
+    // Save photo reference to database
+    const userContext = this.getUserContext(req);
+    const updatedInstallation = await this.installationService.addPhoto(
+      installationId,
+      {
+        url: photoUrl,
+        key: key,
+        caption: `Photo for task: ${taskName}`,
+        category: 'during',
+      },
+      userContext,
+    );
+
+    return {
+      success: true,
+      urls: [photoUrl],
+      taskName,
+      installationId,
+      photoCount: updatedInstallation.photos?.length || 1,
+    };
+  }
+
+  /**
+   * Delete photo from installation
+   * Removes photo reference and unchecks associated task if photoRequired
+   */
+  @Delete(':id/photos/:photoKey')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermission('installation', 'edit')
+  async deletePhoto(
+    @Param('id') id: string,
+    @Param('photoKey') photoKey: string,
+    @Request() req: any,
+  ) {
+    const userContext = this.getUserContext(req);
+    
+    // Decode photoKey from URL-safe format
+    const decodedKey = decodeURIComponent(photoKey);
+    
+    // Get installation to find task name from photo
+    const installation = await this.installationService.getInstallationById(id, userContext);
+    const photo = installation.photos?.find(p => p.key === decodedKey) as any;
+    
+    console.log('DEBUG - Photo found:', photo ? 'YES' : 'NO');
+    console.log('DEBUG - Photo caption:', photo?.caption);
+    console.log('DEBUG - Photo keys:', installation.photos?.map(p => p.key));
+    console.log('DEBUG - Looking for key:', decodedKey);
+    
+    const taskName = photo?.taskName || photo?.caption?.replace('Photo for task: ', '') || null;
+    console.log('DEBUG - Extracted taskName:', taskName);
+    
+    // Delete photo from database
+    const updated = await this.installationService.removePhoto(id, decodedKey, userContext);
+    
+    // If photo was associated with a task, uncheck that task
+    let taskUnchecked = false;
+    console.log('DEBUG - Installation tasks:', installation.tasks?.map(t => ({ name: t.name, done: t.done })));
+    if (taskName && installation.tasks) {
+      const taskIndex = installation.tasks.findIndex(t => t.name === taskName && t.done);
+      console.log('DEBUG - Task index found:', taskIndex);
+      if (taskIndex >= 0) {
+        // Task found and is done, uncheck it
+        const updatedTasks = installation.tasks.map((t, idx) => 
+          idx === taskIndex ? { ...t, done: false } : t
+        );
+        
+        await this.installationService.updateTasks(id, { tasks: updatedTasks as any }, userContext);
+        taskUnchecked = true;
+        console.log('DEBUG - Task unchecked successfully');
+      }
+    }
+    
+    return {
+      success: true,
+      photoCount: updated.photos?.length || 0,
+      taskUnchecked,
+      taskName,
+    };
+  }
+
+  /**
    * Check overdue installations and mark as Delayed
    * Automatically runs to find installations past due date
    */
   @Post('check-overdue')
+  @HttpCode(HttpStatus.OK)
   @RequirePermission('installation', 'edit')
-  async checkOverdue(@Request() req: AuthenticatedRequest) {
+  async checkOverdue(@Request() req: any) {
     return this.installationService.checkOverdueInstallations(this.getUserContext(req));
   }
 }
