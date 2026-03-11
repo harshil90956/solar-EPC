@@ -6,9 +6,95 @@ import { Button } from '../components/ui/Button';
 import { Input, FormField, Select } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { toast } from '../components/ui/Toast';
-import { Search, RefreshCw, Plus, Building } from 'lucide-react';
+import { Search, RefreshCw, Plus, Building, X, Users, User, Calendar, Shield } from 'lucide-react';
 import { format } from 'date-fns';
 import { departmentApi, employeeApi } from '../services/hrmApi';
+
+// ── Department Detail View Modal ──────────────────────────────────────────
+const DepartmentViewModal = ({ department, employees, onClose, onEdit }) => {
+  if (!department) return null;
+  const deptEmployees = employees.filter(e => e.department === department.name);
+  const manager = employees.find(e => e._id === department.managerId);
+  const active = deptEmployees.filter(e => e.status === 'active').length;
+  return (
+    <Modal open={!!department} onClose={onClose} title="" size="lg" footer={
+      <div className="flex items-center justify-between">
+        <button onClick={onClose} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-xl border border-[var(--border-base)] text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"><X size={13} /> Close</button>
+        <button onClick={() => { onClose(); onEdit(department); }} className="flex items-center gap-1.5 px-4 py-1.5 text-xs rounded-xl bg-[var(--primary)] text-white hover:opacity-90"><Building size={13} /> Edit Department</button>
+      </div>
+    }>
+      {/* Hero */}
+      <div className="relative overflow-hidden rounded-xl mb-4 p-5 bg-gradient-to-br from-amber-500/15 via-amber-500/5 to-transparent border border-[var(--border-base)]">
+        <div className="absolute top-0 right-0 w-28 h-28 rounded-full bg-amber-500/10 -translate-y-6 translate-x-6" />
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center shadow-lg"><Building size={26} /></div>
+          <div className="flex-1">
+            <h2 className="text-xl font-bold text-[var(--text-primary)]">{department.name}</h2>
+            {department.code && <span className="px-2.5 py-0.5 rounded-full text-xs font-mono bg-[var(--bg-elevated)] text-[var(--text-muted)] border border-[var(--border-muted)] mt-1 inline-block">{department.code}</span>}
+            <div className="flex items-center gap-2 mt-2">
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${department.isActive !== false ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>{department.isActive !== false ? 'Active' : 'Inactive'}</span>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-3xl font-bold text-amber-500">{deptEmployees.length}</p>
+            <p className="text-xs text-[var(--text-faint)]">Total Employees</p>
+          </div>
+        </div>
+      </div>
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        {[
+          { label: 'Total',    value: deptEmployees.length, color: 'bg-blue-500/10 border-blue-500/20 text-blue-500'    },
+          { label: 'Active',   value: active,               color: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' },
+          { label: 'Inactive', value: deptEmployees.length - active, color: 'bg-red-500/10 border-red-500/20 text-red-500' },
+        ].map(s => (
+          <div key={s.label} className={`p-3 rounded-xl border text-center ${s.color}`}>
+            <p className="text-2xl font-bold">{s.value}</p>
+            <p className="text-[10px] uppercase tracking-wide opacity-70 font-medium mt-0.5">{s.label}</p>
+          </div>
+        ))}
+      </div>
+      {/* Manager */}
+      {manager && (
+        <div className="glass-card p-4 mb-4">
+          <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 flex items-center gap-1.5"><Shield size={12} /> Manager</p>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[var(--primary)] to-[var(--accent)] text-white flex items-center justify-center font-bold text-sm">{manager.firstName?.[0]}{manager.lastName?.[0]}</div>
+            <div>
+              <p className="font-semibold text-sm text-[var(--text-primary)]">{manager.firstName} {manager.lastName}</p>
+              <p className="text-xs text-[var(--text-muted)]">{manager.employeeId} · {manager.roleId}</p>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Description */}
+      {department.description && (
+        <div className="glass-card p-4 mb-4">
+          <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2">Description</p>
+          <p className="text-sm text-[var(--text-primary)]">{department.description}</p>
+        </div>
+      )}
+      {/* Employees List */}
+      {deptEmployees.length > 0 && (
+        <div className="glass-card p-4">
+          <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3 flex items-center gap-1.5"><Users size={12} /> Team Members</p>
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {deptEmployees.map(emp => (
+              <div key={emp._id} className="flex items-center gap-3 p-2 rounded-lg bg-[var(--bg-elevated)]">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--primary)] to-[var(--accent)] text-white flex items-center justify-center font-bold text-xs">{emp.firstName?.[0]}{emp.lastName?.[0]}</div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-[var(--text-primary)] truncate">{emp.firstName} {emp.lastName}</p>
+                  <p className="text-[10px] text-[var(--text-muted)]">{emp.roleId || 'Employee'}</p>
+                </div>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${emp.status === 'active' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>{emp.status}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+};
 
 const DepartmentsPage = () => {
   const [mounted, setMounted] = useState(false);
@@ -17,6 +103,9 @@ const DepartmentsPage = () => {
   const [loading, setLoading] = useState(false);
   const [departmentSearch, setDepartmentSearch] = useState('');
   const [showDepartmentModal, setShowDepartmentModal] = useState(false);
+  const [viewDepartment, setViewDepartment] = useState(null);
+  // KPI filter state - shows filtered data in table instead of modal
+  const [kpiFilter, setKpiFilter] = useState(null); // 'all' | 'active' | 'with_employees' | null
   const [departmentForm, setDepartmentForm] = useState({
     name: '',
     code: '',
@@ -105,6 +194,13 @@ const DepartmentsPage = () => {
   };
 
   const filteredDepartments = departments.filter(dept => {
+    // KPI filter
+    if (kpiFilter) {
+      if (kpiFilter === 'active' && dept.isActive === false) return false;
+      if (kpiFilter === 'with_employees' && (!deptStats[dept.name] || deptStats[dept.name] === 0)) return false;
+    }
+    
+    // Search filter
     if (departmentSearch === '') return true;
     const search = departmentSearch.toLowerCase();
     return (
@@ -131,25 +227,52 @@ const DepartmentsPage = () => {
       label: 'Total Departments',
       value: departments.length,
       icon: Building,
-      variant: 'emerald'
+      variant: 'emerald',
+      onClick: () => {
+        setKpiFilter(null);
+        // Auto-expand first department
+        setTimeout(() => {
+          if (filteredDepartments.length > 0) {
+            setViewDepartment(filteredDepartments[0]);
+          } else {
+            setViewDepartment(null);
+          }
+        }, 100);
+      },
     },
     {
       label: 'Active Departments',
       value: departments.filter(d => d.isActive !== false).length,
       icon: Building,
-      variant: 'blue'
+      variant: 'blue',
+      onClick: () => {
+        setKpiFilter('active');
+        // Auto-expand first active department
+        setTimeout(() => {
+          const firstActive = departments.find(d => d.isActive !== false);
+          setViewDepartment(firstActive || null);
+        }, 100);
+      },
     },
     {
       label: 'Employees in Depts',
       value: Object.keys(deptStats).length,
       icon: Building,
-      variant: 'amber'
+      variant: 'amber',
+      onClick: () => {
+        setKpiFilter('with_employees');
+        // Auto-expand first department with employees
+        setTimeout(() => {
+          const firstWithEmployees = departments.find(d => deptStats[d.name] && deptStats[d.name] > 0);
+          setViewDepartment(firstWithEmployees || null);
+        }, 100);
+      },
     },
     {
       label: 'Avg Team Size',
       value: departments.length > 0 ? Math.round(employees.length / departments.length) : 0,
       icon: Building,
-      variant: 'purple'
+      variant: 'purple',
     },
   ];
 
@@ -285,6 +408,7 @@ const DepartmentsPage = () => {
             value={kpi.value}
             icon={kpi.icon}
             variant={kpi.variant}
+            onClick={kpi.onClick}
           />
         ))}
       </div>
@@ -312,9 +436,21 @@ const DepartmentsPage = () => {
       <DataTable
         columns={columns}
         data={filteredDepartments}
-        emptyText="No departments found."
+        emptyText={
+          kpiFilter === 'active' ? 'No active departments found.' :
+          kpiFilter === 'with_employees' ? 'No departments with employees found.' :
+          'No departments found.'
+        }
         loading={loading}
+        expandedRowKey={viewDepartment?._id}
+        renderExpanded={(dept) => (
+          <div className="p-4 border-t border-[var(--border-muted)] bg-gradient-to-b from-white to-[var(--bg-elevated)]">
+            <DepartmentViewModal department={dept} employees={employees} onClose={() => setViewDepartment(null)} onEdit={(d) => { setDepartmentForm({ name: d.name, code: d.code || '', description: d.description || '', managerId: d.managerId || '' }); setShowDepartmentModal(true); }} inline />
+          </div>
+        )}
       />
+
+      {/* KPI List Modal - REMOVED, now filters table instead */}
 
       {/* Add/Edit Department Modal */}
       {showDepartmentModal && (

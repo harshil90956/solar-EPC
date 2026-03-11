@@ -1,6 +1,7 @@
 // Site Survey Management Module - Solar EPC Edition
 // URL: http://localhost:8000/survey
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useAuth } from '../context/AuthContext';
 import {
   MapPin, Calendar, CheckCircle, Clock, Search, Filter,
   Plus, Eye, Play, CheckSquare, Upload, X, ChevronLeft,
@@ -8,547 +9,964 @@ import {
   Image as ImageIcon, LayoutGrid, List, MoreVertical,
   ArrowRight, Trash2, Edit2, Download, Phone, Mail,
   User, HardHat, StickyNote, Compass, Layers, Zap,
-  TrendingUp, TrendingDown, BarChart3, SunDim, PenTool
+  TrendingUp, TrendingDown, BarChart3, PenTool
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { siteSurveysApi } from '../services/siteSurveysApi';
 import { leadsApi } from '../services/leadsApi';
+import { employeeApi } from '../services/hrmApi';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input, FormField, Textarea, Select } from '../components/ui/Input';
 import { StatusBadge } from '../components/ui/Badge';
 import { toast } from '../components/ui/Toast';
+import { PageHeader } from '../components/ui/PageHeader';
+import { KPICard } from '../components/ui/KPICard';
+import DataTable from '../components/ui/DataTable';
 
 // ── Constants & Config ──────────────────────────────────────────────────────
-const TABS = [
-  { id: 'all', label: 'All Surveys', color: 'bg-gray-500', count: 0 },
-  { id: 'pending', label: 'Pending', color: 'bg-amber-500', count: 0 },
-  { id: 'active', label: 'Active', color: 'bg-blue-500', count: 0 },
-  { id: 'complete', label: 'Complete', color: 'bg-emerald-500', count: 0 }
+const STATUS_TABS = [
+  { id: 'all',      label: 'All Surveys' },
+  { id: 'pending',  label: 'Pending'     },
+  { id: 'active',   label: 'Active'      },
+  { id: 'complete', label: 'Complete'    },
 ];
 
 const ROOF_TYPES = [
-  { id: 'metal_shed', label: 'Metal Shed' },
-  { id: 'rcc', label: 'RCC' },
-  { id: 'combination', label: 'Combination' }
+  { id: 'metal_shed',  label: 'Metal Shed'  },
+  { id: 'rcc',         label: 'RCC'         },
+  { id: 'combination', label: 'Combination' },
 ];
 
 const STRUCTURE_TYPES = [
   { id: 'aluminum_rail', label: 'Aluminum Rail' },
-  { id: 'pre_fab', label: 'Pre-fab' },
-  { id: 'welded', label: 'Welded' }
+  { id: 'pre_fab',       label: 'Pre-fab'       },
+  { id: 'welded',        label: 'Welded'        },
 ];
 
 const STRUCTURE_HEIGHTS = [
-  { id: '7ft', label: '7 Ft' },
-  { id: '9ft', label: '9 Ft' },
-  { id: '10ft', label: '10 Ft' }
+  { id: '7ft',  label: '7 Ft'  },
+  { id: '9ft',  label: '9 Ft'  },
+  { id: '10ft', label: '10 Ft' },
 ];
 
 const MODULE_TYPES = [
   { id: 'bifacial', label: 'Bifacial' },
-  { id: 'topcon', label: 'Topcon' }
+  { id: 'topcon',   label: 'Topcon'   },
+];
+
+// Table columns definition
+const COLUMNS = [
+  {
+    key: 'surveyId',
+    header: 'Survey ID',
+    render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span>,
+  },
+  {
+    key: 'clientName',
+    header: 'Client',
+    sortable: true,
+    render: v => <span className="text-xs font-semibold text-[var(--text-primary)]">{v}</span>,
+  },
+  {
+    key: 'city',
+    header: 'City',
+    render: v => (
+      <span className="text-xs text-[var(--text-muted)] flex items-center gap-1">
+        <MapPin size={11} /> {v}
+      </span>
+    ),
+  },
+  {
+    key: 'projectCapacity',
+    header: 'Capacity',
+    render: v => <span className="text-xs font-bold text-[var(--solar)]">{v}</span>,
+  },
+  {
+    key: 'engineer',
+    header: 'Engineer',
+    render: v => <span className="text-xs text-[var(--text-secondary)]">{v || '—'}</span>,
+  },
+  {
+    key: 'roofType',
+    header: 'Roof Type',
+    render: v => <span className="text-xs capitalize text-[var(--text-muted)]">{v?.replace('_', ' ') || '—'}</span>,
+  },
+  {
+    key: 'status',
+    header: 'Status',
+    render: v => <SurveyStatusBadge status={v} />,
+  },
+  {
+    key: 'createdAt',
+    header: 'Created',
+    sortable: true,
+    render: v => (
+      <span className="text-xs text-[var(--text-muted)]">
+        {v ? format(new Date(v), 'dd MMM yyyy') : '—'}
+      </span>
+    ),
+  },
 ];
 
 // ── Grid Drawing Canvas Component ────────────────────────────────────────────
 const GridDrawingCanvas = ({ drawingData, onChange, readOnly = false }) => {
   const canvasRef = useRef(null);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [lines, setLines] = useState(drawingData?.lines || []);
-  const [currentLine, setCurrentLine] = useState(null);
-  const [dimensions, setDimensions] = useState(drawingData?.dimensions || []);
-  const [textLabels, setTextLabels] = useState(drawingData?.textLabels || []);
-  const [tool, setTool] = useState('line');
-  const [inputText, setInputText] = useState('');
-  const [inputPosition, setInputPosition] = useState(null);
 
-  const GRID_SIZE = 20;
-  const CANVAS_WIDTH = 560;
-  const CANVAS_HEIGHT = 400;
+  // Elements: lines, rects, circles, freehand, dimensions, textLabels
+  const [elements, setElements] = useState(() => ({
+    lines:       drawingData?.lines       || [],
+    rects:       drawingData?.rects       || [],
+    circles:     drawingData?.circles     || [],
+    freehand:    drawingData?.freehand    || [],
+    dimensions:  drawingData?.dimensions  || [],
+    textLabels:  drawingData?.textLabels  || [],
+  }));
+  const [history, setHistory]         = useState([]);
+  const [redoStack, setRedoStack]     = useState([]);
+  const [tool, setTool]               = useState('line');
+  const [color, setColor]             = useState('#2563eb');
+  const [strokeWidth, setStrokeWidth] = useState(2);
+  const [snapGrid, setSnapGrid]       = useState(true);
+  const [isDrawing, setIsDrawing]     = useState(false);
+  const [currentEl, setCurrentEl]     = useState(null);
+  const [freePoints, setFreePoints]   = useState([]);
+  const [inputPos, setInputPos]       = useState(null);
+  const [inputText, setInputText]     = useState('');
+  const [selected, setSelected]       = useState(null); // { type, index }
+  const [editingLabel, setEditingLabel] = useState(null); // { index, text }
 
-  useEffect(() => {
-    drawCanvas();
-  }, [lines, currentLine, dimensions, textLabels]);
+  const GRID = 20;
+  const W = 600; const H = 450;
 
-  useEffect(() => {
-    if (onChange) {
-      onChange({ lines, dimensions, textLabels });
+  // Notify parent on elements change
+  useEffect(() => { if (onChange) onChange(elements); }, [elements]);
+
+  // Draw everything
+  useEffect(() => { draw(); }, [elements, currentEl, freePoints, selected]);
+
+  const snap = (v) => snapGrid ? Math.round(v / GRID) * GRID : v;
+
+  const getPos = (e) => {
+    const rect = canvasRef.current.getBoundingClientRect();
+    const scaleX = W / rect.width;
+    const scaleY = H / rect.height;
+    return {
+      x: snap((e.clientX - rect.left) * scaleX),
+      y: snap((e.clientY - rect.top)  * scaleY),
+    };
+  };
+
+  const pushHistory = (els) => {
+    setHistory(h => [...h.slice(-30), els]);
+    setRedoStack([]);
+  };
+
+  const undo = () => {
+    if (!history.length) return;
+    const prev = history[history.length - 1];
+    setRedoStack(r => [...r, elements]);
+    setElements(prev);
+    setHistory(h => h.slice(0, -1));
+    setSelected(null);
+  };
+
+  const redo = () => {
+    if (!redoStack.length) return;
+    const next = redoStack[redoStack.length - 1];
+    setHistory(h => [...h, elements]);
+    setElements(next);
+    setRedoStack(r => r.slice(0, -1));
+    setSelected(null);
+  };
+
+  const clearAll = () => {
+    pushHistory(elements);
+    setElements({ lines: [], rects: [], circles: [], freehand: [], dimensions: [], textLabels: [] });
+    setSelected(null);
+  };
+
+  // Hit detection helpers
+  const distToSegment = (px, py, x1, y1, x2, y2) => {
+    const dx = x2 - x1; const dy = y2 - y1;
+    const len2 = dx * dx + dy * dy;
+    if (len2 === 0) return Math.hypot(px - x1, py - y1);
+    const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / len2));
+    return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+  };
+
+  const hitTest = (x, y) => {
+    const THR = 8;
+    // textLabels
+    for (let i = elements.textLabels.length - 1; i >= 0; i--) {
+      const l = elements.textLabels[i];
+      if (Math.abs(x - l.x) < 60 && Math.abs(y - l.y) < 20) return { type: 'textLabels', index: i };
     }
-  }, [lines, dimensions, textLabels]);
+    // lines
+    for (let i = elements.lines.length - 1; i >= 0; i--) {
+      const l = elements.lines[i];
+      if (distToSegment(x, y, l.startX, l.startY, l.endX, l.endY) < THR) return { type: 'lines', index: i };
+    }
+    // rects
+    for (let i = elements.rects.length - 1; i >= 0; i--) {
+      const r = elements.rects[i];
+      const x1 = Math.min(r.x, r.x + r.w); const x2 = Math.max(r.x, r.x + r.w);
+      const y1 = Math.min(r.y, r.y + r.h); const y2 = Math.max(r.y, r.y + r.h);
+      if (x >= x1 - THR && x <= x2 + THR && y >= y1 - THR && y <= y2 + THR) return { type: 'rects', index: i };
+    }
+    // circles
+    for (let i = elements.circles.length - 1; i >= 0; i--) {
+      const c = elements.circles[i];
+      const dist = Math.hypot(x - c.cx, y - c.cy);
+      if (Math.abs(dist - c.r) < THR) return { type: 'circles', index: i };
+    }
+    // dimensions
+    for (let i = elements.dimensions.length - 1; i >= 0; i--) {
+      const d = elements.dimensions[i];
+      if (distToSegment(x, y, d.lineStartX, d.lineStartY, d.lineEndX, d.lineEndY) < THR) return { type: 'dimensions', index: i };
+    }
+    // freehand
+    for (let i = elements.freehand.length - 1; i >= 0; i--) {
+      const pts = elements.freehand[i].points;
+      for (let j = 0; j < pts.length - 1; j++) {
+        if (distToSegment(x, y, pts[j].x, pts[j].y, pts[j+1].x, pts[j+1].y) < THR) return { type: 'freehand', index: i };
+      }
+    }
+    return null;
+  };
 
-  const drawCanvas = () => {
+  const deleteSelected = () => {
+    if (!selected) return;
+    pushHistory(elements);
+    setElements(prev => {
+      const arr = [...prev[selected.type]];
+      arr.splice(selected.index, 1);
+      return { ...prev, [selected.type]: arr };
+    });
+    setSelected(null);
+  };
+
+  // ── Rotation helpers ──────────────────────────────────────────────────────
+  // Get bounding center for each element type
+  const getCenter = (type, el) => {
+    if (type === 'lines' || type === 'dimensions') {
+      const sx = type === 'lines' ? el.startX : el.lineStartX;
+      const sy = type === 'lines' ? el.startY : el.lineStartY;
+      const ex = type === 'lines' ? el.endX   : el.lineEndX;
+      const ey = type === 'lines' ? el.endY   : el.lineEndY;
+      return { cx: (sx + ex) / 2, cy: (sy + ey) / 2 };
+    }
+    if (type === 'rects') return { cx: el.x + el.w / 2, cy: el.y + el.h / 2 };
+    if (type === 'circles') return { cx: el.cx, cy: el.cy };
+    if (type === 'textLabels') return { cx: el.x, cy: el.y };
+    if (type === 'freehand') {
+      const xs = el.points.map(p => p.x); const ys = el.points.map(p => p.y);
+      return {
+        cx: (Math.min(...xs) + Math.max(...xs)) / 2,
+        cy: (Math.min(...ys) + Math.max(...ys)) / 2,
+      };
+    }
+    return { cx: 0, cy: 0 };
+  };
+
+  const rotateSelected = (deg) => {
+    if (!selected) return;
+    pushHistory(elements);
+    const rad = (deg * Math.PI) / 180;
+    setElements(prev => {
+      const arr = [...prev[selected.type]];
+      const el = { ...arr[selected.index] };
+      const { cx, cy } = getCenter(selected.type, el);
+      const rotatePoint = (x, y) => ({
+        x: cx + (x - cx) * Math.cos(rad) - (y - cy) * Math.sin(rad),
+        y: cy + (x - cx) * Math.sin(rad) + (y - cy) * Math.cos(rad),
+      });
+
+      if (selected.type === 'lines') {
+        const s = rotatePoint(el.startX, el.startY);
+        const e2 = rotatePoint(el.endX, el.endY);
+        arr[selected.index] = { ...el, startX: s.x, startY: s.y, endX: e2.x, endY: e2.y };
+      } else if (selected.type === 'dimensions') {
+        const s = rotatePoint(el.lineStartX, el.lineStartY);
+        const e2 = rotatePoint(el.lineEndX, el.lineEndY);
+        arr[selected.index] = {
+          ...el, lineStartX: s.x, lineStartY: s.y, lineEndX: e2.x, lineEndY: e2.y,
+          x: (s.x + e2.x) / 2 - 10, y: (s.y + e2.y) / 2 - 6,
+        };
+      } else if (selected.type === 'rects') {
+        // Store rotation angle for drawing
+        arr[selected.index] = { ...el, rotation: ((el.rotation || 0) + deg) % 360 };
+      } else if (selected.type === 'circles') {
+        arr[selected.index] = { ...el, rotation: ((el.rotation || 0) + deg) % 360 };
+      } else if (selected.type === 'textLabels') {
+        arr[selected.index] = { ...el, rotation: ((el.rotation || 0) + deg) % 360 };
+      } else if (selected.type === 'freehand') {
+        const newPts = el.points.map(p => rotatePoint(p.x, p.y));
+        arr[selected.index] = { ...el, points: newPts };
+      }
+      return { ...prev, [selected.type]: arr };
+    });
+  };
+
+  // Drawing
+  const draw = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, W, H);
 
-    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    // Grid
+    ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 0.5;
+    for (let x = 0; x <= W; x += GRID) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for (let y = 0; y <= H; y += GRID) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
 
-    // Draw grid
-    ctx.strokeStyle = '#d1d5db';
-    ctx.lineWidth = 0.5;
-
-    for (let x = 0; x <= CANVAS_WIDTH; x += GRID_SIZE) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, CANVAS_HEIGHT);
+    const drawArrow = (ctx, x1, y1, x2, y2) => {
+      const angle = Math.atan2(y2 - y1, x2 - x1);
+      const hl = 10;
+      ctx.beginPath(); ctx.moveTo(x2, y2);
+      ctx.lineTo(x2 - hl * Math.cos(angle - Math.PI/6), y2 - hl * Math.sin(angle - Math.PI/6));
+      ctx.moveTo(x2, y2);
+      ctx.lineTo(x2 - hl * Math.cos(angle + Math.PI/6), y2 - hl * Math.sin(angle + Math.PI/6));
       ctx.stroke();
-    }
+    };
 
-    for (let y = 0; y <= CANVAS_HEIGHT; y += GRID_SIZE) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(CANVAS_WIDTH, y);
-      ctx.stroke();
-    }
+    const highlight = (idx, type) => selected?.type === type && selected?.index === idx;
 
-    // Draw stored lines
-    ctx.strokeStyle = '#2563eb';
-    ctx.lineWidth = 2;
-    lines.forEach(line => {
-      ctx.beginPath();
-      ctx.moveTo(line.startX, line.startY);
-      ctx.lineTo(line.endX, line.endY);
-      ctx.stroke();
-      drawArrowhead(ctx, line.startX, line.startY, line.endX, line.endY);
+    // Lines
+    elements.lines.forEach((l, i) => {
+      ctx.strokeStyle = highlight(i, 'lines') ? '#f59e0b' : (l.color || '#2563eb');
+      ctx.lineWidth = highlight(i, 'lines') ? (l.sw || 2) + 2 : (l.sw || 2);
+      ctx.setLineDash([]);
+      ctx.beginPath(); ctx.moveTo(l.startX, l.startY); ctx.lineTo(l.endX, l.endY); ctx.stroke();
+      if (l.arrow) drawArrow(ctx, l.startX, l.startY, l.endX, l.endY);
     });
 
-    if (currentLine) {
-      ctx.beginPath();
-      ctx.moveTo(currentLine.startX, currentLine.startY);
-      ctx.lineTo(currentLine.endX, currentLine.endY);
+    // Rects
+    elements.rects.forEach((r, i) => {
+      const cx = r.x + r.w / 2; const cy = r.y + r.h / 2;
+      ctx.save();
+      ctx.translate(cx, cy);
+      if (r.rotation) ctx.rotate((r.rotation * Math.PI) / 180);
+      ctx.translate(-cx, -cy);
+      ctx.strokeStyle = highlight(i, 'rects') ? '#f59e0b' : (r.color || '#2563eb');
+      ctx.lineWidth = highlight(i, 'rects') ? (r.sw || 2) + 2 : (r.sw || 2);
+      ctx.setLineDash(r.dashed ? [6, 3] : []);
+      ctx.strokeRect(r.x, r.y, r.w, r.h);
+      if (r.fill) { ctx.fillStyle = (r.color || '#2563eb') + '20'; ctx.fillRect(r.x, r.y, r.w, r.h); }
+      if (highlight(i, 'rects') && r.rotation) {
+        ctx.fillStyle = '#f59e0b'; ctx.font = '10px Arial';
+        ctx.fillText(`${Math.round(r.rotation)}°`, cx - 10, cy - r.h / 2 - 4);
+      }
+      ctx.restore();
+    });
+
+    // Circles
+    elements.circles.forEach((c, i) => {
+      ctx.strokeStyle = highlight(i, 'circles') ? '#f59e0b' : (c.color || '#2563eb');
+      ctx.lineWidth = highlight(i, 'circles') ? (c.sw || 2) + 2 : (c.sw || 2);
+      ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(c.cx, c.cy, c.r, 0, Math.PI * 2); ctx.stroke();
+    });
+
+    // Freehand
+    elements.freehand.forEach((fp, i) => {
+      if (!fp.points.length) return;
+      ctx.strokeStyle = highlight(i, 'freehand') ? '#f59e0b' : (fp.color || '#111827');
+      ctx.lineWidth = highlight(i, 'freehand') ? (fp.sw || 2) + 1 : (fp.sw || 2);
+      ctx.setLineDash([]);
+      ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(fp.points[0].x, fp.points[0].y);
+      fp.points.forEach(p => ctx.lineTo(p.x, p.y));
       ctx.stroke();
-      drawArrowhead(ctx, currentLine.startX, currentLine.startY, currentLine.endX, currentLine.endY);
+    });
+
+    // Dimensions
+    elements.dimensions.forEach((d, i) => {
+      ctx.strokeStyle = highlight(i, 'dimensions') ? '#f59e0b' : '#dc2626';
+      ctx.lineWidth = highlight(i, 'dimensions') ? 3 : 1.5;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath(); ctx.moveTo(d.lineStartX, d.lineStartY); ctx.lineTo(d.lineEndX, d.lineEndY); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = highlight(i, 'dimensions') ? '#f59e0b' : '#dc2626';
+      ctx.font = 'bold 11px Arial';
+      ctx.fillText(d.value, d.x, d.y);
+    });
+
+    // Text labels
+    elements.textLabels.forEach((l, i) => {
+      ctx.save();
+      if (l.rotation) {
+        ctx.translate(l.x, l.y);
+        ctx.rotate((l.rotation * Math.PI) / 180);
+        ctx.translate(-l.x, -l.y);
+      }
+      ctx.fillStyle = highlight(i, 'textLabels') ? '#f59e0b' : (l.color || '#111827');
+      ctx.font = `bold ${l.size || 14}px Arial`;
+      ctx.fillText(l.text, l.x, l.y);
+      if (highlight(i, 'textLabels')) {
+        const w = ctx.measureText(l.text).width;
+        ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 1; ctx.setLineDash([3, 2]);
+        ctx.strokeRect(l.x - 2, l.y - (l.size || 14), w + 4, (l.size || 14) + 4);
+        ctx.setLineDash([]);
+        if (l.rotation) {
+          ctx.fillStyle = '#f59e0b'; ctx.font = '10px Arial';
+          ctx.fillText(`${Math.round(l.rotation)}°`, l.x + w + 6, l.y);
+        }
+      }
+      ctx.restore();
+    });
+
+    // Current drawing preview
+    if (currentEl) {
+      ctx.strokeStyle = color; ctx.lineWidth = strokeWidth; ctx.setLineDash([4, 3]);
+      if (currentEl.type === 'line' || currentEl.type === 'arrow') {
+        ctx.beginPath(); ctx.moveTo(currentEl.startX, currentEl.startY); ctx.lineTo(currentEl.endX, currentEl.endY); ctx.stroke();
+      } else if (currentEl.type === 'rect') {
+        ctx.strokeRect(currentEl.x, currentEl.y, currentEl.w, currentEl.h);
+      } else if (currentEl.type === 'circle') {
+        ctx.beginPath(); ctx.arc(currentEl.cx, currentEl.cy, currentEl.r, 0, Math.PI * 2); ctx.stroke();
+      } else if (currentEl.type === 'dimension') {
+        ctx.beginPath(); ctx.moveTo(currentEl.startX, currentEl.startY); ctx.lineTo(currentEl.endX, currentEl.endY); ctx.stroke();
+      }
+      ctx.setLineDash([]);
     }
 
-    // Draw dimensions
-    ctx.fillStyle = '#dc2626';
-    ctx.font = 'bold 12px Arial';
-    dimensions.forEach(dim => {
-      ctx.fillText(dim.value, dim.x, dim.y);
-      ctx.strokeStyle = '#dc2626';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(dim.lineStartX, dim.lineStartY);
-      ctx.lineTo(dim.lineEndX, dim.lineEndY);
+    // Freehand in progress
+    if (freePoints.length > 1) {
+      ctx.strokeStyle = color; ctx.lineWidth = strokeWidth; ctx.setLineDash([]);
+      ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(freePoints[0].x, freePoints[0].y);
+      freePoints.forEach(p => ctx.lineTo(p.x, p.y));
       ctx.stroke();
-    });
-
-    // Draw text labels
-    ctx.fillStyle = '#111827';
-    ctx.font = 'bold 14px Arial';
-    textLabels.forEach(label => {
-      ctx.fillText(label.text, label.x, label.y);
-    });
+    }
   };
-
-  const drawArrowhead = (ctx, fromX, fromY, toX, toY) => {
-    const headLength = 8;
-    const angle = Math.atan2(toY - fromY, toX - fromX);
-
-    ctx.beginPath();
-    ctx.moveTo(toX, toY);
-    ctx.lineTo(toX - headLength * Math.cos(angle - Math.PI / 6), toY - headLength * Math.sin(angle - Math.PI / 6));
-    ctx.moveTo(toX, toY);
-    ctx.lineTo(toX - headLength * Math.cos(angle + Math.PI / 6), toY - headLength * Math.sin(angle + Math.PI / 6));
-    ctx.stroke();
-  };
-
-  const snapToGrid = (value) => Math.round(value / GRID_SIZE) * GRID_SIZE;
 
   const handleMouseDown = (e) => {
     if (readOnly) return;
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = snapToGrid(e.clientX - rect.left);
-    const y = snapToGrid(e.clientY - rect.top);
+    const { x, y } = getPos(e);
 
-    if (tool === 'line') {
-      setIsDrawing(true);
-      setCurrentLine({ startX: x, startY: y, endX: x, endY: y });
-    } else if (tool === 'dimension') {
-      setIsDrawing(true);
-      setCurrentLine({ startX: x, startY: y, endX: x, endY: y, isDimension: true });
-    } else if (tool === 'text') {
-      setInputPosition({ x, y });
+    if (tool === 'select') {
+      const hit = hitTest(x, y);
+      setSelected(hit);
+      return;
     }
+    if (tool === 'eraser') {
+      const hit = hitTest(x, y);
+      if (hit) {
+        pushHistory(elements);
+        setElements(prev => {
+          const arr = [...prev[hit.type]]; arr.splice(hit.index, 1);
+          return { ...prev, [hit.type]: arr };
+        });
+      }
+      return;
+    }
+    if (tool === 'text') { setInputPos({ x, y }); return; }
+    if (tool === 'freehand') { setIsDrawing(true); setFreePoints([{ x, y }]); return; }
+    setIsDrawing(true);
+    if (tool === 'line' || tool === 'arrow') setCurrentEl({ type: tool, startX: x, startY: y, endX: x, endY: y });
+    else if (tool === 'rect') setCurrentEl({ type: 'rect', x, y, w: 0, h: 0 });
+    else if (tool === 'circle') setCurrentEl({ type: 'circle', cx: x, cy: y, r: 0 });
+    else if (tool === 'dimension') setCurrentEl({ type: 'dimension', startX: x, startY: y, endX: x, endY: y });
   };
 
   const handleMouseMove = (e) => {
-    if (!isDrawing || !currentLine || readOnly) return;
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = snapToGrid(e.clientX - rect.left);
-    const y = snapToGrid(e.clientY - rect.top);
-    setCurrentLine({ ...currentLine, endX: x, endY: y });
+    if (!isDrawing || readOnly) return;
+    const { x, y } = getPos(e);
+    if (tool === 'freehand') { setFreePoints(prev => [...prev, { x, y }]); return; }
+    setCurrentEl(prev => {
+      if (!prev) return prev;
+      if (prev.type === 'line' || prev.type === 'arrow' || prev.type === 'dimension')
+        return { ...prev, endX: x, endY: y };
+      if (prev.type === 'rect') return { ...prev, w: x - prev.x, h: y - prev.y };
+      if (prev.type === 'circle') return { ...prev, r: Math.hypot(x - prev.cx, y - prev.cy) };
+      return prev;
+    });
   };
 
   const handleMouseUp = () => {
-    if (!isDrawing || !currentLine || readOnly) return;
-
-    if (currentLine.isDimension) {
-      const length = Math.round(Math.sqrt(
-        Math.pow(currentLine.endX - currentLine.startX, 2) +
-        Math.pow(currentLine.endY - currentLine.startY, 2)
-      ) / GRID_SIZE);
-
-      setDimensions([...dimensions, {
-        lineStartX: currentLine.startX,
-        lineStartY: currentLine.startY,
-        lineEndX: currentLine.endX,
-        lineEndY: currentLine.endY,
-        x: (currentLine.startX + currentLine.endX) / 2 - 10,
-        y: (currentLine.startY + currentLine.endY) / 2 - 5,
-        value: `${length}'`
-      }]);
-    } else {
-      setLines([...lines, currentLine]);
-    }
-
+    if (!isDrawing || readOnly) return;
     setIsDrawing(false);
-    setCurrentLine(null);
+    pushHistory(elements);
+    if (tool === 'freehand') {
+      if (freePoints.length > 2) {
+        setElements(prev => ({ ...prev, freehand: [...prev.freehand, { points: freePoints, color, sw: strokeWidth }] }));
+      }
+      setFreePoints([]);
+      return;
+    }
+    if (!currentEl) return;
+    if (tool === 'line') {
+      setElements(prev => ({ ...prev, lines: [...prev.lines, { startX: currentEl.startX, startY: currentEl.startY, endX: currentEl.endX, endY: currentEl.endY, color, sw: strokeWidth, arrow: false }] }));
+    } else if (tool === 'arrow') {
+      setElements(prev => ({ ...prev, lines: [...prev.lines, { startX: currentEl.startX, startY: currentEl.startY, endX: currentEl.endX, endY: currentEl.endY, color, sw: strokeWidth, arrow: true }] }));
+    } else if (tool === 'rect') {
+      if (Math.abs(currentEl.w) > 5 || Math.abs(currentEl.h) > 5)
+        setElements(prev => ({ ...prev, rects: [...prev.rects, { x: currentEl.x, y: currentEl.y, w: currentEl.w, h: currentEl.h, color, sw: strokeWidth }] }));
+    } else if (tool === 'circle') {
+      if (currentEl.r > 5)
+        setElements(prev => ({ ...prev, circles: [...prev.circles, { cx: currentEl.cx, cy: currentEl.cy, r: currentEl.r, color, sw: strokeWidth }] }));
+    } else if (tool === 'dimension') {
+      const len = Math.round(Math.hypot(currentEl.endX - currentEl.startX, currentEl.endY - currentEl.startY) / GRID);
+      if (len > 0) {
+        setElements(prev => ({ ...prev, dimensions: [...prev.dimensions, {
+          lineStartX: currentEl.startX, lineStartY: currentEl.startY,
+          lineEndX: currentEl.endX, lineEndY: currentEl.endY,
+          x: (currentEl.startX + currentEl.endX) / 2 - 10,
+          y: (currentEl.startY + currentEl.endY) / 2 - 6,
+          value: `${len}'`,
+        }] }));
+      }
+    }
+    setCurrentEl(null);
   };
 
   const handleTextSubmit = (e) => {
     e.preventDefault();
-    if (inputText && inputPosition) {
-      setTextLabels([...textLabels, { text: inputText, x: inputPosition.x, y: inputPosition.y }]);
-      setInputText('');
-      setInputPosition(null);
-    }
+    if (!inputText.trim() || !inputPos) return;
+    pushHistory(elements);
+    setElements(prev => ({ ...prev, textLabels: [...prev.textLabels, { text: inputText.trim(), x: inputPos.x, y: inputPos.y, color, size: 14 }] }));
+    setInputText(''); setInputPos(null);
   };
 
-  const clearCanvas = () => {
-    setLines([]);
-    setDimensions([]);
-    setTextLabels([]);
+  const saveEditLabel = () => {
+    if (!editingLabel) return;
+    pushHistory(elements);
+    setElements(prev => {
+      const arr = [...prev.textLabels];
+      arr[editingLabel.index] = { ...arr[editingLabel.index], text: editingLabel.text };
+      return { ...prev, textLabels: arr };
+    });
+    setEditingLabel(null); setSelected(null);
   };
+
+  const TOOLS = [
+    { id: 'select',    icon: '⊹',  label: 'Select'    },
+    { id: 'line',      icon: '/',   label: 'Line'      },
+    { id: 'arrow',     icon: '→',  label: 'Arrow'     },
+    { id: 'rect',      icon: '□',   label: 'Rect'      },
+    { id: 'circle',    icon: '○',   label: 'Circle'    },
+    { id: 'freehand',  icon: '✎',  label: 'Draw'      },
+    { id: 'dimension', icon: '↔',  label: 'Measure'   },
+    { id: 'text',      icon: 'T',   label: 'Text'      },
+    { id: 'eraser',    icon: '⌫',  label: 'Erase'     },
+  ];
 
   if (readOnly) {
     return (
-      <div className="border border-gray-400 bg-white">
-        <canvas
-          ref={canvasRef}
-          width={CANVAS_WIDTH}
-          height={CANVAS_HEIGHT}
-          className="cursor-default block"
-        />
+      <div className="border border-gray-300 bg-white overflow-hidden rounded">
+        <canvas ref={canvasRef} width={W} height={H} className="cursor-default block w-full" />
       </div>
     );
   }
 
+  const selectedEl = selected ? elements[selected.type]?.[selected.index] : null;
+
   return (
-    <div className="space-y-2">
-      {!readOnly && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex bg-gray-100 rounded p-1">
+    <div className="space-y-1.5">
+      {/* ── Toolbar ── */}
+      <div className="flex flex-wrap items-center gap-1.5 p-2 bg-gray-50 border border-gray-200 rounded-lg">
+        {/* Tools */}
+        <div className="flex items-center gap-0.5 bg-white border border-gray-200 rounded-lg p-0.5">
+          {TOOLS.map(t => (
             <button
-              onClick={() => setTool('line')}
-              className={`px-2 py-1 rounded text-xs font-medium transition-colors ${tool === 'line' ? 'bg-white shadow text-blue-600' : 'text-gray-600'
-                }`}
+              key={t.id}
+              title={t.label}
+              onClick={() => { setTool(t.id); setSelected(null); }}
+              className={`w-7 h-7 rounded text-sm font-medium transition-all flex items-center justify-center
+                ${tool === t.id ? 'bg-blue-500 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'}`}
             >
-              <Ruler size={14} className="inline mr-1" />
-              Line
+              {t.icon}
             </button>
+          ))}
+        </div>
+
+        {/* Divider */}
+        <div className="w-px h-6 bg-gray-200" />
+
+        {/* Color */}
+        <div className="flex items-center gap-1">
+          <span className="text-[10px] text-gray-500">Color</span>
+          <input type="color" value={color} onChange={e => setColor(e.target.value)} className="w-7 h-7 rounded cursor-pointer border border-gray-200 p-0.5" title="Color" />
+        </div>
+
+        {/* Stroke width */}
+        <div className="flex items-center gap-1">
+          <span className="text-[10px] text-gray-500">Size</span>
+          <select value={strokeWidth} onChange={e => setStrokeWidth(Number(e.target.value))} className="h-7 text-xs border border-gray-200 rounded px-1 bg-white">
+            {[1, 2, 3, 4, 6].map(v => <option key={v} value={v}>{v}px</option>)}
+          </select>
+        </div>
+
+        {/* Divider */}
+        <div className="w-px h-6 bg-gray-200" />
+
+        {/* Snap grid */}
+        <label className="flex items-center gap-1 cursor-pointer text-[10px] text-gray-600">
+          <input type="checkbox" checked={snapGrid} onChange={e => setSnapGrid(e.target.checked)} className="w-3 h-3" />
+          Snap
+        </label>
+
+        {/* Divider */}
+        <div className="w-px h-6 bg-gray-200" />
+
+        {/* Undo / Redo */}
+        <button onClick={undo} disabled={!history.length} title="Undo" className="w-7 h-7 flex items-center justify-center text-gray-500 hover:bg-gray-100 rounded disabled:opacity-30 text-sm">↩</button>
+        <button onClick={redo} disabled={!redoStack.length} title="Redo" className="w-7 h-7 flex items-center justify-center text-gray-500 hover:bg-gray-100 rounded disabled:opacity-30 text-sm">↪</button>
+
+        {/* Clear */}
+        <button onClick={clearAll} className="ml-auto px-2.5 py-1 text-xs text-red-500 border border-red-200 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-1">
+          <X size={11} /> Clear All
+        </button>
+      </div>
+
+      {/* ── Selected element actions ── */}
+      {selected && selectedEl && (
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg text-xs flex-wrap">
+          <span className="text-amber-600 font-medium capitalize">
+            ✦ {selected.type.replace('textLabels','text').replace('freehand','drawing')}
+            {selectedEl.rotation ? <span className="ml-1 text-amber-500">({Math.round(selectedEl.rotation)}°)</span> : null}
+          </span>
+
+          {/* Rotate controls */}
+          <div className="flex items-center gap-0.5 bg-white border border-amber-200 rounded px-1 py-0.5">
+            <span className="text-[10px] text-amber-500 mr-1">↻ Rotate:</span>
+            {[
+              { label: '−90°', deg: -90 },
+              { label: '−45°', deg: -45 },
+              { label: '−15°', deg: -15 },
+              { label: '−5°',  deg: -5  },
+              { label: '+5°',  deg:  5  },
+              { label: '+15°', deg: 15  },
+              { label: '+45°', deg: 45  },
+              { label: '+90°', deg: 90  },
+            ].map(btn => (
+              <button
+                key={btn.label}
+                onClick={() => rotateSelected(btn.deg)}
+                className="px-1.5 py-0.5 text-[10px] font-mono rounded hover:bg-amber-100 text-amber-700 transition-colors"
+              >
+                {btn.label}
+              </button>
+            ))}
+            {/* Reset rotation */}
+            {(selectedEl.rotation || (selected.type === 'lines' || selected.type === 'freehand' || selected.type === 'dimensions')) && (
+              <button
+                onClick={() => {
+                  if (selected.type === 'rects' || selected.type === 'circles' || selected.type === 'textLabels') {
+                    pushHistory(elements);
+                    setElements(prev => {
+                      const arr = [...prev[selected.type]];
+                      arr[selected.index] = { ...arr[selected.index], rotation: 0 };
+                      return { ...prev, [selected.type]: arr };
+                    });
+                  }
+                }}
+                className="px-1.5 py-0.5 text-[10px] rounded hover:bg-red-100 text-red-400 transition-colors ml-1 border-l border-amber-200"
+                title="Reset rotation"
+              >
+                0°
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1 ml-auto">
+            {selected.type === 'textLabels' && (
+              <button
+                onClick={() => setEditingLabel({ index: selected.index, text: elements.textLabels[selected.index].text })}
+                className="flex items-center gap-1 px-2 py-0.5 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+              >
+                <Edit2 size={10} /> Edit Text
+              </button>
+            )}
             <button
-              onClick={() => setTool('dimension')}
-              className={`px-2 py-1 rounded text-xs font-medium transition-colors ${tool === 'dimension' ? 'bg-white shadow text-blue-600' : 'text-gray-600'
-                }`}
+              onClick={deleteSelected}
+              className="flex items-center gap-1 px-2 py-0.5 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
             >
-              <ArrowRight size={14} className="inline mr-1" />
-              Dim
+              <Trash2 size={10} /> Delete
             </button>
-            <button
-              onClick={() => setTool('text')}
-              className={`px-2 py-1 rounded text-xs font-medium transition-colors ${tool === 'text' ? 'bg-white shadow text-blue-600' : 'text-gray-600'
-                }`}
-            >
-              <PenTool size={14} className="inline mr-1" />
-              Text
+            <button onClick={() => setSelected(null)} className="px-2 py-0.5 border border-gray-300 text-gray-600 rounded hover:bg-gray-100">
+              <X size={10} />
             </button>
           </div>
-          <button
-            onClick={clearCanvas}
-            className="px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded transition-colors"
-          >
-            Clear
-          </button>
         </div>
       )}
 
-      {inputPosition && (
-        <form onSubmit={handleTextSubmit} className="flex items-center gap-2">
+      {/* ── Edit label inline ── */}
+      {editingLabel && (
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg">
+          <span className="text-xs text-blue-600 font-medium">Edit text:</span>
           <input
-            type="text"
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            placeholder="Enter text..."
-            className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
             autoFocus
+            value={editingLabel.text}
+            onChange={e => setEditingLabel(prev => ({ ...prev, text: e.target.value }))}
+            onKeyDown={e => { if (e.key === 'Enter') saveEditLabel(); if (e.key === 'Escape') setEditingLabel(null); }}
+            className="flex-1 px-2 py-0.5 border border-blue-300 rounded text-sm focus:outline-none"
           />
-          <button type="submit" className="px-2 py-1 bg-blue-600 text-white rounded text-xs">Add</button>
-          <button type="button" onClick={() => setInputPosition(null)} className="px-2 py-1 text-gray-600 text-xs">Cancel</button>
+          <button onClick={saveEditLabel} className="px-2 py-0.5 bg-blue-500 text-white text-xs rounded hover:bg-blue-600">Save</button>
+          <button onClick={() => setEditingLabel(null)} className="px-2 py-0.5 text-gray-500 text-xs">Cancel</button>
+        </div>
+      )}
+
+      {/* ── Text input on canvas click ── */}
+      {inputPos && (
+        <form onSubmit={handleTextSubmit} className="flex items-center gap-2 px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg">
+          <span className="text-xs text-gray-500">Text at ({inputPos.x}, {inputPos.y}):</span>
+          <input autoFocus type="text" value={inputText} onChange={e => setInputText(e.target.value)} placeholder="Enter text..." className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500" />
+          <button type="submit" className="px-2.5 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">Add</button>
+          <button type="button" onClick={() => { setInputPos(null); setInputText(''); }} className="px-2.5 py-1 text-gray-600 text-xs border border-gray-300 rounded hover:bg-gray-100">✕</button>
         </form>
       )}
 
-      <div className="border-2 border-gray-800 bg-white">
+      {/* ── Canvas ── */}
+      <div className="border-2 border-gray-700 rounded bg-white overflow-hidden relative">
         <canvas
           ref={canvasRef}
-          width={CANVAS_WIDTH}
-          height={CANVAS_HEIGHT}
+          width={W}
+          height={H}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
-          className={`${tool === 'text' ? 'cursor-text' : 'cursor-crosshair'} block`}
+          className={`block w-full ${
+            tool === 'text' ? 'cursor-text' :
+            tool === 'select' ? 'cursor-default' :
+            tool === 'eraser' ? 'cursor-crosshair' :
+            'cursor-crosshair'
+          }`}
+          style={{ aspectRatio: `${W}/${H}` }}
         />
+        {/* Tool hint */}
+        <div className="absolute bottom-1 right-2 text-[10px] text-gray-400 pointer-events-none">
+          {tool === 'select' ? 'Click to select · Delete key to remove' :
+           tool === 'eraser' ? 'Click on element to erase' :
+           tool === 'text'   ? 'Click on canvas to place text' :
+           tool === 'freehand' ? 'Hold and drag to draw freely' :
+           'Click and drag to draw'}
+        </div>
+      </div>
+
+      {/* ── Status bar ── */}
+      <div className="flex items-center gap-3 text-[10px] text-gray-400 px-1">
+        <span>Lines: {elements.lines.length}</span>
+        <span>Shapes: {elements.rects.length + elements.circles.length}</span>
+        <span>Drawings: {elements.freehand.length}</span>
+        <span>Dims: {elements.dimensions.length}</span>
+        <span>Text: {elements.textLabels.length}</span>
       </div>
     </div>
   );
 };
+
+// ── Status Badge ──────────────────────────────────────────────────────────────
 const SurveyStatusBadge = ({ status }) => {
-  const styles = {
-    pending: 'bg-amber-100 text-amber-700 border-amber-300',
-    active: 'bg-blue-100 text-blue-700 border-blue-300',
-    complete: 'bg-emerald-100 text-emerald-700 border-emerald-300'
+  const map = {
+    pending:  'bg-amber-100   text-amber-700   border-amber-300',
+    active:   'bg-blue-100    text-blue-700    border-blue-300',
+    complete: 'bg-emerald-100 text-emerald-700 border-emerald-300',
   };
-
-  const labels = {
-    pending: 'Pending',
-    active: 'Active',
-    complete: 'Complete'
-  };
-
+  const labels = { pending: 'Pending', active: 'Active', complete: 'Complete' };
   return (
-    <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${styles[status] || styles.pending}`}>
+    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${map[status] || map.pending}`}>
       {labels[status] || status}
     </span>
   );
 };
 
-// ── KPI Card Component ───────────────────────────────────────────────────────
-const KPICard = ({ title, value, icon: Icon, color, trend, trendValue }) => (
-  <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-    <div className="flex items-center justify-between">
-      <div>
-        <p className="text-sm text-gray-500 mb-1">{title}</p>
-        <h3 className="text-2xl font-bold text-gray-900">{value}</h3>
-        {trend && (
-          <div className={`flex items-center gap-1 mt-2 text-sm ${trend === 'up' ? 'text-emerald-600' : 'text-red-600'}`}>
-            {trend === 'up' ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
-            <span>{trendValue}</span>
-          </div>
-        )}
+// ── Survey Card (Grid View) ──────────────────────────────────────────────────
+const SurveyCard = ({ survey, onView, onStart, onComplete, onDelete }) => (
+  <div className="glass-card p-4 hover:border-[var(--primary)]/40 transition-all cursor-pointer group">
+    <div className="flex items-start justify-between mb-3">
+      <div className="flex items-center gap-2.5">
+        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-bold text-xs shadow-sm">
+          {survey.clientName?.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+        </div>
+        <div>
+          <h4 className="font-semibold text-[var(--text-primary)] text-sm leading-tight">{survey.clientName}</h4>
+          <p className="text-[11px] text-[var(--text-muted)] flex items-center gap-0.5 mt-0.5">
+            <MapPin size={10} /> {survey.city}
+          </p>
+        </div>
       </div>
-      <div className={`p-3 rounded-xl ${color}`}>
-        <Icon size={24} className="text-white" />
+      <SurveyStatusBadge status={survey.status} />
+    </div>
+
+    <div className="grid grid-cols-2 gap-2 mb-3">
+      <div className="bg-[var(--bg-elevated)] rounded-lg p-2">
+        <p className="text-[10px] text-[var(--text-faint)] uppercase tracking-wide">Capacity</p>
+        <p className="text-xs font-bold text-[var(--solar)] mt-0.5">{survey.projectCapacity || '—'}</p>
+      </div>
+      <div className="bg-[var(--bg-elevated)] rounded-lg p-2">
+        <p className="text-[10px] text-[var(--text-faint)] uppercase tracking-wide">Engineer</p>
+        <p className="text-xs font-semibold text-[var(--text-primary)] mt-0.5 truncate">{survey.engineer || '—'}</p>
+      </div>
+    </div>
+
+    <div className="mb-3 px-2 py-1 bg-[var(--bg-elevated)] rounded-lg text-[11px] font-mono text-[var(--text-muted)] truncate border border-[var(--border-muted)]">
+      {survey.surveyId}
+    </div>
+
+    <div className="flex items-center justify-between pt-3 border-t border-[var(--border-muted)]">
+      <div className="text-[11px] text-[var(--text-faint)] flex items-center gap-1">
+        <Calendar size={11} />
+        {survey.createdAt ? format(new Date(survey.createdAt), 'dd MMM yyyy') : '—'}
+      </div>
+      <div className="flex items-center gap-1">
+        <button onClick={() => onView(survey)} className="p-1.5 text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/10 rounded-lg transition-colors" title="View">
+          <Eye size={14} />
+        </button>
+        {survey.status === 'pending' && (
+          <button onClick={() => onStart(survey)} className="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[11px] font-medium flex items-center gap-1 transition-colors">
+            <Play size={12} /> Start
+          </button>
+        )}
+        {survey.status === 'active' && (
+          <button onClick={() => onComplete(survey)} className="px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-[11px] font-medium flex items-center gap-1 transition-colors">
+            <FileText size={12} /> Fill
+          </button>
+        )}
+        {survey.status === 'complete' && (
+          <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-[11px] font-medium flex items-center gap-1">
+            <CheckCircle size={12} /> Done
+          </span>
+        )}
+        <button onClick={() => onDelete(survey)} className="p-1.5 text-[var(--text-muted)] hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+          <Trash2 size={14} />
+        </button>
       </div>
     </div>
   </div>
 );
 
-// ── Survey Card Component ────────────────────────────────────────────────────
-const SurveyCard = ({ survey, onView, onStart, onComplete, onDelete }) => {
-  return (
-    <div className="bg-white rounded-lg p-2 shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded bg-gradient-to-br from-slate-500 to-slate-700 text-white flex items-center justify-center font-bold text-xs">
-            {survey.clientName?.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
-          </div>
-          <div>
-            <h4 className="font-semibold text-gray-900 text-xs">{survey.clientName}</h4>
-            <p className="text-[10px] text-gray-500 flex items-center gap-0.5">
-              <MapPin size={10} /> {survey.city}
-            </p>
-          </div>
-        </div>
-        <SurveyStatusBadge status={survey.status} />
-      </div>
-
-      <div className="grid grid-cols-2 gap-1 mb-2 text-[10px]">
-        <div className="bg-gray-50 rounded p-1">
-          <p className="text-gray-500">Capacity</p>
-          <p className="font-semibold text-gray-900">{survey.projectCapacity}</p>
-        </div>
-        <div className="bg-gray-50 rounded p-1">
-          <p className="text-gray-500">Engineer</p>
-          <p className="font-semibold text-gray-900 truncate">{survey.engineer}</p>
-        </div>
-      </div>
-
-      <div className="mb-2 px-1.5 py-0.5 bg-slate-100 rounded text-[10px] font-mono text-slate-600 truncate">
-        {survey.surveyId}
-      </div>
-
-      <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-        <div className="text-[10px] text-gray-500">
-          <Calendar size={10} className="inline mr-0.5" />
-          {format(new Date(survey.createdAt), 'dd MMM')}
-        </div>
-        <div className="flex items-center gap-0.5">
-          <button
-            onClick={() => onView(survey)}
-            className="p-1 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-            title="View"
-          >
-            <Eye size={14} />
-          </button>
-
-          {survey.status === 'pending' && (
-            <button
-              onClick={() => onStart(survey)}
-              className="px-2 py-0.5 bg-amber-500 hover:bg-amber-600 text-white rounded text-[10px] font-medium flex items-center gap-0.5 transition-colors"
-            >
-              <Play size={12} />
-              Start
-            </button>
-          )}
-
-          {survey.status === 'active' && (
-            <button
-              onClick={() => onComplete(survey)}
-              className="px-2 py-0.5 bg-blue-500 hover:bg-blue-600 text-white rounded text-[10px] font-medium flex items-center gap-0.5 transition-colors"
-            >
-              <FileText size={12} />
-              Fill
-            </button>
-          )}
-
-          {survey.status === 'complete' && (
-            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded text-[10px] font-medium flex items-center gap-0.5">
-              <CheckCircle size={12} />
-              Done
-            </span>
-          )}
-
-          <button
-            onClick={() => onDelete(survey)}
-            className="p-1 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-            title="Delete"
-          >
-            <Trash2 size={14} />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ── Pending to Active Assignment Modal (Simplified) ─────────────────────────────
+// ── Assign Survey Modal (Pending → Active) ───────────────────────────────────
 const PendingToActiveModal = ({ isOpen, onClose, survey, onSubmit }) => {
-  const [formData, setFormData] = useState({
-    engineer: '',
-    surveyDate: format(new Date(), 'yyyy-MM-dd'),
-    notes: ''
-  });
+  const [formData, setFormData] = useState({ engineer: '', surveyDate: format(new Date(), 'yyyy-MM-dd'), notes: '' });
+  const [employees, setEmployees] = useState([]);
+  const [empLoading, setEmpLoading] = useState(false);
+
+  // Fetch employees from HRM when modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+    const fetchEmployees = async () => {
+      setEmpLoading(true);
+      try {
+        const res = await employeeApi.getAll();
+        const data = res?.data || res || [];
+        setEmployees(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error('Failed to fetch employees:', err);
+        setEmployees([]);
+      } finally {
+        setEmpLoading(false);
+      }
+    };
+    fetchEmployees();
+  }, [isOpen]);
 
   useEffect(() => {
-    if (survey) {
-      setFormData(prev => ({
-        ...prev,
-        engineer: survey.engineer || '',
-        surveyDate: format(new Date(), 'yyyy-MM-dd')
-      }));
-    }
+    if (survey) setFormData(prev => ({ ...prev, engineer: survey.engineer || '', surveyDate: format(new Date(), 'yyyy-MM-dd') }));
   }, [survey]);
 
-  const handleInputChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
+  const set = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
 
-  const handleSubmit = () => {
-    onSubmit({
-      engineer: formData.engineer,
-      solarConsultant: formData.engineer,
-      scheduledDate: formData.surveyDate,
-      notes: formData.notes,
-      activeData: {
-        assignedAt: new Date().toISOString(),
-        scheduledDate: formData.surveyDate
-      }
-    });
-  };
+  // Group employees by department for optgroup
+  const employeesByDept = employees.reduce((acc, emp) => {
+    const dept = emp.department || 'Other';
+    if (!acc[dept]) acc[dept] = [];
+    acc[dept].push(emp);
+    return acc;
+  }, {});
+
+  const engineerLabel = employees.find(e =>
+    `${e.firstName} ${e.lastName}`.trim() === formData.engineer ||
+    e._id === formData.engineer
+  );
 
   return (
-    <Modal
-      open={isOpen}
-      onClose={onClose}
-      title="Assign Survey"
-      size="md"
+    <Modal open={isOpen} onClose={onClose} title="Assign Survey" size="md"
       footer={
         <div className="flex justify-end gap-3">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={!formData.engineer}
-            className="bg-amber-500 hover:bg-amber-600"
-          >
-            <Play size={18} className="mr-2" /> Start Survey
+          <Button onClick={() => onSubmit({ engineer: formData.engineer, solarConsultant: formData.engineer, scheduledDate: formData.surveyDate, notes: formData.notes, activeData: { assignedAt: new Date().toISOString(), scheduledDate: formData.surveyDate } })} disabled={!formData.engineer} className="bg-amber-500 hover:bg-amber-600">
+            <Play size={16} className="mr-2" /> Start Survey
           </Button>
         </div>
       }
     >
       <div className="space-y-4">
-        {/* Lead Details Card */}
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-          <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-            <User size={16} /> Lead Details
-          </h4>
+        {/* Lead Details */}
+        <div className="bg-[var(--bg-elevated)] border border-[var(--border-base)] rounded-xl p-4">
+          <h4 className="text-sm font-semibold text-[var(--text-primary)] mb-3 flex items-center gap-2"><User size={15} /> Lead Details</h4>
           <div className="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <span className="text-gray-500">Client:</span>
-              <p className="font-medium text-gray-900">{survey?.clientName}</p>
-            </div>
-            <div>
-              <span className="text-gray-500">City:</span>
-              <p className="font-medium text-gray-900">{survey?.city}</p>
-            </div>
-            <div>
-              <span className="text-gray-500">Capacity:</span>
-              <p className="font-medium text-gray-900">{survey?.projectCapacity || 'N/A'}</p>
-            </div>
-            <div>
-              <span className="text-gray-500">Survey ID:</span>
-              <p className="font-medium text-gray-900">{survey?.surveyId}</p>
-            </div>
+            {[['Client', survey?.clientName], ['City', survey?.city], ['Capacity', survey?.projectCapacity || 'N/A'], ['Survey ID', survey?.surveyId]].map(([label, val]) => (
+              <div key={label}>
+                <span className="text-[var(--text-muted)]">{label}:</span>
+                <p className="font-medium text-[var(--text-primary)]">{val}</p>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Assignment Form */}
         <div className="space-y-4">
+          {/* Assign Engineer Dropdown */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-[var(--text-primary)] mb-1.5">
               <HardHat size={14} className="inline mr-1" /> Assign Engineer *
             </label>
-            <input
-              type="text"
+            <select
               value={formData.engineer}
-              onChange={(e) => handleInputChange('engineer', e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
-              placeholder="Enter engineer name"
-            />
+              onChange={e => set('engineer', e.target.value)}
+              disabled={empLoading}
+              className="w-full border border-[var(--border-base)] bg-[var(--bg-elevated)] rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 text-[var(--text-primary)] disabled:opacity-50"
+            >
+              <option value="">
+                {empLoading ? 'Loading employees...' : '— Select Engineer —'}
+              </option>
+              {Object.entries(employeesByDept).map(([dept, emps]) => (
+                <optgroup key={dept} label={dept}>
+                  {emps.map(emp => {
+                    const fullName = `${emp.firstName} ${emp.lastName}`.trim();
+                    return (
+                      <option key={emp._id} value={fullName}>
+                        {fullName}{emp.designation ? ` (${emp.designation})` : ''}
+                      </option>
+                    );
+                  })}
+                </optgroup>
+              ))}
+            </select>
+            {empLoading && (
+              <p className="text-[11px] text-[var(--text-faint)] mt-1 flex items-center gap-1">
+                <span className="inline-block w-3 h-3 border border-amber-400 border-t-transparent rounded-full animate-spin" />
+                Fetching from HRM...
+              </p>
+            )}
           </div>
 
+          {/* Survey Date */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-[var(--text-primary)] mb-1.5">
               <Calendar size={14} className="inline mr-1" /> Survey Date *
             </label>
             <input
               type="date"
               value={formData.surveyDate}
-              onChange={(e) => handleInputChange('surveyDate', e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+              onChange={e => set('surveyDate', e.target.value)}
+              className="w-full border border-[var(--border-base)] bg-[var(--bg-elevated)] rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 text-[var(--text-primary)]"
             />
           </div>
 
+          {/* Notes */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-[var(--text-primary)] mb-1.5">
               <FileText size={14} className="inline mr-1" /> Notes (Optional)
             </label>
             <textarea
               value={formData.notes}
-              onChange={(e) => handleInputChange('notes', e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+              onChange={e => set('notes', e.target.value)}
               rows={2}
               placeholder="Any additional notes..."
+              className="w-full border border-[var(--border-base)] bg-[var(--bg-elevated)] rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 text-[var(--text-primary)]"
             />
           </div>
         </div>
@@ -557,454 +975,507 @@ const PendingToActiveModal = ({ isOpen, onClose, survey, onSubmit }) => {
   );
 };
 
-// ── Active to Complete Form Modal (Paper Form Style) ────────────────────────
-const ActiveToCompleteModal = ({ isOpen, onClose, survey, onSubmit }) => {
-  const [formData, setFormData] = useState({
-    finalImages: [],
-    finalNotes: '',
-    engineerApproval: false,
-    engineerName: '',
-    completionDate: format(new Date(), 'yyyy-MM-dd'),
-    panelPlacementDetails: '',
-    finalDrawing: { lines: [], dimensions: [], textLabels: [] }
-  });
+// ── Complete Survey Modal (Active → Complete) ────────────────────────────────
+const ActiveToCompleteModal = ({ isOpen, onClose, survey, onSubmit, isAdmin, onSaveSurvey }) => {
+  const [formData, setFormData] = useState({ finalImages: [], finalNotes: '', engineerApproval: false, engineerName: '', completionDate: format(new Date(), 'yyyy-MM-dd'), panelPlacementDetails: '', finalDrawing: { lines: [], dimensions: [], textLabels: [] } });
   const [uploading, setUploading] = useState(false);
+
+  // Edit mode state for Pre-Sales form
+  const [editMode, setEditMode] = useState(false);
+  const [editForm, setEditForm] = useState({});
+  const [saving, setSaving] = useState(false);
+  // Dynamic custom fields
+  const [customFields, setCustomFields] = useState([]);
+  const [newFieldLabel, setNewFieldLabel] = useState('');
+  const [newFieldType, setNewFieldType] = useState('text');
+  const [showAddField, setShowAddField] = useState(false);
 
   useEffect(() => {
     if (survey) {
-      setFormData(prev => ({
-        ...prev,
-        engineerName: survey.solarConsultant || ''
-      }));
+      setFormData(prev => ({ ...prev, engineerName: survey.solarConsultant || '' }));
+      setEditForm({
+        clientName: survey.clientName || '',
+        city: survey.city || '',
+        projectCapacity: survey.projectCapacity || '',
+        roofType: survey.roofType || '',
+        structureType: survey.structureType || '',
+        structureHeight: survey.structureHeight || '',
+        customHeight: survey.customHeight || '',
+        moduleType: survey.moduleType || '',
+        solarConsultant: survey.solarConsultant || '',
+        floors: survey.floors || '',
+        notes: survey.notes || '',
+      });
+      // Load existing custom fields from survey
+      setCustomFields(survey.customFields || []);
     }
   }, [survey]);
 
-  const handleInputChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
+  const set = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
+  const setEdit = (field, value) => setEditForm(prev => ({ ...prev, [field]: value }));
 
-  const handleDrawingChange = (drawingData) => {
-    setFormData(prev => ({ ...prev, finalDrawing: drawingData }));
+  // Custom field handlers
+  const addCustomField = () => {
+    if (!newFieldLabel.trim()) return;
+    setCustomFields(prev => [...prev, { id: Date.now(), label: newFieldLabel.trim(), value: '', type: newFieldType }]);
+    setNewFieldLabel('');
+    setNewFieldType('text');
+    setShowAddField(false);
+  };
+  const updateCustomField = (id, key, val) => setCustomFields(prev => prev.map(f => f.id === id ? { ...f, [key]: val } : f));
+  const removeCustomField = (id) => setCustomFields(prev => prev.filter(f => f.id !== id));
+
+  const handleSaveEdit = async () => {
+    setSaving(true);
+    try {
+      await onSaveSurvey(survey._id || survey.surveyId, { ...editForm, customFields });
+      setEditMode(false);
+      toast.success('Survey details updated');
+    } catch { toast.error('Failed to save changes'); }
+    finally { setSaving(false); }
   };
 
   const handleImageUpload = async (e) => {
     const files = Array.from(e.target.files);
-    if (files.length === 0) return;
+    if (!files.length) return;
     setUploading(true);
     try {
-      const uploadedUrls = files.map(file => URL.createObjectURL(file));
-      setFormData(prev => ({ ...prev, finalImages: [...prev.finalImages, ...uploadedUrls] }));
+      const urls = files.map(f => URL.createObjectURL(f));
+      setFormData(prev => ({ ...prev, finalImages: [...prev.finalImages, ...urls] }));
       toast.success(`${files.length} images uploaded`);
-    } catch (error) {
-      toast.error('Failed to upload images');
-    } finally {
-      setUploading(false);
-    }
+    } catch { toast.error('Failed to upload images'); }
+    finally { setUploading(false); }
   };
 
-  const handleSubmit = () => {
-    onSubmit({
-      completeData: {
-        ...formData,
-        completionDate: new Date().toISOString()
-      }
-    });
-  };
+  const activeData = survey?.activeData || {};
+  const roofDrawing = activeData.roofDrawing || { lines: [], dimensions: [], textLabels: [] };
+
+  // Reusable checkbox group for read-only view
+  const CheckboxGroup = ({ label, value, options }) => (
+    <div className="flex items-start gap-2 mb-2">
+      <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">{label}</span>
+      <div className="flex flex-wrap items-center gap-3">
+        {options.map(opt => (
+          <div key={opt.id} className="flex items-center gap-1">
+            <div className={`w-4 h-4 border border-gray-500 flex items-center justify-center ${value === opt.id ? 'bg-blue-600 border-blue-600' : 'bg-white'}`}>
+              {value === opt.id && <CheckCircle size={12} className="text-white" />}
+            </div>
+            <span className="text-sm text-gray-700">{opt.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  // Editable checkbox group
+  const EditCheckboxGroup = ({ label, field, options }) => (
+    <div className="flex items-start gap-2 mb-3">
+      <span className="text-sm font-semibold text-gray-700 whitespace-nowrap w-36">{label}</span>
+      <div className="flex flex-wrap items-center gap-3">
+        {options.map(opt => (
+          <label key={opt.id} className="flex items-center gap-1 cursor-pointer">
+            <div
+              onClick={() => setEdit(field, editForm[field] === opt.id ? '' : opt.id)}
+              className={`w-4 h-4 border-2 flex items-center justify-center cursor-pointer transition-colors ${editForm[field] === opt.id ? 'bg-blue-600 border-blue-600' : 'bg-white border-gray-400 hover:border-blue-400'}`}
+            >
+              {editForm[field] === opt.id && <CheckCircle size={11} className="text-white" />}
+            </div>
+            <span className="text-sm text-gray-700">{opt.label}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
 
   return (
-    <Modal
-      open={isOpen}
-      onClose={onClose}
-      title=""
-      size="xl"
+    <Modal open={isOpen} onClose={onClose} title="" size="xl"
       footer={
         <div className="flex justify-end gap-3">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={uploading || !formData.engineerApproval}
-            className="bg-emerald-500 hover:bg-emerald-600"
-          >
-            <CheckCircle size={18} className="mr-2" /> Complete Survey
+          <Button onClick={() => onSubmit({ completeData: { ...formData, completionDate: new Date().toISOString() } })} disabled={uploading || !formData.engineerApproval} className="bg-emerald-500 hover:bg-emerald-600">
+            <CheckCircle size={16} className="mr-2" /> Complete Survey
           </Button>
         </div>
       }
     >
-      <div className="bg-white p-6 max-h-[75vh] overflow-y-auto">
-        {/* Paper Form Container */}
-        <div className="border-2 border-gray-800 p-4 bg-white">
+      <div className="bg-white p-6 max-h-[75vh] overflow-y-auto space-y-6">
+
+        {/* ── PART 1: Pre-Sales Site Assessment Form ── */}
+        <div className={`border-2 p-4 bg-white transition-colors ${editMode ? 'border-blue-500' : 'border-gray-800'}`}>
           {/* Header */}
           <div className="flex items-start justify-between border-b-2 border-gray-800 pb-3 mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-red-600 rounded flex items-center justify-center">
-                <SunDim size={32} className="text-white" />
+            <div className="text-center flex-1"><h2 className="text-lg font-bold text-gray-900 border-2 border-gray-800 inline-block px-4 py-1">Pre-Sales Site Assessment Form</h2></div>
+            <div className="text-right">
+              <p className="text-sm text-gray-700">Date: <span className="border-b border-gray-600 px-2">{survey?.createdAt ? format(new Date(survey.createdAt), 'dd/MM/yy') : '—'}</span></p>
+              <p className="text-xs text-gray-500 mt-1">Survey ID: {survey?.surveyId}</p>
+              <div className="mt-2 flex items-center gap-2 justify-end">
+                <SurveyStatusBadge status={survey?.status} />
+                {/* Admin Edit Toggle */}
+                {isAdmin && !editMode && (
+                  <button
+                    onClick={() => setEditMode(true)}
+                    className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+                  >
+                    <Edit2 size={11} /> Edit
+                  </button>
+                )}
+                {isAdmin && editMode && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={handleSaveEdit}
+                      disabled={saving}
+                      className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 transition-colors disabled:opacity-60"
+                    >
+                      <CheckCircle size={11} /> {saving ? 'Saving...' : 'Save'}
+                    </button>
+                    <button
+                      onClick={() => { setEditMode(false); setEditForm({ clientName: survey?.clientName || '', city: survey?.city || '', projectCapacity: survey?.projectCapacity || '', roofType: survey?.roofType || '', structureType: survey?.structureType || '', structureHeight: survey?.structureHeight || '', customHeight: survey?.customHeight || '', moduleType: survey?.moduleType || '', solarConsultant: survey?.solarConsultant || '', floors: survey?.floors || '', notes: survey?.notes || '' }); }}
+                      className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg border border-gray-400 text-gray-600 hover:bg-gray-100 transition-colors"
+                    >
+                      <X size={11} /> Cancel
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {editMode ? (
+            /* ── EDIT MODE ── */
+            <div className="space-y-3">
+              {isAdmin && (
+                <div className="flex items-center gap-1.5 mb-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
+                  <Edit2 size={13} className="text-blue-500" />
+                  <p className="text-xs text-blue-600 font-medium">Admin Edit Mode — Make changes and click Save</p>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">Client Name</label>
+                  <input value={editForm.clientName} onChange={e => setEdit('clientName', e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-blue-500" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">City</label>
+                  <input value={editForm.city} onChange={e => setEdit('city', e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-blue-500" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">Project Capacity</label>
+                  <input value={editForm.projectCapacity} onChange={e => setEdit('projectCapacity', e.target.value)} placeholder="e.g. 10 kW" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-blue-500" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">Floors</label>
+                  <input type="number" value={editForm.floors} onChange={e => setEdit('floors', e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-blue-500" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">Solar Consultant</label>
+                  <input value={editForm.solarConsultant} onChange={e => setEdit('solarConsultant', e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-blue-500" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">Custom Height</label>
+                  <input value={editForm.customHeight} onChange={e => setEdit('customHeight', e.target.value)} placeholder="e.g. 12 ft" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-blue-500" />
+                </div>
+              </div>
+              <div className="border-t border-gray-200 pt-3">
+                <EditCheckboxGroup label="Roof Type:" field="roofType" options={ROOF_TYPES} />
+                <EditCheckboxGroup label="Structure Type:" field="structureType" options={STRUCTURE_TYPES} />
+                <EditCheckboxGroup label="Structure Height:" field="structureHeight" options={STRUCTURE_HEIGHTS} />
+                <EditCheckboxGroup label="Module:" field="moduleType" options={MODULE_TYPES} />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900 tracking-wide">GRANDO</h1>
-                <p className="text-sm text-gray-600">SOLAR ENERGY</p>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">Notes</label>
+                <textarea value={editForm.notes} onChange={e => setEdit('notes', e.target.value)} rows={2} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="Additional notes..." />
+              </div>
+
+              {/* ── Dynamic Custom Fields ── */}
+              <div className="border-t border-dashed border-blue-300 pt-3">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-bold text-blue-600 uppercase tracking-wide flex items-center gap-1">
+                    <Plus size={12} /> Custom Fields
+                  </p>
+                  {!showAddField && (
+                    <button
+                      onClick={() => setShowAddField(true)}
+                      className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg border-2 border-dashed border-blue-400 text-blue-500 hover:bg-blue-50 transition-colors"
+                    >
+                      <Plus size={11} /> Add Field
+                    </button>
+                  )}
+                </div>
+
+                {/* Add new field form */}
+                {showAddField && (
+                  <div className="flex items-end gap-2 mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex-1">
+                      <label className="text-[10px] font-semibold text-blue-600 block mb-1">Field Label *</label>
+                      <input
+                        value={newFieldLabel}
+                        onChange={e => setNewFieldLabel(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && addCustomField()}
+                        placeholder="e.g. Inverter Brand, Panel Watt, Location..."
+                        className="w-full border border-blue-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-blue-500 bg-white"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="w-28">
+                      <label className="text-[10px] font-semibold text-blue-600 block mb-1">Field Type</label>
+                      <select
+                        value={newFieldType}
+                        onChange={e => setNewFieldType(e.target.value)}
+                        className="w-full border border-blue-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-blue-500 bg-white"
+                      >
+                        <option value="text">Text</option>
+                        <option value="number">Number</option>
+                        <option value="textarea">Textarea</option>
+                        <option value="date">Date</option>
+                      </select>
+                    </div>
+                    <button onClick={addCustomField} disabled={!newFieldLabel.trim()} className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 transition-colors whitespace-nowrap">
+                      <CheckCircle size={11} /> Add
+                    </button>
+                    <button onClick={() => { setShowAddField(false); setNewFieldLabel(''); }} className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 transition-colors">
+                      <X size={11} />
+                    </button>
+                  </div>
+                )}
+
+                {/* Existing custom fields */}
+                {customFields.length === 0 && !showAddField && (
+                  <p className="text-xs text-gray-400 italic py-2">No custom fields yet. Click "Add Field" to add one.</p>
+                )}
+                <div className="space-y-2">
+                  {customFields.map((field) => (
+                    <div key={field.id} className="flex items-start gap-2 p-2.5 bg-white border border-gray-200 rounded-lg group">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <input
+                            value={field.label}
+                            onChange={e => updateCustomField(field.id, 'label', e.target.value)}
+                            className="text-xs font-semibold text-gray-700 bg-transparent border-b border-dashed border-gray-300 focus:outline-none focus:border-blue-400 w-full"
+                            placeholder="Field label..."
+                          />
+                          <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded whitespace-nowrap">{field.type}</span>
+                        </div>
+                        {field.type === 'textarea' ? (
+                          <textarea value={field.value} onChange={e => updateCustomField(field.id, 'value', e.target.value)} rows={2} className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500" placeholder="Enter value..." />
+                        ) : (
+                          <input type={field.type} value={field.value} onChange={e => updateCustomField(field.id, 'value', e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500" placeholder="Enter value..." />
+                        )}
+                      </div>
+                      <button onClick={() => removeCustomField(field.id)} className="p-1 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors mt-5">
+                        <X size={13} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-            <div className="text-center flex-1">
-              <h2 className="text-lg font-bold text-gray-900 border-2 border-gray-800 inline-block px-4 py-1">
-                Survey Completion Form
-              </h2>
-            </div>
+          ) : (
+            /* ── VIEW MODE ── */
+            <>
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="flex items-center gap-2"><span className="text-sm font-semibold text-gray-700 whitespace-nowrap">Client Name/City:</span><span className="flex-1 border-b border-gray-400 px-2 py-1 text-sm">{survey?.clientName} / {survey?.city}</span></div>
+                <div className="flex items-center gap-2"><span className="text-sm font-semibold text-gray-700 whitespace-nowrap">Project Capacity:</span><span className="w-32 border-b border-gray-400 px-2 py-1 text-sm">{survey?.projectCapacity || '—'}</span></div>
+              </div>
+              <div className="mb-3 border-b border-gray-300 pb-2"><CheckboxGroup label="Roof Type:" value={survey?.roofType} options={ROOF_TYPES} /></div>
+              <div className="mb-3 border-b border-gray-300 pb-2"><CheckboxGroup label="Structure Type:" value={survey?.structureType} options={STRUCTURE_TYPES} /></div>
+              <div className="mb-3 border-b border-gray-300 pb-2">
+                <CheckboxGroup label="Structure Height:" value={survey?.structureHeight} options={STRUCTURE_HEIGHTS} />
+                {survey?.customHeight && <div className="flex items-center gap-2 ml-20 mt-1"><span className="text-sm text-gray-500">Custom:</span><span className="border-b border-gray-400 px-2 py-0.5 text-sm">{survey.customHeight}</span></div>}
+              </div>
+              <div className="mb-3 border-b border-gray-300 pb-2"><CheckboxGroup label="Module:" value={survey?.moduleType} options={MODULE_TYPES} /></div>
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="flex items-center gap-2"><span className="text-sm font-semibold text-gray-700 whitespace-nowrap">Solar Consultant:</span><span className="flex-1 border-b border-gray-400 px-2 py-1 text-sm">{survey?.solarConsultant || '—'}</span></div>
+                <div className="flex items-center gap-2"><span className="text-sm font-semibold text-gray-700 whitespace-nowrap">Floors:</span><span className="w-16 border-b border-gray-400 px-2 py-1 text-sm text-center">{survey?.floors || '—'}</span></div>
+              </div>
+              <div className="mb-4"><div className="flex items-center gap-2"><span className="text-sm font-semibold text-gray-700">Client Signature:</span><div className="flex-1 border-b-2 border-gray-800 h-8" /></div></div>
+              {roofDrawing.lines?.length > 0 && (
+                <div className="mb-4"><p className="text-sm font-semibold text-gray-700 mb-2">Roof Layout Drawing:</p><GridDrawingCanvas drawingData={roofDrawing} readOnly /></div>
+              )}
+              {activeData.siteImages?.length > 0 && (
+                <div className="mb-4">
+                  <p className="text-sm font-semibold text-gray-700 mb-2">Site Photos:</p>
+                  <div className="grid grid-cols-4 gap-2">{activeData.siteImages.map((img, idx) => <div key={idx} className="aspect-square border border-gray-300"><img src={img} alt={`Site ${idx + 1}`} className="w-full h-full object-cover" /></div>)}</div>
+                </div>
+              )}
+              {survey?.notes && <div className="mb-2"><p className="text-sm font-semibold text-gray-700 mb-2">Notes:</p><div className="border border-gray-400 p-2 text-sm bg-gray-50">{survey.notes}</div></div>}
+
+              {/* Custom Fields (view mode) */}
+              {(survey?.customFields?.length > 0 || customFields.length > 0) && (
+                <div className="mt-3 pt-3 border-t border-dashed border-gray-300">
+                  <p className="text-sm font-semibold text-gray-700 mb-2">Additional Fields:</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(survey?.customFields || customFields).filter(f => f.value).map((field, idx) => (
+                      <div key={field.id || idx} className="flex items-start gap-2 border-b border-gray-200 pb-1">
+                        <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">{field.label}:</span>
+                        <span className="flex-1 border-b border-gray-400 px-2 py-0.5 text-sm">{field.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* ── PART 2: Survey Completion Form ── */}
+        <div className="border-2 border-gray-800 p-4 bg-white">
+          <div className="flex items-start justify-between border-b-2 border-gray-800 pb-3 mb-4">
+            <div className="text-center flex-1"><h2 className="text-lg font-bold text-gray-900 border-2 border-gray-800 inline-block px-4 py-1">Survey Completion Form</h2></div>
             <div className="text-right">
               <p className="text-sm text-gray-700">Date: <span className="border-b border-gray-600 px-2">{format(new Date(), 'dd/MM/yy')}</span></p>
-              <p className="text-xs text-gray-500 mt-1">Survey ID: {survey?.surveyId}</p>
+              <p className="text-xs text-gray-500 mt-1">ID: {survey?.surveyId}</p>
             </div>
           </div>
-
-          {/* Client Info */}
           <div className="mb-4 p-3 bg-gray-50 border border-gray-300">
             <p className="text-sm"><span className="font-semibold">Client:</span> {survey?.clientName} | <span className="font-semibold">City:</span> {survey?.city}</p>
-            <p className="text-sm"><span className="font-semibold">Project Capacity:</span> {survey?.projectCapacity}</p>
+            <p className="text-sm"><span className="font-semibold">Capacity:</span> {survey?.projectCapacity}</p>
           </div>
-
-          {/* Final Roof Drawing */}
           <div className="mb-4">
             <p className="text-sm font-semibold text-gray-700 mb-2">Final Roof Layout Drawing:</p>
-            <GridDrawingCanvas
-              drawingData={formData.finalDrawing}
-              onChange={handleDrawingChange}
-            />
+            <GridDrawingCanvas drawingData={formData.finalDrawing} onChange={d => set('finalDrawing', d)} />
           </div>
-
-          {/* Panel Placement Details */}
           <div className="mb-4">
             <p className="text-sm font-semibold text-gray-700 mb-2">Panel Placement Details:</p>
-            <textarea
-              value={formData.panelPlacementDetails}
-              onChange={(e) => handleInputChange('panelPlacementDetails', e.target.value)}
-              className="w-full border border-gray-400 p-2 text-sm focus:outline-none focus:border-blue-500"
-              rows={3}
-              placeholder="Describe panel placement, row spacing, access paths..."
-            />
+            <textarea value={formData.panelPlacementDetails} onChange={e => set('panelPlacementDetails', e.target.value)} className="w-full border border-gray-400 p-2 text-sm focus:outline-none focus:border-blue-500" rows={3} placeholder="Describe panel placement..." />
           </div>
-
-          {/* Final Site Images */}
           <div className="mb-4">
             <p className="text-sm font-semibold text-gray-700 mb-2">Final Site Photos:</p>
             <div className="border-2 border-dashed border-gray-400 p-4 text-center">
-              <input
-                type="file"
-                multiple
-                accept="image/*"
-                onChange={handleImageUpload}
-                className="hidden"
-                id="final-images-form"
-              />
-              <label htmlFor="final-images-form" className="cursor-pointer">
-                <Upload size={24} className="mx-auto mb-2 text-gray-400" />
-                <p className="text-sm text-gray-600">Upload final site images</p>
-              </label>
+              <input type="file" multiple accept="image/*" onChange={handleImageUpload} className="hidden" id="final-images-form" />
+              <label htmlFor="final-images-form" className="cursor-pointer"><Upload size={24} className="mx-auto mb-2 text-gray-400" /><p className="text-sm text-gray-600">Upload final site images</p></label>
             </div>
             {formData.finalImages.length > 0 && (
               <div className="grid grid-cols-4 gap-2 mt-3">
                 {formData.finalImages.map((img, idx) => (
                   <div key={idx} className="relative aspect-square border border-gray-300">
                     <img src={img} alt={`Final ${idx + 1}`} className="w-full h-full object-cover" />
-                    <button
-                      onClick={() => setFormData(prev => ({ ...prev, finalImages: prev.finalImages.filter((_, i) => i !== idx) }))}
-                      className="absolute top-0 right-0 p-1 bg-red-500 text-white"
-                    >
-                      <X size={12} />
-                    </button>
+                    <button onClick={() => setFormData(prev => ({ ...prev, finalImages: prev.finalImages.filter((_, i) => i !== idx) }))} className="absolute top-0 right-0 p-1 bg-red-500 text-white"><X size={12} /></button>
                   </div>
                 ))}
               </div>
             )}
           </div>
-
-          {/* Final Notes */}
           <div className="mb-4">
             <p className="text-sm font-semibold text-gray-700 mb-2">Final Notes:</p>
-            <textarea
-              value={formData.finalNotes}
-              onChange={(e) => handleInputChange('finalNotes', e.target.value)}
-              className="w-full border border-gray-400 p-2 text-sm focus:outline-none focus:border-blue-500"
-              rows={3}
-              placeholder="Any final observations or recommendations..."
-            />
+            <textarea value={formData.finalNotes} onChange={e => set('finalNotes', e.target.value)} className="w-full border border-gray-400 p-2 text-sm focus:outline-none focus:border-blue-500" rows={3} placeholder="Final observations..." />
           </div>
-
-          {/* Engineer Approval Section */}
           <div className="border-t-2 border-gray-800 pt-4">
-            <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
-              <HardHat size={18} />
-              Engineer Approval
-            </h3>
-
+            <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2"><HardHat size={16} /> Engineer Approval</h3>
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-gray-700">Engineer Name:</span>
-                <input
-                  type="text"
-                  value={formData.engineerName}
-                  onChange={(e) => handleInputChange('engineerName', e.target.value)}
-                  className="flex-1 border-b border-gray-400 px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
-                  placeholder="Enter engineer name"
-                />
+                <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">Engineer Name:</span>
+                <input type="text" value={formData.engineerName} onChange={e => set('engineerName', e.target.value)} className="flex-1 border-b border-gray-400 px-2 py-1 text-sm focus:outline-none" placeholder="Enter name" />
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-gray-700">Completion Date:</span>
-                <input
-                  type="date"
-                  value={formData.completionDate}
-                  onChange={(e) => handleInputChange('completionDate', e.target.value)}
-                  className="border border-gray-400 px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
-                />
+                <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">Completion Date:</span>
+                <input type="date" value={formData.completionDate} onChange={e => set('completionDate', e.target.value)} className="border border-gray-400 px-2 py-1 text-sm focus:outline-none" />
               </div>
             </div>
-
-            {/* Approval Checkbox */}
-            <div className="p-3 border-2 border-gray-300 bg-gray-50">
-              <label className="flex items-start gap-3 cursor-pointer">
-                <div className={`w-5 h-5 border-2 border-gray-600 flex items-center justify-center mt-0.5 ${formData.engineerApproval ? 'bg-emerald-600 border-emerald-600' : 'bg-white'}`}>
-                  {formData.engineerApproval && <CheckCircle size={14} className="text-white" />}
-                </div>
-                <input
-                  type="checkbox"
-                  checked={formData.engineerApproval}
-                  onChange={(e) => handleInputChange('engineerApproval', e.target.checked)}
-                  className="hidden"
-                />
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">I confirm that the survey is complete and accurate</p>
-                  <p className="text-xs text-gray-500">All measurements verified and documented. Final approval required to complete survey.</p>
-                </div>
-              </label>
-            </div>
-
-            {/* Engineer Signature */}
-            <div className="mt-4">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-gray-700">Engineer Signature:</span>
-                <div className="flex-1 border-b-2 border-gray-800 h-8"></div>
+            <label className="flex items-start gap-3 cursor-pointer p-3 border-2 border-gray-300 bg-gray-50">
+              <div className={`w-5 h-5 border-2 border-gray-600 flex items-center justify-center mt-0.5 flex-shrink-0 ${formData.engineerApproval ? 'bg-emerald-600 border-emerald-600' : 'bg-white'}`}>
+                {formData.engineerApproval && <CheckCircle size={14} className="text-white" />}
               </div>
-            </div>
+              <input type="checkbox" checked={formData.engineerApproval} onChange={e => set('engineerApproval', e.target.checked)} className="hidden" />
+              <div><p className="text-sm font-semibold text-gray-900">I confirm that the survey is complete and accurate</p><p className="text-xs text-gray-500">All measurements verified and documented.</p></div>
+            </label>
           </div>
         </div>
+
       </div>
     </Modal>
   );
 };
 
-// ── Survey Details View Modal (Paper Form Style) ─────────────────────────────
+// ── Survey Details Modal (Paper Form Style) ───────────────────────────────────
 const SurveyDetailsModal = ({ isOpen, onClose, survey }) => {
   if (!survey) return null;
-
   const activeData = survey.activeData || {};
   const completeData = survey.completeData || {};
   const roofDrawing = activeData.roofDrawing || { lines: [], dimensions: [], textLabels: [] };
 
-  const DisplayCheckboxGroup = ({ label, value, options }) => {
-    const selectedOption = options.find(opt => opt.id === value);
-    return (
-      <div className="flex items-start gap-2 mb-2">
-        <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">{label}</span>
-        <div className="flex flex-wrap items-center gap-3">
-          {options.map(opt => (
-            <div key={opt.id} className="flex items-center gap-1">
-              <div className={`w-4 h-4 border border-gray-500 flex items-center justify-center ${value === opt.id ? 'bg-blue-600 border-blue-600' : 'bg-white'}`}>
-                {value === opt.id && <CheckCircle size={12} className="text-white" />}
-              </div>
-              <span className="text-sm text-gray-700">{opt.label}</span>
+  const CheckboxGroup = ({ label, value, options }) => (
+    <div className="flex items-start gap-2 mb-2">
+      <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">{label}</span>
+      <div className="flex flex-wrap items-center gap-3">
+        {options.map(opt => (
+          <div key={opt.id} className="flex items-center gap-1">
+            <div className={`w-4 h-4 border border-gray-500 flex items-center justify-center ${value === opt.id ? 'bg-blue-600 border-blue-600' : 'bg-white'}`}>
+              {value === opt.id && <CheckCircle size={12} className="text-white" />}
             </div>
-          ))}
-        </div>
+            <span className="text-sm text-gray-700">{opt.label}</span>
+          </div>
+        ))}
       </div>
-    );
-  };
+    </div>
+  );
 
   return (
-    <Modal
-      open={isOpen}
-      onClose={onClose}
-      title=""
-      size="xl"
-      footer={
-        <div className="flex justify-end">
-          <Button variant="ghost" onClick={onClose}>Close</Button>
-        </div>
-      }
+    <Modal open={isOpen} onClose={onClose} title="" size="xl"
+      footer={<div className="flex justify-end"><Button variant="ghost" onClick={onClose}>Close</Button></div>}
     >
       <div className="bg-white p-6 max-h-[75vh] overflow-y-auto">
-        {/* Paper Form Container */}
         <div className="border-2 border-gray-800 p-4 bg-white">
-          {/* Header */}
           <div className="flex items-start justify-between border-b-2 border-gray-800 pb-3 mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-red-600 rounded flex items-center justify-center">
-                <SunDim size={32} className="text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900 tracking-wide">GRANDO</h1>
-                <p className="text-sm text-gray-600">SOLAR ENERGY</p>
-              </div>
-            </div>
-            <div className="text-center flex-1">
-              <h2 className="text-lg font-bold text-gray-900 border-2 border-gray-800 inline-block px-4 py-1">
-                Pre-Sales Site Assessment Form
-              </h2>
-            </div>
+            <div className="text-center flex-1"><h2 className="text-lg font-bold text-gray-900 border-2 border-gray-800 inline-block px-4 py-1">Pre-Sales Site Assessment Form</h2></div>
             <div className="text-right">
-              <p className="text-sm text-gray-700">
-                Date: <span className="border-b border-gray-600 px-2">
-                  {survey.createdAt ? format(new Date(survey.createdAt), 'dd/MM/yy') : '-'}
-                </span>
-              </p>
+              <p className="text-sm text-gray-700">Date: <span className="border-b border-gray-600 px-2">{survey.createdAt ? format(new Date(survey.createdAt), 'dd/MM/yy') : '—'}</span></p>
               <p className="text-xs text-gray-500 mt-1">Survey ID: {survey.surveyId}</p>
-              <div className="mt-2">
-                <SurveyStatusBadge status={survey.status} />
-              </div>
+              <div className="mt-2"><SurveyStatusBadge status={survey.status} /></div>
             </div>
           </div>
-
-          {/* Client Info Row */}
           <div className="grid grid-cols-2 gap-4 mb-4">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">Client Name/City:</span>
-              <span className="flex-1 border-b border-gray-400 px-2 py-1 text-sm">{survey.clientName} / {survey.city}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">Project Capacity:</span>
-              <span className="w-32 border-b border-gray-400 px-2 py-1 text-sm">{survey.projectCapacity || '-'}</span>
-            </div>
+            <div className="flex items-center gap-2"><span className="text-sm font-semibold text-gray-700 whitespace-nowrap">Client Name/City:</span><span className="flex-1 border-b border-gray-400 px-2 py-1 text-sm">{survey.clientName} / {survey.city}</span></div>
+            <div className="flex items-center gap-2"><span className="text-sm font-semibold text-gray-700 whitespace-nowrap">Project Capacity:</span><span className="w-32 border-b border-gray-400 px-2 py-1 text-sm">{survey.projectCapacity || '—'}</span></div>
           </div>
-
-          {/* Roof Type */}
+          <div className="mb-3 border-b border-gray-300 pb-2"><CheckboxGroup label="Roof Type:" value={survey.roofType} options={ROOF_TYPES} /></div>
+          <div className="mb-3 border-b border-gray-300 pb-2"><CheckboxGroup label="Structure Type:" value={survey.structureType} options={STRUCTURE_TYPES} /></div>
           <div className="mb-3 border-b border-gray-300 pb-2">
-            <DisplayCheckboxGroup label="Roof Type:" value={survey.roofType} options={ROOF_TYPES} />
+            <CheckboxGroup label="Structure Height:" value={survey.structureHeight} options={STRUCTURE_HEIGHTS} />
+            {survey.customHeight && <div className="flex items-center gap-2 ml-20 mt-1"><span className="text-sm text-gray-500">Custom:</span><span className="border-b border-gray-400 px-2 py-0.5 text-sm">{survey.customHeight}</span></div>}
           </div>
-
-          {/* Structure Type */}
-          <div className="mb-3 border-b border-gray-300 pb-2">
-            <DisplayCheckboxGroup label="Structure Type:" value={survey.structureType} options={STRUCTURE_TYPES} />
-          </div>
-
-          {/* Structure Height */}
-          <div className="mb-3 border-b border-gray-300 pb-2">
-            <DisplayCheckboxGroup label="Structure Height:" value={survey.structureHeight} options={STRUCTURE_HEIGHTS} />
-            {survey.customHeight && (
-              <div className="flex items-center gap-2 ml-20 mt-1">
-                <span className="text-sm text-gray-500">Custom Height:</span>
-                <span className="border-b border-gray-400 px-2 py-0.5 text-sm">{survey.customHeight}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Module */}
-          <div className="mb-3 border-b border-gray-300 pb-2">
-            <DisplayCheckboxGroup label="Module:" value={survey.moduleType} options={MODULE_TYPES} />
-          </div>
-
-          {/* Solar Consultant & Floors */}
+          <div className="mb-3 border-b border-gray-300 pb-2"><CheckboxGroup label="Module:" value={survey.moduleType} options={MODULE_TYPES} /></div>
           <div className="grid grid-cols-2 gap-4 mb-4">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">Solar Consultant Name:</span>
-              <span className="flex-1 border-b border-gray-400 px-2 py-1 text-sm">{survey.solarConsultant || '-'}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">Number of Floors:</span>
-              <span className="w-16 border-b border-gray-400 px-2 py-1 text-sm text-center">{survey.floors || '-'}</span>
-            </div>
+            <div className="flex items-center gap-2"><span className="text-sm font-semibold text-gray-700 whitespace-nowrap">Solar Consultant:</span><span className="flex-1 border-b border-gray-400 px-2 py-1 text-sm">{survey.solarConsultant || '—'}</span></div>
+            <div className="flex items-center gap-2"><span className="text-sm font-semibold text-gray-700 whitespace-nowrap">Floors:</span><span className="w-16 border-b border-gray-400 px-2 py-1 text-sm text-center">{survey.floors || '—'}</span></div>
           </div>
-
-          {/* Client Signature */}
-          <div className="mb-4">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-gray-700">Client Signature:</span>
-              <div className="flex-1 border-b-2 border-gray-800 h-8"></div>
-            </div>
-          </div>
-
-          {/* Roof Drawing Display */}
+          <div className="mb-4"><div className="flex items-center gap-2"><span className="text-sm font-semibold text-gray-700">Client Signature:</span><div className="flex-1 border-b-2 border-gray-800 h-8" /></div></div>
           {roofDrawing.lines?.length > 0 && (
-            <div className="mb-4">
-              <p className="text-sm font-semibold text-gray-700 mb-2">Roof Layout Drawing:</p>
-              <GridDrawingCanvas
-                drawingData={roofDrawing}
-                readOnly={true}
-              />
-            </div>
+            <div className="mb-4"><p className="text-sm font-semibold text-gray-700 mb-2">Roof Layout Drawing:</p><GridDrawingCanvas drawingData={roofDrawing} readOnly /></div>
           )}
-
-          {/* Site Images */}
           {activeData.siteImages?.length > 0 && (
             <div className="mb-4">
               <p className="text-sm font-semibold text-gray-700 mb-2">Site Photos:</p>
-              <div className="grid grid-cols-4 gap-2">
-                {activeData.siteImages.map((img, idx) => (
-                  <div key={idx} className="aspect-square border border-gray-300">
-                    <img src={img} alt={`Site ${idx + 1}`} className="w-full h-full object-cover" />
+              <div className="grid grid-cols-4 gap-2">{activeData.siteImages.map((img, idx) => <div key={idx} className="aspect-square border border-gray-300"><img src={img} alt={`Site ${idx + 1}`} className="w-full h-full object-cover" /></div>)}</div>
+            </div>
+          )}
+          {survey.notes && <div className="mb-4"><p className="text-sm font-semibold text-gray-700 mb-2">Notes:</p><div className="border border-gray-400 p-2 text-sm bg-gray-50">{survey.notes}</div></div>}
+          {survey.customFields?.filter(f => f.value).length > 0 && (
+            <div className="mb-4 pt-3 border-t border-dashed border-gray-300">
+              <p className="text-sm font-semibold text-gray-700 mb-2">Additional Fields:</p>
+              <div className="grid grid-cols-2 gap-2">
+                {survey.customFields.filter(f => f.value).map((field, idx) => (
+                  <div key={field.id || idx} className="flex items-start gap-2 border-b border-gray-200 pb-1">
+                    <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">{field.label}:</span>
+                    <span className="flex-1 border-b border-gray-400 px-2 py-0.5 text-sm">{field.value}</span>
                   </div>
                 ))}
               </div>
             </div>
           )}
-
-          {/* Notes */}
-          {survey.notes && (
-            <div className="mb-4">
-              <p className="text-sm font-semibold text-gray-700 mb-2">Additional Notes:</p>
-              <div className="border border-gray-400 p-2 text-sm bg-gray-50">{survey.notes}</div>
-            </div>
-          )}
-
-          {/* Completion Details (for completed surveys) */}
           {survey.status === 'complete' && completeData && (
             <div className="border-t-2 border-gray-800 pt-4 mt-4">
-              <h3 className="text-sm font-bold text-emerald-700 mb-3 flex items-center gap-2">
-                <CheckCircle size={18} />
-                Completion Details
-              </h3>
-
+              <h3 className="text-sm font-bold text-emerald-700 mb-3 flex items-center gap-2"><CheckCircle size={16} /> Completion Details</h3>
               <div className="grid grid-cols-2 gap-4 mb-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-gray-700">Engineer Name:</span>
-                  <span className="flex-1 border-b border-gray-400 px-2 py-1 text-sm">{completeData.engineerName || '-'}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-gray-700">Completion Date:</span>
-                  <span className="border-b border-gray-400 px-2 py-1 text-sm">
-                    {completeData.completionDate ? format(new Date(completeData.completionDate), 'dd/MM/yy') : '-'}
-                  </span>
-                </div>
+                <div className="flex items-center gap-2"><span className="text-sm font-semibold text-gray-700">Engineer:</span><span className="flex-1 border-b border-gray-400 px-2 py-1 text-sm">{completeData.engineerName || '—'}</span></div>
+                <div className="flex items-center gap-2"><span className="text-sm font-semibold text-gray-700">Completed:</span><span className="border-b border-gray-400 px-2 py-1 text-sm">{completeData.completionDate ? format(new Date(completeData.completionDate), 'dd/MM/yy') : '—'}</span></div>
               </div>
-
-              {completeData.panelPlacementDetails && (
-                <div className="mb-3">
-                  <span className="text-sm font-semibold text-gray-700">Panel Placement:</span>
-                  <div className="border border-gray-400 p-2 text-sm bg-gray-50 mt-1">{completeData.panelPlacementDetails}</div>
-                </div>
-              )}
-
-              {completeData.finalNotes && (
-                <div className="mb-3">
-                  <span className="text-sm font-semibold text-gray-700">Final Notes:</span>
-                  <div className="border border-gray-400 p-2 text-sm bg-gray-50 mt-1">{completeData.finalNotes}</div>
-                </div>
-              )}
-
+              {completeData.panelPlacementDetails && <div className="mb-3"><span className="text-sm font-semibold text-gray-700">Panel Placement:</span><div className="border border-gray-400 p-2 text-sm bg-gray-50 mt-1">{completeData.panelPlacementDetails}</div></div>}
+              {completeData.finalNotes && <div className="mb-3"><span className="text-sm font-semibold text-gray-700">Final Notes:</span><div className="border border-gray-400 p-2 text-sm bg-gray-50 mt-1">{completeData.finalNotes}</div></div>}
               {completeData.finalImages?.length > 0 && (
-                <div className="mb-3">
-                  <p className="text-sm font-semibold text-gray-700 mb-2">Final Site Photos:</p>
-                  <div className="grid grid-cols-4 gap-2">
-                    {completeData.finalImages.map((img, idx) => (
-                      <div key={idx} className="aspect-square border border-gray-300">
-                        <img src={img} alt={`Final ${idx + 1}`} className="w-full h-full object-cover" />
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <div className="mb-3"><p className="text-sm font-semibold text-gray-700 mb-2">Final Photos:</p><div className="grid grid-cols-4 gap-2">{completeData.finalImages.map((img, idx) => <div key={idx} className="aspect-square border border-gray-300"><img src={img} alt={`Final ${idx + 1}`} className="w-full h-full object-cover" /></div>)}</div></div>
               )}
-
               {completeData.engineerApproval && (
-                <div className="p-3 border-2 border-emerald-300 bg-emerald-50 flex items-center gap-2">
-                  <CheckCircle size={18} className="text-emerald-600" />
-                  <span className="text-sm font-semibold text-emerald-700">Engineer Approved - Survey Complete</span>
-                </div>
+                <div className="p-3 border-2 border-emerald-300 bg-emerald-50 flex items-center gap-2"><CheckCircle size={16} className="text-emerald-600" /><span className="text-sm font-semibold text-emerald-700">Engineer Approved — Survey Complete</span></div>
               )}
             </div>
           )}
@@ -1014,8 +1485,57 @@ const SurveyDetailsModal = ({ isOpen, onClose, survey }) => {
   );
 };
 
-// ── Main Site Survey Page Component ────────────────────────────────────────────
+// ── Survey KPI List Modal ─────────────────────────────────────────────────────
+const SurveyKpiModal = ({ title, surveys, filter, onClose, onView }) => {
+  const statusColor = {
+    pending:  'bg-amber-500/10 text-amber-500 border-amber-500/20',
+    active:   'bg-blue-500/10 text-blue-500 border-blue-500/20',
+    complete: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
+  };
+  const actionHint = {
+    pending: { label: 'Click to Assign', color: 'text-amber-500', icon: Play },
+    active:  { label: 'Click to Fill Form', color: 'text-blue-500', icon: FileText },
+    complete: { label: 'Click to View', color: 'text-emerald-500', icon: Eye },
+    all:     { label: 'Click to View', color: 'text-[var(--text-muted)]', icon: Eye },
+  };
+  const hint = actionHint[filter] || actionHint.all;
+  const HintIcon = hint.icon;
+  return (
+    <Modal open={true} onClose={onClose} title={title} size="md"
+      footer={<button onClick={onClose} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-xl border border-[var(--border-base)] text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"><X size={13}/> Close</button>}
+    >
+      {surveys.length > 0 && (
+        <p className={`text-xs mb-3 flex items-center gap-1.5 ${hint.color}`}>
+          <HintIcon size={12} /> {hint.label}
+        </p>
+      )}
+      <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+        {surveys.length === 0 ? (
+          <p className="text-center text-sm text-[var(--text-muted)] py-8">No surveys found</p>
+        ) : surveys.map(s => (
+          <div key={s._id || s.surveyId} onClick={() => onView(s)}
+            className="flex items-center gap-3 p-3 rounded-xl border border-[var(--border-base)] bg-[var(--bg-elevated)] hover:border-[var(--primary)]/40 hover:bg-[var(--primary)]/5 cursor-pointer transition-all">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
+              {s.clientName?.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm text-[var(--text-primary)] truncate">{s.clientName}</p>
+              <p className="text-xs text-[var(--text-muted)] flex items-center gap-1"><MapPin size={10}/>{s.city} · {s.projectCapacity || '—'}</p>
+            </div>
+            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${statusColor[s.status] || statusColor.pending}`}>{s.status}</span>
+          </div>
+        ))}
+      </div>
+    </Modal>
+  );
+};
+
+// ── Main Site Survey Page ─────────────────────────────────────────────────────
 const SiteSurveyPage = () => {
+  const { user } = useAuth();
+  const isAdmin = user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'superadmin';
+
+  const [view, setView] = useState('grid');
   const [activeTab, setActiveTab] = useState('all');
   const [surveys, setSurveys] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1023,44 +1543,23 @@ const SiteSurveyPage = () => {
   const [stats, setStats] = useState({ total: 0, pending: 0, active: 0, complete: 0 });
 
   // Modal States
-  const [pendingModalOpen, setPendingModalOpen] = useState(false);
+  const [pendingModalOpen, setPendingModalOpen]   = useState(false);
   const [completeModalOpen, setCompleteModalOpen] = useState(false);
-  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
-  const [selectedSurvey, setSelectedSurvey] = useState(null);
+  const [detailsModalOpen, setDetailsModalOpen]   = useState(false);
+  const [selectedSurvey, setSelectedSurvey]       = useState(null);
 
   // Fetch surveys
   const fetchSurveys = useCallback(async () => {
     try {
       setLoading(true);
       const status = activeTab === 'all' ? '' : activeTab;
-      console.log('[SiteSurvey] Fetching surveys with status:', status);
-
-      const response = await siteSurveysApi.getAll({
-        status,
-        search: searchQuery,
-        limit: 100
-      });
-
-      console.log('[SiteSurvey] API Response:', response);
-      console.log('[SiteSurvey] Response data:', response.data);
-
+      const response = await siteSurveysApi.getAll({ status, search: searchQuery, limit: 100 });
       const surveyData = response.data?.data || response.data || [];
-      console.log('[SiteSurvey] Survey data extracted:', surveyData);
-      console.log('[SiteSurvey] Survey count:', surveyData.length);
-
       setSurveys(surveyData);
 
-      // Update stats
       const statsResponse = await siteSurveysApi.getStats();
-      console.log('[SiteSurvey] Stats response:', statsResponse);
-
       const statsData = statsResponse.data || {};
-      setStats({
-        total: statsData.total || 0,
-        pending: statsData.pending || 0,
-        active: statsData.active || 0,
-        complete: statsData.complete || 0
-      });
+      setStats({ total: statsData.total || 0, pending: statsData.pending || 0, active: statsData.active || 0, complete: statsData.complete || 0 });
     } catch (error) {
       console.error('[SiteSurvey] Failed to fetch surveys:', error);
       toast.error('Failed to load surveys');
@@ -1069,180 +1568,185 @@ const SiteSurveyPage = () => {
     }
   }, [activeTab, searchQuery]);
 
-  useEffect(() => {
-    fetchSurveys();
-  }, [fetchSurveys]);
+  useEffect(() => { fetchSurveys(); }, [fetchSurveys]);
 
-  // Handle move to active with form data
   const handleMoveToActive = async (formData) => {
     try {
       await siteSurveysApi.moveToActive(selectedSurvey._id || selectedSurvey.surveyId, formData);
-
       toast.success('Survey assigned and moved to Active');
-      setPendingModalOpen(false);
-      setSelectedSurvey(null);
-      fetchSurveys();
-    } catch (error) {
-      console.error('Failed to move to active:', error);
-      toast.error('Failed to update survey');
-    }
+      setPendingModalOpen(false); setSelectedSurvey(null); fetchSurveys();
+    } catch { toast.error('Failed to update survey'); }
   };
 
-  // Handle move to complete
   const handleMoveToComplete = async (formData) => {
     try {
       await siteSurveysApi.moveToComplete(selectedSurvey._id || selectedSurvey.surveyId, formData);
-
       toast.success('Survey completed successfully');
-      setCompleteModalOpen(false);
-      setSelectedSurvey(null);
-      fetchSurveys();
-    } catch (error) {
-      console.error('Failed to complete survey:', error);
-      toast.error('Failed to complete survey');
-    }
+      setCompleteModalOpen(false); setSelectedSurvey(null); fetchSurveys();
+    } catch { toast.error('Failed to complete survey'); }
   };
 
-  // Handle delete
   const handleDelete = async (survey) => {
     if (!window.confirm(`Delete survey for ${survey.clientName}?`)) return;
-
     try {
       await siteSurveysApi.delete(survey._id || survey.surveyId);
-      toast.success('Survey deleted');
-      fetchSurveys();
-    } catch (error) {
-      console.error('Failed to delete survey:', error);
-      toast.error('Failed to delete survey');
-    }
+      toast.success('Survey deleted'); fetchSurveys();
+    } catch { toast.error('Failed to delete survey'); }
   };
 
-  // Open modals
-  const openPendingModal = (survey) => {
-    setSelectedSurvey(survey);
-    setPendingModalOpen(true);
+  const openPendingModal  = (s) => { setSelectedSurvey(s); setPendingModalOpen(true);  };
+  const openCompleteModal = (s) => { setSelectedSurvey(s); setCompleteModalOpen(true); };
+  const openDetailsModal  = (s) => { setSelectedSurvey(s); setDetailsModalOpen(true);  };
+
+  const handleSaveSurvey = async (id, data) => {
+    await siteSurveysApi.update(id, data);
+    fetchSurveys();
   };
 
-  const openCompleteModal = (survey) => {
-    setSelectedSurvey(survey);
-    setCompleteModalOpen(true);
-  };
+  // Table row actions
+  const ROW_ACTIONS = [
+    { label: 'View Details', icon: Eye,       onClick: row => openDetailsModal(row) },
+    { label: 'Start Survey', icon: Play,       onClick: row => row.status === 'pending' && openPendingModal(row) },
+    { label: 'Fill Form',    icon: FileText,   onClick: row => row.status === 'active'  && openCompleteModal(row) },
+    { label: 'Delete',       icon: Trash2,     onClick: row => handleDelete(row), danger: true },
+  ];
 
-  const openDetailsModal = (survey) => {
-    setSelectedSurvey(survey);
-    setDetailsModalOpen(true);
-  };
+  // Filtered surveys for current tab
+  const filteredSurveys = surveys;
+
+  const statusCountMap = { all: stats.total, pending: stats.pending, active: stats.active, complete: stats.complete };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Site Survey Management</h1>
-        <p className="text-gray-500">Manage site surveys from lead to completion</p>
-      </div>
+    <div className="animate-fade-in space-y-5">
+      {/* Page Header */}
+      <PageHeader
+        title="Site Survey Management"
+        subtitle="Manage site surveys · from lead assignment to completion"
+        tabs={[
+          { id: 'grid',  label: 'Grid',  icon: LayoutGrid },
+          { id: 'table', label: 'Table', icon: List        },
+        ]}
+        activeTab={view}
+        onTabChange={setView}
+        actions={[
+          // Status filter pills as preTabsContent is used below
+        ]}
+      />
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard
           label="Total Surveys"
           value={stats.total}
           icon={FileText}
           variant="indigo"
+          sub="All surveys"
         />
         <KPICard
           label="Pending"
           value={stats.pending}
           icon={Clock}
           variant="amber"
+          sub="Awaiting assignment"
         />
         <KPICard
           label="Active"
           value={stats.active}
           icon={Play}
           variant="blue"
+          sub="In progress"
         />
         <KPICard
-          label="Complete"
+          label="Completed"
           value={stats.complete}
           icon={CheckCircle}
           variant="emerald"
+          sub="Surveys done"
         />
       </div>
 
-      {/* Tabs & Search */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6">
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <div className="flex items-center gap-2">
-            {TABS.map(tab => {
-              const count = tab.id === 'all' ? stats.total :
-                tab.id === 'pending' ? stats.pending :
-                  tab.id === 'active' ? stats.active : stats.complete;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${activeTab === tab.id
-                      ? 'bg-gray-900 text-white'
-                      : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                >
-                  {tab.label}
-                  <span className={`px-2 py-0.5 rounded-full text-xs ${activeTab === tab.id ? 'bg-white text-gray-900' : 'bg-gray-200 text-gray-700'
-                    }`}>
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
+      {/* Toolbar: Status Filter Tabs + Search */}
+      <div className="glass-card p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {/* Status Tabs */}
+          <div className="flex items-center gap-1 p-1 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-base)]">
+            {STATUS_TABS.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  activeTab === tab.id
+                    ? 'bg-[var(--primary)] text-white shadow-sm'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
+                }`}
+              >
+                {tab.label}
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                  activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-[var(--bg-surface)] text-[var(--text-muted)]'
+                }`}>
+                  {statusCountMap[tab.id]}
+                </span>
+              </button>
+            ))}
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <Input
-                placeholder="Search by client name..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 w-64"
-              />
-            </div>
+          {/* Search */}
+          <div className="relative">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" />
+            <input
+              placeholder="Search by client name..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 pr-4 py-2 text-sm border border-[var(--border-base)] bg-[var(--bg-elevated)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--text-primary)] w-60"
+            />
           </div>
-        </div>
-
-        {/* Survey Grid */}
-        <div className="p-6">
-          {loading ? (
-            <div className="text-center py-12">
-              <div className="animate-spin w-8 h-8 border-2 border-gray-300 border-t-gray-900 rounded-full mx-auto mb-4"></div>
-              <p className="text-gray-500">Loading surveys...</p>
-            </div>
-          ) : surveys.length === 0 ? (
-            <div className="text-center py-12">
-              <FileText size={48} className="mx-auto mb-4 text-gray-300" />
-              <p className="text-gray-500 mb-2">No surveys found</p>
-              <p className="text-sm text-gray-400">
-                {activeTab === 'all'
-                  ? 'Surveys will appear here when leads are moved to Site Survey stage'
-                  : `No ${activeTab} surveys found`
-                }
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {surveys.map(survey => (
-                <SurveyCard
-                  key={survey._id || survey.surveyId}
-                  survey={survey}
-                  onView={openDetailsModal}
-                  onStart={openPendingModal}
-                  onComplete={openCompleteModal}
-                  onDelete={handleDelete}
-                />
-              ))}
-            </div>
-          )}
         </div>
       </div>
+
+      {/* Content Area */}
+      {loading ? (
+        <div className="glass-card p-12 text-center">
+          <div className="animate-spin w-8 h-8 border-2 border-[var(--border-muted)] border-t-[var(--primary)] rounded-full mx-auto mb-4" />
+          <p className="text-sm text-[var(--text-muted)]">Loading surveys...</p>
+        </div>
+      ) : filteredSurveys.length === 0 ? (
+        <div className="glass-card p-12 text-center">
+          <FileText size={48} className="mx-auto mb-4 text-[var(--text-faint)]" />
+          <p className="text-[var(--text-secondary)] font-medium mb-1">No surveys found</p>
+          <p className="text-sm text-[var(--text-faint)]">
+            {activeTab === 'all'
+              ? 'Surveys appear here when leads are moved to Site Survey stage'
+              : `No ${activeTab} surveys at the moment`}
+          </p>
+        </div>
+      ) : view === 'grid' ? (
+        /* Grid / Card View */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {filteredSurveys.map(survey => (
+            <SurveyCard
+              key={survey._id || survey.surveyId}
+              survey={survey}
+              onView={openDetailsModal}
+              onStart={openPendingModal}
+              onComplete={openCompleteModal}
+              onDelete={handleDelete}
+            />
+          ))}
+        </div>
+      ) : (
+        /* Table View */
+        <div className="glass-card overflow-hidden">
+          <DataTable
+            columns={COLUMNS}
+            data={filteredSurveys}
+            rowKey={row => row._id || row.surveyId}
+            rowActions={ROW_ACTIONS}
+            loading={loading}
+            emptyMessage="No surveys found"
+            onRowClick={(row) => openDetailsModal(row)}
+          />
+        </div>
+      )}
 
       {/* Modals */}
       <PendingToActiveModal
@@ -1251,14 +1755,14 @@ const SiteSurveyPage = () => {
         survey={selectedSurvey}
         onSubmit={handleMoveToActive}
       />
-
       <ActiveToCompleteModal
         isOpen={completeModalOpen}
         onClose={() => { setCompleteModalOpen(false); setSelectedSurvey(null); }}
         survey={selectedSurvey}
         onSubmit={handleMoveToComplete}
+        isAdmin={isAdmin}
+        onSaveSurvey={handleSaveSurvey}
       />
-
       <SurveyDetailsModal
         isOpen={detailsModalOpen}
         onClose={() => { setDetailsModalOpen(false); setSelectedSurvey(null); }}

@@ -43,6 +43,116 @@ const WORK_MODE = {
   site: { label: 'Site', color: '#f59e0b', icon: Navigation },
 };
 
+// ==================== ATTENDANCE VIEW MODAL ====================
+const AttendanceViewModal = ({ record, onClose, onEdit }) => {
+  if (!record) return null;
+  const emp = record.employeeId || {};
+  const initial = `${emp.firstName?.[0] || ''}${emp.lastName?.[0] || ''}`.toUpperCase() || '?';
+  const statusCfg = ATTENDANCE_STATUS[record.status] || ATTENDANCE_STATUS.absent;
+  const workCfg = WORK_MODE[record.type] || WORK_MODE.office;
+  const StatusIcon = statusCfg.icon;
+  const WorkIcon = workCfg.icon;
+
+  const InfoRow = ({ icon: Icon, label, value, color }) => value ? (
+    <div className="flex items-center gap-3 p-3 rounded-xl bg-[var(--bg-elevated)]">
+      <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${color || 'var(--primary)'}15` }}>
+        <Icon size={14} style={{ color: color || 'var(--primary)' }} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide">{label}</p>
+        <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{value}</p>
+      </div>
+    </div>
+  ) : null;
+
+  return (
+    <Modal open={!!record} onClose={onClose} title="" size="lg" footer={
+      <div className="flex items-center justify-between">
+        <button onClick={onClose} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-xl border border-[var(--border-base)] text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]">
+          <X size={13} /> Close
+        </button>
+        <button onClick={() => { onClose(); onEdit(record); }} className="flex items-center gap-1.5 px-4 py-1.5 text-xs rounded-xl bg-[var(--primary)] text-white hover:opacity-90">
+          <Edit size={13} /> Edit Record
+        </button>
+      </div>
+    }>
+      {/* Hero */}
+      <div className="relative overflow-hidden rounded-xl mb-4 p-5 border border-[var(--border-base)]"
+        style={{ background: `linear-gradient(135deg, ${statusCfg.color}18, ${statusCfg.color}05, transparent)` }}>
+        <div className="absolute top-0 right-0 w-28 h-28 rounded-full -translate-y-6 translate-x-6" style={{ background: `${statusCfg.color}10` }} />
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl text-white flex items-center justify-center font-bold text-lg shadow-lg"
+            style={{ background: `linear-gradient(135deg, var(--primary), var(--accent))` }}>{initial}</div>
+          <div className="flex-1">
+            <h2 className="text-xl font-bold text-[var(--text-primary)]">{emp.firstName} {emp.lastName}</h2>
+            <p className="text-sm text-[var(--text-muted)]">{emp.employeeId} · {emp.department || 'N/A'}</p>
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border"
+                style={{ color: statusCfg.color, background: `${statusCfg.color}15`, borderColor: `${statusCfg.color}30` }}>
+                <StatusIcon size={11} /> {statusCfg.label}
+              </span>
+              <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium"
+                style={{ color: workCfg.color, background: `${workCfg.color}15` }}>
+                <WorkIcon size={11} /> {workCfg.label}
+              </span>
+              {record.status === 'late' && (
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-500 border border-amber-500/20">⚠️ Late Mark</span>
+              )}
+              {record.isEarlyExit && (
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-500/10 text-red-500 border border-red-500/20">🚨 Early Exit</span>
+              )}
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-[var(--text-muted)]">{record.date ? format(new Date(record.date), 'EEE') : ''}</p>
+            <p className="text-2xl font-bold text-[var(--text-primary)]">{record.date ? format(new Date(record.date), 'dd') : '-'}</p>
+            <p className="text-xs text-[var(--text-muted)]">{record.date ? format(new Date(record.date), 'MMM yyyy') : ''}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Time Cards */}
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 text-center">
+          <div className="flex items-center justify-center gap-1.5 mb-1"><LogIn size={14} className="text-emerald-500" /><span className="text-xs text-emerald-500 font-medium">Check-In</span></div>
+          <p className="text-2xl font-bold text-emerald-500">{record.checkIn ? format(new Date(record.checkIn), 'hh:mm') : '--:--'}</p>
+          <p className="text-[10px] text-emerald-500/70">{record.checkIn ? format(new Date(record.checkIn), 'a') : ''}</p>
+        </div>
+        <div className="p-4 rounded-xl border border-blue-500/20 bg-blue-500/5 text-center">
+          <div className="flex items-center justify-center gap-1.5 mb-1"><LogOut size={14} className="text-blue-500" /><span className="text-xs text-blue-500 font-medium">Check-Out</span></div>
+          <p className="text-2xl font-bold text-blue-500">{record.checkOut ? format(new Date(record.checkOut), 'hh:mm') : '--:--'}</p>
+          <p className="text-[10px] text-blue-500/70">{record.checkOut ? format(new Date(record.checkOut), 'a') : 'Not checked out'}</p>
+        </div>
+      </div>
+
+      {/* Hours Grid */}
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        {[
+          { label: 'Total Hours', value: `${record.totalHours || 0}h`, color: 'var(--primary)' },
+          { label: 'Break Time', value: `${record.breakTime || 0}m`, color: '#f59e0b' },
+          { label: 'Overtime', value: record.overtimeHours > 0 ? `+${record.overtimeHours}h` : '-', color: '#22c55e' },
+        ].map(s => (
+          <div key={s.label} className="p-3 rounded-xl border border-[var(--border-base)] bg-[var(--bg-elevated)] text-center">
+            <p className="text-xl font-bold" style={{ color: s.color }}>{s.value}</p>
+            <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide mt-0.5">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Details */}
+      <div className="space-y-2">
+        {record.location && <InfoRow icon={MapPin} label="Location" value={record.location} color="#f59e0b" />}
+        {record.notes && (
+          <div className="p-3 rounded-xl bg-[var(--bg-elevated)]">
+            <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide mb-1">Notes</p>
+            <p className="text-sm text-[var(--text-primary)]">{record.notes}</p>
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+};
+
 // ==================== MAIN COMPONENT ====================
 const AttendancePageV3 = () => {
   const [mounted, setMounted] = useState(false);
@@ -75,6 +185,7 @@ const AttendancePageV3 = () => {
   // ==================== MODAL STATE ====================
   const [showCheckInModal, setShowCheckInModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [attendanceForm, setAttendanceForm] = useState({
     employeeId: '',
@@ -85,6 +196,9 @@ const AttendancePageV3 = () => {
 
   // ==================== BULK OPERATIONS STATE ====================
   const [selectedIds, setSelectedIds] = useState([]);
+
+  // ==================== VIEW STATE ====================
+  const [viewAttendance, setViewAttendance] = useState(null);
 
   // ==================== MOUNT EFFECT ====================
   useEffect(() => {
@@ -611,6 +725,13 @@ const AttendancePageV3 = () => {
         actions={[
           {
             type: 'button',
+            label: 'View Calendar',
+            icon: Calendar,
+            variant: 'outline',
+            onClick: () => setShowCalendarModal(true),
+          },
+          {
+            type: 'button',
             label: 'Mark Attendance',
             icon: Plus,
             variant: 'primary',
@@ -638,14 +759,24 @@ const AttendancePageV3 = () => {
             value={kpi.value}
             icon={kpi.icon}
             variant={kpi.variant}
+            onClick={() => {
+              // Auto-expand first matching record
+              setTimeout(() => {
+                if (paginatedRecords.length > 0) {
+                  setViewAttendance(paginatedRecords[0]);
+                } else {
+                  setViewAttendance(null);
+                }
+              }, 100);
+            }}
           />
         ))}
       </div>
 
-      {/* ==================== MAIN LAYOUT: 75% TABLE + 25% CALENDAR ==================== */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
-        {/* ==================== LEFT SECTION - ATTENDANCE TABLE (75%) ==================== */}
-        <div className="col-span-12 lg:col-span-9 space-y-3">
+      {/* ==================== MAIN LAYOUT: FULL WIDTH TABLE ==================== */}
+      <div className="space-y-3">
+        {/* ==================== ATTENDANCE TABLE (FULL WIDTH) ==================== */}
+        <div className="bg-white border border-[var(--border-base)]">
           {/* ==================== COMPACT FILTERS ROW ==================== */}
           <div className="bg-white border border-[var(--border-base)] p-2 space-y-2">
             {/* First Row - 6 Filters */}
@@ -805,6 +936,12 @@ const AttendancePageV3 = () => {
               data={paginatedRecords}
               loading={loading}
               emptyMessage="No attendance records found"
+              expandedRowKey={viewAttendance?._id}
+              renderExpanded={(record) => (
+                <div className="p-4 border-t border-[var(--border-muted)] bg-gradient-to-b from-white to-[var(--bg-elevated)]">
+                  <AttendanceViewModal record={record} onClose={() => setViewAttendance(null)} onEdit={() => {}} inline />
+                </div>
+              )}
             />
 
             {/* Pagination */}
@@ -840,8 +977,8 @@ const AttendancePageV3 = () => {
         </div>
 
         {/* ==================== RIGHT SECTION - FULLCALENDAR (25%) ==================== */}
-        <div className="col-span-12 lg:col-span-3">
-          <div className="bg-white border border-[var(--border-base)] p-2 space-y-2 sticky top-3">
+        <div id="attendance-calendar-section" className="col-span-12 lg:col-span-3">
+          <div className="bg-white border border-[var(--border-base)] p-2 space-y-2">
             {/* Month/Year Filter Controls */}
             <div className="flex items-center gap-2 mb-2 pb-2 border-b border-[var(--border-base)]">
               <Select

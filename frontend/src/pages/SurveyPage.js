@@ -1,231 +1,28 @@
-// Solar OS – EPC Edition — SurveyPage.js (Advanced Professional Module)
-import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+// Site Survey Management - Consistent UI Design
+import React, { useState, useMemo, useEffect } from 'react';
 import {
-  Plus, MapPin, Calendar, CheckCircle, Zap, Box,
-  Sun, AlertTriangle, LayoutDashboard, List, BarChart2,
-  Download, Eye, ChevronRight, Layers, LayoutGrid,
-  Trash2, Edit2, TrendingUp, TrendingDown, History, Users, Search,
-  Filter, MoreVertical, Bell, Settings, Activity, Target,
-  Award, PieChart as PieChartIcon, Clock, Star, Brain,
-  Gauge, Wind, Cloud, FileText, MessageSquare, Phone,
-  Mail, Send, ChevronLeft, ArrowRight, ArrowUpRight, ArrowDownRight,
-  RefreshCw
+  Plus, MapPin, Calendar, CheckCircle, Zap, List, LayoutGrid,
+  Eye, ChevronRight, Trash2, Edit2, Search, User,
+  Clock, FileText, Play, X, Filter
 } from 'lucide-react';
-import {
-  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  AreaChart, Area, RadarChart, Radar, PolarGrid, PolarAngleAxis,
-  PolarRadiusAxis, Treemap
-} from 'recharts';
-
-
-import { PIPELINE_STAGES } from '../data/mockData';
-import { leadsApi } from '../services/leadsApi';
-import { surveysApi } from '../services/surveysApi';
-import { StatusBadge } from '../components/ui/Badge';
+import { format } from 'date-fns';
 import { Button } from '../components/ui/Button';
-import { Avatar } from '../components/ui/Avatar';
 import { Modal } from '../components/ui/Modal';
 import { Input, FormField, Textarea, Select } from '../components/ui/Input';
-import { PageHeader } from '../components/ui/PageHeader';
-import { KPICard } from '../components/ui/KPICard';
-import { format, subMonths } from 'date-fns';
-import { Progress } from '../components/ui/Progress';
-import DataTable from '../components/ui/DataTable';
-import FilterSystem from '../components/ui/FilterSystem';
-import ImportExport from '../components/ui/ImportExport';
+import { toast } from '../components/ui/Toast';
 import { useAuditLog } from '../hooks/useAuditLog';
 import { usePermissions } from '../hooks/usePermissions';
-import EnhancedSolarSurveyStudio from '../components/SolarDesignStudio/EnhancedSolarSurveyStudio';
-import CanAccess, { CanCreate, CanEdit, CanDelete } from '../components/CanAccess';
-import { toast } from '../components/ui/Toast';
 
-
-const SURVEY_FIELDS = [
-  { id: 'id', label: 'Survey ID', type: 'text' },
-  { id: 'customerName', label: 'Customer Name', type: 'text' },
-  { id: 'status', label: 'Status', type: 'select', options: ['Pending', 'Scheduled', 'Completed', 'Inspections', 'Documents', 'Compliance & Regulatory'] },
-  { id: 'estimatedKw', label: 'System Size (kW)', type: 'number' },
-  { id: 'roofArea', label: 'Roof Area (m²)', type: 'number' },
-  { id: 'shadowPct', label: 'Shadow %', type: 'number' },
-  { id: 'engineer', label: 'Assigned Engineer', type: 'text' },
-  { id: 'scheduledDate', label: 'Scheduled Date', type: 'date' },
-  { id: 'feasibilityScore', label: 'Feasibility Score', type: 'number' },
-];
-
-// Per-survey site analysis
-const SITE_ANALYSIS = {
-  S001: { gpsLat: '23.0225', gpsLng: '72.5714', roofType: 'RCC Flat', orientation: 'South', annualIrradiance: 1845, subsidyEligible: true, subsidyPct: 40, netMetering: true, feasibilityScore: 94, aiCapacityHint: '50 kW confirmed — east-west bifacial layout recommended for maximum annual yield.' },
-  S002: { gpsLat: '21.1702', gpsLng: '72.8311', roofType: 'GI Sheet Sloped', orientation: 'SE–SW', annualIrradiance: 1920, subsidyEligible: true, subsidyPct: 30, netMetering: true, feasibilityScore: 87, aiCapacityHint: '100 kW viable — 22° tilt is optimal for Surat latitude. 10% shadow manageable with micro-inverters.' },
-  S003: { gpsLat: '19.0760', gpsLng: '72.8777', roofType: 'RCC Flat', orientation: 'South', annualIrradiance: 1780, subsidyEligible: false, subsidyPct: 0, netMetering: true, feasibilityScore: 78, aiCapacityHint: '200 kW max feasible — 8% shadow risk, east-west bifacial adds +12% annual yield.' },
-  S004: { gpsLat: '22.8173', gpsLng: '70.8022', roofType: 'RCC Flat', orientation: 'South', annualIrradiance: 1870, subsidyEligible: true, subsidyPct: 30, netMetering: true, feasibilityScore: 91, aiCapacityHint: '150 kW feasible — low 6% shadow, 21° tilt ideal for Morbi latitude.' },
-  S005: { gpsLat: '22.5645', gpsLng: '72.9289', roofType: 'RCC Flat', orientation: 'South', annualIrradiance: 1860, subsidyEligible: true, subsidyPct: 40, netMetering: false, feasibilityScore: 96, aiCapacityHint: '10 kW residential — PM-KUSUM 40% subsidy eligible. Suggest adding 3° tilt for optimal yield.' },
-  S006: { gpsLat: '22.3039', gpsLng: '70.8022', roofType: 'Industrial Shed', orientation: 'East-West', annualIrradiance: 1830, subsidyEligible: false, subsidyPct: 0, netMetering: true, feasibilityScore: 65, aiCapacityHint: '25 kW feasible — 12% shadow at peak hours requires full shade analysis before design proceeds.' },
-  S007: { gpsLat: '23.2156', gpsLng: '72.6368', roofType: 'RCC Flat', orientation: 'South', annualIrradiance: 1850, subsidyEligible: true, subsidyPct: 35, netMetering: true, feasibilityScore: 89, aiCapacityHint: '45 kW feasible — industrial complex with minimal shadow, optimal for commercial installation.' },
-  S008: { gpsLat: '22.3083', gpsLng: '73.1812', roofType: 'RCC Flat', orientation: 'South', annualIrradiance: 1890, subsidyEligible: true, subsidyPct: 30, netMetering: true, feasibilityScore: 92, aiCapacityHint: '20 kW ideal — manufacturing facility with excellent solar access and low maintenance requirements.' },
-  S009: { gpsLat: '21.2041', gpsLng: '72.8717', roofType: 'GI Sheet Sloped', orientation: 'South-SouthEast', annualIrradiance: 1820, subsidyEligible: true, subsidyPct: 25, netMetering: true, feasibilityScore: 78, aiCapacityHint: '55 kW feasible — textile mill with moderate shadow, requires micro-inverter optimization for peak performance.' },
-  S010: { gpsLat: '23.0775', gpsLng: '72.6357', roofType: 'RCC Flat', orientation: 'South', annualIrradiance: 1880, subsidyEligible: true, subsidyPct: 40, netMetering: true, feasibilityScore: 94, aiCapacityHint: '30 kW perfect — corporate tower with excellent irradiance and premium feed-in tariff eligibility.' },
-  S011: { gpsLat: '22.3114', gpsLng: '70.8022', roofType: 'Industrial Shed', orientation: 'East-West', annualIrradiance: 1840, subsidyEligible: false, subsidyPct: 0, netMetering: true, feasibilityScore: 88, aiCapacityHint: '18 kW optimal — processing plant with consistent energy demand and good solar access throughout the day.' },
-  S012: { gpsLat: '22.3065', gpsLng: '73.1789', roofType: 'RCC Flat', orientation: 'South', annualIrradiance: 1860, subsidyEligible: true, subsidyPct: 30, netMetering: true, feasibilityScore: 85, aiCapacityHint: '35 kW suitable — chemical factory with high energy consumption, excellent ROI with net metering benefits.' },
-  S013: { gpsLat: '23.5859', gpsLng: '72.3986', roofType: 'RCC Flat', orientation: 'South', annualIrradiance: 1870, subsidyEligible: true, subsidyPct: 35, netMetering: true, feasibilityScore: 91, aiCapacityHint: '40 kW recommended — agricultural facility with seasonal energy patterns, ideal for solar + battery storage system.' },
-  S014: { gpsLat: '22.5645', gpsLng: '72.9289', roofType: 'RCC Flat', orientation: 'South', annualIrradiance: 1860, subsidyEligible: true, subsidyPct: 40, netMetering: false, feasibilityScore: 87, aiCapacityHint: '22 kW efficient — food processing unit with excellent solar access and low operational costs.' },
-  S015: { gpsLat: '22.6969', gpsLng: '72.9289', roofType: 'Industrial Shed', orientation: 'South-East', annualIrradiance: 1830, subsidyEligible: false, subsidyPct: 0, netMetering: true, feasibilityScore: 82, aiCapacityHint: '28 kW feasible — warehousing complex with moderate shadow, requires careful layout planning for optimal output.' },
-  S016: { gpsLat: '23.0333', gpsLng: '71.8022', roofType: 'GI Sheet Sloped', orientation: 'South', annualIrradiance: 1810, subsidyEligible: true, subsidyPct: 25, netMetering: true, feasibilityScore: 79, aiCapacityHint: '48 kW viable — steel plant with high energy demand, excellent candidate for net metering with proper load management.' },
-  S017: { gpsLat: '23.2156', gpsLng: '72.6368', roofType: 'RCC Flat', orientation: 'South', annualIrradiance: 1890, subsidyEligible: true, subsidyPct: 35, netMetering: true, feasibilityScore: 93, aiCapacityHint: '25 kW ideal — IT park with critical load requirements, perfect for solar with UPS backup integration.' },
-  S018: { gpsLat: '23.0775', gpsLng: '72.6357', roofType: 'RCC Flat', orientation: 'South', annualIrradiance: 1860, subsidyEligible: true, subsidyPct: 40, netMetering: true, feasibilityScore: 86, aiCapacityHint: '38 kW recommended — hospital complex with 24/7 operations, ideal for solar + battery + generator hybrid system.' },
-  S019: { gpsLat: '19.0760', gpsLng: '72.8777', roofType: 'RCC Flat', orientation: 'South', annualIrradiance: 1850, subsidyEligible: true, subsidyPct: 30, netMetering: true, feasibilityScore: 84, aiCapacityHint: '60 kW maximum — film studio with specialized equipment, requires comprehensive energy audit and custom solar solution.' },
-};
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-const scoreColor = s => s >= 85 ? 'text-emerald-400' : s >= 65 ? 'text-amber-400' : 'text-red-400';
-
-// ── Survey card (Standardized) ────────────────────────────────────────────────
-const SurveyCard = ({ survey, onDragStart, onClick }) => {
-  const analysis = SITE_ANALYSIS[survey.id];
-  return (
-    <div
-      draggable
-      onDragStart={() => onDragStart(survey.id)}
-      onClick={() => onClick(survey)}
-      className="glass-card p-3 cursor-grab active:cursor-grabbing hover:scale-[1.02] transition-all border border-[var(--border-subtle)] hover:border-[var(--accent)]/30 group"
-    >
-      <div className="flex items-center justify-between gap-2 mb-2">
-        <span className="text-[10px] font-mono font-bold text-[var(--accent)]">{survey.id}</span>
-        {analysis && (
-          <div className="flex items-center gap-1">
-            <Zap size={10} className={scoreColor(analysis.feasibilityScore)} />
-            <span className={`text-[10px] font-bold ${scoreColor(analysis.feasibilityScore)}`}>
-              {analysis.feasibilityScore}
-            </span>
-          </div>
-        )}
-      </div>
-      <p className="text-xs font-black text-[var(--text-primary)] truncate mb-1 group-hover:text-[var(--accent)] transition-colors">{survey.customerName}</p>
-      <p className="text-[10px] text-[var(--text-muted)] truncate flex items-center gap-1 mb-3">
-        <MapPin size={10} /> {survey.site}
-      </p>
-
-      <div className="grid grid-cols-2 gap-2 mb-3">
-        <div className="bg-[var(--bg-elevated)] p-1.5 rounded-lg border border-[var(--border-subtle)] text-center">
-          <p className="text-[8px] uppercase font-bold text-[var(--text-faint)]">Size</p>
-          <p className="text-[10px] font-black text-[var(--text-primary)]">{survey.estimatedKw}kW</p>
-        </div>
-        <div className="bg-[var(--bg-elevated)] p-1.5 rounded-lg border border-[var(--border-subtle)] text-center">
-          <p className="text-[8px] uppercase font-bold text-[var(--text-faint)]">Shadow</p>
-          <p className={`text-[10px] font-black ${survey.shadowPct > 10 ? 'text-red-500' : 'text-emerald-500'}`}>{survey.shadowPct}%</p>
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1 text-[9px] text-[var(--text-faint)] font-bold">
-          <Calendar size={10} />
-          <span>{survey.scheduledDate || 'TBD'}</span>
-        </div>
-        <ChevronRight size={12} className="text-[var(--text-faint)] group-hover:text-[var(--accent)] transition-all transform group-hover:translate-x-0.5" />
-      </div>
-    </div>
-  );
-};
-
-// ── Survey stage defs ─────────────────────────────────────────────────────────
-const SURVEY_STAGES = [
-  { id: 'Pending', label: 'Pending', color: '#64748b', bg: 'rgba(100,116,139,0.12)' },
-  { id: 'Scheduled', label: 'Scheduled', color: '#3b82f6', bg: 'rgba(59,130,246,0.12)' },
-  { id: 'Completed', label: 'Completed', color: '#22c55e', bg: 'rgba(34,197,94,0.12)' },
-  { id: 'Inspections', label: 'Inspections (3)', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
-  { id: 'Documents', label: 'Documents (9)', color: '#8b5cf6', bg: 'rgba(139,92,252,0.12)' },
-  { id: 'Compliance', label: 'Compliance & Regulatory', color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
-];
-
-// ── Survey Kanban board ───────────────────────────────────────────────────────
-const SurveyKanbanBoard = ({ surveys, onStageChange, onCardClick }) => {
-  const draggingId = useRef(null);
-  const [dragOver, setDragOver] = useState(null);
-  return (
-    <div className="overflow-x-auto pb-3">
-      <div className="flex gap-3 min-w-max">
-        {SURVEY_STAGES.map(stage => {
-          const cards = surveys.filter(s => s.status === stage.id);
-          const totKw = cards.reduce((a, s) => a + s.estimatedKw, 0);
-          return (
-            <div key={stage.id}
-              className={`flex flex-col w-60 rounded-xl border transition-colors ${dragOver === stage.id ? 'border-[var(--primary)]/50 bg-[var(--primary)]/5' : 'border-[var(--border-base)] bg-[var(--bg-surface)]'}`}
-              onDragOver={e => { e.preventDefault(); setDragOver(stage.id); }}
-              onDragLeave={() => setDragOver(null)}
-              onDrop={() => { if (draggingId.current) onStageChange(draggingId.current, stage.id); draggingId.current = null; setDragOver(null); }}
-            >
-              <div className="p-2.5 border-b border-[var(--border-base)] flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full" style={{ background: stage.color }} />
-                  <span className="text-xs font-semibold text-[var(--text-primary)]">{stage.label}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  {totKw > 0 && <span className="text-[10px] font-semibold text-[var(--solar)]">{totKw} kW</span>}
-                  <span className="min-w-[20px] h-5 rounded-full text-[10px] font-bold flex items-center justify-center"
-                    style={{ background: stage.bg, color: stage.color }}>{cards.length}</span>
-                </div>
-              </div>
-              <div className="flex flex-col gap-2 p-2 flex-1 min-h-[120px]">
-                {cards.map(s => (
-                  <SurveyCard key={s.id} survey={s}
-                    onDragStart={id => { draggingId.current = id; }}
-                    onClick={onCardClick}
-                  />
-                ))}
-                {cards.length === 0 && (
-                  <div className="flex-1 flex items-center justify-center">
-                    <p className="text-[11px] text-[var(--text-faint)]">Drop here</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
-
-// ── Component ─────────────────────────────────────────────────────────────────
 const SurveyPage = () => {
-  const [view, setView] = useState('dashboard');
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
-  const [selected, setSelected] = useState(new Set());
-  const [selectedSurvey, setSelectedSurvey] = useState(null);
-  const [selectedLead, setSelectedLead] = useState(null);
-  const [showAdd, setShowAdd] = useState(false);
-  const [isScheduling, setIsScheduling] = useState(false);
-  const [studioSurvey, setStudioSurvey] = useState(null);
-  const [kanbanView, setKanbanView] = useState(false);
-  const [reportsView, setReportsView] = useState(false);
-
-  // 4-Section Survey Management State
-  // Section 1: CRM Leads (stage='survey') - fetched from leads API
-  const [crmLeads, setCrmLeads] = useState([]);
-  const [leadsLoading, setLeadsLoading] = useState(true);
-  const [leadsError, setLeadsError] = useState(null);
-
-  // All surveys combined (for calculations and legacy support)
+  // ── State Management ─────────────────────────────────────────
   const [surveys, setSurveys] = useState([]);
-
-  // Section 2: Pending Surveys (status='pending') - survey scheduled, form not submitted
-  const [pendingSurveys, setPendingSurveys] = useState([]);
-
-  // Section 3: Active Surveys (status='active') - form submitted, survey in progress
-  const [activeSurveys, setActiveSurveys] = useState([]);
-
-  // Section 4: Completed Surveys (status='completed') - survey done
-  const [completedSurveys, setCompletedSurveys] = useState([]);
-
-  const [surveysLoading, setSurveysLoading] = useState(true);
-  const [surveysError, setSurveysError] = useState(null);
-
-  // Track which leads have surveys created (to prevent duplicate scheduling)
-  const [surveyCreatedLeadIds, setSurveyCreatedLeadIds] = useState([]);
-
-  // Form state for scheduling survey
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [activeTab, setActiveTab] = useState('all');
+  const [viewMode, setViewMode] = useState('table');
+  const [selectedSurvey, setSelectedSurvey] = useState(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [isScheduling, setIsScheduling] = useState(false);
   const [formData, setFormData] = useState({
     customerName: '',
     engineer: 'Priya Patel',
@@ -235,878 +32,369 @@ const SurveyPage = () => {
     notes: ''
   });
 
-  // Fetch real leads and surveys from backend
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLeadsLoading(true);
-        setSurveysLoading(true);
-
-        // Fetch leads from CRM (Site Survey Scheduled stage)
-        const leadsResult = await leadsApi.getAll({ stage: 'survey', limit: 100 });
-        const leadsData = leadsResult.data?.data || leadsResult.data || [];
-        setCrmLeads(leadsData);
-        setLeadsError(null);
-
-        // Fetch ALL surveys from backend (no status filter to get all)
-        const surveysResult = await surveysApi.getAll({ limit: 100 });
-        const surveysData = surveysResult.data?.data || surveysResult.data || [];
-
-        // Transform and categorize surveys by status
-        const transformedSurveys = surveysData.map(s => ({
-          id: s.surveyId || s._id,
-          customerName: s.customerName,
-          engineer: s.engineer,
-          site: s.site,
-          scheduledDate: s.scheduledDate,
-          estimatedKw: s.estimatedKw,
-          status: s.status,
-          shadowPct: s.shadowPct,
-          roofArea: s.roofArea,
-          sourceLeadId: s.sourceLeadId,
-          notes: s.notes,
-          createdAt: s.createdAt
-        }));
-
-        // Split surveys by status
-        setPendingSurveys(transformedSurveys.filter(s => s.status === 'pending'));
-        setActiveSurveys(transformedSurveys.filter(s => s.status === 'active'));
-        setCompletedSurveys(transformedSurveys.filter(s => s.status === 'completed'));
-
-        // Track which leads have surveys created
-        const createdLeadIds = surveysData
-          .filter(s => s.sourceLeadId)
-          .map(s => s.sourceLeadId);
-        setSurveyCreatedLeadIds(createdLeadIds);
-
-        setSurveysError(null);
-      } catch (err) {
-        console.error('Failed to fetch data:', err);
-        setLeadsError('Failed to load leads from CRM');
-        setSurveysError('Failed to load surveys');
-      } finally {
-        setLeadsLoading(false);
-        setSurveysLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
-
-  // Pre-fill form when lead is selected
-  useEffect(() => {
-    if (selectedLead) {
-      setFormData({
-        customerName: selectedLead.name || '',
-        engineer: selectedLead.assignedTo || 'Priya Patel',
-        siteAddress: selectedLead.company || '',
-        scheduledDate: selectedLead.nextFollowUp || '',
-        size: selectedLead.kw?.replace('kW', '') || '',
-        notes: `Lead from CRM. City: ${selectedLead.city || ''}, Phone: ${selectedLead.phone || ''}`
-      });
-    } else {
-      setFormData({
-        customerName: '',
-        engineer: 'Priya Patel',
-        siteAddress: '',
-        scheduledDate: '',
-        size: '',
-        notes: ''
-      });
-    }
-  }, [selectedLead, showAdd]);
-  const [automationRules, setAutomationRules] = useState([
-    { id: 1, name: 'High Feasibility Alert', condition: 'feasibilityScore > 90', action: 'notify_manager', enabled: true },
-    { id: 2, name: 'Shadow Risk Follow-up', condition: 'shadowPct > 10', action: 'schedule_analysis', enabled: true },
-    { id: 3, name: 'SLA Breach Alert', condition: 'daysPending > 3', action: 'escalate', enabled: false }
-  ]);
-
-  const { logCreate, logDelete, logStatusChange } = useAuditLog('survey');
+  const { logCreate, logDelete } = useAuditLog('Survey');
   const { can } = usePermissions();
 
-  // Permission guard helpers
-  const guardCreate = () => {
-    if (!can('survey', 'create')) {
-      toast.error('Permission denied: Cannot create surveys');
-      return false;
-    }
-    return true;
-  };
-
-  const guardEdit = () => {
-    if (!can('survey', 'edit')) {
-      toast.error('Permission denied: Cannot edit surveys');
-      return false;
-    }
-    return true;
-  };
-
-  const guardDelete = () => {
-    if (!can('survey', 'delete')) {
-      toast.error('Permission denied: Cannot delete surveys');
-      return false;
-    }
-    return true;
-  };
-
-  const guardExport = () => {
-    if (!can('survey', 'export')) {
-      toast.error('Permission denied: Cannot export surveys');
-      return false;
-    }
-    return true;
-  };
-
-  // Advanced survey scoring algorithm
-  const calculateSurveyScore = useCallback((survey) => {
-    let score = 0;
-
-    // Base feasibility score
-    const baseScore = SITE_ANALYSIS[survey.id]?.feasibilityScore || 75;
-    score += baseScore * 0.4; // 40% weight
-
-    // Shadow analysis (30% weight)
-    if (survey.shadowPct <= 5) score += 30;
-    else if (survey.shadowPct <= 10) score += 20;
-    else if (survey.shadowPct <= 15) score += 10;
-    else score += 5;
-
-    // Roof area efficiency (20% weight)
-    if (survey.roofArea >= 200) score += 20;
-    else if (survey.roofArea >= 100) score += 15;
-    else if (survey.roofArea >= 50) score += 10;
-    else score += 5;
-
-    // System size optimization (10% weight)
-    if (survey.estimatedKw >= 50) score += 10;
-    else if (survey.estimatedKw >= 25) score += 8;
-    else if (survey.estimatedKw >= 10) score += 6;
-    else score += 3;
-
-    return Math.min(score, 100);
+  // ── Mock Data ─────────────────────────────────────────────────
+  useEffect(() => {
+    const mockSurveys = [
+      {
+        id: 'SYY-JNK-ZYMP-ZGP',
+        customerName: 'abdgf rtgy',
+        site: 'Surat',
+        estimatedKw: null,
+        engineer: 'Unassigned',
+        scheduledDate: '2025-03-11',
+        status: 'pending',
+        createdAt: '2025-03-11'
+      },
+      {
+        id: 'SYY-JNK-SY8C28-L82',
+        customerName: 'Adipisicing sint asp Aut A commodi velit',
+        site: 'Mumbai',
+        estimatedKw: null,
+        engineer: 'Unassigned',
+        scheduledDate: '2025-03-10',
+        status: 'completed',
+        createdAt: '2025-03-10'
+      },
+      {
+        id: 'SYY-JNK-SY8XCEL-79Y',
+        customerName: 'Distinctio Nulla it',
+        site: 'Bangalore',
+        estimatedKw: null,
+        engineer: 'Unassigned',
+        scheduledDate: '2025-03-09',
+        status: 'completed',
+        createdAt: '2025-03-09'
+      }
+    ];
+    setSurveys(mockSurveys);
+    setLoading(false);
   }, []);
 
-  // Apply automation rules
-  const applyAutomationRules = useCallback((survey) => {
-    const results = [];
+  // ── Stats ────────────────────────────────────────────────────
+  const stats = useMemo(() => ({
+    total: surveys.length,
+    pending: surveys.filter(s => s.status === 'pending').length,
+    active: surveys.filter(s => s.status === 'active').length,
+    completed: surveys.filter(s => s.status === 'completed').length
+  }), [surveys]);
 
-    automationRules.forEach(rule => {
-      if (!rule.enabled) return;
+  // ── Filtered Surveys ─────────────────────────────────────────
+  const filteredSurveys = useMemo(() => {
+    let filtered = surveys;
+    if (activeTab !== 'all') {
+      filtered = filtered.filter(s => s.status === activeTab);
+    }
+    if (search.trim()) {
+      const searchLower = search.toLowerCase();
+      filtered = filtered.filter(s => 
+        s.customerName?.toLowerCase().includes(searchLower) ||
+        s.site?.toLowerCase().includes(searchLower) ||
+        s.id?.toLowerCase().includes(searchLower)
+      );
+    }
+    return filtered;
+  }, [surveys, activeTab, search]);
 
-      let conditionMet = false;
-
-      if (rule.condition.includes('feasibilityScore >')) {
-        const threshold = parseInt(rule.condition.split(' > ')[1]);
-        conditionMet = calculateSurveyScore(survey) > threshold;
-      } else if (rule.condition.includes('shadowPct >')) {
-        const threshold = parseInt(rule.condition.split(' > ')[1]);
-        conditionMet = survey.shadowPct > threshold;
-      } else if (rule.condition.includes('daysPending >')) {
-        const threshold = parseInt(rule.condition.split(' > ')[1]);
-        const daysPending = survey.status === 'Pending' ?
-          Math.floor((new Date() - new Date(survey.scheduledDate)) / (1000 * 60 * 60 * 24)) : 0;
-        conditionMet = daysPending > threshold;
-      }
-
-      if (conditionMet) {
-        results.push(rule);
-      }
-    });
-
-    return results;
-  }, [automationRules, calculateSurveyScore]);
-
-  // Enhanced surveys with scores and automation
-  const enhancedSurveys = useMemo(() => {
-    return surveys.map(survey => ({
-      ...survey,
-      calculatedScore: calculateSurveyScore(survey),
-      automation: applyAutomationRules(survey),
-      slaBreached: survey.status === 'Pending' &&
-        Math.floor((new Date() - new Date(survey.scheduledDate)) / (1000 * 60 * 60 * 24)) > 3
-    }));
-  }, [surveys, calculateSurveyScore, applyAutomationRules]);
-
-  const columns = [
-    {
-      key: 'id',
-      header: 'Survey ID',
-      sortable: true,
-      render: (v) => <span className="font-mono text-[var(--accent)]">{v}</span>,
-    },
-    {
-      key: 'customerName',
-      header: 'Customer',
-      sortable: true,
-      render: (v, row) => (
-        <div className="flex items-center gap-2">
-          <Avatar size="sm">{v.split(' ').map(n => n[0]).join('')}</Avatar>
-          <div className="min-w-0">
-            <p className="text-xs font-bold text-[var(--text-primary)] truncate">{v}</p>
-            <p className="text-[10px] text-[var(--text-muted)] truncate">{row.site}</p>
-          </div>
-        </div>
-      )
-    },
-    {
-      key: 'status',
-      header: 'Status',
-      sortable: true,
-      render: (v) => <StatusBadge domain="survey" value={v} />
-    },
-    {
-      key: 'calculatedScore',
-      header: 'Score',
-      sortable: true,
-      render: (v) => (
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1">
-            <Brain size={10} className="text-[var(--text-muted)]" />
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${v >= 85 ? 'text-emerald-500 bg-emerald-500/10' :
-              v >= 65 ? 'text-amber-500 bg-amber-500/10' : 'text-red-500 bg-red-500/10'
-              }`}>{v || 0}pts</span>
-          </div>
-        </div>
-      )
-    },
-    {
-      key: 'estimatedKw',
-      header: 'Size (kW)',
-      sortable: true,
-      render: (v) => <span className="font-bold text-[var(--solar)]">{v} kW</span>
-    },
-    {
-      key: 'shadowPct',
-      header: 'Shadow',
-      sortable: true,
-      render: (v) => (
-        <div className="flex items-center gap-1.5">
-          <div className={`w-1.5 h-1.5 rounded-full ${v > 10 ? 'bg-red-400' : 'bg-emerald-400'}`} />
-          <span className="text-xs">{v}%</span>
-        </div>
-      )
-    },
-    {
-      key: 'automation',
-      header: 'Automation',
-      sortable: false,
-      render: (v) => (
-        <div className="flex items-center gap-1">
-          {v && v.length > 0 ? (
-            <>
-              <Zap size={12} className="text-amber-500" />
-              <span className="text-[10px] text-amber-500 font-bold">{v.length} Active</span>
-            </>
-          ) : (
-            <span className="text-[10px] text-[var(--text-muted)]">None</span>
-          )}
-        </div>
-      )
-    },
-    {
-      key: 'engineer',
-      header: 'Engineer',
-      sortable: true,
-      render: (v) => <span className="text-xs text-[var(--text-secondary)]">{v}</span>
-    },
-    {
-      key: 'scheduledDate',
-      header: 'Scheduled',
-      sortable: true,
-      render: (v) => <span className="text-xs text-[var(--text-muted)]">{v || '—'}</span>
-    },
-  ];
-
-  const handleStageChange = (id, newStage) => {
-    if (!can('survey', 'edit')) {
-      toast.error('Permission denied: Cannot change survey status');
+  // ── Handlers ─────────────────────────────────────────────────
+  const handleAddSurvey = () => {
+    if (!can('survey', 'create')) {
+      toast.error('Permission denied');
       return;
     }
-    const survey = surveys.find(s => s.id === id);
-    setSurveys(prev => prev.map(s => s.id === id ? { ...s, status: newStage } : s));
-    logStatusChange(survey, survey.status, newStage);
+    setIsScheduling(true);
+    
+    const newSurvey = {
+      id: `SYY-${Math.random().toString(36).substr(2, 9).toUpperCase()}-${Math.random().toString(36).substr(2, 3).toUpperCase()}`,
+      customerName: formData.customerName,
+      site: formData.siteAddress || 'Not specified',
+      estimatedKw: formData.size ? parseInt(formData.size) : null,
+      engineer: formData.engineer,
+      scheduledDate: formData.scheduledDate,
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    };
+    
+    setSurveys(prev => [newSurvey, ...prev]);
+    logCreate({ id: newSurvey.id, name: formData.customerName });
+    toast.success('Survey scheduled successfully');
+    
+    setShowAddModal(false);
+    setFormData({
+      customerName: '',
+      engineer: 'Priya Patel',
+      siteAddress: '',
+      scheduledDate: '',
+      size: '',
+      notes: ''
+    });
+    setIsScheduling(false);
   };
 
-  // 🔄 SURVEY FLOW: Pending → Active (Submit Form)
-  const handleSubmitSurveyForm = async (survey) => {
-    if (!guardEdit()) return;
-
-    // Optimistic UI update - move immediately
-    const surveyWithActiveStatus = { ...survey, status: 'active' };
-    setPendingSurveys(prev => prev.filter(s => s.id !== survey.id));
-    setActiveSurveys(prev => [surveyWithActiveStatus, ...prev]);
-    toast.success('Survey form submitted! Moved to Active.');
-    logStatusChange(survey, 'pending', 'active');
-
-    try {
-      setSurveysLoading(true);
-      // Update survey status to 'active' in backend
-      await surveysApi.update(survey.id, { status: 'active' });
-    } catch (err) {
-      console.error('Failed to update survey status:', err);
-      // Don't show error - UI already updated optimistically
-      // Optionally refresh to sync with backend
-      toast.error('Backend sync failed, but survey moved to Active');
-    } finally {
-      setSurveysLoading(false);
+  const handleDelete = (survey) => {
+    if (!can('survey', 'delete')) {
+      toast.error('Permission denied');
+      return;
+    }
+    if (window.confirm(`Delete survey for ${survey.customerName}?`)) {
+      setSurveys(prev => prev.filter(s => s.id !== survey.id));
+      logDelete({ id: survey.id, name: survey.customerName });
+      toast.success('Survey deleted');
     }
   };
 
-  // 🔄 SURVEY FLOW: Active → Completed + Lead Stage → Proposal
-  const handleCompleteSurvey = async (survey) => {
-    if (!guardEdit()) return;
-
-    // Optimistic UI update - move immediately
-    const surveyWithCompletedStatus = { ...survey, status: 'completed' };
-    setActiveSurveys(prev => prev.filter(s => s.id !== survey.id));
-    setCompletedSurveys(prev => [surveyWithCompletedStatus, ...prev]);
-    toast.success('Survey completed! Lead moved to Proposal stage.');
-    logStatusChange(survey, 'active', 'completed');
-
-    try {
-      setSurveysLoading(true);
-      // Update survey status to 'completed' in backend
-      await surveysApi.update(survey.id, { status: 'completed' });
-
-      // Update lead stage to 'proposal' (ONLY on completion)
-      if (survey.sourceLeadId) {
-        await leadsApi.bulkUpdateStage([survey.sourceLeadId], 'proposal');
-      }
-    } catch (err) {
-      console.error('Failed to complete survey:', err);
-      toast.error('Backend sync failed, but survey moved to Completed');
-    } finally {
-      setSurveysLoading(false);
-    }
+  const handleStartSurvey = (survey) => {
+    setSurveys(prev => prev.map(s => 
+      s.id === survey.id ? { ...s, status: 'active' } : s
+    ));
+    toast.success('Survey started');
   };
 
-  // Generate proposal for completed survey
-  const handleGenerateProposal = (survey) => {
-    toast.success(`Generating proposal for ${survey.customerName}...`);
-    // TODO: Navigate to proposal creation page
-    console.log('Generate proposal for survey:', survey);
-  };
-
-  const filteredActiveSurveys = useMemo(() => {
-    return activeSurveys.filter(s =>
-      s.customerName.toLowerCase().includes(search.toLowerCase()) ||
-      s.id.toLowerCase().includes(search.toLowerCase())
+  // ── Components ───────────────────────────────────────────────
+  const StatusBadge = ({ status }) => {
+    const styles = {
+      pending: 'bg-amber-50 text-amber-700 border-amber-200',
+      active: 'bg-blue-50 text-blue-700 border-blue-200',
+      completed: 'bg-emerald-50 text-emerald-700 border-emerald-200'
+    };
+    const labels = { pending: 'Pending', active: 'Active', completed: 'Completed' };
+    return (
+      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${styles[status] || styles.pending}`}>
+        {labels[status] || status}
+      </span>
     );
-  }, [activeSurveys, search]);
+  };
 
-  const stats = useMemo(() => ({
-    total: pendingSurveys.length + activeSurveys.length + completedSurveys.length,
-    pending: pendingSurveys.length,
-    active: activeSurveys.length,
-    completed: completedSurveys.length,
-    totalKw: [...pendingSurveys, ...activeSurveys, ...completedSurveys].reduce((acc, s) => acc + (s.estimatedKw || 0), 0),
-  }), [pendingSurveys, activeSurveys, completedSurveys]);
-
-  const [dateRange, setDateRange] = useState({
-    start: format(subMonths(new Date(), 6), 'yyyy-MM-dd'),
-    end: format(new Date(), 'yyyy-MM-dd')
-  });
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-
-  return (
-    <div className="animate-fade-in space-y-6">
-      {/* ── Advanced Header ── */}
-      <div className="page-header">
+  const SummaryCard = ({ title, value, icon: Icon, color }) => (
+    <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="heading-page">Survey Management</h1>
-          <p className="text-xs text-[var(--text-muted)] mt-0.5">Advanced site assessments · AI feasibility · Automation · Performance tracking</p>
+          <p className="text-sm text-gray-500 mb-1">{title}</p>
+          <p className="text-2xl font-bold text-gray-900">{value}</p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)]">
-            <Brain size={12} className="text-[var(--text-muted)]" />
-            <span className="text-[10px] text-[var(--text-muted)]">Automation</span>
-            <button
-              onClick={() => setAutomationRules(prev => prev.map(rule => ({ ...rule, enabled: !rule.enabled })))}
-              className={`w-8 h-4 rounded-full transition-colors ${automationRules.some(r => r.enabled) ? 'bg-emerald-500' : 'bg-gray-300'
-                }`}
-            >
-              <div className={`w-3 h-3 bg-white rounded-full transition-transform ${automationRules.some(r => r.enabled) ? 'translate-x-4' : 'translate-x-0.5'
-                }`} />
+        <div className={`w-12 h-12 rounded-lg ${color} flex items-center justify-center`}>
+          <Icon size={24} className="text-white" />
+        </div>
+      </div>
+    </div>
+  );
+
+  const TabButton = ({ id, label, count }) => (
+    <button
+      onClick={() => setActiveTab(id)}
+      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+        activeTab === id ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+      }`}
+    >
+      {label}
+      <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${activeTab === id ? 'bg-white/20' : 'bg-gray-100'}`}>
+        {count}
+      </span>
+    </button>
+  );
+
+  // ── Views ───────────────────────────────────────────────────
+  const TableView = () => (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <table className="w-full">
+        <thead className="bg-gray-50 border-b border-gray-200">
+          <tr>
+            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Client Name</th>
+            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Location</th>
+            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Capacity</th>
+            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Engineer</th>
+            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Survey ID</th>
+            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Date</th>
+            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
+            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Actions</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-200">
+          {filteredSurveys.length === 0 ? (
+            <tr><td colSpan={8} className="px-6 py-12 text-center text-gray-500">No surveys found</td></tr>
+          ) : filteredSurveys.map((survey) => (
+            <tr key={survey.id} className="hover:bg-gray-50">
+              <td className="px-6 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-blue-500 flex items-center justify-center text-white font-semibold text-sm">
+                    {survey.customerName?.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="font-medium text-gray-900">{survey.customerName}</span>
+                </div>
+              </td>
+              <td className="px-6 py-4 text-gray-600"><MapPin size={14} className="inline mr-1"/>{survey.site}</td>
+              <td className="px-6 py-4 text-gray-600">{survey.estimatedKw ? `${survey.estimatedKw} kW` : 'To be determined'}</td>
+              <td className="px-6 py-4 text-gray-600">{survey.engineer}</td>
+              <td className="px-6 py-4 text-gray-500 text-sm">{survey.id}</td>
+              <td className="px-6 py-4 text-gray-600">{survey.scheduledDate ? format(new Date(survey.scheduledDate), 'dd MMM') : '-'}</td>
+              <td className="px-6 py-4"><StatusBadge status={survey.status} /></td>
+              <td className="px-6 py-4">
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setSelectedSurvey(survey)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-600" title="View">
+                    <Eye size={16} />
+                  </button>
+                  {survey.status === 'pending' && (
+                    <button onClick={() => handleStartSurvey(survey)} className="p-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white" title="Start Survey">
+                      <Play size={14} />
+                    </button>
+                  )}
+                  <button onClick={() => handleDelete(survey)} className="p-2 rounded-lg hover:bg-red-50 text-red-500" title="Delete">
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  const ListView = () => (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {filteredSurveys.map((survey) => (
+        <div key={survey.id} className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow">
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-blue-500 flex items-center justify-center text-white font-semibold">
+                {survey.customerName?.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900">{survey.customerName}</h3>
+                <p className="text-sm text-gray-500 flex items-center gap-1"><MapPin size={12} />{survey.site}</p>
+              </div>
+            </div>
+            <StatusBadge status={survey.status} />
+          </div>
+          <div className="space-y-2 mb-4 text-sm">
+            <div className="flex justify-between"><span className="text-gray-500">Capacity</span><span className="text-gray-700">{survey.estimatedKw ? `${survey.estimatedKw} kW` : 'To be determined'}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">Engineer</span><span className="text-gray-700">{survey.engineer}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">Survey ID</span><span className="text-gray-500 text-xs">{survey.id}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">Date</span><span className="text-gray-700">{survey.scheduledDate ? format(new Date(survey.scheduledDate), 'dd MMM yyyy') : '-'}</span></div>
+          </div>
+          <div className="flex items-center gap-2 pt-4 border-t border-gray-100">
+            <button onClick={() => setSelectedSurvey(survey)} className="flex-1 px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm font-medium">
+              <Eye size={14} className="inline mr-1" />View
+            </button>
+            {survey.status === 'pending' && (
+              <button onClick={() => handleStartSurvey(survey)} className="flex-1 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium">
+                <Play size={14} className="inline mr-1" />Start
+              </button>
+            )}
+            <button onClick={() => handleDelete(survey)} className="p-2 rounded-lg border border-red-200 text-red-500 hover:bg-red-50">
+              <Trash2 size={16} />
             </button>
           </div>
         </div>
+      ))}
+    </div>
+  );
+
+  // ── Render ───────────────────────────────────────────────────
+  return (
+    <div className="p-6 bg-gray-50 min-h-screen">
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Site Survey Management</h1>
+        <p className="text-gray-500 mt-1">Manage site surveys from lead to completion</p>
       </div>
 
-      {/* ── Search & Filter Bar ── */}
-      {view !== 'dashboard' && (
-        <div className="flex flex-wrap items-center gap-4 bg-[var(--bg-surface)] p-3 rounded-xl border border-[var(--border-base)]">
-          <div className="flex items-center gap-2 flex-1 min-w-[240px]">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" size={14} />
-              <Input
-                placeholder="Search surveys..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="pl-9 h-9 text-xs"
-              />
-            </div>
-            <FilterSystem
-              fields={SURVEY_FIELDS}
-              onApply={(f) => console.log('Survey Filters:', f)}
-              presets={[
-                { name: 'High Feasibility', filters: [{ field: 'feasibilityScore', operator: 'gt', value: '85', logic: 'AND' }] },
-                { name: 'Critical Shadow', filters: [{ field: 'shadowPct', operator: 'gt', value: '10', logic: 'AND' }] }
-              ]}
-            />
-          </div>
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <SummaryCard title="Total Surveys" value={stats.total} icon={MapPin} color="bg-blue-500" />
+        <SummaryCard title="Pending" value={stats.pending} icon={Clock} color="bg-amber-500" />
+        <SummaryCard title="Active" value={stats.active} icon={Zap} color="bg-emerald-500" />
+        <SummaryCard title="Completed" value={stats.completed} icon={CheckCircle} color="bg-purple-500" />
+      </div>
+
+      {/* Tabs, Search, View Toggle */}
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
+        <div className="flex flex-wrap gap-2">
+          <TabButton id="all" label="All Surveys" count={stats.total} />
+          <TabButton id="pending" label="Pending" count={stats.pending} />
+          <TabButton id="active" label="Active" count={stats.active} />
+          <TabButton id="completed" label="Complete" count={stats.completed} />
         </div>
-      )}
-
-      {/* ── Advanced Dashboard ── */}
-      {view === 'dashboard' && (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
-          {/* Simple Stats Cards Only */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <KPICard
-              label="ALL"
-              value={stats.total}
-              icon={MapPin}
-              variant="blue"
-              sub="Total surveys"
-            />
-            <KPICard
-              label="PENDING"
-              value={stats.pending}
-              icon={Clock}
-              variant="amber"
-              sub="Awaiting form submission"
-            />
-            <KPICard
-              label="ACTIVE"
-              value={stats.active}
-              icon={Zap}
-              variant="emerald"
-              sub="In progress"
-            />
-            <KPICard
-              label="COMPLETED"
-              value={stats.completed}
-              icon={CheckCircle}
-              variant="purple"
-              sub="Finished surveys"
-            />
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <Input placeholder="Search by client name..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 w-64" />
           </div>
+          <div className="flex items-center bg-white rounded-lg border border-gray-200 p-1">
+            <button onClick={() => setViewMode('table')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${viewMode === 'table' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+              <List size={16} className="inline mr-1" />Table
+            </button>
+            <button onClick={() => setViewMode('list')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${viewMode === 'list' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+              <LayoutGrid size={16} className="inline mr-1" />List
+            </button>
+          </div>
+          <Button onClick={() => setShowAddModal(true)}><Plus size={18} className="mr-1" />New Survey</Button>
         </div>
-      )}
+      </div>
 
-      {/* ── Kanban View ── */}
-      {kanbanView && (
-        <SurveyKanbanBoard
-          surveys={activeSurveys}
-          onStageChange={handleStageChange}
-          onCardClick={setSelectedSurvey}
-        />
-      )}
+      {/* Content */}
+      {loading ? <div className="text-center py-12 text-gray-500">Loading...</div> : viewMode === 'table' ? <TableView /> : <ListView />}
 
-      {/* ── Table View ── */}
-      {view === 'table' && (
-        <DataTable
-          columns={columns}
-          data={activeSurveys.slice((page - 1) * pageSize, page * pageSize)}
-          total={activeSurveys.length}
-          page={page}
-          pageSize={pageSize}
-          onPageChange={setPage}
-          onPageSizeChange={setPageSize}
-          search={search}
-          onSearch={setSearch}
-          selectedRows={selected}
-          onSelectRows={setSelected}
-          bulkActions={[
-            { key: 'export', label: 'Export', icon: Download, onClick: (rows) => { if (guardExport()) console.log('Exporting', rows); } },
-            { key: 'assign', label: 'Assign Engineer', icon: Users, onClick: (rows) => { if (guardEdit()) console.log('Assigning', rows); } },
-            { key: 'schedule', label: 'Schedule', icon: Calendar, onClick: (rows) => { if (guardEdit()) console.log('Scheduling', rows); } },
-            {
-              key: 'delete', label: 'Delete', icon: Trash2, onClick: (rows) => {
-                if (!guardDelete()) return;
-                rows.forEach(row => logDelete(row));
-                console.log('Deleting', rows);
-              }, danger: true
-            },
-          ]}
-          rowActions={[
-            { key: 'view', label: 'View Report', icon: Eye, onClick: (r) => setSelectedSurvey(r) },
-            { key: 'timeline', label: 'Timeline', icon: History, onClick: (r) => console.log('Timeline', r) },
-            { key: 'edit', label: 'Edit', icon: Edit2, onClick: (r) => { if (guardEdit()) console.log('Edit', r); } },
-            {
-              key: '3d', label: '3D Studio', icon: Box, onClick: (r) => {
-                const analysis = SITE_ANALYSIS[r.id];
-                setStudioSurvey({
-                  projectName: r.customerName,
-                  lat: parseFloat(analysis?.gpsLat || 23),
-                  lng: parseFloat(analysis?.gpsLng || 72),
-                });
-              }
-            },
-            {
-              key: 'delete', label: 'Delete', icon: Trash2, onClick: (r) => {
-                if (!guardDelete()) return;
-                logDelete(r);
-                console.log('Deleted', r);
-              }, danger: true
-            },
-          ]}
-        />
-      )}
-
-      {/* ── Reports View ── */}
-      {reportsView && (
-        <div className="space-y-6">
-          <div className="glass-card p-5">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-sm font-bold text-[var(--text-primary)]">Survey Analytics Reports</h3>
-              <BarChart2 size={16} className="text-[var(--accent)]" />
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="p-4 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">
-                <h4 className="text-xs font-bold text-[var(--text-primary)] mb-3">Completion Rate by Month</h4>
-                <ResponsiveContainer width="100%" height={200}>
-                  <LineChart data={[
-                    { month: 'Jan', rate: 78 },
-                    { month: 'Feb', rate: 82 },
-                    { month: 'Mar', rate: 79 },
-                    { month: 'Apr', rate: 85 },
-                    { month: 'May', rate: 88 },
-                    { month: 'Jun', rate: 91 },
-                  ]}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
-                    <XAxis dataKey="month" tick={{ fontSize: 10 }} stroke="var(--text-muted)" />
-                    <YAxis tick={{ fontSize: 10 }} stroke="var(--text-muted)" />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="rate" stroke="#22c55e" strokeWidth={2} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="p-4 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">
-                <h4 className="text-xs font-bold text-[var(--text-primary)] mb-3">Survey Distribution by Status</h4>
-                <ResponsiveContainer width="100%" height={200}>
-                  <PieChart>
-                    <Pie
-                      data={[
-                        { name: 'Completed', value: stats.completed, color: '#22c55e' },
-                        { name: 'Active', value: stats.active, color: '#3b82f6' },
-                        { name: 'Pending', value: stats.pending, color: '#f59e0b' },
-                      ]}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={40}
-                      outerRadius={80}
-                      paddingAngle={5}
-                      dataKey="value"
-                    >
-                      {[
-                        { name: 'Completed', color: '#22c55e' },
-                        { name: 'Active', color: '#3b82f6' },
-                        { name: 'Pending', color: '#f59e0b' },
-                      ].map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
+      {/* Add Survey Modal */}
+      <Modal open={showAddModal} onClose={() => setShowAddModal(false)} title="Schedule New Survey" footer={
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => setShowAddModal(false)}>Cancel</Button>
+          <Button onClick={handleAddSurvey} disabled={!formData.customerName || isScheduling}>
+            {isScheduling ? 'Scheduling...' : 'Schedule Survey'}
+          </Button>
         </div>
-      )}
-
-      {/* ── Schedule Survey Modal ── */}
-      <Modal
-        open={showAdd}
-        onClose={() => {
-          setShowAdd(false);
-          setSelectedLead(null);
-        }}
-        title={selectedLead ? `Schedule Survey — ${selectedLead.name}` : "Schedule New Site Survey"}
-        footer={
-          <div className="flex gap-2 justify-end">
-            <Button variant="ghost" onClick={() => {
-              setShowAdd(false);
-              setSelectedLead(null);
-            }}>Cancel</Button>
-            <Button
-              disabled={isScheduling}
-              onClick={async () => {
-                if (guardCreate()) {
-                  setIsScheduling(true);
-                  try {
-                    // Create survey with 'pending' status
-                    // Lead stage will NOT change - it stays 'survey' in CRM
-                    const surveyData = {
-                      customerName: formData.customerName,
-                      engineer: formData.engineer,
-                      site: formData.siteAddress,
-                      scheduledDate: formData.scheduledDate,
-                      estimatedKw: parseInt(formData.size) || 0,
-                      status: 'pending', // NEW: Create as pending, not active
-                      shadowPct: 0,
-                      roofArea: 0,
-                      sourceLeadId: selectedLead?.id || null,
-                      notes: formData.notes
-                    };
-
-                    const result = await surveysApi.create(surveyData);
-                    const newSurveyId = result.data?.surveyId || result.data?._id || `temp-${Date.now()}`;
-
-                    // Add to pending surveys immediately (lead stays in CRM section)
-                    const newSurvey = {
-                      id: newSurveyId,
-                      customerName: formData.customerName,
-                      engineer: formData.engineer,
-                      site: formData.siteAddress,
-                      scheduledDate: formData.scheduledDate,
-                      estimatedKw: parseInt(formData.size) || 0,
-                      status: 'pending',
-                      shadowPct: 0,
-                      roofArea: 0,
-                      sourceLeadId: selectedLead?.id || null,
-                      notes: formData.notes,
-                      createdAt: new Date().toISOString()
-                    };
-
-                    setPendingSurveys(prev => [newSurvey, ...prev]);
-
-                    // Track this lead as having a survey created
-                    if (selectedLead?.id) {
-                      setSurveyCreatedLeadIds(prev => [...prev, selectedLead.id]);
-                    }
-
-                    // Refresh all surveys from backend
-                    const surveysResult = await surveysApi.getAll({ limit: 100 });
-                    const surveysData = surveysResult.data?.data || surveysResult.data || [];
-
-                    const transformedSurveys = surveysData.map(s => ({
-                      id: s.surveyId || s._id,
-                      customerName: s.customerName,
-                      engineer: s.engineer,
-                      site: s.site,
-                      scheduledDate: s.scheduledDate,
-                      estimatedKw: s.estimatedKw,
-                      status: s.status,
-                      shadowPct: s.shadowPct,
-                      roofArea: s.roofArea,
-                      sourceLeadId: s.sourceLeadId,
-                      notes: s.notes,
-                      createdAt: s.createdAt
-                    }));
-
-                    // Update all survey lists
-                    setPendingSurveys(transformedSurveys.filter(s => s.status === 'pending'));
-                    setActiveSurveys(transformedSurveys.filter(s => s.status === 'active'));
-                    setCompletedSurveys(transformedSurveys.filter(s => s.status === 'completed'));
-
-                    logCreate({ id: 'new', name: `Survey scheduled for ${formData.customerName}` });
-                    toast.success(`Survey scheduled for ${formData.customerName} - Pending Form Submission`);
-                    setShowAdd(false);
-                    setSelectedLead(null);
-
-                    // Reset form
-                    setFormData({
-                      customerName: '',
-                      engineer: 'Priya Patel',
-                      siteAddress: '',
-                      scheduledDate: '',
-                      size: '',
-                      notes: ''
-                    });
-                  } catch (err) {
-                    console.error('Failed to create survey:', err);
-                    toast.error(err.message || 'Failed to schedule survey. Please try again.');
-                  } finally {
-                    setIsScheduling(false);
-                  }
-                }
-              }}>
-              {isScheduling ? 'Scheduling...' : (<><Plus size={14} /> {selectedLead ? 'Schedule from Lead' : 'Schedule Visit'}</>)}
-            </Button>
-          </div>
-        }
-      >
+      }>
         <div className="space-y-4">
+          <FormField label="Customer Name *">
+            <Input value={formData.customerName} onChange={(e) => setFormData({ ...formData, customerName: e.target.value })} placeholder="Enter customer name" />
+          </FormField>
           <div className="grid grid-cols-2 gap-4">
-            <FormField label="Customer Name">
-              <Input
-                value={formData.customerName}
-                onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
-                placeholder="e.g. Rajesh Kumar"
-              />
-            </FormField>
             <FormField label="Assigned Engineer">
-              <Select
-                value={formData.engineer}
-                onChange={(e) => setFormData({ ...formData, engineer: e.target.value })}
-              >
-                <option key="eng1" value="Priya Patel">Priya Patel</option>
-                <option key="eng2" value="Rahul Sharma">Rahul Sharma</option>
-                <option key="eng3" value="Amit Kumar">Amit Kumar</option>
-                <option key="eng4" value="Sneha Reddy">Sneha Reddy</option>
-                <option key="eng5" value="Vikram Singh">Vikram Singh</option>
+              <Select value={formData.engineer} onChange={(e) => setFormData({ ...formData, engineer: e.target.value })}>
+                <option>Priya Patel</option><option>Rahul Sharma</option><option>Amit Kumar</option><option>Sneha Reddy</option>
               </Select>
+            </FormField>
+            <FormField label="Est. Size (kW)">
+              <Input type="number" value={formData.size} onChange={(e) => setFormData({ ...formData, size: e.target.value })} placeholder="50" />
             </FormField>
           </div>
           <FormField label="Site Address">
-            <Input
-              value={formData.siteAddress}
-              onChange={(e) => setFormData({ ...formData, siteAddress: e.target.value })}
-              placeholder="Plot 45, GIDC Phase II, Ahmedabad"
-            />
+            <Input value={formData.siteAddress} onChange={(e) => setFormData({ ...formData, siteAddress: e.target.value })} placeholder="Enter site address" />
           </FormField>
-          <div className="grid grid-cols-2 gap-4">
-            <FormField label="Scheduled Date">
-              <Input
-                type="date"
-                value={formData.scheduledDate}
-                onChange={(e) => setFormData({ ...formData, scheduledDate: e.target.value })}
-              />
-            </FormField>
-            <FormField label="Est. Size (kW)">
-              <Input
-                type="number"
-                value={formData.size}
-                onChange={(e) => setFormData({ ...formData, size: e.target.value })}
-                placeholder="50"
-              />
-            </FormField>
-          </div>
-          <FormField label="Site Notes">
-            <Textarea
-              rows={3}
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              placeholder="Access restrictions, structural observations..."
-            />
+          <FormField label="Scheduled Date">
+            <Input type="date" value={formData.scheduledDate} onChange={(e) => setFormData({ ...formData, scheduledDate: e.target.value })} />
           </FormField>
-          {selectedLead && (
-            <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
-              <p className="text-[11px] text-blue-600">
-                <strong>Source:</strong> CRM Lead #{selectedLead.id} |
-                <strong>Stage:</strong> {PIPELINE_STAGES.find(s => s.id === selectedLead.stage)?.label} |
-                <strong>Value:</strong> ₹{selectedLead.value?.toLocaleString()}
-              </p>
-            </div>
-          )}
+          <FormField label="Notes">
+            <Textarea rows={3} value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} placeholder="Additional notes..." />
+          </FormField>
         </div>
       </Modal>
 
-      {/* ── Site Report Detail Modal ── */}
-      <Modal
-        open={!!selectedSurvey}
-        onClose={() => setSelectedSurvey(null)}
-        title={selectedSurvey ? `Survey Report — ${selectedSurvey.id}` : ''}
-        footer={
-          <div className="flex gap-2 justify-end">
-            <Button variant="ghost" onClick={() => setSelectedSurvey(null)}>Close</Button>
-
-            {/* PENDING: Submit Survey Form button */}
-            {selectedSurvey?.status === 'pending' && (
-              <Button
-                onClick={() => {
-                  handleSubmitSurveyForm(selectedSurvey);
-                  setSelectedSurvey(null);
-                }}
-                className="bg-amber-500 hover:bg-amber-600"
-              >
-                <CheckCircle size={14} /> Submit Survey
-              </Button>
-            )}
-
-            {/* ACTIVE: Complete Survey button */}
-            {selectedSurvey?.status === 'active' && (
-              <Button
-                onClick={() => {
-                  handleCompleteSurvey(selectedSurvey);
-                  setSelectedSurvey(null);
-                }}
-                className="bg-emerald-500 hover:bg-emerald-600"
-              >
-                <CheckCircle size={14} /> Complete Survey
-              </Button>
-            )}
-
-            {/* COMPLETED: Generate Proposal button */}
-            {selectedSurvey?.status === 'completed' && (
-              <Button
-                onClick={() => {
-                  handleGenerateProposal(selectedSurvey);
-                  setSelectedSurvey(null);
-                }}
-                className="bg-blue-500 hover:bg-blue-600"
-              >
-                <FileText size={14} /> Generate Proposal
-              </Button>
-            )}
-          </div>
-        }
-      >
+      {/* View Survey Modal */}
+      <Modal open={!!selectedSurvey} onClose={() => setSelectedSurvey(null)} title="Survey Details" footer={<div className="flex justify-end"><Button onClick={() => setSelectedSurvey(null)}>Close</Button></div>}>
         {selectedSurvey && (
-          <div className="space-y-6">
-            <div className="flex items-start gap-4 pb-4 border-b border-[var(--border-base)]">
-              <div className="w-16 h-16 rounded-2xl bg-[var(--primary)]/10 flex items-center justify-center text-xl font-black text-[var(--primary)]">
-                {selectedSurvey.customerName.split(' ').map(n => n[0]).join('')}
+          <div className="space-y-4">
+            <div className="flex items-center gap-4 pb-4 border-b">
+              <div className="w-16 h-16 rounded-xl bg-blue-500 flex items-center justify-center text-white text-xl font-bold">
+                {selectedSurvey.customerName?.charAt(0).toUpperCase()}
               </div>
-              <div className="flex-1">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-black text-[var(--text-primary)]">{selectedSurvey.customerName}</h3>
-                  <StatusBadge domain="survey" value={selectedSurvey.status} />
-                </div>
-                <p className="text-xs text-[var(--text-muted)] mt-1 flex items-center gap-1">
-                  <MapPin size={12} /> {selectedSurvey.site}
-                </p>
+              <div>
+                <h3 className="text-lg font-semibold">{selectedSurvey.customerName}</h3>
+                <p className="text-gray-500">{selectedSurvey.site}</p>
               </div>
+              <StatusBadge status={selectedSurvey.status} />
             </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                ['Engineer', selectedSurvey.engineer, Users, 'blue'],
-                ['Roof Area', `${selectedSurvey.roofArea} m²`, Layers, 'purple'],
-                ['Shadow Risk', `${selectedSurvey.shadowPct}%`, Sun, selectedSurvey.shadowPct > 10 ? 'red' : 'emerald'],
-                ['Est. Capacity', `${selectedSurvey.estimatedKw} kW`, Zap, 'amber'],
-              ].map(([l, v, Icon, color]) => (
-                <div key={l} className="p-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Icon size={12} className={`text-${color}-500`} />
-                    <span className="text-[10px] font-bold uppercase text-[var(--text-faint)]">{l}</span>
-                  </div>
-                  <p className="text-xs font-bold text-[var(--text-primary)]">{v}</p>
-                </div>
-              ))}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-3 bg-gray-50 rounded-lg"><span className="text-xs text-gray-500">Survey ID</span><p className="font-medium">{selectedSurvey.id}</p></div>
+              <div className="p-3 bg-gray-50 rounded-lg"><span className="text-xs text-gray-500">Engineer</span><p className="font-medium">{selectedSurvey.engineer}</p></div>
+              <div className="p-3 bg-gray-50 rounded-lg"><span className="text-xs text-gray-500">Capacity</span><p className="font-medium">{selectedSurvey.estimatedKw || 'TBD'} kW</p></div>
+              <div className="p-3 bg-gray-50 rounded-lg"><span className="text-xs text-gray-500">Date</span><p className="font-medium">{selectedSurvey.scheduledDate ? format(new Date(selectedSurvey.scheduledDate), 'dd MMM yyyy') : 'Not scheduled'}</p></div>
             </div>
-
-            {SITE_ANALYSIS[selectedSurvey.id] && (
-              <div className="p-4 rounded-2xl bg-[var(--primary)]/5 border border-[var(--primary)]/10">
-                <div className="flex items-center gap-2 mb-2">
-                  <Zap size={14} className="text-[var(--primary)]" />
-                  <span className="text-xs font-bold text-[var(--primary)]">AI Feasibility Score: {SITE_ANALYSIS[selectedSurvey.id].feasibilityScore}/100</span>
-                </div>
-                <Progress value={SITE_ANALYSIS[selectedSurvey.id].feasibilityScore} className="h-2" />
-                <p className="text-[10px] text-[var(--text-muted)] mt-3 leading-relaxed">
-                  {SITE_ANALYSIS[selectedSurvey.id].aiCapacityHint}
-                </p>
-              </div>
-            )}
           </div>
         )}
       </Modal>
-
-      {/* ══════════════════════════════════════════════
-          ENHANCED SOLAR 3D DESIGN STUDIO — Launched from Survey
-      ══════════════════════════════════════════════ */}
-      {studioSurvey && (
-        <EnhancedSolarSurveyStudio
-          projectName={studioSurvey.projectName}
-          initialLat={studioSurvey.lat}
-          initialLng={studioSurvey.lng}
-          onClose={() => setStudioSurvey(null)}
-        />
-      )}
-
     </div>
   );
 };
