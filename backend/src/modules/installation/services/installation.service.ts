@@ -129,7 +129,7 @@ export class InstallationService {
     console.log('[INSTALLATION] Converted tenantId for query:', tenantId);
 
     const query: any = {
-      isDeleted: false,
+      isDeleted: { $ne: true },
     };
 
     // Only apply tenant filter if tenantId is a valid ObjectId (not a string name like 'solarcorp')
@@ -172,7 +172,6 @@ export class InstallationService {
       .find(query)
       .populate('projectId', 'projectId customerName site systemSize')
       .populate('technicianId', 'firstName lastName email')
-      .populate('dispatchId', 'id status deliveredDate')
       .sort({ createdAt: -1 })
       .exec();
     
@@ -356,7 +355,7 @@ export class InstallationService {
     // Check if installation already exists for this dispatch
     const existingQuery: any = {
       dispatchId: dispatchData.dispatchId, // Use STRING, not ObjectId
-      isDeleted: false,
+      isDeleted: { $ne: true },
     };
     if (tenantId) {
       existingQuery.tenantId = tenantId;
@@ -436,16 +435,16 @@ export class InstallationService {
       dispatchId: dispatchData.dispatchId, // Use STRING, don't convert to ObjectId
       customerName: dispatchData.customerName,
       site: dispatchData.site,
-      technicianId: userId, // Will be reassigned
-      technicianName: 'TBD',
-      scheduledDate: new Date(), // Will be rescheduled
+      technicianId: null, // No auto-assignment — must be assigned manually
+      technicianName: 'Not Assigned',
+      scheduledDate: null, // Will be scheduled on manual assignment
       status: 'Pending',
       progress: 0,
       tasks: defaultTasks,
       notes: `Auto-created from Dispatch ${dispatchData.dispatchId}. Items: ${dispatchData.items}`,
       tenantId: effectiveTenantId,
       createdBy: userId,
-      assignedTo: userId,
+      assignedTo: null, // No auto-assignment
     });
 
     const saved = await installation.save();
@@ -497,22 +496,32 @@ export class InstallationService {
       updatedAt: new Date(),
     };
 
-    // Convert ObjectId fields
+    // Convert ObjectId fields — handle null explicitly to allow unassigning
+    if (updateDto.technicianId === null || updateDto.technicianId === '') {
+      updateData.technicianId = null;
+    } else if (updateDto.technicianId) {
+      updateData.technicianId = this.toObjectId(updateDto.technicianId);
+    }
+    if (updateDto.supervisorId === null || updateDto.supervisorId === '') {
+      updateData.supervisorId = null;
+    } else if (updateDto.supervisorId) {
+      updateData.supervisorId = this.toObjectId(updateDto.supervisorId);
+    }
+    if (updateDto.assignedTo === null || updateDto.assignedTo === '') {
+      updateData.assignedTo = null;
+    } else if (updateDto.assignedTo) {
+      updateData.assignedTo = this.toObjectId(updateDto.assignedTo);
+    }
     if (updateDto.projectId) {
       updateData.projectId = this.toObjectId(updateDto.projectId);
     }
-    if (updateDto.technicianId) {
-      updateData.technicianId = this.toObjectId(updateDto.technicianId);
-    }
-    if (updateDto.supervisorId) {
-      updateData.supervisorId = this.toObjectId(updateDto.supervisorId);
-    }
-    if (updateDto.assignedTo) {
-      updateData.assignedTo = this.toObjectId(updateDto.assignedTo);
-    }
+
+    // Build query — only include tenantId filter when available (Super Admin has null tenantId)
+    const updateQuery: any = { _id: this.toObjectId(id), isDeleted: { $ne: true } };
+    if (tenantId) updateQuery.tenantId = tenantId;
 
     const updated = await this.installationModel.findOneAndUpdate(
-      { _id: this.toObjectId(id), tenantId, isDeleted: false },
+      updateQuery,
       { $set: updateData },
       { new: true },
     );
@@ -629,12 +638,18 @@ export class InstallationService {
 
     const progress = this.calculateProgress(tasks);
 
+    // Auto-complete: if all tasks are done (100%), set status to Completed
+    const allTasksDone = tasks.length > 0 && tasks.every(t => t.done);
+    const currentStatus = installation.status;
+    const newStatus = allTasksDone && currentStatus !== 'Completed' ? 'Completed' : currentStatus;
+
     const updated = await this.installationModel.findOneAndUpdate(
       { _id: this.toObjectId(id), isDeleted: false },
       {
         $set: {
           tasks,
           progress,
+          status: newStatus,
           updatedBy: userId,
           updatedAt: new Date(),
         },
@@ -927,6 +942,49 @@ export class InstallationService {
     // sort ascending by timestamp
     events.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
     return events;
+  }
+
+  /**
+   * Check overdue installations and mark as Delayed
+   * Calculates delay days for each overdue installation
+   */
+  async checkOverdueInstallations(userContext: UserContext): Promise<{ updated: number; installations: any[] }> {
+    const tenantId = this.toObjectId(userContext.tenantId);
+    const now = new Date();
+    
+    // Find installations with dueDate passed but not completed
+    const query: any = {
+      isDeleted: false,
+      status: { $nin: ['Completed', 'Delayed'] },
+      dueDate: { $exists: true, $ne: null, $lt: now }
+    };
+    if (tenantId) query.tenantId = tenantId;
+    
+    const overdueInstallations = await this.installationModel.find(query).exec();
+    const updatedInstallations = [];
+    
+    for (const installation of overdueInstallations) {
+      // Calculate delay days
+      const dueDate = new Date(installation.dueDate!);
+      const delayDays = Math.ceil((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      // Update status to Delayed and set delayDays
+      installation.status = 'Delayed';
+      installation.delayDays = delayDays;
+      await installation.save();
+      
+      updatedInstallations.push({
+        id: installation._id,
+        installationId: installation.installationId,
+        delayDays: delayDays,
+        dueDate: installation.dueDate
+      });
+    }
+    
+    return {
+      updated: updatedInstallations.length,
+      installations: updatedInstallations
+    };
   }
 
   /**

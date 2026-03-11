@@ -136,13 +136,13 @@ export class LogisticsService {
 
 
 
-  async update(id: string, data: Partial<Dispatch>): Promise<Dispatch | null> {
+  async update(id: string, data: Partial<Dispatch>, user?: any): Promise<Dispatch | null> {
 
     // Check if status is being changed to Delivered
 
     if (data.status === 'Delivered') {
 
-      return this.updateStatus(id, 'Delivered');
+      return this.updateStatus(id, 'Delivered', user);
 
     }
 
