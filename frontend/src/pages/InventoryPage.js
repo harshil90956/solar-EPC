@@ -732,7 +732,8 @@ const InventoryPage = () => {
         status: 'In Stock',
       }, { headers: { 'x-tenant-id': TENANT_ID } });
 
-      const itemData = response.data || response;
+      const createdItem = response;
+      const itemData = createdItem.data || createdItem;
       const newItem = {
         ...itemData,
         _id: itemData._id || itemData.id,
@@ -774,7 +775,7 @@ const InventoryPage = () => {
         warehouse: stockInForm.warehouse,
       }, { headers: { 'x-tenant-id': TENANT_ID } });
       
-      const itemData = response.data || response;
+      const itemData = updatedItem.data || updatedItem;
       setInventory(prev => prev.map(i => i._id === item._id ? {
         ...itemData,
         name: itemData.description || itemData.name,
@@ -900,7 +901,7 @@ const InventoryPage = () => {
         remarks: stockOutForm.remarks,
       }, { headers: { 'x-tenant-id': TENANT_ID } });
       
-      const itemData = response.data || response;
+      const itemData = updatedItem.data || updatedItem;
 
       // Create reservation record for the project
       if (stockOutForm.projectId) {

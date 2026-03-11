@@ -13,7 +13,7 @@ import { Progress } from '../components/ui/Progress';
 import DataTable from '../components/ui/DataTable';
 import { toast } from '../components/ui/Toast';
 import CanAccess, { CanCreate, CanEdit, CanDelete } from '../components/CanAccess';
-import { Wrench, Plus, LayoutGrid, List, CalendarDays, CheckCircle, Camera, User, MapPin, Clock } from 'lucide-react';
+import { Wrench, Plus, LayoutGrid, List, CalendarDays, CheckCircle, Camera, User, MapPin, Clock, Edit } from 'lucide-react';
 import { APP_CONFIG } from '../config/app.config';
 
 // ── Kanban columns ─────────────────────────────────────────────────────────────
@@ -99,7 +99,7 @@ const InstallCard = ({ log, onDragStart, onClick }) => {
 };
 
 /* ── Kanban Board ── */
-const InstallKanbanBoard = ({ items, onCardClick, onDrop }) => {
+const InstallKanbanBoard = ({ items, onCardClick, onDrop, canEdit }) => {
   const draggingId = useRef(null);
   const draggingStageId = useRef(null);
   const [dragOver, setDragOver] = useState(null);
@@ -117,15 +117,15 @@ const InstallKanbanBoard = ({ items, onCardClick, onDrop }) => {
     }
   });
 
-  useEffect(() => {
-    try {
-      localStorage.setItem('installKanbanStageOrder', JSON.stringify(stageOrder));
-    } catch {
-      // ignore
-    }
-  }, [stageOrder]);
-
   const handleDrop = (stageId) => {
+    // Prevent drag operations if user doesn't have edit permission
+    if (!canEdit) {
+      setDragOver(null);
+      draggingId.current = null;
+      draggingStageId.current = null;
+      return;
+    }
+    
     if (draggingStageId.current) {
       const from = draggingStageId.current;
       const to = stageId;
@@ -222,7 +222,7 @@ const COLUMNS = [
 ];
 
 const InstallationPage = () => {
-  const { can } = usePermissions();
+  const { can, user, role } = usePermissions();
   const { logCreate, logUpdate, logStatusChange } = useAuditLog('installation');
   const { installationTasks } = useSettings();
   const [view, setView] = useState('kanban');
@@ -291,7 +291,30 @@ const InstallationPage = () => {
   // Detail modal: toggle task with photo rule
   const handleToggleTask = async (index) => {
     if (!selected) return;
-    if (!can('installation','edit')) return toast.error('Permission denied');
+    
+    // Debug logging
+    console.log('[DEBUG] handleToggleTask:', {
+      userRole: user?.role,
+      userId: user?.id,
+      user_id: user?._id,
+      selectedTechId: selected.technicianId,
+      selectedAssignedTo: selected.assignedTo,
+      hasEditPermission: can('installation','edit')
+    });
+    
+    // Technician or assigned user can update tasks even without edit permission
+    const isTechnicianByRole = user?.role?.toLowerCase() === 'technician';
+    const isAssignedUser = selected.technicianId === user?.id || 
+                           selected.technicianId === user?._id ||
+                           selected.assignedTo === user?.id ||
+                           selected.assignedTo === user?._id;
+    const canUpdate = can('installation','edit') || isTechnicianByRole || isAssignedUser;
+    
+    console.log('[DEBUG] Permission check:', { isTechnicianByRole, isAssignedUser, canUpdate });
+    
+    if (!canUpdate) {
+      return toast.error('Permission denied');
+    }
     
     // Get merged tasks (settings + saved status)
     const currentTasks = mergeWithSettingsTasks(selected.tasks);
@@ -340,8 +363,38 @@ const InstallationPage = () => {
   }, [logs]);
 
   // New installation creation uses settings tasks as template
-  const [newForm, setNewForm] = useState({ department:'', technicianId:'', technicianName:'', customerName:'', siteAddress:'', scheduledDate:'', notes:'' });
+  const [newForm, setNewForm] = useState({ department:'', technicianId:'', technicianName:'', customerName:'', site:'', scheduledDate:'', notes:'', projectId:'' });
+  const [editForm, setEditForm] = useState(null);
+  const [showEdit, setShowEdit] = useState(false);
   const [selectedDept, setSelectedDept] = useState('');
+  
+  // Fetch pending installations for dropdown
+  const { data: pendingInstallations=[] } = useQuery({
+    queryKey: ['installations', 'pending'],
+    queryFn: async () => { 
+      try {
+        const r = await apiClient.get('/installations?status=Pending'); 
+        console.log('Installations API raw response:', r);
+        
+        // Handle different response structures
+        let instList = [];
+        if (Array.isArray(r)) {
+          instList = r;
+        } else if (r?.data) {
+          instList = r.data;
+        } else if (typeof r === 'object' && r !== null) {
+          instList = r.data || [];
+        }
+        
+        console.log('Pending installations:', instList);
+        return instList;
+      } catch(err) {
+        console.error('Installations fetch error:', err);
+        return [];
+      }
+    },
+    enabled: showAdd
+  });
   
   // Fetch employees from HRM
   const { data: employees=[] } = useQuery({
@@ -377,10 +430,14 @@ const InstallationPage = () => {
     console.log('Employee count:', employees.length);
     if (employees.length > 0) {
       console.log('First employee:', employees[0]);
+      console.log('First employee keys:', Object.keys(employees[0]));
       console.log('First employee department:', employees[0].department);
+      // Check for alternative field names
+      console.log('dept:', employees[0].dept);
+      console.log('departmentId:', employees[0].departmentId);
+      console.log('departmentName:', employees[0].departmentName);
     }
     const depts = [...new Set(employees.map(e => {
-      console.log('Employee:', e.name || e.firstName, 'Department:', e.department);
       return e.department;
     }).filter(Boolean))];
     console.log('Unique departments found:', depts);
@@ -404,7 +461,7 @@ const InstallationPage = () => {
 
   return (
     <div className="space-y-5 animate-fade-in">
-      <PageHeader title="Installation" subtitle="Site installation logs, checklist and photos" tabs={[{id:'kanban',label:'Kanban',icon:LayoutGrid},{id:'table',label:'Table',icon:List},{id:'calendar',label:'Calendar',icon:CalendarDays}]} activeTab={view} onTabChange={setView} actions={[{ type:'button', label:'New Log', icon:Plus, variant:'primary', onClick:() => setShowAdd(true)}]} />
+      <PageHeader title="Installation" subtitle="Site installation logs, checklist and photos" tabs={[{id:'kanban',label:'Kanban',icon:LayoutGrid},{id:'table',label:'Table',icon:List},{id:'calendar',label:'Calendar',icon:CalendarDays}]} activeTab={view} onTabChange={setView} actions={can('installation','create') ? [{ type: 'button', label: 'Assign', icon: Plus, variant: 'primary', onClick: () => setShowAdd(true) }] : []} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KPICard title="Total Active Installations" value={active} icon={Wrench} sub="currently in progress" color="amber" />
@@ -418,7 +475,7 @@ const InstallationPage = () => {
       </div>
 
       {view === 'kanban' && (
-        <InstallKanbanBoard items={logs} onCardClick={setSelected} onDrop={handleMove} />
+        <InstallKanbanBoard items={logs} onCardClick={setSelected} onDrop={handleMove} canEdit={can('installation', 'edit')} />
       )}
 
       {view === 'table' && (
@@ -452,9 +509,26 @@ const InstallationPage = () => {
       )}
 
       {/* New Log Modal */}
-      <Modal open={showAdd} onClose={()=>{setShowAdd(false); setSelectedDept('');}} title="New Installation Log" footer={<div className="flex gap-2 justify-end"><Button variant="ghost" onClick={()=>{setShowAdd(false); setSelectedDept('');}}>Cancel</Button><Button onClick={createInstallation}><Plus size={12} /> Create</Button></div>}>
+      <Modal open={showAdd} onClose={()=>{setShowAdd(false); setSelectedDept('');}} title="Assign Installation" footer={<div className="flex gap-2 justify-end"><Button variant="ghost" onClick={()=>{setShowAdd(false); setSelectedDept('');}}>Cancel</Button><Button onClick={createInstallation} disabled={!newForm.technicianId}><Plus size={12} /> Assign</Button></div>}>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-2">
+            {/* Pending Installation Dropdown */}
+            <select 
+              className="w-full px-3 py-2 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-base)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)] col-span-2"
+              value={newForm.installationId}
+              onChange={e=>{
+                const inst = pendingInstallations.find(i => (i._id || i.id) === e.target.value);
+                setNewForm(p=>({...p, installationId: e.target.value, customerName: inst?.customerName || '', site: inst?.site || ''}));
+              }}
+            >
+              <option value="">{pendingInstallations.length > 0 ? 'Select Pending Installation' : 'No Pending Installations'}</option>
+              {pendingInstallations.map(inst => (
+                <option key={inst._id || inst.id} value={inst._id || inst.id}>
+                  {inst.customerName || 'Unknown'} - {inst.site || 'No Site'}
+                </option>
+              ))}
+            </select>
+            
             {/* Department Dropdown */}
             <select 
               className="w-full px-3 py-2 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-base)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)]"
@@ -464,7 +538,7 @@ const InstallationPage = () => {
                 setNewForm(p=>({...p, department: e.target.value, technicianId:'', technicianName:''}));
               }}
             >
-              <option value="">Select Department</option>
+              <option value="">{departments.length > 0 ? 'Select Department' : 'No Departments Available'}</option>
               {departments.map(dept => (
                 <option key={dept} value={dept}>{dept}</option>
               ))}
@@ -488,8 +562,7 @@ const InstallationPage = () => {
               ))}
             </select>
             
-            <Input placeholder="Customer Name" value={newForm.customerName} onChange={e=>setNewForm(p=>({...p,customerName:e.target.value}))} />
-            <Input placeholder="Site Address" value={newForm.siteAddress} onChange={e=>setNewForm(p=>({...p,siteAddress:e.target.value}))} />
+            <Input placeholder="Site Address" value={newForm.site} onChange={e=>setNewForm(p=>({...p,site:e.target.value}))} />
             <Input type="date" placeholder="Start Date" value={newForm.scheduledDate} onChange={e=>setNewForm(p=>({...p,scheduledDate:e.target.value}))} />
             <Input placeholder="Notes (Optional)" value={newForm.notes} onChange={e=>setNewForm(p=>({...p,notes:e.target.value}))} />
           </div>
@@ -506,7 +579,14 @@ const InstallationPage = () => {
 
       {/* Detail Modal */}
       {selected && (
-        <Modal open={!!selected} onClose={()=>setSelected(null)} title={`Installation — ${selected.installationId || selected.id}`} footer={<div className="flex gap-2 justify-end"><Button variant="ghost" onClick={()=>setSelected(null)}>Close</Button></div>}>
+        <Modal open={!!selected} onClose={()=>setSelected(null)} title={`Installation — ${selected.installationId || selected.id}`} footer={
+          <div className="flex gap-2 justify-end">
+            <CanEdit module="installation">
+              <Button variant="primary" onClick={()=>{setEditForm(selected); setShowEdit(true);}}><Edit size={14} /> Edit</Button>
+            </CanEdit>
+            <Button variant="ghost" onClick={()=>setSelected(null)}>Close</Button>
+          </div>
+        }>
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div className="glass-card p-2"><div className="text-[var(--text-muted)]">Installation ID</div><div className="font-semibold">{selected.installationId || selected.id}</div></div>
@@ -518,15 +598,30 @@ const InstallationPage = () => {
             <div>
               <div className="text-xs font-semibold">Task Checklist</div>
               <div className="space-y-2 mt-2">
-                {(mergeWithSettingsTasks(selected.tasks) || []).map((t,i)=> (
+                {(mergeWithSettingsTasks(selected.tasks) || []).map((t,i)=> {
+                  // Technician or assigned user can update tasks even without edit permission
+                  const isTechnicianByRole = user?.role?.toLowerCase() === 'technician';
+                  const isAssignedUser = selected.technicianId === user?.id || 
+                                         selected.technicianId === user?._id ||
+                                         selected.assignedTo === user?.id ||
+                                         selected.assignedTo === user?._id;
+                  const canUpdateTask = can('installation','edit') || isTechnicianByRole || isAssignedUser;
+                  
+                  return (
                   <div key={i} className="flex items-center justify-between py-2 border-b border-[var(--border-base)]">
                     <div className="flex items-center gap-3">
-                      <div 
-                        onClick={()=>handleToggleTask(i)}
-                        className={`w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer ${t.done?'bg-emerald-500 border-emerald-500':'border-[var(--border-base)]'}`}
-                      >
-                        {t.done && <CheckCircle size={14} className="text-white" />}
-                      </div>
+                      {canUpdateTask ? (
+                        <div 
+                          onClick={()=>handleToggleTask(i)}
+                          className={`w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer ${t.done?'bg-emerald-500 border-emerald-500':'border-[var(--border-base)]'}`}
+                        >
+                          {t.done && <CheckCircle size={14} className="text-white" />}
+                        </div>
+                      ) : (
+                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${t.done?'bg-emerald-500 border-emerald-500':'border-[var(--border-base)]'}`}>
+                          {t.done && <CheckCircle size={14} className="text-white" />}
+                        </div>
+                      )}
                       <span className={`text-sm ${t.done?'text-[var(--text-muted)] line-through':''}`}>{t.name}</span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -536,7 +631,7 @@ const InstallationPage = () => {
                       </label>
                     </div>
                   </div>
-                ))}
+                )})}
               </div>
             </div>
 
@@ -551,6 +646,121 @@ const InstallationPage = () => {
                 {(selected.events||[]).slice().sort((a,b)=> new Date(b.timestamp||0)-new Date(a.timestamp||0)).map((e,i)=>(<div key={i} className="glass-card p-2"><div className="flex justify-between"><div>{e.eventType}</div><div className="text-[10px] text-[var(--text-muted)]">{e.timestamp?new Date(e.timestamp).toLocaleString():'-'}</div></div>{e.metadata && <pre className="text-xs mt-1">{JSON.stringify(e.metadata)}</pre>}</div>))}
               </div>
             </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Edit Installation Modal */}
+      {showEdit && editForm && (
+        <Modal 
+          open={showEdit} 
+          onClose={()=>{setShowEdit(false); setEditForm(null);}} 
+          title="Edit Installation"
+          footer={
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" onClick={()=>{setShowEdit(false); setEditForm(null);}}>Cancel</Button>
+              <Button variant="primary" onClick={async ()=>{
+                try {
+                  // Clean up data - remove empty strings for optional ObjectId fields
+                  const cleanData = { ...editForm };
+                  if (!cleanData.dispatchId) delete cleanData.dispatchId;
+                  if (!cleanData.technicianId) delete cleanData.technicianId;
+                  if (!cleanData.supervisorId) delete cleanData.supervisorId;
+                  if (!cleanData.assignedTo) delete cleanData.assignedTo;
+                  await apiClient.patch(`/installations/${editForm._id || editForm.id}`, cleanData);
+                  toast.success('Installation updated');
+                  setShowEdit(false);
+                  setEditForm(null);
+                  refetch();
+                } catch (err) {
+                  toast.error(err.message || 'Update failed');
+                }
+              }}>Save Changes</Button>
+            </div>
+          }
+        >
+          <div className="space-y-3">
+            {/* Department & Technician */}
+            <div className="grid grid-cols-2 gap-2">
+              <select
+                className="w-full px-3 py-2 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-base)] text-sm text-[var(--text-primary)]"
+                value={editForm.department || ''}
+                onChange={e=>setEditForm(p=>({...p, department: e.target.value, technicianId: '', technicianName: ''}))}
+              >
+                <option value="">Select Department</option>
+                {[...new Set((employees || []).map(e => e.department).filter(Boolean))].map(dept => (
+                  <option key={dept} value={dept}>{dept}</option>
+                ))}
+              </select>
+              <select
+                className="w-full px-3 py-2 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-base)] text-sm text-[var(--text-primary)]"
+                value={editForm.technicianId || ''}
+                onChange={e=>{
+                  const emp = employees.find(x => (x._id || x.id) === e.target.value);
+                  setEditForm(p=>({...p, technicianId: e.target.value, technicianName: emp ? `${emp.firstName} ${emp.lastName}` : ''}));
+                }}
+                disabled={!editForm.department}
+              >
+                <option value="">{editForm.department ? 'Select Technician' : 'Select Department First'}</option>
+                {(employees || []).filter(e => e.department === editForm.department).map(emp => (
+                  <option key={emp._id || emp.id} value={emp._id || emp.id}>{emp.firstName} {emp.lastName}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Site & Status */}
+            <div className="grid grid-cols-2 gap-2">
+              <Input 
+                placeholder="Site Address" 
+                value={editForm.site || editForm.siteAddress || ''} 
+                onChange={e=>setEditForm(p=>({...p, site: e.target.value, siteAddress: e.target.value}))} 
+              />
+              <select
+                className="w-full px-3 py-2 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-base)] text-sm text-[var(--text-primary)]"
+                value={editForm.status || 'Pending'}
+                onChange={e=>setEditForm(p=>({...p, status: e.target.value}))}
+              >
+                {INSTALL_STAGES.map(stage => (
+                  <option key={stage.id} value={stage.id}>{stage.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Tasks Checklist */}
+            <div className="border border-[var(--border-base)] rounded-lg p-3">
+              <div className="text-xs font-semibold mb-2">Tasks Checklist</div>
+              <div className="space-y-2">
+                {(mergeWithSettingsTasks(editForm.tasks) || []).map((t,i)=> (
+                  <div key={i} className="flex items-center justify-between py-1 border-b border-[var(--border-base)] last:border-0">
+                    <div className="flex items-center gap-3">
+                      <div 
+                        onClick={()=>{
+                          const newTasks = [...(editForm.tasks || [])];
+                          const taskIdx = newTasks.findIndex(nt => nt.name === t.name);
+                          if (taskIdx >= 0) {
+                            newTasks[taskIdx] = { ...newTasks[taskIdx], done: !newTasks[taskIdx].done };
+                          } else {
+                            newTasks.push({ name: t.name, photoRequired: t.photoRequired, done: true });
+                          }
+                          setEditForm(p=>({...p, tasks: newTasks}));
+                        }}
+                        className={`w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer ${t.done?'bg-emerald-500 border-emerald-500':'border-[var(--border-base)]'}`}
+                      >
+                        {t.done && <CheckCircle size={14} className="text-white" />}
+                      </div>
+                      <span className={`text-sm ${t.done?'text-[var(--text-muted)] line-through':''}`}>{t.name}</span>
+                    </div>
+                    {t.photoRequired && <span className="text-xs text-[var(--text-muted)]">Photo Required</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <Input 
+              placeholder="Notes (Optional)" 
+              value={editForm.notes || ''} 
+              onChange={e=>setEditForm(p=>({...p, notes: e.target.value}))} 
+            />
           </div>
         </Modal>
       )}

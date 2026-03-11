@@ -73,11 +73,13 @@ export class CustomerSignOffDto {
 }
 
 export class CreateInstallationDto {
+  @IsOptional()
   @IsString()
-  installationId!: string;
+  installationId?: string;
 
-  @IsMongoId()
-  projectId!: string;
+  @IsOptional()
+  @IsString()
+  projectId?: string;
 
   @IsOptional()
   @IsMongoId()
@@ -89,11 +91,13 @@ export class CreateInstallationDto {
   @IsString()
   site!: string;
 
+  @IsOptional()
   @IsMongoId()
-  technicianId!: string;
+  technicianId?: string;
 
+  @IsOptional()
   @IsString()
-  technicianName!: string;
+  technicianName?: string;
 
   @IsOptional()
   @IsMongoId()
