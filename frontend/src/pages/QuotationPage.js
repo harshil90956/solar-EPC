@@ -15,7 +15,7 @@ import { KPICard } from '../components/ui/KPICard';
 import { Progress } from '../components/ui/Progress';
 import DataTable from '../components/ui/DataTable';
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
-import { downloadQuotationPDF } from '../lib/pdfTemplate';
+import { downloadQuotationPDF, download2PagePDF } from '../lib/pdfTemplate';
 
 const fmt = CURRENCY.format;
 
@@ -547,7 +547,12 @@ const QuotationPage = () => {
         footer={
           <>
             <Button variant="secondary" onClick={() => setSelected(null)}>Close</Button>
-            <Button variant="outline" onClick={() => downloadQuotationPDF(selected)}><Download size={13} /> Export PDF</Button>
+            <Button variant="outline" onClick={() => download2PagePDF(selected, `Quotation_2Page_${selected.id}.pdf`)}>
+              <Download size={13} /> 2-Page PDF
+            </Button>
+            <Button variant="outline" onClick={() => downloadQuotationPDF(selected)}>
+              <Download size={13} /> Full PDF
+            </Button>
             {selected?.status !== 'Approved' && selected?.status !== 'Rejected' && (
               <Button variant="outline"><Send size={13} /> Send to Customer</Button>
             )}

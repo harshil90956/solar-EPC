@@ -7,6 +7,7 @@ import { Payment, PaymentDocument } from '../schemas/payment.schema';
 import { Expense, ExpenseDocument } from '../schemas/expense.schema';
 import { Invoice, InvoiceDocument } from '../schemas/invoice.schema';
 import { CreateManualAdjustmentDto } from '../dto/manual-adjustment.dto';
+import { Tenant, TenantDocument } from '../../../core/tenant/schemas/tenant.schema';
 
 @Injectable()
 export class ManualAdjustmentService {
@@ -16,6 +17,7 @@ export class ManualAdjustmentService {
     @InjectModel(Payment.name) private readonly paymentModel: Model<PaymentDocument>,
     @InjectModel(Expense.name) private readonly expenseModel: Model<ExpenseDocument>,
     @InjectModel(Invoice.name) private readonly invoiceModel: Model<InvoiceDocument>,
+    @InjectModel(Tenant.name) private readonly tenantModel: Model<TenantDocument>,
   ) {}
 
   private toObjectId(id: string | undefined): Types.ObjectId | undefined {
@@ -27,6 +29,23 @@ export class ManualAdjustmentService {
     } catch {
       return undefined;
     }
+  }
+
+  /**
+   * Resolves tenantId to a valid ObjectId.
+   * If the string is already a valid ObjectId, uses it directly.
+   * Otherwise treats it as a tenant code and looks up the tenant by code.
+   */
+  private async resolveTenantObjectId(tenantId: string): Promise<Types.ObjectId> {
+    if (Types.ObjectId.isValid(tenantId)) {
+      return new Types.ObjectId(tenantId);
+    }
+    // Treat as tenant code
+    const tenant = await this.tenantModel.findOne({ code: tenantId }).lean();
+    if (!tenant) {
+      throw new BadRequestException(`Tenant not found for code: ${tenantId}`);
+    }
+    return (tenant as any)._id as Types.ObjectId;
   }
 
   async findAll(tenantId: string): Promise<ManualAdjustment[]> {
@@ -143,6 +162,11 @@ export class ManualAdjustmentService {
       throw new BadRequestException('Amount must be greater than 0');
     }
 
+    if (!tenantId) {
+      throw new BadRequestException('Invalid or missing tenantId');
+    }
+    const tenantObjectId = await this.resolveTenantObjectId(tenantId);
+
     const currentBalance = await this.getBalance(tenantId);
     if (dto.type === 'debit' && currentBalance - amount < 0) {
       throw new BadRequestException('Debit would make balance negative');
@@ -151,7 +175,7 @@ export class ManualAdjustmentService {
     const createdByObjectId = userId && Types.ObjectId.isValid(userId) ? new Types.ObjectId(userId) : undefined;
 
     const adjustment = new this.manualAdjustmentModel({
-      tenantId: this.toObjectId(tenantId),
+      tenantId: tenantObjectId,
       type: dto.type,
       category: dto.category,
       amount,
@@ -201,7 +225,7 @@ export class ManualAdjustmentService {
       }
 
       const journalEntryDoc = new this.journalEntryModel({
-        tenantId: this.toObjectId(tenantId),
+        tenantId: tenantObjectId,
         journalEntryId,
         date: new Date(dto.date),
         narration,

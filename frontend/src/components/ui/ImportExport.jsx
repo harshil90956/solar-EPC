@@ -2,19 +2,35 @@
 
 
 import React, { useState } from 'react';
-import { Download, Upload, Check, AlertCircle, ChevronRight, FileText } from 'lucide-react';
+import { Download, Upload, Check, AlertCircle, ChevronRight, FileText, HelpCircle, Info } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Button } from './Button';
 import { Modal } from './Modal';
+import { useQuery } from '@tanstack/react-query';
+import { leadsApi } from '../../services/leadsApi';
 
 const ImportExport = ({ moduleName, fields = [], onImport, onExport, className }) => {
     const [isOpen, setIsOpen] = useState(false);
+    const [showDocModal, setShowDocModal] = useState(false);
     const [step, setStep] = useState(1); // 1: Select/Download, 2: Mapping, 3: Preview/Validate
     const [file, setFile] = useState(null);
     const [mapping, setMapping] = useState({});
     const [parsedData, setParsedData] = useState([]);
     const [validationResults, setValidationResults] = useState({ valid: 0, errors: [] });
     const [isValidating, setIsValidating] = useState(false);
+
+    // Fetch import documentation
+    const { data: docData, isLoading: docLoading } = useQuery({
+        queryKey: ['import-documentation', moduleName],
+        queryFn: async () => {
+            if (moduleName === 'Leads') {
+                const result = await leadsApi.getImportDocumentation();
+                return result.data || result;
+            }
+            return null;
+        },
+        enabled: showDocModal && moduleName === 'Leads',
+    });
 
     const reset = () => {
         setStep(1);
@@ -156,6 +172,17 @@ const ImportExport = ({ moduleName, fields = [], onImport, onExport, className }
             <Button variant="outline" size="sm" onClick={() => onExport?.('csv')}>
                 <Download size={14} /> Export CSV
             </Button>
+            {moduleName === 'Leads' && (
+                <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setShowDocModal(true)}
+                    type="button"
+                    title="View CSV Import Guide"
+                >
+                    <HelpCircle size={14} /> Import Guide
+                </Button>
+            )}
             <Button 
                 variant="outline" 
                 size="sm" 
@@ -291,6 +318,104 @@ const ImportExport = ({ moduleName, fields = [], onImport, onExport, className }
                     )}
                 </div>
             </Modal>
+
+            {/* Import Documentation Modal */}
+            {moduleName === 'Leads' && (
+                <Modal
+                    isOpen={showDocModal}
+                    onClose={() => setShowDocModal(false)}
+                    title="CSV Import Guide"
+                    size="lg"
+                >
+                    <div className="space-y-4">
+                        <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                            <div className="flex items-start gap-3">
+                                <Info className="text-blue-500 mt-0.5" size={20} />
+                                <div>
+                                    <h4 className="font-bold text-[var(--text-primary)] mb-1">Supported CSV Columns</h4>
+                                    <p className="text-xs text-[var(--text-muted)]">
+                                        Use any of the column names below. The system automatically maps variations to the correct fields.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {docLoading ? (
+                            <div className="text-center py-8 text-[var(--text-muted)]">Loading documentation...</div>
+                        ) : docData ? (
+                            <>
+                                <div className="max-h-96 overflow-y-auto space-y-3 pr-2">
+                                    {docData.standardFields.map((field, idx) => (
+                                        <div key={idx} className="p-3 bg-[var(--bg-elevated)] rounded-lg border border-[var(--border-base)]">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <FileText size={14} className="text-[var(--primary)]" />
+                                                        <span className="text-xs font-bold text-[var(--text-primary)]">{field.column}</span>
+                                                    </div>
+                                                    <p className="text-[10px] text-[var(--text-muted)] mb-1">Maps to: <strong>{field.field}</strong></p>
+                                                    <p className="text-xs text-[var(--text-secondary)]">{field.description}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+
+                                    {/* Custom Fields Info */}
+                                    {docData.customFieldSupport && (
+                                        <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                                            <div className="flex items-start gap-3">
+                                                <Check className="text-emerald-500 mt-0.5" size={20} />
+                                                <div className="flex-1">
+                                                    <h4 className="font-bold text-[var(--text-primary)] mb-1">Custom Fields Support</h4>
+                                                    <p className="text-xs text-[var(--text-muted)] mb-2">
+                                                        Any column not listed above will be automatically saved as a custom field.
+                                                    </p>
+                                                    <div className="text-[11px] text-[var(--text-secondary)] space-y-1">
+                                                        <p>Example:</p>
+                                                        <div className="bg-[var(--bg-surface)] p-2 rounded font-mono text-[10px]">
+                                                            CSV Column: "Roof Size"<br />
+                                                            Stored as: customFields.roof_size
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Activity Log Info */}
+                                    {docData.activityLogSupport && (
+                                        <div className="p-4 bg-purple-500/10 border border-purple-500/20 rounded-lg">
+                                            <div className="flex items-start gap-3">
+                                                <HelpCircle className="text-purple-500 mt-0.5" size={20} />
+                                                <div className="flex-1">
+                                                    <h4 className="font-bold text-[var(--text-primary)] mb-1">Activity Logs</h4>
+                                                    <p className="text-xs text-[var(--text-muted)] mb-2">
+                                                        Import activity notes with your leads. Use the pipe symbol (|) to separate multiple entries.
+                                                    </p>
+                                                    <div className="text-[11px] text-[var(--text-secondary)] space-y-1">
+                                                        <p>Example:</p>
+                                                        <div className="bg-[var(--bg-surface)] p-2 rounded font-mono text-[10px]">
+                                                            Activity Log: "Customer called today|Interested in 5kW system|Follow up next week"
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="flex justify-end pt-4">
+                                    <Button onClick={() => setShowDocModal(false)}>Got it!</Button>
+                                </div>
+                            </>
+                        ) : (
+                            <div className="text-center py-8 text-red-400">
+                                Failed to load documentation
+                            </div>
+                        )}
+                    </div>
+                </Modal>
+            )}
         </div>
     );
 };

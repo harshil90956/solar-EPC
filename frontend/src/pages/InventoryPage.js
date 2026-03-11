@@ -1,7 +1,7 @@
 // Solar OS – EPC Edition — InventoryPage.js
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
-  Package, Plus, AlertTriangle, Warehouse, ArrowUp, ArrowDown, Zap, LayoutGrid, List, Edit2, Trash2, Eye, ArrowRightLeft, Scale, Tag, LayoutDashboard, TrendingUp, BarChart2, PieChartIcon, Activity, DollarSign, Target, Layers
+  Package, Plus, AlertTriangle, Warehouse, ArrowUp, ArrowDown, Zap, LayoutGrid, List, Edit2, Trash2, Eye, ArrowRightLeft, Scale, Tag, LayoutDashboard, TrendingUp, BarChart2, PieChartIcon, Activity, DollarSign, Target, Layers, Download
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, Legend, AreaChart, Area } from 'recharts';
 import { StatusBadge } from '../components/ui/Badge';
@@ -22,10 +22,41 @@ const TENANT_ID = 'solarcorp';
 
 const getStockStatus = (item) => {
   const available = (item.stock || 0) - (item.reserved || 0);
+  // Priority: Out of Stock > Low Stock > Reserved > Available
   if (available === 0) return 'out-of-stock';
-  if (available <= (item.minStock || 0)) return 'low-stock';
+  if (available < (item.minStock || 0)) return 'low-stock';
   if ((item.reserved || 0) > 0) return 'reserved';
   return 'available';
+};
+
+// ── Export Helper ─────────────────────────────────────────────────────────────
+const exportToCSV = (data, filename, columns) => {
+  if (!data || data.length === 0) {
+    alert('No data to export');
+    return;
+  }
+  
+  const headers = columns.map(c => c.header).join(',');
+  const rows = data.map(row => 
+    columns.map(col => {
+      const val = row[col.key] ?? '';
+      // Escape values with commas or quotes
+      if (String(val).includes(',') || String(val).includes('"')) {
+        return `"${String(val).replace(/"/g, '""')}"`;
+      }
+      return val;
+    }).join(',')
+  ).join('\n');
+  
+  const csvContent = [headers, rows].join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.setAttribute('href', url);
+  link.setAttribute('download', `${filename}_${new Date().toISOString().split('T')[0]}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 };
 
 // ── Kanban columns ─────────────────────────────────────────────────────────────
@@ -261,7 +292,7 @@ const InventoryPage = () => {
   const [showUnitModal, setShowUnitModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
-  const [editForm, setEditForm] = useState({ name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
+  const [editForm, setEditForm] = useState({ name: '', category: '', unit: '', minStock: '', rate: '', status: '' });
   const [showStockOut, setShowStockOut] = useState(false);
   const [stockOutForm, setStockOutForm] = useState({ itemId: '', quantity: '', projectId: '', issuedDate: '', remarks: '' });
   const [inventory, setInventory] = useState([]);
@@ -283,6 +314,13 @@ const InventoryPage = () => {
   const [showCardsInViews, setShowCardsInViews] = useState(false); // Toggle KPI cards in list/kanban view
   const [showCategoryCards, setShowCategoryCards] = useState(true); // Toggle cards in Category tab
   const [showUnitCards, setShowUnitCards] = useState(true); // Toggle cards in Unit tab
+
+  // Bulk selection states for all tables
+  const [selectedInventoryItems, setSelectedInventoryItems] = useState(new Set());
+  const [selectedWarehouses, setSelectedWarehouses] = useState(new Set());
+  const [selectedItems, setSelectedItems] = useState(new Set());
+  const [selectedCategories, setSelectedCategories] = useState(new Set());
+  const [selectedUnits, setSelectedUnits] = useState(new Set());
 
   // Pagination and search states for different tables
   // Warehouse table
@@ -661,11 +699,14 @@ const InventoryPage = () => {
   const dynamicStats = useMemo(() => {
     const totalItems = inventory.length;
     const totalValue = inventory.reduce((a, i) => a + (i.stock || 0) * (i.rate || 0), 0);
-    const lowStockItems = inventory.filter(i => ((i.stock || 0) - (i.reserved || 0)) <= (i.minStock || 0) && ((i.stock || 0) - (i.reserved || 0)) > 0).length;
-    const outOfStockItems = inventory.filter(i => (i.stock || 0) === 0).length;
-    const reservedItems = inventory.reduce((a, i) => a + (i.reserved || 0), 0);
+    
+    // Use getStockStatus logic to match Kanban columns exactly
+    const lowStockItems = inventory.filter(i => getStockStatus(i) === 'low-stock').length;
+    const outOfStockItems = inventory.filter(i => getStockStatus(i) === 'out-of-stock').length;
+    const reservedItems = inventory.filter(i => getStockStatus(i) === 'reserved').length;
+    const availableItems = inventory.filter(i => getStockStatus(i) === 'available').length;
 
-    return { totalItems, totalValue, lowStockItems, outOfStockItems, reservedItems };
+    return { totalItems, totalValue, lowStockItems, outOfStockItems, reservedItems, availableItems };
   }, [inventory]);
 
   const warehouseItems = useMemo(() => {
@@ -852,7 +893,6 @@ const InventoryPage = () => {
         unit: editForm.unit,
         minStock: parseInt(editForm.minStock) || 0,
         rate: parseFloat(editForm.rate) || 0,
-        warehouse: editForm.warehouse,
         status: editForm.status || undefined
       };
 
@@ -872,7 +912,7 @@ const InventoryPage = () => {
       setInventory(prev => prev.map(i => i.itemId === editingItem.itemId ? transformedItem : i));
       setShowEdit(false);
       setEditingItem(null);
-      setEditForm({ name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
+      setEditForm({ name: '', category: '', unit: '', minStock: '', rate: '', status: '' });
       alert('Item updated successfully!');
     } catch (err) {
       alert(err.message || 'Failed to update item. Please try again.');
@@ -1786,13 +1826,46 @@ const InventoryPage = () => {
 
           {view === 'table' ? (
             <>
-              <div className="flex flex-wrap gap-2 items-center">
-                <span className="text-xs text-[var(--text-muted)] mr-1">Category:</span>
-                {CATEGORY_FILTERS.map(c => (
-                  <button key={c} onClick={() => { setCatFilter(c); setPage(1); }}
-                    className={`filter-chip ${catFilter === c ? 'filter-chip-active' : ''}`}>{c}</button>
-                ))}
-                <div className="ml-auto">
+              <div className="flex flex-wrap gap-2 items-center justify-between">
+                <div className="flex flex-wrap gap-2 items-center">
+                  <span className="text-xs text-[var(--text-muted)] mr-1">Category:</span>
+                  {CATEGORY_FILTERS.map(c => (
+                    <button key={c} onClick={() => { setCatFilter(c); setPage(1); }}
+                      className={`filter-chip ${catFilter === c ? 'filter-chip-active' : ''}`}>{c}</button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => exportToCSV(
+                    filtered.map(item => ({
+                      itemId: item.itemId,
+                      name: item.name || item.description,
+                      category: item.category,
+                      warehouse: item.warehouse || '',
+                      unit: item.unit,
+                      rate: item.rate,
+                      stock: item.stock,
+                      reserved: item.reserved,
+                      minStock: item.minStock,
+                      available: (item.stock || 0) - (item.reserved || 0),
+                      status: getStockStatus(item)
+                    })),
+                    'inventory',
+                    [
+                      { key: 'itemId', header: 'Item ID' },
+                      { key: 'name', header: 'Item Name' },
+                      { key: 'category', header: 'Category' },
+                      { key: 'warehouse', header: 'Warehouse' },
+                      { key: 'unit', header: 'Unit' },
+                      { key: 'rate', header: 'Rate (₹)' },
+                      { key: 'stock', header: 'Total Stock' },
+                      { key: 'reserved', header: 'Reserved' },
+                      { key: 'minStock', header: 'Min Stock' },
+                      { key: 'available', header: 'Available' },
+                      { key: 'status', header: 'Status' }
+                    ]
+                  )}>
+                    <Download size={14} /> Export
+                  </Button>
                   <Input placeholder="Search inventory…" value={search}
                     onChange={e => { setSearch(e.target.value); setPage(1); }} className="h-8 text-xs w-52" />
                 </div>
@@ -1802,7 +1875,65 @@ const InventoryPage = () => {
                 onPageSizeChange={s => { setPageSize(s); setPage(1); }}
                 search={search} onSearch={v => { setSearch(v); setPage(1); }}
                 rowActions={ROW_ACTIONS} emptyText="No inventory items found."
-                onRowClick={setSelected} />
+                onRowClick={setSelected}
+                selectedRows={selectedInventoryItems}
+                onSelectRows={setSelectedInventoryItems}
+                rowKey="_id"
+                bulkActions={[
+                  {
+                    label: 'Export Selected',
+                    icon: Download,
+                    onClick: (selectedIds) => {
+                      const selectedData = filtered.filter(i => selectedIds.has(i._id));
+                      const dataToExport = selectedData.map(item => ({
+                        itemId: item.itemId,
+                        name: item.name || item.description,
+                        category: item.category,
+                        warehouse: item.warehouse || '',
+                        unit: item.unit,
+                        rate: item.rate,
+                        stock: item.stock,
+                        reserved: item.reserved,
+                        minStock: item.minStock,
+                        available: (item.stock || 0) - (item.reserved || 0),
+                        status: getStockStatus(item)
+                      }));
+                      const columns = [
+                        { key: 'itemId', header: 'Item ID' },
+                        { key: 'name', header: 'Item Name' },
+                        { key: 'category', header: 'Category' },
+                        { key: 'warehouse', header: 'Warehouse' },
+                        { key: 'unit', header: 'Unit' },
+                        { key: 'rate', header: 'Rate (₹)' },
+                        { key: 'stock', header: 'Total Stock' },
+                        { key: 'reserved', header: 'Reserved' },
+                        { key: 'minStock', header: 'Min Stock' },
+                        { key: 'available', header: 'Available' },
+                        { key: 'status', header: 'Status' }
+                      ];
+                      const headers = columns.map(c => c.header).join(',');
+                      const rows = dataToExport.map(row =>
+                        columns.map(col => {
+                          const val = row[col.key] ?? '';
+                          if (String(val).includes(',') || String(val).includes('"')) {
+                            return `"${String(val).replace(/"/g, '""')}"`;
+                          }
+                          return val;
+                        }).join(',')
+                      ).join('\n');
+                      const csvContent = [headers, rows].join('\n');
+                      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                      const link = document.createElement('a');
+                      const url = URL.createObjectURL(blob);
+                      link.setAttribute('href', url);
+                      link.setAttribute('download', `inventory_selected_${new Date().toISOString().split('T')[0]}.csv`);
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                      setSelectedInventoryItems(new Set());
+                    }
+                  }
+                ]} />
             </>
           ) : (
             <>
@@ -1847,15 +1978,87 @@ const InventoryPage = () => {
                 {warehouses.filter(w => w.toLowerCase().includes(warehouseSearch.toLowerCase())).length} warehouses
               </span>
             </div>
-            <Button onClick={() => setShowWarehouseModal(true)}>
-              <Plus size={14} /> Add Warehouse
-            </Button>
+            <div className="flex items-center gap-2">
+              {selectedWarehouses.size > 0 && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => {
+                    const selectedData = warehouses.filter(w => selectedWarehouses.has(w)).map(w => ({
+                      warehouse: w,
+                      itemsCount: inventory.filter(i => i.warehouse === w).length
+                    }));
+                    const columns = [{ key: 'warehouse', header: 'Warehouse' }, { key: 'itemsCount', header: 'Items Count' }];
+                    const headers = columns.map(c => c.header).join(',');
+                    const rows = selectedData.map(row =>
+                      columns.map(col => {
+                        const val = row[col.key] ?? '';
+                        if (String(val).includes(',') || String(val).includes('"')) {
+                          return `"${String(val).replace(/"/g, '""')}"`;
+                        }
+                        return val;
+                      }).join(',')
+                    ).join('\n');
+                    const csvContent = [headers, rows].join('\n');
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement('a');
+                    const url = URL.createObjectURL(blob);
+                    link.setAttribute('href', url);
+                    link.setAttribute('download', `warehouses_selected_${new Date().toISOString().split('T')[0]}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    setSelectedWarehouses(new Set());
+                  }}
+                >
+                  <Download size={14} /> Export Selected ({selectedWarehouses.size})
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={() => exportToCSV(
+                warehouses.filter(w => w.toLowerCase().includes(warehouseSearch.toLowerCase())).map(w => ({ 
+                  warehouse: w, 
+                  itemsCount: inventory.filter(i => i.warehouse === w).length 
+                })),
+                'warehouses',
+                [{ key: 'warehouse', header: 'Warehouse' }, { key: 'itemsCount', header: 'Items Count' }]
+              )}>
+                <Download size={14} /> Export All
+              </Button>
+              <Button onClick={() => setShowWarehouseModal(true)}>
+                <Plus size={14} /> Add Warehouse
+              </Button>
+            </div>
           </div>
 
           <div className="glass-card overflow-hidden">
             <table className="w-full text-left">
               <thead>
                 <tr className="border-b border-[var(--border-base)] bg-[var(--bg-elevated)]">
+                  <th className="w-10 px-3 py-3">
+                    <input
+                      type="checkbox"
+                      checked={warehouses.filter(w => w.toLowerCase().includes(warehouseSearch.toLowerCase())).length > 0 && 
+                        warehouses.filter(w => w.toLowerCase().includes(warehouseSearch.toLowerCase())).every(w => selectedWarehouses.has(w))}
+                      onChange={() => {
+                        const filteredWarehouses = warehouses.filter(w => w.toLowerCase().includes(warehouseSearch.toLowerCase()));
+                        const allSelected = filteredWarehouses.every(w => selectedWarehouses.has(w));
+                        if (allSelected) {
+                          setSelectedWarehouses(prev => {
+                            const next = new Set(prev);
+                            filteredWarehouses.forEach(w => next.delete(w));
+                            return next;
+                          });
+                        } else {
+                          setSelectedWarehouses(prev => {
+                            const next = new Set(prev);
+                            filteredWarehouses.forEach(w => next.add(w));
+                            return next;
+                          });
+                        }
+                      }}
+                      className="w-3.5 h-3.5 accent-[var(--primary)] cursor-pointer"
+                    />
+                  </th>
                   <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Warehouse</th>
                   <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Items</th>
                   <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase text-right">Actions</th>
@@ -1874,7 +2077,7 @@ const InventoryPage = () => {
                   if (warehouses.length === 0) {
                     return (
                       <tr>
-                        <td colSpan={3} className="px-4 py-8 text-center text-[var(--text-muted)]">No warehouses</td>
+                        <td colSpan={4} className="px-4 py-8 text-center text-[var(--text-muted)]">No warehouses</td>
                       </tr>
                     );
                   }
@@ -1882,7 +2085,7 @@ const InventoryPage = () => {
                   if (paginatedWarehouses.length === 0) {
                     return (
                       <tr>
-                        <td colSpan={3} className="px-4 py-8 text-center text-[var(--text-muted)]">No warehouses found</td>
+                        <td colSpan={4} className="px-4 py-8 text-center text-[var(--text-muted)]">No warehouses found</td>
                       </tr>
                     );
                   }
@@ -1893,6 +2096,21 @@ const InventoryPage = () => {
                       className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)] cursor-pointer"
                       onClick={() => setViewingWarehouse(w)}
                     >
+                      <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedWarehouses.has(w)}
+                          onChange={() => {
+                            setSelectedWarehouses(prev => {
+                              const next = new Set(prev);
+                              if (next.has(w)) next.delete(w);
+                              else next.add(w);
+                              return next;
+                            });
+                          }}
+                          className="w-3.5 h-3.5 accent-[var(--primary)] cursor-pointer"
+                        />
+                      </td>
                       <td className="px-4 py-3">
                         <span className="text-sm font-medium text-[var(--text-primary)]">{w}</span>
                       </td>
@@ -1983,6 +2201,89 @@ const InventoryPage = () => {
               </span>
             </div>
             <div className="flex gap-2">
+              {selectedItems.size > 0 && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => {
+                    const selectedData = inventory.filter(item => selectedItems.has(item._id || item.itemId));
+                    const dataToExport = selectedData.map(item => ({
+                      itemId: item.itemId,
+                      name: item.name || item.description,
+                      category: item.category,
+                      warehouse: item.warehouse || '',
+                      unit: item.unit,
+                      rate: item.rate,
+                      stock: item.stock,
+                      reserved: item.reserved,
+                      minStock: item.minStock
+                    }));
+                    const columns = [
+                      { key: 'itemId', header: 'Item ID' },
+                      { key: 'name', header: 'Description' },
+                      { key: 'category', header: 'Category' },
+                      { key: 'warehouse', header: 'Warehouse' },
+                      { key: 'unit', header: 'Unit' },
+                      { key: 'rate', header: 'Rate (₹)' },
+                      { key: 'stock', header: 'Stock' },
+                      { key: 'reserved', header: 'Reserved' },
+                      { key: 'minStock', header: 'Min Stock' }
+                    ];
+                    const headers = columns.map(c => c.header).join(',');
+                    const rows = dataToExport.map(row =>
+                      columns.map(col => {
+                        const val = row[col.key] ?? '';
+                        if (String(val).includes(',') || String(val).includes('"')) {
+                          return `"${String(val).replace(/"/g, '""')}"`;
+                        }
+                        return val;
+                      }).join(',')
+                    ).join('\n');
+                    const csvContent = [headers, rows].join('\n');
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement('a');
+                    const url = URL.createObjectURL(blob);
+                    link.setAttribute('href', url);
+                    link.setAttribute('download', `items_selected_${new Date().toISOString().split('T')[0]}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    setSelectedItems(new Set());
+                  }}
+                >
+                  <Download size={14} /> Export Selected ({selectedItems.size})
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={() => exportToCSV(
+                inventory
+                  .filter(item => item.name?.toLowerCase().includes(search.toLowerCase()) ||
+                    item.itemId?.toLowerCase().includes(search.toLowerCase()))
+                  .map(item => ({
+                    itemId: item.itemId,
+                    name: item.name || item.description,
+                    category: item.category,
+                    warehouse: item.warehouse || '',
+                    unit: item.unit,
+                    rate: item.rate,
+                    stock: item.stock,
+                    reserved: item.reserved,
+                    minStock: item.minStock
+                  })),
+                'items',
+                [
+                  { key: 'itemId', header: 'Item ID' },
+                  { key: 'name', header: 'Description' },
+                  { key: 'category', header: 'Category' },
+                  { key: 'warehouse', header: 'Warehouse' },
+                  { key: 'unit', header: 'Unit' },
+                  { key: 'rate', header: 'Rate (₹)' },
+                  { key: 'stock', header: 'Stock' },
+                  { key: 'reserved', header: 'Reserved' },
+                  { key: 'minStock', header: 'Min Stock' }
+                ]
+              )}>
+                <Download size={14} /> Export All
+              </Button>
               <Button variant="outline" onClick={() => setShowAdd(true)}>
                 <Plus size={14} /> Add Item
               </Button>
@@ -1994,6 +2295,35 @@ const InventoryPage = () => {
             <table className="w-full text-left">
               <thead>
                 <tr className="border-b border-[var(--border-base)] bg-[var(--bg-elevated)]">
+                  <th className="w-10 px-3 py-3">
+                    <input
+                      type="checkbox"
+                      checked={inventory.filter(item => item.name?.toLowerCase().includes(search.toLowerCase()) ||
+                        item.itemId?.toLowerCase().includes(search.toLowerCase())).length > 0 &&
+                        inventory.filter(item => item.name?.toLowerCase().includes(search.toLowerCase()) ||
+                          item.itemId?.toLowerCase().includes(search.toLowerCase()))
+                          .every(item => selectedItems.has(item._id || item.itemId))}
+                      onChange={() => {
+                        const filteredItems = inventory.filter(item => item.name?.toLowerCase().includes(search.toLowerCase()) ||
+                          item.itemId?.toLowerCase().includes(search.toLowerCase()));
+                        const allSelected = filteredItems.every(item => selectedItems.has(item._id || item.itemId));
+                        if (allSelected) {
+                          setSelectedItems(prev => {
+                            const next = new Set(prev);
+                            filteredItems.forEach(item => next.delete(item._id || item.itemId));
+                            return next;
+                          });
+                        } else {
+                          setSelectedItems(prev => {
+                            const next = new Set(prev);
+                            filteredItems.forEach(item => next.add(item._id || item.itemId));
+                            return next;
+                          });
+                        }
+                      }}
+                      className="w-3.5 h-3.5 accent-[var(--primary)] cursor-pointer"
+                    />
+                  </th>
                   <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Item ID</th>
                   <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Description</th>
                   <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Category</th>
@@ -2006,7 +2336,7 @@ const InventoryPage = () => {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-[var(--text-muted)]">
+                    <td colSpan={8} className="px-4 py-8 text-center text-[var(--text-muted)]">
                       <div className="flex items-center justify-center gap-2">
                         <div className="w-4 h-4 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
                         Loading items...
@@ -2015,7 +2345,7 @@ const InventoryPage = () => {
                   </tr>
                 ) : inventory.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-[var(--text-muted)]">
+                    <td colSpan={8} className="px-4 py-8 text-center text-[var(--text-muted)]">
                       <Package size={32} className="mx-auto mb-2 text-[var(--text-faint)]" />
                       <p>No items found</p>
                     </td>
@@ -2028,6 +2358,22 @@ const InventoryPage = () => {
                       <tr key={item._id || item.itemId}
                         onClick={() => setSelected(item)}
                         className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)] cursor-pointer">
+                        <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selectedItems.has(item._id || item.itemId)}
+                            onChange={() => {
+                              setSelectedItems(prev => {
+                                const next = new Set(prev);
+                                const id = item._id || item.itemId;
+                                if (next.has(id)) next.delete(id);
+                                else next.add(id);
+                                return next;
+                              });
+                            }}
+                            className="w-3.5 h-3.5 accent-[var(--primary)] cursor-pointer"
+                          />
+                        </td>
                         <td className="px-4 py-3">
                           <span className="text-xs font-mono text-[var(--accent-light)]">{item.itemId}</span>
                         </td>
@@ -2036,6 +2382,9 @@ const InventoryPage = () => {
                         </td>
                         <td className="px-4 py-3">
                           <span className="text-xs text-[var(--text-secondary)]">{item.category}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs text-[var(--text-secondary)]">{item.warehouse || '—'}</span>
                         </td>
                         <td className="px-4 py-3">
                           <span className="text-xs text-[var(--text-secondary)]">{item.unit}</span>
@@ -2127,6 +2476,51 @@ const InventoryPage = () => {
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500"><rect width="7" height="9" x="3" y="3" rx="1" /><rect width="7" height="5" x="14" y="3" rx="1" /><rect width="7" height="9" x="14" y="12" rx="1" /><rect width="7" height="5" x="3" y="16" rx="1" /></svg>
                 {showCategoryCards ? 'Hide Cards' : 'Show Cards'}
               </button>
+              {selectedCategories.size > 0 && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => {
+                    const selectedData = categories.filter(cat => selectedCategories.has(cat)).map(cat => ({
+                      category: cat,
+                      itemsCount: inventory.filter(i => i.category === cat).length
+                    }));
+                    const columns = [{ key: 'category', header: 'Category Name' }, { key: 'itemsCount', header: 'Items Count' }];
+                    const headers = columns.map(c => c.header).join(',');
+                    const rows = selectedData.map(row =>
+                      columns.map(col => {
+                        const val = row[col.key] ?? '';
+                        if (String(val).includes(',') || String(val).includes('"')) {
+                          return `"${String(val).replace(/"/g, '""')}"`;
+                        }
+                        return val;
+                      }).join(',')
+                    ).join('\n');
+                    const csvContent = [headers, rows].join('\n');
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement('a');
+                    const url = URL.createObjectURL(blob);
+                    link.setAttribute('href', url);
+                    link.setAttribute('download', `categories_selected_${new Date().toISOString().split('T')[0]}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    setSelectedCategories(new Set());
+                  }}
+                >
+                  <Download size={14} /> Export Selected ({selectedCategories.size})
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={() => exportToCSV(
+                categories.map(cat => ({
+                  category: cat,
+                  itemsCount: inventory.filter(i => i.category === cat).length
+                })),
+                'categories',
+                [{ key: 'category', header: 'Category Name' }, { key: 'itemsCount', header: 'Items Count' }]
+              )}>
+                <Download size={14} /> Export All
+              </Button>
               <Button onClick={() => setShowCategoryModal(true)}>
                 <Plus size={14} /> Add Category
               </Button>
@@ -2176,6 +2570,21 @@ const InventoryPage = () => {
               <table className="w-full text-left">
                 <thead>
                   <tr className="border-b border-[var(--border-base)] bg-[var(--bg-elevated)]">
+                    <th className="w-10 px-3 py-3">
+                      <input
+                        type="checkbox"
+                        checked={categories.length > 0 && categories.every(cat => selectedCategories.has(cat))}
+                        onChange={() => {
+                          const allSelected = categories.every(cat => selectedCategories.has(cat));
+                          if (allSelected) {
+                            setSelectedCategories(new Set());
+                          } else {
+                            setSelectedCategories(new Set(categories));
+                          }
+                        }}
+                        className="w-3.5 h-3.5 accent-[var(--primary)] cursor-pointer"
+                      />
+                    </th>
                     <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Category Name</th>
                     <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Items Count</th>
                     <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase text-right">Actions</th>
@@ -2188,6 +2597,21 @@ const InventoryPage = () => {
                       className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)] cursor-pointer"
                       onClick={() => setViewingCategory(cat)}
                     >
+                      <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedCategories.has(cat)}
+                          onChange={() => {
+                            setSelectedCategories(prev => {
+                              const next = new Set(prev);
+                              if (next.has(cat)) next.delete(cat);
+                              else next.add(cat);
+                              return next;
+                            });
+                          }}
+                          className="w-3.5 h-3.5 accent-[var(--primary)] cursor-pointer"
+                        />
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 rounded-lg bg-[var(--bg-elevated)] flex items-center justify-center">
@@ -2250,6 +2674,51 @@ const InventoryPage = () => {
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500"><rect width="7" height="9" x="3" y="3" rx="1" /><rect width="7" height="5" x="14" y="3" rx="1" /><rect width="7" height="9" x="14" y="12" rx="1" /><rect width="7" height="5" x="3" y="16" rx="1" /></svg>
                 {showUnitCards ? 'Hide Cards' : 'Show Cards'}
               </button>
+              {selectedUnits.size > 0 && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => {
+                    const selectedData = units.filter(unit => selectedUnits.has(unit)).map(unit => ({
+                      unit: unit,
+                      itemsCount: inventory.filter(i => i.unit === unit).length
+                    }));
+                    const columns = [{ key: 'unit', header: 'Unit Name' }, { key: 'itemsCount', header: 'Items Count' }];
+                    const headers = columns.map(c => c.header).join(',');
+                    const rows = selectedData.map(row =>
+                      columns.map(col => {
+                        const val = row[col.key] ?? '';
+                        if (String(val).includes(',') || String(val).includes('"')) {
+                          return `"${String(val).replace(/"/g, '""')}"`;
+                        }
+                        return val;
+                      }).join(',')
+                    ).join('\n');
+                    const csvContent = [headers, rows].join('\n');
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement('a');
+                    const url = URL.createObjectURL(blob);
+                    link.setAttribute('href', url);
+                    link.setAttribute('download', `units_selected_${new Date().toISOString().split('T')[0]}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    setSelectedUnits(new Set());
+                  }}
+                >
+                  <Download size={14} /> Export Selected ({selectedUnits.size})
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={() => exportToCSV(
+                units.map(unit => ({
+                  unit: unit,
+                  itemsCount: inventory.filter(i => i.unit === unit).length
+                })),
+                'units',
+                [{ key: 'unit', header: 'Unit Name' }, { key: 'itemsCount', header: 'Items Count' }]
+              )}>
+                <Download size={14} /> Export All
+              </Button>
               <Button onClick={() => setShowUnitModal(true)}>
                 <Plus size={14} /> Add Unit
               </Button>
@@ -2299,6 +2768,21 @@ const InventoryPage = () => {
               <table className="w-full text-left">
                 <thead>
                   <tr className="border-b border-[var(--border-base)] bg-[var(--bg-elevated)]">
+                    <th className="w-10 px-3 py-3">
+                      <input
+                        type="checkbox"
+                        checked={units.length > 0 && units.every(unit => selectedUnits.has(unit))}
+                        onChange={() => {
+                          const allSelected = units.every(unit => selectedUnits.has(unit));
+                          if (allSelected) {
+                            setSelectedUnits(new Set());
+                          } else {
+                            setSelectedUnits(new Set(units));
+                          }
+                        }}
+                        className="w-3.5 h-3.5 accent-[var(--primary)] cursor-pointer"
+                      />
+                    </th>
                     <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Unit Name</th>
                     <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Items Count</th>
                     <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase text-right">Actions</th>
@@ -2311,6 +2795,21 @@ const InventoryPage = () => {
                       className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)] cursor-pointer"
                       onClick={() => setViewingUnit(unit)}
                     >
+                      <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedUnits.has(unit)}
+                          onChange={() => {
+                            setSelectedUnits(prev => {
+                              const next = new Set(prev);
+                              if (next.has(unit)) next.delete(unit);
+                              else next.add(unit);
+                              return next;
+                            });
+                          }}
+                          className="w-3.5 h-3.5 accent-[var(--primary)] cursor-pointer"
+                        />
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 rounded-lg bg-[var(--bg-elevated)] flex items-center justify-center">
@@ -2578,7 +3077,7 @@ const InventoryPage = () => {
       <Modal open={showEdit} onClose={() => setShowEdit(false)} title={`Edit Item — ${editingItem?.itemId}`}
         footer={<div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={() => setShowEdit(false)}>Cancel</Button>
-          <Button onClick={handleUpdateItem} disabled={submitting || !editForm.name || !editForm.category || !editForm.warehouse}>
+          <Button onClick={handleUpdateItem} disabled={submitting || !editForm.name || !editForm.category}>
             {submitting ? 'Saving...' : 'Save Changes'}
           </Button>
         </div>}>
@@ -2591,12 +3090,6 @@ const InventoryPage = () => {
                 <option value="Reserved">Reserved</option>
                 <option value="Low Stock">Low Stock</option>
                 <option value="Out of Stock">Out of Stock</option>
-              </Select>
-            </FormField>
-            <FormField label="Warehouse">
-              <Select value={editForm.warehouse} onChange={e => setEditForm(f => ({ ...f, warehouse: e.target.value }))}>
-                <option value="">Select Warehouse</option>
-                {warehouses.map(w => <option key={w}>{w}</option>)}
               </Select>
             </FormField>
           </div>

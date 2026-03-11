@@ -9,19 +9,14 @@ import {
   Param,
   Query,
   UseGuards,
-  UseInterceptors,
   Request,
   HttpCode,
   HttpStatus,
   Logger,
   BadRequestException,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { memoryStorage } from 'multer';
 import { extname, join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
-import { createWriteStream } from 'fs';
-import { pipeline } from 'stream/promises';
 import { LeadsService } from '../services/leads.service';
 import { CreateLeadDto, UpdateLeadDto, QueryLeadDto, AddActivityDto, BulkActionDto } from '../dto/lead.dto';
 import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
@@ -471,47 +466,61 @@ export class LeadsController {
     }
   }
 
+  @Get('import/documentation')
+  @HttpCode(HttpStatus.OK)
+  async getImportDocumentation(@Request() req: any) {
+    try {
+      const documentation = await this.leadsService.getImportDocumentation();
+      return { success: true, data: documentation };
+    } catch (error: any) {
+      this.logger.error(`Get import documentation failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
   // ============================================
   // LEAD IMPORT ENDPOINT
   // ============================================
   @Post('import')
   @HttpCode(HttpStatus.OK)
   @RequirePermission('leads', 'create')
-  @UseInterceptors(
-    FileInterceptor('file', {
-      storage: memoryStorage(),
-      limits: { fileSize: 20 * 1024 * 1024 },
-    }),
-  )
   async importLeads(@Request() req: any) {
-    const file = req.file;
-    if (!file) throw new BadRequestException('No file uploaded');
-
-    const allowedExt = ['.csv', '.xlsx', '.xls', '.json'];
-    const ext = extname(file.originalname || '').toLowerCase();
-    if (!allowedExt.includes(ext)) {
-      throw new BadRequestException('Only CSV, XLSX, XLS, or JSON files are allowed');
-    }
-
-    const uploadDir = join(process.cwd(), 'uploads', 'leads');
-    if (!existsSync(uploadDir)) mkdirSync(uploadDir, { recursive: true });
-
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    const storedFileName = `leads-${uniqueSuffix}${ext}`;
-    const storedPath = join(uploadDir, storedFileName);
-
-    // Write file to disk
-    await pipeline(file.buffer, createWriteStream(storedPath));
-
     try {
-      const tenantId = req.tenant?.id;
+      // Use Fastify multipart to get the file
+      const file = await req.file();
+        
+      if (!file) {
+        throw new BadRequestException('No file uploaded');
+      }
+  
+      const allowedExt = ['.csv', '.xlsx', '.xls', '.json'];
+      const ext = extname(file.filename || '').toLowerCase();
+      if (!allowedExt.includes(ext)) {
+        throw new BadRequestException('Only CSV, XLSX, XLS, or JSON files are allowed');
+      }
+  
+      const uploadDir = join(process.cwd(), 'uploads', 'leads');
+      if (!existsSync(uploadDir)) mkdirSync(uploadDir, { recursive: true });
+  
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+      const storedFileName = `leads-${uniqueSuffix}${ext}`;
+      const storedPath = join(uploadDir, storedFileName);
+  
+      // Read file buffer and write to disk
+      const buffer = await file.toBuffer();
+      await require('fs/promises').writeFile(storedPath, buffer);
+  
       const user = req.user;
+      const tenantId = user?.tenantId || req.tenant?.id;
+      if (!tenantId && !(user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin')) {
+        throw new BadRequestException('Tenant context missing');
+      }
       const fileExtension = ext;
-      
-      this.logger.log(`Importing leads from file: ${file.originalname}, tenant: ${tenantId}`);
-      
+        
+      this.logger.log(`Importing leads from file: ${file.filename}, tenant: ${tenantId}`);
+        
       const result = await this.leadsService.importLeads(storedPath, fileExtension, tenantId, user);
-
+  
       return { success: true, data: result };
     } catch (error: any) {
       this.logger.error(`Import leads failed: ${error?.message || 'Unknown error'}`, error?.stack);

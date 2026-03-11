@@ -15,10 +15,10 @@ import {
   Inbox
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { StatusBadge } from './StatusBadge';
-import { Avatar } from './Avatar';
-import { Button } from './Button';
-import { Input } from './Input';
+import { StatusBadge } from '../ui/Badge';
+import { Avatar } from '../ui/Avatar';
+import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
 
 export function SurveyListView({
   surveys,

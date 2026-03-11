@@ -6,9 +6,67 @@ import { Button } from '../components/ui/Button';
 import { Input, FormField, Select } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { toast } from '../components/ui/Toast';
-import { Search, RefreshCw, Plus, TrendingUp } from 'lucide-react';
+import { Search, RefreshCw, Plus, TrendingUp, X, ArrowUp, Calendar, User } from 'lucide-react';
 import { format } from 'date-fns';
 import { incrementApi, employeeApi } from '../services/hrmApi';
+
+// ── Increment Detail View Modal ───────────────────────────────────────────
+const IncrementViewModal = ({ increment, onClose }) => {
+  if (!increment) return null;
+  const emp = increment.employeeId || {};
+  const initial = `${emp.firstName?.[0] || ''}${emp.lastName?.[0] || ''}`.toUpperCase() || 'I';
+  const amount = (increment.newSalary || 0) - (increment.previousSalary || 0);
+  return (
+    <Modal open={!!increment} onClose={onClose} title="" size="md" footer={
+      <button onClick={onClose} className="px-4 py-1.5 text-xs rounded-xl border border-[var(--border-base)] text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"><X size={13} className="inline mr-1" />Close</button>
+    }>
+      {/* Hero */}
+      <div className="relative overflow-hidden rounded-xl mb-4 p-5 bg-gradient-to-br from-purple-500/15 via-purple-500/5 to-transparent border border-[var(--border-base)]">
+        <div className="absolute top-0 right-0 w-28 h-28 rounded-full bg-purple-500/10 -translate-y-6 translate-x-6" />
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 text-white flex items-center justify-center font-bold text-lg shadow-lg">{initial}</div>
+          <div className="flex-1">
+            <h2 className="text-lg font-bold text-[var(--text-primary)]">{emp.firstName} {emp.lastName}</h2>
+            <p className="text-xs text-[var(--text-muted)]">{emp.employeeId} · {emp.department}</p>
+            <div className="flex items-center gap-2 mt-2">
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-500 flex items-center gap-1"><ArrowUp size={11} />{increment.incrementPercentage}% Increment</span>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-2xl font-bold text-emerald-500">+₹{amount.toLocaleString()}</p>
+            <p className="text-xs text-[var(--text-faint)]">Increase Amount</p>
+          </div>
+        </div>
+      </div>
+      {/* Salary Comparison */}
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        {[
+          { label: 'Previous Salary', value: `₹${Number(increment.previousSalary||0).toLocaleString()}`, color: 'bg-red-500/10 border-red-500/20 text-red-500' },
+          { label: 'Increment %',     value: `${increment.incrementPercentage}%`,                        color: 'bg-amber-500/10 border-amber-500/20 text-amber-500' },
+          { label: 'New Salary',      value: `₹${Number(increment.newSalary||0).toLocaleString()}`,      color: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' },
+        ].map(item => (
+          <div key={item.label} className={`p-3 rounded-xl border text-center ${item.color}`}>
+            <p className="text-[10px] uppercase tracking-wide opacity-70 font-medium">{item.label}</p>
+            <p className="text-base font-bold mt-1">{item.value}</p>
+          </div>
+        ))}
+      </div>
+      {/* Details */}
+      <div className="glass-card p-4 space-y-2.5">
+        <div className="flex items-center justify-between py-1.5 border-b border-[var(--border-muted)]">
+          <span className="text-xs text-[var(--text-muted)] flex items-center gap-1.5"><Calendar size={12} /> Effective From</span>
+          <span className="text-sm font-semibold text-[var(--text-primary)]">{increment.effectiveFrom ? format(new Date(increment.effectiveFrom), 'dd MMM yyyy') : '—'}</span>
+        </div>
+        {increment.reason && (
+          <div className="pt-1">
+            <p className="text-[11px] text-[var(--text-faint)] uppercase tracking-wide font-medium mb-1">Reason</p>
+            <p className="text-sm text-[var(--text-primary)]">{increment.reason}</p>
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+};
 
 const IncrementsPage = () => {
   const [mounted, setMounted] = useState(false);
@@ -17,6 +75,7 @@ const IncrementsPage = () => {
   const [loading, setLoading] = useState(false);
   const [incrementSearch, setIncrementSearch] = useState('');
   const [showIncrementModal, setShowIncrementModal] = useState(false);
+  const [viewIncrement, setViewIncrement] = useState(null);
   const [incrementForm, setIncrementForm] = useState({
     employeeId: '',
     previousSalary: 0,
@@ -101,7 +160,17 @@ const IncrementsPage = () => {
       label: 'Total Increments',
       value: increments.length,
       icon: TrendingUp,
-      variant: 'emerald'
+      variant: 'emerald',
+      onClick: () => {
+        // Auto-expand first increment
+        setTimeout(() => {
+          if (filteredIncrements.length > 0) {
+            setViewIncrement(filteredIncrements[0]);
+          } else {
+            setViewIncrement(null);
+          }
+        }, 100);
+      }
     },
     {
       label: 'This Month',
@@ -111,7 +180,18 @@ const IncrementsPage = () => {
         return incMonth === new Date().getMonth() + 1 && incYear === new Date().getFullYear();
       }).length,
       icon: TrendingUp,
-      variant: 'blue'
+      variant: 'blue',
+      onClick: () => {
+        // Auto-expand first increment this month
+        setTimeout(() => {
+          const firstThisMonth = increments.find(inc => {
+            const incMonth = new Date(inc.effectiveFrom).getMonth() + 1;
+            const incYear = new Date(inc.effectiveFrom).getFullYear();
+            return incMonth === new Date().getMonth() + 1 && incYear === new Date().getFullYear();
+          });
+          setViewIncrement(firstThisMonth || null);
+        }, 100);
+      }
     },
     {
       label: 'Avg Increase',
@@ -241,6 +321,12 @@ const IncrementsPage = () => {
         data={filteredIncrements}
         emptyText="No increment records found."
         loading={loading}
+        expandedRowKey={viewIncrement?._id}
+        renderExpanded={(increment) => (
+          <div className="p-4 border-t border-[var(--border-muted)] bg-gradient-to-b from-white to-[var(--bg-elevated)]">
+            <IncrementViewModal increment={increment} onClose={() => setViewIncrement(null)} inline />
+          </div>
+        )}
       />
 
       {/* Add Increment Modal */}
