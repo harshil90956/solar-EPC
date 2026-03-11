@@ -767,6 +767,14 @@ const CRMPage = () => {
   const [rolesLoading, setRolesLoading] = useState(false);
   const [usersLoading, setUsersLoading] = useState(false);
 
+  // Customers State
+  const [customers, setCustomers] = useState([]);
+  const [customersLoading, setCustomersLoading] = useState(false);
+  const [customersTotal, setCustomersTotal] = useState(0);
+  const [customersPage, setCustomersPage] = useState(1);
+  const [customersPageSize, setCustomersPageSize] = useState(25);
+  const [customersSearch, setCustomersSearch] = useState('');
+
   const normalizeStageKey = (lead) => (lead?.statusKey || lead?.status || 'new').toString().toLowerCase();
   const getLeadId = (lead) => String(lead?._id || lead?.id || '');
   const dragRef = useRef(null);
@@ -1066,9 +1074,49 @@ const CRMPage = () => {
     }
   }, [page, pageSize, debouncedSearch, sort.key, sort.dir, quickFilter, dateRangeFilter.type, getDateRangeFromPreset, filterStages, filterSources, filterScoreRanges, filterValueRanges]);
 
+  // Fetch customers
+  const fetchCustomers = useCallback(async () => {
+    setCustomersLoading(true);
+    try {
+      const params = {
+        page: customersPage,
+        limit: customersPageSize,
+        search: customersSearch,
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+      };
+
+      const result = await leadsApi.getCustomers(params);
+
+      const customersData = Array.isArray(result?.data) ? result.data : (result?.data?.data || result?.data || []);
+      const totalCount = Number(result?.total || result?.data?.total || 0);
+      const currentPage = Number(result?.page || customersPage || 1);
+      const totalPages = Number(result?.pages || 1);
+
+      if (currentPage > totalPages && totalPages > 0) {
+        setCustomersPage(totalPages);
+        return;
+      }
+
+      setCustomers(customersData);
+      setCustomersTotal(totalCount);
+    } catch (err) {
+      console.error('Failed to fetch customers:', err);
+      toast.error('Failed to load customers. Please try again.');
+    } finally {
+      setCustomersLoading(false);
+    }
+  }, [customersPage, customersPageSize, customersSearch]);
+
   useEffect(() => {
     fetchLeads();
   }, [fetchLeads]);
+
+  useEffect(() => {
+    if (view === 'customers') {
+      fetchCustomers();
+    }
+  }, [view, fetchCustomers]);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -2089,6 +2137,7 @@ const CRMPage = () => {
             { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
             { id: 'leads', label: 'Leads', icon: List },
             { id: 'kanban', label: 'Kanban', icon: LayoutDashboard },
+            { id: 'customers', label: 'Customers', icon: Users },
           ]}
           activeTab={view}
           onTabChange={setView}
@@ -2187,6 +2236,155 @@ const CRMPage = () => {
       {/* ── Advanced Dashboard ── */}
       {view === 'dashboard' && (
         <LeadAnalyticsDashboard />
+      )}
+
+      {/* ── Customers View ── */}
+      {view === 'customers' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-bold text-[var(--text-primary)]">Customers</h3>
+              <span className="text-xs text-[var(--text-muted)]">{customersTotal} total customers</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+                <Input
+                  placeholder="Search customers..."
+                  value={customersSearch}
+                  onChange={(e) => {
+                    setCustomersSearch(e.target.value);
+                    setCustomersPage(1);
+                  }}
+                  className="pl-8 h-8 w-64 text-sm"
+                />
+              </div>
+            </div>
+          </div>
+
+          {customersLoading ? (
+            <div className="glass-card p-12 flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary)]"></div>
+            </div>
+          ) : customers.length === 0 ? (
+            <div className="glass-card p-8 flex flex-col items-center justify-center text-center">
+              <div className="w-16 h-16 rounded-full bg-[var(--bg-elevated)] border border-[var(--border-base)] flex items-center justify-center mb-4">
+                <Users size={24} className="text-[var(--text-muted)]" />
+              </div>
+              <h3 className="text-base font-bold text-[var(--text-primary)] mb-2">No Customers Yet</h3>
+              <p className="text-xs text-[var(--text-muted)] max-w-md">
+                When leads are converted to customers (status = "customer"), they will appear here automatically.
+              </p>
+            </div>
+          ) : (
+            <div className="glass-card rounded-lg border border-[var(--border-base)] overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-[var(--bg-elevated)] border-b border-[var(--border-base)]">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Customer Name</th>
+                      <th className="px-4 py-3 text-left text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Email</th>
+                      <th className="px-4 py-3 text-left text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Phone</th>
+                      <th className="px-4 py-3 text-left text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">City</th>
+                      <th className="px-4 py-3 text-left text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Source</th>
+                      <th className="px-4 py-3 text-left text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Assigned To</th>
+                      <th className="px-4 py-3 text-left text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Created Date</th>
+                      <th className="px-4 py-3 text-left text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border-subtle)]">
+                    {customers.map((customer) => (
+                      <tr key={customer._id || customer.id} className="hover:bg-[var(--bg-hovered)] transition-colors">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-white flex items-center justify-center font-semibold text-[11px] shrink-0">
+                              {customer.name?.[0] || 'C'}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-[13px] text-[var(--text-primary)] truncate">{customer.name}</p>
+                              <p className="text-[10px] text-[var(--text-muted)] truncate">{customer.company || 'Individual'}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-[11px] text-[var(--text-secondary)]">{customer.email || '—'}</td>
+                        <td className="px-4 py-3 text-[11px] text-[var(--text-secondary)]">{customer.phone || '—'}</td>
+                        <td className="px-4 py-3 text-[11px] text-[var(--text-secondary)]">{customer.city || '—'}</td>
+                        <td className="px-4 py-3">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                            {customer.source || '—'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-[11px] text-[var(--text-secondary)]">
+                          {(() => {
+                            // Handle populated assignedTo object
+                            if (customer.assignedTo) {
+                              if (typeof customer.assignedTo === 'object') {
+                                return customer.assignedTo.name || 
+                                  `${customer.assignedTo.firstName || ''} ${customer.assignedTo.lastName || ''}`.trim() || 
+                                  customer.assignedTo.email || 
+                                  'Unassigned';
+                              }
+                              return customer.assignedTo;
+                            }
+                            return customer.assignedToName || 'Unassigned';
+                          })()}
+                        </td>
+                        <td className="px-4 py-3 text-[11px] text-[var(--text-secondary)]">
+                          {customer.createdAt ? format(new Date(customer.createdAt), 'MMM dd, yyyy') : '—'}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedLead(customer);
+                                setView('leads');
+                              }}
+                              title="View Lead"
+                            >
+                              <Eye size={12} />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              {customersTotal > customersPageSize && (
+                <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border-base)]">
+                  <p className="text-[10px] text-[var(--text-muted)]">
+                    Showing {(customersPage - 1) * customersPageSize + 1} to {Math.min(customersPage * customersPageSize, customersTotal)} of {customersTotal} customers
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCustomersPage(p => Math.max(1, p - 1))}
+                      disabled={customersPage === 1}
+                    >
+                      <ChevronLeft size={12} />
+                    </Button>
+                    <span className="text-[10px] text-[var(--text-muted)]">
+                      Page {customersPage}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCustomersPage(p => p + 1)}
+                      disabled={customersPage * customersPageSize >= customersTotal}
+                    >
+                      <ChevronRight size={12} />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       )}
 
       {/* ── Kanban Board View ── */}
