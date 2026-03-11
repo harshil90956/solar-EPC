@@ -186,8 +186,15 @@ export class LogisticsService {
 
       updateData.deliveredDate = new Date();
 
+      console.log(`[LOGISTICS] ========== DELIVERED STATUS DETECTED ==========`);
+      console.log(`[LOGISTICS] Dispatch ID: ${id}`);
+      console.log(`[LOGISTICS] User:`, JSON.stringify(user));
+      console.log(`[LOGISTICS] Dispatch projectId: ${dispatch.projectId}`);
+      console.log(`[LOGISTICS] Dispatch customer: ${dispatch.customer}`);
+      console.log(`[LOGISTICS] Dispatch to (site): ${dispatch.to}`);
+      console.log(`[LOGISTICS] Dispatch items: ${dispatch.items}`);
+      console.log(`[LOGISTICS] Dispatch tenantId: ${dispatch.tenantId}`);
       
-
       // Customer delivery - reduce inventory (items delivered to customer)
 
       try {
@@ -214,11 +221,10 @@ export class LogisticsService {
 
       // Auto-create installation record when materials are delivered
 
-      console.log(`[LOGISTICS] INSTALLATION TRIGGERED for dispatch ${id}`);
+      console.log(`[LOGISTICS] ========== STARTING INSTALLATION CREATION ==========`);
 
-      console.log(`[LOGISTICS] Triggering installation creation for dispatch ${id}`);
-
-      
+      console.log(`[LOGISTICS] installationService exists:`, !!this.installationService);
+      console.log(`[LOGISTICS] installationService.createInstallationFromDispatch exists:`, !!this.installationService?.createInstallationFromDispatch);
 
       try {
 
@@ -226,9 +232,10 @@ export class LogisticsService {
 
         const effectiveTenantId = dispatch.tenantId?.toString() || user?.tenantId || null;
 
+        console.log(`[LOGISTICS] Effective tenantId for installation: ${effectiveTenantId}`);
+        console.log(`[LOGISTICS] Calling createInstallationFromDispatch...`);
         
-
-        await this.installationService.createInstallationFromDispatch(
+        const result = await this.installationService.createInstallationFromDispatch(
 
           {
 
@@ -260,11 +267,15 @@ export class LogisticsService {
 
         );
 
-        console.log(`[LOGISTICS] SUCCESS: Installation auto-created for dispatch ${id}`);
+        console.log(`[LOGISTICS] ========== INSTALLATION CREATION SUCCESS ==========`);
+        console.log(`[LOGISTICS] Created installation ID:`, result?._id);
+        console.log(`[LOGISTICS] Created installation status:`, result?.status);
 
       } catch (installError: any) {
 
-        console.error(`[LOGISTICS] ERROR: Installation creation failed for dispatch ${id}:`, installError.message);
+        console.error(`[LOGISTICS] ========== INSTALLATION CREATION FAILED ==========`);
+        console.error(`[LOGISTICS] Error:`, installError.message);
+        console.error(`[LOGISTICS] Stack:`, installError.stack);
 
       }
 

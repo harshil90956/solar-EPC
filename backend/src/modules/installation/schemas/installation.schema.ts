@@ -42,8 +42,8 @@ export class Installation extends Document {
   @Prop({ required: true })
   site!: string;
 
-  @Prop({ type: Types.ObjectId, ref: 'User', required: true, index: true })
-  technicianId!: Types.ObjectId;
+  @Prop({ type: Types.ObjectId, ref: 'User', required: false, index: true })
+  technicianId?: Types.ObjectId;
 
   @Prop({ required: true })
   technicianName!: string;
@@ -54,8 +54,8 @@ export class Installation extends Document {
   @Prop({ required: false })
   supervisorName?: string;
 
-  @Prop({ required: true })
-  scheduledDate!: Date;
+  @Prop({ required: false })
+  scheduledDate?: Date;
 
   @Prop({ required: false })
   dueDate?: Date;
@@ -169,8 +169,8 @@ export class Installation extends Document {
   @Prop({ type: Types.ObjectId, ref: 'Commissioning', required: false })
   commissioningId?: Types.ObjectId;
 
-  @Prop(BaseSchemaDefinition.tenantId)
-  tenantId!: Types.ObjectId;
+  @Prop({ type: Types.ObjectId, required: false })
+  tenantId?: Types.ObjectId;
 
   @Prop(BaseSchemaDefinition.isDeleted)
   isDeleted!: boolean;

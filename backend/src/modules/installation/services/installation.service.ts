@@ -435,10 +435,10 @@ export class InstallationService {
       dispatchId: dispatchData.dispatchId, // Use STRING, don't convert to ObjectId
       customerName: dispatchData.customerName,
       site: dispatchData.site,
-      technicianId: null, // No auto-assignment — must be assigned manually
+      technicianId: new Types.ObjectId('000000000000000000000000'), // Placeholder ObjectId (will be replaced on assignment)
       technicianName: 'Not Assigned',
-      scheduledDate: null, // Will be scheduled on manual assignment
-      status: 'Pending',
+      scheduledDate: new Date(), // Set current date as placeholder
+      status: 'Pending Assign',
       progress: 0,
       tasks: defaultTasks,
       notes: `Auto-created from Dispatch ${dispatchData.dispatchId}. Items: ${dispatchData.items}`,
