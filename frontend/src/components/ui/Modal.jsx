@@ -29,11 +29,11 @@ export const Modal = ({ open, isOpen, onClose, title, description, size = 'md', 
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in perspective-1000"
       onClick={(e) => { if (e.target === overlayRef.current) onClose?.(); }}
     >
       <div className={cn(
-        'relative w-full sm:glass-card bg-[var(--bg-surface)] sm:shadow-2xl sm:shadow-black/60 animate-slide-up flex flex-col max-h-[90vh] sm:max-h-[88vh] rounded-t-xl sm:rounded-xl',
+        'relative w-full sm:glass-card bg-[var(--bg-surface)] sm:shadow-2xl sm:shadow-black/60 animate-modal-3d flex flex-col max-h-[90vh] sm:max-h-[88vh] rounded-t-xl sm:rounded-xl',
         size === 'full' ? 'h-[90vh]' : '',
         widths[size] ?? widths.md
       )}>

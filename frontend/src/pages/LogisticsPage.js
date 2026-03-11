@@ -1112,6 +1112,18 @@ const LogisticsPage = () => {
   const [showVendorModal, setShowVendorModal] = useState(false);
   const [newVendor, setNewVendor] = useState({ name: '', category: '', city: '', contact: '', phone: '', email: '' });
 
+  // Categories state - load from localStorage (same as InventoryPage)
+  const [vendorCategories, setVendorCategories] = useState(() => {
+    const saved = localStorage.getItem('itemCategories');
+    return saved ? JSON.parse(saved) : ['Panel', 'Inverter', 'BOS', 'Structure', 'Cable', 'Transport', 'Other'];
+  });
+
+  // Warehouses state - load from localStorage (same as InventoryPage)
+  const [warehouses, setWarehouses] = useState(() => {
+    const saved = localStorage.getItem('warehouses');
+    return saved ? JSON.parse(saved) : ['WH-Ahmedabad', 'WH-Surat', 'WH-Mumbai'];
+  });
+
   // Vendor delivery state
   const [showVendorDeliveryModal, setShowVendorDeliveryModal] = useState(false);
   const [vendorDeliveryData, setVendorDeliveryData] = useState({ itemName: '', quantity: '' });
@@ -1178,6 +1190,40 @@ const LogisticsPage = () => {
     fetchProjects();
     fetchVendors();
   }, []);
+
+  // Listen for storage changes to update categories dynamically
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const saved = localStorage.getItem('itemCategories');
+      if (saved) {
+        setVendorCategories(JSON.parse(saved));
+      }
+    };
+    
+    // Check for changes when modal opens
+    handleStorageChange();
+    
+    // Also listen for storage events from other tabs/windows
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [showVendorModal]);
+
+  // Listen for storage changes to update warehouses dynamically
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const saved = localStorage.getItem('warehouses');
+      if (saved) {
+        setWarehouses(JSON.parse(saved));
+      }
+    };
+    
+    // Check for changes when dispatch modal opens
+    handleStorageChange();
+    
+    // Also listen for storage events from other tabs/windows
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [showAdd]);
 
   // Fetch vendors from backend
   const fetchVendors = async () => {
@@ -1428,6 +1474,40 @@ const LogisticsPage = () => {
         d.items?.toLowerCase().includes(search.toLowerCase()))
     ), [search, statusFilter, dispatches]);
 
+  // Handle KPI card click to filter table data and scroll
+  const handleCardClick = (filterType) => {
+    // Switch to table view
+    setView('table');
+    setShowVisualization(false);
+    setPage(1);
+    
+    // Apply filter based on card type
+    switch (filterType) {
+      case 'inTransit':
+        setFilter('In Transit');
+        break;
+      case 'scheduled':
+        setFilter('Scheduled');
+        break;
+      case 'delivered':
+        setFilter('Delivered');
+        break;
+      case 'totalFreight':
+        setFilter('All');
+        break;
+      default:
+        break;
+    }
+    
+    // Scroll to table view after a short delay to allow render
+    setTimeout(() => {
+      const tableSection = document.getElementById('dispatch-table-section');
+      if (tableSection) {
+        tableSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
+  };
+
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
   const delivered = stats.delivered || dispatches.filter(d => d?.status === 'Delivered').length;
   const inTransit = stats.inTransit || dispatches.filter(d => d?.status === 'In Transit').length;
@@ -1538,10 +1618,18 @@ const LogisticsPage = () => {
               <span>Dispatches Overview - Shipment tracking and delivery status</span>
             </p>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <KPICard title="Total Shipments In Transit" value={inTransit} icon={Truck} sub="Shipments currently moving" color="cyan" />
-              <KPICard title="Total Dispatches Scheduled" value={scheduled} icon={Clock} sub="Dispatches awaiting pickup" color="accent" />
-              <KPICard title="Total Deliveries Completed" value={delivered} icon={CheckCircle} sub={`${delivered} deliveries done this month`} color="emerald" />
-              <KPICard title="Total Freight Cost" value={`₹${totalFreight.toLocaleString('en-IN')}`} icon={MapPin} sub="Total shipping expenses" color="solar" />
+              <div onClick={() => handleCardClick('inTransit')} className="cursor-pointer transition-transform hover:scale-105">
+                <KPICard title="Total Shipments In Transit" value={inTransit} icon={Truck} sub="Shipments currently moving" gradient="bg-gradient-to-br from-cyan-50 to-cyan-100/50 dark:from-cyan-950/30 dark:to-cyan-900/20" iconBgColor="bg-cyan-100 dark:bg-cyan-900/50" iconColor="text-cyan-600 dark:text-cyan-400" />
+              </div>
+              <div onClick={() => handleCardClick('scheduled')} className="cursor-pointer transition-transform hover:scale-105">
+                <KPICard title="Total Dispatches Scheduled" value={scheduled} icon={Clock} sub="Dispatches awaiting pickup" gradient="bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-950/30 dark:to-amber-900/20" iconBgColor="bg-amber-100 dark:bg-amber-900/50" iconColor="text-amber-600 dark:text-amber-400" />
+              </div>
+              <div onClick={() => handleCardClick('delivered')} className="cursor-pointer transition-transform hover:scale-105">
+                <KPICard title="Total Deliveries Completed" value={delivered} icon={CheckCircle} sub={`${delivered} deliveries done this month`} gradient="bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/30 dark:to-emerald-900/20" iconBgColor="bg-emerald-100 dark:bg-emerald-900/50" iconColor="text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div onClick={() => handleCardClick('totalFreight')} className="cursor-pointer transition-transform hover:scale-105">
+                <KPICard title="Total Freight Cost" value={`₹${totalFreight.toLocaleString('en-IN')}`} icon={MapPin} sub="Total shipping expenses" gradient="bg-gradient-to-br from-rose-50 to-rose-100/50 dark:from-rose-950/30 dark:to-rose-900/20" iconBgColor="bg-rose-100 dark:bg-rose-900/50" iconColor="text-rose-600 dark:text-rose-400" />
+              </div>
             </div>
           </div>
 
@@ -1593,7 +1681,7 @@ const LogisticsPage = () => {
               <DispatchKanbanBoard dispatches={filtered} onStageChange={handleStageChange} onCardClick={setSelected} />
             </>
           ) : (
-            <>
+            <div id="dispatch-table-section">
               <div className="flex flex-wrap gap-2 items-center mb-3">
                 <span className="text-xs text-[var(--text-muted)] mr-1">Filter:</span>
                 {STATUS_FILTERS.map(s => (
@@ -1604,7 +1692,7 @@ const LogisticsPage = () => {
               <DataTable columns={COLUMNS} data={paginated} rowActions={ROW_ACTIONS}
                 pagination={{ page, pageSize, total: filtered.length, onChange: setPage, onPageSizeChange: setPageSize }}
                 emptyMessage="No dispatch records found." />
-            </>
+            </div>
           )}
         </>
       ) : (
@@ -1622,14 +1710,18 @@ const LogisticsPage = () => {
                 value={vendors.length} 
                 icon={Store} 
                 sub="Total vendors in system"
-                color="accent" 
+                gradient="bg-gradient-to-br from-violet-50 to-violet-100/50 dark:from-violet-950/30 dark:to-violet-900/20"
+                iconBgColor="bg-violet-100 dark:bg-violet-900/50"
+                iconColor="text-violet-600 dark:text-violet-400"
               />
               <KPICard 
                 title="Unique Cities" 
                 value={new Set(vendors.map(v => v.city).filter(Boolean)).size} 
                 icon={MapPin} 
                 sub="Cities with vendors"
-                color="cyan" 
+                gradient="bg-gradient-to-br from-sky-50 to-sky-100/50 dark:from-sky-950/30 dark:to-sky-900/20"
+                iconBgColor="bg-sky-100 dark:bg-sky-900/50"
+                iconColor="text-sky-600 dark:text-sky-400"
               />
             </div>
           </div>
@@ -1746,8 +1838,9 @@ const LogisticsPage = () => {
             <FormField label="From Warehouse">
               <Select value={newDispatch.from} onChange={e => setNewDispatch({ ...newDispatch, from: e.target.value })}>
                 <option value="">Select Warehouse</option>
-                <option value="WH-Ahmedabad">WH-Ahmedabad</option>
-                <option value="WH-Surat">WH-Surat</option>
+                {warehouses.map(wh => (
+                  <option key={wh} value={wh}>{wh}</option>
+                ))}
               </Select>
             </FormField>
             <FormField label="To Location">
@@ -1812,7 +1905,12 @@ const LogisticsPage = () => {
               </FormField>
               <div className="grid grid-cols-2 gap-3">
                 <FormField label="From">
-                  <Input value={editedDispatch.from} onChange={e => setEditedDispatch({...editedDispatch, from: e.target.value})} />
+                  <Select value={editedDispatch.from} onChange={e => setEditedDispatch({...editedDispatch, from: e.target.value})}>
+                    <option value="">Select Warehouse</option>
+                    {warehouses.map(wh => (
+                      <option key={wh} value={wh}>{wh}</option>
+                    ))}
+                  </Select>
                 </FormField>
                 <FormField label="To">
                   <Input value={editedDispatch.to} onChange={e => setEditedDispatch({...editedDispatch, to: e.target.value})} />
@@ -1867,13 +1965,9 @@ const LogisticsPage = () => {
             <FormField label="Category">
               <Select value={newVendor.category} onChange={e => setNewVendor({ ...newVendor, category: e.target.value })}>
                 <option value="">Select Category</option>
-                <option value="Transport">Transport</option>
-                <option value="Panel">Panel</option>
-                <option value="Inverter">Inverter</option>
-                <option value="BOS">BOS</option>
-                <option value="Structure">Structure</option>
-                <option value="Cable">Cable</option>
-                <option value="Other">Other</option>
+                {vendorCategories.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
               </Select>
             </FormField>
             <FormField label="City">
@@ -1927,13 +2021,9 @@ const LogisticsPage = () => {
                 <FormField label="Category *">
                   <Select value={editedVendor.category} onChange={e => setEditedVendor({...editedVendor, category: e.target.value})}>
                     <option value="">Select Category</option>
-                    <option value="Transport">Transport</option>
-                    <option value="Panel">Panel</option>
-                    <option value="Inverter">Inverter</option>
-                    <option value="BOS">BOS</option>
-                    <option value="Structure">Structure</option>
-                    <option value="Cable">Cable</option>
-                    <option value="Other">Other</option>
+                    {vendorCategories.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
                   </Select>
                 </FormField>
                 <FormField label="City *">

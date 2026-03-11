@@ -35,6 +35,7 @@ export const SettingsProvider = ({ children }) => {
     const [userOverrides, setUserOverrides] = useState({});
     const [viewAsUserId, setViewAsUserIdState] = useState(null);
     const [projectTypeConfig, setProjectTypeConfig] = useState({});
+    const [installationTasks, setInstallationTasks] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
 
     // ── Load data from API on mount (only if user is logged in) ─────────────────
@@ -156,6 +157,12 @@ export const SettingsProvider = ({ children }) => {
                     setProjectTypeConfig(configsObj);
                 } else {
                     setProjectTypeConfig({});
+                }
+
+                if (settings?.installationTasks) {
+                    setInstallationTasks(Array.isArray(settings.installationTasks) ? settings.installationTasks : []);
+                } else {
+                    setInstallationTasks([]);
                 }
             } catch (error) {
                 console.error('Failed to load settings from API:', error);
@@ -693,6 +700,19 @@ export const SettingsProvider = ({ children }) => {
         // Note: Would need backend endpoint for full reset
     }, [addAudit]);
 
+    // ── Installation Task Config APIs ─────────────────────────────────────────
+    const updateInstallationTasksState = useCallback(async (tasks, user) => {
+        setInstallationTasks(tasks);
+        await addAudit('INSTALLATION_TASKS_UPDATED', 'installation.tasks', '[prev]', '[new]', user);
+        try {
+            await settingsApi.updateInstallationTasks(tasks);
+        } catch (e) {
+            console.error('Failed to persist installation tasks:', e);
+        }
+    }, [addAudit]);
+
+    const getInstallationTasksState = useCallback(() => installationTasks, [installationTasks]);
+
     const resetAllProjectTypes = useCallback(async (user) => {
         await addAudit('PROJECT_TYPE_RESET_ALL', 'ALL', 'custom', 'defaults', user);
         // Note: Would need backend endpoint for full reset
@@ -850,6 +870,10 @@ export const SettingsProvider = ({ children }) => {
         isLoading,
         // Project type config (admin-overridable)
         projectTypeConfig,
+        // Installation task checklist config
+        installationTasks,
+        updateInstallationTasks: updateInstallationTasksState,
+        getInstallationTasks: getInstallationTasksState,
         // Feature flag APIs
         toggleModule, toggleFeature, toggleAction, resetFlags,
         // Base RBAC APIs

@@ -662,9 +662,7 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
           // Show Pending invoices in Sent column
 
-
-
-          const cards = invoices.filter(i => 
+          const cards = invoices.filter(i =>
 
 
 
@@ -1092,67 +1090,37 @@ const INVOICE_COLUMNS = [
 
 
 
+  {
+    key: 'reminderCount', header: 'Reminders', render: (v, row) => (
 
+      <div className="flex items-center gap-1">
 
+        {v > 0 ? (
 
+          <>
 
-  { key: 'reminderCount', header: 'Reminders', render: (v, row) => (
+            <span className="text-xs font-bold text-orange-400">{v}</span>
 
+            {row.lastReminderSentAt && (
 
+              <span className="text-[10px] text-[var(--text-faint)]">
 
-    <div className="flex items-center gap-1">
+                ({new Date(row.lastReminderSentAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })})</span>
 
+            )}
 
+          </>
 
-      {v > 0 ? (
+        ) : (
 
+          <span className="text-xs text-[var(--text-faint)]">—</span>
 
+        )}
 
-        <>
+      </div>
 
-
-
-          <span className="text-xs font-bold text-orange-400">{v}</span>
-
-
-
-          {row.lastReminderSentAt && (
-
-
-
-            <span className="text-[10px] text-[var(--text-faint)]">
-
-
-
-              ({new Date(row.lastReminderSentAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })})</span>
-
-
-
-          )}
-
-
-
-        </>
-
-
-
-      ) : (
-
-
-
-        <span className="text-xs text-[var(--text-faint)]">—</span>
-
-
-
-      )}
-
-
-
-    </div>
-
-
-
-  )},
+    )
+  },
 
 
 
@@ -1316,8 +1284,6 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-  
-
 
 
   // Main view mode: 'dashboard', 'kanban', 'table'
@@ -1391,8 +1357,6 @@ const FinancePage = ({ onNavigate }) => {
   });
 
 
-
-  
 
 
 
@@ -2600,10 +2564,6 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-      
-
-
-
 
 
 
@@ -2757,10 +2717,6 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-      
 
 
 
@@ -3272,11 +3228,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-      console.log('FinancePage CashFlow debug:', { 
+      console.log('FinancePage CashFlow debug:', {
 
 
 
@@ -3286,17 +3238,11 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
         invoicesCount: invoicesRes?.length || 0,
 
+        paidInvoices: invoicesRes?.filter(inv => inv?.status === 'Paid').map(inv => ({
 
+          status: inv.status,
 
-        paidInvoices: invoicesRes?.filter(inv => inv?.status === 'Paid').map(inv => ({ 
-
-
-
-          status: inv.status, 
-
-
-
-          amount: inv.amount, 
+          amount: inv.amount,
 
 
 
@@ -3306,17 +3252,13 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
           invoiceDate: inv.invoiceDate,
 
-
-
-          paidDate: inv.paidDate 
+          paidDate: inv.paidDate
 
 
 
         })),
 
-
-
-        cashFlowSeries 
+        cashFlowSeries
 
 
 
@@ -5620,10 +5562,6 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-    
-
-
-
     // Try to get email from projects list immediately
 
 
@@ -5755,8 +5693,6 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
         const customerEmail = projectRes?.email || projectRes?.data?.email || projectRes?.project?.email || projectRes?.customerEmail || projectRes?.data?.customerEmail || projectRes?.project?.customerEmail || '';
 
 
-
-        
 
 
 
@@ -6624,10 +6560,6 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-    
-
-
-
 
 
 
@@ -6661,10 +6593,6 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-      
 
 
 
@@ -6777,10 +6705,6 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-      
 
 
 
@@ -6921,10 +6845,6 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-      
 
 
 
@@ -7164,10 +7084,6 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-      
-
-
-
 
 
 
@@ -7208,59 +7124,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+      }, 2000);
 
 
 
-
-              }, 2000);
-
+    } catch (err) {
 
 
 
+      setError(err.message || 'Failed to send reminder');
 
 
 
-            } catch (err) {
+    } finally {
 
 
 
+      setSendingReminder(false);
 
 
 
-
-              setError(err.message || 'Failed to send reminder');
-
+    }
 
 
 
-
-
-
-            } finally {
-
-
-
-
-
-
-
-              setSendingReminder(false);
-
-
-
-
-
-
-
-            }
-
-
-
-
-
-
-
-          };
+  };
 
 
 
@@ -8197,19 +8085,9 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+      (invStatus === 'All' ||
 
-
-
-
-      (invStatus === 'All' || 
-
-
-
-
-
-
-
-        inv.status === invStatus || 
+        inv.status === invStatus ||
 
 
 
@@ -8273,23 +8151,13 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-
-
-
-
-  const paginatedInvoices = useMemo(() => 
+  const paginatedInvoices = useMemo(() =>
 
 
 
     filteredInvoices.slice((page - 1) * pageSize, page * pageSize),
 
-
-
-  [filteredInvoices, page, pageSize]);
+    [filteredInvoices, page, pageSize]);
 
 
 
@@ -8553,8 +8421,6 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-    
-
 
 
     journalEntries.forEach(entry => {
@@ -8576,8 +8442,6 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
       const creditLines = entry.lines?.filter(l => l.creditAmount > 0) || [];
 
 
-
-      
 
 
 
@@ -8624,8 +8488,6 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
       });
 
 
-
-      
 
 
 
@@ -8677,8 +8539,6 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-    
-
 
 
     // Create worksheet
@@ -8688,8 +8548,6 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
     const ws = XLSX.utils.json_to_sheet(rows);
 
 
-
-    
 
 
 
@@ -8729,8 +8587,6 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-    
-
 
 
     // Create workbook
@@ -8745,15 +8601,11 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-    
-
 
 
     // Download file
 
-
-
-    XLSX.writeFile(wb, `journal_entries_${new Date().toISOString().slice(0,10)}.xlsx`);
+    XLSX.writeFile(wb, `journal_entries_${new Date().toISOString().slice(0, 10)}.xlsx`);
 
 
 
@@ -9701,13 +9553,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
                   onClick={() => setMainView('dashboard')}
 
-
-
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-
-
-
-                    mainView === 'dashboard'
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${mainView === 'dashboard'
 
 
 
@@ -9717,9 +9563,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
                       : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
 
-
-
-                  }`}
+                    }`}
 
 
 
@@ -9741,13 +9585,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
                   onClick={() => setMainView('kanban')}
 
-
-
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-
-
-
-                    mainView === 'kanban'
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${mainView === 'kanban'
 
 
 
@@ -9757,9 +9595,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
                       : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
 
-
-
-                  }`}
+                    }`}
 
 
 
@@ -9781,13 +9617,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
                   onClick={() => setMainView('table')}
 
-
-
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-
-
-
-                    mainView === 'table'
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${mainView === 'table'
 
 
 
@@ -9797,9 +9627,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
                       : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
 
-
-
-                  }`}
+                    }`}
 
 
 
@@ -9943,9 +9771,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
           isOpen={true}
 
-
-
-          onClose={() => {}}
+          onClose={() => { }}
 
 
 
@@ -9987,21 +9813,9 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
           adjustmentTrend={adjustmentTrend}
 
+          onInvoicesClick={() => { }}
 
-
-          onInvoicesClick={() => { setMainView('table'); setActiveTab('invoices'); }}
-
-          onPayablesClick={() => { setMainView('table'); setActiveTab('payables'); }}
-
-          onCollectedClick={() => { setMainView('table'); setActiveTab('invoices'); setInvStatus('Paid'); setPage(1); }}
-
-          onReceivablesClick={() => { setMainView('table'); setActiveTab('invoices'); setInvStatus('Outstanding'); setPage(1); }}
-
-          onOutstandingClick={() => { setMainView('table'); setActiveTab('invoices'); setInvStatus('Outstanding'); setPage(1); }}
-
-
-
-          onStatusClick={() => {}}
+          onStatusClick={() => { }}
 
 
 
@@ -10107,1251 +9921,151 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
         <>
 
+          {showSummaryCards && (
 
+            <>
 
-      {showSummaryCards && (
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
 
+                <KPICard className="glass-card bg-white" label="Total Revenue" value={fmt(revenueCurrent)} sub="From invoices" icon={TrendingUp} variant="emerald" />
 
+                <KPICard className="glass-card bg-white" label="Cash Position" value={fmt(cashPosition)} sub="Collected - Payables" icon={IndianRupee} variant="blue" />
 
-        <>
+                <KPICard className="glass-card bg-white" label="Receivables" value={fmt(receivables)} sub="Outstanding" icon={Clock} variant="amber" />
 
-      {calendarFilterYear !== 'all' && filteredInvoicesByYear.length === 0 && filteredPayablesByYear.length === 0 && filteredJournalEntriesByYear.length === 0 && filteredManualAdjustmentsByYear.length === 0 ? (
-
-        <div className="flex flex-col items-center justify-center py-16 px-4">
-
-          <div className="text-6xl mb-4">📅</div>
-
-          <h3 className="text-lg font-semibold text-gray-700 mb-2">No data available for the selected period</h3>
-
-          <p className="text-sm text-gray-500 text-center max-w-md mb-4">
-
-            There are no invoices, payables, or transactions recorded for {calendarFilterYear}.
-
-          </p>
-
-          <button
-
-            onClick={() => { setCalendarFilterYear('all'); setCalendarFilterMonth(undefined); }}
-
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-
-          >
-
-            Show All Data
-
-          </button>
-
-        </div>
-
-      ) : (
-
-      <>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-
-
-
-        <KPICard 
-
-          className="glass-card bg-white cursor-pointer hover:shadow-md transition-shadow" 
-
-          label="Total Revenue" 
-
-          value={fmt(revenueCurrent)} 
-
-          sub="From invoices" 
-
-          icon={TrendingUp} 
-
-          accentColor="#22c55e"
-
-          onClick={() => { setMainView('table'); setActiveTab('invoices'); }}
-
-        />
-
-
-
-        <KPICard className="glass-card bg-white" label="Cash Position" value={fmt(cashPosition)} sub="Collected - Payables" icon={IndianRupee} accentColor="#3b82f6" />
-
-
-
-        <KPICard className="glass-card bg-white" label="Receivables" value={fmt(receivables)} sub="Outstanding" icon={Clock} accentColor="#f59e0b" />
-
-
-
-        <KPICard className="glass-card bg-white" label="Payables" value={fmt(payablesTotal)} sub="Due" icon={TrendingDown} accentColor="#ef4444" />
-
-
-
-      </div>
-
-
-
-
-
-
-
-      <div className="space-y-2">
-
-
-
-        <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Current Month</p>
-
-
-
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-
-
-
-          {[
-
-
-
-            { label: 'Total Invoiced', value: fmt(currentMonthInvoiced), color: 'text-[var(--text-primary)]', clickable: true, action: 'invoices' },
-
-            { label: 'Collected', value: fmt(currentMonthCollected), color: 'text-emerald-400', clickable: true, action: 'paid' },
-
-            { label: 'Outstanding', value: fmt(currentMonthOutstanding), color: 'text-amber-400' },
-
-            { label: 'Collection Rate', value: `${currentMonthCollectionRate}%`, color: 'text-cyan-400' },
-
-
-
-          ].map(stat => (
-
-            <div 
-
-              key={stat.label} 
-
-              className={`glass-card p-3 text-center bg-white ${stat.clickable ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}
-
-              onClick={stat.clickable ? () => { 
-
-                setMainView('table'); 
-
-                setActiveTab('invoices'); 
-
-                if (stat.action === 'paid') {
-
-                  setInvStatus('Paid');
-
-                  setPage(1);
-
-                } else {
-
-                  setInvStatus('All');
-
-                  setPage(1);
-
-                }
-
-              } : undefined}
-
-            >
-
-              <p className="text-[11px] text-[var(--text-muted)] mb-1">{stat.label}</p>
-
-              <p className={`text-base font-black ${stat.color}`}>{stat.value}</p>
-
-            </div>
-
-          ))}
-
-
-
-        </div>
-
-
-
-      </div>
-
-
-
-        </>
-
-
-
-      )}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      </>
-
-
-
-      )}
-
-
-
-
-
-
-
-      <Tabs defaultValue="invoices" value={activeTab} onValueChange={setActiveTab}>
-
-
-
-
-
-
-
-        <TabsList>
-
-
-
-
-
-
-
-          <TabsTrigger value="invoices">Invoices ({filteredInvoicesByYear.length})</TabsTrigger>
-
-
-
-
-
-
-
-          <TabsTrigger value="payables">Payables Summary ({filteredPayablesByYear.length})</TabsTrigger>
-
-
-
-
-
-
-
-          <TabsTrigger value="transactions">Transactions ({filteredManualAdjustmentsByYear.length})</TabsTrigger>
-
-
-
-
-
-
-
-        </TabsList>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        <TabsContent value="invoices">
-
-
-
-
-
-
-
-          <div className="space-y-3">
-
-
-
-
-
-
-
-            <div className="flex flex-wrap gap-2 items-center">
-
-
-
-
-
-
-
-              <span className="text-xs text-[var(--text-muted)] mr-1">Status:</span>
-
-
-
-
-
-
-
-              {INV_STATUS_FILTERS.map(s => (
-
-
-
-
-
-
-
-                <button key={s} onClick={() => { setInvStatus(s); setPage(1); }}
-
-
-
-
-
-
-
-                  className={`filter-chip ${invStatus === s ? 'filter-chip-active' : ''}`}>{s}</button>
-
-
-
-
-
-
-
-              ))}
-
-
-
-
-
-
-
-              <div className="flex items-center gap-2 ml-auto">
-
-
-
-
-
-
-
-                <Input placeholder="Search invoices..." value={invSearch}
-
-
-
-
-
-
-
-                  onChange={e => { setInvSearch(e.target.value); setPage(1); }}
-
-
-
-
-
-
-
-                  className="h-8 text-xs w-44" />
-
-
+                <KPICard className="glass-card bg-white" label="Payables" value={fmt(payablesTotal)} sub="Due" icon={TrendingDown} variant="red" />
 
 
 
 
 
               </div>
-
-
-
-
-
-
-
-            </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            {view === 'kanban' ? (
-
-
-
-
-
-
-
-              <InvKanbanBoard invoices={filteredInvoices} onStageChange={handleStageChange} onCardClick={setSelected} />
-
-
-
-
-
-
-
-            ) : (
-
-
-
-
-
-
-
-              <DataTable
-
-
-
-
-
-
-
-                columns={INVOICE_COLUMNS}
-
-
-
-
-
-
-
-                data={paginatedInvoices}
-
-
-
-
-
-
-
-                total={filteredInvoices.length}
-
-
-
-
-
-
-
-                page={page}
-
-
-
-
-
-
-
-                pageSize={pageSize}
-
-
-
-
-
-
-
-                onPageChange={setPage}
-
-
-
-
-
-
-
-                onPageSizeChange={s => { setPageSize(s); setPage(1); }}
-
-
-
-
-
-
-
-                toolbar={canFinance('export') ? (
-
-
-
-
-
-
-
-                  <Button size="sm" onClick={exportAllInvoicesCsv}>
-
-
-
-
-
-
-
-                    <Download size={12} /> Export
-
-
-
-
-
-
-
-                  </Button>
-
-
-
-
-
-
-
-                ) : null}
-
-
-
-
-
-
-
-                rowActions={filteredRowActions}
-
-
-
-
-
-
-
-                onRowClick={setSelected}
-
-
-
-
-
-
-
-                rowKey="_id"
-
-
-
-
-
-
-
-                emptyText={invStatus === 'Outstanding' ? 'No outstanding receivables found.' : 'No invoices found.'}
-
-
-
-
-
-
-
-              />
-
-
-
-
-
-
-
-            )}
-
-
-
-
-
-
-
-          </div>
-
-
-
-
-
-
-
-        </TabsContent>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        <TabsContent value="payables">
-
-
-
-
-
-
-
-          <div className="glass-card p-4 space-y-3">
-
-
-
-
-
-
-
-            <h3 className="text-sm font-semibold text-[var(--text-primary)]">Payables to Vendors</h3>
-
-
-
-
-
-
-
-            {filteredPayablesByYear.length === 0 ? (
-
-
-
-
-
-
-
-              <p className="text-sm text-[var(--text-muted)] text-center py-8">No pending payables</p>
-
-
-
-
-
-
-
-            ) : (
-
-
-
-
 
 
 
               <div className="space-y-2">
 
+                <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Current Month</p>
 
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
 
+                  {[
 
+                    { label: 'Total Invoiced', value: fmt(currentMonthInvoiced), color: 'text-[var(--text-primary)]' },
 
+                    { label: 'Collected', value: fmt(currentMonthCollected), color: 'text-emerald-400' },
 
+                    { label: 'Outstanding', value: fmt(currentMonthOutstanding), color: 'text-amber-400' },
 
-                <div className="grid grid-cols-7 gap-2 text-[11px] text-[var(--text-muted)] px-2">
+                    { label: 'Collection Rate', value: `${currentMonthCollectionRate}%`, color: 'text-cyan-400' },
 
+                  ].map(stat => (
 
+                    <div key={stat.label} className="glass-card p-3 text-center bg-white">
 
-                  <div>Vendor</div>
+                      <p className="text-[11px] text-[var(--text-muted)] mb-1">{stat.label}</p>
 
-
-
-                  <div>Vendor ID</div>
-
-
-
-                  <div className="text-right">Total POs</div>
-
-
-
-                  <div className="text-right">Total Payable</div>
-
-
-
-                  <div className="text-right">Paid</div>
-
-
-
-                  <div className="text-right">Outstanding</div>
-
-
-
-                  <div className="text-right">Last PO</div>
-
-
-
-                </div>
-
-
-
-
-
-
-
-                {filteredPayablesByYear.map((p) => (
-
-
-
-                  <div
-
-
-
-                    key={p.vendorObjectId || p.vendorId}
-
-
-
-                    className="grid grid-cols-7 gap-2 items-center p-3 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-muted)]"
-
-
-
-                  >
-
-
-
-                    <div className="text-xs font-semibold text-[var(--text-primary)]">{p.vendorName}</div>
-
-
-
-                    <div className="text-xs font-mono text-[var(--accent-light)]">{p.vendorId}</div>
-
-
-
-                    <div className="text-xs text-right text-[var(--text-primary)]">{p.totalPurchaseOrders}</div>
-
-
-
-                    <div className="text-xs text-right text-[var(--text-primary)]">{fmt(p.totalPayableAmount)}</div>
-
-
-
-                    <div className="text-xs text-right text-[var(--text-primary)]">{fmt(p.amountPaid)}</div>
-
-
-
-                    <div className="text-xs text-right font-bold text-amber-400">{fmt(p.outstandingAmount)}</div>
-
-
-
-                    <div className="text-xs text-right text-[var(--text-muted)]">{p.lastPurchaseOrderDate || '—'}</div>
-
-
-
-                  </div>
-
-
-
-                ))}
-
-
-
-
-
-
-
-              </div>
-
-
-
-
-
-
-
-            )}
-
-
-
-
-
-
-
-          </div>
-
-
-
-
-
-
-
-        </TabsContent>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        <TabsContent value="transactions">
-
-
-
-
-
-
-
-          <div className="glass-card p-4 space-y-3">
-
-
-
-
-
-
-
-            <div className="flex items-center justify-between">
-
-
-
-              <h3 className="text-sm font-semibold text-[var(--text-primary)]">Journal Entries</h3>
-
-
-
-              {canFinance('export') && journalEntries.length > 0 && (
-
-
-
-                <Button size="sm" onClick={exportJournalEntriesCsv}>
-
-
-
-                  <Download size={12} /> Export
-
-
-
-                </Button>
-
-
-
-              )}
-
-
-
-            </div>
-
-
-
-
-
-
-
-            {filteredJournalEntriesByYear.length === 0 ? (
-
-
-
-
-
-
-
-              <p className="text-sm text-[var(--text-muted)] text-center py-8">No journal entries recorded</p>
-
-
-
-
-
-
-
-            ) : (
-
-
-
-
-
-
-
-              <div className="border border-[var(--border-base)] overflow-auto bg-[var(--bg-elevated)] relative">
-
-
-
-
-
-
-
-                {/* Table Header - Traditional Accounting Format */}
-
-
-
-                <div className="grid grid-cols-12 text-[13px] font-bold text-[var(--text-primary)] border-b-2 border-[var(--border-base)] pb-2 mt-3">
-
-
-
-                  <div className="col-span-2 border-r-2 border-[var(--border-base)] pr-2">Date</div>
-
-
-
-                  <div className="col-span-6 border-r-2 border-[var(--border-base)] px-2">Particulars</div>
-
-
-
-                  <div className="col-span-1 border-r border-[var(--border-base)] px-1 text-center">L.F.</div>
-
-
-
-                  <div className="col-span-2 border-r border-[var(--border-base)] px-1 text-right">Amount(Dr.)</div>
-
-
-
-                  <div className="col-span-1 pl-1 text-right">Amount(Cr.)</div>
-
-
-
-                </div>
-
-
-
-
-
-
-
-                {[...filteredJournalEntriesByYear].reverse().map((entry, entryIdx) => (
-
-
-
-                  <div 
-
-
-
-                    key={entry._id || entry.id} 
-
-
-
-                    className="relative border-b border-[var(--border-muted)] last:border-b-0 cursor-pointer hover:bg-[var(--bg-hover)] transition-colors"
-
-
-
-                    onClick={() => {
-
-
-
-                      setSelectedJournalEntry(entry);
-
-
-
-                      setSelectedJournalEntryIndex(entryIdx + 1);
-
-
-
-                      setShowJournalEntryModal(true);
-
-
-
-                    }}
-
-
-
-                  >
-
-
-
-                    {/* Continuous vertical lines using absolute positioned divs */}
-
-
-
-                    <div className="absolute top-0 bottom-0 left-[16.66%] w-[2px] bg-[var(--border-base)] z-10"></div>
-
-
-
-                    <div className="absolute top-0 bottom-0 left-[66.66%] w-[1px] bg-[var(--border-base)] z-10"></div>
-
-
-
-                    <div className="absolute top-0 bottom-0 left-[75%] w-[1px] bg-[var(--border-base)] z-10"></div>
-
-
-
-                    <div className="absolute top-0 bottom-0 left-[91.66%] w-[1px] bg-[var(--border-base)] z-10"></div>
-
-
-
-                    
-
-
-
-                    {/* Journal Entry Content - No internal horizontal lines */}
-
-
-
-                    <div>
-
-
-
-                      
-
-
-
-                      {(() => {
-
-
-
-                        const debitLines = entry.lines?.filter(l => l.debitAmount > 0) || [];
-
-
-
-                        const creditLines = entry.lines?.filter(l => l.creditAmount > 0) || [];
-
-
-
-                        
-
-
-
-                        return (
-
-
-
-                          <>
-
-
-
-                            {debitLines.map((line, idx) => (
-
-
-
-                              <div 
-
-
-
-                                key={`debit-${idx}`}
-
-
-
-                                className="grid grid-cols-12 text-[13px] items-start relative"
-
-
-
-                              >
-
-
-
-                                <div className="col-span-2 px-2 py-2 text-[var(--text-primary)]">
-
-
-
-                                  {idx === 0 ? new Date(entry.date).toLocaleDateString('en-IN', { 
-
-
-
-                                    day: '2-digit', 
-
-
-
-                                    month: '2-digit', 
-
-
-
-                                    year: 'numeric' 
-
-
-
-                                  }) : ''}
-
-
-
-                                </div>
-
-
-
-                                <div className="col-span-6 px-2 py-2 text-[var(--text-primary)]">
-
-
-
-                                  {line.accountName} <span className="text-[var(--text-muted)]">Dr.</span>
-
-
-
-                                </div>
-
-
-
-                                <div className="col-span-1 px-1 py-2 text-center text-[var(--text-muted)] text-[10px]"></div>
-
-
-
-                                <div className="col-span-2 px-2 py-2 text-right font-medium text-[var(--text-primary)]">
-
-
-
-                                  {fmt(line.debitAmount)}
-
-
-
-                                </div>
-
-
-
-                                <div className="col-span-1 px-1 py-2 text-right"></div>
-
-
-
-                              </div>
-
-
-
-                            ))}
-
-
-
-                            
-
-
-
-                            {creditLines.map((line, idx) => (
-
-
-
-                              <div 
-
-
-
-                                key={`credit-${idx}`}
-
-
-
-                                className="grid grid-cols-12 text-[13px] items-start relative"
-
-
-
-                              >
-
-
-
-                                <div className="col-span-2 px-2 py-2"></div>
-
-
-
-                                <div className="col-span-6 px-2 py-2 text-[var(--text-primary)] pl-6">
-
-
-
-                                  <span className="text-[var(--text-muted)]">To</span> {line.accountName}
-
-
-
-                                </div>
-
-
-
-                                <div className="col-span-1 px-1 py-2 text-center text-[var(--text-muted)] text-[10px]"></div>
-
-
-
-                                <div className="col-span-2 px-1 py-2 text-right"></div>
-
-
-
-                                <div className="col-span-1 px-1 py-2 text-right font-medium text-[var(--text-primary)]">
-
-
-
-                                  {fmt(line.creditAmount)}
-
-
-
-                                </div>
-
-
-
-                              </div>
-
-
-
-                            ))}
-
-
-
-                            
-
-
-
-                            {entry.narration && (
-
-
-
-                              <div className="grid grid-cols-12 text-[13px] items-start bg-[var(--bg-surface)] relative">
-
-
-
-                                <div className="col-span-2 px-2 py-2"></div>
-
-
-
-                                <div className="col-span-6 px-2 py-2 text-[var(--text-muted)] italic">
-
-
-
-                                  ({entry.narration})
-
-
-
-                                </div>
-
-
-
-                                <div className="col-span-1 px-1 py-2"></div>
-
-
-
-                                <div className="col-span-2 px-1 py-2"></div>
-
-
-
-                                <div className="col-span-1 px-1 py-2"></div>
-
-
-
-                              </div>
-
-
-
-                            )}
-
-
-
-                          </>
-
-
-
-                        );
-
-
-
-                      })()}
-
-
-
-                      
+                      <p className={`text-base font-black ${stat.color}`}>{stat.value}</p>
 
 
 
                     </div>
 
+                  ))}
+
+                </div>
+
+              </div>
+
+            </>
+
+          )}
 
 
-                    
+
+
+
+
+
+          <Tabs defaultValue="invoices">
+
+
+
+            <TabsList>
+
+
+
+              <TabsTrigger value="invoices">Invoices ({invoices.length})</TabsTrigger>
+
+
+
+              <TabsTrigger value="payables">Payables Summary</TabsTrigger>
+
+
+
+              <TabsTrigger value="transactions">Transactions ({manualAdjustments.length})</TabsTrigger>
+
+
+
+            </TabsList>
+
+
+
+
+
+
+
+            <TabsContent value="invoices">
+
+
+
+              <div className="space-y-3">
+
+
+
+                <div className="flex flex-wrap gap-2 items-center">
+
+
+
+                  <span className="text-xs text-[var(--text-muted)] mr-1">Status:</span>
+
+
+
+                  {INV_STATUS_FILTERS.map(s => (
+
+
+
+                    <button key={s} onClick={() => { setInvStatus(s); setPage(1); }}
+
+
+
+                      className={`filter-chip ${invStatus === s ? 'filter-chip-active' : ''}`}>{s}</button>
+
+
+
+                  ))}
+
+
+
+                  <div className="flex items-center gap-2 ml-auto">
+
+
+
+                    <Input placeholder="Search invoices..." value={invSearch}
+
+
+
+                      onChange={e => { setInvSearch(e.target.value); setPage(1); }}
+
+
+
+                      className="h-8 text-xs w-44" />
+
+
 
 
 
                   </div>
-
-
-
-                ))}
-
-
-
-
-
-
-
-                <div className="grid grid-cols-12 text-[15px] font-bold text-[var(--text-primary)] bg-[var(--bg-surface)] border-t-2 border-[var(--border-base)] sticky bottom-0 z-20">
-
-
-
-                  <div className="col-span-2 border-r-2 border-[var(--border-base)] px-2 py-2">TOTAL</div>
-
-
-
-                  <div className="col-span-6 border-r-2 border-[var(--border-base)] px-2 py-2"></div>
-
-
-
-                  <div className="col-span-1 border-r border-[var(--border-base)] px-1 py-2"></div>
-
-
-
-                  <div className="col-span-2 border-r border-[var(--border-base)] px-1 py-2 text-right">{fmt(journalTotals.debitTotal)}</div>
-
-
-
-                  <div className="col-span-1 pl-1 py-2 text-right">{fmt(journalTotals.creditTotal)}</div>
 
 
 
@@ -11363,23 +10077,99 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+                {view === 'kanban' ? (
+
+
+
+                  <InvKanbanBoard invoices={filteredInvoices} onStageChange={handleStageChange} onCardClick={setSelected} />
+
+
+
+                ) : (
+
+
+
+                  <DataTable
+
+
+
+                    columns={INVOICE_COLUMNS}
+
+
+
+                    data={paginatedInvoices}
+
+
+
+                    total={filteredInvoices.length}
+
+
+
+                    page={page}
+
+
+
+                    pageSize={pageSize}
+
+
+
+                    onPageChange={setPage}
+
+
+
+                    onPageSizeChange={s => { setPageSize(s); setPage(1); }}
+
+
+
+                    toolbar={canFinance('export') ? (
+
+
+
+                      <Button size="sm" onClick={exportAllInvoicesCsv}>
+
+
+
+                        <Download size={12} /> Export
+
+
+
+                      </Button>
+
+
+
+                    ) : null}
+
+
+
+                    rowActions={filteredRowActions}
+
+
+
+                    onRowClick={setSelected}
+
+
+
+                    rowKey="_id"
+
+
+
+                    emptyText="No invoices found."
+
+
+
+                  />
+
+
+
+                )}
+
+
+
               </div>
 
 
 
-
-
-
-
-            )}
-
-
-
-
-
-
-
-          </div>
+            </TabsContent>
 
 
 
@@ -11387,7 +10177,97 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-        </TabsContent>
+            <TabsContent value="payables">
+
+
+
+              <div className="glass-card p-4 space-y-3">
+
+
+
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Payables to Vendors</h3>
+
+
+
+                {payables.length === 0 ? (
+
+
+
+                  <p className="text-sm text-[var(--text-muted)] text-center py-8">No pending payables</p>
+
+
+
+                ) : (
+
+
+
+                  <div className="space-y-2">
+
+
+
+                    <div className="grid grid-cols-7 gap-2 text-[11px] text-[var(--text-muted)] px-2">
+
+                      <div>Vendor</div>
+
+                      <div>Vendor ID</div>
+
+                      <div className="text-right">Total POs</div>
+
+                      <div className="text-right">Total Payable</div>
+
+                      <div className="text-right">Paid</div>
+
+                      <div className="text-right">Outstanding</div>
+
+                      <div className="text-right">Last PO</div>
+
+                    </div>
+
+
+
+                    {payables.map((p) => (
+
+                      <div
+
+                        key={p.vendorObjectId || p.vendorId}
+
+                        className="grid grid-cols-7 gap-2 items-center p-3 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-muted)]"
+
+                      >
+
+                        <div className="text-xs font-semibold text-[var(--text-primary)]">{p.vendorName}</div>
+
+                        <div className="text-xs font-mono text-[var(--accent-light)]">{p.vendorId}</div>
+
+                        <div className="text-xs text-right text-[var(--text-primary)]">{p.totalPurchaseOrders}</div>
+
+                        <div className="text-xs text-right text-[var(--text-primary)]">{fmt(p.totalPayableAmount)}</div>
+
+                        <div className="text-xs text-right text-[var(--text-primary)]">{fmt(p.amountPaid)}</div>
+
+                        <div className="text-xs text-right font-bold text-amber-400">{fmt(p.outstandingAmount)}</div>
+
+                        <div className="text-xs text-right text-[var(--text-muted)]">{p.lastPurchaseOrderDate || '—'}</div>
+
+                      </div>
+
+                    ))}
+
+
+
+                  </div>
+
+
+
+                )}
+
+
+
+              </div>
+
+
+
+            </TabsContent>
 
 
 
@@ -11395,11 +10275,271 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-      </Tabs>
+            <TabsContent value="transactions">
 
 
 
-      </>
+              <div className="glass-card p-4 space-y-3">
+
+
+
+                <div className="flex items-center justify-between">
+
+                  <h3 className="text-sm font-semibold text-[var(--text-primary)]">Journal Entries</h3>
+
+                  {canFinance('export') && journalEntries.length > 0 && (
+
+                    <Button size="sm" onClick={exportJournalEntriesCsv}>
+
+                      <Download size={12} /> Export
+
+                    </Button>
+
+                  )}
+
+                </div>
+
+
+
+                {journalEntries.length === 0 ? (
+
+
+
+                  <p className="text-sm text-[var(--text-muted)] text-center py-8">No journal entries recorded</p>
+
+
+
+                ) : (
+
+
+
+                  <div className="border border-[var(--border-base)] overflow-auto bg-[var(--bg-elevated)] relative">
+
+
+
+                    {/* Table Header - Traditional Accounting Format */}
+
+                    <div className="grid grid-cols-12 text-[13px] font-bold text-[var(--text-primary)] border-b-2 border-[var(--border-base)] pb-2 mt-3">
+
+                      <div className="col-span-2 border-r-2 border-[var(--border-base)] pr-2">Date</div>
+
+                      <div className="col-span-6 border-r-2 border-[var(--border-base)] px-2">Particulars</div>
+
+                      <div className="col-span-1 border-r border-[var(--border-base)] px-1 text-center">L.F.</div>
+
+                      <div className="col-span-2 border-r border-[var(--border-base)] px-1 text-right">Amount(Dr.)</div>
+
+                      <div className="col-span-1 pl-1 text-right">Amount(Cr.)</div>
+
+                    </div>
+
+
+
+                    {[...journalEntries].reverse().map((entry, entryIdx) => (
+
+                      <div
+
+                        key={entry._id || entry.id}
+
+                        className="relative border-b border-[var(--border-muted)] last:border-b-0 cursor-pointer hover:bg-[var(--bg-hover)] transition-colors"
+
+                        onClick={() => {
+
+                          setSelectedJournalEntry(entry);
+
+                          setSelectedJournalEntryIndex(entryIdx + 1);
+
+                          setShowJournalEntryModal(true);
+
+                        }}
+
+                      >
+
+                        {/* Continuous vertical lines using absolute positioned divs */}
+
+                        <div className="absolute top-0 bottom-0 left-[16.66%] w-[2px] bg-[var(--border-base)] z-10"></div>
+
+                        <div className="absolute top-0 bottom-0 left-[66.66%] w-[1px] bg-[var(--border-base)] z-10"></div>
+
+                        <div className="absolute top-0 bottom-0 left-[75%] w-[1px] bg-[var(--border-base)] z-10"></div>
+
+                        <div className="absolute top-0 bottom-0 left-[91.66%] w-[1px] bg-[var(--border-base)] z-10"></div>
+
+
+
+                        {/* Journal Entry Content - No internal horizontal lines */}
+
+                        <div>
+
+
+
+                          {(() => {
+
+                            const debitLines = entry.lines?.filter(l => l.debitAmount > 0) || [];
+
+                            const creditLines = entry.lines?.filter(l => l.creditAmount > 0) || [];
+
+
+
+                            return (
+
+                              <>
+
+                                {debitLines.map((line, idx) => (
+
+                                  <div
+
+                                    key={`debit-${idx}`}
+
+                                    className="grid grid-cols-12 text-[13px] items-start relative"
+
+                                  >
+
+                                    <div className="col-span-2 px-2 py-2 text-[var(--text-primary)]">
+
+                                      {idx === 0 ? new Date(entry.date).toLocaleDateString('en-IN', {
+
+                                        day: '2-digit',
+
+                                        month: '2-digit',
+
+                                        year: 'numeric'
+
+                                      }) : ''}
+
+                                    </div>
+
+                                    <div className="col-span-6 px-2 py-2 text-[var(--text-primary)]">
+
+                                      {line.accountName} <span className="text-[var(--text-muted)]">Dr.</span>
+
+                                    </div>
+
+                                    <div className="col-span-1 px-1 py-2 text-center text-[var(--text-muted)] text-[10px]"></div>
+
+                                    <div className="col-span-2 px-2 py-2 text-right font-medium text-[var(--text-primary)]">
+
+                                      {fmt(line.debitAmount)}
+
+                                    </div>
+
+                                    <div className="col-span-1 px-1 py-2 text-right"></div>
+
+                                  </div>
+
+                                ))}
+
+
+
+                                {creditLines.map((line, idx) => (
+
+                                  <div
+
+                                    key={`credit-${idx}`}
+
+                                    className="grid grid-cols-12 text-[13px] items-start relative"
+
+                                  >
+
+                                    <div className="col-span-2 px-2 py-2"></div>
+
+                                    <div className="col-span-6 px-2 py-2 text-[var(--text-primary)] pl-6">
+
+                                      <span className="text-[var(--text-muted)]">To</span> {line.accountName}
+
+                                    </div>
+
+                                    <div className="col-span-1 px-1 py-2 text-center text-[var(--text-muted)] text-[10px]"></div>
+
+                                    <div className="col-span-2 px-1 py-2 text-right"></div>
+
+                                    <div className="col-span-1 px-1 py-2 text-right font-medium text-[var(--text-primary)]">
+
+                                      {fmt(line.creditAmount)}
+
+                                    </div>
+
+                                  </div>
+
+                                ))}
+
+
+
+                                {entry.narration && (
+
+                                  <div className="grid grid-cols-12 text-[13px] items-start bg-[var(--bg-surface)] relative">
+
+                                    <div className="col-span-2 px-2 py-2"></div>
+
+                                    <div className="col-span-6 px-2 py-2 text-[var(--text-muted)] italic">
+
+                                      ({entry.narration})
+
+                                    </div>
+
+                                    <div className="col-span-1 px-1 py-2"></div>
+
+                                    <div className="col-span-2 px-1 py-2"></div>
+
+                                    <div className="col-span-1 px-1 py-2"></div>
+
+                                  </div>
+
+                                )}
+
+                              </>
+
+                            );
+
+                          })()}
+
+
+
+                        </div>
+
+
+
+                      </div>
+
+                    ))}
+
+
+
+                    <div className="grid grid-cols-12 text-[15px] font-bold text-[var(--text-primary)] bg-[var(--bg-surface)] border-t-2 border-[var(--border-base)] sticky bottom-0 z-20">
+
+                      <div className="col-span-2 border-r-2 border-[var(--border-base)] px-2 py-2">TOTAL</div>
+
+                      <div className="col-span-6 border-r-2 border-[var(--border-base)] px-2 py-2"></div>
+
+                      <div className="col-span-1 border-r border-[var(--border-base)] px-1 py-2"></div>
+
+                      <div className="col-span-2 border-r border-[var(--border-base)] px-1 py-2 text-right">{fmt(journalTotals.debitTotal)}</div>
+
+                      <div className="col-span-1 pl-1 py-2 text-right">{fmt(journalTotals.creditTotal)}</div>
+
+                    </div>
+
+
+
+                  </div>
+
+
+
+                )}
+
+
+
+              </div>
+
+
+
+            </TabsContent>
+
+
+
+          </Tabs>
+
+        </>
 
 
 
@@ -11607,11 +10747,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-              <Input 
+              <Input
 
 
 
@@ -11647,11 +10783,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-                placeholder="INV-001" 
+                placeholder="INV-001"
 
 
 
@@ -11831,19 +10963,11 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+              <Input
 
 
 
-
-              <Input 
-
-
-
-
-
-
-
-                type="number" 
+                type="number"
 
 
 
@@ -11919,11 +11043,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-                placeholder="280000" 
+                placeholder="280000"
 
 
 
@@ -11967,19 +11087,11 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+              <Input
 
 
 
-
-              <Input 
-
-
-
-
-
-
-
-                type="date" 
+                type="date"
 
 
 
@@ -12071,19 +11183,11 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+              <Input
 
 
 
-
-              <Input 
-
-
-
-
-
-
-
-                type="date" 
+                type="date"
 
 
 
@@ -12167,11 +11271,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-              <Select 
+              <Select
 
 
 
@@ -12183,11 +11283,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-                onChange={e => setNewInvoice({...newInvoice, paymentTerms: e.target.value})}
+                onChange={e => setNewInvoice({ ...newInvoice, paymentTerms: e.target.value })}
 
 
 
@@ -12285,9 +11381,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
           <FormField label="Customer Email">
 
-
-
-            <Input 
+            <Input
 
 
 
@@ -14343,35 +13437,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+        <Modal
 
 
 
-
-        <Modal 
-
+          open={showReminderModal}
 
 
 
+          onClose={() => {
 
 
 
-          open={showReminderModal} 
-
-
-
-
-
-
-
-          onClose={() => { 
-
-
-
-
-
-
-
-            setShowReminderModal(false); 
+            setShowReminderModal(false);
 
 
 
@@ -14407,11 +13485,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-          }} 
+          }}
 
 
 
@@ -14439,35 +13513,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+              <Button
 
 
 
-
-              <Button 
-
+                variant="ghost"
 
 
 
+                onClick={() => {
 
 
 
-                variant="ghost" 
-
-
-
-
-
-
-
-                onClick={() => { 
-
-
-
-
-
-
-
-                  setShowReminderModal(false); 
+                  setShowReminderModal(false);
 
 
 
@@ -14503,11 +13561,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-                }} 
+                }}
 
 
 
@@ -14543,19 +13597,11 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+              <Button
 
 
 
-
-              <Button 
-
-
-
-
-
-
-
-                onClick={handleSendReminder} 
+                onClick={handleSendReminder}
 
 
 
@@ -14712,10 +13758,6 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-            
 
 
 
@@ -14895,11 +13937,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-              <Select 
+              <Select
 
 
 
@@ -14911,11 +13949,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-                onChange={e => setReminderForm({...reminderForm, reminderType: e.target.value})}
+                onChange={e => setReminderForm({ ...reminderForm, reminderType: e.target.value })}
 
 
 
@@ -14999,11 +14033,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-              <Input 
+              <Input
 
 
 
@@ -15023,11 +14053,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-                onChange={e => setReminderForm({...reminderForm, customerEmail: e.target.value})}
+                onChange={e => setReminderForm({ ...reminderForm, customerEmail: e.target.value })}
 
 
 
@@ -15103,11 +14129,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-                onChange={e => setReminderForm({...reminderForm, messageBody: e.target.value})}
+                onChange={e => setReminderForm({ ...reminderForm, messageBody: e.target.value })}
 
 
 
@@ -15207,19 +14229,11 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+          <div
 
 
 
-
-          <div 
-
-
-
-
-
-
-
-            className="absolute inset-0 bg-black/50" 
+            className="absolute inset-0 bg-black/50"
 
 
 
@@ -15287,11 +14301,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-              <button 
+              <button
 
 
 
@@ -15615,27 +14625,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+                              {new Date(activity.createdAt).toLocaleDateString('en-IN', {
 
 
 
-
-                              {new Date(activity.createdAt).toLocaleDateString('en-IN', { 
-
+                                day: '2-digit',
 
 
 
-
-
-
-                                day: '2-digit', 
-
-
-
-
-
-
-
-                                month: 'short', 
+                                month: 'short',
 
 
 
@@ -15688,10 +14686,6 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-                          
 
 
 
@@ -15824,10 +14818,6 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-                          
 
 
 
@@ -15967,27 +14957,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+      <Modal
 
 
 
-
-      <Modal 
-
+        open={showRecordPayment}
 
 
 
-
-
-
-        isOpen={showRecordPayment} 
-
-
-
-
-
-
-
-        onClose={() => { 
+        onClose={() => {
 
 
 
@@ -15999,11 +14977,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-          setShowRecordPayment(false); 
+          setShowRecordPayment(false);
 
 
 
@@ -16055,27 +15029,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+            <Button
 
 
 
-
-            <Button 
-
+              variant="ghost"
 
 
 
-
-
-
-              variant="ghost" 
-
-
-
-
-
-
-
-              onClick={() => { 
+              onClick={() => {
 
 
 
@@ -16087,11 +15049,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-                setShowRecordPayment(false); 
+                setShowRecordPayment(false);
 
 
 
@@ -16151,11 +15109,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-            <Button 
+            <Button
 
 
 
@@ -16335,19 +15289,11 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+                  setRecordPayment({
 
 
 
-
-                  setRecordPayment({ 
-
-
-
-
-
-
-
-                    ...recordPayment, 
+                    ...recordPayment,
 
 
 
@@ -16851,11 +15797,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-              {recordPayment.paymentType === 'Customer Payment' 
+              {recordPayment.paymentType === 'Customer Payment'
 
 
 
@@ -16867,35 +15809,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+                  <option key={inv._id || inv.id} value={inv._id || inv.id}>
 
 
 
-
-                    <option key={inv._id || inv.id} value={inv._id || inv.id}>
-
+                    {inv.invoiceNumber} - {inv.customerName} (₹{inv.amount})
 
 
 
+                  </option>
 
 
 
-                      {inv.invoiceNumber} - {inv.customerName} (₹{inv.amount})
-
-
-
-
-
-
-
-                    </option>
-
-
-
-
-
-
-
-                  ))
+                ))
 
 
 
@@ -16907,35 +15833,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+                  <option key={p.vendorObjectId || p.vendorId} value={p.vendorObjectId || p.vendorId}>
 
 
 
-
-                    <option key={p.vendorObjectId || p.vendorId} value={p.vendorObjectId || p.vendorId}>
-
+                    {p.vendorName} (Outstanding: ₹{p.outstandingAmount})
 
 
 
+                  </option>
 
 
 
-                      {p.vendorName} (Outstanding: ₹{p.outstandingAmount})
-
-
-
-
-
-
-
-                    </option>
-
-
-
-
-
-
-
-                  ))
+                ))
 
 
 
@@ -17011,11 +15921,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-              <Input 
+              <Input
 
 
 
@@ -17151,11 +16057,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-              <Input 
+              <Input
 
 
 
@@ -18685,21 +17587,13 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
                 <div className="font-semibold text-[var(--text-primary)]">
 
+                  {new Date(selectedJournalEntry.date).toLocaleDateString('en-IN', {
 
+                    day: '2-digit',
 
-                  {new Date(selectedJournalEntry.date).toLocaleDateString('en-IN', { 
+                    month: '2-digit',
 
-
-
-                    day: '2-digit', 
-
-
-
-                    month: '2-digit', 
-
-
-
-                    year: 'numeric' 
+                    year: 'numeric'
 
 
 
@@ -18749,13 +17643,9 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
                 <div className="font-semibold text-[var(--text-primary)]">
 
+                  {selectedJournalEntry.narration
 
-
-                  {selectedJournalEntry.narration 
-
-
-
-                    ? selectedJournalEntry.narration.split(':')[0]?.trim() 
+                    ? selectedJournalEntry.narration.split(':')[0]?.trim()
 
 
 
@@ -18835,8 +17725,6 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-              
-
 
 
               {/* Debit Lines */}
@@ -18853,9 +17741,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
                 .map((line, idx) => (
 
-
-
-                  <div 
+                  <div
 
 
 
@@ -18907,8 +17793,6 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-              
-
 
 
               {/* Credit Lines */}
@@ -18925,9 +17809,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
                 .map((line, idx) => (
 
-
-
-                  <div 
+                  <div
 
 
 
@@ -18978,8 +17860,6 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
                 ))}
 
 
-
-              
 
 
 

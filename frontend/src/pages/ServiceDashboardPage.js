@@ -182,7 +182,14 @@ const ServiceDashboardPage = ({ onNavigate }) => {
       setVisitStats(vStats || { totalVisits: 0, scheduled: 0, completed: 0, cancelled: 0 });
 
       // Process engineers
-      const engineersData = Array.isArray(engineersRes) ? engineersRes : engineersRes?.data || [];
+      let engineersData = [];
+      if (Array.isArray(engineersRes)) {
+        engineersData = engineersRes;
+      } else if (engineersRes?.data && Array.isArray(engineersRes.data)) {
+        engineersData = engineersRes.data;
+      } else if (engineersRes?.data?.data && Array.isArray(engineersRes.data.data)) {
+        engineersData = engineersRes.data.data;
+      }
       setEngineers(engineersData);
 
       // Process customers
@@ -258,11 +265,22 @@ const ServiceDashboardPage = ({ onNavigate }) => {
       ? aiInsight.recommendations.join(' ')
       : 'No insights available at this time.');
 
-  // Recent items (sorted by date)
+  // Recent items (sorted by date) - Show ALL tickets without limit
   const recentTickets = useMemo(() => {
-    return [...tickets]
-      .sort((a, b) => new Date(b.created || b.createdAt) - new Date(a.created || a.createdAt))
-      .slice(0, 5);
+    const allTickets = [...tickets]
+      .sort((a, b) => {
+        const dateA = a.created || a.createdAt || a.date;
+        const dateB = b.created || b.createdAt || b.date;
+        // Handle missing dates - put items with valid dates first
+        if (!dateA && !dateB) return 0;
+        if (!dateA) return 1;
+        if (!dateB) return -1;
+        return new Date(dateB) - new Date(dateA);
+      });
+    console.log('DEBUG - Total tickets:', tickets.length);
+    console.log('DEBUG - Recent tickets count:', allTickets.length);
+    console.log('DEBUG - All ticket IDs:', allTickets.map(t => ({id: t.id, status: t.status, customer: t.customerName})));
+    return allTickets;
   }, [tickets]);
 
   const recentVisits = useMemo(() => {
@@ -284,12 +302,14 @@ const ServiceDashboardPage = ({ onNavigate }) => {
     { key: 'type', header: 'Type', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
     { key: 'status', header: 'Status', render: v => <TicketStatusBadge value={v} /> },
     { key: 'priority', header: 'Priority', render: v => <PriorityBadge value={v} /> },
-    { key: 'assignedTo', header: 'Assigned', render: v => (
-      <div className="flex items-center gap-1.5">
-        <Avatar name={v} size="xs" />
-        <span className="text-xs text-[var(--text-muted)]">{v || 'Unassigned'}</span>
-      </div>
-    )},
+    {
+      key: 'assignedTo', header: 'Assigned', render: v => (
+        <div className="flex items-center gap-1.5">
+          <Avatar name={v} size="xs" />
+          <span className="text-xs text-[var(--text-muted)]">{v || 'Unassigned'}</span>
+        </div>
+      )
+    },
   ];
 
   return (
@@ -316,90 +336,66 @@ const ServiceDashboardPage = ({ onNavigate }) => {
       {/* Overview Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KPICard
-          label={<span className="text-sm font-semibold text-[var(--text-primary)]">Total Tickets</span>}
+          label="Total Tickets"
           value={dynamicTicketStats.total}
           icon={Headphones}
           sub={`${dynamicTicketStats.openTickets} open now`}
-          accentColor="#3b82f6"
-          className="bg-[rgba(59,130,246,0.20)]"
-          iconBgColor="bg-blue-100"
-          iconColor="text-blue-500"
+          variant="blue"
         />
         <KPICard
-          label={<span className="text-sm font-semibold text-[var(--text-primary)]">Open Tickets</span>}
+          label="Open Tickets"
           value={dynamicTicketStats.openTickets}
           icon={AlertTriangle}
           trend="Need attention"
           trendUp={false}
-          accentColor="#f97316"
-          className="bg-[rgba(249,115,22,0.20)]"
-          iconBgColor="bg-orange-100"
-          iconColor="text-orange-500"
+          variant="amber"
         />
         <KPICard
-          label={<span className="text-sm font-semibold text-[var(--text-primary)]">Scheduled</span>}
+          label="Scheduled"
           value={dynamicVisitStats.scheduled}
           icon={Calendar}
           sub={`${dynamicVisitStats.total} total visits`}
-          accentColor="#8b5cf6"
-          className="bg-[rgba(139,92,246,0.20)]"
-          iconBgColor="bg-purple-100"
-          iconColor="text-purple-500"
+          variant="purple"
         />
         <KPICard
-          label={<span className="text-sm font-semibold text-[var(--text-primary)]">In Progress</span>}
+          label="In Progress"
           value={dynamicTicketStats.inProgress}
           icon={Clock}
           sub="Being handled"
-          accentColor="#eab308"
-          className="bg-[rgba(234,179,8,0.20)]"
-          iconBgColor="bg-yellow-100"
-          iconColor="text-yellow-500"
+          variant="indigo"
         />
       </div>
 
       {/* Second Row Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KPICard
-          label={<span className="text-sm font-semibold text-[var(--text-primary)]">Resolved</span>}
+          label="Resolved"
           value={dynamicTicketStats.resolved}
           icon={CheckCircle}
           trend="This month"
           trendUp={true}
-          accentColor="#22c55e"
-          className="bg-[rgba(34,197,94,0.20)]"
-          iconBgColor="bg-green-100"
-          iconColor="text-green-500"
+          variant="emerald"
         />
         <KPICard
-          label={<span className="text-sm font-semibold text-[var(--text-primary)]">Closed</span>}
+          label="Closed"
           value={dynamicTicketStats.closed}
           icon={XCircle}
           sub="Completed"
-          accentColor="#64748b"
-          className="bg-[rgba(100,116,139,0.20)]"
-          iconBgColor="bg-slate-100"
-          iconColor="text-slate-500"
+          variant="indigo"
         />
         <KPICard
-          label={<span className="text-sm font-semibold text-[var(--text-primary)]">AMC Contracts</span>}
+          label="AMC Contracts"
           value={dynamicAmcStats.active}
           icon={Shield}
           sub={`${dynamicAmcStats.total} total contracts`}
-          accentColor="#a855f7"
-          className="bg-[rgba(168,85,247,0.20)]"
-          iconBgColor="bg-violet-100"
-          iconColor="text-violet-500"
+          variant="purple"
         />
         <KPICard
-          label={<span className="text-sm font-semibold text-[var(--text-primary)]">Total Visits</span>}
+          label="Total Visits"
           value={dynamicVisitStats.total}
           icon={Activity}
           sub={`${dynamicVisitStats.scheduled} scheduled`}
-          accentColor="#06b6d4"
-          className="bg-[rgba(6,182,212,0.20)]"
-          iconBgColor="bg-cyan-100"
-          iconColor="text-cyan-500"
+          variant="blue"
         />
       </div>
 
@@ -479,7 +475,7 @@ const ServiceDashboardPage = ({ onNavigate }) => {
               View All
             </Button>
           </div>
-          <div className="space-y-2 max-h-[250px] overflow-y-auto">
+          <div className="space-y-2 max-h-[300px] overflow-y-auto">
             {recentTickets.map((ticket) => (
               <div key={ticket.id} className="p-2 rounded-lg bg-[var(--bg-tertiary)] text-xs">
                 <div className="flex items-center justify-between">
@@ -510,7 +506,7 @@ const ServiceDashboardPage = ({ onNavigate }) => {
               View All
             </Button>
           </div>
-          <div className="space-y-2 max-h-[250px] overflow-y-auto">
+          <div className="space-y-2 max-h-[300px] overflow-y-auto">
             {recentVisits.map((visit) => (
               <div key={visit.id || visit.visitId} className="p-2 rounded-lg bg-[var(--bg-tertiary)] text-xs">
                 <div className="flex items-center justify-between">
@@ -538,7 +534,7 @@ const ServiceDashboardPage = ({ onNavigate }) => {
             </h3>
             <span className="text-xs text-[var(--text-muted)]">{engineers.length} Engineers</span>
           </div>
-          <div className="space-y-2 max-h-[250px] overflow-y-auto">
+          <div className="space-y-2 max-h-[300px] overflow-y-auto">
             {engineers.slice(0, 8).map((engineer) => (
               <div key={engineer.id} className="flex items-center gap-2 p-2 rounded-lg bg-[var(--bg-tertiary)]">
                 <Avatar name={engineer.name} size="sm" />

@@ -15,6 +15,10 @@ export class TaskItemDto {
   @IsOptional()
   @IsMongoId()
   completedBy?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  photoRequired?: boolean;
 }
 
 export class PhotoItemDto {
@@ -69,11 +73,13 @@ export class CustomerSignOffDto {
 }
 
 export class CreateInstallationDto {
+  @IsOptional()
   @IsString()
-  installationId!: string;
+  installationId?: string;
 
-  @IsMongoId()
-  projectId!: string;
+  @IsOptional()
+  @IsString()
+  projectId?: string;
 
   @IsOptional()
   @IsMongoId()
@@ -85,11 +91,13 @@ export class CreateInstallationDto {
   @IsString()
   site!: string;
 
+  @IsOptional()
   @IsMongoId()
-  technicianId!: string;
+  technicianId?: string;
 
+  @IsOptional()
   @IsString()
-  technicianName!: string;
+  technicianName?: string;
 
   @IsOptional()
   @IsMongoId()
@@ -150,12 +158,6 @@ export class UpdateInstallationDto extends PartialType(CreateInstallationDto) {}
 export class UpdateInstallationStatusDto {
   @IsEnum(['Pending', 'In Progress', 'Delayed', 'Completed'])
   status!: 'Pending' | 'In Progress' | 'Delayed' | 'Completed';
-
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  @Max(100)
-  progress?: number;
 
   @IsOptional()
   @IsString()

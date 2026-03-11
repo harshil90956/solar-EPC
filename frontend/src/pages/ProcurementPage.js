@@ -670,6 +670,7 @@ const ProcurementPage = () => {
   const [poView, setPoView] = useState('kanban');
   const [poSearch, setPoSearch] = useState('');
   const [poStatus, setPoStatus] = useState('All');
+  const [poFilter, setPoFilter] = useState(null); // 'pending', 'active', etc.
   const [poPage, setPoPage] = useState(1);
   const [poPageSize, setPoPageSize] = useState(APP_CONFIG.defaultPageSize);
   const [showPO, setShowPO] = useState(false);
@@ -973,14 +974,66 @@ const ProcurementPage = () => {
   };
 
   const filteredPOs = useMemo(() =>
-    pos.filter(po => po &&
-      (poStatus === 'All' || po?.status === poStatus) &&
-      po?.vendorName?.toLowerCase().includes(poSearch.toLowerCase())
-    ), [poSearch, poStatus, pos]);
+    pos.filter(po => {
+      if (!po) return false;
+      
+      // Handle special filter types from card clicks
+      if (poFilter === 'pending') {
+        return ['Draft', 'Ordered'].includes(po?.status);
+      }
+      if (poFilter === 'active') {
+        return po?.status !== 'Delivered' && po?.status !== 'Cancelled';
+      }
+      
+      // Default filtering by status and search
+      const statusMatch = poStatus === 'All' || po?.status === poStatus;
+      const searchMatch = po?.vendorName?.toLowerCase().includes(poSearch.toLowerCase());
+      return statusMatch && searchMatch;
+    }), [poSearch, poStatus, poFilter, pos]);
 
   const paginatedPOs = filteredPOs.slice((poPage - 1) * poPageSize, poPage * poPageSize);
 
-  // Calculate KPI stats with correct filtering
+  // Handle KPI card click to filter table data
+  const handleCardClick = (filterType) => {
+    // Switch to table view
+    setPoView('table');
+    setPoPage(1);
+    setPoFilter(filterType);
+    
+    // Apply filter based on card type
+    switch (filterType) {
+      case 'pending':
+        setPoStatus('All');
+        setPoSearch('');
+        break;
+      case 'active':
+        setPoStatus('All');
+        setPoSearch('');
+        break;
+      case 'delivered':
+        setPoStatus('Delivered');
+        setPoSearch('');
+        break;
+      case 'inTransit':
+        setPoStatus('In Transit');
+        setPoSearch('');
+        break;
+      case 'totalSpend':
+        setPoStatus('All');
+        setPoSearch('');
+        break;
+      default:
+        break;
+    }
+    
+    // Scroll to table view after a short delay to allow render
+    setTimeout(() => {
+      const tableSection = document.getElementById('po-table-section');
+      if (tableSection) {
+        tableSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
+  };
   const pendingPOs = pos.filter(p => p && ['Draft', 'Ordered'].includes(p?.status)).length;
   const activePOs = pos.filter(p => p && p?.status !== 'Delivered' && p?.status !== 'Cancelled').length;
   const totalSpend = pos.reduce((a, p) => a + (p?.totalAmount || 0), 0);
@@ -1019,11 +1072,21 @@ const ProcurementPage = () => {
           <span>Procurement Overview - Purchase orders and spending tracking</span>
         </p>
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-          <KPICard title="Total Pending Approvals" value={pendingPOs} icon={ShoppingCart} sub="Draft & ordered POs awaiting approval" color="accent" />
-          <KPICard title="Total Active POs" value={activePOs} icon={Package} sub="All active purchase orders" color="blue" />
-          <KPICard title="Total POs Delivered" value={delivered} icon={CheckCircle} sub="Completed deliveries" color="emerald" />
-          <KPICard title="Total POs In Transit" value={inTransit} icon={Truck} sub="On the way" color="cyan" />
-          <KPICard title="Total Spend" value={fmtFull(totalSpend)} icon={Package} sub="Total PO value" color="solar" />
+          <div onClick={() => handleCardClick('pending')} className="cursor-pointer transition-transform hover:scale-105">
+            <KPICard title="Total Pending Approvals" value={pendingPOs} icon={ShoppingCart} sub="Draft & ordered POs awaiting approval" gradient="bg-gradient-to-br from-rose-50 to-rose-100/50 dark:from-rose-950/30 dark:to-rose-900/20" iconBgColor="bg-rose-100 dark:bg-rose-900/50" iconColor="text-rose-600 dark:text-rose-400" />
+          </div>
+          <div onClick={() => handleCardClick('active')} className="cursor-pointer transition-transform hover:scale-105">
+            <KPICard title="Total Active POs" value={activePOs} icon={Package} sub="All active purchase orders" gradient="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20" iconBgColor="bg-blue-100 dark:bg-blue-900/50" iconColor="text-blue-600 dark:text-blue-400" />
+          </div>
+          <div onClick={() => handleCardClick('delivered')} className="cursor-pointer transition-transform hover:scale-105">
+            <KPICard title="Total POs Delivered" value={delivered} icon={CheckCircle} sub="Completed deliveries" gradient="bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/30 dark:to-emerald-900/20" iconBgColor="bg-emerald-100 dark:bg-emerald-900/50" iconColor="text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <div onClick={() => handleCardClick('inTransit')} className="cursor-pointer transition-transform hover:scale-105">
+            <KPICard title="Total POs In Transit" value={inTransit} icon={Truck} sub="On the way" gradient="bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-950/30 dark:to-amber-900/20" iconBgColor="bg-amber-100 dark:bg-amber-900/50" iconColor="text-amber-600 dark:text-amber-400" />
+          </div>
+          <div onClick={() => handleCardClick('totalSpend')} className="cursor-pointer transition-transform hover:scale-105">
+            <KPICard title="Total Spend" value={fmtFull(totalSpend)} icon={Package} sub="Total PO value" gradient="bg-gradient-to-br from-orange-50 to-orange-100/50 dark:from-orange-950/30 dark:to-orange-900/20" iconBgColor="bg-orange-100 dark:bg-orange-900/50" iconColor="text-orange-600 dark:text-orange-400" />
+          </div>
         </div>
       </div>
 
@@ -1046,7 +1109,7 @@ const ProcurementPage = () => {
               <div className="flex flex-wrap gap-2 items-center">
                 <span className="text-xs text-[var(--text-muted)] mr-1">Status:</span>
                 {PO_STATUS_FILTERS.map(s => (
-                  <button key={s} onClick={() => { setPoStatus(s); setPoPage(1); }}
+                  <button key={s} onClick={() => { setPoStatus(s); setPoFilter(null); setPoPage(1); }}
                     className={`filter-chip ${poStatus === s ? 'filter-chip-active' : ''}`}>{s}</button>
                 ))}
               </div>
@@ -1095,9 +1158,11 @@ const ProcurementPage = () => {
                 <POKanbanBoard pos={filteredPOs} onStageChange={handlePOStageChange} onCardClick={setSelectedPO} />
               </>
             ) : (
-              <DataTable columns={PO_COLUMNS} data={paginatedPOs} rowActions={PO_ACTIONS}
-                pagination={{ page: poPage, pageSize: poPageSize, total: filteredPOs.length, onChange: setPoPage, onPageSizeChange: setPoPageSize }}
-                emptyMessage="No purchase orders found." />
+              <div id="po-table-section">
+                <DataTable columns={PO_COLUMNS} data={paginatedPOs} rowActions={PO_ACTIONS}
+                  pagination={{ page: poPage, pageSize: poPageSize, total: filteredPOs.length, onChange: setPoPage, onPageSizeChange: setPoPageSize }}
+                  emptyMessage="No purchase orders found." />
+              </div>
             )}
           </div>
         </TabsContent>

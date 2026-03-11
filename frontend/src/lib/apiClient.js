@@ -1,7 +1,7 @@
 // CENTRAL API CLIENT — All API calls route through here. No direct fetch/axios in components.
 import axios from 'axios';
 
-const BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api/v1';
+const BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api';
 const TIMEOUT = parseInt(process.env.REACT_APP_API_TIMEOUT || '30000', 10);
 
 export const apiClient = axios.create({
@@ -40,6 +40,7 @@ apiClient.interceptors.request.use(
             localStorage.getItem('solar_token') ||
             localStorage.getItem('accessToken') ||
             localStorage.getItem('token');
+        console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url} - Token: ${token ? 'present' : 'missing'}`);
         if (token) config.headers.Authorization = `Bearer ${token}`;
         const tenantId = getTenantId();
         if (tenantId) config.headers['x-tenant-id'] = tenantId;
@@ -58,7 +59,10 @@ apiClient.interceptors.response.use(
             error?.message ||
             'An unexpected error occurred';
 
+        console.log(`[API Error] Status: ${status}, Message: ${message}`, error?.response?.config?.url);
+        
         if (status === 401) {
+            console.warn('[API Error] 401 Unauthorized - clearing token and redirecting to login');
             localStorage.removeItem('solar_token');
             // Only redirect if not already on login page to avoid loops
             if (window.location.pathname !== '/login') {

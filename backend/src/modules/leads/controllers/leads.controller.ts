@@ -9,12 +9,15 @@ import {
   Param,
   Query,
   UseGuards,
+  UseInterceptors,
   Request,
   HttpCode,
   HttpStatus,
   Logger,
   BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { extname, join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { createWriteStream } from 'fs';
@@ -38,9 +41,9 @@ export class LeadsController {
   @RequirePermission('leads', 'create')
   async create(@Body() createLeadDto: CreateLeadDto, @Request() req: any) {
     try {
-      const tenantId = req.tenant?.id || 'default';
+      const tenantId = req.tenant?.id;
       this.logger.log(`[DEBUG] create lead - tenantId: ${tenantId}`);
-      const result = await this.leadsService.create(createLeadDto, tenantId);
+      const result = await this.leadsService.create(createLeadDto, tenantId, req.user);
       return { success: true, data: result };
     } catch (error: any) {
       this.logger.error(`Create lead failed: ${error?.message || 'Unknown error'}`, error?.stack);
@@ -52,11 +55,14 @@ export class LeadsController {
   @RequirePermission('leads', 'view')
   async findAll(@Query() query: QueryLeadDto, @Request() req: any) {
     try {
-      const tenantId = req.tenant?.id || 'default';
+      const tenantId = req.tenant?.id;
       const user = req.user;
       this.logger.log(`[DEBUG] findAll leads - tenantId: ${tenantId}, user: ${user?.id}, dataScope: ${user?.dataScope}`);
       const result = await this.leadsService.findAll(query, tenantId, user);
-      return { success: true, data: result.data, total: result.total };
+      const page = Number(query?.page || 1);
+      const limit = Number(query?.limit || 25);
+      const pages = limit > 0 ? Math.max(1, Math.ceil((result.total || 0) / limit)) : 1;
+      return { success: true, data: result.data, total: result.total, page, pages };
     } catch (error: any) {
       this.logger.error(`Find all leads failed: ${error?.message || 'Unknown error'}`, error?.stack);
       throw error;
@@ -66,7 +72,7 @@ export class LeadsController {
   @Get('stats')
   async getStats(@Request() req: any) {
     try {
-      const tenantId = req.tenant?.id || 'default';
+      const tenantId = req.tenant?.id;
       const user = req.user;
       this.logger.log(`[DEBUG] getStats leads - tenantId: ${tenantId}, user: ${user?.id}, dataScope: ${user?.dataScope}`);
       return await this.leadsService.getStats(tenantId, user);
@@ -92,7 +98,7 @@ export class LeadsController {
   async recalculateScores(@Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
-      return await this.leadsService.recalculateAllScores(tenantId);
+      return await this.leadsService.recalculateAllScores(tenantId, req.user);
     } catch (error: any) {
       this.logger.error(`Recalculate scores failed: ${error?.message || 'Unknown error'}`, error?.stack);
       throw error;
@@ -118,7 +124,7 @@ export class LeadsController {
     try {
       this.logger.log(`Updating lead ${id} with data: ${JSON.stringify(updateLeadDto)}`);
       const tenantId = req.tenant?.id;
-      const result = await this.leadsService.update(id, updateLeadDto, tenantId);
+      const result = await this.leadsService.update(id, updateLeadDto, tenantId, req.user);
       return { success: true, data: result };
     } catch (error: any) {
       this.logger.error(`Update lead ${id} failed: ${error?.message || 'Unknown error'}`, error?.stack);
@@ -132,7 +138,7 @@ export class LeadsController {
   async remove(@Param('id') id: string, @Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
-      await this.leadsService.remove(id, tenantId);
+      await this.leadsService.remove(id, tenantId, req.user);
     } catch (error: any) {
       this.logger.error(`Remove lead ${id} failed: ${error?.message || 'Unknown error'}`, error?.stack);
       throw error;
@@ -144,7 +150,7 @@ export class LeadsController {
   async duplicate(@Param('id') id: string, @Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
-      const result = await this.leadsService.duplicate(id, tenantId);
+      const result = await this.leadsService.duplicate(id, tenantId, req.user);
       return { success: true, data: result };
     } catch (error: any) {
       this.logger.error(`Duplicate lead ${id} failed: ${error?.message || 'Unknown error'}`, error?.stack);
@@ -157,7 +163,7 @@ export class LeadsController {
   async archive(@Param('id') id: string, @Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
-      const result = await this.leadsService.update(id, { archived: true } as any, tenantId);
+      const result = await this.leadsService.update(id, { archived: true } as any, tenantId, req.user);
       return { success: true, data: result };
     } catch (error: any) {
       this.logger.error(`Archive lead ${id} failed: ${error?.message || 'Unknown error'}`, error?.stack);
@@ -170,7 +176,7 @@ export class LeadsController {
   async unarchive(@Param('id') id: string, @Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
-      const result = await this.leadsService.update(id, { archived: false } as any, tenantId);
+      const result = await this.leadsService.update(id, { archived: false } as any, tenantId, req.user);
       return { success: true, data: result };
     } catch (error: any) {
       this.logger.error(`Unarchive lead ${id} failed: ${error?.message || 'Unknown error'}`, error?.stack);
@@ -183,7 +189,7 @@ export class LeadsController {
   async addActivity(@Param('id') id: string, @Body() activityDto: AddActivityDto, @Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
-      const result = await this.leadsService.addActivity(id, activityDto, tenantId);
+      const result = await this.leadsService.addActivity(id, activityDto, tenantId, req.user);
       return { success: true, data: result };
     } catch (error: any) {
       this.logger.error(`Add activity to lead ${id} failed: ${error?.message || 'Unknown error'}`, error?.stack);
@@ -226,10 +232,10 @@ export class LeadsController {
     @Request() req: any
   ) {
     try {
-      const tenantId = req.tenant?.id;
-      const userId = req.user?.id || req.user?._id;
-      this.logger.log(`[DEBUG] assignLead ${id} to ${assignedTo} by ${userId}`);
-      const result = await this.leadsService.assignLead(id, assignedTo, userId, tenantId);
+      // Pass full user object from JWT token - NEVER trust frontend role
+      const user = req.user;
+      this.logger.log(`[DEBUG] assignLead ${id} to ${assignedTo} by ${user?.id} (role: ${user?.role})`);
+      const result = await this.leadsService.assignLead(id, assignedTo, user);
       return { success: true, data: result };
     } catch (error: any) {
       this.logger.error(`Assign lead ${id} failed: ${error?.message || 'Unknown error'}`, error?.stack);
@@ -242,7 +248,8 @@ export class LeadsController {
   async updateStage(@Param('id') id: string, @Body('stage') stage: string, @Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
-      const result = await this.leadsService.updateStage(id, stage, tenantId);
+      const user = req.user;
+      const result = await this.leadsService.updateStage(id, stage, user?.id || 'System', tenantId, user);
       return { success: true, data: result };
     } catch (error: any) {
       this.logger.error(`Update stage for lead ${id} failed: ${error?.message || 'Unknown error'}`, error?.stack);
@@ -256,7 +263,7 @@ export class LeadsController {
   async bulkArchive(@Body() bulkDto: BulkActionDto, @Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
-      return await this.leadsService.bulkArchive(bulkDto.ids, tenantId);
+      return await this.leadsService.bulkArchive(bulkDto.ids, tenantId, req.user);
     } catch (error: any) {
       this.logger.error(`Bulk archive failed: ${error?.message || 'Unknown error'}`, error?.stack);
       throw error;
@@ -265,12 +272,92 @@ export class LeadsController {
 
   @Post('bulk/delete')
   @HttpCode(HttpStatus.OK)
-  async bulkDelete(@Body() bulkDto: BulkActionDto, @Request() req: any) {
+  @RequirePermission('leads', 'delete')
+  async bulkDelete(@Body() body: { leadIds: string[] }, @Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
-      return await this.leadsService.bulkDelete(bulkDto.ids, tenantId);
+      return await this.leadsService.bulkDelete(body.leadIds, tenantId, req.user);
     } catch (error: any) {
       this.logger.error(`Bulk delete failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
+  @Delete('bulk')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermission('leads', 'delete')
+  async bulkDeleteEndpoint(@Body() body: { leadIds: string[] }, @Request() req: any) {
+    try {
+      const tenantId = req.tenant?.id;
+      return await this.leadsService.bulkDelete(body.leadIds, tenantId, req.user);
+    } catch (error: any) {
+      this.logger.error(`Bulk delete failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
+  @Patch('bulk-assign')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermission('leads', 'assign')
+  async bulkAssign(
+    @Body() body: { leadIds: string[]; assignedTo: string },
+    @Request() req: any
+  ) {
+    try {
+      const user = req.user;
+      this.logger.log(`[DEBUG] bulkAssign ${body.leadIds?.length} leads to ${body.assignedTo} by ${user?.id}`);
+      const results = [];
+      for (const leadId of body.leadIds || []) {
+        try {
+          const result = await this.leadsService.assignLead(leadId, body.assignedTo, user);
+          results.push({ leadId, success: true, data: result });
+        } catch (err: any) {
+          results.push({ leadId, success: false, error: err?.message });
+        }
+      }
+      return { success: true, data: results };
+    } catch (error: any) {
+      this.logger.error(`Bulk assign failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
+  @Patch('bulk-score')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermission('leads', 'edit')
+  async bulkScore(
+    @Body() body: { leadIds: string[]; scoreIncrease?: number; score?: number },
+    @Request() req: any
+  ) {
+    try {
+      const tenantId = req.tenant?.id;
+      const scoreValue = (body as any)?.scoreIncrease ?? (body as any)?.score;
+      if (typeof scoreValue !== 'number' || Number.isNaN(scoreValue)) {
+        throw new BadRequestException('scoreIncrease/score must be a number');
+      }
+      this.logger.log(`[DEBUG] bulkScore ${body.leadIds?.length} leads by ${scoreValue}`);
+      const result = await this.leadsService.bulkUpdateScore(body.leadIds, scoreValue, tenantId, req.user);
+      return { success: true, data: result };
+    } catch (error: any) {
+      this.logger.error(`Bulk score failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
+  @Post('export')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermission('leads', 'export')
+  async exportLeads(
+    @Body() body: { leadIds: string[] },
+    @Request() req: any
+  ) {
+    try {
+      const tenantId = req.tenant?.id;
+      const user = req.user;
+      this.logger.log(`[DEBUG] exportLeads ${body.leadIds?.length} leads`);
+      return await this.leadsService.exportLeads(body.leadIds, tenantId, user);
+    } catch (error: any) {
+      this.logger.error(`Export leads failed: ${error?.message || 'Unknown error'}`, error?.stack);
       throw error;
     }
   }
@@ -280,7 +367,7 @@ export class LeadsController {
   async bulkUpdateStage(@Body() bulkDto: BulkActionDto, @Param('stage') stage: string, @Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
-      return await this.leadsService.bulkUpdateStage(bulkDto.ids, stage, tenantId);
+      return await this.leadsService.bulkUpdateStage(bulkDto.ids, stage, tenantId, req.user);
     } catch (error: any) {
       this.logger.error(`Bulk update stage failed: ${error?.message || 'Unknown error'}`, error?.stack);
       throw error;
@@ -385,17 +472,23 @@ export class LeadsController {
   }
 
   // ============================================
-  // LEAD IMPORT ENDPOINT - TEMPORARILY DISABLED
+  // LEAD IMPORT ENDPOINT
   // ============================================
-  /*
   @Post('import')
   @HttpCode(HttpStatus.OK)
+  @RequirePermission('leads', 'create')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 20 * 1024 * 1024 },
+    }),
+  )
   async importLeads(@Request() req: any) {
-    const file = await req.file?.();
+    const file = req.file;
     if (!file) throw new BadRequestException('No file uploaded');
 
     const allowedExt = ['.csv', '.xlsx', '.xls', '.json'];
-    const ext = extname(file.filename || '').toLowerCase();
+    const ext = extname(file.originalname || '').toLowerCase();
     if (!allowedExt.includes(ext)) {
       throw new BadRequestException('Only CSV, XLSX, XLS, or JSON files are allowed');
     }
@@ -407,21 +500,22 @@ export class LeadsController {
     const storedFileName = `leads-${uniqueSuffix}${ext}`;
     const storedPath = join(uploadDir, storedFileName);
 
-    await pipeline(file.file, createWriteStream(storedPath));
+    // Write file to disk
+    await pipeline(file.buffer, createWriteStream(storedPath));
 
     try {
       const tenantId = req.tenant?.id;
+      const user = req.user;
       const fileExtension = ext;
       
-      this.logger.log(`Importing leads from file: ${file.filename}, tenant: ${tenantId || 'default'}`);
+      this.logger.log(`Importing leads from file: ${file.originalname}, tenant: ${tenantId}`);
       
-      const result = await this.leadsService.importLeads(storedPath, fileExtension, tenantId);
-      
-      return result;
+      const result = await this.leadsService.importLeads(storedPath, fileExtension, tenantId, user);
+
+      return { success: true, data: result };
     } catch (error: any) {
       this.logger.error(`Import leads failed: ${error?.message || 'Unknown error'}`, error?.stack);
       throw error;
     }
   }
-  */
 }

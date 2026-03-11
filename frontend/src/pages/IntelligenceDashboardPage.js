@@ -2,7 +2,8 @@
 // Real-time AI-powered business intelligence & trade decision assistant UI. Pure frontend. No backend, no API calls.
 // All intelligence derived from mock data via useIntelligenceStore.
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { KPICard } from '../components/ui/KPICard';
 import {
     Brain, RefreshCw, TrendingUp, TrendingDown, AlertTriangle,
     CheckCircle, Users, MapPin, Pencil, FileText, FolderOpen,
@@ -668,12 +669,12 @@ const SkeletonCard = ({ h = 'h-24', className = '' }) => (
 // ─── GLOBAL KPI SNAPSHOT ─────────────────────────────────────────────────────
 const GlobalKPISnapshot = ({ kpis, isRefreshing }) => {
     const items = [
-        { key: 'revenueForecast', label: 'Revenue Forecast', icon: TrendingUp, color: '#22c55e' },
-        { key: 'conversionRate', label: 'Conversion Rate', icon: Target, color: '#3b82f6' },
-        { key: 'avgProjectDuration', label: 'Avg Project Time', icon: Clock, color: '#8b5cf6' },
-        { key: 'installationLoad', label: 'Install Load', icon: Wrench, color: '#f59e0b' },
-        { key: 'cashRiskIndex', label: 'Cash Risk Index', icon: Gauge, color: '#f97316' },
-        { key: 'inventoryTurnover', label: 'Inventory Turn', icon: Package, color: '#06b6d4' },
+        { key: 'revenueForecast', label: 'Revenue Forecast', icon: TrendingUp, variant: 'emerald' },
+        { key: 'conversionRate', label: 'Conversion Rate', icon: Target, variant: 'blue' },
+        { key: 'avgProjectDuration', label: 'Avg Project Time', icon: Clock, variant: 'purple' },
+        { key: 'installationLoad', label: 'Install Load', icon: Wrench, variant: 'amber' },
+        { key: 'cashRiskIndex', label: 'Cash Risk Index', icon: Gauge, variant: 'indigo' },
+        { key: 'inventoryTurnover', label: 'Inventory Turn', icon: Package, variant: 'indigo' },
     ];
 
     if (isRefreshing) {
@@ -689,27 +690,16 @@ const GlobalKPISnapshot = ({ kpis, isRefreshing }) => {
             {items.map(item => {
                 const d = kpis[item.key];
                 return (
-                    <div key={item.key}
-                        className="glass-card p-4 flex flex-col gap-2 hover:scale-[1.02] transition-all cursor-default group">
-                        <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0"
-                                style={{ backgroundColor: item.color + '18', border: `1px solid ${item.color}30` }}>
-                                <item.icon size={12} style={{ color: item.color }} />
-                            </div>
-                            <span className="text-[10px] text-[var(--text-muted)] leading-tight">{item.label}</span>
-                        </div>
-                        <p className="text-lg font-extrabold tabular-nums text-[var(--text-primary)] group-hover:scale-105 transition-transform origin-left">
-                            {d?.val}
-                        </p>
-                        <div className="flex items-center gap-1">
-                            {d?.up === true && <ArrowUpRight size={10} className="text-emerald-400 shrink-0" />}
-                            {d?.up === false && <ArrowDownRight size={10} className="text-red-400 shrink-0" />}
-                            <span className={`text-[9px] font-semibold ${d?.up === true ? 'text-emerald-400' : d?.up === false ? 'text-red-400' : 'text-[var(--text-faint)]'}`}>
-                                {d?.trend}
-                            </span>
-                        </div>
-                        <p className="text-[9px] text-[var(--text-faint)]">{d?.sub}</p>
-                    </div>
+                    <KPICard
+                        key={item.key}
+                        label={item.label}
+                        value={d?.val || '-'}
+                        sub={d?.sub}
+                        icon={item.icon}
+                        variant={item.variant}
+                        trend={d?.trend}
+                        trendUp={d?.up}
+                    />
                 );
             })}
         </div>

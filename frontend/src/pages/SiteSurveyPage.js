@@ -80,27 +80,27 @@ const GridDrawingCanvas = ({ drawingData, onChange, readOnly = false }) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    
+
     ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-    
+
     // Draw grid
     ctx.strokeStyle = '#d1d5db';
     ctx.lineWidth = 0.5;
-    
+
     for (let x = 0; x <= CANVAS_WIDTH; x += GRID_SIZE) {
       ctx.beginPath();
       ctx.moveTo(x, 0);
       ctx.lineTo(x, CANVAS_HEIGHT);
       ctx.stroke();
     }
-    
+
     for (let y = 0; y <= CANVAS_HEIGHT; y += GRID_SIZE) {
       ctx.beginPath();
       ctx.moveTo(0, y);
       ctx.lineTo(CANVAS_WIDTH, y);
       ctx.stroke();
     }
-    
+
     // Draw stored lines
     ctx.strokeStyle = '#2563eb';
     ctx.lineWidth = 2;
@@ -111,7 +111,7 @@ const GridDrawingCanvas = ({ drawingData, onChange, readOnly = false }) => {
       ctx.stroke();
       drawArrowhead(ctx, line.startX, line.startY, line.endX, line.endY);
     });
-    
+
     if (currentLine) {
       ctx.beginPath();
       ctx.moveTo(currentLine.startX, currentLine.startY);
@@ -119,7 +119,7 @@ const GridDrawingCanvas = ({ drawingData, onChange, readOnly = false }) => {
       ctx.stroke();
       drawArrowhead(ctx, currentLine.startX, currentLine.startY, currentLine.endX, currentLine.endY);
     }
-    
+
     // Draw dimensions
     ctx.fillStyle = '#dc2626';
     ctx.font = 'bold 12px Arial';
@@ -132,7 +132,7 @@ const GridDrawingCanvas = ({ drawingData, onChange, readOnly = false }) => {
       ctx.lineTo(dim.lineEndX, dim.lineEndY);
       ctx.stroke();
     });
-    
+
     // Draw text labels
     ctx.fillStyle = '#111827';
     ctx.font = 'bold 14px Arial';
@@ -144,7 +144,7 @@ const GridDrawingCanvas = ({ drawingData, onChange, readOnly = false }) => {
   const drawArrowhead = (ctx, fromX, fromY, toX, toY) => {
     const headLength = 8;
     const angle = Math.atan2(toY - fromY, toX - fromX);
-    
+
     ctx.beginPath();
     ctx.moveTo(toX, toY);
     ctx.lineTo(toX - headLength * Math.cos(angle - Math.PI / 6), toY - headLength * Math.sin(angle - Math.PI / 6));
@@ -160,7 +160,7 @@ const GridDrawingCanvas = ({ drawingData, onChange, readOnly = false }) => {
     const rect = canvasRef.current.getBoundingClientRect();
     const x = snapToGrid(e.clientX - rect.left);
     const y = snapToGrid(e.clientY - rect.top);
-    
+
     if (tool === 'line') {
       setIsDrawing(true);
       setCurrentLine({ startX: x, startY: y, endX: x, endY: y });
@@ -182,13 +182,13 @@ const GridDrawingCanvas = ({ drawingData, onChange, readOnly = false }) => {
 
   const handleMouseUp = () => {
     if (!isDrawing || !currentLine || readOnly) return;
-    
+
     if (currentLine.isDimension) {
       const length = Math.round(Math.sqrt(
-        Math.pow(currentLine.endX - currentLine.startX, 2) + 
+        Math.pow(currentLine.endX - currentLine.startX, 2) +
         Math.pow(currentLine.endY - currentLine.startY, 2)
       ) / GRID_SIZE);
-      
+
       setDimensions([...dimensions, {
         lineStartX: currentLine.startX,
         lineStartY: currentLine.startY,
@@ -201,7 +201,7 @@ const GridDrawingCanvas = ({ drawingData, onChange, readOnly = false }) => {
     } else {
       setLines([...lines, currentLine]);
     }
-    
+
     setIsDrawing(false);
     setCurrentLine(null);
   };
@@ -241,27 +241,24 @@ const GridDrawingCanvas = ({ drawingData, onChange, readOnly = false }) => {
           <div className="flex bg-gray-100 rounded p-1">
             <button
               onClick={() => setTool('line')}
-              className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                tool === 'line' ? 'bg-white shadow text-blue-600' : 'text-gray-600'
-              }`}
+              className={`px-2 py-1 rounded text-xs font-medium transition-colors ${tool === 'line' ? 'bg-white shadow text-blue-600' : 'text-gray-600'
+                }`}
             >
               <Ruler size={14} className="inline mr-1" />
               Line
             </button>
             <button
               onClick={() => setTool('dimension')}
-              className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                tool === 'dimension' ? 'bg-white shadow text-blue-600' : 'text-gray-600'
-              }`}
+              className={`px-2 py-1 rounded text-xs font-medium transition-colors ${tool === 'dimension' ? 'bg-white shadow text-blue-600' : 'text-gray-600'
+                }`}
             >
               <ArrowRight size={14} className="inline mr-1" />
               Dim
             </button>
             <button
               onClick={() => setTool('text')}
-              className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                tool === 'text' ? 'bg-white shadow text-blue-600' : 'text-gray-600'
-              }`}
+              className={`px-2 py-1 rounded text-xs font-medium transition-colors ${tool === 'text' ? 'bg-white shadow text-blue-600' : 'text-gray-600'
+                }`}
             >
               <PenTool size={14} className="inline mr-1" />
               Text
@@ -312,7 +309,7 @@ const SurveyStatusBadge = ({ status }) => {
     active: 'bg-blue-100 text-blue-700 border-blue-300',
     complete: 'bg-emerald-100 text-emerald-700 border-emerald-300'
   };
-  
+
   const labels = {
     pending: 'Pending',
     active: 'Active',
@@ -376,7 +373,7 @@ const SurveyCard = ({ survey, onView, onStart, onComplete, onDelete }) => {
           <p className="font-semibold text-gray-900 truncate">{survey.engineer}</p>
         </div>
       </div>
-      
+
       <div className="mb-2 px-1.5 py-0.5 bg-slate-100 rounded text-[10px] font-mono text-slate-600 truncate">
         {survey.surveyId}
       </div>
@@ -394,7 +391,7 @@ const SurveyCard = ({ survey, onView, onStart, onComplete, onDelete }) => {
           >
             <Eye size={14} />
           </button>
-          
+
           {survey.status === 'pending' && (
             <button
               onClick={() => onStart(survey)}
@@ -404,7 +401,7 @@ const SurveyCard = ({ survey, onView, onStart, onComplete, onDelete }) => {
               Start
             </button>
           )}
-          
+
           {survey.status === 'active' && (
             <button
               onClick={() => onComplete(survey)}
@@ -414,14 +411,14 @@ const SurveyCard = ({ survey, onView, onStart, onComplete, onDelete }) => {
               Fill
             </button>
           )}
-          
+
           {survey.status === 'complete' && (
             <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded text-[10px] font-medium flex items-center gap-0.5">
               <CheckCircle size={12} />
               Done
             </span>
           )}
-          
+
           <button
             onClick={() => onDelete(survey)}
             className="p-1 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
@@ -479,7 +476,7 @@ const PendingToActiveModal = ({ isOpen, onClose, survey, onSubmit }) => {
       footer={
         <div className="flex justify-end gap-3">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button 
+          <Button
             onClick={handleSubmit}
             disabled={!formData.engineer}
             className="bg-amber-500 hover:bg-amber-600"
@@ -623,7 +620,7 @@ const ActiveToCompleteModal = ({ isOpen, onClose, survey, onSubmit }) => {
       footer={
         <div className="flex justify-end gap-3">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button 
+          <Button
             onClick={handleSubmit}
             disabled={uploading || !formData.engineerApproval}
             className="bg-emerald-500 hover:bg-emerald-600"
@@ -737,7 +734,7 @@ const ActiveToCompleteModal = ({ isOpen, onClose, survey, onSubmit }) => {
               <HardHat size={18} />
               Engineer Approval
             </h3>
-            
+
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold text-gray-700">Engineer Name:</span>
@@ -962,7 +959,7 @@ const SurveyDetailsModal = ({ isOpen, onClose, survey }) => {
                 <CheckCircle size={18} />
                 Completion Details
               </h3>
-              
+
               <div className="grid grid-cols-2 gap-4 mb-3">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-semibold text-gray-700">Engineer Name:</span>
@@ -1024,7 +1021,7 @@ const SiteSurveyPage = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [stats, setStats] = useState({ total: 0, pending: 0, active: 0, complete: 0 });
-  
+
   // Modal States
   const [pendingModalOpen, setPendingModalOpen] = useState(false);
   const [completeModalOpen, setCompleteModalOpen] = useState(false);
@@ -1037,26 +1034,26 @@ const SiteSurveyPage = () => {
       setLoading(true);
       const status = activeTab === 'all' ? '' : activeTab;
       console.log('[SiteSurvey] Fetching surveys with status:', status);
-      
-      const response = await siteSurveysApi.getAll({ 
-        status, 
+
+      const response = await siteSurveysApi.getAll({
+        status,
         search: searchQuery,
-        limit: 100 
+        limit: 100
       });
-      
+
       console.log('[SiteSurvey] API Response:', response);
       console.log('[SiteSurvey] Response data:', response.data);
-      
+
       const surveyData = response.data?.data || response.data || [];
       console.log('[SiteSurvey] Survey data extracted:', surveyData);
       console.log('[SiteSurvey] Survey count:', surveyData.length);
-      
+
       setSurveys(surveyData);
-      
+
       // Update stats
       const statsResponse = await siteSurveysApi.getStats();
       console.log('[SiteSurvey] Stats response:', statsResponse);
-      
+
       const statsData = statsResponse.data || {};
       setStats({
         total: statsData.total || 0,
@@ -1080,7 +1077,7 @@ const SiteSurveyPage = () => {
   const handleMoveToActive = async (formData) => {
     try {
       await siteSurveysApi.moveToActive(selectedSurvey._id || selectedSurvey.surveyId, formData);
-      
+
       toast.success('Survey assigned and moved to Active');
       setPendingModalOpen(false);
       setSelectedSurvey(null);
@@ -1095,7 +1092,7 @@ const SiteSurveyPage = () => {
   const handleMoveToComplete = async (formData) => {
     try {
       await siteSurveysApi.moveToComplete(selectedSurvey._id || selectedSurvey.surveyId, formData);
-      
+
       toast.success('Survey completed successfully');
       setCompleteModalOpen(false);
       setSelectedSurvey(null);
@@ -1109,7 +1106,7 @@ const SiteSurveyPage = () => {
   // Handle delete
   const handleDelete = async (survey) => {
     if (!window.confirm(`Delete survey for ${survey.clientName}?`)) return;
-    
+
     try {
       await siteSurveysApi.delete(survey._id || survey.surveyId);
       toast.success('Survey deleted');
@@ -1146,29 +1143,29 @@ const SiteSurveyPage = () => {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-4 gap-6 mb-8">
-        <KPICard 
-          title="Total Surveys" 
-          value={stats.total} 
-          icon={FileText} 
-          color="bg-slate-500"
+        <KPICard
+          label="Total Surveys"
+          value={stats.total}
+          icon={FileText}
+          variant="indigo"
         />
-        <KPICard 
-          title="Pending" 
-          value={stats.pending} 
-          icon={Clock} 
-          color="bg-amber-500"
+        <KPICard
+          label="Pending"
+          value={stats.pending}
+          icon={Clock}
+          variant="amber"
         />
-        <KPICard 
-          title="Active" 
-          value={stats.active} 
-          icon={Play} 
-          color="bg-blue-500"
+        <KPICard
+          label="Active"
+          value={stats.active}
+          icon={Play}
+          variant="blue"
         />
-        <KPICard 
-          title="Complete" 
-          value={stats.complete} 
-          icon={CheckCircle} 
-          color="bg-emerald-500"
+        <KPICard
+          label="Complete"
+          value={stats.complete}
+          icon={CheckCircle}
+          variant="emerald"
         />
       </div>
 
@@ -1177,30 +1174,28 @@ const SiteSurveyPage = () => {
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <div className="flex items-center gap-2">
             {TABS.map(tab => {
-              const count = tab.id === 'all' ? stats.total : 
-                           tab.id === 'pending' ? stats.pending :
-                           tab.id === 'active' ? stats.active : stats.complete;
+              const count = tab.id === 'all' ? stats.total :
+                tab.id === 'pending' ? stats.pending :
+                  tab.id === 'active' ? stats.active : stats.complete;
               return (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
-                    activeTab === tab.id 
-                      ? 'bg-gray-900 text-white' 
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${activeTab === tab.id
+                      ? 'bg-gray-900 text-white'
                       : 'text-gray-600 hover:bg-gray-100'
-                  }`}
+                    }`}
                 >
                   {tab.label}
-                  <span className={`px-2 py-0.5 rounded-full text-xs ${
-                    activeTab === tab.id ? 'bg-white text-gray-900' : 'bg-gray-200 text-gray-700'
-                  }`}>
+                  <span className={`px-2 py-0.5 rounded-full text-xs ${activeTab === tab.id ? 'bg-white text-gray-900' : 'bg-gray-200 text-gray-700'
+                    }`}>
                     {count}
                   </span>
                 </button>
               );
             })}
           </div>
-          
+
           <div className="flex items-center gap-3">
             <div className="relative">
               <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -1226,7 +1221,7 @@ const SiteSurveyPage = () => {
               <FileText size={48} className="mx-auto mb-4 text-gray-300" />
               <p className="text-gray-500 mb-2">No surveys found</p>
               <p className="text-sm text-gray-400">
-                {activeTab === 'all' 
+                {activeTab === 'all'
                   ? 'Surveys will appear here when leads are moved to Site Survey stage'
                   : `No ${activeTab} surveys found`
                 }

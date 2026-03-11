@@ -11,6 +11,8 @@ export enum LeaveType {
   EARNED = 'earned',
   MATERNITY = 'maternity',
   PATERNITY = 'paternity',
+  WORK_FROM_HOME = 'work-from-home',
+  EMERGENCY = 'emergency',
 }
 
 export enum LeaveStatus {

@@ -47,18 +47,25 @@ async function bootstrap() {
     optionsSuccessStatus: 204,
   });
 
-  app.setGlobalPrefix('api/v1');
+  app.setGlobalPrefix('api');
 
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
       transform: true,
-      forbidNonWhitelisted: true,
+      forbidNonWhitelisted: false,
+      transformOptions: { enableImplicitConversion: true },
     }),
   );
 
   app.useGlobalInterceptors(new SuccessResponseInterceptor());
   app.useGlobalFilters(new GlobalExceptionFilter());
+
+  // Add root path handler to stop browser health check 404 spam
+  app.setGlobalPrefix('api');
+  await app.register(async (instance: any) => {
+    instance.get('/', async () => ({ status: 'ok', message: 'Solar EPC API Server' }));
+  });
 
   const port = Number(process.env.APP_PORT ?? 3000);
   await app.listen({ port, host: '0.0.0.0' });
