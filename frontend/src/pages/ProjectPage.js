@@ -1430,20 +1430,19 @@ const ProjectPage = () => {
                     {projectReservations.map((res, idx) => {
                       const item = items.find(i => i.itemId === res.itemId || i._id === res.itemId);
                       const itemName = item?.description || item?.name || res.itemId;
+                      const category = item?.category || 'Item';
+                      // Extract date from notes (format: "Stock issued on YYYY-MM-DD")
+                      const dateMatch = res.notes?.match(/(\d{4}-\d{2}-\d{2})/);
+                      const issuedDate = dateMatch ? dateMatch[1] : (res.createdAt ? res.createdAt.split('T')[0] : '—');
                       return (
                         <div key={`res-${idx}`} className="glass-card p-2 flex items-center justify-between border-l-2 border-amber-400">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-400/20 text-amber-400">{res.status}</span>
-                              <span className="text-xs font-medium text-[var(--text-primary)]">{itemName}</span>
-                            </div>
-                            <div className="text-[10px] text-[var(--text-muted)]">Qty: {res.quantity} | Reserved: {res.reservedDate || '—'}</div>
+                          <div className="flex-1">
+                            <div className="text-xs font-semibold text-[var(--text-primary)]">{itemName} ({category})</div>
+                            <div className="text-[10px] text-[var(--text-muted)]">Qty: {res.quantity} | Issued: {issuedDate}</div>
                           </div>
-                          {res.notes && (
-                            <div className="text-[10px] text-[var(--text-faint)] max-w-[150px] truncate" title={res.notes}>
-                              {res.notes}
-                            </div>
-                          )}
+                          <div className="text-right">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-400/20 text-amber-400">{res.status}</span>
+                          </div>
                         </div>
                       );
                     })}
