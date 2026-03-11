@@ -105,14 +105,11 @@ export class ProjectsController {
     @Query('tenantId') queryTenantId: string,
     @Param('projectId') projectId: string,
     @Body() updateStatusDto: UpdateProjectStatusDto,
+    @Request() req?: any,
   ) {
     const tenantId = headerTenantId || queryTenantId || 'solarcorp';
-    return this.projectsService.updateStatus(
-      tenantId, 
-      projectId, 
-      updateStatusDto,
-      updateStatusDto.userRole
-    );
+    const user = req?.user;
+    return this.projectsService.updateStatus(tenantId, projectId, updateStatusDto, user);
   }
 
   @Patch(':projectId/restore')

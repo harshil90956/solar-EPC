@@ -1202,46 +1202,6 @@ const ProjectPage = () => {
             </FormField>
             <FormField label="Estimated End Date"><Input type="date" value={form.estEndDate} onChange={e => setForm(f => ({ ...f, estEndDate: e.target.value }))} /></FormField>
           </div>
-
-          {/* Materials Section */}
-          <div className="border-t border-[var(--border-base)] pt-3 mt-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-xs font-semibold text-[var(--text-primary)]">Required Materials</div>
-              <Button variant="ghost" size="sm" onClick={addMaterial}><Plus size={13} /> Add Item</Button>
-            </div>
-            {form.materials.map((material, index) => (
-              <div key={index} className="space-y-2 mb-3 p-3 bg-[var(--bg-tertiary)] rounded-lg">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-[var(--text-muted)]">Item #{index + 1}</span>
-                  <Button variant="ghost" size="sm" className="text-red-500" onClick={() => removeMaterial(index)}>
-                    <Trash2 size={12} />
-                  </Button>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <FormField label="Item">
-                    <Select value={material.itemId} onChange={e => updateMaterial(index, 'itemId', e.target.value)}>
-                      <option value="">{itemsLoading ? 'Loading...' : 'Select Item'}</option>
-                      {items.map(item => (
-                        <option key={item._id || item.id} value={item._id || item.id}>
-                          {item.description || item.name} ({item.warehouse}) - Stock: {item.stock || 0}
-                        </option>
-                      ))}
-                    </Select>
-                  </FormField>
-                  <FormField label="Quantity">
-                    <Input type="number" placeholder="50" value={material.quantity} onChange={e => updateMaterial(index, 'quantity', e.target.value)} />
-                  </FormField>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <FormField label="Issue Date"><Input type="date" value={material.issuedDate} onChange={e => updateMaterial(index, 'issuedDate', e.target.value)} /></FormField>
-                  <FormField label="Remarks"><Input placeholder="Notes..." value={material.remarks} onChange={e => updateMaterial(index, 'remarks', e.target.value)} /></FormField>
-                </div>
-              </div>
-            ))}
-            {form.materials.length === 0 && (
-              <p className="text-xs text-[var(--text-muted)] text-center py-4">No materials added. Click "Add Item" to select materials for this project.</p>
-            )}
-          </div>
         </div>
       </Modal>
 
@@ -1272,46 +1232,6 @@ const ProjectPage = () => {
               </Select>
             </FormField>
             <FormField label="Estimated End Date"><Input type="date" value={editForm.estEndDate} onChange={e => setEditForm(f => ({ ...f, estEndDate: e.target.value }))} /></FormField>
-          </div>
-
-          {/* Materials Section */}
-          <div className="border-t border-[var(--border-base)] pt-3 mt-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-xs font-semibold text-[var(--text-primary)]">Required Materials</div>
-              <Button variant="ghost" size="sm" onClick={addEditMaterial}><Plus size={13} /> Add Item</Button>
-            </div>
-            {(editForm.materials || []).map((material, index) => (
-              <div key={index} className="space-y-2 mb-3 p-3 bg-[var(--bg-tertiary)] rounded-lg">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-[var(--text-muted)]">Item #{index + 1}</span>
-                  <Button variant="ghost" size="sm" className="text-red-500" onClick={() => removeEditMaterial(index)}>
-                    <Trash2 size={12} />
-                  </Button>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <FormField label="Item">
-                    <Select value={material.itemId} onChange={e => updateEditMaterial(index, 'itemId', e.target.value)}>
-                      <option value="">{itemsLoading ? 'Loading...' : 'Select Item'}</option>
-                      {items.map(item => (
-                        <option key={item._id || item.id} value={item._id || item.id}>
-                          {item.description || item.name} ({item.warehouse}) - Stock: {item.stock || 0}
-                        </option>
-                      ))}
-                    </Select>
-                  </FormField>
-                  <FormField label="Quantity">
-                    <Input type="number" placeholder="50" value={material.quantity} onChange={e => updateEditMaterial(index, 'quantity', e.target.value)} />
-                  </FormField>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <FormField label="Issue Date"><Input type="date" value={material.issuedDate} onChange={e => updateEditMaterial(index, 'issuedDate', e.target.value)} /></FormField>
-                  <FormField label="Remarks"><Input placeholder="Notes..." value={material.remarks} onChange={e => updateEditMaterial(index, 'remarks', e.target.value)} /></FormField>
-                </div>
-              </div>
-            ))}
-            {(!editForm.materials || editForm.materials.length === 0) && (
-              <p className="text-xs text-[var(--text-muted)] text-center py-4">No materials added. Click "Add Item" to select materials for this project.</p>
-            )}
           </div>
         </div>
       </Modal>
