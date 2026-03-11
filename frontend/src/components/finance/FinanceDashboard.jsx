@@ -89,7 +89,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 // Section 1: Financial Overview Cards with Animations
-const FinancialOverview = ({ dashboardStats, payablesTotal, manualBalance, onInvoicesClick, onPayablesClick, invoices }) => {
+const FinancialOverview = ({ dashboardStats, payablesTotal, manualBalance, onInvoicesClick, onPayablesClick, onReceivablesClick, invoices }) => {
   const revenueCurrent = dashboardStats?.totalRevenue || 0;
   
   // Helper to get paid amount from invoice
@@ -150,7 +150,7 @@ const FinancialOverview = ({ dashboardStats, payablesTotal, manualBalance, onInv
       accentColor: '#f59e0b',
       gradient: 'from-amber-500/20 to-amber-500/5',
       trend: '-3%',
-      onClick: null,
+      onClick: onReceivablesClick,
     },
     {
       label: 'Payables',
@@ -203,7 +203,7 @@ const FinancialOverview = ({ dashboardStats, payablesTotal, manualBalance, onInv
 };
 
 // Section 2: Cashflow Summary Cards
-const CashflowSummary = ({ dashboardStats, collectionRate, invoices, onCollectedClick, onInvoicedClick }) => {
+const CashflowSummary = ({ dashboardStats, collectionRate, invoices, onCollectedClick, onInvoicedClick, onOutstandingClick }) => {
   // Helper to get paid amount from invoice
   const getPaidAmount = (inv) => {
     if (inv.status === 'Paid') return Number(inv.amount || 0);
@@ -247,6 +247,7 @@ const CashflowSummary = ({ dashboardStats, collectionRate, invoices, onCollected
       value: outstanding,
       icon: Clock,
       color: '#f59e0b',
+      clickable: true,
     },
   ];
 
@@ -257,7 +258,7 @@ const CashflowSummary = ({ dashboardStats, collectionRate, invoices, onCollected
           key={card.label}
           className={`glass-card p-4 text-center rounded-xl hover:shadow-lg hover:scale-[1.02] transition-all duration-300 animate-fade-in ${card.clickable ? 'cursor-pointer' : ''}`}
           style={{ animationDelay: `${index * 75}ms` }}
-          onClick={card.clickable ? (card.label === 'Collected' ? onCollectedClick : onInvoicedClick) : undefined}
+          onClick={card.clickable ? (card.label === 'Collected' ? onCollectedClick : card.label === 'Outstanding' ? onOutstandingClick : onInvoicedClick) : undefined}
         >
           <div className="flex items-center justify-center gap-2 mb-2">
             <card.icon size={18} style={{ color: card.color }} />
@@ -975,6 +976,8 @@ const FinanceDashboard = ({
   onInvoicesClick,
   onPayablesClick,
   onCollectedClick,
+  onReceivablesClick,
+  onOutstandingClick,
   onStatusClick,
 }) => {
   if (!isOpen) return null;
@@ -1023,6 +1026,7 @@ const FinanceDashboard = ({
           manualBalance={manualBalance}
           onInvoicesClick={onInvoicesClick}
           onPayablesClick={onPayablesClick}
+          onReceivablesClick={onReceivablesClick}
           invoices={invoices}
         />
       </section>
@@ -1038,6 +1042,7 @@ const FinanceDashboard = ({
           invoices={invoices}
           onCollectedClick={onCollectedClick}
           onInvoicedClick={onInvoicesClick}
+          onOutstandingClick={onOutstandingClick}
         />
       </section>
 

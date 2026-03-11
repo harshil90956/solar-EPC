@@ -21,7 +21,7 @@ import { Invoice, InvoiceSchema, Payment, PaymentSchema, Expense, ExpenseSchema,
       { name: ManualAdjustment.name, schema: ManualAdjustmentSchema },
       { name: AdjustmentCategory.name, schema: AdjustmentCategorySchema },
       { name: JournalEntry.name, schema: JournalEntrySchema },
-
+      { name: 'PurchaseOrder', schema: require('../procurement/schemas/purchase-order.schema').PurchaseOrderSchema },
     ]),
     SettingsModule,
   ],
