@@ -540,7 +540,7 @@ const DataTable = ({
                                 if (!row) return null;
                                 return (
                                     <tr
-                                        key={row[rowKey] || index}
+                                        key={row[rowKey] ?? `row-${index}`}
                                         className="table-row border-b border-[var(--border-base)] last:border-0 group cursor-pointer"
                                         onClick={() => onRowClick?.(row)}
                                     >
@@ -567,7 +567,7 @@ const DataTable = ({
 
                                         {visibleColumns.map(col => (
 
-                                            <td key={`${row[rowKey]}-${col.key}`} className="px-3 py-2 text-[12px] text-[var(--text-primary)]">
+                                            <td key={`${row[rowKey] ?? index}-${col.key}`} className="px-3 py-2 text-[12px] text-[var(--text-primary)]">
 
                                                 {col.render ? col.render(row[col.key], row) : row[col.key] ?? '—'}
 

@@ -161,8 +161,11 @@ const ProjectPage = () => {
   const [pageSize, setPageSize] = useState(APP_CONFIG.defaultPageSize);
   const [showAdd, setShowAdd] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
-  const [showStatus, setShowStatus] = useState(false);
+  const [showCardsInViews, setShowCardsInViews] = useState(true);
+  const [showBackwardsConfirm, setShowBackwardsConfirm] = useState(false);
+  const [backwardsMoveData, setBackwardsMoveData] = useState(null);
   const [showTimeline, setShowTimeline] = useState(false);
+  const [showStatus, setShowStatus] = useState(false);
   const [showActivity, setShowActivity] = useState(false);
   const [timelineProject, setTimelineProject] = useState(null);
   const [activityProject, setActivityProject] = useState(null);
@@ -183,7 +186,6 @@ const ProjectPage = () => {
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [hiddenCols, setHiddenCols] = useState(new Set());
-  const [showCardsInViews, setShowCardsInViews] = useState(false);
   const [colToggleOpen, setColToggleOpen] = useState(false);
   const [projectStats, setProjectStats] = useState(null);
   const [projectsByStage, setProjectsByStage] = useState([]);
@@ -328,6 +330,9 @@ const ProjectPage = () => {
     fetchProjectReservations();
   }, [selected?.projectId]);
 
+  // Stage order for detecting backwards moves
+  const STAGE_ORDER = ['Survey', 'Design', 'Quotation', 'Procurement', 'Installation', 'Commissioned', 'On Hold', 'Cancelled'];
+
   const handleStageChange = async (id, newStage) => {
     // Get current user role from localStorage
     const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -339,24 +344,73 @@ const ProjectPage = () => {
       return;
     }
 
-    // Optimistic update
     const project = projects.find(p => p.id === id);
-    setProjects(prev => prev.map(p => p.id === id ? { ...p, status: newStage } : p));
+    const currentStage = project?.status;
+    
+    // Check if this is a backwards move
+    const currentIndex = STAGE_ORDER.indexOf(currentStage);
+    const newIndex = STAGE_ORDER.indexOf(newStage);
+    const isBackwardsMove = newIndex < currentIndex;
+
+    // If backwards move, show confirmation dialog
+    if (isBackwardsMove && currentStage !== newStage) {
+      setBackwardsMoveData({ id, newStage, currentStage, projectName: project?.customerName });
+      setShowBackwardsConfirm(true);
+      return;
+    }
+
+    // Proceed with stage change
+    await executeStageChange(id, newStage);
+  };
+
+  const executeStageChange = async (id, newStage) => {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userRole = user?.role;
+    const project = projects.find(p => p.id === id);
+    const currentStage = project?.status;
+    
+    // Calculate progress based on stage movement
+    const totalStages = STAGE_ORDER.length - 2; // Exclude On Hold and Cancelled
+    const currentIndex = STAGE_ORDER.indexOf(newStage);
+    let newProgress = project?.progress || 0;
+    
+    if (currentIndex >= 0 && currentIndex < totalStages) {
+      // Calculate percentage based on stage position
+      newProgress = Math.round(((currentIndex + 1) / totalStages) * 100);
+    } else if (newStage === 'Commissioned') {
+      newProgress = 100;
+    } else if (newStage === 'On Hold') {
+      // Keep existing progress when on hold
+      newProgress = project?.progress || 0;
+    }
+    
+    // Optimistic update
+    setProjects(prev => prev.map(p => p.id === id ? { ...p, status: newStage, progress: newProgress } : p));
     logStatusChange(project, project.status, newStage);
 
     // API call to update status
     try {
-      await api.patch(`/projects/${id}/status?tenantId=${TENANT_ID}`, { status: newStage, userRole });
+      await api.patch(`/projects/${id}/status?tenantId=${TENANT_ID}`, { status: newStage, progress: newProgress, userRole });
     } catch (err) {
       console.error('Error updating project status:', err);
       alert(err.message || 'Failed to update project status');
       // Revert the change
-      setProjects(prev => prev.map(p => p.id === id ? { ...p, status: p.status } : p));
+      setProjects(prev => prev.map(p => p.id === id ? { ...p, status: project.status, progress: project.progress } : p));
     }
   };
 
-  // Define the correct stage order
-  const STAGE_ORDER = ['Survey', 'Design', 'Quotation', 'Procurement', 'Installation', 'Commissioned', 'On Hold'];
+  const handleConfirmBackwardsMove = async () => {
+    if (backwardsMoveData) {
+      await executeStageChange(backwardsMoveData.id, backwardsMoveData.newStage);
+    }
+    setShowBackwardsConfirm(false);
+    setBackwardsMoveData(null);
+  };
+
+  const handleCancelBackwardsMove = () => {
+    setShowBackwardsConfirm(false);
+    setBackwardsMoveData(null);
+  };
 
   // Sort projects by stage according to the defined order
   const sortedProjectsByStage = useMemo(() => {
@@ -1483,6 +1537,25 @@ const ProjectPage = () => {
           </div>
         </Modal>
       )}
+
+      {/* Backwards Move Confirmation Modal */}
+      <Modal open={showBackwardsConfirm} onClose={handleCancelBackwardsMove} title="Confirm Backwards Move"
+        footer={<div className="flex gap-2 justify-end">
+          <Button variant="ghost" onClick={handleCancelBackwardsMove}>Cancel</Button>
+          <Button variant="primary" onClick={handleConfirmBackwardsMove}>Yes, Move Backwards</Button>
+        </div>}>
+        <div className="space-y-3">
+          <p className="text-sm text-[var(--text-secondary)]">
+            Are you sure you want to move project <strong>{backwardsMoveData?.projectName}</strong> backwards?
+          </p>
+          <div className="flex items-center gap-2 text-sm">
+            <span className="px-2 py-1 rounded bg-[var(--bg-elevated)] text-[var(--text-muted)]">{backwardsMoveData?.currentStage}</span>
+            <span>→</span>
+            <span className="px-2 py-1 rounded bg-[var(--primary)]/10 text-[var(--primary)]">{backwardsMoveData?.newStage}</span>
+          </div>
+          <p className="text-xs text-[var(--text-faint)]">This action will revert the project to an earlier stage.</p>
+        </div>
+      </Modal>
 
     </div>
   );
