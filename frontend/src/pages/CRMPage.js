@@ -44,6 +44,8 @@ import CanAccess, { CanCreate, CanEdit, CanDelete, CanView } from '../components
 import { toast } from '../components/ui/Toast';
 import LeadAnalyticsDashboard from '../components/dashboard/LeadAnalyticsDashboard.js';
 
+// Helper function for formatting currency
+
 // UserSelect component for lead assignment
 const UserSelect = ({ value, onChange, placeholder }) => {
   const { users } = useAuth();
@@ -761,6 +763,7 @@ const CRMPage = () => {
   const [roles, setRoles] = useState([]);
   const [selectedRole, setSelectedRole] = useState('');
   const [filteredUsers, setFilteredUsers] = useState([]);
+  const [allEmployees, setAllEmployees] = useState([]);
   const [rolesLoading, setRolesLoading] = useState(false);
   const [usersLoading, setUsersLoading] = useState(false);
 
@@ -818,29 +821,8 @@ const CRMPage = () => {
   const [scoreBoostValue, setScoreBoostValue] = useState(10);
   const [scoreBoostLoading, setScoreBoostLoading] = useState(false);
 
-  const overviewQ = useQuery({
-    queryKey: ['leads-dashboard-overview'],
-    queryFn: () => leadsApi.getDashboardOverview(),
-    enabled: view === 'dashboard',
-  });
-
-  const funnelQ = useQuery({
-    queryKey: ['leads-dashboard-funnel'],
-    queryFn: () => leadsApi.getDashboardFunnel(),
-    enabled: view === 'dashboard',
-  });
-
-  const sourceQ = useQuery({
-    queryKey: ['leads-dashboard-source'],
-    queryFn: () => leadsApi.getDashboardSource(),
-    enabled: view === 'dashboard',
-  });
-
-  const trendQ = useQuery({
-    queryKey: ['leads-dashboard-trend'],
-    queryFn: () => leadsApi.getDashboardTrend(),
-    enabled: view === 'dashboard',
-  });
+  // Dashboard queries removed - handled by LeadAnalyticsDashboard component
+  // to avoid duplicate API calls
   const [sort, setSort] = useState({ key: null, dir: 'asc' });
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const [showColumnsDropdown, setShowColumnsDropdown] = useState(false);
@@ -1098,7 +1080,12 @@ const CRMPage = () => {
 
   // Row Actions with real API calls
   const handleViewLead = (lead) => {
-    setSelectedLead(lead);
+    // Reset previous selection first to prevent stale data
+    setSelectedLead(null);
+    // Then set new lead after a micro-task to ensure clean render
+    setTimeout(() => {
+      setSelectedLead(lead);
+    }, 0);
   };
 
   const handleViewTracker = (lead) => {
@@ -1380,15 +1367,32 @@ const CRMPage = () => {
     setFilteredUsers([]);
     setShowAssignModal(true);
 
-    // Load roles when modal opens
+    // Load roles and employees when modal opens
     try {
       setRolesLoading(true);
-      const result = await leadsApi.getRoles();
-      const rolesData = result.data?.data || result.data || [];
+      
+      console.log('[ASSIGN] Opening Assign Leads modal...');
+      
+      // Fetch all roles
+      const rolesResult = await leadsApi.getRoles();
+      const rolesData = rolesResult.data?.data || rolesResult.data || [];
+      console.log('[ASSIGN] Fetched roles:', rolesData);
       setRoles(Array.isArray(rolesData) ? rolesData : []);
+      
+      // Fetch all employees upfront
+      const employeesResult = await leadsApi.getAllEmployees();
+      const employeesData = employeesResult.data?.data || employeesResult.data || [];
+      console.log('[ASSIGN] Fetched employees:', employeesData);
+      setAllEmployees(Array.isArray(employeesData) ? employeesData : []);
+      
+      if (rolesData.length === 0) {
+        console.warn('[ASSIGN] No roles found in system');
+      }
+      
     } catch (err) {
-      console.error('Failed to fetch roles:', err);
+      console.error('Failed to fetch roles/employees:', err);
       setRoles([]);
+      setAllEmployees([]);
     } finally {
       setRolesLoading(false);
     }
@@ -1400,6 +1404,7 @@ const CRMPage = () => {
     setSelectedAssignUser('');
     setSelectedRole('');
     setFilteredUsers([]);
+    setAllEmployees([]);
   };
 
   // Score Boost Handlers
@@ -1432,21 +1437,55 @@ const CRMPage = () => {
     }
   };
 
-  const handleRoleChange = async (roleId) => {
-    setSelectedRole(roleId);
+  const handleRoleChange = async (roleName) => {
+    console.log('[ASSIGN] Role selected:', roleName);
+    
+    setSelectedRole(roleName);
     setSelectedAssignUser('');
     setFilteredUsers([]);
 
-    if (!roleId) return;
+    if (!roleName) return;
 
-    // Fetch users by selected role
+    // Filter employees by selected role using roleId matching
     try {
       setUsersLoading(true);
-      const result = await leadsApi.getUsersByRole(roleId);
-      const usersData = result.data?.data || result.data || [];
-      setFilteredUsers(Array.isArray(usersData) ? usersData : []);
+      
+      // Find the role ID that matches the selected role name
+      const matchingRole = roles.find(r => {
+        const roleNameMatch = r.name?.toLowerCase() === roleName.toLowerCase();
+        return roleNameMatch;
+      });
+      
+      console.log('[ASSIGN] Matching role found:', matchingRole);
+      
+      if (!matchingRole) {
+        console.warn(`No role found matching: ${roleName}`);
+        setFilteredUsers([]);
+        setUsersLoading(false);
+        return;
+      }
+      
+      const selectedRoleId = matchingRole._id || matchingRole.id;
+      
+      // Filter employees where emp.roleId matches the selected role ID
+      const filtered = allEmployees.filter(emp => {
+        // Create display name from firstName + lastName
+        emp.name = `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || emp.email;
+        
+        // Match by roleId (exact ID match, case-insensitive)
+        const empRoleId = emp.roleId?.toLowerCase() || '';
+        const selectedRoleIdLower = selectedRoleId.toLowerCase();
+        
+        return empRoleId === selectedRoleIdLower;
+      });
+      
+      console.log(`[ASSIGN] Filtered ${filtered.length} employees for role "${roleName}" (ID: ${selectedRoleId})`);
+      console.log('[ASSIGN] Filtered employees:', filtered);
+      
+      setFilteredUsers(filtered);
+      
     } catch (err) {
-      console.error('Failed to fetch users by role:', err);
+      console.error('Failed to filter employees by role:', err);
       setFilteredUsers([]);
     } finally {
       setUsersLoading(false);
@@ -1918,7 +1957,7 @@ const CRMPage = () => {
     
     try {
       setActionLoading(true);
-      toast.loading('Importing leads...', { id: 'import' });
+      toast.info('Importing leads...');
 
       // Use backend API for import
       const result = await leadsApi.importLeads(file);
@@ -1932,13 +1971,22 @@ const CRMPage = () => {
       if ((failed || 0) === 0) {
         toast.success(`${inserted || 0} leads imported, ${updated || 0} updated successfully`, { id: 'import' });
       } else {
-        toast.success(`${inserted || 0} imported, ${updated || 0} updated, ${failed || 0} failed`, { id: 'import' });
+        toast.success(`${inserted || 0} imported, ${updated || 0} updated, ${failed || 0} skipped`, { id: 'import' });
         if (errors && errors.length > 0) {
           console.error('Import errors:', errors);
+          // Show detailed error message for first few failures
+          const errorSummary = errors.slice(0, 5).map(e => `Row ${e.row}: ${e.reason}`).join('\n');
+          const remainingErrors = errors.length - 5;
+          const fullErrorMessage = `${errorSummary}${remainingErrors > 0 ? `\n... and ${remainingErrors} more errors` : ''}`;
+          console.log('Detailed import errors:\n', fullErrorMessage);
         }
       }
-      
-      fetchLeads(); // Refresh list
+
+      const wasPageOne = page === 1;
+      setPage(1);
+      if (wasPageOne) {
+        await fetchLeads();
+      }
     } catch (err) {
       console.error('Import failed:', err);
       toast.error(err?.response?.data?.message || 'Failed to import leads', { id: 'import' });
@@ -2772,7 +2820,7 @@ const CRMPage = () => {
           <Modal
             open={!!selectedLead}
             onClose={() => setSelectedLead(null)}
-            title={`Lead Details — ${selectedLead.name}`}
+            title={`Lead Details — ${selectedLead.name || 'Unknown'}`}
             footer={
               <div className="flex gap-2 justify-end">
                 <Button variant="ghost" onClick={() => setSelectedLead(null)}>Close</Button>
@@ -2789,17 +2837,17 @@ const CRMPage = () => {
                 <div
                   className="w-16 h-16 rounded-2xl flex items-center justify-center text-xl font-bold shrink-0 shadow-lg"
                   style={{
-                    background: `linear-gradient(135deg, ${avatarColor(selectedLead.name)}30, ${avatarColor(selectedLead.name)}10)`,
-                    color: avatarColor(selectedLead.name),
-                    border: `2px solid ${avatarColor(selectedLead.name)}35`,
+                    background: `linear-gradient(135deg, ${avatarColor(selectedLead.name || '')}30, ${avatarColor(selectedLead.name || '')}10)`,
+                    color: avatarColor(selectedLead.name || ''),
+                    border: `2px solid ${avatarColor(selectedLead.name || '')}35`,
                   }}
                 >
-                  {selectedLead.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                  {(selectedLead.name || '').split(' ').map(n => n[0]).join('').slice(0, 2)}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <h3 className="text-lg font-bold text-[var(--text-primary)]">{selectedLead.name}</h3>
+                      <h3 className="text-lg font-bold text-[var(--text-primary)]">{selectedLead.name || 'Unknown Lead'}</h3>
                       <p className="text-xs text-[var(--text-muted)] mt-0.5 flex items-center gap-1">
                         <Building2 size={11} /> {selectedLead.company || 'Individual'}
                       </p>
@@ -2824,13 +2872,13 @@ const CRMPage = () => {
                 </div>
               </div>
 
-              {/* Info grid */}
+              {/* Info grid - STRICT field mapping from selectedLead */}
               <div className="grid grid-cols-2 gap-2.5">
                 {[
-                  ['Email', selectedLead.email, Mail, 'blue'],
-                  ['Phone', selectedLead.phone, Phone, 'emerald'],
-                  ['City', `${selectedLead.city || '—'}, ${selectedLead.state || ''}`, MapPin, 'purple'],
-                  ['Source', selectedLead.source, BarChart2, 'amber'],
+                  ['Email', selectedLead.email || '—', Mail, 'blue'],
+                  ['Phone', selectedLead.phone || '—', Phone, 'emerald'],
+                  ['City', `${selectedLead.city || '—'}${selectedLead.state ? `, ${selectedLead.state}` : ''}`, MapPin, 'purple'],
+                  ['Source', selectedLead.source || '—', BarChart2, 'amber'],
                   ['Pipeline Value', fmt(selectedLead.value || 0), DollarSign, 'green'],
                   ['System Size', `${selectedLead.kw || selectedLead.capacity || '0 kW'}`, Zap, 'yellow'],
                   ['Roof Area', `${selectedLead.roofArea || '—'} m²`, Activity, 'cyan'],
@@ -2846,32 +2894,47 @@ const CRMPage = () => {
                         </div>
                         <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">{label}</span>
                       </div>
-                      <p className="text-xs font-semibold text-[var(--text-primary)] truncate">{val}</p>
+                      <p className="text-xs font-semibold text-[var(--text-primary)] truncate" title={val}>{val}</p>
                     </div>
                   );
                 })}
               </div>
 
-              {/* Recent Activity */}
-              {selectedLead.activities && selectedLead.activities.length > 0 && (
+              {/* Recent Activity - Display activities array from selectedLead */}
+              {selectedLead?.activities && selectedLead.activities.length > 0 && (
                 <div>
                   <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2">Recent Activity</p>
                   <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                    {selectedLead.activities.slice(0, 4).map((act, idx) => (
-                      <div key={act.id || `activity-${idx}`} className="flex gap-2.5 text-xs">
-                        <div className="w-6 h-6 rounded-full bg-[var(--bg-elevated)] border border-[var(--border-base)] flex items-center justify-center shrink-0 mt-0.5">
-                          {act.type === 'call' && <Phone size={10} className="text-emerald-400" />}
-                          {act.type === 'email' && <Mail size={10} className="text-blue-400" />}
-                          {act.type === 'whatsapp' && <MessageSquare size={10} className="text-emerald-400" />}
-                          {act.type === 'note' && <Activity size={10} className="text-amber-400" />}
-                          {act.type === 'stage_change' && <GitCommit size={10} className="text-purple-400" />}
+                    {(() => {
+                      // Deduplicate activities by note + timestamp combination
+                      const uniqueActivities = Array.from(
+                        new Map(
+                          selectedLead.activities.map((act, i) => {
+                            // Create unique key from note, timestamp, and index as fallback
+                            const uniqueKey = `${act.note || ''}-${act.ts || act.timestamp || ''}-${i}`;
+                            return [uniqueKey, { ...act, _uniqueKey: uniqueKey }];
+                          })
+                        ).values()
+                      );
+                      
+                      return uniqueActivities.slice(0, 4).map((act, idx) => (
+                        <div key={act._id || act._uniqueKey || `activity-${idx}`} className="flex gap-2.5 text-xs">
+                          <div className="w-6 h-6 rounded-full bg-[var(--bg-elevated)] border border-[var(--border-base)] flex items-center justify-center shrink-0 mt-0.5">
+                            {act.type === 'call' && <Phone size={10} className="text-emerald-400" />}
+                            {act.type === 'email' && <Mail size={10} className="text-blue-400" />}
+                            {act.type === 'whatsapp' && <MessageSquare size={10} className="text-emerald-400" />}
+                            {act.type === 'note' && <Activity size={10} className="text-amber-400" />}
+                            {act.type === 'stage_change' && <GitCommit size={10} className="text-purple-400" />}
+                            {act.type === 'import' && <Download size={10} className="text-cyan-400" />}
+                            {act.type === 'created' && <Plus size={10} className="text-green-400" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[var(--text-secondary)] leading-relaxed">{act.note || 'No description'}</p>
+                            <p className="text-[10px] text-[var(--text-muted)] mt-0.5">{act.ts || act.timestamp || '—'} · {act.by || 'System'}</p>
+                          </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[var(--text-secondary)] leading-relaxed">{act.note}</p>
-                          <p className="text-[10px] text-[var(--text-muted)] mt-0.5">{act.ts} · {act.by}</p>
-                        </div>
-                      </div>
-                    ))}
+                      ));
+                    })()}
                   </div>
                 </div>
               )}
@@ -3166,7 +3229,7 @@ const CRMPage = () => {
               >
                 <option value="">{rolesLoading ? 'Loading roles...' : 'Select Role'}</option>
                 {roles.map((role) => (
-                  <option key={role._id || role.id} value={role._id || role.id}>
+                  <option key={role._id || role.id} value={role.name}>
                     {role.name}
                   </option>
                 ))}
@@ -3185,7 +3248,9 @@ const CRMPage = () => {
                     ? 'Select role first'
                     : usersLoading
                       ? 'Loading users...'
-                      : 'Select User'
+                      : filteredUsers.length === 0
+                        ? 'No users available for this role'
+                        : 'Select User'
                   }
                 </option>
                 {filteredUsers.map((user) => (

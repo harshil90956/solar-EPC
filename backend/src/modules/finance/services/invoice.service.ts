@@ -10,6 +10,7 @@ import { ReminderLog, ReminderLogDocument, ReminderType } from '../schemas/remin
 import { Activity, ActivityDocument, ActivityAction } from '../schemas/activity.schema';
 import { CreateInvoiceDto, UpdateInvoiceDto, RecordPaymentDto } from '../dto/invoice.dto';
 import { CreatePaymentDto, UpdatePaymentDto } from '../dto/payment.dto';
+import { Tenant, TenantDocument } from '../../../core/tenant/schemas/tenant.schema';
 
 interface UserWithVisibility {
   id?: string;
@@ -45,6 +46,7 @@ export class InvoiceService {
     @InjectModel(Project.name) private readonly projectModel: Model<ProjectDocument>,
     @InjectModel(ReminderLog.name) private readonly reminderLogModel: Model<ReminderLogDocument>,
     @InjectModel(Activity.name) private readonly activityModel: Model<ActivityDocument>,
+    @InjectModel(Tenant.name) private readonly tenantModel: Model<TenantDocument>,
   ) {}
 
   private toObjectId(id: string | undefined): Types.ObjectId | undefined {
@@ -57,6 +59,22 @@ export class InvoiceService {
     } catch {
       return undefined;
     }
+  }
+
+  /**
+   * Resolves tenantId to a valid ObjectId.
+   * If the string is already a valid ObjectId, uses it directly.
+   * Otherwise treats it as a tenant code and looks up the tenant by code.
+   */
+  private async resolveTenantObjectId(tenantId: string): Promise<Types.ObjectId> {
+    if (Types.ObjectId.isValid(tenantId)) {
+      return new Types.ObjectId(tenantId);
+    }
+    const tenant = await this.tenantModel.findOne({ code: tenantId }).lean();
+    if (!tenant) {
+      throw new BadRequestException(`Tenant not found for code: ${tenantId}`);
+    }
+    return (tenant as any)._id as Types.ObjectId;
   }
 
   private tenantOrLegacyMatch(tenantId: string) {
@@ -234,9 +252,11 @@ export class InvoiceService {
       ? this.generateMilestones(dto.paymentTerms, dto.amount, new Date(dto.invoiceDate))
       : [];
 
+    const tenantObjectId = await this.resolveTenantObjectId(tenantId);
+
     const invoice = new this.invoiceModel({
       ...dto,
-      tenantId: this.toObjectId(tenantId),
+      tenantId: tenantObjectId,
       paid: dto.paid || 0,
       balance: dto.amount - (dto.paid || 0),
       status: this.calculateStatus(dto.amount, dto.paid || 0, dto.status ?? 'Draft'),
@@ -733,7 +753,7 @@ export class InvoiceService {
 
     // Create reminder log
     const reminderLog = new this.reminderLogModel({
-      tenantId: this.toObjectId(tenantId),
+      tenantId: this.toObjectId(tenantId) || await this.resolveTenantObjectId(tenantId),
       invoiceId: new Types.ObjectId(invoiceId),
       invoiceNumber: invoice.invoiceNumber,
       customerName: invoice.customerName,
@@ -978,7 +998,7 @@ Solar EPC Team`;
     metadata?: Record<string, any>,
   ): Promise<void> {
     const activity = new this.activityModel({
-      tenantId: this.toObjectId(tenantId),
+      tenantId: this.toObjectId(tenantId) || await this.resolveTenantObjectId(tenantId),
       module: 'invoice',
       moduleId: new Types.ObjectId(moduleId),
       action,

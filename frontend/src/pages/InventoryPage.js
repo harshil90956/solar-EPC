@@ -22,8 +22,9 @@ const TENANT_ID = 'solarcorp';
 
 const getStockStatus = (item) => {
   const available = (item.stock || 0) - (item.reserved || 0);
+  // Priority: Out of Stock > Low Stock > Reserved > Available
   if (available === 0) return 'out-of-stock';
-  if (available <= (item.minStock || 0)) return 'low-stock';
+  if (available < (item.minStock || 0)) return 'low-stock';
   if ((item.reserved || 0) > 0) return 'reserved';
   return 'available';
 };
@@ -261,7 +262,7 @@ const InventoryPage = () => {
   const [showUnitModal, setShowUnitModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
-  const [editForm, setEditForm] = useState({ name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
+  const [editForm, setEditForm] = useState({ name: '', category: '', unit: '', minStock: '', rate: '', status: '' });
   const [showStockOut, setShowStockOut] = useState(false);
   const [stockOutForm, setStockOutForm] = useState({ itemId: '', quantity: '', projectId: '', issuedDate: '', remarks: '' });
   const [inventory, setInventory] = useState([]);
@@ -661,11 +662,14 @@ const InventoryPage = () => {
   const dynamicStats = useMemo(() => {
     const totalItems = inventory.length;
     const totalValue = inventory.reduce((a, i) => a + (i.stock || 0) * (i.rate || 0), 0);
-    const lowStockItems = inventory.filter(i => ((i.stock || 0) - (i.reserved || 0)) <= (i.minStock || 0) && ((i.stock || 0) - (i.reserved || 0)) > 0).length;
-    const outOfStockItems = inventory.filter(i => (i.stock || 0) === 0).length;
-    const reservedItems = inventory.reduce((a, i) => a + (i.reserved || 0), 0);
+    
+    // Use getStockStatus logic to match Kanban columns exactly
+    const lowStockItems = inventory.filter(i => getStockStatus(i) === 'low-stock').length;
+    const outOfStockItems = inventory.filter(i => getStockStatus(i) === 'out-of-stock').length;
+    const reservedItems = inventory.filter(i => getStockStatus(i) === 'reserved').length;
+    const availableItems = inventory.filter(i => getStockStatus(i) === 'available').length;
 
-    return { totalItems, totalValue, lowStockItems, outOfStockItems, reservedItems };
+    return { totalItems, totalValue, lowStockItems, outOfStockItems, reservedItems, availableItems };
   }, [inventory]);
 
   const warehouseItems = useMemo(() => {
@@ -852,7 +856,6 @@ const InventoryPage = () => {
         unit: editForm.unit,
         minStock: parseInt(editForm.minStock) || 0,
         rate: parseFloat(editForm.rate) || 0,
-        warehouse: editForm.warehouse,
         status: editForm.status || undefined
       };
 
@@ -872,7 +875,7 @@ const InventoryPage = () => {
       setInventory(prev => prev.map(i => i.itemId === editingItem.itemId ? transformedItem : i));
       setShowEdit(false);
       setEditingItem(null);
-      setEditForm({ name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
+      setEditForm({ name: '', category: '', unit: '', minStock: '', rate: '', status: '' });
       alert('Item updated successfully!');
     } catch (err) {
       alert(err.message || 'Failed to update item. Please try again.');
@@ -2038,6 +2041,9 @@ const InventoryPage = () => {
                           <span className="text-xs text-[var(--text-secondary)]">{item.category}</span>
                         </td>
                         <td className="px-4 py-3">
+                          <span className="text-xs text-[var(--text-secondary)]">{item.warehouse || '—'}</span>
+                        </td>
+                        <td className="px-4 py-3">
                           <span className="text-xs text-[var(--text-secondary)]">{item.unit}</span>
                         </td>
                         <td className="px-4 py-3">
@@ -2578,7 +2584,7 @@ const InventoryPage = () => {
       <Modal open={showEdit} onClose={() => setShowEdit(false)} title={`Edit Item — ${editingItem?.itemId}`}
         footer={<div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={() => setShowEdit(false)}>Cancel</Button>
-          <Button onClick={handleUpdateItem} disabled={submitting || !editForm.name || !editForm.category || !editForm.warehouse}>
+          <Button onClick={handleUpdateItem} disabled={submitting || !editForm.name || !editForm.category}>
             {submitting ? 'Saving...' : 'Save Changes'}
           </Button>
         </div>}>
@@ -2591,12 +2597,6 @@ const InventoryPage = () => {
                 <option value="Reserved">Reserved</option>
                 <option value="Low Stock">Low Stock</option>
                 <option value="Out of Stock">Out of Stock</option>
-              </Select>
-            </FormField>
-            <FormField label="Warehouse">
-              <Select value={editForm.warehouse} onChange={e => setEditForm(f => ({ ...f, warehouse: e.target.value }))}>
-                <option value="">Select Warehouse</option>
-                {warehouses.map(w => <option key={w}>{w}</option>)}
               </Select>
             </FormField>
           </div>
