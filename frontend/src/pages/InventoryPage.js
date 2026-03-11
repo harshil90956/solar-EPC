@@ -2041,6 +2041,9 @@ const InventoryPage = () => {
                           <span className="text-xs text-[var(--text-secondary)]">{item.category}</span>
                         </td>
                         <td className="px-4 py-3">
+                          <span className="text-xs text-[var(--text-secondary)]">{item.warehouse || '—'}</span>
+                        </td>
+                        <td className="px-4 py-3">
                           <span className="text-xs text-[var(--text-secondary)]">{item.unit}</span>
                         </td>
                         <td className="px-4 py-3">
