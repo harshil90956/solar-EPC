@@ -42,36 +42,46 @@ export class ManualAdjustmentService {
   }
 
   async findAll(tenantId: string): Promise<ManualAdjustment[]> {
-    const tid = await this.resolveTenantObjectId(tenantId);
+    const query: any = { isDeleted: false };
+    if (tenantId && Types.ObjectId.isValid(tenantId)) {
+      query.tenantId = new Types.ObjectId(tenantId);
+    } else if (tenantId !== '') {
+      throw new BadRequestException('Invalid Tenant ID');
+    }
+    
     return this.manualAdjustmentModel
-      .find({ tenantId: tid, isDeleted: false })
+      .find(query)
       .sort({ date: -1, createdAt: -1 })
       .lean();
   }
 
   async getBalance(tenantId: string): Promise<number> {
-    const tid = await this.resolveTenantObjectId(tenantId);
-    console.log('=== getBalance START === tid:', tid.toString());
+    const query: any = { isDeleted: false };
+    if (tenantId && Types.ObjectId.isValid(tenantId)) {
+      query.tenantId = new Types.ObjectId(tenantId);
+    } else if (tenantId !== '') {
+      throw new BadRequestException('Invalid Tenant ID');
+    }
     
     // Invoice query
-    const invoiceQuery = { 
-      tenantId: tid,
+    const invoiceQuery: any = { 
       isDeleted: false
     };
+    if (query.tenantId) invoiceQuery.tenantId = query.tenantId;
     
     // Expense query
-    const expenseQuery = { 
-      tenantId: tid,
+    const expenseQuery: any = { 
       isDeleted: false, 
       status: 'Paid', 
       category: 'Vendor Payment' 
     };
+    if (query.tenantId) expenseQuery.tenantId = query.tenantId;
     
     // Adjustment query
-    const adjustmentQuery = { 
-      tenantId: tid,
+    const adjustmentQuery: any = { 
       isDeleted: false
     };
+    if (query.tenantId) adjustmentQuery.tenantId = query.tenantId;
 
     console.log('=== getBalance querying DB');
     const [invoices, paidExpenses, adjustments] = await Promise.all([
@@ -91,7 +101,6 @@ export class ManualAdjustmentService {
     // Debug logging
     console.log('getBalance debug:', {
       tenantId,
-      tid: tid?.toString(),
       invoiceCount: invoices?.length || 0,
       paidExpensesCount: paidExpenses?.length || 0,
       adjustmentsCount: adjustments?.length || 0,

@@ -31,8 +31,13 @@ export class PaymentService {
   }
 
   async findAll(tenantId: string, invoiceId?: string): Promise<Payment[]> {
-    const tid = await this.resolveTenantObjectId(tenantId);
-    const query: any = { tenantId: tid, ...this.notDeletedMatch() };
+    const query: any = { ...this.notDeletedMatch() };
+    if (tenantId && Types.ObjectId.isValid(tenantId)) {
+      query.tenantId = new Types.ObjectId(tenantId);
+    } else if (tenantId !== '') {
+      throw new BadRequestException('Invalid Tenant ID');
+    }
+
     if (invoiceId) {
       query.invoiceId = new Types.ObjectId(invoiceId);
     }
@@ -40,12 +45,17 @@ export class PaymentService {
   }
 
   async findById(tenantId: string, id: string): Promise<Payment> {
-    const tid = await this.resolveTenantObjectId(tenantId);
-    const payment = await this.paymentModel.findOne({
+    const query: any = {
       _id: new Types.ObjectId(id),
-      tenantId: tid,
       ...this.notDeletedMatch(),
-    }).lean();
+    };
+    if (tenantId && Types.ObjectId.isValid(tenantId)) {
+      query.tenantId = new Types.ObjectId(tenantId);
+    } else if (tenantId !== '') {
+      throw new BadRequestException('Invalid Tenant ID');
+    }
+
+    const payment = await this.paymentModel.findOne(query).lean();
 
     if (!payment) {
       throw new NotFoundException('Payment not found');

@@ -31,8 +31,13 @@ export class TransactionService {
   }
 
   async findAll(tenantId: string, type?: string): Promise<Transaction[]> {
-    const tid = await this.resolveTenantObjectId(tenantId);
-    const query: any = { tenantId: tid };
+    const query: any = {};
+    if (tenantId && Types.ObjectId.isValid(tenantId)) {
+      query.tenantId = new Types.ObjectId(tenantId);
+    } else if (tenantId !== '') {
+      throw new BadRequestException('Invalid Tenant ID');
+    }
+
     if (type && type !== 'All') {
       query.type = type;
     }
@@ -102,15 +107,18 @@ export class TransactionService {
   }
 
   async getCashFlowData(tenantId: string, months: number = 6): Promise<any[]> {
-    const tid = await this.resolveTenantObjectId(tenantId);
+    const query: any = { status: 'Completed' };
+    if (tenantId && Types.ObjectId.isValid(tenantId)) {
+      query.tenantId = new Types.ObjectId(tenantId);
+    } else if (tenantId !== '') {
+      throw new BadRequestException('Invalid Tenant ID');
+    }
+
     const startDate = new Date();
     startDate.setMonth(startDate.getMonth() - months);
+    query.transactionDate = { $gte: startDate };
 
-    const transactions = await this.transactionModel.find({
-      tenantId: tid,
-      transactionDate: { $gte: startDate },
-      status: 'Completed',
-    }).lean();
+    const transactions = await this.transactionModel.find(query).lean();
 
     const monthlyData: { [key: string]: { inflow: number; outflow: number } } = {};
 
@@ -139,15 +147,18 @@ export class TransactionService {
   }
 
   async getMonthlyRevenue(tenantId: string, months: number = 6): Promise<any[]> {
-    const tid = await this.resolveTenantObjectId(tenantId);
+    const query: any = { status: 'Completed' };
+    if (tenantId && Types.ObjectId.isValid(tenantId)) {
+      query.tenantId = new Types.ObjectId(tenantId);
+    } else if (tenantId !== '') {
+      throw new BadRequestException('Invalid Tenant ID');
+    }
+
     const startDate = new Date();
     startDate.setMonth(startDate.getMonth() - months);
+    query.transactionDate = { $gte: startDate };
 
-    const transactions = await this.transactionModel.find({
-      tenantId: tid,
-      transactionDate: { $gte: startDate },
-      status: 'Completed',
-    }).lean();
+    const transactions = await this.transactionModel.find(query).lean();
 
     const monthlyData: { [key: string]: { revenue: number; cost: number } } = {};
 
@@ -176,8 +187,12 @@ export class TransactionService {
   }
 
   async getAnalyticsByCategory(tenantId: string, months: number = 6): Promise<any> {
-    const tid = await this.resolveTenantObjectId(tenantId);
-    const query: any = { tenantId: tid };
+    const query: any = {};
+    if (tenantId && Types.ObjectId.isValid(tenantId)) {
+      query.tenantId = new Types.ObjectId(tenantId);
+    } else if (tenantId !== '') {
+      throw new BadRequestException('Invalid Tenant ID');
+    }
 
     // Fetch all manual adjustments (journal entries) - no date filter
     const adjustments = await this.manualAdjustmentModel.find(query).lean();

@@ -954,10 +954,8 @@ export class LeadsService {
             leadData.activeAutomation = this.applyAutomation(leadData);
 
             bulkOps.push({
-              updateOne: {
-                filter,
-                update: updateDoc,
-                upsert: true,
+              insertOne: {
+                document: leadData,
               },
             });
             result.inserted++;
