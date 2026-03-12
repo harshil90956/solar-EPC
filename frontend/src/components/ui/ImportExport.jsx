@@ -9,7 +9,16 @@ import { Modal } from './Modal';
 import { useQuery } from '@tanstack/react-query';
 import { leadsApi } from '../../services/leadsApi';
 
-const ImportExport = ({ moduleName, fields = [], onImport, onExport, className }) => {
+const ImportExport = ({
+    moduleName,
+    fields = [],
+    onImport,
+    onExport,
+    className,
+    hideImport = false,
+    hideExport = false,
+    hideGuide = false,
+}) => {
     const [isOpen, setIsOpen] = useState(false);
     const [showDocModal, setShowDocModal] = useState(false);
     const [step, setStep] = useState(1); // 1: Select/Download, 2: Mapping, 3: Preview/Validate
@@ -169,10 +178,12 @@ const ImportExport = ({ moduleName, fields = [], onImport, onExport, className }
 
     return (
         <div className={cn('flex items-center gap-2', className)}>
-            <Button variant="outline" size="sm" onClick={() => onExport?.('csv')}>
-                <Download size={14} /> Export CSV
-            </Button>
-            {moduleName === 'Leads' && (
+            {!hideExport && (
+                <Button variant="outline" size="sm" onClick={() => onExport?.('csv')}>
+                    <Download size={14} /> Export CSV
+                </Button>
+            )}
+            {moduleName === 'Leads' && !hideGuide && (
                 <Button 
                     variant="outline" 
                     size="sm" 
@@ -183,14 +194,16 @@ const ImportExport = ({ moduleName, fields = [], onImport, onExport, className }
                     <HelpCircle size={14} /> Import Guide
                 </Button>
             )}
-            <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleOpen}
-                type="button"
-            >
-                <Upload size={14} /> Import
-            </Button>
+            {!hideImport && (
+                <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleOpen}
+                    type="button"
+                >
+                    <Upload size={14} /> Import
+                </Button>
+            )}
 
             <Modal
                 open={isOpen}

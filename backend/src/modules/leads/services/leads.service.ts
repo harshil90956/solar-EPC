@@ -1028,17 +1028,28 @@ export class LeadsService {
     return this.getStats(tenantId, user);
   }
 
-  async getDashboardFunnel(tenantId?: string, user?: UserWithVisibility): Promise<any> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
-    const filter = this.buildCompleteFilter(tid.toString(), user, { isDeleted: false });
-    
-    const stages = await this.leadStatusModel.find({ tenantId: tid, entity: 'lead' }).sort({ order: 1 }).lean();
-    const counts = await Promise.all(stages.map(async (s) => ({
-      stage: s.label,
-      count: await this.leadModel.countDocuments({ ...filter, statusKey: s.key })
-    })));
+  async getDashboardFunnel(
+    tenantId?: string,
+    user?: UserWithVisibility
+  ): Promise<{ stages: Array<{ stage: string; count: number }> }> {
+    return this.withDashboardCache(tenantId, 'funnel', async () => {
+      const tid = await this.resolveTenantObjectId(tenantId || '');
+      const filter = this.buildCompleteFilter(tid.toString(), user, { isDeleted: false });
 
-    return counts;
+      const stages = await this.leadStatusModel
+        .find({ tenantId: tid, entity: 'lead' })
+        .sort({ order: 1 })
+        .lean();
+
+      const counts = await Promise.all(
+        stages.map(async (s) => ({
+          stage: s.label,
+          count: await this.leadModel.countDocuments({ ...filter, statusKey: s.key }),
+        }))
+      );
+
+      return { stages: counts };
+    });
   }
 
   async getDashboardSources(
@@ -1375,11 +1386,18 @@ export class LeadsService {
             leadData.slaBreached = this.checkSlaBreached(leadData);
             leadData.activeAutomation = this.applyAutomation(leadData);
 
+            const filter = {
+              tenantId: tid,
+              leadId,
+            };
+
+            const updateDoc = {
+              $setOnInsert: leadData,
+            };
+
             bulkOps.push({
-              updateOne: {
-                filter,
-                update: updateDoc,
-                upsert: true,
+              insertOne: {
+                document: leadData,
               },
             });
             result.inserted++;

@@ -58,22 +58,36 @@ const KPICard = ({ title, value, change, trend, icon: Icon, color, loading, subt
   const TrendIcon = trend === 'up' ? ArrowUpRight : ArrowDownRight;
   const trendColor = trend === 'up' ? 'text-emerald-500' : 'text-red-500';
   const changeText = change ? `${Math.abs(change)}%` : '0%';
+  const cardStyle = {
+    background: `linear-gradient(135deg, ${color}14, ${color}06)`,
+    borderColor: `${color}30`,
+  };
   
   return (
-    <div className="glass-card p-4 hover:scale-[1.02] transition-transform cursor-pointer" onClick={onClick} role="button" tabIndex={0}>
+    <div
+      className="glass-card p-4 hover:scale-[1.02] transition-transform cursor-pointer min-h-[98px]"
+      style={cardStyle}
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+    >
       <div className="flex items-start justify-between gap-3">
-        <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${color}20, ${color}10)` }}>
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm" style={{ background: `linear-gradient(135deg, ${color}24, ${color}12)` }}>
           <Icon size={18} style={{ color }} />
         </div>
-        <div className="flex flex-col items-end gap-1">
-          {change !== undefined && (
-          <div className="flex items-center gap-1">
-            <TrendIcon size={12} className={trendColor} />
-            <span className={`text-[10px] font-bold ${trendColor}`}>{changeText}</span>
+        <div className="flex flex-col items-end gap-1 min-w-[84px]">
+          <div className="h-4 flex items-center justify-end">
+            {change !== undefined ? (
+              <div className="flex items-center gap-1">
+                <TrendIcon size={12} className={trendColor} />
+                <span className={`text-[10px] font-bold ${trendColor}`}>{changeText}</span>
+              </div>
+            ) : (
+              <span className="text-[10px] opacity-0">0%</span>
+            )}
           </div>
-          )}
-          {Array.isArray(sparkline) && sparkline.length > 1 && (
-            <div className="w-20 h-8">
+          <div className="w-20 h-8">
+            {Array.isArray(sparkline) && sparkline.length > 1 ? (
               <AreaChart width={80} height={32} data={sparkline}>
                 <defs>
                   <linearGradient id={`kpi-${title}`} x1="0" y1="0" x2="0" y2="1">
@@ -83,14 +97,16 @@ const KPICard = ({ title, value, change, trend, icon: Icon, color, loading, subt
                 </defs>
                 <Area type="monotone" dataKey="v" stroke={color} fill={`url(#kpi-${title})`} strokeWidth={2} dot={false} />
               </AreaChart>
-            </div>
-          )}
+            ) : null}
+          </div>
         </div>
       </div>
       <div className="mt-3">
         <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">{title}</p>
-        <p className="text-xl font-black text-[var(--text-primary)]">{value}</p>
-        {subtitle && <p className="text-[9px] text-[var(--text-muted)]">{subtitle}</p>}
+        <p className="text-xl font-black text-[var(--text-primary)] leading-tight">{value}</p>
+        <div className="h-3">
+          {subtitle ? <p className="text-[9px] text-[var(--text-muted)]">{subtitle}</p> : null}
+        </div>
       </div>
     </div>
   );
@@ -238,9 +254,48 @@ const TrendChart = ({ data, loading }) => {
 
 // Agent Leaderboard Component
 const AgentLeaderboard = ({ data, loading }) => {
+  const agents = useMemo(() => {
+    const list = Array.isArray(data) ? data : [];
+
+    const normalized = list
+      .map((a) => {
+        const leadsHandled = Number(a?.leadsHandled ?? a?.leadsAssigned ?? a?.leads ?? 0);
+        const converted = Number(a?.converted ?? a?.leadsConverted ?? a?.won ?? 0);
+        const conversionRate = Number(a?.conversionRate ?? (leadsHandled > 0 ? (converted / leadsHandled) * 100 : 0));
+        return {
+          id: a?.id ?? a?._id ?? a?.userId ?? a?.email ?? a?.name,
+          name: a?.name ?? a?.fullName ?? a?.email ?? '',
+          leadsHandled,
+          converted,
+          conversionRate,
+        };
+      })
+      .filter((a) => {
+        const name = String(a?.name || '').trim().toLowerCase();
+        const isPlaceholderName = name === '' || name === 'unknown' || name === 'no data';
+        const hasStats = (a.leadsHandled || 0) > 0 || (a.converted || 0) > 0;
+        return hasStats && !isPlaceholderName;
+      })
+      .sort((a, b) => (b.conversionRate || 0) - (a.conversionRate || 0));
+
+    return normalized.slice(0, 5);
+  }, [data]);
+
   if (loading) return <SkeletonChart />;
-  
-  const agents = Array.isArray(data) && data.length > 0 ? data : [{ id: 'unassigned', name: 'No Data', leadsHandled: 0, converted: 0, conversionRate: 0 }];
+
+  if (!agents || agents.length === 0) {
+    return (
+      <div className="glass-card p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-bold text-[var(--text-primary)]">Top Performers</h3>
+          <Award size={16} className="text-amber-500" />
+        </div>
+        <div className="flex items-center justify-center min-h-[160px]">
+          <p className="text-xs text-[var(--text-muted)]">No performer data available yet</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="glass-card p-5">
@@ -251,20 +306,22 @@ const AgentLeaderboard = ({ data, loading }) => {
       <div className="space-y-3">
         {agents.map((agent, index) => {
           const rankBg = index === 0 ? 'bg-amber-100 text-amber-700' : index === 1 ? 'bg-slate-200 text-slate-700' : index === 2 ? 'bg-orange-100 text-orange-700' : 'bg-[var(--bg-elevated)] text-[var(--text-muted)]';
+          const initial = String(agent.name || '?').trim().slice(0, 1).toUpperCase();
+          const rate = Number.isFinite(agent.conversionRate) ? agent.conversionRate : 0;
           return (
             <div key={`${agent.id || 'agent'}-${index}`} className="flex items-center gap-3 p-2 rounded-lg bg-[var(--bg-elevated)]">
               <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${rankBg}`}>
                 {index + 1}
               </div>
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 text-white flex items-center justify-center text-xs font-bold">
-                {(agent.name || '?')[0]}
+                {initial}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-bold text-[var(--text-primary)] truncate">{agent.name || 'Unknown'}</p>
                 <p className="text-[9px] text-[var(--text-muted)]">{formatNumber(agent.converted)}/{formatNumber(agent.leadsHandled)}</p>
               </div>
               <div className="text-right">
-                <p className="text-xs font-bold text-[var(--accent)]">{Number(agent.conversionRate || 0).toFixed(0)}%</p>
+                <p className="text-xs font-bold text-[var(--accent)]">{rate.toFixed(0)}%</p>
               </div>
             </div>
           );
