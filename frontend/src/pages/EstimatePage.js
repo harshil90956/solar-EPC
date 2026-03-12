@@ -16,6 +16,7 @@ import { cn } from '../lib/utils';
 import { EquipmentLibrary } from '../components/estimates/EquipmentLibrary';
 import { CompanyHeader, DocumentHeader } from '../components/documents/CompanyHeader';
 import { downloadEstimatePDF, downloadProposalPDF } from '../lib/pdfGenerator';
+import { settingsApi } from '../services/settingsApi';
 
 const fmt = CURRENCY.format;
 
@@ -27,14 +28,13 @@ const ESTIMATE_STATUS = {
   rejected: { label: 'Rejected', color: '#ef4444', bg: 'rgba(239,68,68,0.12)', icon: XCircle },
 };
 
-// ── Project Types ─────────────────────────────────────────────────────────────
-const PROJECT_TYPES = [
+const DEFAULT_PROJECT_TYPES = [
   { value: 'residential', label: 'Residential', icon: User },
   { value: 'commercial', label: 'Commercial', icon: Building2 },
   { value: 'industrial', label: 'Industrial', icon: Zap },
 ];
 
-const INSTALLATION_TYPES = [
+const DEFAULT_INSTALLATION_TYPES = [
   { value: 'rooftop', label: 'Rooftop' },
   { value: 'ground_mounted', label: 'Ground Mounted' },
 ];
@@ -281,6 +281,28 @@ const EstimatePage = () => {
   };
 
   const handleSendEstimate = (id) => {
+    const estimate = estimates.find((e) => e.id === id);
+    const to = estimate?.customerEmail || '';
+    const subject = `Estimate ${estimate?.estimateNumber || id}`;
+    const bodyLines = [
+      `Hello ${estimate?.customerName || ''},`,
+      '',
+      `Please find the estimate details below:`,
+      '',
+      `Estimate No: ${estimate?.estimateNumber || id}`,
+      `Project: ${estimate?.projectName || ''}`,
+      `Location: ${estimate?.projectLocation || ''}`,
+      `System Capacity: ${estimate?.systemCapacity || ''} kW`,
+      `Project Type: ${estimate?.projectType || ''}`,
+      `Installation Type: ${estimate?.installationType || ''}`,
+      `Total: ${fmt(estimate?.total || 0)}`,
+      '',
+      'Thanks,',
+    ];
+    const body = bodyLines.join('\n');
+    const mailto = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = mailto;
+
     setEstimates(estimates.map(e =>
       e.id === id ? { ...e, status: 'sent', sentAt: new Date().toISOString() } : e
     ));
@@ -673,6 +695,30 @@ const EstimateCard = ({ estimate, onView, onEdit, onDuplicate, onDelete, onDownl
 
 // ── Create Estimate Form Component ────────────────────────────────────────────
 const CreateEstimateForm = ({ initialData, estimates, onSubmit, onCancel }) => {
+  const [projectTypeOptions, setProjectTypeOptions] = useState(DEFAULT_PROJECT_TYPES);
+  const [installationTypeOptions, setInstallationTypeOptions] = useState(DEFAULT_INSTALLATION_TYPES);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadTypeOptions = async () => {
+      try {
+        const res = await settingsApi.getTypeOptions();
+        const pts = res?.projectTypes || res?.data?.projectTypes;
+        const its = res?.installationTypes || res?.data?.installationTypes;
+        if (!cancelled) {
+          if (Array.isArray(pts) && pts.length > 0) setProjectTypeOptions(pts);
+          if (Array.isArray(its) && its.length > 0) setInstallationTypeOptions(its);
+        }
+      } catch {
+        // ignore
+      }
+    };
+    loadTypeOptions();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const [formData, setFormData] = useState(initialData || {
     customerName: '',
     companyName: '',
@@ -959,14 +1005,14 @@ const CreateEstimateForm = ({ initialData, estimates, onSubmit, onCancel }) => {
                   <Select
                     value={formData.projectType}
                     onChange={(v) => setFormData({ ...formData, projectType: v })}
-                    options={PROJECT_TYPES.map(t => ({ value: t.value, label: t.label }))}
+                    options={projectTypeOptions.map(t => ({ value: t.value, label: t.label }))}
                   />
                 </FormField>
                 <FormField label="Installation Type">
                   <Select
                     value={formData.installationType}
                     onChange={(v) => setFormData({ ...formData, installationType: v })}
-                    options={INSTALLATION_TYPES}
+                    options={installationTypeOptions}
                   />
                 </FormField>
                 <FormField label="Project Description" className="md:col-span-2">

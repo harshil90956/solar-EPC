@@ -414,10 +414,14 @@ export class LeadsService {
     } = query;
 
     // Build complete filter with tenant and visibility
-    // Filter for customers only (status = "customer")
+    // Filter for customers only (status = "customer" OR stage = "customer")
     const filter = this.buildCompleteFilter(tenantId, user, {
-      status: 'customer',
-      isDeleted: { $ne: true }
+      isDeleted: { $ne: true },
+      $or: [
+        { status: { $regex: '^customer$', $options: 'i' } },
+        { stage: { $regex: '^customer$', $options: 'i' } },
+        { statusKey: { $regex: '^customer$', $options: 'i' } },
+      ],
     });
 
     // Apply additional filters
@@ -950,7 +954,11 @@ export class LeadsService {
             leadData.activeAutomation = this.applyAutomation(leadData);
 
             bulkOps.push({
-              insertOne: { document: leadData },
+              updateOne: {
+                filter,
+                update: updateDoc,
+                upsert: true,
+              },
             });
             result.inserted++;
           }

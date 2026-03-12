@@ -316,7 +316,27 @@ const buildMonthBuckets = (calendarFilterYear, calendarFilterMonth) => {
 };
 
 // Helper: compute revenue+cost series from filtered invoices and adjustments
-const computeRevenueCostSeries = (invoices, manualAdjustments, calendarFilterYear, calendarFilterMonth) => {
+const computeRevenueCostSeries = (invoices, manualAdjustments, calendarFilterYear, calendarFilterMonth, calendarFilterDay) => {
+  // If Today mode (day selected), return single day data
+  if (calendarFilterDay !== undefined && calendarFilterYear !== 'all') {
+    const year = parseInt(calendarFilterYear);
+    const month = calendarFilterMonth;
+    const day = calendarFilterDay;
+    const start = new Date(year, month, day, 0, 0, 0, 0);
+    const end = new Date(year, month, day, 23, 59, 59, 999);
+    const revenue = (invoices || []).reduce((sum, inv) => {
+      const dt = new Date(inv.invoiceDate || inv.createdAt);
+      if (dt < start || dt > end) return sum;
+      return sum + Number(inv.amount || 0);
+    }, 0);
+    const cost = (manualAdjustments || []).filter(a => a.type === 'debit').reduce((sum, adj) => {
+      const dt = new Date(adj.date || adj.createdAt);
+      if (dt < start || dt > end) return sum;
+      return sum + Number(adj.amount || 0);
+    }, 0);
+    return [{ month: 'Today', revenue, cost }];
+  }
+  // Monthly mode
   const months = buildMonthBuckets(calendarFilterYear, calendarFilterMonth);
   return months.map(m => {
     const revenue = (invoices || []).reduce((sum, inv) => {
@@ -334,7 +354,34 @@ const computeRevenueCostSeries = (invoices, manualAdjustments, calendarFilterYea
 };
 
 // Helper: compute cashflow series
-const computeCashFlowSeries = (invoices, manualAdjustments, calendarFilterYear, calendarFilterMonth) => {
+const computeCashFlowSeries = (invoices, manualAdjustments, calendarFilterYear, calendarFilterMonth, calendarFilterDay) => {
+  // If Today mode (day selected), return single day data
+  if (calendarFilterDay !== undefined && calendarFilterYear !== 'all') {
+    const year = parseInt(calendarFilterYear);
+    const month = calendarFilterMonth;
+    const day = calendarFilterDay;
+    const start = new Date(year, month, day, 0, 0, 0, 0);
+    const end = new Date(year, month, day, 23, 59, 59, 999);
+    const inflow = (invoices || []).reduce((sum, inv) => {
+      let dt = inv.paidDate ? new Date(inv.paidDate) : null;
+      if (!dt && inv.status === 'Paid') dt = new Date(inv.invoiceDate || inv.createdAt);
+      if (!dt || dt < start || dt > end) return sum;
+      const paid = Number(inv.paid || 0);
+      const amount = Number(inv.amount || 0);
+      return sum + ((paid === 0 && inv.status === 'Paid') ? amount : paid);
+    }, 0) + (manualAdjustments || []).filter(a => a.type === 'credit').reduce((sum, adj) => {
+      const dt = new Date(adj.date || adj.createdAt);
+      if (dt < start || dt > end) return sum;
+      return sum + Number(adj.amount || 0);
+    }, 0);
+    const outflow = (manualAdjustments || []).filter(a => a.type === 'debit').reduce((sum, adj) => {
+      const dt = new Date(adj.date || adj.createdAt);
+      if (dt < start || dt > end) return sum;
+      return sum + Number(adj.amount || 0);
+    }, 0);
+    return [{ month: 'Today', inflow, outflow }];
+  }
+  // Monthly mode
   const months = buildMonthBuckets(calendarFilterYear, calendarFilterMonth);
   return months.map(m => {
     const inflow = (invoices || []).reduce((sum, inv) => {
@@ -551,7 +598,6 @@ const InvoiceStatusChart = ({ invoices }) => {
             data={data}
             cx="50%"
             cy="50%"
-            innerRadius={50}
             outerRadius={80}
             paddingAngle={3}
             dataKey="value"
@@ -700,26 +746,17 @@ const VendorPayablesChart = ({ payables }) => {
 };
 
 // Chart 6: Collection Performance
-const MonthlyCollectionChart = ({ invoices, payments, calendarFilterYear, calendarFilterMonth, calendarFilterDay }) => {
+const MonthlyCollectionChart = ({ invoices, payments, calendarFilterYear, calendarFilterMonth, calendarFilterDay, totalRevenue }) => {
   const data = useMemo(() => {
     // If calendarFilterDay is set, we're in "Today" mode - show single day data
     if (calendarFilterDay !== undefined) {
-      // For Today view, calculate based on the selected day only
+      // For Today view, show total revenue as Invoices Created
+      const invoiceTotal = totalRevenue || 0;
+      
+      // Calculate today's payments only
       const now = new Date();
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
       const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-      
-      const invoiceTotal = (invoices || []).reduce((sum, inv) => {
-        try {
-          const dt = new Date(inv.invoiceDate || inv.createdAt);
-          if (!isNaN(dt.getTime()) && dt >= todayStart && dt <= todayEnd) {
-            return sum + Number(inv.amount || 0);
-          }
-        } catch (e) {
-          console.error('Error processing invoice date:', e);
-        }
-        return sum;
-      }, 0);
       
       const paymentTotal = (payments || []).reduce((sum, p) => {
         try {
@@ -751,7 +788,7 @@ const MonthlyCollectionChart = ({ invoices, payments, calendarFilterYear, calend
       }, 0);
       return { month: m.label, invoices: invoiceTotal, payments: paymentTotal };
     });
-  }, [invoices, payments, calendarFilterYear, calendarFilterMonth, calendarFilterDay]);
+  }, [invoices, payments, calendarFilterYear, calendarFilterMonth, calendarFilterDay, totalRevenue]);
 
   // Dynamic title based on calendar filter
   const getDynamicTitle = () => {
@@ -784,7 +821,9 @@ const MonthlyCollectionChart = ({ invoices, payments, calendarFilterYear, calend
             tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
             axisLine={false}
             tickLine={false}
-            domain={[0, 'auto']}
+            domain={[0, 'dataMax + 50000']}
+            allowDecimals={false}
+            width={60}
           />
           <Tooltip content={<CustomTooltip />} />
           <Legend iconSize={10} wrapperStyle={{ fontSize: 11, paddingTop: 10 }} />
@@ -1140,7 +1179,26 @@ const FinanceDashboard = ({
 
   // Calculate total revenue and collected from FILTERED invoices
   const totalRevenue = (invoices || []).reduce((sum, inv) => sum + Number(inv.amount || 0), 0);
-  const totalCollected = (invoices || []).reduce((sum, inv) => sum + getPaidAmount(inv), 0);
+  
+  // For Today mode, calculate collected from payments data (only today's payments)
+  // For monthly/yearly mode, use invoice paid amounts
+  const totalCollected = useMemo(() => {
+    if (calendarFilterDay !== undefined && calendarFilterYear !== 'all') {
+      // Today mode: sum payments received today
+      const year = parseInt(calendarFilterYear);
+      const month = calendarFilterMonth;
+      const day = calendarFilterDay;
+      const start = new Date(year, month, day, 0, 0, 0, 0);
+      const end = new Date(year, month, day, 23, 59, 59, 999);
+      return (payments || []).reduce((sum, p) => {
+        const dt = new Date(p.paymentDate || p.date || p.createdAt);
+        if (dt < start || dt > end) return sum;
+        return sum + Number(p.amount || p.paidAmount || 0);
+      }, 0);
+    }
+    // Monthly/Yearly mode: sum paid amounts from invoices
+    return (invoices || []).reduce((sum, inv) => sum + getPaidAmount(inv), 0);
+  }, [invoices, payments, calendarFilterYear, calendarFilterMonth, calendarFilterDay]);
 
   // Calculate collection rate from invoices
   const collectionRate = totalRevenue > 0
@@ -1151,12 +1209,12 @@ const FinanceDashboard = ({
 
   // Compute all chart data from filtered data (hooks must be before any early return)
   const computedMonthlyRevenue = useMemo(
-    () => computeRevenueCostSeries(invoices, manualAdjustments, calendarFilterYear, calendarFilterMonth),
-    [invoices, manualAdjustments, calendarFilterYear, calendarFilterMonth]
+    () => computeRevenueCostSeries(invoices, manualAdjustments, calendarFilterYear, calendarFilterMonth, calendarFilterDay),
+    [invoices, manualAdjustments, calendarFilterYear, calendarFilterMonth, calendarFilterDay]
   );
   const computedCashFlow = useMemo(
-    () => computeCashFlowSeries(invoices, manualAdjustments, calendarFilterYear, calendarFilterMonth),
-    [invoices, manualAdjustments, calendarFilterYear, calendarFilterMonth]
+    () => computeCashFlowSeries(invoices, manualAdjustments, calendarFilterYear, calendarFilterMonth, calendarFilterDay),
+    [invoices, manualAdjustments, calendarFilterYear, calendarFilterMonth, calendarFilterDay]
   );
   const computedAdjustmentTrend = useMemo(
     () => computeAdjustmentTrend(manualAdjustments, calendarFilterYear, calendarFilterMonth),
@@ -1259,7 +1317,7 @@ const FinanceDashboard = ({
         </h2>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <VendorPayablesChart payables={payables} />
-          <MonthlyCollectionChart invoices={invoices} payments={payments} calendarFilterYear={calendarFilterYear} calendarFilterMonth={calendarFilterMonth} calendarFilterDay={calendarFilterDay} />
+          <MonthlyCollectionChart invoices={invoices} payments={payments} calendarFilterYear={calendarFilterYear} calendarFilterMonth={calendarFilterMonth} calendarFilterDay={calendarFilterDay} totalRevenue={totalRevenue} />
         </div>
       </section>
     </div>
