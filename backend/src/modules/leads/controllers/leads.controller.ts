@@ -373,6 +373,19 @@ export class LeadsController {
   // DASHBOARD ANALYTICS ENDPOINTS
   // ============================================
 
+  @Get('dashboard/kpis')
+  async getDashboardKpis(@Request() req: any) {
+    try {
+      const tenantId = req.tenant?.id;
+      const user = req.user;
+      const result = await this.leadsService.getDashboardKpis(tenantId, user);
+      return { success: true, data: result };
+    } catch (error: any) {
+      this.logger.error(`Get dashboard kpis failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
   @Get('dashboard/overview')
   async getDashboardOverview(@Request() req: any) {
     try {
@@ -399,6 +412,19 @@ export class LeadsController {
     }
   }
 
+  @Get('dashboard/sources')
+  async getDashboardSources(@Request() req: any) {
+    try {
+      const tenantId = req.tenant?.id;
+      const user = req.user;
+      const result = await this.leadsService.getDashboardSources(tenantId, user);
+      return { success: true, data: result };
+    } catch (error: any) {
+      this.logger.error(`Get dashboard sources failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
   @Get('dashboard/source')
   async getSourcePerformance(@Request() req: any) {
     try {
@@ -412,6 +438,19 @@ export class LeadsController {
     }
   }
 
+  @Get('dashboard/monthly')
+  async getDashboardMonthly(@Request() req: any) {
+    try {
+      const tenantId = req.tenant?.id;
+      const user = req.user;
+      const result = await this.leadsService.getDashboardMonthly(tenantId, user);
+      return { success: true, data: result };
+    } catch (error: any) {
+      this.logger.error(`Get dashboard monthly failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
   @Get('dashboard/trend')
   async getLeadTrend(@Query('months') months: string, @Request() req: any) {
     try {
@@ -421,6 +460,19 @@ export class LeadsController {
       return { success: true, data: result };
     } catch (error: any) {
       this.logger.error(`Get lead trend failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
+  @Get('dashboard/top-performers')
+  async getDashboardTopPerformers(@Request() req: any) {
+    try {
+      const tenantId = req.tenant?.id;
+      const user = req.user;
+      const result = await this.leadsService.getDashboardTopPerformers(tenantId, user);
+      return { success: true, data: result };
+    } catch (error: any) {
+      this.logger.error(`Get dashboard top performers failed: ${error?.message || 'Unknown error'}`, error?.stack);
       throw error;
     }
   }

@@ -101,6 +101,180 @@ export class LeadsService {
     return data;
   }
 
+  async getDashboardKpis(
+    tenantId?: string,
+    user?: UserWithVisibility
+  ): Promise<{
+    totalLeads: number;
+    pipelineLeads: number;
+    convertedLeads: number;
+    newLeads: number;
+    lostLeads: number;
+    pipelineValue: number;
+    conversionRate: number;
+    staleLeads7d: number;
+    deltas: {
+      totalLeadsPct: number;
+      pipelineLeadsPct: number;
+      convertedLeadsPct: number;
+      pipelineValuePct: number;
+    };
+  }> {
+    return this.withDashboardCache(tenantId, 'kpis', async () => {
+      const filter = this.buildCompleteFilter(tenantId, user, {});
+      const now = new Date();
+      const currentStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const prevStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const prevEnd = new Date(currentStart);
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const tomorrowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      const staleCutoff = new Date(now);
+      staleCutoff.setDate(staleCutoff.getDate() - 7);
+
+      const normalizedWonOrCustomer = ['won', 'customer'];
+      const normalizedLost = ['lost'];
+      const normalizedNew = ['new'];
+
+      const pipelineMatch: any = {
+        ...filter,
+        isDeleted: { $ne: true },
+        $expr: {
+          $not: {
+            $in: [
+              { $toLower: { $ifNull: ['$statusKey', { $ifNull: ['$status', ''] }] } },
+              [...normalizedWonOrCustomer, ...normalizedLost],
+            ],
+          },
+        },
+      };
+
+      const convertedMatch: any = {
+        ...filter,
+        isDeleted: { $ne: true },
+        $expr: {
+          $in: [
+            { $toLower: { $ifNull: ['$statusKey', { $ifNull: ['$status', ''] }] } },
+            normalizedWonOrCustomer,
+          ],
+        },
+      };
+
+      const newMatch: any = {
+        ...filter,
+        isDeleted: { $ne: true },
+        $or: [
+          { createdAt: { $gte: todayStart, $lt: tomorrowStart } },
+          { created: { $gte: todayStart, $lt: tomorrowStart } },
+        ],
+      };
+
+      const lostMatch: any = {
+        ...filter,
+        isDeleted: { $ne: true },
+        $expr: {
+          $in: [
+            { $toLower: { $ifNull: ['$statusKey', { $ifNull: ['$status', ''] }] } },
+            normalizedLost,
+          ],
+        },
+      };
+
+      const [
+        totalLeads,
+        pipelineLeads,
+        convertedLeads,
+        newLeads,
+        lostLeads,
+        pipelineValueAgg,
+        staleLeads7d,
+        prevTotalLeads,
+        prevPipelineLeads,
+        prevConvertedLeads,
+        prevPipelineValueAgg,
+      ] = await Promise.all([
+        this.leadModel.countDocuments({ ...filter, isDeleted: { $ne: true } }),
+        this.leadModel.countDocuments(pipelineMatch),
+        this.leadModel.countDocuments(convertedMatch),
+        this.leadModel.countDocuments(newMatch),
+        this.leadModel.countDocuments(lostMatch),
+        this.leadModel.aggregate([
+          { $match: pipelineMatch },
+          { $group: { _id: null, total: { $sum: { $ifNull: ['$value', 0] } } } },
+        ]),
+        this.leadModel.countDocuments({
+          ...pipelineMatch,
+          $or: [
+            { lastContact: { $lt: staleCutoff } },
+            { lastContact: { $exists: false }, updatedAt: { $lt: staleCutoff } },
+            { lastContact: { $exists: false }, updatedAt: { $exists: false }, createdAt: { $lt: staleCutoff } },
+            { lastContact: { $exists: false }, updatedAt: { $exists: false }, createdAt: { $exists: false }, created: { $lt: staleCutoff } },
+          ],
+        }),
+        this.leadModel.countDocuments({
+          ...filter,
+          isDeleted: { $ne: true },
+          $or: [
+            { createdAt: { $gte: prevStart, $lt: prevEnd } },
+            { created: { $gte: prevStart, $lt: prevEnd } },
+          ],
+        }),
+        this.leadModel.countDocuments({
+          ...pipelineMatch,
+          $or: [
+            { createdAt: { $gte: prevStart, $lt: prevEnd } },
+            { created: { $gte: prevStart, $lt: prevEnd } },
+          ],
+        }),
+        this.leadModel.countDocuments({
+          ...convertedMatch,
+          $or: [
+            { createdAt: { $gte: prevStart, $lt: prevEnd } },
+            { created: { $gte: prevStart, $lt: prevEnd } },
+          ],
+        }),
+        this.leadModel.aggregate([
+          {
+            $match: {
+              ...pipelineMatch,
+              $or: [
+                { createdAt: { $gte: prevStart, $lt: prevEnd } },
+                { created: { $gte: prevStart, $lt: prevEnd } },
+              ],
+            },
+          },
+          { $group: { _id: null, total: { $sum: { $ifNull: ['$value', 0] } } } },
+        ]),
+      ]);
+
+      const pipelineValue = Number(pipelineValueAgg?.[0]?.total || 0);
+      const prevPipelineValue = Number(prevPipelineValueAgg?.[0]?.total || 0);
+
+      const pct = (cur: number, prev: number) => {
+        if (!prev) return cur ? 100 : 0;
+        return Math.round(((cur - prev) / prev) * 100);
+      };
+
+      const conversionRate = totalLeads > 0 ? Math.round((convertedLeads / totalLeads) * 100) : 0;
+
+      return {
+        totalLeads,
+        pipelineLeads,
+        convertedLeads,
+        newLeads,
+        lostLeads,
+        pipelineValue,
+        conversionRate,
+        staleLeads7d,
+        deltas: {
+          totalLeadsPct: pct(totalLeads, prevTotalLeads),
+          pipelineLeadsPct: pct(pipelineLeads, prevPipelineLeads),
+          convertedLeadsPct: pct(convertedLeads, prevConvertedLeads),
+          pipelineValuePct: pct(pipelineValue, prevPipelineValue),
+        },
+      };
+    });
+  }
+
   private async assertValidStatusKey(statusKey: string | undefined, tenantId?: string): Promise<void> {
     if (!statusKey || statusKey === '') return;
 
@@ -274,6 +448,7 @@ export class LeadsService {
       search,
       source,
       statusKey,
+      statusKeys,
       city,
       minScore,
       maxScore,
@@ -313,7 +488,43 @@ export class LeadsService {
     }
 
     if (source) filter.source = source;
-    if (statusKey) filter.statusKey = statusKey;
+    const statusList = (typeof statusKeys === 'string' ? statusKeys : '')
+      .split(',')
+      .map((x) => String(x || '').trim().toLowerCase())
+      .filter(Boolean);
+
+    if (statusList.length > 0) {
+      const statusExpr = {
+        $expr: {
+          $in: [
+            { $toLower: { $ifNull: ['$statusKey', { $ifNull: ['$status', ''] }] } },
+            statusList,
+          ],
+        },
+      };
+      if (filter.$and) {
+        filter.$and.push(statusExpr);
+      } else {
+        filter.$and = [statusExpr];
+      }
+    } else if (statusKey) {
+      const normalizedStatusKey = String(statusKey).trim().toLowerCase();
+      if (normalizedStatusKey) {
+        const statusExpr = {
+          $expr: {
+            $eq: [
+              { $toLower: { $ifNull: ['$statusKey', { $ifNull: ['$status', ''] }] } },
+              normalizedStatusKey,
+            ],
+          },
+        };
+        if (filter.$and) {
+          filter.$and.push(statusExpr);
+        } else {
+          filter.$and = [statusExpr];
+        }
+      }
+    }
     if (city) filter.city = { $regex: city, $options: 'i' };
 
     if (minScore !== undefined || maxScore !== undefined) {
@@ -329,9 +540,22 @@ export class LeadsService {
     }
 
     if (startDate || endDate) {
-      filter.createdAt = {};
-      if (startDate) filter.createdAt.$gte = new Date(startDate);
-      if (endDate) filter.createdAt.$lte = new Date(endDate);
+      const range: any = {};
+      if (startDate) range.$gte = new Date(startDate);
+      if (endDate) range.$lte = new Date(endDate);
+
+      const dateExpr = {
+        $or: [
+          { createdAt: range },
+          { created: range },
+        ],
+      };
+
+      if (filter.$and) {
+        filter.$and.push(dateExpr);
+      } else {
+        filter.$and = [dateExpr];
+      }
     }
 
     if (search) {
@@ -1020,6 +1244,195 @@ export class LeadsService {
 
       const map = new Map<string, number>(stageAgg.map((s: any) => [s._id, s.count]));
       return { stages: stageOrder.map(stage => ({ stage, count: map.get(stage) || 0 })) };
+    });
+  }
+
+  async getDashboardSources(
+    tenantId?: string,
+    user?: UserWithVisibility
+  ): Promise<{ sources: Array<{ source: string; leads: number; value: number; pct: number }> }> {
+    return this.withDashboardCache(tenantId, 'sources', async () => {
+      const filter = this.buildCompleteFilter(tenantId, user, {});
+      const total = await this.leadModel.countDocuments(filter);
+
+      const agg = await this.leadModel.aggregate([
+        { $match: filter },
+        {
+          $addFields: {
+            _source: {
+              $toLower: {
+                $trim: {
+                  input: { $ifNull: ['$source', 'manual'] },
+                },
+              },
+            },
+          },
+        },
+        {
+          $addFields: {
+            _sourceNorm: {
+              $switch: {
+                branches: [
+                  { case: { $in: ['$_source', ['website']] }, then: 'Website' },
+                  { case: { $in: ['$_source', ['referral']] }, then: 'Referral' },
+                  { case: { $in: ['$_source', ['campaign']] }, then: 'Campaign' },
+                  { case: { $in: ['$_source', ['ads', 'ad', 'facebook', 'google']] }, then: 'Ads' },
+                ],
+                default: 'Manual',
+              },
+            },
+          },
+        },
+        {
+          $group: {
+            _id: '$_sourceNorm',
+            leads: { $sum: 1 },
+            value: { $sum: { $ifNull: ['$value', 0] } },
+          },
+        },
+      ]);
+
+      const order = ['Website', 'Referral', 'Campaign', 'Ads', 'Manual'];
+      const map = new Map<string, { leads: number; value: number }>();
+      for (const r of agg as any[]) {
+        map.set(String(r._id), { leads: Number(r.leads || 0), value: Number(r.value || 0) });
+      }
+
+      return {
+        sources: order.map((source) => {
+          const v = map.get(source) || { leads: 0, value: 0 };
+          const pct = total > 0 ? Math.round((v.leads / total) * 100) : 0;
+          return { source, leads: v.leads, value: v.value, pct };
+        }),
+      };
+    });
+  }
+
+  async getDashboardMonthly(
+    tenantId?: string,
+    user?: UserWithVisibility
+  ): Promise<{ months: Array<{ month: string; created: number; won: number }> }> {
+    return this.withDashboardCache(tenantId, 'monthly', async () => {
+      const filter = this.buildCompleteFilter(tenantId, user, {});
+
+      const start = new Date();
+      start.setMonth(start.getMonth() - 11);
+      start.setDate(1);
+      start.setHours(0, 0, 0, 0);
+
+      const createdAgg = await this.leadModel.aggregate([
+        {
+          $match: {
+            ...filter,
+            $or: [{ createdAt: { $gte: start } }, { created: { $gte: start } }],
+          },
+        },
+        { $addFields: { _createdAt: { $ifNull: ['$createdAt', '$created'] } } },
+        {
+          $group: {
+            _id: { y: { $year: '$_createdAt' }, m: { $month: '$_createdAt' } },
+            created: { $sum: 1 },
+          },
+        },
+      ]);
+
+      const wonAgg = await this.leadModel.aggregate([
+        {
+          $match: {
+            ...filter,
+            $expr: {
+              $in: [
+                { $toLower: { $ifNull: ['$statusKey', { $ifNull: ['$status', ''] }] } },
+                ['won', 'customer'],
+              ],
+            },
+            $or: [{ updatedAt: { $gte: start } }, { createdAt: { $gte: start } }, { created: { $gte: start } }],
+          },
+        },
+        { $addFields: { _ts: { $ifNull: ['$updatedAt', { $ifNull: ['$createdAt', '$created'] }] } } },
+        {
+          $group: {
+            _id: { y: { $year: '$_ts' }, m: { $month: '$_ts' } },
+            won: { $sum: 1 },
+          },
+        },
+      ]);
+
+      const key = (y: number, m: number) => `${y}-${String(m).padStart(2, '0')}`;
+      const createdMap = new Map<string, number>();
+      for (const r of createdAgg as any[]) {
+        createdMap.set(key(r._id.y, r._id.m), Number(r.created || 0));
+      }
+      const wonMap = new Map<string, number>();
+      for (const r of wonAgg as any[]) {
+        wonMap.set(key(r._id.y, r._id.m), Number(r.won || 0));
+      }
+
+      const months: Array<{ month: string; created: number; won: number }> = [];
+      const d = new Date(start);
+      for (let i = 0; i < 12; i++) {
+        const y = d.getFullYear();
+        const m = d.getMonth() + 1;
+        const label = d.toLocaleString('en-US', { month: 'short' });
+        const k = key(y, m);
+        months.push({ month: `${label} ${String(y).slice(-2)}`, created: createdMap.get(k) || 0, won: wonMap.get(k) || 0 });
+        d.setMonth(d.getMonth() + 1);
+      }
+
+      return { months };
+    });
+  }
+
+  async getDashboardTopPerformers(
+    tenantId?: string,
+    user?: UserWithVisibility
+  ): Promise<{ performers: Array<{ id: string; name: string; leadsHandled: number; converted: number; conversionRate: number }> }> {
+    return this.withDashboardCache(tenantId, 'top-performers', async () => {
+      const filter = this.buildCompleteFilter(tenantId, user, {});
+
+      const agg = await this.leadModel.aggregate([
+        { $match: { ...filter } },
+        {
+          $addFields: {
+            _assignee: { $ifNull: ['$assignedTo', null] },
+            _statusNorm: { $toLower: { $ifNull: ['$statusKey', { $ifNull: ['$status', ''] }] } },
+          },
+        },
+        {
+          $group: {
+            _id: '$_assignee',
+            leadsHandled: { $sum: 1 },
+            converted: { $sum: { $cond: [{ $in: ['$_statusNorm', ['won', 'customer']] }, 1, 0] } },
+          },
+        },
+        { $sort: { converted: -1, leadsHandled: -1 } },
+        { $limit: 5 },
+      ]);
+
+      const ids = (agg || []).map((r: any) => r._id).filter((id: any) => id && Types.ObjectId.isValid(String(id)));
+      const users = ids.length
+        ? await this.userModel
+            .find({ _id: { $in: ids.map((id: any) => new Types.ObjectId(String(id))) } })
+            .select({ firstName: 1, lastName: 1, name: 1, email: 1 })
+            .lean()
+            .exec()
+        : [];
+      const userMap = new Map<string, any>((users || []).map((u: any) => [String(u._id), u]));
+
+      const performers = (agg || []).map((r: any) => {
+        const id = r._id ? String(r._id) : 'unassigned';
+        const u = userMap.get(id);
+        const name =
+          id === 'unassigned'
+            ? 'Unassigned'
+            : (u?.name || `${u?.firstName || ''} ${u?.lastName || ''}`.trim() || u?.email || 'Unknown');
+        const leadsHandled = Number(r.leadsHandled || 0);
+        const converted = Number(r.converted || 0);
+        const conversionRate = leadsHandled > 0 ? Math.round((converted / leadsHandled) * 100) : 0;
+        return { id, name, leadsHandled, converted, conversionRate };
+      });
+
+      return { performers };
     });
   }
 

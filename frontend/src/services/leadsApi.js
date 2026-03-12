@@ -41,16 +41,32 @@ export const leadsApi = {
     return api.get('/leads/dashboard/overview');
   },
 
+  async getDashboardKpis() {
+    return api.get('/leads/dashboard/kpis');
+  },
+
   async getDashboardFunnel() {
     return api.get('/leads/dashboard/funnel');
+  },
+
+  async getDashboardSources() {
+    return api.get('/leads/dashboard/sources');
   },
 
   async getDashboardSource() {
     return api.get('/leads/dashboard/source');
   },
 
+  async getDashboardMonthly() {
+    return api.get('/leads/dashboard/monthly');
+  },
+
   async getDashboardTrend() {
     return api.get('/leads/dashboard/trend');
+  },
+
+  async getDashboardTopPerformers() {
+    return api.get('/leads/dashboard/top-performers');
   },
 
   async getDashboardActivity() {
