@@ -731,7 +731,7 @@ const SalesTeamReport = () => {
 };
 
 const CRMPage = () => {
-  const [view, setView] = useState('leads');
+  const [view, setView] = useState('dashboard');
   const [activeLeads, setActiveLeads] = useState([]);
   const [statusOptions, setStatusOptions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -2235,7 +2235,7 @@ const CRMPage = () => {
 
       {/* ── Advanced Dashboard ── */}
       {view === 'dashboard' && (
-        <LeadAnalyticsDashboard />
+        <LeadAnalyticsDashboard onNavigate={(nextView) => setView(nextView)} />
       )}
 
       {/* ── Customers View ── */}
