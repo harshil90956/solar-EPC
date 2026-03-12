@@ -1326,7 +1326,7 @@ const ProjectPage = () => {
             {/* PM Charts Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               {/* Chart 1: Projects Distribution Bar Chart */}
-              <div className="p-4 rounded-xl bg-gradient-to-br from-slate-50 to-gray-50 border border-gray-200">
+              <div className="p-4 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-base)]">
                 <h4 className="text-sm font-medium text-[var(--text-primary)] mb-4">Projects by Manager</h4>
                 <div className="space-y-3">
                   {Array.from(new Set(dashboardProjects.map(p => p.pm))).filter(pm => pm).slice(0, 6).map((pm, index) => {
@@ -1344,7 +1344,7 @@ const ProjectPage = () => {
                     return (
                       <div key={pm} className="flex items-center gap-3">
                         <div className="w-24 text-xs font-medium text-[var(--text-primary)] truncate">{pm}</div>
-                        <div className="flex-1 h-6 bg-gray-200 rounded-full overflow-hidden">
+                        <div className="flex-1 h-6 bg-[var(--bg-tertiary)] rounded-full overflow-hidden">
                           <div 
                             className={`h-full bg-gradient-to-r ${colors[index % colors.length]} rounded-full transition-all duration-1000 ease-out flex items-center justify-end pr-2`}
                             style={{ width: `${Math.max(barWidth, 8)}%` }}
@@ -1359,7 +1359,7 @@ const ProjectPage = () => {
               </div>
 
               {/* Chart 2: Active vs Completed Stacked Bar */}
-              <div className="p-4 rounded-xl bg-gradient-to-br from-slate-50 to-gray-50 border border-gray-200">
+              <div className="p-4 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-base)]">
                 <h4 className="text-sm font-medium text-[var(--text-primary)] mb-4">Active vs Completed Projects</h4>
                 <div className="space-y-3">
                   {Array.from(new Set(dashboardProjects.map(p => p.pm))).filter(pm => pm).slice(0, 6).map((pm, index) => {
@@ -1372,7 +1372,7 @@ const ProjectPage = () => {
                     
                     return (
                       <div key={pm} className="flex items-center gap-3">
-                        <div className="w-20 text-[10px] text-[var(--text-muted)] truncate">{pm.split(' ')[0]}</div>
+                        <div className="w-24 text-xs font-medium text-[var(--text-primary)] truncate">{pm.split(' ')[0]}</div>
                         <div className="flex-1 h-5 flex rounded-full overflow-hidden">
                           <div 
                             className="h-full bg-gradient-to-r from-blue-400 to-blue-600 transition-all duration-1000 ease-out"
@@ -1397,7 +1397,7 @@ const ProjectPage = () => {
               </div>
 
               {/* Chart 3: Average Progress Circular Indicators */}
-              <div className="p-4 rounded-xl bg-gradient-to-br from-slate-50 to-gray-50 border border-gray-200">
+              <div className="p-4 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-base)]">
                 <h4 className="text-sm font-medium text-[var(--text-primary)] mb-4">Average Progress</h4>
                 <div className="grid grid-cols-3 gap-4">
                   {Array.from(new Set(dashboardProjects.map(p => p.pm))).filter(pm => pm).slice(0, 6).map((pm, index) => {
@@ -1431,7 +1431,7 @@ const ProjectPage = () => {
               </div>
 
               {/* Chart 4: Project Value Comparison */}
-              <div className="p-4 rounded-xl bg-gradient-to-br from-slate-50 to-gray-50 border border-gray-200">
+              <div className="p-4 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-base)]">
                 <h4 className="text-sm font-medium text-[var(--text-primary)] mb-4">Total Project Value</h4>
                 <div className="space-y-3">
                   {Array.from(new Set(dashboardProjects.map(p => p.pm))).filter(pm => pm).slice(0, 6).map((pm, index) => {
@@ -1450,8 +1450,8 @@ const ProjectPage = () => {
                     
                     return (
                       <div key={pm} className="flex items-center gap-3">
-                        <div className="w-20 text-[10px] text-[var(--text-muted)] truncate">{pm.split(' ')[0]}</div>
-                        <div className="flex-1 h-5 bg-gray-200 rounded-full overflow-hidden">
+                        <div className="w-24 text-xs font-medium text-[var(--text-primary)] truncate">{pm.split(' ')[0]}</div>
+                        <div className="flex-1 h-5 bg-[var(--bg-tertiary)] rounded-full overflow-hidden">
                           <div 
                             className={`h-full bg-gradient-to-r ${colors[index % colors.length]} rounded-full transition-all duration-1000 ease-out`}
                             style={{ width: `${Math.max(barWidth, 5)}%` }}
