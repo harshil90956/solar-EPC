@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Installation } from '../schemas/installation.schema';
@@ -13,6 +13,7 @@ import {
   CustomerSignOffUpdateDto,
 } from '../dto/installation.dto';
 import { CommissioningIntegrationService } from './commissioning-integration.service';
+import { CommissioningService } from '../../commissioning/services/commissioning.service';
 import { InstallationTaskService } from '../../settings/services/installation-task.service';
 
 export interface InstallationQuery {
@@ -34,12 +35,14 @@ export interface UserContext {
 
 @Injectable()
 export class InstallationService {
+  private readonly logger = new Logger(InstallationService.name);
   constructor(
     @InjectModel(Installation.name)
     private installationModel: Model<Installation>,
     @InjectModel(Project.name)
     private projectModel: Model<Project>,
     private commissioningIntegration: CommissioningIntegrationService,
+    private commissioningService: CommissioningService,
     private installationTaskService: InstallationTaskService,
   ) {}
 
@@ -256,6 +259,40 @@ export class InstallationService {
     }
 
     return installation;
+  }
+
+  /**
+   * Helper used when an installation is delivered. Creates a commissioning
+   * record with minimal data and sets it to "Pending Assign".
+   */
+  private async createCommissioningForInstallation(
+    installation: Installation,
+    userContext: UserContext,
+  ) {
+    const tenantCode = userContext.tenantId;
+
+    // guard: only once
+    if ((installation as any).commissioningCreated) {
+      return;
+    }
+
+    const dto: any = {
+      projectId: installation.projectId ? (typeof installation.projectId === 'string' ? installation.projectId : installation.projectId.toString()) : undefined,
+      installationId: installation.installationId,
+      date: new Date().toISOString().split('T')[0],
+      percentage: 0,
+      inverterSerialNo: '',
+      panelBatchNo: '',
+      status: 'Pending Assign',
+    };
+
+    const created = await this.commissioningService.createCommissioning(dto, userContext);
+
+    // mark installation so we don't duplicate in future
+    await this.installationModel.updateOne(
+      { _id: installation._id },
+      { $set: { commissioningCreated: true, commissioningId: created._id } },
+    );
   }
 
   /**
@@ -622,6 +659,16 @@ export class InstallationService {
 
     if (!updated) {
       throw new NotFoundException(`Installation with ID ${id} not found after update`);
+    }
+
+    // when delivered, automatically spawn commissioning record
+    if (statusDto.status === 'Completed') {
+      try {
+        await this.createCommissioningForInstallation(updated, userContext);
+      } catch (err) {
+        this.logger.error('failed to create commissioning for installation', err);
+        // do not block the status update if commissioning creation fails
+      }
     }
 
     return updated;

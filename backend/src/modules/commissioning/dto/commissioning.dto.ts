@@ -1,31 +1,151 @@
 import { PartialType } from '@nestjs/mapped-types';
-import { IsString, IsNumber, IsOptional, IsEnum, Min, Max } from 'class-validator';
+import {
+  IsString,
+  IsNumber,
+  IsOptional,
+  IsEnum,
+  Min,
+  Max,
+  IsArray,
+  ValidateNested,
+  IsBoolean,
+  IsDateString,
+  IsMongoId,
+  ValidateIf,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 
-export class CreateCommissioningDto {
+export class TaskItemDto {
   @IsString()
-  projectId!: string;
+  name!: string;
+
+  @IsBoolean()
+  done!: boolean;
+
+  @IsOptional()
+  completedAt?: Date;
+
+  @IsOptional()
+  @IsMongoId()
+  completedBy?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  photoRequired?: boolean;
+}
+
+export class PhotoItemDto {
+  @IsString()
+  url!: string;
+
+  @IsString()
+  key!: string;
+
+  @IsOptional()
+  uploadedAt?: Date;
+
+  @IsMongoId()
+  uploadedBy!: string;
 
   @IsOptional()
   @IsString()
-  employee?: string;
+  caption?: string;
+
+  @IsOptional()
+  @IsEnum(['before', 'during', 'after'])
+  category?: 'before' | 'during' | 'after';
+}
+
+export class MaterialUsedDto {
+  @IsString()
+  itemId!: string;
 
   @IsString()
-  date!: string;
+  itemName!: string;
 
+  @IsNumber()
+  @Min(1)
+  quantity!: number;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  serialNumbers?: string[];
+}
+
+export class CustomerSignOffDto {
+  @IsBoolean()
+  signed!: boolean;
+
+  @IsOptional()
+  signedAt?: Date;
+
+  @IsOptional()
+  @IsString()
+  signatureUrl?: string;
+}
+
+export class CreateCommissioningDto {
+  @IsOptional()
+  @IsString()
+  commissioningId?: string;
+
+  @IsOptional()
+  @IsString()
+  projectId?: string;
+
+  @IsOptional()
+  @IsString()
+  dispatchId?: string;
+
+  @IsString()
+  customerName!: string;
+
+  @IsString()
+  site!: string;
+
+  @IsOptional()
+  @IsString()
+  technicianId?: string;
+
+  @IsOptional()
+  @IsString()
+  technicianName?: string;
+
+  @IsOptional()
+  @IsString()
+  supervisorId?: string;
+
+  @IsOptional()
+  @IsString()
+  supervisorName?: string;
+
+  @IsDateString()
+  scheduledDate!: string;
+
+  @IsOptional()
+  @IsDateString()
+  startTime?: string;
+
+  @IsOptional()
+  @IsDateString()
+  endTime?: string;
+
+  @IsOptional()
+  @IsEnum(['Pending Assign', 'Pending', 'In Progress', 'Delayed', 'Completed'])
+  status?: 'Pending Assign' | 'Pending' | 'In Progress' | 'Delayed' | 'Completed';
+
+  @IsOptional()
   @IsNumber()
   @Min(0)
   @Max(100)
-  percentage!: number;
-
-  @IsString()
-  inverterSerialNo!: string;
-
-  @IsString()
-  panelBatchNo!: string;
+  progress?: number;
 
   @IsOptional()
-  @IsEnum(['Pending', 'Completed', 'Cancelled'])
-  status?: string;
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TaskItemDto)
+  tasks?: TaskItemDto[];
 
   @IsOptional()
   @IsString()
@@ -33,36 +153,67 @@ export class CreateCommissioningDto {
 
   @IsOptional()
   @IsString()
-  completedBy?: string;
+  siteObservations?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MaterialUsedDto)
+  materialsUsed?: MaterialUsedDto[];
 
   @IsOptional()
   @IsString()
-  panelWarranty?: string;
-
-  @IsOptional()
-  @IsString()
-  inverterWarranty?: string;
-
-  @IsOptional()
-  @IsString()
-  installWarranty?: string;
+  assignedTo?: string;
 }
 
 export class UpdateCommissioningDto extends PartialType(CreateCommissioningDto) {}
 
 export class UpdateCommissioningStatusDto {
-  @IsEnum(['Pending', 'Completed', 'Cancelled'])
-  status!: string;
+  @IsEnum(['Pending Assign', 'Pending', 'In Progress', 'Delayed', 'Completed'])
+  status!: 'Pending Assign' | 'Pending' | 'In Progress' | 'Delayed' | 'Completed';
+
+  @IsOptional()
+  @IsString()
+  delayReason?: string;
+}
+
+export class UpdateCommissioningTasksDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TaskItemDto)
+  tasks!: TaskItemDto[];
+}
+
+export class AddPhotoDto {
+  @IsString()
+  url!: string;
+
+  @IsString()
+  key!: string;
+
+  @IsOptional()
+  @IsString()
+  caption?: string;
+
+  @IsOptional()
+  @IsEnum(['before', 'during', 'after'])
+  category?: 'before' | 'during' | 'after';
+}
+
+export class QualityCheckDto {
+  @IsBoolean()
+  passed!: boolean;
 
   @IsOptional()
   @IsString()
   notes?: string;
+}
+
+export class CustomerSignOffUpdateDto {
+  @IsBoolean()
+  signed!: boolean;
 
   @IsOptional()
   @IsString()
-  employee?: string;
-
-  @IsOptional()
-  @IsString()
-  completedBy?: string;
+  signatureUrl?: string;
 }

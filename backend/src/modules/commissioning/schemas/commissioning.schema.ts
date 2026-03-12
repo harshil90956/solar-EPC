@@ -2,65 +2,201 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 import { BaseSchemaDefinition, BaseSchemaOptions } from '../../../shared/database/base.schema';
 
+export interface TaskItem {
+  name: string;
+  done: boolean;
+  completedAt?: Date;
+  completedBy?: Types.ObjectId;
+  photoRequired?: boolean;
+}
+
+export interface PhotoItem {
+  url: string;
+  key: string;
+  uploadedAt: Date;
+  uploadedBy: Types.ObjectId;
+  caption?: string;
+  category?: 'before' | 'during' | 'after';
+}
+
+export interface CustomerSignOff {
+  signed: boolean;
+  signedAt?: Date;
+  signatureUrl?: string;
+}
+
 @Schema(BaseSchemaOptions)
 export class Commissioning extends Document {
-  @Prop({ type: Types.ObjectId, ref: 'Project', required: true })
-  projectId!: Types.ObjectId;
+  @Prop({ required: true, unique: true })
+  CommissioningId!: string;
+
+  // link back to installation record if this commissioning was auto-created
+  @Prop({ required: false })
+  installationId?: string;
+
+  @Prop({ type: Types.Map, required: false, index: true })
+  projectId?: Types.ObjectId | string;
 
   @Prop({ required: true })
   projectIdString!: string;
 
-  @Prop({ type: String, default: '—' })
-  employee?: string;
+  @Prop({ type: String, required: false, index: true })
+  dispatchId?: string;
 
   @Prop({ required: true })
-  date!: string;
-
-  @Prop({ required: true, min: 0, max: 100 })
-  percentage!: number;
+  customerName!: string;
 
   @Prop({ required: true })
-  inverterSerialNo!: string;
+  site!: string;
+
+  @Prop({ type: Types.ObjectId, ref: 'User', required: false, index: true })
+  technicianId?: Types.ObjectId;
 
   @Prop({ required: true })
-  panelBatchNo!: string;
+  technicianName!: string;
+
+  @Prop({ type: Types.ObjectId, ref: 'User', required: false })
+  supervisorId?: Types.ObjectId;
+
+  @Prop({ required: false })
+  supervisorName?: string;
+
+  @Prop({ required: false })
+  scheduledDate?: Date;
+
+  @Prop({ required: false })
+  dueDate?: Date;
+
+  @Prop({ required: false, default: 0 })
+  delayDays?: number;
+
+  @Prop({ required: false })
+  startTime?: Date;
+
+  @Prop({ required: false })
+  endTime?: Date;
 
   @Prop({
     required: true,
-    enum: ['Pending', 'Completed', 'Cancelled'],
+    enum: ['Pending Assign', 'Pending', 'In Progress', 'Delayed', 'Completed'],
     default: 'Pending',
+    index: true,
   })
   status!: string;
 
-  @Prop(BaseSchemaDefinition.tenantId)
-  tenantId!: Types.ObjectId;
+  @Prop({ required: true, min: 0, max: 100, default: 0 })
+  progress!: number;
+
+  @Prop({
+    type: [{
+      name: { type: String, required: true },
+      done: { type: Boolean, default: false },
+      completedAt: { type: Date, required: false },
+      completedBy: { type: Types.ObjectId, ref: 'User', required: false },
+      photoRequired: { type: Boolean, default: false },
+    }],
+    default: [],
+  })
+  tasks!: TaskItem[];
+
+  @Prop({
+    type: [{
+      url: { type: String, required: true },
+      key: { type: String, required: true },
+      uploadedAt: { type: Date, default: Date.now },
+      uploadedBy: { type: Types.ObjectId, ref: 'User', required: true },
+      caption: { type: String, required: false },
+      category: { type: String, enum: ['before', 'during', 'after'], required: false },
+    }],
+    default: [],
+  })
+  photos!: PhotoItem[];
+
+  // timeline / activity events
+  @Prop({
+    type: [{
+      eventType: { type: String, required: true },
+      userId: { type: Types.ObjectId, ref: 'User', required: false },
+      timestamp: { type: Date, default: Date.now },
+      metadata: { type: Object, required: false },
+    }],
+    default: [],
+  })
+  events!: {
+    eventType: string;
+    userId?: Types.ObjectId;
+    timestamp: Date;
+    metadata?: any;
+  }[];
+
+  @Prop({ default: '' })
+  notes!: string;
+
+  @Prop({ default: '' })
+  siteObservations!: string;
+
+  @Prop({ type: [{
+    itemId: { type: String, required: true },
+    itemName: { type: String, required: true },
+    quantity: { type: Number, required: true, min: 1 },
+    serialNumbers: [{ type: String }],
+  }], default: [] })
+  materialsUsed!: {
+    itemId: string;
+    itemName: string;
+    quantity: number;
+    serialNumbers?: string[];
+  }[];
+
+  @Prop({ default: false })
+  qualityCheckPassed!: boolean;
+
+  @Prop({ default: '' })
+  qualityCheckNotes!: string;
+
+  @Prop({
+    type: {
+      signed: { type: Boolean, default: false },
+      signedAt: { type: Date, required: false },
+      signatureUrl: { type: String, required: false },
+    },
+    default: { signed: false },
+  })
+  customerSignOff!: CustomerSignOff;
+
+  @Prop({ type: Date })
+  delayedAt?: Date;
+
+  @Prop({ default: '' })
+  delayReason!: string;
+
+  // flag used internally when installation service triggers a commissioning
+  @Prop({ default: false })
+  commissioningTriggered!: boolean;
+
+  @Prop({ type: Types.ObjectId, required: false })
+  tenantId?: Types.ObjectId;
 
   @Prop(BaseSchemaDefinition.isDeleted)
   isDeleted!: boolean;
 
+  @Prop({ type: Types.ObjectId, ref: 'User', required: false, index: true })
+  assignedTo?: Types.ObjectId;
+
   @Prop({ type: Types.ObjectId, ref: 'User', required: false })
-  completedBy?: Types.ObjectId;
+  createdBy?: Types.ObjectId;
 
-  @Prop({ required: false })
-  completedAt?: Date;
-
-  @Prop({ required: false })
-  notes?: string;
-
-  @Prop({ required: false })
-  panelWarranty?: string;
-
-  @Prop({ required: false })
-  inverterWarranty?: string;
-
-  @Prop({ required: false })
-  installWarranty?: string;
+  @Prop({ type: Types.ObjectId, ref: 'User', required: false })
+  updatedBy?: Types.ObjectId;
 }
 
 export const CommissioningSchema = SchemaFactory.createForClass(Commissioning);
 
-// Indexes for efficient querying
-CommissioningSchema.index({ tenantId: 1, projectId: 1 });
+// Compound indexes for efficient querying
 CommissioningSchema.index({ tenantId: 1, status: 1 });
-CommissioningSchema.index({ tenantId: 1, date: -1 });
-CommissioningSchema.index({ tenantId: 1, projectIdString: 1 });
+CommissioningSchema.index({ tenantId: 1, projectId: 1 });
+CommissioningSchema.index({ tenantId: 1, technicianId: 1 });
+CommissioningSchema.index({ tenantId: 1, assignedTo: 1 });
+CommissioningSchema.index({ tenantId: 1, scheduledDate: -1 });
+CommissioningSchema.index({ tenantId: 1, createdAt: -1 });
+CommissioningSchema.index({ tenantId: 1, customerName: 'text', site: 'text' });
