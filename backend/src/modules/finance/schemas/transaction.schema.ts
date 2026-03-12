@@ -8,10 +8,10 @@ export type TransactionType = 'Income' | 'Expense' | 'Transfer';
 
 @Schema({ ...BaseSchemaOptions, collection: 'transactions' })
 export class Transaction {
-  @Prop(BaseSchemaDefinition.tenantId)
+  @Prop({ ...BaseSchemaDefinition.tenantId })
   tenantId!: Types.ObjectId;
 
-  @Prop(BaseSchemaDefinition.isDeleted)
+  @Prop({ ...BaseSchemaDefinition.isDeleted })
   isDeleted!: boolean;
 
   @Prop({ required: true, index: true })

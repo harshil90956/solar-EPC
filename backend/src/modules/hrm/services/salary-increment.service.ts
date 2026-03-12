@@ -3,14 +3,31 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { SalaryIncrement, SalaryIncrementDocument } from '../schemas/salary-increment.schema';
 import { CreateIncrementDto, UpdateIncrementDto } from '../dto/salary-increment.dto';
+import { Tenant, TenantDocument } from '../../../core/tenant/schemas/tenant.schema';
 
 @Injectable()
 export class SalaryIncrementService {
   constructor(
     @InjectModel(SalaryIncrement.name) private readonly incrementModel: Model<SalaryIncrementDocument>,
+    @InjectModel(Tenant.name) private readonly tenantModel: Model<TenantDocument>,
   ) {}
 
+  private async resolveTenantObjectId(tenantId: string): Promise<Types.ObjectId> {
+    if (!tenantId) {
+      throw new BadRequestException('Tenant context is missing');
+    }
+    if (Types.ObjectId.isValid(tenantId)) {
+      return new Types.ObjectId(tenantId);
+    }
+    const tenant = await this.tenantModel.findOne({ code: tenantId }).lean();
+    if (!tenant) {
+      throw new BadRequestException(`Tenant not found for identifier: ${tenantId}`);
+    }
+    return (tenant as any)._id as Types.ObjectId;
+  }
+
   async create(createDto: CreateIncrementDto, tenantId?: string): Promise<SalaryIncrement> {
+    const tid = await this.resolveTenantObjectId(tenantId || '');
     // Validate that new salary is greater than previous
     if (createDto.newSalary <= createDto.previousSalary) {
       throw new BadRequestException('New salary must be greater than previous salary');
@@ -24,18 +41,15 @@ export class SalaryIncrementService {
       employeeId: new Types.ObjectId(createDto.employeeId),
       incrementAmount,
       approvedBy: createDto.approvedBy ? new Types.ObjectId(createDto.approvedBy) : undefined,
-      tenantId: tenantId && tenantId !== 'default' ? new Types.ObjectId(tenantId) : undefined,
+      tenantId: tid,
     });
 
     return increment.save();
   }
 
   async findAll(employeeId?: string, tenantId?: string): Promise<SalaryIncrement[]> {
-    const query: any = {};
-    
-    if (tenantId && tenantId !== 'default') {
-      query.tenantId = new Types.ObjectId(tenantId);
-    }
+    const tid = await this.resolveTenantObjectId(tenantId || '');
+    const query: any = { tenantId: tid };
     
     if (employeeId) {
       query.employeeId = new Types.ObjectId(employeeId);
@@ -50,11 +64,8 @@ export class SalaryIncrementService {
   }
 
   async findOne(id: string, tenantId?: string): Promise<SalaryIncrement> {
-    const query: any = { _id: new Types.ObjectId(id) };
-    
-    if (tenantId && tenantId !== 'default') {
-      query.tenantId = new Types.ObjectId(tenantId);
-    }
+    const tid = await this.resolveTenantObjectId(tenantId || '');
+    const query: any = { _id: new Types.ObjectId(id), tenantId: tid };
 
     const increment = await this.incrementModel
       .findOne(query)
@@ -70,13 +81,11 @@ export class SalaryIncrementService {
   }
 
   async findByEmployeeId(employeeId: string, tenantId?: string): Promise<SalaryIncrement[]> {
+    const tid = await this.resolveTenantObjectId(tenantId || '');
     const query: any = { 
-      employeeId: new Types.ObjectId(employeeId) 
+      employeeId: new Types.ObjectId(employeeId),
+      tenantId: tid,
     };
-    
-    if (tenantId && tenantId !== 'default') {
-      query.tenantId = new Types.ObjectId(tenantId);
-    }
 
     return this.incrementModel
       .find(query)
@@ -86,13 +95,11 @@ export class SalaryIncrementService {
   }
 
   async getLatestSalary(employeeId: string, tenantId?: string): Promise<number> {
+    const tid = await this.resolveTenantObjectId(tenantId || '');
     const query: any = { 
-      employeeId: new Types.ObjectId(employeeId) 
+      employeeId: new Types.ObjectId(employeeId),
+      tenantId: tid,
     };
-    
-    if (tenantId && tenantId !== 'default') {
-      query.tenantId = new Types.ObjectId(tenantId);
-    }
 
     const latestIncrement = await this.incrementModel
       .findOne(query)
@@ -121,17 +128,14 @@ export class SalaryIncrementService {
         incrementPercentage: inc.incrementPercentage,
         effectiveFrom: inc.effectiveFrom,
         reason: inc.reason,
-        createdAt: inc.createdAt,
+        createdAt: (inc as any).createdAt,
       })),
     };
   }
 
   async update(id: string, updateDto: UpdateIncrementDto, tenantId?: string): Promise<SalaryIncrement> {
-    const query: any = { _id: new Types.ObjectId(id) };
-    
-    if (tenantId && tenantId !== 'default') {
-      query.tenantId = new Types.ObjectId(tenantId);
-    }
+    const tid = await this.resolveTenantObjectId(tenantId || '');
+    const query: any = { _id: new Types.ObjectId(id), tenantId: tid };
 
     // If updating salaries, recalculate increment amount
     const updateData: any = { ...updateDto };
@@ -164,11 +168,8 @@ export class SalaryIncrementService {
   }
 
   async delete(id: string, tenantId?: string): Promise<void> {
-    const query: any = { _id: new Types.ObjectId(id) };
-    
-    if (tenantId && tenantId !== 'default') {
-      query.tenantId = new Types.ObjectId(tenantId);
-    }
+    const tid = await this.resolveTenantObjectId(tenantId || '');
+    const query: any = { _id: new Types.ObjectId(id), tenantId: tid };
 
     const result = await this.incrementModel.deleteOne(query).exec();
     

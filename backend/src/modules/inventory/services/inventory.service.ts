@@ -30,34 +30,23 @@ export class InventoryService {
 
 
 
-  private async getTenantId(tenantCode: string): Promise<Types.ObjectId> {
-
-    // If it looks like an ObjectId (24 hex chars), use it directly
-
-    if (/^[0-9a-fA-F]{24}$/.test(tenantCode)) {
-
-      return new Types.ObjectId(tenantCode);
-
+  private async resolveTenantObjectId(tenantId: string): Promise<Types.ObjectId> {
+    if (!tenantId) {
+      throw new BadRequestException('Tenant context is missing');
     }
-
-    // Otherwise, look up by code
-
-    const tenant = await this.tenantModel.findOne({ code: tenantCode });
-
+    if (Types.ObjectId.isValid(tenantId)) {
+      return new Types.ObjectId(tenantId);
+    }
+    // Try to find by code if it's not a valid ObjectId
+    const tenant = await this.tenantModel.findOne({ code: tenantId }).lean();
     if (!tenant) {
-
-      throw new NotFoundException(`Tenant ${tenantCode} not found`);
-
+      throw new BadRequestException(`Tenant not found for identifier: ${tenantId}`);
     }
-
-    return tenant._id as Types.ObjectId;
-
+    return (tenant as any)._id as Types.ObjectId;
   }
 
-
-
   async findAll(tenantCode: string, user?: UserWithVisibility, category?: string, search?: string) {
-    const tenantId = await this.getTenantId(tenantCode);
+    const tenantId = await this.resolveTenantObjectId(tenantCode);
     const query: any = { tenantId, isDeleted: false };
     
     console.log(`[INVENTORY VISIBILITY] user:`, JSON.stringify(user));
@@ -95,9 +84,7 @@ export class InventoryService {
 
 
   async findOne(tenantCode: string, itemId: string) {
-
-    const tenantId = await this.getTenantId(tenantCode);
-
+    const tenantId = await this.resolveTenantObjectId(tenantCode);
     const item = await this.inventoryModel.findOne({
 
       tenantId,
@@ -125,8 +112,7 @@ export class InventoryService {
 
 
   async create(tenantCode: string, createDto: CreateInventoryDto) {
-
-    const tenantId = await this.getTenantId(tenantCode);
+    const tenantId = await this.resolveTenantObjectId(tenantCode);
 
     
 
@@ -179,9 +165,7 @@ export class InventoryService {
 
 
   async update(tenantCode: string, itemId: string, updateDto: UpdateInventoryDto) {
-
-    const tenantId = await this.getTenantId(tenantCode);
-
+    const tenantId = await this.resolveTenantObjectId(tenantCode);
     const item = await this.inventoryModel.findOneAndUpdate(
 
       { tenantId, itemId },
@@ -219,8 +203,7 @@ export class InventoryService {
 
 
   async createReservation(tenantCode: string, createDto: CreateReservationDto) {
-
-    const tenantId = await this.getTenantId(tenantCode);
+    const tenantId = await this.resolveTenantObjectId(tenantCode);
 
     
 
@@ -299,9 +282,7 @@ export class InventoryService {
 
 
   async getReservationsByProject(tenantCode: string, projectId: string) {
-
-    const tenantId = await this.getTenantId(tenantCode);
-
+    const tenantId = await this.resolveTenantObjectId(tenantCode);
     return this.reservationModel
 
       .find({ 
@@ -322,7 +303,7 @@ export class InventoryService {
 
 
   async getReservationsByItem(tenantCode: string, itemId: string) {
-    const tenantId = await this.getTenantId(tenantCode);
+    const tenantId = await this.resolveTenantObjectId(tenantCode);
 
     // Build itemId variants to match across different ID formats
     const searchItemIds = [itemId];
@@ -348,16 +329,11 @@ export class InventoryService {
 
 
   async updateReservation(
-
     tenantCode: string, 
-
     reservationId: string, 
-
     updateDto: UpdateReservationDto
-
   ) {
-
-    const tenantId = await this.getTenantId(tenantCode);
+    const tenantId = await this.resolveTenantObjectId(tenantCode);
 
     
 
@@ -506,8 +482,7 @@ export class InventoryService {
 
 
   async findOneWithReservations(tenantCode: string, itemId: string) {
-
-    const tenantId = await this.getTenantId(tenantCode);
+    const tenantId = await this.resolveTenantObjectId(tenantCode);
 
     
 
@@ -550,9 +525,7 @@ export class InventoryService {
 
 
   async stockIn(tenantCode: string, itemId: string, stockInDto: StockInDto) {
-
-    const tenantId = await this.getTenantId(tenantCode);
-
+    const tenantId = await this.resolveTenantObjectId(tenantCode);
     const item = await this.inventoryModel.findOne({ tenantId, itemId }).exec();
 
 
@@ -602,9 +575,7 @@ export class InventoryService {
 
 
   async stockOut(tenantCode: string, itemId: string, stockOutDto: StockOutDto) {
-
-    const tenantId = await this.getTenantId(tenantCode);
-
+    const tenantId = await this.resolveTenantObjectId(tenantCode);
     const item = await this.inventoryModel.findOne({ tenantId, itemId }).exec();
 
 
@@ -662,9 +633,7 @@ export class InventoryService {
 
 
   async remove(tenantCode: string, itemId: string) {
-
-    const tenantId = await this.getTenantId(tenantCode);
-
+    const tenantId = await this.resolveTenantObjectId(tenantCode);
     const item = await this.inventoryModel.findOneAndUpdate(
 
       { tenantId, itemId },
@@ -692,7 +661,7 @@ export class InventoryService {
 
 
   async getStats(tenantCode: string, user?: UserWithVisibility) {
-    const tenantId = await this.getTenantId(tenantCode);
+    const tenantId = await this.resolveTenantObjectId(tenantCode);
     
     const query: any = { tenantId, isDeleted: false };
     
@@ -734,8 +703,7 @@ export class InventoryService {
 
 
   async getItemsByCategory(tenantCode: string, user?: UserWithVisibility) {
-
-    const tenantId = await this.getTenantId(tenantCode);
+    const tenantId = await this.resolveTenantObjectId(tenantCode);
     
     console.log(`[INVENTORY CATEGORY VISIBILITY] user:`, JSON.stringify(user));
     console.log(`[INVENTORY CATEGORY VISIBILITY] user?.dataScope:`, user?.dataScope);
@@ -871,27 +839,19 @@ export class InventoryService {
   // Backward compatibility methods for logistics service
 
   async addStock(
-
     itemName: string,
-
     quantity: number,
-
     reason: string,
-
+    tenantCode: string,
     referenceId?: string,
-
-    tenantCode: string = 'solarcorp',
-
   ): Promise<Inventory | null> {
-
-    const tenantId = await this.getTenantId(tenantCode);
-
-    
+    const tenantId = await this.resolveTenantObjectId(tenantCode);
 
     // Try to find item by name first, then by description
 
     let item = await this.inventoryModel.findOne({ tenantId, name: itemName }).exec();
 
+<<<<<<< HEAD
     
 
     // If not found by name, try searching by description
@@ -914,6 +874,8 @@ export class InventoryService {
 
     
 
+=======
+>>>>>>> 4058873b23c634cbad90911288f4ea97d36f48b1
     if (!item) {
 
       // Create new inventory item if it doesn't exist
@@ -991,20 +953,13 @@ export class InventoryService {
 
 
   async removeStock(
-
     itemName: string,
-
     quantity: number,
-
     reason: string,
-
+    tenantCode: string,
     referenceId?: string,
-
-    tenantCode: string = 'solarcorp',
-
   ): Promise<Inventory | null> {
-
-    const tenantId = await this.getTenantId(tenantCode);
+    const tenantId = await this.resolveTenantObjectId(tenantCode);
 
     
 

@@ -67,31 +67,26 @@ export class InvoiceService {
    * Otherwise treats it as a tenant code and looks up the tenant by code.
    */
   private async resolveTenantObjectId(tenantId: string): Promise<Types.ObjectId> {
+    if (!tenantId) {
+      throw new BadRequestException('Tenant context is missing');
+    }
     if (Types.ObjectId.isValid(tenantId)) {
       return new Types.ObjectId(tenantId);
     }
     const tenant = await this.tenantModel.findOne({ code: tenantId }).lean();
     if (!tenant) {
-      throw new BadRequestException(`Tenant not found for code: ${tenantId}`);
+      throw new BadRequestException(`Tenant not found for identifier: ${tenantId}`);
     }
     return (tenant as any)._id as Types.ObjectId;
   }
 
-  private tenantOrLegacyMatch(tenantId: string) {
-    const tid = this.toObjectId(tenantId);
-    return {
-      $or: [
-        ...(tid ? [{ tenantId: tid }] : []),
-        { tenantId: { $exists: false } },
-        { tenantId: null },
-      ],
-    };
+  private tenantMatch(tenantId: string | Types.ObjectId) {
+    const tid = typeof tenantId === 'string' ? new Types.ObjectId(tenantId) : tenantId;
+    return { tenantId: tid };
   }
 
   private notDeletedMatch() {
-    return {
-      $or: [{ isDeleted: false }, { isDeleted: { $exists: false } }, { isDeleted: null }],
-    };
+    return { isDeleted: false };
   }
 
   getAllowedPaymentTerms(projectStatus: string): string[] {
@@ -108,9 +103,10 @@ export class InvoiceService {
   }
 
   async getCustomerNamesFromProjects(tenantId: string): Promise<string[]> {
+    const tid = await this.resolveTenantObjectId(tenantId);
     const names = await this.projectModel.distinct('customerName', {
-      ...(this.toObjectId(tenantId) ? { tenantId: this.toObjectId(tenantId) } : {}),
-      $or: [{ isDeleted: false }, { isDeleted: { $exists: false } }, { isDeleted: null }],
+      tenantId: tid,
+      ...this.notDeletedMatch(),
       customerName: { $exists: true, $nin: [null, ''] },
     });
 
@@ -121,16 +117,18 @@ export class InvoiceService {
   }
 
   async getAllProjects(tenantId: string): Promise<Project[]> {
+    const tid = await this.resolveTenantObjectId(tenantId);
     return this.projectModel.find({
-      ...(this.toObjectId(tenantId) ? { tenantId: this.toObjectId(tenantId) } : {}),
+      tenantId: tid,
       ...this.notDeletedMatch(),
     }).select('_id name customerName email status value').sort({ name: 1 }).lean();
   }
 
   async getProjectById(tenantId: string, id: string): Promise<Project> {
+    const tid = await this.resolveTenantObjectId(tenantId);
     const project = await this.projectModel.findOne({
       _id: new Types.ObjectId(id),
-      ...(this.toObjectId(tenantId) ? { tenantId: this.toObjectId(tenantId) } : {}),
+      tenantId: tid,
       ...this.notDeletedMatch(),
     }).select('_id name customerName email status value').lean();
 
@@ -142,11 +140,12 @@ export class InvoiceService {
   }
 
   async findAll(tenantId: string, status?: string, user?: UserWithVisibility): Promise<any[]> {
-    const query: any = { ...this.tenantOrLegacyMatch(tenantId), ...this.notDeletedMatch() };
-    
-    // Apply visibility filter based on user's dataScope
-    console.log(`[FINANCE VISIBILITY] user:`, JSON.stringify(user));
-    console.log(`[FINANCE VISIBILITY] user?.dataScope:`, user?.dataScope);
+    const query: any = { ...this.notDeletedMatch() };
+    if (tenantId && Types.ObjectId.isValid(tenantId)) {
+      query.tenantId = new Types.ObjectId(tenantId);
+    } else if (tenantId !== '') {
+      throw new BadRequestException('Invalid Tenant ID');
+    }
     
     if (status && status !== 'All') {
       query.status = status;
@@ -154,46 +153,35 @@ export class InvoiceService {
     
     let invoices = await this.invoiceModel.find(query).sort({ createdAt: -1 }).lean();
     
-    // If ASSIGNED scope, filter by project assignment
     if (user?.dataScope === 'ASSIGNED') {
       const userId = user._id || user.id;
-      console.log(`[FINANCE VISIBILITY] userId:`, userId);
       if (userId) {
-        // Get all projects assigned to this user
-        const assignedProjects = await this.projectModel.find({
-          ...this.tenantOrLegacyMatch(tenantId),
+        const projectQuery: any = {
           ...this.notDeletedMatch(),
           assignedTo: new Types.ObjectId(userId)
-        }).select('_id').lean();
+        };
+        if (query.tenantId) projectQuery.tenantId = query.tenantId;
+
+        const assignedProjects = await this.projectModel.find(projectQuery).select('_id').lean();
         
         const assignedProjectIds = new Set(assignedProjects.map(p => p._id.toString()));
-        console.log(`[FINANCE VISIBILITY] Assigned project IDs:`, Array.from(assignedProjectIds));
-        
-        // Filter invoices to only those linked to assigned projects
         invoices = invoices.filter(inv => 
           inv.projectId && assignedProjectIds.has(inv.projectId.toString())
         );
-        console.log(`[FINANCE VISIBILITY] Filtered to ${invoices.length} invoices`);
       }
-    } else {
-      console.log(`[FINANCE VISIBILITY] No filter applied - ALL scope or no user`);
     }
     
-    // Get all unique projectIds from filtered invoices
     const projectIds = invoices.map(inv => inv.projectId?.toString()).filter(Boolean);
     const uniqueProjectIds = [...new Set(projectIds)];
     
-    // Fetch projects for these invoices
     const projects = await this.projectModel.find({
       _id: { $in: uniqueProjectIds.map(id => new Types.ObjectId(id)) },
       ...this.notDeletedMatch(),
     }).select('_id email customerName').lean();
     
-    // Create project map for quick lookup
     const projectMap = new Map();
     projects.forEach(p => projectMap.set(p._id.toString(), p));
     
-    // Merge email from project into invoice data
     return invoices.map(inv => {
       const project = inv.projectId ? projectMap.get(inv.projectId.toString()) : null;
       return {
@@ -205,37 +193,20 @@ export class InvoiceService {
   }
 
   async findById(tenantId: string, id: string): Promise<Invoice> {
-    console.log('[findById] Looking for invoice:', id, 'with tenantId:', tenantId);
-    
-    const objectId = this.toObjectId(id);
-    if (!objectId) {
-      throw new BadRequestException(`Invalid invoice ID format: ${id}`);
-    }
-    
-    const query = {
-      _id: objectId,
-      ...this.tenantOrLegacyMatch(tenantId),
+    const query: any = {
+      _id: new Types.ObjectId(id),
       ...this.notDeletedMatch(),
     };
-    console.log('[findById] Query:', JSON.stringify(query));
+    if (tenantId && Types.ObjectId.isValid(tenantId)) {
+      query.tenantId = new Types.ObjectId(tenantId);
+    } else if (tenantId !== '') {
+      throw new BadRequestException('Invalid Tenant ID');
+    }
     
-    let invoice = await this.invoiceModel.findOne(query).lean();
+    const invoice = await this.invoiceModel.findOne(query).lean();
     
     if (!invoice) {
-      // Try to find without tenant filter - invoice exists but tenant mismatch
-      invoice = await this.invoiceModel.findOne({ 
-        _id: objectId,
-        ...this.notDeletedMatch(),
-      }).lean();
-      
-      if (invoice) {
-        console.log('[findById] Invoice found with tenant mismatch. Returning anyway. Invoice tenantId:', invoice.tenantId, 'Request tenantId:', tenantId);
-        // Return the invoice even with tenant mismatch - fix for payment recording
-        return invoice;
-      } else {
-        console.log('[findById] Invoice not found at all for ID:', id);
-        throw new NotFoundException('Invoice not found');
-      }
+      throw new NotFoundException('Invoice not found');
     }
 
     return invoice;
@@ -293,13 +264,14 @@ export class InvoiceService {
       throw new BadRequestException('Paid invoices cannot be edited');
     }
     
+    const tid = await this.resolveTenantObjectId(tenantId);
     const amount = dto.amount ?? existing.amount;
     const paid = dto.paid ?? existing.paid;
     const balance = amount - paid;
     const status = dto.status || this.calculateStatus(amount, paid, existing.status);
 
     const updated = await this.invoiceModel.findOneAndUpdate(
-      { _id: new Types.ObjectId(id), ...this.tenantOrLegacyMatch(tenantId) },
+      { _id: new Types.ObjectId(id), tenantId: tid },
       {
         ...dto,
         balance,
@@ -332,13 +304,14 @@ export class InvoiceService {
   }
 
   async delete(tenantId: string, id: string): Promise<void> {
+    const tid = await this.resolveTenantObjectId(tenantId);
     const existing = await this.findById(tenantId, id);
     if (existing.status === 'Paid') {
       throw new BadRequestException('Paid invoices cannot be deleted');
     }
 
     const result = await this.invoiceModel.findOneAndUpdate(
-      { _id: new Types.ObjectId(id), tenantId: this.toObjectId(tenantId) },
+      { _id: new Types.ObjectId(id), tenantId: tid },
       { isDeleted: true },
     );
 
@@ -388,10 +361,11 @@ export class InvoiceService {
       throw new BadRequestException('Invalid invoice status transition');
     }
 
+    const tid = await this.resolveTenantObjectId(tenantId);
     const updated = await this.invoiceModel.findOneAndUpdate(
       {
         _id: new Types.ObjectId(id),
-        ...this.tenantOrLegacyMatch(tenantId),
+        tenantId: tid,
         ...this.notDeletedMatch(),
       },
       { status },
@@ -487,15 +461,12 @@ export class InvoiceService {
       new Date(dto.paymentDate)
     );
 
-    // Update the invoice - use tenantOrLegacyMatch to handle tenant mismatches
-    const updateQuery = {
-      _id: invoiceObjectId,
-      ...this.tenantOrLegacyMatch(tenantId),
-    };
-    console.log('[recordPayment] Update query:', JSON.stringify(updateQuery));
-    
+    const tid = await this.resolveTenantObjectId(tenantId);
     const updatedInvoice = await this.invoiceModel.findOneAndUpdate(
-      updateQuery,
+      {
+        _id: invoiceObjectId,
+        tenantId: tid,
+      },
       {
         paid: newPaid,
         balance: newBalance,
@@ -508,29 +479,9 @@ export class InvoiceService {
     ).lean();
 
     if (!updatedInvoice) {
-      // Try update without tenant filter as fallback
-      console.log('[recordPayment] Update with tenant filter failed, trying without tenant filter');
-      const fallbackUpdated = await this.invoiceModel.findOneAndUpdate(
-        { _id: invoiceObjectId },
-        {
-          paid: newPaid,
-          balance: newBalance,
-          status: newStatus,
-          paidDate: newStatus === 'Paid' ? new Date(dto.paymentDate) : invoice.paidDate,
-          milestones: updatedMilestones,
-          $push: { paymentIds: savedPayment._id },
-        },
-        { new: true },
-      ).lean();
-      
-      if (!fallbackUpdated) {
-        throw new NotFoundException('Invoice update failed');
-      }
-      console.log('[recordPayment] Invoice updated successfully without tenant filter');
-      return { invoice: fallbackUpdated, payment: savedPayment.toObject() };
-    } else {
-      console.log('[recordPayment] Invoice updated successfully with tenant filter');
+      throw new NotFoundException('Invoice update failed');
     }
+    console.log('[recordPayment] Invoice updated successfully with tenant filter');
 
     // Log activity
     await this.logActivity(
@@ -552,47 +503,44 @@ export class InvoiceService {
   }
 
   async getDashboardStats(tenantId: string, user?: UserWithVisibility): Promise<any> {
-    const tid = this.toObjectId(tenantId);
-    const query: any = { isDeleted: false };
-    if (tid) {
-      query.tenantId = tid;
+    const query: any = { ...this.notDeletedMatch() };
+    if (tenantId && Types.ObjectId.isValid(tenantId)) {
+      query.tenantId = new Types.ObjectId(tenantId);
+    } else if (tenantId !== '') {
+      throw new BadRequestException('Invalid Tenant ID');
     }
-    
-    let invoices = await this.invoiceModel.find(query).lean();
+    // If tenantId is '', we don't add it to query (SuperAdmin context)
+
+    const invoices = await this.invoiceModel.find(query).lean();
+    let filteredInvoices = invoices;
     
     // Apply visibility filter based on user's dataScope
-    console.log(`[FINANCE STATS VISIBILITY] user:`, JSON.stringify(user));
-    console.log(`[FINANCE STATS VISIBILITY] user?.dataScope:`, user?.dataScope);
-    
-    // If ASSIGNED scope, filter by project assignment
     if (user?.dataScope === 'ASSIGNED') {
       const userId = user._id || user.id;
       if (userId) {
         // Get all projects assigned to this user
-        const assignedProjects = await this.projectModel.find({
-          ...this.tenantOrLegacyMatch(tenantId),
+        const projectQuery: any = {
           ...this.notDeletedMatch(),
           assignedTo: new Types.ObjectId(userId)
-        }).select('_id').lean();
+        };
+        if (query.tenantId) projectQuery.tenantId = query.tenantId;
+
+        const assignedProjects = await this.projectModel.find(projectQuery).select('_id').lean();
         
         const assignedProjectIds = new Set(assignedProjects.map(p => p._id.toString()));
-        console.log(`[FINANCE STATS VISIBILITY] Assigned project IDs:`, Array.from(assignedProjectIds));
         
         // Filter invoices to only those linked to assigned projects
-        invoices = invoices.filter(inv => 
+        filteredInvoices = invoices.filter(inv => 
           inv.projectId && assignedProjectIds.has(inv.projectId.toString())
         );
-        console.log(`[FINANCE STATS VISIBILITY] Filtered to ${invoices.length} invoices`);
       }
-    } else {
-      console.log(`[FINANCE STATS VISIBILITY] No filter applied - ALL scope or no user`);
     }
 
-    const totalRevenue = invoices.reduce((sum, inv) => sum + inv.amount, 0);
-    const totalCollected = invoices.reduce((sum, inv) => sum + inv.paid, 0);
-    const totalOutstanding = invoices.reduce((sum, inv) => sum + inv.balance, 0);
-    const overdueCount = invoices.filter(inv => inv.status === 'Overdue').length;
-    const pendingCount = invoices.filter(inv => inv.status === 'Pending' || inv.status === 'Partial').length;
+    const totalRevenue = filteredInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+    const totalCollected = filteredInvoices.reduce((sum, inv) => sum + inv.paid, 0);
+    const totalOutstanding = filteredInvoices.reduce((sum, inv) => sum + inv.balance, 0);
+    const overdueCount = filteredInvoices.filter(inv => inv.status === 'Overdue').length;
+    const pendingCount = filteredInvoices.filter(inv => inv.status === 'Pending' || inv.status === 'Partial').length;
 
     return {
       totalRevenue,

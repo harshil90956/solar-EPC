@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { ManualAdjustment, ManualAdjustmentDocument } from '../schemas/manual-adjustment.schema';
@@ -20,40 +20,35 @@ export class ManualAdjustmentService {
     @InjectModel(Tenant.name) private readonly tenantModel: Model<TenantDocument>,
   ) {}
 
-  private toObjectId(id: string | undefined): Types.ObjectId | undefined {
-    if (!id) return undefined;
-    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(id);
-    if (!isValidObjectId) return undefined;
-    try {
-      return new Types.ObjectId(id);
-    } catch {
-      return undefined;
-    }
-  }
-
   /**
    * Resolves tenantId to a valid ObjectId.
    * If the string is already a valid ObjectId, uses it directly.
-   * Otherwise treats it as a tenant code and looks up the tenant by code.
+   * Otherwise treats it as a tenant code or slug and looks up the tenant.
    */
   private async resolveTenantObjectId(tenantId: string): Promise<Types.ObjectId> {
+    if (!tenantId) {
+      throw new BadRequestException('Tenant context is missing');
+    }
     if (Types.ObjectId.isValid(tenantId)) {
       return new Types.ObjectId(tenantId);
     }
-    // Treat as tenant code
-    const tenant = await this.tenantModel.findOne({ code: tenantId }).lean();
+    const tenant = await this.tenantModel.findOne({ 
+      $or: [{ code: tenantId }, { slug: tenantId }] 
+    }).lean();
     if (!tenant) {
-      throw new BadRequestException(`Tenant not found for code: ${tenantId}`);
+      throw new BadRequestException(`Tenant not found for identifier: ${tenantId}`);
     }
     return (tenant as any)._id as Types.ObjectId;
   }
 
   async findAll(tenantId: string): Promise<ManualAdjustment[]> {
-    const tid = this.toObjectId(tenantId);
     const query: any = { isDeleted: false };
-    if (tid) {
-      query.tenantId = tid;
+    if (tenantId && Types.ObjectId.isValid(tenantId)) {
+      query.tenantId = new Types.ObjectId(tenantId);
+    } else if (tenantId !== '') {
+      throw new BadRequestException('Invalid Tenant ID');
     }
+    
     return this.manualAdjustmentModel
       .find(query)
       .sort({ date: -1, createdAt: -1 })
@@ -61,19 +56,18 @@ export class ManualAdjustmentService {
   }
 
   async getBalance(tenantId: string): Promise<number> {
-    console.log('=== getBalance START === tenantId:', tenantId);
+    const query: any = { isDeleted: false };
+    if (tenantId && Types.ObjectId.isValid(tenantId)) {
+      query.tenantId = new Types.ObjectId(tenantId);
+    } else if (tenantId !== '') {
+      throw new BadRequestException('Invalid Tenant ID');
+    }
     
-    const tid = this.toObjectId(tenantId);
-    console.log('=== getBalance STEP 1 tid:', tid?.toString());
-
-    // Invoice query - flexible for legacy data
+    // Invoice query
     const invoiceQuery: any = { 
-      $or: [
-        { isDeleted: false },
-        { isDeleted: { $exists: false } }
-      ]
+      isDeleted: false
     };
-    console.log('=== getBalance STEP 2 invoiceQuery:', JSON.stringify(invoiceQuery));
+    if (query.tenantId) invoiceQuery.tenantId = query.tenantId;
     
     // Expense query
     const expenseQuery: any = { 
@@ -81,36 +75,21 @@ export class ManualAdjustmentService {
       status: 'Paid', 
       category: 'Vendor Payment' 
     };
-    console.log('=== getBalance STEP 3 expenseQuery:', JSON.stringify(expenseQuery));
+    if (query.tenantId) expenseQuery.tenantId = query.tenantId;
     
     // Adjustment query
     const adjustmentQuery: any = { 
-      $or: [
-        { isDeleted: false },
-        { isDeleted: { $exists: false } }
-      ]
+      isDeleted: false
     };
-    console.log('=== getBalance STEP 4 adjustmentQuery:', JSON.stringify(adjustmentQuery));
+    if (query.tenantId) adjustmentQuery.tenantId = query.tenantId;
 
-    if (tid) {
-      console.log('=== getBalance STEP 5 tid exists, adding to queries');
-      // For tenant filtering, also check $or for tenantId
-      invoiceQuery.$and = [
-        { $or: [{ tenantId: tid }, { tenantId: { $exists: false } }] }
-      ];
-      expenseQuery.$or = [{ tenantId: tid }, { tenantId: { $exists: false } }];
-      adjustmentQuery.$and = [
-        { $or: [{ tenantId: tid }, { tenantId: { $exists: false } }] }
-      ];
-    }
-    console.log('=== getBalance STEP 6 after tenant filter');
-
-    console.log('=== getBalance STEP 7 about to query DB');
+    console.log('=== getBalance querying DB');
     const [invoices, paidExpenses, adjustments] = await Promise.all([
       this.invoiceModel.find(invoiceQuery).lean(),
       this.expenseModel.find(expenseQuery).lean(),
       this.manualAdjustmentModel.find(adjustmentQuery).lean(),
     ]);
+
     console.log('=== getBalance STEP 8 DB queries done');
 
     // Debug: Check first few invoices
@@ -122,7 +101,6 @@ export class ManualAdjustmentService {
     // Debug logging
     console.log('getBalance debug:', {
       tenantId,
-      tid: tid?.toString(),
       invoiceCount: invoices?.length || 0,
       paidExpensesCount: paidExpenses?.length || 0,
       adjustmentsCount: adjustments?.length || 0,
@@ -184,6 +162,7 @@ export class ManualAdjustmentService {
       date: new Date(dto.date),
       createdBy: createdByObjectId,
       isDeleted: false,
+      lf: dto.lf,
     });
 
     const saved = await adjustment.save();
@@ -236,6 +215,7 @@ export class ManualAdjustmentService {
         relatedAdjustmentId: saved._id,
         createdBy: createdByObjectId,
         isDeleted: false,
+        lf: dto.lf,
       });
 
       const savedJournal = await journalEntryDoc.save();

@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Expense, ExpenseDocument } from '../schemas/expense.schema';
 import { CreateExpenseDto, UpdateExpenseDto } from '../dto/expense.dto';
+import { Tenant, TenantDocument } from '../../../core/tenant/schemas/tenant.schema';
 
 interface UserWithVisibility {
   id?: string;
@@ -14,22 +15,37 @@ interface UserWithVisibility {
 export class ExpenseService {
   constructor(
     @InjectModel(Expense.name) private readonly expenseModel: Model<ExpenseDocument>,
+    @InjectModel(Tenant.name) private readonly tenantModel: Model<TenantDocument>,
   ) {}
 
-  private toObjectId(id: string | undefined): Types.ObjectId | undefined {
-    if (!id) return undefined;
-    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(id);
-    if (!isValidObjectId) return undefined;
-    try {
-      return new Types.ObjectId(id);
-    } catch {
-      return undefined;
+  private async resolveTenantObjectId(tenantId: string): Promise<Types.ObjectId> {
+    if (!tenantId) {
+      throw new BadRequestException('Tenant context is missing');
     }
+    if (Types.ObjectId.isValid(tenantId)) {
+      return new Types.ObjectId(tenantId);
+    }
+    const tenant = await this.tenantModel.findOne({ 
+      $or: [{ code: tenantId }, { slug: tenantId }] 
+    }).lean();
+    if (!tenant) {
+      throw new BadRequestException(`Tenant not found for identifier: ${tenantId}`);
+    }
+    return (tenant as any)._id as Types.ObjectId;
+  }
+
+  private notDeletedMatch() {
+    return { isDeleted: false };
   }
 
   async findAll(tenantId: string, status?: string, category?: string): Promise<Expense[]> {
-    const tid = this.toObjectId(tenantId);
-    const query: any = tid ? { tenantId: tid, isDeleted: false } : { isDeleted: false };
+    const query: any = { ...this.notDeletedMatch() };
+    if (tenantId && Types.ObjectId.isValid(tenantId)) {
+      query.tenantId = new Types.ObjectId(tenantId);
+    } else if (tenantId !== '') {
+      throw new BadRequestException('Invalid Tenant ID');
+    }
+
     if (status && status !== 'All') {
       query.status = status;
     }
@@ -40,12 +56,17 @@ export class ExpenseService {
   }
 
   async findById(tenantId: string, id: string): Promise<Expense> {
-    const tid = this.toObjectId(tenantId);
-    const expense = await this.expenseModel.findOne({
+    const query: any = {
       _id: new Types.ObjectId(id),
-      ...(tid ? { tenantId: tid } : {}),
-      isDeleted: false,
-    }).lean();
+      ...this.notDeletedMatch(),
+    };
+    if (tenantId && Types.ObjectId.isValid(tenantId)) {
+      query.tenantId = new Types.ObjectId(tenantId);
+    } else if (tenantId !== '') {
+      throw new BadRequestException('Invalid Tenant ID');
+    }
+
+    const expense = await this.expenseModel.findOne(query).lean();
 
     if (!expense) {
       throw new NotFoundException('Expense not found');
@@ -55,9 +76,10 @@ export class ExpenseService {
   }
 
   async create(tenantId: string, dto: CreateExpenseDto): Promise<Expense> {
+    const tid = await this.resolveTenantObjectId(tenantId);
     const expense = new this.expenseModel({
       ...dto,
-      tenantId: this.toObjectId(tenantId),
+      tenantId: tid,
       expenseDate: new Date(dto.expenseDate),
       dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
     });
@@ -67,10 +89,11 @@ export class ExpenseService {
   }
 
   async update(tenantId: string, id: string, dto: UpdateExpenseDto): Promise<Expense> {
+    const tid = await this.resolveTenantObjectId(tenantId);
     const existing = await this.findById(tenantId, id);
 
     const updated = await this.expenseModel.findOneAndUpdate(
-      { _id: new Types.ObjectId(id), tenantId: new Types.ObjectId(tenantId) },
+      { _id: new Types.ObjectId(id), tenantId: tid },
       {
         ...dto,
         expenseDate: dto.expenseDate ? new Date(dto.expenseDate) : existing.expenseDate,
@@ -87,8 +110,9 @@ export class ExpenseService {
   }
 
   async delete(tenantId: string, id: string): Promise<void> {
+    const tid = await this.resolveTenantObjectId(tenantId);
     const result = await this.expenseModel.findOneAndUpdate(
-      { _id: new Types.ObjectId(id), tenantId: new Types.ObjectId(tenantId) },
+      { _id: new Types.ObjectId(id), tenantId: tid },
       { isDeleted: true },
     );
 
@@ -98,15 +122,16 @@ export class ExpenseService {
   }
 
   async getPayablesSummary(tenantId: string, user?: UserWithVisibility): Promise<any> {
-    const tid = this.toObjectId(tenantId);
     const query: any = {
-      ...(tid ? { tenantId: tid } : {}),
-      isDeleted: false,
+      ...this.notDeletedMatch(),
       status: { $in: ['Pending', 'Approved'] },
     };
-    
-    console.log(`[EXPENSE PAYABLES VISIBILITY] user:`, JSON.stringify(user));
-    console.log(`[EXPENSE PAYABLES VISIBILITY] user?.dataScope:`, user?.dataScope);
+    if (tenantId && Types.ObjectId.isValid(tenantId)) {
+      query.tenantId = new Types.ObjectId(tenantId);
+    } else if (tenantId !== '') {
+      throw new BadRequestException('Invalid Tenant ID');
+    }
+    // If tenantId is '', query across all tenants (SuperAdmin)
     
     // Apply visibility filter based on user's dataScope
     if (user?.dataScope === 'ASSIGNED') {
@@ -116,13 +141,8 @@ export class ExpenseService {
           ? new Types.ObjectId(userId)
           : userId;
         query.assignedTo = objectId;
-        console.log(`[EXPENSE PAYABLES VISIBILITY] Applied assignedTo filter:`, objectId);
       }
-    } else {
-      console.log(`[EXPENSE PAYABLES VISIBILITY] No filter applied - ALL scope or no user`);
     }
-    
-    console.log(`[EXPENSE PAYABLES VISIBILITY] Final query:`, JSON.stringify(query));
 
     const expenses = await this.expenseModel.find(query).lean();
 

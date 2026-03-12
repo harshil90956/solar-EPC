@@ -3,74 +3,9 @@ import { createContext, useContext, useState } from 'react';
 const AppContext = createContext();
 
 export function AppProvider({ children }) {
-  const [tenants, setTenants] = useState([
-    {
-      id: 1,
-      name: 'Acme Solar Solutions',
-      adminEmail: 'admin@acmesolar.com',
-      plan: 'Professional',
-      userLimit: 25,
-      currentUsers: 18,
-      subscriptionExpiry: '2025-04-15',
-      status: 'Active',
-      billingType: 'Monthly',
-      pricePerUser: 49,
-      subscriptionStart: '2024-04-15',
-    },
-    {
-      id: 2,
-      name: 'SunTech Energy',
-      adminEmail: 'admin@suntech.com',
-      plan: 'Enterprise',
-      userLimit: 100,
-      currentUsers: 67,
-      subscriptionExpiry: '2025-06-30',
-      status: 'Active',
-      billingType: 'Yearly',
-      pricePerUser: 39,
-      subscriptionStart: '2024-06-30',
-    },
-    {
-      id: 3,
-      name: 'GreenPower Systems',
-      adminEmail: 'admin@greenpower.com',
-      plan: 'Starter',
-      userLimit: 10,
-      currentUsers: 8,
-      subscriptionExpiry: '2025-02-28',
-      status: 'Expired',
-      billingType: 'Monthly',
-      pricePerUser: 29,
-      subscriptionStart: '2024-02-28',
-    },
-    {
-      id: 4,
-      name: 'EcoSolar Innovations',
-      adminEmail: 'admin@ecosolar.com',
-      plan: 'Professional',
-      userLimit: 50,
-      currentUsers: 42,
-      subscriptionExpiry: '2025-05-20',
-      status: 'Active',
-      billingType: 'Yearly',
-      pricePerUser: 44,
-      subscriptionStart: '2024-05-20',
-    },
-    {
-      id: 5,
-      name: 'SolarMax Technologies',
-      adminEmail: 'admin@solarmax.com',
-      plan: 'Enterprise',
-      userLimit: 200,
-      currentUsers: 156,
-      subscriptionExpiry: '2025-08-12',
-      status: 'Suspended',
-      billingType: 'Yearly',
-      pricePerUser: 35,
-      subscriptionStart: '2024-08-12',
-    },
-  ]);
-
+  // Start with empty arrays - no dummy data
+  const [tenants, setTenants] = useState([]);
+  
   const [pricingPlans, setPricingPlans] = useState([
     {
       id: 1,
@@ -97,75 +32,9 @@ export function AppProvider({ children }) {
       features: ['Full Feature Access', '24/7 Support', 'White-label Options', 'Dedicated Account Manager', 'Custom Integrations', 'SSO'],
     },
   ]);
-
-  const [backups, setBackups] = useState([
-    {
-      id: 1,
-      date: '2025-03-08 02:00:00',
-      size: '2.4 GB',
-      type: 'Full Database',
-      status: 'Completed',
-    },
-    {
-      id: 2,
-      date: '2025-03-07 02:00:00',
-      size: '2.3 GB',
-      type: 'Full Database',
-      status: 'Completed',
-    },
-    {
-      id: 3,
-      date: '2025-03-06 14:30:00',
-      size: '450 MB',
-      type: 'Tenant Specific - Acme Solar',
-      status: 'Completed',
-    },
-    {
-      id: 4,
-      date: '2025-03-05 02:00:00',
-      size: '2.3 GB',
-      type: 'Full Database',
-      status: 'Completed',
-    },
-  ]);
-
-  const [recentActivity, setRecentActivity] = useState([
-    {
-      id: 1,
-      type: 'tenant_created',
-      message: 'New tenant "EcoSolar Innovations" created',
-      timestamp: '2025-03-08 14:32:15',
-      user: 'Super Admin',
-    },
-    {
-      id: 2,
-      type: 'subscription_renewed',
-      message: 'Subscription renewed for "SunTech Energy"',
-      timestamp: '2025-03-08 11:15:42',
-      user: 'Super Admin',
-    },
-    {
-      id: 3,
-      type: 'backup_completed',
-      message: 'Daily backup completed successfully',
-      timestamp: '2025-03-08 02:00:00',
-      user: 'System',
-    },
-    {
-      id: 4,
-      type: 'tenant_suspended',
-      message: 'Tenant "SolarMax Technologies" suspended',
-      timestamp: '2025-03-07 16:45:30',
-      user: 'Super Admin',
-    },
-    {
-      id: 5,
-      type: 'pricing_updated',
-      message: 'Pricing plan "Professional" updated',
-      timestamp: '2025-03-07 09:22:18',
-      user: 'Super Admin',
-    },
-  ]);
+  
+  const [backups, setBackups] = useState([]);
+  const [recentActivity, setRecentActivity] = useState([]);
 
   const [systemSettings, setSystemSettings] = useState({
     maintenanceMode: false,

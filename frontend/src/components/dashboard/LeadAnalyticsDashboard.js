@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart, PieChart, Pie, Cell } from 'recharts';
-import { Users, TrendingUp, DollarSign, Target, Download, RefreshCw, Zap, Award, ArrowUpRight, ArrowDownRight, CheckCircle2, XCircle, Sparkles, Funnel, PieChart as PieChartIcon, Brain, Activity, AlertCircle } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart, PieChart, Pie, Cell } from 'recharts';
+import { Users, TrendingUp, DollarSign, Download, RefreshCw, Award, ArrowUpRight, ArrowDownRight, CheckCircle2, Sparkles, Funnel, PieChart as PieChartIcon, AlertCircle, Layers, Zap } from 'lucide-react';
 import { Button } from '../ui/Button';
+import Modal from '../ui/Modal';
 import { leadsApi } from '../../services/leadsApi';
 
 // Format currency
@@ -18,6 +19,15 @@ const fmt = (val) => {
 const formatNumber = (num) => {
   if (!num) return '0';
   return num.toLocaleString();
+};
+
+const titleCase = (s) => {
+  if (!s) return '';
+  return String(s)
+    .split(/\s|_/)
+    .filter(Boolean)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
 };
 
 // Loading skeleton
@@ -42,30 +52,61 @@ const SkeletonChart = () => (
 );
 
 // KPI Card Component
-const KPICard = ({ title, value, change, trend, icon: Icon, color, loading, subtitle }) => {
+const KPICard = ({ title, value, change, trend, icon: Icon, color, loading, subtitle, sparkline, onClick }) => {
   if (loading) return <SkeletonCard />;
   
   const TrendIcon = trend === 'up' ? ArrowUpRight : ArrowDownRight;
   const trendColor = trend === 'up' ? 'text-emerald-500' : 'text-red-500';
   const changeText = change ? `${Math.abs(change)}%` : '0%';
+  const cardStyle = {
+    background: `linear-gradient(135deg, ${color}14, ${color}06)`,
+    borderColor: `${color}30`,
+  };
   
   return (
-    <div className="glass-card p-4 hover:scale-[1.02] transition-transform cursor-pointer">
-      <div className="flex items-start justify-between">
-        <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${color}20, ${color}10)` }}>
+    <div
+      className="glass-card p-4 hover:scale-[1.02] transition-transform cursor-pointer min-h-[98px]"
+      style={cardStyle}
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm" style={{ background: `linear-gradient(135deg, ${color}24, ${color}12)` }}>
           <Icon size={18} style={{ color }} />
         </div>
-        {change !== undefined && (
-          <div className="flex items-center gap-1">
-            <TrendIcon size={12} className={trendColor} />
-            <span className={`text-[10px] font-bold ${trendColor}`}>{changeText}</span>
+        <div className="flex flex-col items-end gap-1 min-w-[84px]">
+          <div className="h-4 flex items-center justify-end">
+            {change !== undefined ? (
+              <div className="flex items-center gap-1">
+                <TrendIcon size={12} className={trendColor} />
+                <span className={`text-[10px] font-bold ${trendColor}`}>{changeText}</span>
+              </div>
+            ) : (
+              <span className="text-[10px] opacity-0">0%</span>
+            )}
           </div>
-        )}
+          <div className="w-20 h-8">
+            {Array.isArray(sparkline) && sparkline.length > 1 ? (
+              <AreaChart width={80} height={32} data={sparkline}>
+                <defs>
+                  <linearGradient id={`kpi-${title}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={color} stopOpacity={0.25} />
+                    <stop offset="100%" stopColor={color} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <Area type="monotone" dataKey="v" stroke={color} fill={`url(#kpi-${title})`} strokeWidth={2} dot={false} />
+              </AreaChart>
+            ) : null}
+          </div>
+        </div>
       </div>
       <div className="mt-3">
         <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">{title}</p>
-        <p className="text-xl font-black text-[var(--text-primary)]">{value}</p>
-        {subtitle && <p className="text-[9px] text-[var(--text-muted)]">{subtitle}</p>}
+        <p className="text-xl font-black text-[var(--text-primary)] leading-tight">{value}</p>
+        <div className="h-3">
+          {subtitle ? <p className="text-[9px] text-[var(--text-muted)]">{subtitle}</p> : null}
+        </div>
       </div>
     </div>
   );
@@ -93,10 +134,17 @@ const FunnelChart = ({ data, loading }) => {
       <div className="space-y-2">
         {data.map((stage, index) => {
           const percentage = maxCount > 0 ? ((stage.count || 0) / maxCount * 100) : 0;
+          const prev = index > 0 ? (data[index - 1]?.count || 0) : null;
+          const conv = prev && prev > 0 ? Math.round(((stage.count || 0) / prev) * 100) : null;
           return (
             <div key={stage.stage || index}>
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-medium text-[var(--text-primary)]">{stage.stage}</span>
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-xs font-medium text-[var(--text-primary)] truncate">{titleCase(stage.stage)}</span>
+                  {conv !== null && (
+                    <span className="text-[10px] text-[var(--text-muted)]">{conv}%</span>
+                  )}
+                </div>
                 <span className="text-xs font-bold text-[var(--accent)]">{formatNumber(stage.count)}</span>
               </div>
               <div className="w-full bg-[var(--bg-elevated)] rounded-full h-5 overflow-hidden">
@@ -123,13 +171,16 @@ const SourceChart = ({ data, loading }) => {
     </div>
   );
 
-  const colors = ['#3b82f6', '#1877f2', '#4285f4', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899', '#0077b5'];
+  const colors = ['#3b82f6', '#22c55e', '#f59e0b', '#8b5cf6', '#64748b'];
   
   const chartData = data.map((item, index) => ({
     name: item.source || 'Unknown',
     value: item.leads || item.count || 0,
-    color: colors[index % colors.length]
+    pct: item.pct,
+    color: colors[index % colors.length],
   }));
+
+  const total = chartData.reduce((sum, d) => sum + (d.value || 0), 0);
 
   return (
     <div className="glass-card p-5">
@@ -145,14 +196,18 @@ const SourceChart = ({ data, loading }) => {
           <Tooltip contentStyle={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-base)', borderRadius: '8px' }} />
         </PieChart>
       </ResponsiveContainer>
-      <div className="grid grid-cols-2 gap-2 mt-3">
-        {chartData.slice(0, 4).map(s => (
-          <div key={s.name} className="flex items-center gap-2 text-xs">
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
-            <span className="text-[var(--text-muted)] truncate">{s.name}</span>
-            <span className="font-medium ml-auto">{formatNumber(s.value)}</span>
-          </div>
-        ))}
+      <div className="space-y-2 mt-3">
+        {chartData.map((s) => {
+          const pct = total > 0 ? Math.round(((s.value || 0) / total) * 100) : 0;
+          return (
+            <div key={s.name} className="flex items-center gap-2 text-xs">
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
+              <span className="text-[var(--text-muted)] truncate">{s.name}</span>
+              <span className="ml-auto text-[var(--text-muted)]">{pct}%</span>
+              <span className="font-medium">{formatNumber(s.value)}</span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -170,9 +225,8 @@ const TrendChart = ({ data, loading }) => {
 
   const chartData = data.map(item => ({
     month: item.month || '',
-    generated: item.new || 0,
-    converted: item.won || 0,
-    lost: item.lost || 0
+    created: item.created || 0,
+    won: item.won || 0,
   }));
 
   return (
@@ -182,19 +236,17 @@ const TrendChart = ({ data, loading }) => {
         <TrendingUp size={16} className="text-emerald-500" />
       </div>
       <ResponsiveContainer width="100%" height={200}>
-        <AreaChart data={chartData}>
+        <LineChart data={chartData}>
           <defs>
-            <linearGradient id="gen" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1}/><stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient>
-            <linearGradient id="conv" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#22c55e" stopOpacity={0.1}/><stop offset="95%" stopColor="#22c55e" stopOpacity={0}/></linearGradient>
+            <linearGradient id="created" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.12}/><stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
           <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} stroke="var(--border-subtle)" />
           <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} stroke="var(--border-subtle)" />
           <Tooltip contentStyle={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-base)', borderRadius: '8px' }} />
-          <Area type="monotone" dataKey="generated" stroke="#3b82f6" fill="url(#gen)" strokeWidth={2} name="New Leads" />
-          <Area type="monotone" dataKey="converted" stroke="#22c55e" fill="url(#conv)" strokeWidth={2} name="Converted" />
-          <Line type="monotone" dataKey="lost" stroke="#ef4444" strokeWidth={2} dot={false} name="Lost" />
-        </AreaChart>
+          <Area type="monotone" dataKey="created" stroke="#3b82f6" fill="url(#created)" strokeWidth={2} name="Created" />
+          <Line type="monotone" dataKey="won" stroke="#22c55e" strokeWidth={2} dot={false} name="Won" />
+        </LineChart>
       </ResponsiveContainer>
     </div>
   );
@@ -202,11 +254,48 @@ const TrendChart = ({ data, loading }) => {
 
 // Agent Leaderboard Component
 const AgentLeaderboard = ({ data, loading }) => {
+  const agents = useMemo(() => {
+    const list = Array.isArray(data) ? data : [];
+
+    const normalized = list
+      .map((a) => {
+        const leadsHandled = Number(a?.leadsHandled ?? a?.leadsAssigned ?? a?.leads ?? 0);
+        const converted = Number(a?.converted ?? a?.leadsConverted ?? a?.won ?? 0);
+        const conversionRate = Number(a?.conversionRate ?? (leadsHandled > 0 ? (converted / leadsHandled) * 100 : 0));
+        return {
+          id: a?.id ?? a?._id ?? a?.userId ?? a?.email ?? a?.name,
+          name: a?.name ?? a?.fullName ?? a?.email ?? '',
+          leadsHandled,
+          converted,
+          conversionRate,
+        };
+      })
+      .filter((a) => {
+        const name = String(a?.name || '').trim().toLowerCase();
+        const isPlaceholderName = name === '' || name === 'unknown' || name === 'no data';
+        const hasStats = (a.leadsHandled || 0) > 0 || (a.converted || 0) > 0;
+        return hasStats && !isPlaceholderName;
+      })
+      .sort((a, b) => (b.conversionRate || 0) - (a.conversionRate || 0));
+
+    return normalized.slice(0, 5);
+  }, [data]);
+
   if (loading) return <SkeletonChart />;
-  
-  const agents = data && data.length > 0 ? data : [
-    { id: '1', name: 'No Data Available', leadsAssigned: 0, leadsConverted: 0, conversionRate: 0, rank: 1 }
-  ];
+
+  if (!agents || agents.length === 0) {
+    return (
+      <div className="glass-card p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-bold text-[var(--text-primary)]">Top Performers</h3>
+          <Award size={16} className="text-amber-500" />
+        </div>
+        <div className="flex items-center justify-center min-h-[160px]">
+          <p className="text-xs text-[var(--text-muted)]">No performer data available yet</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="glass-card p-5">
@@ -215,23 +304,28 @@ const AgentLeaderboard = ({ data, loading }) => {
         <Award size={16} className="text-amber-500" />
       </div>
       <div className="space-y-3">
-        {agents.map((agent, index) => (
-          <div key={agent.id || index} className="flex items-center gap-3 p-2 rounded-lg bg-[var(--bg-elevated)]">
-            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${index === 0 ? 'bg-amber-100 text-amber-700' : index === 1 ? 'bg-slate-200 text-slate-700' : index === 2 ? 'bg-orange-100 text-orange-700' : 'bg-[var(--bg-elevated)] text-[var(--text-muted)]'}`}>
-              {agent.rank || index + 1}
+        {agents.map((agent, index) => {
+          const rankBg = index === 0 ? 'bg-amber-100 text-amber-700' : index === 1 ? 'bg-slate-200 text-slate-700' : index === 2 ? 'bg-orange-100 text-orange-700' : 'bg-[var(--bg-elevated)] text-[var(--text-muted)]';
+          const initial = String(agent.name || '?').trim().slice(0, 1).toUpperCase();
+          const rate = Number.isFinite(agent.conversionRate) ? agent.conversionRate : 0;
+          return (
+            <div key={`${agent.id || 'agent'}-${index}`} className="flex items-center gap-3 p-2 rounded-lg bg-[var(--bg-elevated)]">
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${rankBg}`}>
+                {index + 1}
+              </div>
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 text-white flex items-center justify-center text-xs font-bold">
+                {initial}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-[var(--text-primary)] truncate">{agent.name || 'Unknown'}</p>
+                <p className="text-[9px] text-[var(--text-muted)]">{formatNumber(agent.converted)}/{formatNumber(agent.leadsHandled)}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs font-bold text-[var(--accent)]">{rate.toFixed(0)}%</p>
+              </div>
             </div>
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 text-white flex items-center justify-center text-xs font-bold">
-              {(agent.name || '?')[0]}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold text-[var(--text-primary)] truncate">{agent.name || 'Unknown'}</p>
-              <p className="text-[9px] text-[var(--text-muted)]">{formatNumber(agent.leadsConverted)}/{formatNumber(agent.leadsAssigned)}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs font-bold text-[var(--accent)]">{(agent.conversionRate || 0).toFixed(1)}%</p>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -309,104 +403,174 @@ const ErrorState = ({ onRetry }) => (
 );
 
 // Main Dashboard Component
-const LeadAnalyticsDashboard = ({ onAddLead }) => {
-  // Fetch all dashboard data
-  const { data: overviewRaw, isLoading: overviewLoading, error: overviewError, refetch: refetchOverview } = useQuery({
-    queryKey: ['dashboard', 'overview'],
+const LeadAnalyticsDashboard = ({ onAddLead, onNavigate }) => {
+  const queryOpts = { refetchInterval: 30000, staleTime: 30000 };
+  const [kpiDialogOpen, setKpiDialogOpen] = useState(false);
+  const [kpiDialogConfig, setKpiDialogConfig] = useState({ title: 'Leads', statusKey: undefined, statusKeys: undefined, mode: 'all' });
+
+  const { data: kpisRaw, isLoading: kpisLoading, error: kpisError, refetch: refetchKpis } = useQuery({
+    queryKey: ['leads-dashboard', 'kpis'],
     queryFn: async () => {
-      const response = await leadsApi.getDashboardOverview();
-      console.log('[DEBUG] Raw API response:', response);
-      // Handle both wrapped and unwrapped responses
-      const data = response.data || response;
-      console.log('[DEBUG] Processed data:', data);
-      return data;
+      const response = await leadsApi.getDashboardKpis();
+      return response?.data || response;
     },
-    refetchInterval: 30000,
-    staleTime: 10000,
+    ...queryOpts,
   });
 
   const { data: funnelRaw, isLoading: funnelLoading } = useQuery({
-    queryKey: ['dashboard', 'funnel'],
+    queryKey: ['leads-dashboard', 'funnel'],
     queryFn: async () => {
       const response = await leadsApi.getDashboardFunnel();
-      return response.data || response;
+      return response?.data || response;
     },
-    refetchInterval: 30000,
-    staleTime: 10000,
+    ...queryOpts,
   });
 
-  const { data: sourceRaw, isLoading: sourceLoading } = useQuery({
-    queryKey: ['dashboard', 'source'],
+  const { data: sourcesRaw, isLoading: sourcesLoading } = useQuery({
+    queryKey: ['leads-dashboard', 'sources'],
     queryFn: async () => {
-      const response = await leadsApi.getDashboardSource();
-      return response.data || response;
+      const response = await leadsApi.getDashboardSources();
+      return response?.data || response;
     },
-    refetchInterval: 30000,
-    staleTime: 10000,
+    ...queryOpts,
   });
 
-  const { data: trendRaw, isLoading: trendLoading } = useQuery({
-    queryKey: ['dashboard', 'trend'],
+  const { data: monthlyRaw, isLoading: monthlyLoading } = useQuery({
+    queryKey: ['leads-dashboard', 'monthly'],
     queryFn: async () => {
-      const response = await leadsApi.getDashboardTrend();
-      return response.data || response;
+      const response = await leadsApi.getDashboardMonthly();
+      return response?.data || response;
     },
-    refetchInterval: 30000,
-    staleTime: 10000,
+    ...queryOpts,
   });
 
-  // Extract data from responses
-  const overview = overviewRaw;
+  const { data: performersRaw, isLoading: performersLoading } = useQuery({
+    queryKey: ['leads-dashboard', 'top-performers'],
+    queryFn: async () => {
+      const response = await leadsApi.getDashboardTopPerformers();
+      return response?.data || response;
+    },
+    ...queryOpts,
+  });
+
+  const { data: kpiLeadsRaw, isLoading: kpiLeadsLoading, error: kpiLeadsError } = useQuery({
+    queryKey: ['leads-dashboard', 'kpi-leads', kpiDialogConfig?.mode || 'all', kpiDialogConfig?.statusKey || 'all', kpiDialogConfig?.statusKeys || ''],
+    enabled: kpiDialogOpen,
+    queryFn: async () => {
+      const params = { page: 1, limit: 50 };
+      if (kpiDialogConfig?.mode === 'today') {
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const tomorrowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        params.startDate = todayStart.toISOString();
+        params.endDate = tomorrowStart.toISOString();
+      } else if (kpiDialogConfig?.statusKeys) {
+        params.statusKeys = kpiDialogConfig.statusKeys;
+      } else if (kpiDialogConfig?.statusKey) {
+        params.statusKey = kpiDialogConfig.statusKey;
+      }
+      const result = await leadsApi.getAll(params);
+      return result;
+    },
+    staleTime: 30000,
+  });
+
+  const kpis = kpisRaw;
   const funnel = funnelRaw;
-  const source = sourceRaw;
-  const trend = trendRaw;
+  const sources = sourcesRaw;
+  const monthly = monthlyRaw;
+  const performers = performersRaw;
 
-  const isLoading = overviewLoading || funnelLoading || sourceLoading || trendLoading;
-  const hasError = overviewError;
-  const hasNoLeads = !overview || !overview.totalLeads || overview.totalLeads === 0;
-  
-  console.log('[DEBUG] overview:', overview);
-  console.log('[DEBUG] hasNoLeads:', hasNoLeads, 'isLoading:', isLoading, 'totalLeads:', overview?.totalLeads);
+  const isLoading = kpisLoading || funnelLoading || sourcesLoading || monthlyLoading || performersLoading;
+  const hasError = kpisError;
+  const hasNoLeads = !kpis || !kpis.totalLeads || kpis.totalLeads === 0;
 
   const handleRefresh = () => {
-    refetchOverview();
+    refetchKpis();
   };
 
-  // Generate insights from real data
-  const generateInsights = () => {
+  const openKpiDialog = (title, statusKey) => {
+    setKpiDialogConfig({ title, statusKey, statusKeys: undefined, mode: statusKey ? 'status' : 'all' });
+    setKpiDialogOpen(true);
+  };
+
+  const openKpiDialogMultiStatus = (title, statusKeys) => {
+    setKpiDialogConfig({ title, statusKey: undefined, statusKeys, mode: 'status' });
+    setKpiDialogOpen(true);
+  };
+
+  const openKpiDialogToday = (title) => {
+    setKpiDialogConfig({ title, statusKey: undefined, statusKeys: undefined, mode: 'today' });
+    setKpiDialogOpen(true);
+  };
+
+  const kpiLeadsNormalized = useMemo(() => {
+    const raw = kpiLeadsRaw;
+    if (!raw) return { rows: [], total: undefined };
+    if (Array.isArray(raw)) return { rows: raw, total: raw.length };
+    const totalRaw = raw?.total ?? raw?.data?.total;
+    const total = typeof totalRaw === 'number' ? totalRaw : (totalRaw !== undefined ? Number(totalRaw) : undefined);
+    const rows = Array.isArray(raw?.data)
+      ? raw.data
+      : (Array.isArray(raw?.data?.data) ? raw.data.data : (raw?.data?.data || raw?.data || []));
+    return { rows: Array.isArray(rows) ? rows : [], total };
+  }, [kpiLeadsRaw]);
+
+  const kpiLeads = kpiLeadsNormalized.rows;
+  const kpiLeadsTotal = kpiLeadsNormalized.total;
+
+  const kpiDialogDescription = useMemo(() => {
+    const limit = 50;
+    const total = typeof kpiLeadsTotal === 'number' && !Number.isNaN(kpiLeadsTotal) ? kpiLeadsTotal : undefined;
+    const rangeText = total !== undefined ? `Showing top ${Math.min(limit, total)} of ${total} leads` : `Showing top ${limit} leads`;
+    if (kpiDialogConfig?.mode === 'today') {
+      return `Today • ${rangeText}`;
+    }
+    if (kpiDialogConfig?.mode === 'status' && kpiDialogConfig?.statusKey) {
+      return `${titleCase(kpiDialogConfig.statusKey)} • ${rangeText}`;
+    }
+    return `All • ${rangeText}`;
+  }, [kpiDialogConfig?.mode, kpiDialogConfig?.statusKey, kpiLeadsTotal]);
+
+  const monthlySpark = useMemo(() => {
+    const m = monthly?.months || [];
+    return (Array.isArray(m) ? m : []).map((x) => ({ v: Number(x.created || 0) }));
+  }, [monthly]);
+
+  const wonSpark = useMemo(() => {
+    const m = monthly?.months || [];
+    return (Array.isArray(m) ? m : []).map((x) => ({ v: Number(x.won || 0) }));
+  }, [monthly]);
+
+  const generateInsights = useMemo(() => {
     const insights = [];
-    
-    if (overview) {
-      if (overview.conversionRate > 20) {
-        insights.push({ type: 'positive', message: `Conversion rate is ${overview.conversionRate.toFixed(1)}% - Excellent!` });
-      } else if (overview.conversionRate < 10) {
-        insights.push({ type: 'negative', message: `Conversion rate is ${overview.conversionRate.toFixed(1)}% - Needs attention` });
-      }
-      
-      if (overview.newLeadsThisMonth > 0) {
-        insights.push({ type: 'positive', message: `${overview.newLeadsThisMonth} new leads this month` });
-      }
-      
-      if (overview.pipelineValue > 0) {
-        insights.push({ type: 'neutral', message: `${fmt(overview.pipelineValue)} pipeline value` });
-      }
-    }
-    
-    if (funnel?.stages) {
-      const wonStage = funnel.stages.find(s => s.stage === 'Closed Won');
-      if (wonStage?.count > 0) {
-        insights.push({ type: 'positive', message: `${wonStage.count} deals closed won` });
-      }
-    }
-    
-    if (insights.length === 0) {
-      insights.push({ type: 'neutral', message: 'Dashboard connected to real-time data' });
-    }
-    
-    return insights.slice(0, 4);
-  };
 
-  if (hasError && !overview) {
+    const conv = Number(kpis?.conversionRate || 0);
+    if (conv > 0 && conv < 5) {
+      insights.push({ type: 'negative', message: `Conversion rate is low (${conv}%). Review follow-ups.` });
+    } else if (conv >= 15) {
+      insights.push({ type: 'positive', message: `Strong conversion rate (${conv}%). Keep momentum.` });
+    }
+
+    const stale = Number(kpis?.staleLeads7d || 0);
+    if (stale > 0) {
+      insights.push({ type: 'negative', message: `${formatNumber(stale)} pipeline leads not contacted in 7 days` });
+    }
+
+    const thisMonthCreated = Number(monthly?.months?.[monthly?.months?.length - 1]?.created || 0);
+    if (thisMonthCreated > 0) {
+      insights.push({ type: 'positive', message: `${formatNumber(thisMonthCreated)} new leads this month` });
+    }
+
+    const pv = Number(kpis?.pipelineValue || 0);
+    if (pv > 0) {
+      insights.push({ type: 'neutral', message: `${fmt(pv)} pipeline value` });
+    }
+
+    return insights.slice(0, 4);
+  }, [kpis, monthly]);
+
+  if (hasError && !kpis) {
     return (
       <div className="space-y-4 p-4">
         <div className="flex items-center justify-between">
@@ -432,15 +596,116 @@ const LeadAnalyticsDashboard = ({ onAddLead }) => {
   }
 
   // Prepare KPI data - only 4 cards
-  const kpiData = overview ? [
-    { title: 'Total Leads', value: formatNumber(overview.totalLeads), change: overview.totalLeadsChange, trend: overview.totalLeadsTrend || 'up', icon: Users, color: '#3b82f6', subtitle: 'All leads' },
-    { title: 'Dead Leads', value: formatNumber(overview.lostLeads), change: overview.lostChange, trend: 'down', icon: XCircle, color: '#ef4444', subtitle: 'Closed lost' },
-    { title: 'Converted', value: formatNumber(overview.convertedLeads), change: overview.conversionRate, trend: 'up', icon: CheckCircle2, color: '#22c55e', subtitle: `${overview.conversionRate?.toFixed(1) || 0}% rate` },
-    { title: 'Total Value', value: fmt(overview.pipelineValue), change: overview.pipelineChange, trend: overview.pipelineTrend || 'up', icon: DollarSign, color: '#8b5cf6', subtitle: 'Pipeline' }
+  const kpiData = kpis ? [
+    {
+      title: 'Total Leads',
+      value: formatNumber(kpis.totalLeads),
+      change: kpis.deltas?.totalLeadsPct,
+      trend: (kpis.deltas?.totalLeadsPct || 0) >= 0 ? 'up' : 'down',
+      icon: Users,
+      color: '#3b82f6',
+      subtitle: 'All leads',
+      sparkline: monthlySpark,
+      onClick: () => openKpiDialog('All Leads', undefined),
+    },
+    {
+      title: 'New Leads',
+      value: formatNumber(kpis.newLeads),
+      change: undefined,
+      trend: 'up',
+      icon: Sparkles,
+      color: '#8b5cf6',
+      subtitle: 'Today',
+      sparkline: monthlySpark,
+      onClick: () => openKpiDialogToday("Today's Leads"),
+    },
+    {
+      title: 'Converted / Won',
+      value: formatNumber(kpis.convertedLeads),
+      change: kpis.deltas?.convertedLeadsPct,
+      trend: (kpis.deltas?.convertedLeadsPct || 0) >= 0 ? 'up' : 'down',
+      icon: CheckCircle2,
+      color: '#22c55e',
+      subtitle: `${formatNumber(kpis.conversionRate)}% conversion`,
+      sparkline: wonSpark,
+      onClick: () => openKpiDialogMultiStatus('Won / Converted', 'won,customer'),
+    },
+    {
+      title: 'Lost Leads',
+      value: formatNumber(kpis.lostLeads),
+      change: undefined,
+      trend: 'down',
+      icon: AlertCircle,
+      color: '#ef4444',
+      subtitle: 'Status: Lost',
+      sparkline: monthlySpark,
+      onClick: () => openKpiDialog('Lost Leads', 'lost'),
+    },
   ] : [];
 
   return (
     <div className="space-y-4 p-4">
+      <Modal
+        open={kpiDialogOpen}
+        onClose={() => setKpiDialogOpen(false)}
+        title={kpiDialogConfig?.title || 'Leads'}
+        description={kpiDialogDescription}
+        size="xl"
+        footer={
+          <Button variant="outline" size="sm" onClick={() => setKpiDialogOpen(false)}>
+            Close
+          </Button>
+        }
+      >
+        <div className="space-y-3">
+          {kpiLeadsError && (
+            <div className="text-sm text-red-500">
+              {kpiLeadsError?.message || 'Failed to load leads'}
+            </div>
+          )}
+          {kpiLeadsLoading ? (
+            <div className="text-sm text-[var(--text-muted)]">Loading...</div>
+          ) : (
+            <div className="overflow-auto rounded-lg border border-[var(--border-base)]">
+              <table className="min-w-full text-xs">
+                <thead className="bg-[var(--bg-elevated)] text-[10px] uppercase tracking-wider text-[var(--text-muted)]">
+                  <tr>
+                    <th className="text-left p-2">Name</th>
+                    <th className="text-left p-2">Phone</th>
+                    <th className="text-left p-2">Email</th>
+                    <th className="text-left p-2">Status</th>
+                    <th className="text-right p-2">Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {kpiLeads.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="p-4 text-center text-[var(--text-muted)]">No leads found</td>
+                    </tr>
+                  ) : (
+                    kpiLeads.map((l, idx) => (
+                      <tr key={`${l?._id || l?.leadId || 'lead'}-${idx}`} className="border-t border-[var(--border-base)]">
+                        <td className="p-2 font-semibold text-[var(--text-primary)]">
+                          {l?.name || l?.customerName || l?.leadName || '—'}
+                        </td>
+                        <td className="p-2 text-[var(--text-muted)]">{l?.phone || l?.mobile || '—'}</td>
+                        <td className="p-2 text-[var(--text-muted)]">{l?.email || '—'}</td>
+                        <td className="p-2">
+                          <span className="px-2 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-primary)]">
+                            {titleCase(l?.statusKey || l?.status || 'unknown')}
+                          </span>
+                        </td>
+                        <td className="p-2 text-right text-[var(--text-muted)]">{fmt(Number(l?.value || 0))}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </Modal>
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
@@ -471,18 +736,18 @@ const LeadAnalyticsDashboard = ({ onAddLead }) => {
       </div>
 
       {/* Insights */}
-      <SmartInsights insights={generateInsights()} loading={overviewLoading} />
+      <SmartInsights insights={generateInsights} loading={kpisLoading} />
 
       {/* Charts Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <FunnelChart data={funnel?.stages} loading={funnelLoading} />
-        <SourceChart data={source?.sources} loading={sourceLoading} />
+        <SourceChart data={sources?.sources} loading={sourcesLoading} />
       </div>
 
       {/* Charts Row 2 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <TrendChart data={trend?.months} loading={trendLoading} />
-        <AgentLeaderboard data={trend?.agents} loading={trendLoading} />
+        <TrendChart data={monthly?.months} loading={monthlyLoading} />
+        <AgentLeaderboard data={performers?.performers} loading={performersLoading} />
       </div>
     </div>
   );

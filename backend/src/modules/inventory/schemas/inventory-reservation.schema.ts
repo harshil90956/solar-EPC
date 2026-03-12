@@ -1,47 +1,43 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
-import { BaseSchemaOptions, BaseSchemaDefinition } from '../../../shared/database/base.schema';
+import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { BaseSchemaDefinition, BaseSchemaOptions } from '../../../shared/database/base.schema';
 
-export type ReservationStatus = 'active' | 'fulfilled' | 'cancelled' | 'expired';
+export type InventoryReservationDocument = InventoryReservation & Document;
 
-@Schema(BaseSchemaOptions)
-export class InventoryReservation extends Document {
-  @Prop({ required: true, unique: true })
-  reservationId!: string;
+@Schema({ ...BaseSchemaOptions, collection: 'inventoryReservations' })
+export class InventoryReservation {
+  @Prop({ ...BaseSchemaDefinition.tenantId })
+  tenantId!: Types.ObjectId;
 
-  @Prop({ required: true })
+  @Prop({ ...BaseSchemaDefinition.isDeleted })
+  isDeleted!: boolean;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Inventory', required: true, index: true })
+  inventoryId!: Types.ObjectId;
+
+  @Prop({ type: String, required: true })
   itemId!: string;
 
-  @Prop({ required: true })
-  projectId!: string;
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Project', required: true, index: true })
+  projectId!: Types.ObjectId;
 
   @Prop({ required: true, min: 1 })
   quantity!: number;
 
-  @Prop({
-    required: true,
-    enum: ['active', 'fulfilled', 'cancelled', 'expired'],
-    default: 'active',
-  })
-  status!: ReservationStatus;
+  @Prop({ required: true, enum: ['Pending', 'Fulfilled', 'Cancelled'], default: 'Pending' })
+  status!: string;
 
-  @Prop({ required: false })
-  reservedDate?: string;
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
+  reservedBy!: Types.ObjectId;
 
-  @Prop({ required: false })
-  expiryDate?: string;
-
-  @Prop({ required: false })
-  notes?: string;
-
-  @Prop(BaseSchemaDefinition.tenantId)
-  tenantId!: Types.ObjectId;
-
-  @Prop(BaseSchemaDefinition.isDeleted)
-  isDeleted!: boolean;
+  @Prop({ default: Date.now })
+  reservedAt!: Date;
 }
 
 export const InventoryReservationSchema = SchemaFactory.createForClass(InventoryReservation);
+
+InventoryReservationSchema.index({ tenantId: 1, inventoryId: 1 });
+InventoryReservationSchema.index({ tenantId: 1, projectId: 1 });
 
 // Indexes for efficient querying
 InventoryReservationSchema.index({ tenantId: 1, projectId: 1 });
