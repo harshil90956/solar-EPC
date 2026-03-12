@@ -5,6 +5,7 @@ import { RBACConfig, RBACConfigSchema } from '../modules/settings/schemas/rbac-c
 import { CustomRole, CustomRoleSchema } from '../modules/settings/schemas/custom-role.schema';
 import { UserOverride, UserOverrideSchema } from '../modules/settings/schemas/user-override.schema';
 import { FeatureFlag, FeatureFlagSchema } from '../modules/settings/schemas/feature-flag.schema';
+import { Employee, EmployeeSchema } from '../modules/hrm/schemas/employee.schema';
 
 /**
  * CommonModule
@@ -19,6 +20,7 @@ import { FeatureFlag, FeatureFlagSchema } from '../modules/settings/schemas/feat
       { name: CustomRole.name, schema: CustomRoleSchema },
       { name: UserOverride.name, schema: UserOverrideSchema },
       { name: FeatureFlag.name, schema: FeatureFlagSchema },
+      { name: Employee.name, schema: EmployeeSchema },
     ]),
   ],
   providers: [PermissionCacheService],

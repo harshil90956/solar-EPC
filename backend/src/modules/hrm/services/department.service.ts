@@ -79,10 +79,11 @@ export class DepartmentService {
       query.tenantId = tid;
     }
 
-    return this.departmentModel
+    const result = await this.departmentModel
       .find(query)
       .sort({ createdAt: -1 })
       .exec();
+    
     console.log('[DEBUG DepartmentService] Filtered result count:', result.length);
     return result;
   }

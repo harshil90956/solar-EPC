@@ -905,18 +905,7 @@ export class LeadsService {
     existingLead.slaBreached = this.checkSlaBreached(existingLead);
     existingLead.activeAutomation = this.applyAutomation(existingLead);
 
-    // Use atomic update - only validate modified fields
-    const updatedLead = await this.leadModel.findOneAndUpdate(
-      filter,
-      updateData,
-      { new: true, validateModifiedOnly: true }
-    ).exec();
-
-    if (!updatedLead) {
-      throw new NotFoundException('Lead not found after update');
-    }
-
-    return updatedLead;
+    return existingLead.save();
   }
 
   private formatTimestamp(date: Date): string {
@@ -1105,8 +1094,7 @@ export class LeadsService {
       count: await this.leadModel.countDocuments({ ...filter, statusKey: s.key })
     })));
 
-      return { stages: counts };
-    });
+    return { stages: counts };
   }
 
   async getDashboardSources(

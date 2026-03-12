@@ -18,6 +18,7 @@ import { LeadStatusService } from './services/lead-status.service';
 import { InstallationTaskConfig, InstallationTaskConfigSchema } from './schemas/installation-task.schema';
 import { CommissioningTaskConfig, CommissioningTaskConfigSchema } from './schemas/commissioning-task.schema';
 import { Lead, LeadSchema } from '../leads/schemas/lead.schema';
+import { Employee, EmployeeSchema } from '../hrm/schemas/employee.schema';
 import {
   FeatureFlag,
   FeatureFlagSchema,
@@ -54,6 +55,7 @@ import {
       { name: LeadStatus.name, schema: LeadStatusSchema },
       { name: Lead.name, schema: LeadSchema },
       { name: CommissioningTaskConfig.name, schema: CommissioningTaskConfigSchema },
+      { name: Employee.name, schema: EmployeeSchema },
     ]),
   ],
   controllers: [SettingsController, LeadStatusController],

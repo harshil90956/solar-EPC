@@ -136,37 +136,36 @@ const Layout = ({ currentPage, onNavigate, children }) => {
   const visibleSections = NAV_CONFIG.map(section => ({
     ...section,
     items: section.items.filter(item => {
+      // 1. Feature Flag Check (Highest Priority)
       if (!isModuleEnabled(item.id)) return false;
-      
-      // Admins / superadmins always see everything
+
+      // 2. Admin Bypass
       const userRole = (user?.role || '').toLowerCase();
-      const userRoleId = (user?.roleId || '').toLowerCase();
-      const isAdminLike = user?.isSuperAdmin || 
-                        userRole === 'admin' || 
-                        userRole === 'superadmin' || 
-                        userRoleId === 'admin' || 
-                        userRoleId === 'superadmin';
-                        
-      if (isAdminLike) return true;
-      
-      // Custom role / employee: check view permission
+      if (user?.isSuperAdmin || userRole === 'admin' || userRole === 'superadmin') return true;
+
+      // 3. Custom Role / Employee check
       const roleId = user?.roleId || user?.role;
       const userId = user?.id || user?._id;
-      
-      let hasView = resolvePermission(userId, roleId, item.id, 'view');
-      
-      // DEBUG LOG
-      if (item.id === 'crm' || item.id === 'inventory' || item.id === 'survey') {
-        console.log(`[SIDEBAR DEBUG] Module: ${item.id}, User: ${userId}, Role: ${roleId}, hasView: ${hasView}`);
+
+      // If parent has children (e.g. HRM), show it when at least one child is viewable.
+      if (Array.isArray(item.children) && item.children.length > 0) {
+        const hasVisibleChild = item.children.some(child => {
+          const enabled = isModuleEnabled(child.id);
+          const permitted = resolvePermission(userId, roleId, child.id, 'view');
+          return enabled && permitted;
+        });
+        return hasVisibleChild;
       }
+
+      // Single module check
+      const isPermitted = resolvePermission(userId, roleId, item.id, 'view');
       
-      // Legacy fallback for CRM
-      if (!hasView && item.id === 'crm') {
-        hasView = resolvePermission(userId, roleId, 'leads', 'view');
-        console.log(`[SIDEBAR DEBUG] CRM Legacy Fallback, hasView: ${hasView}`);
+      // DEBUG: Log visibility decision for non-admin custom roles
+      if (roleId && String(roleId).startsWith('custom_')) {
+        console.log(`[SIDEBAR VISIBILITY] Module: ${item.id}, Permitted: ${isPermitted}, Role: ${roleId}`);
       }
-      
-      return hasView;
+
+      return isPermitted === true;
     }),
   })).filter(s => s.items.length > 0);
 
