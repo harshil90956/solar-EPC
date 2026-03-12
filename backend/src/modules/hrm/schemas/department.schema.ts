@@ -1,11 +1,18 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { Document, Types } from 'mongoose';
+import { BaseSchemaDefinition, BaseSchemaOptions } from '../../../shared/database/base.schema';
 
 export type DepartmentDocument = Department & Document;
 
-@Schema({ timestamps: true })
+@Schema({ ...BaseSchemaOptions, collection: 'hrmDepartments' })
 export class Department {
-  @Prop({ required: true, unique: true })
+  @Prop({ ...BaseSchemaDefinition.tenantId })
+  tenantId!: Types.ObjectId;
+
+  @Prop({ ...BaseSchemaDefinition.isDeleted })
+  isDeleted!: boolean;
+
+  @Prop({ required: true, index: true })
   name!: string;
 
   @Prop({ default: '' })
@@ -20,9 +27,6 @@ export class Department {
   @Prop({ default: '' })
   managerId!: string;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Tenant', index: true })
-  tenantId?: Types.ObjectId;
-
   @Prop({ type: Date })
   createdAt!: Date;
 
@@ -32,5 +36,6 @@ export class Department {
 
 export const DepartmentSchema = SchemaFactory.createForClass(Department);
 
+DepartmentSchema.index({ tenantId: 1, name: 1 }, { unique: true });
 DepartmentSchema.index({ name: 1, tenantId: 1 }, { unique: true, sparse: true });
 DepartmentSchema.index({ code: 1 });

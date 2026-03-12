@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { BaseSchemaDefinition } from '../../../shared/database/base.schema';
 
 export type LeadDocument = Lead & Document;
 
@@ -155,10 +156,10 @@ export class Lead {
     triggeredAt: Date;
   }[];
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Tenant', index: true })
-  tenantId?: Types.ObjectId;
+  @Prop({ ...BaseSchemaDefinition.tenantId })
+  tenantId!: Types.ObjectId;
 
-  @Prop({ type: Boolean, default: false })
+  @Prop({ ...BaseSchemaDefinition.isDeleted })
   isDeleted!: boolean;
 }
 

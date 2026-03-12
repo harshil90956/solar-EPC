@@ -1,31 +1,38 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Transaction, TransactionDocument } from '../schemas/transaction.schema';
 import { ManualAdjustment, ManualAdjustmentDocument } from '../schemas/manual-adjustment.schema';
 import { CreateTransactionDto, UpdateTransactionDto } from '../dto/transaction.dto';
+import { Tenant, TenantDocument } from '../../../core/tenant/schemas/tenant.schema';
 
 @Injectable()
 export class TransactionService {
   constructor(
     @InjectModel(Transaction.name) private readonly transactionModel: Model<TransactionDocument>,
     @InjectModel(ManualAdjustment.name) private readonly manualAdjustmentModel: Model<ManualAdjustmentDocument>,
+    @InjectModel(Tenant.name) private readonly tenantModel: Model<TenantDocument>,
   ) {}
 
-  private toObjectId(id: string | undefined): Types.ObjectId | undefined {
-    if (!id) return undefined;
-    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(id);
-    if (!isValidObjectId) return undefined;
-    try {
-      return new Types.ObjectId(id);
-    } catch {
-      return undefined;
+  private async resolveTenantObjectId(tenantId: string): Promise<Types.ObjectId> {
+    if (!tenantId) {
+      throw new BadRequestException('Tenant context is missing');
     }
+    if (Types.ObjectId.isValid(tenantId)) {
+      return new Types.ObjectId(tenantId);
+    }
+    const tenant = await this.tenantModel.findOne({ 
+      $or: [{ code: tenantId }, { slug: tenantId }] 
+    }).lean();
+    if (!tenant) {
+      throw new BadRequestException(`Tenant not found for identifier: ${tenantId}`);
+    }
+    return (tenant as any)._id as Types.ObjectId;
   }
 
   async findAll(tenantId: string, type?: string): Promise<Transaction[]> {
-    const tid = this.toObjectId(tenantId);
-    const query: any = tid ? { tenantId: tid } : {};
+    const tid = await this.resolveTenantObjectId(tenantId);
+    const query: any = { tenantId: tid };
     if (type && type !== 'All') {
       query.type = type;
     }
@@ -33,10 +40,10 @@ export class TransactionService {
   }
 
   async findById(tenantId: string, id: string): Promise<Transaction> {
-    const tid = this.toObjectId(tenantId);
+    const tid = await this.resolveTenantObjectId(tenantId);
     const transaction = await this.transactionModel.findOne({
       _id: new Types.ObjectId(id),
-      ...(tid ? { tenantId: tid } : {}),
+      tenantId: tid,
     }).lean();
 
     if (!transaction) {
@@ -47,9 +54,10 @@ export class TransactionService {
   }
 
   async create(tenantId: string, dto: CreateTransactionDto): Promise<Transaction> {
+    const tid = await this.resolveTenantObjectId(tenantId);
     const transaction = new this.transactionModel({
       ...dto,
-      tenantId: this.toObjectId(tenantId),
+      tenantId: tid,
       invoiceId: dto.invoiceId ? new Types.ObjectId(dto.invoiceId) : undefined,
       expenseId: dto.expenseId ? new Types.ObjectId(dto.expenseId) : undefined,
       transactionDate: new Date(dto.transactionDate),
@@ -60,10 +68,11 @@ export class TransactionService {
   }
 
   async update(tenantId: string, id: string, dto: UpdateTransactionDto): Promise<Transaction> {
+    const tid = await this.resolveTenantObjectId(tenantId);
     const existing = await this.findById(tenantId, id);
 
     const updated = await this.transactionModel.findOneAndUpdate(
-      { _id: new Types.ObjectId(id), tenantId: this.toObjectId(tenantId) },
+      { _id: new Types.ObjectId(id), tenantId: tid },
       {
         ...dto,
         invoiceId: dto.invoiceId ? new Types.ObjectId(dto.invoiceId) : existing.invoiceId,
@@ -81,9 +90,10 @@ export class TransactionService {
   }
 
   async delete(tenantId: string, id: string): Promise<void> {
+    const tid = await this.resolveTenantObjectId(tenantId);
     const result = await this.transactionModel.findOneAndDelete({
       _id: new Types.ObjectId(id),
-      tenantId: new Types.ObjectId(tenantId),
+      tenantId: tid,
     });
 
     if (!result) {
@@ -92,11 +102,12 @@ export class TransactionService {
   }
 
   async getCashFlowData(tenantId: string, months: number = 6): Promise<any[]> {
+    const tid = await this.resolveTenantObjectId(tenantId);
     const startDate = new Date();
     startDate.setMonth(startDate.getMonth() - months);
 
     const transactions = await this.transactionModel.find({
-      tenantId: new Types.ObjectId(tenantId),
+      tenantId: tid,
       transactionDate: { $gte: startDate },
       status: 'Completed',
     }).lean();
@@ -128,11 +139,12 @@ export class TransactionService {
   }
 
   async getMonthlyRevenue(tenantId: string, months: number = 6): Promise<any[]> {
+    const tid = await this.resolveTenantObjectId(tenantId);
     const startDate = new Date();
     startDate.setMonth(startDate.getMonth() - months);
 
     const transactions = await this.transactionModel.find({
-      tenantId: new Types.ObjectId(tenantId),
+      tenantId: tid,
       transactionDate: { $gte: startDate },
       status: 'Completed',
     }).lean();
@@ -164,11 +176,8 @@ export class TransactionService {
   }
 
   async getAnalyticsByCategory(tenantId: string, months: number = 6): Promise<any> {
-    const tid = this.toObjectId(tenantId);
-    const query: any = {};
-    if (tid) {
-      query.tenantId = tid;
-    }
+    const tid = await this.resolveTenantObjectId(tenantId);
+    const query: any = { tenantId: tid };
 
     // Fetch all manual adjustments (journal entries) - no date filter
     const adjustments = await this.manualAdjustmentModel.find(query).lean();

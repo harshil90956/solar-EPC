@@ -49,19 +49,22 @@ function CreateTenantModal({ isOpen, onClose, onCreate }) {
     slug: '',
     adminName: '',
     adminEmail: '',
+    adminPassword: '',
     description: '',
     plan: 'professional',
   });
 
+  const [createdCredentials, setCreatedCredentials] = useState(null);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // Transform data to match backend DTO
     const tenantData = {
       name: formData.name,
       companyName: formData.companyName || formData.name,
       slug: formData.slug || formData.name.toLowerCase().replace(/\s+/g, '-'),
       adminName: formData.adminName,
       adminEmail: formData.adminEmail,
+      adminPassword: formData.adminPassword,
       description: formData.description,
       plan: formData.plan.toLowerCase(),
       limits: {
@@ -74,19 +77,30 @@ function CreateTenantModal({ isOpen, onClose, onCreate }) {
 
     try {
       await onCreate(tenantData);
-      onClose();
-      setFormData({
-        name: '',
-        companyName: '',
-        slug: '',
-        adminName: '',
-        adminEmail: '',
-        description: '',
-        plan: 'professional',
+      setCreatedCredentials({
+        email: formData.adminEmail,
+        password: formData.adminPassword,
+        company: formData.name
       });
+      // Don't close immediately, show credentials first
     } catch (error) {
       console.error('Error creating tenant:', error);
     }
+  };
+
+  const handleDone = () => {
+    setCreatedCredentials(null);
+    setFormData({
+      name: '',
+      companyName: '',
+      slug: '',
+      adminName: '',
+      adminEmail: '',
+      adminPassword: '',
+      description: '',
+      plan: 'professional',
+    });
+    onClose();
   };
 
   if (!isOpen) return null;
@@ -95,103 +109,160 @@ function CreateTenantModal({ isOpen, onClose, onCreate }) {
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-auto">
         <div className="flex items-center justify-between p-6 border-b border-gray-100">
-          <h2 className="text-xl font-semibold text-gray-900">Create New Tenant</h2>
-          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600">
+          <h2 className="text-xl font-semibold text-gray-900">
+            {createdCredentials ? 'Tenant Created Successfully' : 'Create New Tenant'}
+          </h2>
+          <button onClick={handleDone} className="p-2 text-gray-400 hover:text-gray-600">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Company Name</label>
-              <div className="relative">
-                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  required
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter company name"
-                />
+        {createdCredentials ? (
+          <div className="p-6 space-y-6">
+            <div className="bg-green-50 border border-green-100 rounded-lg p-4 flex items-start gap-3">
+              <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5" />
+              <div>
+                <p className="text-green-800 font-medium">Initial Admin account has been created.</p>
+                <p className="text-green-700 text-sm mt-1">Please copy these credentials and provide them to the tenant admin.</p>
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Admin Name</label>
-              <div className="relative">
-                <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  required
-                  value={formData.adminName}
-                  onChange={(e) => setFormData({ ...formData, adminName: e.target.value })}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter admin name"
-                />
+            <div className="space-y-4">
+              <div className="p-4 bg-gray-50 rounded-lg border border-gray-100 space-y-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Company</label>
+                  <p className="text-sm font-semibold text-gray-900">{createdCredentials.company}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Admin Email</label>
+                  <p className="text-sm font-semibold text-gray-900">{createdCredentials.email}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Admin Password</label>
+                  <p className="text-sm font-mono font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded inline-block">
+                    {createdCredentials.password}
+                  </p>
+                </div>
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Admin Email</label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="email"
-                  required
-                  value={formData.adminEmail}
-                  onChange={(e) => setFormData({ ...formData, adminEmail: e.target.value })}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="admin@company.com"
-                />
-              </div>
+            <div className="flex justify-end pt-4 border-t border-gray-100">
+              <button
+                onClick={handleDone}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+              >
+                Done
+              </button>
             </div>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="p-6 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Company Name</label>
+                <div className="relative">
+                  <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    required
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter company name"
+                  />
+                </div>
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Plan</label>
-              <div className="relative">
-                <select
-                  value={formData.plan}
-                  onChange={(e) => setFormData({ ...formData, plan: e.target.value })}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Admin Name</label>
+                <div className="relative">
+                  <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    required
+                    value={formData.adminName}
+                    onChange={(e) => setFormData({ ...formData, adminName: e.target.value })}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter admin name"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Admin Email</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="email"
+                    required
+                    value={formData.adminEmail}
+                    onChange={(e) => setFormData({ ...formData, adminEmail: e.target.value })}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="admin@company.com"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Admin Password</label>
+                <div className="relative">
+                  <Power className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="password"
+                    required
+                    value={formData.adminPassword}
+                    onChange={(e) => setFormData({ ...formData, adminPassword: e.target.value })}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Create admin password"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Plan</label>
+                <div className="relative">
+                  <select
+                    value={formData.plan}
+                    onChange={(e) => setFormData({ ...formData, plan: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="free">Free</option>
+                    <option value="basic">Basic</option>
+                    <option value="professional">Professional</option>
+                    <option value="enterprise">Enterprise</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="free">Free</option>
-                  <option value="basic">Basic</option>
-                  <option value="professional">Professional</option>
-                  <option value="enterprise">Enterprise</option>
-                </select>
+                  rows={3}
+                  placeholder="Optional description..."
+                />
               </div>
             </div>
 
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                rows={3}
-                placeholder="Optional description..."
-              />
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={handleDone}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Create Tenant
+              </button>
             </div>
-          </div>
-
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Create Tenant
-            </button>
-          </div>
-        </form>
+          </form>
+        )}
       </div>
     </div>
   );
@@ -374,8 +445,10 @@ export default function Tenants() {
   const itemsPerPage = 10;
 
   const filteredTenants = tenants.filter(tenant => {
-    const matchesSearch = tenant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      tenant.adminEmail.toLowerCase().includes(searchQuery.toLowerCase());
+    const tenantName = tenant?.name || '';
+    const tenantEmail = tenant?.adminEmail || tenant?.email || '';
+    const matchesSearch = tenantName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      tenantEmail.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'All' || tenant.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -493,14 +566,14 @@ export default function Tenants() {
                 <tr key={tenant.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4">
                     <div>
-                      <p className="font-medium text-gray-900">{tenant.name}</p>
-                      <p className="text-sm text-gray-500">{tenant.adminEmail}</p>
+                      <p className="font-medium text-gray-900">{tenant?.name || 'N/A'}</p>
+                      <p className="text-sm text-gray-500">{tenant?.adminEmail || tenant?.email || 'N/A'}</p>
                     </div>
                   </td>
                   <td className="px-6 py-4">
                     <div>
-                      <p className="text-sm text-gray-900">{tenant.plan}</p>
-                      <p className="text-xs text-gray-500">${tenant.pricePerUser}/user • {tenant.billingType}</p>
+                      <p className="text-sm text-gray-900">{tenant?.plan || 'N/A'}</p>
+                      <p className="text-xs text-gray-500">${tenant?.pricePerUser || 0}/user • {tenant?.billingType || 'N/A'}</p>
                     </div>
                   </td>
                   <td className="px-6 py-4">
@@ -508,19 +581,19 @@ export default function Tenants() {
                       <div className="w-16 bg-gray-200 rounded-full h-2">
                         <div
                           className="bg-blue-600 h-2 rounded-full"
-                          style={{ width: `${(tenant.currentUsers / tenant.userLimit) * 100}%` }}
+                          style={{ width: `${(tenant.currentUsers || 0) / (tenant.userLimit || 1) * 100}%` }}
                         />
                       </div>
                       <span className="text-sm text-gray-600">
-                        {tenant.currentUsers}/{tenant.userLimit}
+                        {tenant.currentUsers || 0}/{tenant.userLimit || 0}
                       </span>
                     </div>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">
-                    {new Date(tenant.subscriptionExpiry).toLocaleDateString()}
+                    {tenant.subscriptionExpiry ? new Date(tenant.subscriptionExpiry).toLocaleDateString() : 'N/A'}
                   </td>
                   <td className="px-6 py-4">
-                    <StatusBadge status={tenant.status} />
+                    <StatusBadge status={tenant?.status || 'Active'} />
                   </td>
                   <td className="px-6 py-4 text-right">
                     <ActionMenu

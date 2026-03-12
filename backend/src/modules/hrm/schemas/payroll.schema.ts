@@ -1,12 +1,25 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { BaseSchemaDefinition, BaseSchemaOptions } from '../../../shared/database/base.schema';
 
 export type PayrollDocument = Payroll & Document;
 
-@Schema({ timestamps: true })
+@Schema({ ...BaseSchemaOptions, collection: 'hrmPayrolls', timestamps: true })
 export class Payroll {
+  @Prop({ ...BaseSchemaDefinition.tenantId })
+  tenantId!: Types.ObjectId;
+
+  @Prop({ ...BaseSchemaDefinition.isDeleted })
+  isDeleted!: boolean;
+
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Employee', required: true, index: true })
   employeeId!: Types.ObjectId;
+
+  @Prop({ required: true, min: 1, max: 12 })
+  month!: number;
+
+  @Prop({ required: true })
+  year!: number;
 
   @Prop({ required: true })
   baseSalary!: number;
@@ -19,12 +32,6 @@ export class Payroll {
 
   @Prop({ type: Number, default: 0 })
   bonus!: number;
-
-  @Prop({ required: true, min: 1, max: 12 })
-  month!: number;
-
-  @Prop({ required: true })
-  year!: number;
 
   @Prop({ type: Number, required: true })
   netSalary!: number;
@@ -41,9 +48,6 @@ export class Payroll {
   @Prop({ default: '' })
   paymentReference!: string;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Tenant', index: true })
-  tenantId?: Types.ObjectId;
-
   @Prop({ type: Date })
   createdAt!: Date;
 
@@ -52,6 +56,9 @@ export class Payroll {
 }
 
 export const PayrollSchema = SchemaFactory.createForClass(Payroll);
+
+PayrollSchema.index({ tenantId: 1, employeeId: 1, month: 1, year: 1 }, { unique: true });
+PayrollSchema.index({ tenantId: 1, year: 1, month: 1 });
 
 PayrollSchema.index({ employeeId: 1, month: 1, year: 1 }, { unique: true });
 PayrollSchema.index({ tenantId: 1, month: 1, year: 1 });

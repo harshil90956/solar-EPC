@@ -3,14 +3,31 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Attendance, AttendanceDocument, AttendanceStatus } from '../schemas/attendance.schema';
 import { CheckInDto, CheckOutDto } from '../dto/attendance.dto';
+import { Tenant, TenantDocument } from '../../../core/tenant/schemas/tenant.schema';
 
 @Injectable()
 export class AttendanceService {
   constructor(
     @InjectModel(Attendance.name) private readonly attendanceModel: Model<AttendanceDocument>,
+    @InjectModel(Tenant.name) private readonly tenantModel: Model<TenantDocument>,
   ) {}
 
+  private async resolveTenantObjectId(tenantId: string): Promise<Types.ObjectId> {
+    if (!tenantId) {
+      throw new BadRequestException('Tenant context is missing');
+    }
+    if (Types.ObjectId.isValid(tenantId)) {
+      return new Types.ObjectId(tenantId);
+    }
+    const tenant = await this.tenantModel.findOne({ code: tenantId }).lean();
+    if (!tenant) {
+      throw new BadRequestException(`Tenant not found for identifier: ${tenantId}`);
+    }
+    return (tenant as any)._id as Types.ObjectId;
+  }
+
   async checkIn(checkInDto: CheckInDto, tenantId?: string): Promise<Attendance> {
+    const tid = await this.resolveTenantObjectId(tenantId || '');
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -18,7 +35,7 @@ export class AttendanceService {
     const existingAttendance = await this.attendanceModel.findOne({
       employeeId: new Types.ObjectId(checkInDto.employeeId),
       date: today,
-      tenantId: tenantId && tenantId !== 'default' ? new Types.ObjectId(tenantId) : undefined,
+      tenantId: tid,
     });
 
     if (existingAttendance && existingAttendance.checkIn) {
@@ -52,20 +69,21 @@ export class AttendanceService {
       type: checkInDto.type,
       location: checkInDto.location,
       notes: checkInDto.notes,
-      tenantId: tenantId && tenantId !== 'default' ? new Types.ObjectId(tenantId) : undefined,
+      tenantId: tid,
     });
 
     return attendance.save();
   }
 
   async checkOut(checkOutDto: CheckOutDto, tenantId?: string): Promise<Attendance> {
+    const tid = await this.resolveTenantObjectId(tenantId || '');
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     const attendance = await this.attendanceModel.findOne({
       employeeId: new Types.ObjectId(checkOutDto.employeeId),
       date: today,
-      tenantId: tenantId && tenantId !== 'default' ? new Types.ObjectId(tenantId) : undefined,
+      tenantId: tid,
     });
 
     if (!attendance) {
@@ -106,11 +124,8 @@ export class AttendanceService {
   }
 
   async findAll(employeeId?: string, startDate?: Date, endDate?: Date, tenantId?: string): Promise<Attendance[]> {
-    const query: any = {};
-    
-    if (tenantId && tenantId !== 'default') {
-      query.tenantId = new Types.ObjectId(tenantId);
-    }
+    const tid = await this.resolveTenantObjectId(tenantId || '');
+    const query: any = { tenantId: tid };
     
     if (employeeId) {
       query.employeeId = new Types.ObjectId(employeeId);
@@ -134,13 +149,11 @@ export class AttendanceService {
   }
 
   async findByEmployeeId(employeeId: string, tenantId?: string): Promise<Attendance[]> {
+    const tid = await this.resolveTenantObjectId(tenantId || '');
     const query: any = { 
-      employeeId: new Types.ObjectId(employeeId) 
+      employeeId: new Types.ObjectId(employeeId),
+      tenantId: tid,
     };
-    
-    if (tenantId && tenantId !== 'default') {
-      query.tenantId = new Types.ObjectId(tenantId);
-    }
 
     return this.attendanceModel
       .find(query)
@@ -149,17 +162,15 @@ export class AttendanceService {
   }
 
   async getMonthlySummary(employeeId: string, month: number, year: number, tenantId?: string): Promise<any> {
+    const tid = await this.resolveTenantObjectId(tenantId || '');
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0);
 
     const query: any = {
       employeeId: new Types.ObjectId(employeeId),
       date: { $gte: startDate, $lte: endDate },
+      tenantId: tid,
     };
-
-    if (tenantId && tenantId !== 'default') {
-      query.tenantId = new Types.ObjectId(tenantId);
-    }
 
     const attendances = await this.attendanceModel.find(query).exec();
 
@@ -179,11 +190,8 @@ export class AttendanceService {
   }
 
   async update(id: string, updateData: Partial<Attendance>, tenantId?: string): Promise<Attendance> {
-    const query: any = { _id: new Types.ObjectId(id) };
-    
-    if (tenantId && tenantId !== 'default') {
-      query.tenantId = new Types.ObjectId(tenantId);
-    }
+    const tid = await this.resolveTenantObjectId(tenantId || '');
+    const query: any = { _id: new Types.ObjectId(id), tenantId: tid };
 
     const attendance = await this.attendanceModel.findOneAndUpdate(
       query,
@@ -199,11 +207,8 @@ export class AttendanceService {
   }
 
   async delete(id: string, tenantId?: string): Promise<void> {
-    const query: any = { _id: new Types.ObjectId(id) };
-    
-    if (tenantId && tenantId !== 'default') {
-      query.tenantId = new Types.ObjectId(tenantId);
-    }
+    const tid = await this.resolveTenantObjectId(tenantId || '');
+    const query: any = { _id: new Types.ObjectId(id), tenantId: tid };
 
     const result = await this.attendanceModel.deleteOne(query).exec();
     
@@ -213,14 +218,11 @@ export class AttendanceService {
   }
 
   async getTodaySummary(tenantId?: string): Promise<any> {
+    const tid = await this.resolveTenantObjectId(tenantId || '');
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const query: any = { date: today };
-    
-    if (tenantId && tenantId !== 'default') {
-      query.tenantId = new Types.ObjectId(tenantId);
-    }
+    const query: any = { date: today, tenantId: tid };
 
     const attendances = await this.attendanceModel.find(query).exec();
     

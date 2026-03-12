@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { BaseSchemaDefinition, BaseSchemaOptions } from '../../../shared/database/base.schema';
 
 export type LeaveDocument = Leave & Document;
 
@@ -22,8 +23,14 @@ export enum LeaveStatus {
   CANCELLED = 'cancelled',
 }
 
-@Schema({ timestamps: true })
+@Schema({ ...BaseSchemaOptions, collection: 'hrmLeaves', timestamps: true })
 export class Leave {
+  @Prop({ ...BaseSchemaDefinition.tenantId })
+  tenantId!: Types.ObjectId;
+
+  @Prop({ ...BaseSchemaDefinition.isDeleted })
+  isDeleted!: boolean;
+
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Employee', required: true, index: true })
   employeeId!: Types.ObjectId;
 
@@ -54,9 +61,6 @@ export class Leave {
   @Prop({ default: '' })
   rejectionReason!: string;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Tenant', index: true })
-  tenantId?: Types.ObjectId;
-
   @Prop({ type: Date })
   createdAt!: Date;
 
@@ -65,6 +69,9 @@ export class Leave {
 }
 
 export const LeaveSchema = SchemaFactory.createForClass(Leave);
+
+LeaveSchema.index({ tenantId: 1, employeeId: 1 });
+LeaveSchema.index({ tenantId: 1, status: 1 });
 
 LeaveSchema.index({ employeeId: 1, status: 1 });
 LeaveSchema.index({ tenantId: 1, status: 1 });

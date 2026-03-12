@@ -1,29 +1,38 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Payment, PaymentDocument } from '../schemas/payment.schema';
 import { CreatePaymentDto, UpdatePaymentDto } from '../dto/payment.dto';
+import { Tenant, TenantDocument } from '../../../core/tenant/schemas/tenant.schema';
 
 @Injectable()
 export class PaymentService {
   constructor(
     @InjectModel(Payment.name) private readonly paymentModel: Model<PaymentDocument>,
+    @InjectModel(Tenant.name) private readonly tenantModel: Model<TenantDocument>,
   ) {}
 
-  private toObjectId(id: string | undefined): Types.ObjectId | undefined {
-    if (!id) return undefined;
-    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(id);
-    if (!isValidObjectId) return undefined;
-    try {
-      return new Types.ObjectId(id);
-    } catch {
-      return undefined;
+  private async resolveTenantObjectId(tenantId: string): Promise<Types.ObjectId> {
+    if (!tenantId) {
+      throw new BadRequestException('Tenant context is missing');
     }
+    if (Types.ObjectId.isValid(tenantId)) {
+      return new Types.ObjectId(tenantId);
+    }
+    const tenant = await this.tenantModel.findOne({ code: tenantId }).lean();
+    if (!tenant) {
+      throw new BadRequestException(`Tenant not found for identifier: ${tenantId}`);
+    }
+    return (tenant as any)._id as Types.ObjectId;
+  }
+
+  private notDeletedMatch() {
+    return { isDeleted: false };
   }
 
   async findAll(tenantId: string, invoiceId?: string): Promise<Payment[]> {
-    const tid = this.toObjectId(tenantId);
-    const query: any = tid ? { tenantId: tid } : {};
+    const tid = await this.resolveTenantObjectId(tenantId);
+    const query: any = { tenantId: tid, ...this.notDeletedMatch() };
     if (invoiceId) {
       query.invoiceId = new Types.ObjectId(invoiceId);
     }
@@ -31,10 +40,11 @@ export class PaymentService {
   }
 
   async findById(tenantId: string, id: string): Promise<Payment> {
-    const tid = this.toObjectId(tenantId);
+    const tid = await this.resolveTenantObjectId(tenantId);
     const payment = await this.paymentModel.findOne({
       _id: new Types.ObjectId(id),
-      ...(tid ? { tenantId: tid } : {}),
+      tenantId: tid,
+      ...this.notDeletedMatch(),
     }).lean();
 
     if (!payment) {
@@ -45,9 +55,10 @@ export class PaymentService {
   }
 
   async create(tenantId: string, dto: CreatePaymentDto): Promise<Payment> {
+    const tid = await this.resolveTenantObjectId(tenantId);
     const payment = new this.paymentModel({
       ...dto,
-      tenantId: this.toObjectId(tenantId),
+      tenantId: tid,
       invoiceId: new Types.ObjectId(dto.invoiceId),
       paymentDate: new Date(dto.paymentDate),
     });
@@ -57,10 +68,11 @@ export class PaymentService {
   }
 
   async update(tenantId: string, id: string, dto: UpdatePaymentDto): Promise<Payment> {
+    const tid = await this.resolveTenantObjectId(tenantId);
     const existing = await this.findById(tenantId, id);
 
     const updated = await this.paymentModel.findOneAndUpdate(
-      { _id: new Types.ObjectId(id), tenantId: this.toObjectId(tenantId) },
+      { _id: new Types.ObjectId(id), tenantId: tid },
       {
         ...dto,
         invoiceId: dto.invoiceId ? new Types.ObjectId(dto.invoiceId) : existing.invoiceId,
@@ -77,9 +89,10 @@ export class PaymentService {
   }
 
   async delete(tenantId: string, id: string): Promise<void> {
+    const tid = await this.resolveTenantObjectId(tenantId);
     const result = await this.paymentModel.findOneAndDelete({
       _id: new Types.ObjectId(id),
-      tenantId: new Types.ObjectId(tenantId),
+      tenantId: tid,
     });
 
     if (!result) {

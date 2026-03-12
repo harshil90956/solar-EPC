@@ -4,13 +4,29 @@ import { Model, Types } from 'mongoose';
 import * as bcrypt from 'bcryptjs';
 import { Employee, EmployeeDocument } from '../schemas/employee.schema';
 import { CreateEmployeeDto, UpdateEmployeeDto } from '../dto/employee.dto';
+import { Tenant, TenantDocument } from '../../../core/tenant/schemas/tenant.schema';
 
 @Injectable()
 export class EmployeeService {
   constructor(
     @InjectModel(Employee.name) private readonly employeeModel: Model<EmployeeDocument>,
     @InjectModel('User') private readonly userModel: Model<any>,
+    @InjectModel(Tenant.name) private readonly tenantModel: Model<TenantDocument>,
   ) {}
+
+  private async resolveTenantObjectId(tenantId: string): Promise<Types.ObjectId> {
+    if (!tenantId) {
+      throw new BadRequestException('Tenant context is missing');
+    }
+    if (Types.ObjectId.isValid(tenantId)) {
+      return new Types.ObjectId(tenantId);
+    }
+    const tenant = await this.tenantModel.findOne({ code: tenantId }).lean();
+    if (!tenant) {
+      throw new BadRequestException(`Tenant not found for identifier: ${tenantId}`);
+    }
+    return (tenant as any)._id as Types.ObjectId;
+  }
 
   private generateEmployeeId(): string {
     const timestamp = Date.now().toString(36).toUpperCase();
@@ -21,11 +37,13 @@ export class EmployeeService {
   async create(createEmployeeDto: CreateEmployeeDto, tenantId?: string): Promise<Employee> {
     console.log('[DEBUG] EmployeeService.create called with:', createEmployeeDto, 'tenantId:', tenantId);
     
+    const tid = await this.resolveTenantObjectId(tenantId || '');
+    
     // Build query for duplicate check
-    const duplicateQuery: any = { employeeId: createEmployeeDto.employeeId };
-    if (tenantId && tenantId !== 'default') {
-      duplicateQuery.tenantId = new Types.ObjectId(tenantId);
-    }
+    const duplicateQuery: any = { 
+      employeeId: createEmployeeDto.employeeId,
+      tenantId: tid,
+    };
     
     // Check if employeeId already exists for this tenant
     console.log('[DEBUG] Checking duplicate employeeId:', duplicateQuery);
@@ -37,10 +55,10 @@ export class EmployeeService {
     }
 
     // Build email query for duplicate check
-    const emailQuery: any = { email: createEmployeeDto.email.toLowerCase() };
-    if (tenantId && tenantId !== 'default') {
-      emailQuery.tenantId = new Types.ObjectId(tenantId);
-    }
+    const emailQuery: any = { 
+      email: createEmployeeDto.email.toLowerCase(),
+      tenantId: tid,
+    };
     
     // Check if email already exists for this tenant
     console.log('[DEBUG] Checking duplicate email:', emailQuery);
@@ -51,10 +69,10 @@ export class EmployeeService {
       throw new BadRequestException(`Employee with email ${createEmployeeDto.email} already exists`);
     }
 
-    const employeeData: any = { ...createEmployeeDto };
-    if (tenantId && tenantId !== 'default') {
-      employeeData.tenantId = new Types.ObjectId(tenantId);
-    }
+    const employeeData: any = { 
+      ...createEmployeeDto,
+      tenantId: tid,
+    };
 
     // Convert joiningDate from string to Date if needed
     if (employeeData.joiningDate && typeof employeeData.joiningDate === 'string') {
@@ -83,10 +101,8 @@ export class EmployeeService {
 
   async findAll(tenantId?: string): Promise<Employee[]> {
     console.log('[DEBUG] EmployeeService.findAll called with tenantId:', tenantId);
-    const query: any = {};
-    if (tenantId && tenantId !== 'default') {
-      query.tenantId = new Types.ObjectId(tenantId);
-    }
+    const tid = await this.resolveTenantObjectId(tenantId || '');
+    const query: any = { tenantId: tid };
     console.log('[DEBUG] Employee findAll query:', query);
     const employees = await this.employeeModel
       .find(query)
@@ -98,10 +114,8 @@ export class EmployeeService {
   }
 
   async findOne(id: string, tenantId?: string): Promise<Employee> {
-    const query: any = { _id: new Types.ObjectId(id) };
-    if (tenantId && tenantId !== 'default') {
-      query.tenantId = new Types.ObjectId(tenantId);
-    }
+    const tid = await this.resolveTenantObjectId(tenantId || '');
+    const query: any = { _id: new Types.ObjectId(id), tenantId: tid };
 
     const employee = await this.employeeModel
       .findOne(query)
@@ -116,10 +130,8 @@ export class EmployeeService {
   }
 
   async findByEmployeeId(employeeId: string, tenantId?: string): Promise<Employee> {
-    const query: any = { employeeId };
-    if (tenantId && tenantId !== 'default') {
-      query.tenantId = new Types.ObjectId(tenantId);
-    }
+    const tid = await this.resolveTenantObjectId(tenantId || '');
+    const query: any = { employeeId, tenantId: tid };
 
     const employee = await this.employeeModel
       .findOne(query)
@@ -134,16 +146,14 @@ export class EmployeeService {
   }
 
   async update(id: string, updateEmployeeDto: UpdateEmployeeDto, tenantId?: string): Promise<Employee> {
-    const query: any = { _id: new Types.ObjectId(id) };
-    if (tenantId && tenantId !== 'default') {
-      query.tenantId = new Types.ObjectId(tenantId);
-    }
+    const tid = await this.resolveTenantObjectId(tenantId || '');
+    const query: any = { _id: new Types.ObjectId(id), tenantId: tid };
 
     // Check if email is being updated and if it already exists
     if (updateEmployeeDto.email) {
       const existingEmail = await this.employeeModel.findOne({
         email: updateEmployeeDto.email.toLowerCase(),
-        tenantId: tenantId ? new Types.ObjectId(tenantId) : undefined,
+        tenantId: tid,
         _id: { $ne: new Types.ObjectId(id) },
       });
 
@@ -169,10 +179,8 @@ export class EmployeeService {
   }
 
   async remove(id: string, tenantId?: string): Promise<{ deleted: boolean }> {
-    const query: any = { _id: new Types.ObjectId(id) };
-    if (tenantId && tenantId !== 'default') {
-      query.tenantId = new Types.ObjectId(tenantId);
-    }
+    const tid = await this.resolveTenantObjectId(tenantId || '');
+    const query: any = { _id: new Types.ObjectId(id), tenantId: tid };
 
     const result = await this.employeeModel.deleteOne(query).exec();
 
@@ -184,18 +192,14 @@ export class EmployeeService {
   }
 
   async countByStatus(status: string, tenantId?: string): Promise<number> {
-    const query: any = { status };
-    if (tenantId && tenantId !== 'default') {
-      query.tenantId = new Types.ObjectId(tenantId);
-    }
+    const tid = await this.resolveTenantObjectId(tenantId || '');
+    const query: any = { status, tenantId: tid };
     return this.employeeModel.countDocuments(query).exec();
   }
 
   async findByDepartment(department: string, tenantId?: string): Promise<Employee[]> {
-    const query: any = { department };
-    if (tenantId && tenantId !== 'default') {
-      query.tenantId = new Types.ObjectId(tenantId);
-    }
+    const tid = await this.resolveTenantObjectId(tenantId || '');
+    const query: any = { department, tenantId: tid };
     return this.employeeModel
       .find(query)
       .populate('roleId', 'roleId label color')
@@ -204,10 +208,8 @@ export class EmployeeService {
   }
 
   async findByRole(roleId: string, tenantId?: string): Promise<Employee[]> {
-    const query: any = { roleId: new Types.ObjectId(roleId) };
-    if (tenantId && tenantId !== 'default') {
-      query.tenantId = new Types.ObjectId(tenantId);
-    }
+    const tid = await this.resolveTenantObjectId(tenantId || '');
+    const query: any = { roleId: new Types.ObjectId(roleId), tenantId: tid };
     return this.employeeModel
       .find(query)
       .populate('roleId', 'roleId label color')
@@ -218,33 +220,13 @@ export class EmployeeService {
   async validateLogin(email: string, password: string, tenantId?: string): Promise<Employee | null> {
     console.log('[DEBUG] validateLogin called with email:', email, 'tenantId:', tenantId);
     
+    const tid = await this.resolveTenantObjectId(tenantId || '');
+    
     // Build query to find employee by email
-    // Search for employees with: matching tenantId OR null tenantId OR missing tenantId
-    let query: any = { email: email.toLowerCase() };
-    
-    // Only use tenantId in query if it's a valid ObjectId
-    const isValidTenantId = tenantId && tenantId !== 'default' && Types.ObjectId.isValid(tenantId);
-    
-    if (isValidTenantId) {
-      // Search for employees with matching tenantId OR null/undefined tenantId
-      query = {
-        email: email.toLowerCase(),
-        $or: [
-          { tenantId: new Types.ObjectId(tenantId) },
-          { tenantId: null },
-          { tenantId: { $exists: false } }
-        ]
-      };
-    } else {
-      // For 'default' tenant or invalid tenantId strings, search employees with null/missing tenantId only
-      query = {
-        email: email.toLowerCase(),
-        $or: [
-          { tenantId: null },
-          { tenantId: { $exists: false } }
-        ]
-      };
-    }
+    const query: any = { 
+      email: email.toLowerCase(),
+      tenantId: tid,
+    };
     
     console.log('[DEBUG] Login query:', JSON.stringify(query));
     
@@ -258,20 +240,10 @@ export class EmployeeService {
     // If employee not found, check users collection and auto-create
     if (!employee) {
       console.log('[DEBUG] Checking users collection for fallback...');
-      const userQuery: any = { email: email.toLowerCase() };
-      // NOTE: User.tenantId is ObjectId type; do not query with string 'default'
-      if (tenantId && tenantId !== 'default' && Types.ObjectId.isValid(tenantId)) {
-        userQuery.$or = [
-          { tenantId: new Types.ObjectId(tenantId) },
-          { tenantId: null },
-          { tenantId: { $exists: false } }
-        ];
-      } else {
-        userQuery.$or = [
-          { tenantId: null },
-          { tenantId: { $exists: false } }
-        ];
-      }
+      const userQuery: any = { 
+        email: email.toLowerCase(),
+        tenantId: tid,
+      };
       
       const user = await this.userModel.findOne(userQuery).exec();
       console.log('[DEBUG] User found in users collection:', user ? 'YES' : 'NO');
@@ -304,6 +276,7 @@ export class EmployeeService {
           designation: user.role || 'Staff',
           status: 'active',
           roleId: user.roleId || user.role,
+          tenantId: tid,
         };
         
         const newEmployee = new this.employeeModel(newEmployeeData);

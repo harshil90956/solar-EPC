@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { AdjustmentCategory, AdjustmentCategoryDocument } from '../schemas';
@@ -10,23 +10,10 @@ export class AdjustmentCategoryService {
     @InjectModel(AdjustmentCategory.name) private readonly categoryModel: Model<AdjustmentCategoryDocument>,
   ) {}
 
-  private toObjectId(id: string | undefined): Types.ObjectId | undefined {
-    if (!id) return undefined;
-    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(id);
-    if (!isValidObjectId) return undefined;
-    try {
-      return new Types.ObjectId(id);
-    } catch {
-      return undefined;
-    }
-  }
-
   async findAll(tenantId: string): Promise<AdjustmentCategory[]> {
-    const tid = this.toObjectId(tenantId);
-    const query: any = { isDeleted: false };
-    if (tid) {
-      query.tenantId = tid;
-    }
+    const tid = new Types.ObjectId(tenantId);
+    const query = { tenantId: tid, isDeleted: false };
+    
     const results = await this.categoryModel
       .find(query)
       .sort({ categoryName: 1 })
@@ -42,11 +29,9 @@ export class AdjustmentCategoryService {
   }
 
   async findByType(tenantId: string, type: 'credit' | 'debit'): Promise<AdjustmentCategory[]> {
-    const tid = this.toObjectId(tenantId);
-    const query: any = { isDeleted: false, type };
-    if (tid) {
-      query.tenantId = tid;
-    }
+    const tid = new Types.ObjectId(tenantId);
+    const query = { tenantId: tid, isDeleted: false, type };
+    
     const results = await this.categoryModel
       .find(query)
       .sort({ categoryName: 1 })
@@ -62,16 +47,13 @@ export class AdjustmentCategoryService {
   }
 
   async create(tenantId: string, dto: CreateAdjustmentCategoryDto, userId?: string): Promise<AdjustmentCategory> {
-    // Check if category with same name already exists for this tenant
-    const tid = this.toObjectId(tenantId);
-    const existingQuery: any = { 
+    const tid = new Types.ObjectId(tenantId);
+    const existingQuery = { 
+      tenantId: tid,
       isDeleted: false, 
       categoryName: { $regex: new RegExp(`^${dto.categoryName}$`, 'i') },
       type: dto.type
     };
-    if (tid) {
-      existingQuery.tenantId = tid;
-    }
     
     const existing = await this.categoryModel.findOne(existingQuery).lean();
     if (existing) {
@@ -81,7 +63,7 @@ export class AdjustmentCategoryService {
     const createdByObjectId = userId && Types.ObjectId.isValid(userId) ? new Types.ObjectId(userId) : undefined;
 
     const category = new this.categoryModel({
-      tenantId: this.toObjectId(tenantId),
+      tenantId: tid,
       categoryName: dto.categoryName,
       type: dto.type,
       createdBy: createdByObjectId,
@@ -98,17 +80,10 @@ export class AdjustmentCategoryService {
     dto: UpdateAdjustmentCategoryDto,
     userId?: string,
   ): Promise<AdjustmentCategory> {
-    const tid = this.toObjectId(tenantId);
-    const catId = this.toObjectId(categoryId);
+    const tid = new Types.ObjectId(tenantId);
+    const catId = new Types.ObjectId(categoryId);
 
-    if (!catId) {
-      throw new BadRequestException('Invalid category ID');
-    }
-
-    const query: any = { _id: catId, isDeleted: false };
-    if (tid) {
-      query.tenantId = tid;
-    }
+    const query = { _id: catId, tenantId: tid, isDeleted: false };
 
     const category = await this.categoryModel.findOne(query);
     if (!category) {
@@ -117,15 +92,13 @@ export class AdjustmentCategoryService {
 
     // Check for duplicate name if updating name
     if (dto.categoryName) {
-      const duplicateQuery: any = {
+      const duplicateQuery = {
         _id: { $ne: catId },
+        tenantId: tid,
         isDeleted: false,
         categoryName: { $regex: new RegExp(`^${dto.categoryName}$`, 'i') },
         type: dto.type || category.type,
       };
-      if (tid) {
-        duplicateQuery.tenantId = tid;
-      }
 
       const duplicate = await this.categoryModel.findOne(duplicateQuery).lean();
       if (duplicate) {
@@ -141,17 +114,10 @@ export class AdjustmentCategoryService {
   }
 
   async delete(tenantId: string, categoryId: string): Promise<{ success: boolean }> {
-    const tid = this.toObjectId(tenantId);
-    const catId = this.toObjectId(categoryId);
+    const tid = new Types.ObjectId(tenantId);
+    const catId = new Types.ObjectId(categoryId);
 
-    if (!catId) {
-      throw new BadRequestException('Invalid category ID');
-    }
-
-    const query: any = { _id: catId, isDeleted: false };
-    if (tid) {
-      query.tenantId = tid;
-    }
+    const query = { _id: catId, tenantId: tid, isDeleted: false };
 
     const category = await this.categoryModel.findOne(query);
     if (!category) {

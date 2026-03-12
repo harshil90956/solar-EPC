@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { JournalEntry, JournalEntryDocument, JournalEntryLine } from '../schemas/journal-entry.schema';
@@ -12,17 +12,6 @@ export class JournalEntryService {
     @InjectModel(ManualAdjustment.name) private readonly manualAdjustmentModel: Model<ManualAdjustmentDocument>,
   ) {}
 
-  private toObjectId(id: string | undefined): Types.ObjectId | undefined {
-    if (!id) return undefined;
-    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(id);
-    if (!isValidObjectId) return undefined;
-    try {
-      return new Types.ObjectId(id);
-    } catch {
-      return undefined;
-    }
-  }
-
   private generateJournalEntryId(): string {
     const prefix = 'JE';
     const timestamp = Date.now().toString(36).toUpperCase();
@@ -31,11 +20,8 @@ export class JournalEntryService {
   }
 
   async findAll(tenantId: string): Promise<JournalEntry[]> {
-    const tid = this.toObjectId(tenantId);
-    const query: any = { isDeleted: false };
-    if (tid) {
-      query.tenantId = tid;
-    }
+    const tid = new Types.ObjectId(tenantId);
+    const query = { tenantId: tid, isDeleted: false };
     return this.journalEntryModel
       .find(query)
       .sort({ date: -1, createdAt: -1 })
@@ -43,25 +29,20 @@ export class JournalEntryService {
   }
 
   async findById(tenantId: string, id: string): Promise<JournalEntry | null> {
-    const tid = this.toObjectId(tenantId);
-    const query: any = { isDeleted: false, _id: id };
-    if (tid) {
-      query.tenantId = tid;
-    }
+    const tid = new Types.ObjectId(tenantId);
+    const query = { _id: new Types.ObjectId(id), tenantId: tid, isDeleted: false };
     return this.journalEntryModel.findOne(query).lean();
   }
 
   async findByAdjustmentId(tenantId: string, adjustmentId: string): Promise<JournalEntry | null> {
-    const tid = this.toObjectId(tenantId);
-    const adjustmentObjId = this.toObjectId(adjustmentId);
-    const query: any = { isDeleted: false, relatedAdjustmentId: adjustmentObjId };
-    if (tid) {
-      query.tenantId = tid;
-    }
+    const tid = new Types.ObjectId(tenantId);
+    const adjustmentObjId = new Types.ObjectId(adjustmentId);
+    const query = { tenantId: tid, relatedAdjustmentId: adjustmentObjId, isDeleted: false };
     return this.journalEntryModel.findOne(query).lean();
   }
 
   async create(tenantId: string, dto: CreateJournalEntryDto, userId?: string): Promise<JournalEntry> {
+    const tid = new Types.ObjectId(tenantId);
     // Validate that total debits equals total credits
     const totalDebit = dto.lines.reduce((sum, line) => sum + (line.debitAmount || 0), 0);
     const totalCredit = dto.lines.reduce((sum, line) => sum + (line.creditAmount || 0), 0);
@@ -77,7 +58,7 @@ export class JournalEntryService {
     const createdByObjectId = userId && Types.ObjectId.isValid(userId) ? new Types.ObjectId(userId) : undefined;
 
     const entry = new this.journalEntryModel({
-      tenantId: this.toObjectId(tenantId),
+      tenantId: tid,
       journalEntryId: this.generateJournalEntryId(),
       date: new Date(dto.date),
       narration: dto.narration,
@@ -85,7 +66,7 @@ export class JournalEntryService {
       lines: dto.lines,
       totalDebit,
       totalCredit,
-      relatedAdjustmentId: this.toObjectId(dto.relatedAdjustmentId),
+      relatedAdjustmentId: dto.relatedAdjustmentId ? new Types.ObjectId(dto.relatedAdjustmentId) : undefined,
       createdBy: createdByObjectId,
       isDeleted: false,
       lf: dto.lf,
@@ -150,11 +131,8 @@ export class JournalEntryService {
   }
 
   async delete(tenantId: string, id: string): Promise<void> {
-    const tid = this.toObjectId(tenantId);
-    const query: any = { isDeleted: false, _id: id };
-    if (tid) {
-      query.tenantId = tid;
-    }
+    const tid = new Types.ObjectId(tenantId);
+    const query = { _id: new Types.ObjectId(id), tenantId: tid, isDeleted: false };
 
     // Find the journal entry first to get relatedAdjustmentId
     const journalEntry = await this.journalEntryModel.findOne(query);

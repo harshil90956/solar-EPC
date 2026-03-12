@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcryptjs';
@@ -72,18 +72,31 @@ export class AuthService {
   }
 
   async createUser(tenantCode: string, createUserDto: CreateUserDto) {
-    const tenant = await this.tenantModel.findOne({ code: tenantCode }).lean();
-    if (!tenant) {
-      throw new NotFoundException(`Tenant ${tenantCode} not found`);
+    let tenantId: string;
+    
+    if (createUserDto.tenantId) {
+      tenantId = createUserDto.tenantId;
+    } else {
+      const tenant = await this.tenantModel.findOne({ code: tenantCode }).lean();
+      if (!tenant) {
+        // Fallback: check slug if code doesn't exist
+        const tenantBySlug = await this.tenantModel.findOne({ slug: tenantCode }).lean();
+        if (!tenantBySlug) {
+          throw new NotFoundException(`Tenant ${tenantCode} not found`);
+        }
+        tenantId = tenantBySlug._id.toString();
+      } else {
+        tenantId = tenant._id.toString();
+      }
     }
 
     const existingUser = await this.userModel.findOne({
       email: createUserDto.email.toLowerCase(),
-      tenantId: tenant._id,
+      tenantId: new Types.ObjectId(tenantId),
     }).lean();
 
     if (existingUser) {
-      throw new NotFoundException('User with this email already exists');
+      throw new BadRequestException('User with this email already exists in this tenant');
     }
 
     const passwordHash = await bcrypt.hash(createUserDto.password, 10);
@@ -92,7 +105,7 @@ export class AuthService {
       email: createUserDto.email.toLowerCase(),
       passwordHash,
       role: createUserDto.role,
-      tenantId: tenant._id,
+      tenantId: new Types.ObjectId(tenantId),
       isSuperAdmin: createUserDto.isSuperAdmin || false,
       isActive: true,
     });
