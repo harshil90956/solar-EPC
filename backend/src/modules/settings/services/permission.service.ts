@@ -1,8 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
 import { FeatureFlagService } from './feature-flag.service';
 import { RBACService } from './rbac.service';
 import { CustomRoleService } from './custom-role.service';
 import { UserOverrideService } from './user-override.service';
+import { Employee, EmployeeDocument } from '../../hrm/schemas/employee.schema';
 
 // Permission resolution result
 export interface PermissionResult {
@@ -23,6 +26,7 @@ export class PermissionService {
   private readonly logger = new Logger(PermissionService.name);
 
   constructor(
+    @InjectModel(Employee.name) private employeeModel: Model<EmployeeDocument>,
     private featureFlagService: FeatureFlagService,
     private rbacService: RBACService,
     private customRoleService: CustomRoleService,
@@ -45,12 +49,16 @@ export class PermissionService {
     actionId: string,
   ): Promise<PermissionResult> {
     // Check if this is an admin-like role (for fallback)
+    // Custom roles (starting with custom_) must NEVER hit this auto-grant fallback.
     const roleLower = baseRoleId.toLowerCase();
-    const isAdminLike = roleLower === 'admin' 
+    const isCustomRole = roleLower.startsWith('custom_');
+    const isAdminLike = !isCustomRole && (
+         roleLower === 'admin' 
       || roleLower === 'superadmin' 
       || roleLower === 'super-admin'
       || roleLower === 'manager'
-      || roleLower === 'supervisor';
+      || roleLower === 'supervisor'
+    );
 
     // ─────────────────────────────────────────────────────────────────────
     // STEP 1: Feature Flag Check (Global Kill Switch)
@@ -91,7 +99,24 @@ export class PermissionService {
     // ─────────────────────────────────────────────────────────────────────
     // STEP 3: Custom Role Check
     // ─────────────────────────────────────────────────────────────────────
-    const customRoleId = await this.userOverrideService.getCustomRoleId(tenantId, userId);
+    let customRoleId = await this.userOverrideService.getCustomRoleId(tenantId, userId);
+
+    // HRM employee fallback:
+    // HRM assigns roles via employees.roleId (not useroverrides.customRoleId).
+    // If no customRoleId is found via user override, treat employee.roleId as customRoleId.
+    if (!customRoleId && userId && Types.ObjectId.isValid(userId)) {
+      const tid = tenantId && Types.ObjectId.isValid(tenantId) ? new Types.ObjectId(tenantId) : undefined;
+      const employee = await this.employeeModel.findOne({
+        _id: new Types.ObjectId(userId),
+        ...(tid ? { tenantId: tid } : {}),
+      }).select('roleId').lean();
+
+      const empRoleId = (employee as any)?.roleId;
+      if (typeof empRoleId === 'string' && empRoleId.toLowerCase().startsWith('custom_')) {
+        customRoleId = empRoleId;
+      }
+    }
+
     if (customRoleId) {
       const customPerm = await this.customRoleService.getPermission(
         tenantId, 

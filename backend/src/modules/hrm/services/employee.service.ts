@@ -14,16 +14,16 @@ export class EmployeeService {
     @InjectModel(Tenant.name) private readonly tenantModel: Model<TenantDocument>,
   ) {}
 
-  private async resolveTenantObjectId(tenantId: string): Promise<Types.ObjectId> {
-    if (!tenantId) {
-      throw new BadRequestException('Tenant context is missing');
+  private async resolveTenantObjectId(tenantId: string): Promise<Types.ObjectId | null> {
+    if (!tenantId || tenantId === 'ANY_TENANT') {
+      return null;
     }
     if (Types.ObjectId.isValid(tenantId)) {
       return new Types.ObjectId(tenantId);
     }
     const tenant = await this.tenantModel.findOne({ code: tenantId }).lean();
     if (!tenant) {
-      throw new BadRequestException(`Tenant not found for identifier: ${tenantId}`);
+      return null;
     }
     return (tenant as any)._id as Types.ObjectId;
   }
@@ -38,6 +38,9 @@ export class EmployeeService {
     console.log('[DEBUG] EmployeeService.create called with:', createEmployeeDto, 'tenantId:', tenantId);
     
     const tid = await this.resolveTenantObjectId(tenantId || '');
+    if (!tid) {
+      throw new BadRequestException('Tenant context is missing or invalid');
+    }
     
     // Build query for duplicate check
     const duplicateQuery: any = { 
@@ -102,7 +105,7 @@ export class EmployeeService {
   async findAll(tenantId?: string): Promise<Employee[]> {
     console.log('[DEBUG] EmployeeService.findAll called with tenantId:', tenantId);
     const tid = await this.resolveTenantObjectId(tenantId || '');
-    const query: any = { tenantId: tid };
+    const query: any = tid ? { tenantId: tid } : {};
     console.log('[DEBUG] Employee findAll query:', query);
     const employees = await this.employeeModel
       .find(query)
@@ -115,7 +118,8 @@ export class EmployeeService {
 
   async findOne(id: string, tenantId?: string): Promise<Employee> {
     const tid = await this.resolveTenantObjectId(tenantId || '');
-    const query: any = { _id: new Types.ObjectId(id), tenantId: tid };
+    const query: any = { _id: new Types.ObjectId(id) };
+    if (tid) query.tenantId = tid;
 
     const employee = await this.employeeModel
       .findOne(query)
@@ -131,7 +135,8 @@ export class EmployeeService {
 
   async findByEmployeeId(employeeId: string, tenantId?: string): Promise<Employee> {
     const tid = await this.resolveTenantObjectId(tenantId || '');
-    const query: any = { employeeId, tenantId: tid };
+    const query: any = { employeeId };
+    if (tid) query.tenantId = tid;
 
     const employee = await this.employeeModel
       .findOne(query)
@@ -139,7 +144,7 @@ export class EmployeeService {
       .exec();
 
     if (!employee) {
-      throw new NotFoundException(`Employee with employee ID ${employeeId} not found`);
+      throw new NotFoundException(`Employee with ID ${employeeId} not found`);
     }
 
     return employee;
@@ -147,15 +152,18 @@ export class EmployeeService {
 
   async update(id: string, updateEmployeeDto: UpdateEmployeeDto, tenantId?: string): Promise<Employee> {
     const tid = await this.resolveTenantObjectId(tenantId || '');
-    const query: any = { _id: new Types.ObjectId(id), tenantId: tid };
+    const query: any = { _id: new Types.ObjectId(id) };
+    if (tid) query.tenantId = tid;
 
     // Check if email is being updated and if it already exists
     if (updateEmployeeDto.email) {
-      const existingEmail = await this.employeeModel.findOne({
+      const existingEmailQuery: any = {
         email: updateEmployeeDto.email.toLowerCase(),
-        tenantId: tid,
         _id: { $ne: new Types.ObjectId(id) },
-      });
+      };
+      if (tid) existingEmailQuery.tenantId = tid;
+      
+      const existingEmail = await this.employeeModel.findOne(existingEmailQuery);
 
       if (existingEmail) {
         throw new BadRequestException(`Employee with email ${updateEmployeeDto.email} already exists`);
@@ -168,7 +176,6 @@ export class EmployeeService {
         { $set: updateEmployeeDto },
         { new: true }
       )
-      .populate('roleId', 'roleId label color permissions')
       .exec();
 
     if (!employee) {
@@ -178,42 +185,33 @@ export class EmployeeService {
     return employee;
   }
 
-  async remove(id: string, tenantId?: string): Promise<{ deleted: boolean }> {
+  async remove(id: string, tenantId?: string): Promise<any> {
     const tid = await this.resolveTenantObjectId(tenantId || '');
-    const query: any = { _id: new Types.ObjectId(id), tenantId: tid };
+    const query: any = { _id: new Types.ObjectId(id) };
+    if (tid) query.tenantId = tid;
 
-    const result = await this.employeeModel.deleteOne(query).exec();
-
-    if (result.deletedCount === 0) {
-      throw new NotFoundException(`Employee with ID ${id} not found`);
-    }
-
-    return { deleted: true };
-  }
-
-  async countByStatus(status: string, tenantId?: string): Promise<number> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
-    const query: any = { status, tenantId: tid };
-    return this.employeeModel.countDocuments(query).exec();
+    return this.employeeModel.deleteOne(query).exec();
   }
 
   async findByDepartment(department: string, tenantId?: string): Promise<Employee[]> {
     const tid = await this.resolveTenantObjectId(tenantId || '');
-    const query: any = { department, tenantId: tid };
+    const query: any = { department };
+    if (tid) query.tenantId = tid;
+
     return this.employeeModel
       .find(query)
       .populate('roleId', 'roleId label color')
-      .sort({ createdAt: -1 })
       .exec();
   }
 
   async findByRole(roleId: string, tenantId?: string): Promise<Employee[]> {
     const tid = await this.resolveTenantObjectId(tenantId || '');
-    const query: any = { roleId: new Types.ObjectId(roleId), tenantId: tid };
+    const query: any = { roleId };
+    if (tid) query.tenantId = tid;
+
     return this.employeeModel
       .find(query)
       .populate('roleId', 'roleId label color')
-      .sort({ createdAt: -1 })
       .exec();
   }
 
@@ -225,8 +223,10 @@ export class EmployeeService {
     // Build query to find employee by email
     const query: any = { 
       email: email.toLowerCase(),
-      tenantId: tid,
     };
+    if (tid) {
+      query.tenantId = tid;
+    }
     
     console.log('[DEBUG] Login query:', JSON.stringify(query));
     
@@ -235,15 +235,15 @@ export class EmployeeService {
       .populate('roleId', 'roleId label color permissions')
       .exec();
 
-    console.log('[DEBUG] Employee found:', employee ? 'YES' : 'NO');
-    
-    // If employee not found, check users collection and auto-create
     if (!employee) {
+      // If employee not found, check users collection and auto-create
       console.log('[DEBUG] Checking users collection for fallback...');
       const userQuery: any = { 
         email: email.toLowerCase(),
-        tenantId: tid,
       };
+      if (tid) {
+        userQuery.tenantId = tid;
+      }
       
       const user = await this.userModel.findOne(userQuery).exec();
       console.log('[DEBUG] User found in users collection:', user ? 'YES' : 'NO');
@@ -276,14 +276,25 @@ export class EmployeeService {
           designation: user.role || 'Staff',
           status: 'active',
           roleId: user.roleId || user.role,
-          tenantId: tid,
+          tenantId: user.tenantId, // Use user's tenantId
         };
         
         const newEmployee = new this.employeeModel(newEmployeeData);
         employee = await newEmployee.save();
         console.log('[DEBUG] Employee auto-created:', employee._id);
       } else {
-        return null;
+        // If no specific tenant matches, try searching across all tenants
+        if (tid === null) {
+          console.log('[DEBUG] Searching for employee across all tenants...');
+          employee = await this.employeeModel
+            .findOne({ email: email.toLowerCase() })
+            .populate('roleId', 'roleId label color permissions')
+            .exec();
+          
+          if (!employee) return null;
+        } else {
+          return null;
+        }
       }
     }
     

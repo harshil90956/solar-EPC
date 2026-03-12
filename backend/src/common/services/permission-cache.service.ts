@@ -5,6 +5,7 @@ import { RBACConfig, RBACConfigDocument } from '../../modules/settings/schemas/r
 import { CustomRole, CustomRoleDocument } from '../../modules/settings/schemas/custom-role.schema';
 import { UserOverride, UserOverrideDocument } from '../../modules/settings/schemas/user-override.schema';
 import { FeatureFlag, FeatureFlagDocument } from '../../modules/settings/schemas/feature-flag.schema';
+import { Employee, EmployeeDocument } from '../../modules/hrm/schemas/employee.schema';
 
 /**
  * Permission Matrix Structure
@@ -57,6 +58,7 @@ export class PermissionCacheService {
     @InjectModel(CustomRole.name) private customRoleModel: Model<CustomRoleDocument>,
     @InjectModel(UserOverride.name) private userOverrideModel: Model<UserOverrideDocument>,
     @InjectModel(FeatureFlag.name) private featureFlagModel: Model<FeatureFlagDocument>,
+    @InjectModel(Employee.name) private employeeModel: Model<EmployeeDocument>,
   ) {}
 
   /**
@@ -143,13 +145,17 @@ export class PermissionCacheService {
     
     const tid = this.toObjectId(tenantId);
     
-    // Check if this is an admin-like role
+    // Check if this is an admin-like role (Base system roles only)
+    // Custom roles (starting with custom_) must NEVER hit this auto-grant fallback.
     const roleLower = baseRoleId.toLowerCase();
-    const isAdminLike = roleLower === 'admin' 
+    const isCustomRole = roleLower.startsWith('custom_');
+    const isAdminLike = !isCustomRole && (
+         roleLower === 'admin' 
       || roleLower === 'superadmin' 
       || roleLower === 'super-admin'
       || roleLower === 'manager'
-      || roleLower === 'supervisor';
+      || roleLower === 'supervisor'
+    );
     
     // Get all feature flags to know available modules
     const featureFlags = await this.featureFlagModel.find(
@@ -165,7 +171,22 @@ export class PermissionCacheService {
       : null;
 
     // Get custom role if assigned
-    const customRoleId = userOverride?.customRoleId;
+    let customRoleId = userOverride?.customRoleId;
+
+    // HRM employee fallback:
+    // HRM assigns roles via employees.roleId (not useroverrides.customRoleId).
+    // If no customRoleId is found via user override, treat employee.roleId as customRoleId.
+    if (!customRoleId && userId && Types.ObjectId.isValid(userId)) {
+      const employee = await this.employeeModel.findOne({
+        _id: new Types.ObjectId(userId),
+        ...(tid ? { tenantId: tid } : {}),
+      }).select('roleId').lean();
+
+      const empRoleId = (employee as any)?.roleId;
+      if (typeof empRoleId === 'string' && empRoleId.toLowerCase().startsWith('custom_')) {
+        customRoleId = empRoleId;
+      }
+    }
     let customRolePerms: Map<string, Map<string, boolean>> | null = null;
     
     if (customRoleId) {

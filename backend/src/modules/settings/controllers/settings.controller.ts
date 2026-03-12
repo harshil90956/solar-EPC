@@ -777,7 +777,10 @@ export class SettingsController {
   @UsePipes(new ValidationPipe({ transform: true }))
   async createCustomRole(@Body() body: CreateCustomRoleDto, @Request() req: any) {
     const tenantId = req.tenant?.id;
-    const role = await this.customRoleService.createCustomRole(tenantId, body, req.user?.id);
+    const role = await this.customRoleService.createCustomRole(tenantId, {
+      ...body,
+      baseRole: body.baseRole ?? undefined,
+    }, req.user?.id);
     
     return {
       id: role.roleId,

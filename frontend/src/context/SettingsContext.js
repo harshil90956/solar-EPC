@@ -103,11 +103,13 @@ export const SettingsProvider = ({ children }) => {
 
                 // Transform custom roles
                 if (settings?.customRoles) {
+                    console.log('[SETTINGS] Loading custom roles from API:', settings.customRoles);
                     const rolesObj = {};
                     // Handle both array and object formats from backend
                     const rolesArray = Array.isArray(settings.customRoles)
                         ? settings.customRoles
                         : Object.values(settings.customRoles);
+                    console.log('[SETTINGS] Custom roles array:', rolesArray);
                     rolesArray.forEach(r => {
                         const roleId = r.roleId || r.id;
                         if (roleId) {
@@ -138,8 +140,10 @@ export const SettingsProvider = ({ children }) => {
                             };
                         }
                     });
+                    console.log('[SETTINGS] Processed custom roles:', rolesObj);
                     setCustomRoles(rolesObj);
                 } else {
+                    console.warn('[SETTINGS] No custom roles returned from API');
                     setCustomRoles({});
                 }
 
@@ -182,13 +186,14 @@ export const SettingsProvider = ({ children }) => {
     }, []);
 
     // Load custom roles from dedicated endpoint
-    useEffect(() => {
-        // Only load if user is logged in
-        const token = localStorage.getItem('solar_token');
-        if (token) {
-            refreshCustomRoles();
-        }
-    }, []);
+    // REMOVED: This was causing duplicate loading and overwriting custom roles with empty data
+    // Custom roles are now loaded only once in the main loadSettings() useEffect
+    // useEffect(() => {
+    //     const token = localStorage.getItem('solar_token');
+    //     if (token) {
+    //         refreshCustomRoles();
+    //     }
+    // }, []);
 
     useEffect(() => {
         try {
@@ -367,7 +372,9 @@ export const SettingsProvider = ({ children }) => {
             const rolesObj = {};
             const rolesArray = Array.isArray(rolesData) ? rolesData : Object.values(rolesData || {});
             rolesArray.forEach(r => {
-                const roleId = r?.roleId || r?.id;
+                const rawRoleId = r?.roleId || r?.id || r?._id;
+                if (!rawRoleId) return;
+                const roleId = String(rawRoleId).trim();
                 if (!roleId) return;
                 const normalizeLabel = (v) => {
                     if (typeof v === 'string') {
@@ -788,49 +795,137 @@ export const SettingsProvider = ({ children }) => {
      * Priority: User Override → Custom Role → Base RBAC
      */
     const resolvePermission = useCallback((userId, roleId, moduleId, actionId) => {
-        if (!(flags[moduleId]?.enabled ?? true)) return false;
+        // Debug logging
+        console.log('[PERMISSION CHECK]', { userId, roleId, moduleId, actionId });
+        
+        if (!(flags[moduleId]?.enabled ?? true)) {
+            console.log('  ❌ Module disabled by feature flag');
+            return false;
+        }
 
         // Admin has full access by default
         if (roleId === 'Admin' || roleId === 'admin') {
+            console.log('  ✅ Admin role - full access');
             return true;
         }
 
+        const roleIdStr = roleId === undefined || roleId === null ? '' : String(roleId);
+        const roleIdTrimmed = roleIdStr.trim();
+
         // Normalize roleId to lowercase for case-insensitive matching
-        const normalizedRoleId = roleId?.toLowerCase();
+        const normalizedRoleId = roleIdTrimmed.toLowerCase();
 
         // 1. Hard user override
         const userOvr = userOverrides[userId];
         const hardVal = userOvr?.overrides?.[moduleId]?.[actionId];
-        if (hardVal !== undefined && hardVal !== null) return hardVal;
+        if (hardVal !== undefined && hardVal !== null) {
+            console.log('  ✅ User override:', hardVal);
+            return hardVal;
+        }
 
         // 2. Custom role permissions
         // Priority for custom role id:
         //   (a) explicit user override customRoleId
         //   (b) user's roleId itself if it looks like a custom role id
+        //   (c) user's roleId itself if it exists in customRoles
         const explicitCustomRoleId = userOvr?.customRoleId;
-        const roleIdAsCustomRoleId = normalizedRoleId?.startsWith('custom_') ? roleId : undefined;
-        const candidateCustomRoleId = explicitCustomRoleId || roleIdAsCustomRoleId;
+        const roleIdAsCustomRoleId = normalizedRoleId?.startsWith('custom_') ? roleIdTrimmed : undefined;
+        const roleIdKeyCandidate = roleIdTrimmed || undefined;
+        const roleIdKeyCandidateLower = normalizedRoleId || undefined;
+        
+        // Check if roleId exists in customRoles (case-insensitive)
+        const availableRoleKeys = Object.keys(customRoles || {});
+        console.log('  Available role keys:', availableRoleKeys);
+        console.log('  Looking for:', roleIdKeyCandidate, '(normalized:', roleIdKeyCandidateLower, ')');
+        
+        const existsInCustomRoles = !!(
+            roleIdKeyCandidate && (customRoles?.[roleIdKeyCandidate] || customRoles?.[roleIdKeyCandidateLower])
+        ) || (roleIdKeyCandidateLower
+            ? availableRoleKeys.some(k => {
+                const matches = k.toLowerCase() === roleIdKeyCandidateLower;
+                console.log(`    Comparing "${k}" === "${roleIdKeyCandidateLower}": ${matches}`);
+                return matches;
+              })
+            : false);
+
+        const candidateCustomRoleId = explicitCustomRoleId || roleIdAsCustomRoleId || (existsInCustomRoles ? roleIdTrimmed : undefined);
+
+        console.log('  🔍 Checking custom role:', {
+            explicitCustomRoleId,
+            roleIdAsCustomRoleId,
+            existsInCustomRoles,
+            candidateCustomRoleId,
+            availableCustomRoles: availableRoleKeys
+        });
 
         let customRole = candidateCustomRoleId ? customRoles[candidateCustomRoleId] : undefined;
         if (!customRole && candidateCustomRoleId) {
-            const normalizedCandidate = candidateCustomRoleId.toLowerCase();
+            const normalizedCandidate = String(candidateCustomRoleId).trim().toLowerCase();
             const matchedKey = Object.keys(customRoles).find(key => key.toLowerCase() === normalizedCandidate);
-            if (matchedKey) customRole = customRoles[matchedKey];
+            if (matchedKey) {
+                customRole = customRoles[matchedKey];
+                console.log('  ✅ Found custom role with normalized key:', matchedKey);
+            }
+        }
+
+        // Fallback: sometimes customRoles may be keyed by Mongo _id instead of roleId.
+        // In that case, scan values and match by roleId/id fields.
+        if (!customRole && candidateCustomRoleId) {
+            const normalizedCandidate = String(candidateCustomRoleId).trim().toLowerCase();
+            const matchedValue = Object.values(customRoles || {}).find(r => {
+                const rid = (r?.roleId || r?.id || r?._id);
+                return rid ? String(rid).trim().toLowerCase() === normalizedCandidate : false;
+            });
+            if (matchedValue) {
+                customRole = matchedValue;
+                console.log('  ✅ Found custom role by scanning values');
+            } else {
+                // DEBUG: Show what roles ARE available
+                console.warn('  ⚠️  Custom role NOT FOUND:', candidateCustomRoleId);
+                console.warn('  Available roles:', Object.values(customRoles || {}).map(r => ({
+                    roleId: r.roleId,
+                    id: r.id,
+                    label: r.label,
+                    _key: Object.keys(customRoles).find(k => customRoles[k] === r)
+                })));
+                
+                // Check if maybe the role was deleted - fall back to base role permissions
+                console.log('  ℹ️  Will use base RBAC permissions for this role');
+            }
         }
 
         if (customRole) {
+            console.log('  📋 Custom role found:', customRole.label);
             const perm = customRole.permissions?.[moduleId]?.[actionId];
-            // Explicit true = allow, explicit false = deny
-            // For 'view': undefined means allow by default (hide only if explicitly set false)
-            // For other actions (create/edit/delete): undefined means deny
-            if (perm === true) return true;
-            if (perm === false) return false;
-            if (actionId === 'view') return true; // show module unless explicitly denied
-            return false; // create/edit/delete denied if not explicitly granted
+            console.log('  Permission value:', perm, 'for', moduleId, actionId);
+            
+            // 1. Explicit allow
+            if (perm === true) {
+                console.log('  ✅ Explicit custom permission granted');
+                return true;
+            }
+            
+            // 2. Explicit deny
+            if (perm === false) {
+                console.log('  ❌ Explicit custom permission denied');
+                return false;
+            }
+
+            // 3. Undefined -> Fallback to base role if defined, else deny
+            const baseRole = customRole.baseRole;
+            if (baseRole && rbac[baseRole]) {
+                const basePerm = rbac[baseRole]?.[moduleId]?.[actionId] ?? false;
+                console.log(`  ℹ️  Custom permission undefined, falling back to base role (${baseRole}):`, basePerm);
+                return basePerm;
+            }
+
+            console.log('  ❌ Custom permission undefined and no base role fallback, denying');
+            return false;
         }
 
-        // 3. Base RBAC - try normalized role ID first, then original
-        const rbacVal = rbac[normalizedRoleId]?.[moduleId]?.[actionId] ?? rbac[roleId]?.[moduleId]?.[actionId];
+        // 3. Base RBAC - for standard roles (Admin, Sales, etc.)
+        const rbacVal = rbac[normalizedRoleId]?.[moduleId]?.[actionId] ?? rbac[roleIdTrimmed]?.[moduleId]?.[actionId];
+        console.log('  📋 Checking standard RBAC:', { normalizedRoleId, roleId: roleIdTrimmed, result: rbacVal });
         return rbacVal ?? false;
     }, [flags, userOverrides, customRoles, rbac]);
 

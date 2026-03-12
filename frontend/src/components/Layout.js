@@ -125,13 +125,36 @@ const Layout = ({ currentPage, onNavigate, children }) => {
   const visibleSections = NAV_CONFIG.map(section => ({
     ...section,
     items: section.items.filter(item => {
+      // 1. Feature Flag Check (Highest Priority)
       if (!isModuleEnabled(item.id)) return false;
-      // Admins / superadmins always see everything
+
+      // 2. Admin Bypass
       const userRole = (user?.role || '').toLowerCase();
       if (user?.isSuperAdmin || userRole === 'admin' || userRole === 'superadmin') return true;
-      // Custom role / employee: check view permission
+
+      // 3. Custom Role / Employee check
       const roleId = user?.roleId || user?.role;
-      return resolvePermission(user?.id, roleId, item.id, 'view');
+      const userId = user?.id || user?._id;
+
+      // If parent has children (e.g. HRM), show it when at least one child is viewable.
+      if (Array.isArray(item.children) && item.children.length > 0) {
+        const hasVisibleChild = item.children.some(child => {
+          const enabled = isModuleEnabled(child.id);
+          const permitted = resolvePermission(userId, roleId, child.id, 'view');
+          return enabled && permitted;
+        });
+        return hasVisibleChild;
+      }
+
+      // Single module check
+      const isPermitted = resolvePermission(userId, roleId, item.id, 'view');
+      
+      // DEBUG: Log visibility decision for non-admin custom roles
+      if (roleId && String(roleId).startsWith('custom_')) {
+        console.log(`[SIDEBAR VISIBILITY] Module: ${item.id}, Permitted: ${isPermitted}, Role: ${roleId}`);
+      }
+
+      return isPermitted === true;
     }),
   })).filter(s => s.items.length > 0);
 

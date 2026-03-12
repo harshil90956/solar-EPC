@@ -14,20 +14,34 @@ export class TenantGuard implements CanActivate {
     context: ExecutionContext,
   ): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
-    // Extract tenant from JWT payload or headers
+    // Extract tenant from headers or JWT payload
+    // Priority:
+    // - For regular users where JWT has a placeholder tenantId like 'default', prefer x-tenant-id header.
+    // - Otherwise, prefer JWT tenantId.
     const user = request.user;
-    if (user?.tenantId) {
-      // tenantId could be a string code/slug or an ObjectId
-      const tenantIdOrCode = user.tenantId;
-      
-      // Check if it's already a valid ObjectId
-      if (Types.ObjectId.isValid(tenantIdOrCode)) {
-        request.tenant = { id: tenantIdOrCode };
+    const headerTenantRaw =
+      request?.headers?.['x-tenant-id'] ||
+      request?.headers?.['X-Tenant-Id'] ||
+      request?.headers?.['x-tenantid'] ||
+      request?.headers?.['tenantid'];
+    const headerTenantIdOrCode = Array.isArray(headerTenantRaw) ? headerTenantRaw[0] : headerTenantRaw;
+
+    const userTenantIdOrCode = user?.tenantId;
+    const userTenantStr = userTenantIdOrCode ? String(userTenantIdOrCode) : '';
+    const headerTenantStr = headerTenantIdOrCode ? String(headerTenantIdOrCode) : '';
+
+    const isPlaceholderUserTenant = !userTenantStr || userTenantStr === 'default' || userTenantStr === 'undefined' || userTenantStr === 'null';
+    const preferredTenant = (!user?.isSuperAdmin && isPlaceholderUserTenant && headerTenantStr)
+      ? headerTenantStr
+      : userTenantStr;
+
+    if (preferredTenant) {
+      if (Types.ObjectId.isValid(preferredTenant)) {
+        request.tenant = { id: preferredTenant };
       } else {
-        // It's a tenant code/slug - look up the actual ObjectId
-        const tenant = await this.tenantModel.findOne({ code: tenantIdOrCode }).exec();
+        const tenant = await this.tenantModel.findOne({ code: preferredTenant }).exec();
         if (!tenant) {
-          throw new NotFoundException(`Tenant not found: ${tenantIdOrCode}`);
+          throw new NotFoundException(`Tenant not found: ${preferredTenant}`);
         }
         request.tenant = { id: tenant._id.toString() };
       }

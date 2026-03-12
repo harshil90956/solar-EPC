@@ -39,6 +39,7 @@ export interface JwtPayload {
   sub?: string;
   id?: string;
   role?: any;
+  roleId?: any;
   tenantId?: any;
   isSuperAdmin?: boolean;
   dataScope?: string;
@@ -85,7 +86,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       }).select('customRoleId').lean();
     }
 
-    const roleIdRaw = payload.role;
+    const roleIdRaw = payload.roleId ?? payload.role;
     const roleId = typeof roleIdRaw === 'string' ? roleIdRaw : (roleIdRaw?.roleId || roleIdRaw?._id || roleIdRaw);
     const roleIdString = typeof roleId === 'string' ? roleId : (roleId ? String(roleId) : null);
 

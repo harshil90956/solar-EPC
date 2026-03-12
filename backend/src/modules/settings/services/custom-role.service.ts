@@ -68,7 +68,19 @@ export class CustomRoleService {
 
   async getCustomRoles(tenantId: string | undefined): Promise<CustomRole[]> {
     const tid = this.toObjectId(tenantId);
-    return this.customRoleModel.find(tid ? { tenantId: tid } : {}).exec();
+    if (!tid) {
+      return this.customRoleModel.find({}).exec();
+    }
+
+    // Include both tenant-scoped roles and global roles (tenantId missing/null).
+    // This prevents "empty customRoles" in /settings when roles were created without tenant context.
+    return this.customRoleModel.find({
+      $or: [
+        { tenantId: tid },
+        { tenantId: { $exists: false } },
+        { tenantId: null },
+      ],
+    }).exec();
   }
 
   async getCustomRole(tenantId: string | undefined, roleId: string): Promise<CustomRole | null> {
@@ -77,9 +89,20 @@ export class CustomRoleService {
     if (cached) return cached;
 
     const tid = this.toObjectId(tenantId);
-    const filter = tid ? { tenantId: tid, roleId } : { roleId };
-    const role = await this.customRoleModel.findOne(filter).exec();
-    
+    let role: CustomRole | null = null;
+
+    if (tid) {
+      role = await this.customRoleModel.findOne({ tenantId: tid, roleId }).exec();
+    }
+
+    // Fallback to global role (tenantId missing/null) when tenant-scoped lookup misses.
+    if (!role) {
+      role = await this.customRoleModel.findOne({
+        roleId,
+        $or: [{ tenantId: { $exists: false } }, { tenantId: null }],
+      }).exec();
+    }
+
     if (role) this.setCache(cacheKey, role);
     return role;
   }
@@ -101,27 +124,27 @@ export class CustomRoleService {
 
   async createCustomRole(
     tenantId: string | undefined,
-    data: Partial<CustomRole>,
+    dto: { label: string; description?: string; baseRole?: string; color?: string; dataScope?: 'ALL' | 'ASSIGNED' },
     userId?: string,
-  ): Promise<CustomRole> {
-    // Check for circular inheritance
-    if (data.baseRole && data.baseRole.startsWith('custom_')) {
-      throw new BadRequestException('Custom roles cannot inherit from other custom roles');
-    }
-
+  ): Promise<CustomRoleDocument> {
     const tid = this.toObjectId(tenantId);
+    
+    // Always use the generated roleId for consistency
     const roleId = `custom_${Date.now()}`;
     
-    const newRole = new this.customRoleModel({
-      ...data,
+    const role = new this.customRoleModel({
+      ...dto,
       roleId,
       tenantId: tid,
-      isCustom: true,
       permissions: new Map(),
+      isCustom: true,
+      dataScope: dto.dataScope || 'ASSIGNED',
+      createdBy: this.toObjectId(userId),
     });
 
-    const saved = await newRole.save();
-    this.invalidateCache(tenantId, 'all');
+    const saved = await role.save();
+    this.invalidateCache(tenantId);
+    this.logger.log(`Custom role created: ${roleId} (${dto.label}) for tenant: ${tenantId || 'global'}`);
     return saved;
   }
 
@@ -238,12 +261,26 @@ export class CustomRoleService {
     const cloned = await this.createCustomRole(tenantId, {
       label: newLabel,
       description: `Cloned from ${source.label}`,
-      baseRole: source.baseRole,
+      baseRole: source.baseRole ?? undefined,
       color: source.color,
-      bg: source.bg,
-      permissions: new Map(source.permissions),
     }, userId);
 
+    // Manually copy permissions since createCustomRole initializes them as empty
+    if (source.permissions) {
+      await this.updatePermissionsForClone(tenantId, cloned.roleId, source.permissions);
+    }
+
     return cloned;
+  }
+
+  private async updatePermissionsForClone(
+    tenantId: string | undefined,
+    roleId: string,
+    permissions: Map<string, any>,
+  ): Promise<void> {
+    const tid = this.toObjectId(tenantId);
+    const filter = tid ? { tenantId: tid, roleId } : { roleId };
+    await this.customRoleModel.updateOne(filter, { $set: { permissions } }).exec();
+    this.invalidateCache(tenantId, `role:${roleId}`);
   }
 }
