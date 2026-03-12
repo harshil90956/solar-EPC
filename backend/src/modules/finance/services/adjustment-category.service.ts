@@ -11,9 +11,19 @@ export class AdjustmentCategoryService {
   ) {}
 
   async findAll(tenantId: string): Promise<AdjustmentCategory[]> {
-    const tid = new Types.ObjectId(tenantId);
-    const query = { tenantId: tid, isDeleted: false };
-    
+    const query: any = { isDeleted: false };
+    if (tenantId && Types.ObjectId.isValid(tenantId)) {
+      query.tenantId = new Types.ObjectId(tenantId);
+    } else if (tenantId === '') {
+      // SuperAdmin case: possibly return all or restricted set. 
+      // For now, let's keep it restricted to global if applicable, 
+      // but usually AdjustmentCategories are tenant-specific.
+      // Returning empty array if no valid tenantId for now to match controller logic.
+      return [];
+    } else {
+      throw new BadRequestException('Invalid Tenant ID');
+    }
+
     const results = await this.categoryModel
       .find(query)
       .sort({ categoryName: 1 })
@@ -29,9 +39,15 @@ export class AdjustmentCategoryService {
   }
 
   async findByType(tenantId: string, type: 'credit' | 'debit'): Promise<AdjustmentCategory[]> {
-    const tid = new Types.ObjectId(tenantId);
-    const query = { tenantId: tid, isDeleted: false, type };
-    
+    const query: any = { isDeleted: false, type };
+    if (tenantId && Types.ObjectId.isValid(tenantId)) {
+      query.tenantId = new Types.ObjectId(tenantId);
+    } else if (tenantId === '') {
+      return [];
+    } else {
+      throw new BadRequestException('Invalid Tenant ID');
+    }
+
     const results = await this.categoryModel
       .find(query)
       .sort({ categoryName: 1 })

@@ -39,8 +39,13 @@ export class ExpenseService {
   }
 
   async findAll(tenantId: string, status?: string, category?: string): Promise<Expense[]> {
-    const tid = await this.resolveTenantObjectId(tenantId);
-    const query: any = { tenantId: tid, ...this.notDeletedMatch() };
+    const query: any = { ...this.notDeletedMatch() };
+    if (tenantId && Types.ObjectId.isValid(tenantId)) {
+      query.tenantId = new Types.ObjectId(tenantId);
+    } else if (tenantId !== '') {
+      throw new BadRequestException('Invalid Tenant ID');
+    }
+
     if (status && status !== 'All') {
       query.status = status;
     }
@@ -51,12 +56,17 @@ export class ExpenseService {
   }
 
   async findById(tenantId: string, id: string): Promise<Expense> {
-    const tid = await this.resolveTenantObjectId(tenantId);
-    const expense = await this.expenseModel.findOne({
+    const query: any = {
       _id: new Types.ObjectId(id),
-      tenantId: tid,
       ...this.notDeletedMatch(),
-    }).lean();
+    };
+    if (tenantId && Types.ObjectId.isValid(tenantId)) {
+      query.tenantId = new Types.ObjectId(tenantId);
+    } else if (tenantId !== '') {
+      throw new BadRequestException('Invalid Tenant ID');
+    }
+
+    const expense = await this.expenseModel.findOne(query).lean();
 
     if (!expense) {
       throw new NotFoundException('Expense not found');
@@ -112,15 +122,16 @@ export class ExpenseService {
   }
 
   async getPayablesSummary(tenantId: string, user?: UserWithVisibility): Promise<any> {
-    const tid = await this.resolveTenantObjectId(tenantId);
     const query: any = {
-      tenantId: tid,
       ...this.notDeletedMatch(),
       status: { $in: ['Pending', 'Approved'] },
     };
-    
-    console.log(`[EXPENSE PAYABLES VISIBILITY] user:`, JSON.stringify(user));
-    console.log(`[EXPENSE PAYABLES VISIBILITY] user?.dataScope:`, user?.dataScope);
+    if (tenantId && Types.ObjectId.isValid(tenantId)) {
+      query.tenantId = new Types.ObjectId(tenantId);
+    } else if (tenantId !== '') {
+      throw new BadRequestException('Invalid Tenant ID');
+    }
+    // If tenantId is '', query across all tenants (SuperAdmin)
     
     // Apply visibility filter based on user's dataScope
     if (user?.dataScope === 'ASSIGNED') {
@@ -130,13 +141,8 @@ export class ExpenseService {
           ? new Types.ObjectId(userId)
           : userId;
         query.assignedTo = objectId;
-        console.log(`[EXPENSE PAYABLES VISIBILITY] Applied assignedTo filter:`, objectId);
       }
-    } else {
-      console.log(`[EXPENSE PAYABLES VISIBILITY] No filter applied - ALL scope or no user`);
     }
-    
-    console.log(`[EXPENSE PAYABLES VISIBILITY] Final query:`, JSON.stringify(query));
 
     const expenses = await this.expenseModel.find(query).lean();
 
