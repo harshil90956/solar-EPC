@@ -16,12 +16,24 @@ export interface Material {
   remarks?: string;
 }
 
+export interface QuotationItem {
+  itemId: string;
+  category: string;
+  itemName: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+}
+
 @Schema(BaseSchemaOptions)
 export class Project extends Document {
   @Prop({ required: true, unique: true })
   projectId!: string;
 
-  @Prop({ type: Types.ObjectId, ref: 'Quotation', required: false })
+  @Prop({ type: Types.ObjectId, ref: 'Lead', required: false, index: true })
+  leadId?: Types.ObjectId;
+
+  @Prop({ type: Types.ObjectId, ref: 'Document', required: false })
   quotationId?: Types.ObjectId;
 
   @Prop({ required: true })
@@ -99,6 +111,29 @@ export class Project extends Document {
 
   @Prop({ type: Types.ObjectId, ref: 'User', required: false })
   createdBy?: Types.ObjectId;
+
+  // Quotation-related fields
+  @Prop({
+    type: [{
+      itemId: { type: String, required: true },
+      category: { type: String, required: true },
+      itemName: { type: String, required: true },
+      quantity: { type: Number, required: true, min: 1 },
+      unitPrice: { type: Number, required: true, min: 0 },
+      totalPrice: { type: Number, required: true, min: 0 },
+    }],
+    default: [],
+  })
+  items?: QuotationItem[];
+
+  @Prop({ type: Number, default: 0, min: 0 })
+  tax?: number;
+
+  @Prop({ type: Number, default: 0, min: 0 })
+  discount?: number;
+
+  @Prop({ type: String, default: '' })
+  notes?: string;
 }
 
 export const ProjectSchema = SchemaFactory.createForClass(Project);

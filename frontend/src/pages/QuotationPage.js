@@ -16,6 +16,9 @@ import { Progress } from '../components/ui/Progress';
 import DataTable from '../components/ui/DataTable';
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
 import { downloadQuotationPDF, download2PagePDF } from '../lib/pdfTemplate';
+import { api } from '../lib/apiClient';
+import { toast } from '../components/ui/Toast';
+import { useNavigate } from 'react-router-dom';
 
 const fmt = CURRENCY.format;
 
@@ -225,6 +228,7 @@ const QuoteKanbanBoard = ({ quotes, onStageChange, onCardClick }) => {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 const QuotationPage = () => {
+  const navigate = useNavigate();
   const [quotations, setQuotations] = useState(QUOTATIONS_EXT);
   const [view, setView] = useState('kanban');
   const [search, setSearch] = useState('');
@@ -244,6 +248,32 @@ const QuotationPage = () => {
 
   const handleStageChange = (id, newStage) =>
     setQuotations(prev => prev.map(q => q.id === id ? { ...q, status: newStage } : q));
+
+  // Convert quotation to project
+  const handleConvertToProject = async (quotation) => {
+    try {
+      toast.info('Creating project from quotation...');
+      
+      const response = await api.post(`/projects/from-quotation/${quotation.id}`);
+      
+      if (response.success) {
+        const project = response.data;
+        toast.success(`Project created successfully! ID: ${project.projectId}`);
+        
+        // Close modal if open
+        setSelected(null);
+        
+        // Navigate to projects page
+        setTimeout(() => {
+          navigate('/projects');
+        }, 1000);
+      }
+    } catch (error) {
+      console.error('Convert to project failed:', error);
+      const message = error?.message || 'Failed to create project';
+      toast.error(message);
+    }
+  };
 
   const filtered = useMemo(() => quotations.filter(q =>
     (statusFilter === 'All' || q.status === statusFilter) &&
@@ -274,7 +304,7 @@ const QuotationPage = () => {
     { label: 'EMI / Finance', icon: Percent, onClick: row => { setSelected(row); setActiveTab('emi'); } },
     { label: 'Approval Workflow', icon: ShieldCheck, onClick: row => { setSelected(row); setActiveTab('approval'); } },
     { label: 'Send to Customer', icon: Send, onClick: () => { } },
-    { label: 'Convert to Project', icon: CheckCircle, onClick: () => { } },
+    { label: 'Convert to Project', icon: CheckCircle, onClick: (row) => handleConvertToProject(row) },
   ];
 
   return (
@@ -557,7 +587,7 @@ const QuotationPage = () => {
               <Button variant="outline"><Send size={13} /> Send to Customer</Button>
             )}
             {selected?.status === 'Approved' && (
-              <Button><CheckCircle size={13} /> Convert to Project</Button>
+              <Button onClick={() => handleConvertToProject(selected)}><CheckCircle size={13} /> Convert to Project</Button>
             )}
           </>
         }

@@ -76,6 +76,8 @@ const IncrementsPage = () => {
   const [incrementSearch, setIncrementSearch] = useState('');
   const [showIncrementModal, setShowIncrementModal] = useState(false);
   const [viewIncrement, setViewIncrement] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingIncrement, setEditingIncrement] = useState(null);
   const [incrementForm, setIncrementForm] = useState({
     employeeId: '',
     previousSalary: 0,
@@ -143,6 +145,30 @@ const IncrementsPage = () => {
       });
     } catch (error) {
       toast.error('Failed to add increment');
+    }
+  };
+
+  const handleUpdateIncrement = async () => {
+    if (!editingIncrement) return;
+    try {
+      await incrementApi.update(editingIncrement._id, incrementForm);
+      toast.success('Increment updated successfully');
+      setShowEditModal(false);
+      setEditingIncrement(null);
+      fetchIncrements();
+    } catch (error) {
+      toast.error('Failed to update increment');
+    }
+  };
+
+  const handleDeleteIncrement = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this increment record?')) return;
+    try {
+      await incrementApi.delete(id);
+      toast.success('Increment record deleted');
+      fetchIncrements();
+    } catch (error) {
+      toast.error('Failed to delete increment record');
     }
   };
 
@@ -255,6 +281,39 @@ const IncrementsPage = () => {
         </div>
       ),
     },
+    {
+      key: 'actions',
+      header: 'Actions',
+      render: (_, record) => (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              setEditingIncrement(record);
+              setIncrementForm({
+                employeeId: record.employeeId?._id || record.employeeId,
+                previousSalary: record.previousSalary,
+                incrementPercentage: record.incrementPercentage,
+                newSalary: record.newSalary,
+                effectiveFrom: record.effectiveFrom ? format(new Date(record.effectiveFrom), 'yyyy-MM-dd') : '',
+                reason: record.reason || '',
+              });
+              setShowEditModal(true);
+            }}
+            className="p-1.5 rounded-lg hover:bg-blue-500/10 text-[var(--text-muted)] hover:text-blue-500 transition-colors"
+            title="Edit"
+          >
+            <RefreshCw size={14} />
+          </button>
+          <button
+            onClick={() => handleDeleteIncrement(record._id)}
+            className="p-1.5 rounded-lg hover:bg-red-500/10 text-[var(--text-muted)] hover:text-red-500 transition-colors"
+            title="Delete"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      ),
+    },
   ];
 
   return (
@@ -359,6 +418,91 @@ const IncrementsPage = () => {
               ))}
             </Select>
           </FormField>
+          <div className="grid grid-cols-2 gap-3 mt-3">
+            <FormField label="Previous Salary (₹)">
+              <Input
+                type="number"
+                value={incrementForm.previousSalary}
+                onChange={(e) => {
+                  const prev = parseFloat(e.target.value) || 0;
+                  const percent = incrementForm.incrementPercentage;
+                  const newSal = prev + (prev * percent / 100);
+                  setIncrementForm({
+                    ...incrementForm,
+                    previousSalary: prev,
+                    newSalary: Math.round(newSal),
+                  });
+                }}
+              />
+            </FormField>
+            <FormField label="Increment %">
+              <Input
+                type="number"
+                value={incrementForm.incrementPercentage}
+                onChange={(e) => {
+                  const percent = parseFloat(e.target.value) || 0;
+                  const prev = incrementForm.previousSalary;
+                  const newSal = prev + (prev * percent / 100);
+                  setIncrementForm({
+                    ...incrementForm,
+                    incrementPercentage: percent,
+                    newSalary: Math.round(newSal),
+                  });
+                }}
+              />
+            </FormField>
+          </div>
+          <FormField label="New Salary (₹)" className="mt-3">
+            <Input
+              type="number"
+              value={incrementForm.newSalary}
+              onChange={(e) => setIncrementForm({ ...incrementForm, newSalary: parseFloat(e.target.value) || 0 })}
+            />
+          </FormField>
+          <FormField label="Effective From" className="mt-3">
+            <Input
+              type="date"
+              value={incrementForm.effectiveFrom}
+              onChange={(e) => setIncrementForm({ ...incrementForm, effectiveFrom: e.target.value })}
+            />
+          </FormField>
+          <FormField label="Reason" className="mt-3">
+            <textarea
+              value={incrementForm.reason}
+              onChange={(e) => setIncrementForm({ ...incrementForm, reason: e.target.value })}
+              placeholder="Reason for increment..."
+              rows={2}
+              className="w-full p-2 rounded-lg border border-[var(--border-base)] bg-[var(--bg-elevated)]"
+            />
+          </FormField>
+        </Modal>
+      )}
+
+      {/* Edit Increment Modal */}
+      {showEditModal && (
+        <Modal
+          open={showEditModal}
+          onClose={() => {
+            setShowEditModal(false);
+            setEditingIncrement(null);
+          }}
+          title="Edit Salary Increment"
+          footer={
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" onClick={() => setShowEditModal(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleUpdateIncrement} disabled={!incrementForm.previousSalary || !incrementForm.newSalary}>
+                <RefreshCw size={13} /> Update
+              </Button>
+            </div>
+          }
+        >
+          <div className="mb-4 p-3 rounded-lg bg-[var(--bg-elevated)]">
+            <p className="text-xs text-[var(--text-muted)]">Employee</p>
+            <p className="font-medium">{editingIncrement?.employeeId?.firstName} {editingIncrement?.employeeId?.lastName}</p>
+          </div>
+
           <div className="grid grid-cols-2 gap-3 mt-3">
             <FormField label="Previous Salary (₹)">
               <Input

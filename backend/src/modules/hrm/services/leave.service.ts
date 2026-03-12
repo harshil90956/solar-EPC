@@ -2,8 +2,9 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Leave, LeaveDocument, LeaveStatus } from '../schemas/leave.schema';
-import { CreateLeaveDto, UpdateLeaveStatusDto, ApproveLeaveDto } from '../dto/leave.dto';
+import { CreateLeaveDto, UpdateLeaveStatusDto, ApproveLeaveDto, UpdateLeaveDto } from '../dto/leave.dto';
 import { Tenant, TenantDocument } from '../../../core/tenant/schemas/tenant.schema';
+import { UserWithVisibility } from '../../../common/utils/visibility-filter';
 
 @Injectable()
 export class LeaveService {
@@ -45,9 +46,65 @@ export class LeaveService {
     return leave.save();
   }
 
-  async findAll(employeeId?: string, status?: LeaveStatus, startDate?: Date, endDate?: Date, tenantId?: string): Promise<Leave[]> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
-    const query: any = { tenantId: tid };
+  async update(id: string, updateLeaveDto: UpdateLeaveDto, tenantId?: string, user?: UserWithVisibility): Promise<Leave> {
+    const query: any = { _id: new Types.ObjectId(id) };
+    
+    // SuperAdmin global view support
+    if (user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin') {
+      if (tenantId && tenantId !== 'default' && tenantId !== 'undefined' && Types.ObjectId.isValid(tenantId)) {
+        query.tenantId = new Types.ObjectId(tenantId);
+      }
+    } else {
+      // Regular users MUST have a tenantId
+      if (!tenantId || tenantId === 'default' || tenantId === 'undefined') {
+        throw new BadRequestException('Tenant context is missing');
+      }
+      query.tenantId = await this.resolveTenantObjectId(tenantId);
+    }
+
+    const leave = await this.leaveModel.findOne(query);
+
+    if (!leave) {
+      throw new NotFoundException(`Leave request with ID ${id} not found`);
+    }
+
+    // Recalculate days if dates are updated
+    if (updateLeaveDto.startDate || updateLeaveDto.endDate) {
+      const start = new Date(updateLeaveDto.startDate || leave.startDate);
+      const end = new Date(updateLeaveDto.endDate || leave.endDate);
+      const diffTime = Math.abs(end.getTime() - start.getTime());
+      const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+      (leave as any).days = days;
+    }
+
+    Object.assign(leave, updateLeaveDto);
+    return leave.save();
+  }
+
+  async findAll(
+    employeeId?: string,
+    status?: LeaveStatus,
+    startDate?: Date,
+    endDate?: Date,
+    tenantId?: string,
+    user?: UserWithVisibility,
+  ): Promise<Leave[]> {
+    const query: any = {};
+
+    // SuperAdmin global view support
+    if (user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin') {
+      if (tenantId && tenantId !== 'default' && tenantId !== 'undefined' && Types.ObjectId.isValid(tenantId)) {
+        query.tenantId = new Types.ObjectId(tenantId);
+      }
+      // If no valid tenantId, SuperAdmin gets ALL leaves (global view)
+    } else {
+      // Regular users MUST have a tenantId
+      if (!tenantId || tenantId === 'default' || tenantId === 'undefined') {
+        throw new BadRequestException('Tenant context is missing');
+      }
+      const tid = await this.resolveTenantObjectId(tenantId);
+      query.tenantId = tid;
+    }
     
     if (employeeId) {
       query.employeeId = new Types.ObjectId(employeeId);

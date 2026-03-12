@@ -30,14 +30,22 @@ export class LeadsService {
     const filter = { ...baseFilter };
 
     // Enforce tenant isolation strictly
-    const tid = this.toObjectId(tenantId);
-    if (!tid && !(user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin')) {
-      // Match nothing when tenant context is missing
-      return { $and: [filter, { _id: { $in: [] as any[] } }] };
-    }
-
-    if (tid) {
-      filter.tenantId = tid;
+    const tid = tenantId && Types.ObjectId.isValid(tenantId) ? new Types.ObjectId(tenantId) : undefined;
+    
+    // SuperAdmin bypass or specific tenant context
+    if (user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin') {
+      if (tid) {
+        filter.tenantId = tid;
+      }
+      // If no tid and SuperAdmin, don't add tenantId filter (Global View)
+    } else {
+      // Regular user MUST have a valid tenant context
+      if (tid) {
+        filter.tenantId = tid;
+      } else {
+        // Match nothing when tenant context is missing for regular users
+        return { _id: { $in: [] as any[] } };
+      }
     }
 
     // Apply role visibility rules
@@ -281,7 +289,9 @@ export class LeadsService {
       return;
     }
     
-    const tid = await this.resolveTenantObjectId(tenantId || '');
+    // For SuperAdmin/Global without tid, we skip strict DB validation for custom statuses
+    const tid = tenantId && Types.ObjectId.isValid(tenantId) ? new Types.ObjectId(tenantId) : undefined;
+    if (!tid) return;
 
     const status = await this.leadStatusModel
       .findOne({ tenantId: tid, entity: 'lead', key: normalizedStatusKey, isActive: true })
@@ -404,8 +414,12 @@ export class LeadsService {
     const now = new Date();
     const leadId = `LEAD-${Date.now()}`;
 
-    const tid = await this.resolveTenantObjectId(tenantId || '');
-    await this.assertValidStatusKey(createLeadDto.statusKey, tid.toString());
+    const tid = tenantId && Types.ObjectId.isValid(tenantId) ? new Types.ObjectId(tenantId) : undefined;
+    if (!tid && !(user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin')) {
+      throw new BadRequestException('Tenant context is required for creating leads');
+    }
+
+    await this.assertValidStatusKey(createLeadDto.statusKey, tenantId);
     
     const activities = [{
       type: 'created',
@@ -443,7 +457,6 @@ export class LeadsService {
     tenantId?: string,
     user?: UserWithVisibility
   ): Promise<{ data: Lead[]; total: number }> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
     const {
       page = 1,
       limit = 25,
@@ -464,7 +477,7 @@ export class LeadsService {
     } = query;
 
     // Build complete filter with tenant and visibility
-    const filter = this.buildCompleteFilter(tid.toString(), user, { isDeleted: false });
+    const filter = this.buildCompleteFilter(tenantId, user, { isDeleted: false });
 
     // Apply quick filters
     if (quickFilter) {
@@ -850,8 +863,7 @@ export class LeadsService {
   }
 
   async remove(id: string, tenantId?: string, user?: UserWithVisibility): Promise<void> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
-    const filter: any = this.buildCompleteFilter(tid.toString(), user, {
+    const filter: any = this.buildCompleteFilter(tenantId, user, {
       $or: [
         { _id: Types.ObjectId.isValid(id) ? new Types.ObjectId(id) : undefined },
         { leadId: id }
@@ -890,8 +902,7 @@ export class LeadsService {
   }
 
   async addActivity(id: string, dto: AddActivityDto, tenantId?: string, user?: UserWithVisibility): Promise<Lead> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
-    const filter = this.buildCompleteFilter(tid.toString(), user, {
+    const filter = this.buildCompleteFilter(tenantId, user, {
       $or: [
         { _id: Types.ObjectId.isValid(id) ? new Types.ObjectId(id) : undefined },
         { leadId: id }
@@ -944,9 +955,8 @@ export class LeadsService {
   }
 
   async bulkArchive(ids: string[], tenantId?: string, user?: UserWithVisibility): Promise<{ modified: number }> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
     const objectIds = ids.filter(id => Types.ObjectId.isValid(id)).map(id => new Types.ObjectId(id));
-    const filter = this.buildCompleteFilter(tid.toString(), user, {
+    const filter = this.buildCompleteFilter(tenantId, user, {
       $or: [
         { _id: { $in: objectIds } },
         { leadId: { $in: ids } }
@@ -963,9 +973,8 @@ export class LeadsService {
   }
 
   async bulkDelete(ids: string[], tenantId?: string, user?: UserWithVisibility): Promise<{ modified: number }> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
     const objectIds = ids.filter(id => Types.ObjectId.isValid(id)).map(id => new Types.ObjectId(id));
-    const filter = this.buildCompleteFilter(tid.toString(), user, {
+    const filter = this.buildCompleteFilter(tenantId, user, {
       $or: [
         { _id: { $in: objectIds } },
         { leadId: { $in: ids } }
@@ -981,9 +990,8 @@ export class LeadsService {
   }
 
   async bulkUpdateStage(ids: string[], stage: string, tenantId?: string, user?: UserWithVisibility): Promise<{ modified: number }> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
     const objectIds = ids.filter(id => Types.ObjectId.isValid(id)).map(id => new Types.ObjectId(id));
-    const filter = this.buildCompleteFilter(tid.toString(), user, {
+    const filter = this.buildCompleteFilter(tenantId, user, {
       $or: [
         { _id: { $in: objectIds } },
         { leadId: { $in: ids } }
@@ -1000,9 +1008,8 @@ export class LeadsService {
   }
 
   async getStats(tenantId?: string, user?: UserWithVisibility): Promise<any> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
-    const filter = this.buildCompleteFilter(tid.toString(), user, { isDeleted: false });
-
+    const filter = this.buildCompleteFilter(tenantId, user, { isDeleted: false });
+    
     const [total, monthly, highValue, won, lost] = await Promise.all([
       this.leadModel.countDocuments(filter),
       this.leadModel.countDocuments({
@@ -1029,10 +1036,9 @@ export class LeadsService {
   }
 
   async getDashboardFunnel(tenantId?: string, user?: UserWithVisibility): Promise<any> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
-    const filter = this.buildCompleteFilter(tid.toString(), user, { isDeleted: false });
+    const filter = this.buildCompleteFilter(tenantId, user, { isDeleted: false });
     
-    const stages = await this.leadStatusModel.find({ tenantId: tid, entity: 'lead' }).sort({ order: 1 }).lean();
+    const stages = await this.leadStatusModel.find({ entity: 'lead' }).sort({ order: 1 }).lean();
     const counts = await Promise.all(stages.map(async (s) => ({
       stage: s.label,
       count: await this.leadModel.countDocuments({ ...filter, statusKey: s.key })
@@ -1251,8 +1257,7 @@ export class LeadsService {
   }
 
   async getDashboardTrend(tenantId?: string, user?: UserWithVisibility): Promise<any> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
-    const filter = this.buildCompleteFilter(tid.toString(), user, { isDeleted: false });
+    const filter = this.buildCompleteFilter(tenantId, user, { isDeleted: false });
     
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
@@ -1273,8 +1278,7 @@ export class LeadsService {
   }
 
   async getDashboardActivity(tenantId?: string, user?: UserWithVisibility): Promise<any> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
-    const filter = this.buildCompleteFilter(tid.toString(), user, { isDeleted: false });
+    const filter = this.buildCompleteFilter(tenantId, user, { isDeleted: false });
     
     const leads = await this.leadModel.find(filter).sort({ lastContact: -1 }).limit(10).lean();
     return leads.map(l => ({
@@ -1285,17 +1289,35 @@ export class LeadsService {
   }
 
   async getStatusOptions(tenantId?: string): Promise<any[]> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
-    return this.leadStatusModel
-      .find({ tenantId: tid, entity: 'lead', isActive: true })
+    const query: any = { entity: 'lead', isActive: true };
+    const tid = tenantId && Types.ObjectId.isValid(tenantId) ? new Types.ObjectId(tenantId) : undefined;
+    
+    if (tid) {
+      query.tenantId = tid;
+    }
+
+    const statuses = await this.leadStatusModel
+      .find(query)
       .sort({ order: 1 })
       .lean()
       .exec();
+
+    if (statuses.length === 0 && !tid) {
+      return [
+        { key: 'new', label: 'New', color: '#3b82f6' },
+        { key: 'contacted', label: 'Contacted', color: '#6366f1' },
+        { key: 'qualified', label: 'Qualified', color: '#8b5cf6' },
+        { key: 'proposal', label: 'Proposal', color: '#ec4899' },
+        { key: 'negotiation', label: 'Negotiation', color: '#f59e0b' },
+        { key: 'won', label: 'Won', color: '#10b981' },
+        { key: 'lost', label: 'Lost', color: '#ef4444' },
+      ];
+    }
+    return statuses;
   }
 
   async recalculateAllScores(tenantId?: string, user?: UserWithVisibility): Promise<{ processed: number }> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
-    const filter = this.buildCompleteFilter(tid.toString(), user, { isDeleted: false });
+    const filter = this.buildCompleteFilter(tenantId, user, { isDeleted: false });
     
     const leads = await this.leadModel.find(filter).exec();
     let processed = 0;
@@ -1327,7 +1349,14 @@ export class LeadsService {
         errors: [] as any[],
       };
 
-      const tid = await this.resolveTenantObjectId(tenantId || '');
+      const tid = tenantId && Types.ObjectId.isValid(tenantId) ? new Types.ObjectId(tenantId) : undefined;
+      
+      // For SuperAdmin without tenant context, we can't easily import leads 
+      // as they MUST belong to a tenant.
+      if (!tid && !(user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin')) {
+        throw new BadRequestException('Tenant context is required for importing leads');
+      }
+
       const knownFields = Object.keys(this.leadModel.schema.paths);
       const batchSize = 100;
       const bulkOps: any[] = [];
@@ -1340,7 +1369,7 @@ export class LeadsService {
           const normalizedData = this.normalizeRowData(row, knownFields);
           
           // Check for existing lead by email or phone
-          const existing = await this.findDuplicate(normalizedData.email, normalizedData.phone, tid.toString());
+          const existing = tid ? await this.findDuplicate(normalizedData.email, normalizedData.phone, tid.toString()) : null;
 
           if (existing) {
             const updateData = this.buildUpdateData(normalizedData);
@@ -1352,6 +1381,9 @@ export class LeadsService {
             });
             result.updated++;
           } else {
+            if (!tid) {
+              throw new Error('Tenant ID is required for new leads');
+            }
             const leadId = `LEAD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
             const now = new Date();
             const leadData: any = {

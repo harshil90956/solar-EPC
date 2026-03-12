@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnauthorizedException, BadRequestException, ConflictException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Project } from '../schemas/project.schema';
@@ -6,6 +6,7 @@ import { Tenant, TenantSchema } from '../../../core/tenant/schemas/tenant.schema
 import { Item } from '../../items/schemas/item.schema';
 import { Inventory } from '../../inventory/schemas/inventory.schema';
 import { InventoryReservation } from '../../inventory/schemas/inventory-reservation.schema';
+import { DocumentEntity } from '../../document/schemas/document.schema';
 import { CreateProjectDto, UpdateProjectDto, UpdateProjectStatusDto } from '../dto/project.dto';
 import { UserWithVisibility } from '../../../common/utils/visibility-filter';
 
@@ -17,6 +18,7 @@ export class ProjectsService {
     @InjectModel(Item.name) private readonly itemModel: Model<Item>,
     @InjectModel(Inventory.name) private readonly inventoryModel: Model<Inventory>,
     @InjectModel(InventoryReservation.name) private readonly reservationModel: Model<InventoryReservation>,
+    @InjectModel(DocumentEntity.name) private readonly documentModel: Model<DocumentEntity>,
   ) {}
 
   private async resolveTenantObjectId(tenantId: string): Promise<Types.ObjectId> {
@@ -288,5 +290,142 @@ export class ProjectsService {
       .distinct('pm')
       .exec();
     return { projectManagers: projects.filter(pm => pm && pm.trim() !== '') };
+  }
+
+  /**
+   * Create a project from an accepted quotation
+   */
+  async createFromQuotation(quotationId: string, tenantCode: string) {
+    const tenantId = await this.resolveTenantObjectId(tenantCode);
+
+    // Step 1: Validate quotation exists
+    const quotation = await this.documentModel
+      .findOne({
+        $or: [{ _id: this.toObjectId(quotationId) }, { documentId: quotationId }],
+        tenantId,
+        isDeleted: false,
+      })
+      .exec();
+
+    if (!quotation) {
+      throw new NotFoundException(`Quotation with id ${quotationId} not found`);
+    }
+
+    // Step 2: Check quotation status is ACCEPTED
+    if (quotation.status !== 'accepted') {
+      throw new BadRequestException(
+        `Quotation status is '${quotation.status}'. Only accepted quotations can be converted to projects`,
+      );
+    }
+
+    // Step 3: Prevent duplicate project creation
+    const existingProject = await this.projectModel
+      .findOne({
+        tenantId,
+        quotationId: this.toObjectId(quotationId),
+        isDeleted: false,
+      })
+      .exec();
+
+    if (existingProject) {
+      throw new ConflictException(
+        `Project already exists for this quotation (Project ID: ${existingProject.projectId})`,
+      );
+    }
+
+    // Step 4: Validate items array is not empty
+    if (!quotation.items || quotation.items.length === 0) {
+      throw new BadRequestException('Quotation has no items. Cannot create project without items');
+    }
+
+    // Step 5: Map quotation data to project structure
+    const projectData: any = {
+      tenantId,
+      leadId: quotation.leadId,
+      quotationId: this.toObjectId(quotationId),
+      customerName: quotation.customerName,
+      email: quotation.customerEmail,
+      mobileNumber: quotation.customerPhone,
+      site: quotation.customerAddress || 'Not specified',
+      systemSize: 0, // Will be calculated from items or set manually later
+      status: 'Quotation', // Initial status after conversion
+      pm: 'TBD', // To be assigned
+      startDate: new Date().toISOString().split('T')[0],
+      estEndDate: '',
+      progress: 0,
+      value: quotation.total,
+      items: quotation.items.map((item, index) => ({
+        itemId: `ITEM-${Date.now()}-${index}`,
+        category: this.extractCategoryFromItem(item),
+        itemName: item.name,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        totalPrice: item.total,
+      })),
+      tax: quotation.taxAmount,
+      discount: quotation.discount,
+      notes: quotation.notes || '',
+      milestones: [],
+      materials: [],
+    };
+
+    // Step 6: Generate unique projectId
+    const projectId = await this.generateProjectId(tenantId);
+    projectData.projectId = projectId;
+
+    // Step 7: Create and save project
+    const project = new this.projectModel(projectData);
+    const savedProject = await project.save();
+
+    return savedProject;
+  }
+
+  /**
+   * Helper method to extract category from quotation item
+   */
+  private extractCategoryFromItem(item: any): string {
+    // Try to extract category from description or name
+    const desc = (item.description || '').toLowerCase();
+    const name = (item.name || '').toLowerCase();
+
+    if (desc.includes('panel') || name.includes('panel')) return 'panel';
+    if (desc.includes('inverter') || name.includes('inverter')) return 'inverter';
+    if (desc.includes('battery') || name.includes('battery')) return 'battery';
+    if (desc.includes('structure') || name.includes('structure')) return 'structure';
+    if (desc.includes('cable') || name.includes('cable')) return 'cable';
+    if (desc.includes('accessories') || name.includes('accessories')) return 'accessories';
+    if (desc.includes('bos') || name.includes('bos')) return 'bos';
+    
+    return 'other'; // Default category
+  }
+
+  /**
+   * Helper method to generate unique project ID
+   */
+  private async generateProjectId(tenantId: Types.ObjectId): Promise<string> {
+    const prefix = 'PRJ';
+    const timestamp = Date.now().toString(36).toUpperCase();
+    const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const projectId = `${prefix}-${timestamp}-${random}`;
+
+    // Ensure uniqueness
+    const existing = await this.projectModel.findOne({ projectId }).exec();
+    if (existing) {
+      return this.generateProjectId(tenantId); // Recursively generate new ID
+    }
+
+    return projectId;
+  }
+
+  /**
+   * Helper method to convert string to ObjectId
+   */
+  private toObjectId(id: string): Types.ObjectId {
+    if (!id) return null as any;
+    if (Types.ObjectId.isValid(id)) {
+      return new Types.ObjectId(id);
+    }
+    // If it's not a valid ObjectId, try to find by documentId/projectId
+    return null as any;
   }
 }

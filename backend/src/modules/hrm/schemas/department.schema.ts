@@ -6,8 +6,8 @@ export type DepartmentDocument = Department & Document;
 
 @Schema({ ...BaseSchemaOptions, collection: 'hrmDepartments' })
 export class Department {
-  @Prop({ ...BaseSchemaDefinition.tenantId })
-  tenantId!: Types.ObjectId;
+  @Prop({ type: Types.ObjectId, ref: 'Tenant', required: false, index: true })
+  tenantId?: Types.ObjectId;
 
   @Prop({ ...BaseSchemaDefinition.isDeleted })
   isDeleted!: boolean;
@@ -23,9 +23,6 @@ export class Department {
 
   @Prop({ default: 0 })
   employeeCount!: number;
-
-  @Prop({ default: '' })
-  managerId!: string;
 
   @Prop({ type: Date })
   createdAt!: Date;
