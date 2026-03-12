@@ -9,7 +9,6 @@ import React, {
 } from 'react';
 import {
     buildDefaultFlags,
-    buildDefaultRBAC,
     MODULE_DEFS,
     ROLE_DEFS,
     ACTION_DEFS,
@@ -23,6 +22,31 @@ const emptyPerms = () =>
     Object.fromEntries(ACTION_DEFS.map(a => [a.id, false]));
 const fullPerms = () =>
     Object.fromEntries(ACTION_DEFS.map(a => [a.id, true]));
+
+const buildDefaultRBAC = () => {
+    const rbac = {};
+    const modules = [
+        'dashboard', 'crm', 'survey', 'design', 'project', 'inventory', 
+        'procurement', 'logistics', 'installation', 'commissioning', 
+        'finance', 'service', 'compliance', 'settings', 'hrm', 'intelligence'
+    ];
+    
+    ROLE_DEFS.forEach(role => {
+        rbac[role.id] = {};
+        modules.forEach(mod => {
+            rbac[role.id][mod] = {
+                view: true,
+                create: role.id === 'admin' || role.id === 'manager',
+                edit: role.id === 'admin' || role.id === 'manager',
+                delete: role.id === 'admin',
+                export: role.id === 'admin' || role.id === 'manager',
+                approve: role.id === 'admin' || role.id === 'manager',
+                assign: role.id === 'admin' || role.id === 'manager',
+            };
+        });
+    });
+    return rbac;
+};
 
 export const SettingsProvider = ({ children }) => {
 
@@ -357,58 +381,67 @@ export const SettingsProvider = ({ children }) => {
     const refreshCustomRoles = useCallback(async () => {
         try {
             const response = await settingsApi.getCustomRoles();
-
-            // Handle wrapped response format {success: true, data: {...}}
-            const raw = response?.data || response;
-            const rolesData = (raw && typeof raw === 'object' && raw.success === true && raw.data)
-                ? raw.data
-                : raw;
-
+            const rolesArray = response.data || response;
+            console.log('[SETTINGS DEBUG] getCustomRoles response:', JSON.stringify(rolesArray, null, 2));
+            
             const rolesObj = {};
-            const rolesArray = Array.isArray(rolesData) ? rolesData : Object.values(rolesData || {});
-            rolesArray.forEach(r => {
-                const roleId = r?.roleId || r?.id;
-                if (!roleId) return;
-                const normalizeLabel = (v) => {
-                    if (typeof v === 'string') {
-                        const s = v.trim();
-                        return s === '[object Object]' ? 'Custom Role' : s;
+
+            // Handle both array format and object format from backend
+            let rolesToProcess = [];
+            if (Array.isArray(rolesArray)) {
+                rolesToProcess = rolesArray;
+            } else if (rolesArray && typeof rolesArray === 'object') {
+                // Backend returns object with roleId as keys
+                rolesToProcess = Object.values(rolesArray);
+            }
+            
+            rolesToProcess.forEach(r => {
+                const roleId = r.roleId || r.id;
+                console.log(`[SETTINGS DEBUG] Processing role: ${roleId}, Label: ${r.label}`);
+                if (roleId) {
+                    // Handle permissions transformation (same as loadSettings)
+                    let perms = r.permissions || {};
+                    if (perms && typeof perms === 'object') {
+                        // If it's a Map-like object from Mongoose, convert to plain object
+                        const permsObj = {};
+                        const entries = (typeof perms.entries === 'function')
+                            ? Array.from(perms.entries())
+                            : Object.entries(perms);
+
+                        entries.forEach(([moduleId, modulePerms]) => {
+                            if (modulePerms && typeof modulePerms === 'object') {
+                                permsObj[moduleId] = (typeof modulePerms.entries === 'function')
+                                    ? Object.fromEntries(modulePerms.entries())
+                                    : modulePerms;
+                            } else {
+                                permsObj[moduleId] = modulePerms;
+                            }
+                        });
+                        perms = permsObj;
                     }
-                    if (v && typeof v === 'object') {
-                        if (typeof v.label === 'string') return v.label;
-                        if (typeof v.name === 'string') return v.name;
-                    }
-                    return String(v ?? '');
-                };
-                let perms = r.permissions || {};
-                if (perms && typeof perms === 'object' && typeof perms.entries === 'function') {
-                    const permsObj = {};
-                    for (const [moduleId, modulePerms] of perms.entries()) {
-                        if (modulePerms && typeof modulePerms === 'object' && typeof modulePerms.entries === 'function') {
-                            permsObj[moduleId] = Object.fromEntries(modulePerms.entries());
-                        } else {
-                            permsObj[moduleId] = modulePerms;
-                        }
-                    }
-                    perms = permsObj;
+                    rolesObj[roleId] = {
+                        id: roleId,
+                        label: r.label,
+                        description: r.description,
+                        baseRole: r.baseRole,
+                        color: r.color,
+                        bg: r.bg,
+                        isCustom: true,
+                        dataScope: r.dataScope || 'ALL',
+                        permissions: perms,
+                        createdAt: r.createdAt,
+                        updatedAt: r.updatedAt,
+                    };
                 }
-                rolesObj[roleId] = {
-                    id: roleId,
-                    label: normalizeLabel(r.label),
-                    description: r.description,
-                    baseRole: r.baseRole,
-                    color: r.color,
-                    bg: r.bg,
-                    isCustom: true,
-                    dataScope: r.dataScope || 'ALL',
-                    permissions: perms,
-                    createdAt: r.createdAt,
-                    updatedAt: r.updatedAt,
-                };
             });
             setCustomRoles(rolesObj);
-        } catch (e) {
-            // silent fail
+            console.log('[SETTINGS] Refreshed custom roles:', Object.keys(rolesObj));
+            console.log('[SETTINGS DEBUG] Custom roles object keys:', Object.keys(rolesObj));
+            if (Object.keys(rolesObj).length > 0) {
+                console.log('[SETTINGS DEBUG] First role permissions:', rolesObj[Object.keys(rolesObj)[0]]?.permissions);
+            }
+        } catch (error) {
+            console.error('Failed to refresh custom roles:', error);
         }
     }, []);
 
@@ -785,20 +818,25 @@ export const SettingsProvider = ({ children }) => {
 
     /**
      * resolvePermission(userId, roleId, moduleId, actionId)
-     * Priority: User Override → Custom Role → Base RBAC
+     * Priority: Backend Matrix (Pre-computed) -> Feature Flag -> User Override -> Custom Role -> Base RBAC -> Admin Fallback
      */
     const resolvePermission = useCallback((userId, roleId, moduleId, actionId) => {
+        // STEP 1: Check feature flags first (global kill switch)
         if (!(flags[moduleId]?.enabled ?? true)) return false;
+        if (actionId && !(flags[moduleId]?.actions?.[actionId] ?? true)) return false;
 
-        // Admin has full access by default
-        if (roleId === 'Admin' || roleId === 'admin') {
-            return true;
+        // STEP 2: Admin/Super Admin has full access by default (unless feature flag disabled)
+        const normalizedRoleId = roleId?.toLowerCase();
+        const isAdminLike = normalizedRoleId === 'admin' 
+            || normalizedRoleId === 'superadmin' 
+            || normalizedRoleId === 'super-admin'
+            || normalizedRoleId === 'manager';
+        
+        if (isAdminLike) {
+            return true; // Admins have full access by default
         }
 
-        // Normalize roleId to lowercase for case-insensitive matching
-        const normalizedRoleId = roleId?.toLowerCase();
-
-        // 1. Hard user override
+        // STEP 3: Hard user override (highest priority for specific users)
         const userOvr = userOverrides[userId];
         const hardVal = userOvr?.overrides?.[moduleId]?.[actionId];
         if (hardVal !== undefined && hardVal !== null) return hardVal;
@@ -834,16 +872,34 @@ export const SettingsProvider = ({ children }) => {
 
         if (customRole) {
             const perm = customRole.permissions?.[moduleId]?.[actionId];
+            console.log(`[PERM DEBUG] Custom role check - Role: ${customRole.label} (${candidateCustomRoleId}), Module: ${moduleId}, Action: ${actionId}`);
+            console.log(`[PERM DEBUG] Raw permission value:`, perm, `Type: ${typeof perm}`);
+            console.log(`[PERM DEBUG] Full module permissions:`, customRole.permissions[moduleId]);
+            
+            // CRITICAL FIX: For custom roles, if permission is not explicitly defined,
+            // use smart defaults based on action type
+            if (perm === undefined || perm === null) {
+                console.log(`[PERM DEBUG] Permission undefined/null, defaulting to ${actionId === 'view' ? 'true' : 'false'}`);
+                // View permission defaults to TRUE (show module by default)
+                if (actionId === 'view') {
+                    return true;
+                }
+                // Other actions (create/edit/delete) default to FALSE
+                return false;
+            }
+            
             // Explicit true = allow, explicit false = deny
-            // For 'view': undefined means allow by default (hide only if explicitly set false)
-            // For other actions (create/edit/delete): undefined means deny
             if (perm === true) return true;
             if (perm === false) return false;
-            if (actionId === 'view') return true; // show module unless explicitly denied
-            return false; // create/edit/delete denied if not explicitly granted
+            
+            // Fallback (shouldn't reach here, but safety net)
+            if (actionId === 'view') return true;
+            return false;
         }
 
-        // 3. Base RBAC - try normalized role ID first, then original
+        console.log(`[PERM DEBUG] No custom role found, falling back to RBAC for role: ${normalizedRoleId || roleId}`);
+
+        // STEP 5: Base RBAC for non-admin roles
         const rbacVal = rbac[normalizedRoleId]?.[moduleId]?.[actionId] ?? rbac[roleId]?.[moduleId]?.[actionId];
         return rbacVal ?? false;
     }, [flags, userOverrides, customRoles, rbac]);

@@ -96,14 +96,22 @@ export const AuthProvider = ({ children }) => {
         dataScope = payload.dataScope || userData.dataScope || null;
         extractedTenantId = payload.tenantId || userData.tenantId || null;
       } catch (e) { /* ignore */ }
-      const authedUser = { ...userData, role: normalizedRole, dataScope, tenantId: extractedTenantId, permissions, token: accessToken };
+      const authedUser = { 
+        ...userData, 
+        role: normalizedRole, 
+        dataScope, 
+        tenantId: extractedTenantId, 
+        permissions, 
+        token: accessToken,
+        roleId: userData.roleId || null, // Include custom role ID if present
+      };
       localStorage.setItem(TOKEN_KEY, accessToken);
       localStorage.setItem(USER_KEY, JSON.stringify(authedUser));
       if (extractedTenantId) {
         localStorage.setItem('tenantId', extractedTenantId);
       }
       setUser(authedUser);
-      console.log('[AUTH] User saved with tenantId:', extractedTenantId, 'dataScope:', dataScope);
+      console.log('[AUTH] User saved with tenantId:', extractedTenantId, 'dataScope:', dataScope, 'roleId:', userData.roleId);
       setError('');
       return true;
     } catch (err) {

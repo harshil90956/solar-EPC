@@ -78,6 +78,13 @@ const Layout = ({ currentPage, onNavigate, children }) => {
         // Fetch project stats (avoid /projects list which may be permission-gated)
         const projectsStats = await api.get('/projects/stats', { tenantId }).catch(() => null);
 
+        // Fetch survey stats (only if user has survey view permission)
+        const canViewSurvey = resolvePermission(user?.id || user?._id, user?.roleId || user?.role, 'survey', 'view');
+        let surveyStats = null;
+        if (canViewSurvey) {
+          surveyStats = await api.get('/surveys/stats', { tenantId }).catch(() => null);
+        }
+
         // Calculate counts
         const lowStockCount =
           inventoryData?.data?.lowStockItems ??
@@ -130,12 +137,36 @@ const Layout = ({ currentPage, onNavigate, children }) => {
     ...section,
     items: section.items.filter(item => {
       if (!isModuleEnabled(item.id)) return false;
+      
       // Admins / superadmins always see everything
       const userRole = (user?.role || '').toLowerCase();
-      if (user?.isSuperAdmin || userRole === 'admin' || userRole === 'superadmin') return true;
+      const userRoleId = (user?.roleId || '').toLowerCase();
+      const isAdminLike = user?.isSuperAdmin || 
+                        userRole === 'admin' || 
+                        userRole === 'superadmin' || 
+                        userRoleId === 'admin' || 
+                        userRoleId === 'superadmin';
+                        
+      if (isAdminLike) return true;
+      
       // Custom role / employee: check view permission
       const roleId = user?.roleId || user?.role;
-      return resolvePermission(user?.id, roleId, item.id, 'view');
+      const userId = user?.id || user?._id;
+      
+      let hasView = resolvePermission(userId, roleId, item.id, 'view');
+      
+      // DEBUG LOG
+      if (item.id === 'crm' || item.id === 'inventory' || item.id === 'survey') {
+        console.log(`[SIDEBAR DEBUG] Module: ${item.id}, User: ${userId}, Role: ${roleId}, hasView: ${hasView}`);
+      }
+      
+      // Legacy fallback for CRM
+      if (!hasView && item.id === 'crm') {
+        hasView = resolvePermission(userId, roleId, 'leads', 'view');
+        console.log(`[SIDEBAR DEBUG] CRM Legacy Fallback, hasView: ${hasView}`);
+      }
+      
+      return hasView;
     }),
   })).filter(s => s.items.length > 0);
 

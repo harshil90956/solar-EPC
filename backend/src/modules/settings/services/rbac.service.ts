@@ -85,12 +85,12 @@ export class RBACService {
     roleId: string,
     moduleId: string,
     actionId: string,
-  ): Promise<boolean> {
+  ): Promise<boolean | undefined> {
     const cacheKey = this.getCacheKey(tenantId, `perm:${roleId}:${moduleId}:${actionId}`);
     
-    const cached = this.getFromCache<boolean>(cacheKey);
+    const cached = this.getFromCache<boolean | null>(cacheKey);
     if (cached !== undefined) {
-      return cached;
+      return cached === null ? undefined : cached;
     }
 
     const tid = this.toObjectId(tenantId);
@@ -99,8 +99,16 @@ export class RBACService {
       : { roleId, moduleId };
     
     const config = await this.rbacConfigModel.findOne(filter).exec();
-    const permitted = config?.permissions?.get(actionId) ?? false; // Default to false for RBAC
 
+    // Distinguish between:
+    // - config missing => undefined (so PermissionService can apply admin fallback)
+    // - config present but action missing => false (RBAC defaults deny)
+    if (!config) {
+      this.setCache(cacheKey, null);
+      return undefined;
+    }
+
+    const permitted = config.permissions?.get(actionId) ?? false;
     this.setCache(cacheKey, permitted);
     return permitted;
   }
