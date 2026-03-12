@@ -25,6 +25,17 @@ export class DocumentController {
 
   constructor(private readonly documentService: DocumentService) {}
 
+  @Get('dashboard/stats')
+  async getDashboardStats(@Request() req: any) {
+    try {
+      const tenantId = req.tenant?.id || 'default';
+      return await this.documentService.getDashboardStats(tenantId);
+    } catch (error: any) {
+      this.logger.error(`Get documents dashboard stats failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
   // ============================================
   // TAB 1: Estimates, Proposals, Quotations
   // ============================================

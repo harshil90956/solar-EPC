@@ -10,6 +10,14 @@ export class DocumentService {
     @InjectModel(DocumentEntity.name) private documentModel: Model<DocumentEntityDocument>,
   ) {}
 
+  private startOfMonth(d: Date): Date {
+    return new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0);
+  }
+
+  private startOfNextMonth(d: Date): Date {
+    return new Date(d.getFullYear(), d.getMonth() + 1, 1, 0, 0, 0, 0);
+  }
+
   private toObjectId(id: string | undefined): Types.ObjectId | undefined {
     if (!id) return undefined;
     try {
@@ -212,6 +220,65 @@ export class DocumentService {
       total,
       byStatus: byStatus.reduce((acc, curr) => ({ ...acc, [curr._id]: curr.count }), {}),
       totalValue: totalValue[0]?.total || 0,
+    };
+  }
+
+  async getDashboardStats(tenantId?: string): Promise<any> {
+    const tid = this.toObjectId(tenantId);
+    const baseFilter: any = { isDeleted: false };
+    if (tid) baseFilter.tenantId = tid;
+
+    const now = new Date();
+    const thisMonthStart = this.startOfMonth(now);
+    const nextMonthStart = this.startOfNextMonth(now);
+    const lastMonthStart = new Date(thisMonthStart.getFullYear(), thisMonthStart.getMonth() - 1, 1, 0, 0, 0, 0);
+    const prevMonthStart = new Date(thisMonthStart.getFullYear(), thisMonthStart.getMonth() - 2, 1, 0, 0, 0, 0);
+
+    const epqFilter = { ...baseFilter, type: { $in: ['estimate', 'proposal', 'quotation'] } };
+
+    const [
+      totalDocuments,
+      lastMonthDocuments,
+      prevMonthDocuments,
+      epqStats,
+    ] = await Promise.all([
+      this.documentModel.countDocuments(baseFilter),
+      this.documentModel.countDocuments({ ...baseFilter, createdAt: { $gte: lastMonthStart, $lt: thisMonthStart } }),
+      this.documentModel.countDocuments({ ...baseFilter, createdAt: { $gte: prevMonthStart, $lt: lastMonthStart } }),
+      this.getStatsByTypes(['estimate', 'proposal', 'quotation'], tenantId),
+    ]);
+
+    const docsMoM = prevMonthDocuments > 0
+      ? ((lastMonthDocuments - prevMonthDocuments) / prevMonthDocuments) * 100
+      : (lastMonthDocuments > 0 ? 100 : 0);
+
+    const epqByStatus = epqStats?.byStatus || {};
+    const epqDraft = Number(epqByStatus[DocumentStatus.DRAFT] || 0);
+    const epqSent = Number(epqByStatus[DocumentStatus.SENT] || 0);
+    const epqAccepted = Number(epqByStatus[DocumentStatus.ACCEPTED] || 0);
+    const epqTotal = Number(epqStats?.total || 0);
+
+    const epqActive = epqDraft + epqSent;
+    const epqConversion = epqTotal > 0 ? (epqAccepted / epqTotal) * 100 : 0;
+
+    const thisMonthEPQCount = await this.documentModel.countDocuments({
+      ...epqFilter,
+      createdAt: { $gte: thisMonthStart, $lt: nextMonthStart },
+    });
+
+    return {
+      totalDocuments,
+      documentsMoMPercent: Number(docsMoM.toFixed(2)),
+      lastMonthDocuments,
+      prevMonthDocuments,
+      epq: {
+        total: epqTotal,
+        active: epqActive,
+        conversionPercent: Number(epqConversion.toFixed(2)),
+        byStatus: epqByStatus,
+        thisMonthCount: thisMonthEPQCount,
+        totalValue: epqStats?.totalValue || 0,
+      },
     };
   }
 
