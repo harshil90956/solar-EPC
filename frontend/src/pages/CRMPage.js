@@ -37,7 +37,7 @@ import FilterSystem from '../components/ui/FilterSystem';
 import ImportExport from '../components/ui/ImportExport';
 import LeadTracker from '../components/LeadTracker';
 import { useAuditLog } from '../hooks/useAuditLog';
-import { usePermissions } from '../hooks/usePermissions';
+import { useModulePermissions } from '../hooks/usePermissions';
 import { useAuth } from '../context/AuthContext';
 import { CURRENCY } from '../config/app.config';
 import CanAccess, { CanCreate, CanEdit, CanDelete, CanView } from '../components/CanAccess';
@@ -897,7 +897,8 @@ const CRMPage = () => {
   });
 
   const { logCreate, logUpdate, logDelete } = useAuditLog('CRM');
-  const { can, featureOn } = usePermissions();
+  const crmPerms = useModulePermissions('crm');
+  const can = crmPerms.can;
   const { user } = useAuth();
 
   // Get user's data scope for visibility indicator
@@ -2128,12 +2129,12 @@ const CRMPage = () => {
 
   const crmFeatures = useMemo(() => {
     return {
-      kanban: featureOn('crm', 'kanban_view'),
-      analytics: featureOn('crm', 'analytics_view'),
-      importCsv: featureOn('crm', 'import_csv'),
-      bulkActions: featureOn('crm', 'bulk_actions'),
+      kanban: crmPerms.feature('kanban_view'),
+      analytics: crmPerms.feature('analytics_view'),
+      importCsv: crmPerms.feature('csv_import'),
+      bulkActions: crmPerms.feature('bulk_actions'),
     };
-  }, [featureOn]);
+  }, [crmPerms]);
 
   return (
     <div className="animate-fade-in space-y-5">

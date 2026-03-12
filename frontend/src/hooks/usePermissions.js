@@ -5,7 +5,7 @@
  *
  * Also respects "View As" mode so admin can preview another user's access.
  */
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
 
@@ -56,6 +56,40 @@ export function usePermissions() {
         flags, rbac,
         isViewAs: !!viewAsUserId,
         viewAsUser: viewAsUserId ? enrichedUsers?.find(u => u.id === viewAsUserId) : null,
+    };
+}
+
+export function useModulePermissions(moduleId) {
+    const { can, featureOn, moduleOn, actionOn } = usePermissions();
+
+    const canView = useMemo(() => can(moduleId, 'view'), [can, moduleId]);
+    const canCreate = useMemo(() => can(moduleId, 'create'), [can, moduleId]);
+    const canEdit = useMemo(() => can(moduleId, 'edit'), [can, moduleId]);
+    const canDelete = useMemo(() => can(moduleId, 'delete'), [can, moduleId]);
+    const canExport = useMemo(() => can(moduleId, 'export'), [can, moduleId]);
+    const canAssign = useMemo(() => can(moduleId, 'assign'), [can, moduleId]);
+
+    const feature = useCallback((featureId) => {
+        if (!featureId) return moduleOn(moduleId);
+        if (moduleId === 'crm' && featureId === 'csv_import') {
+            return featureOn(moduleId, 'import_csv') || featureOn(moduleId, 'csv_import');
+        }
+        return featureOn(moduleId, featureId);
+    }, [featureOn, moduleOn, moduleId]);
+
+    const action = useCallback((actionId) => actionOn(moduleId, actionId), [actionOn, moduleId]);
+
+    return {
+        moduleId,
+        canView,
+        canCreate,
+        canEdit,
+        canDelete,
+        canExport,
+        canAssign,
+        feature,
+        action,
+        can,
     };
 }
 

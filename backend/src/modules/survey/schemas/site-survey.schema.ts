@@ -1,6 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema, Types } from 'mongoose';
-import { BaseSchemaDefinition, BaseSchemaOptions } from '../../../shared/database/base.schema';
+import { Document } from 'mongoose';
 
 export type SurveyDocument = Survey & Document;
 
@@ -10,13 +9,8 @@ export enum SurveyStatus {
   COMPLETE = 'complete'
 }
 
-@Schema({ ...BaseSchemaOptions })
+@Schema({ timestamps: true })
 export class Survey {
-  @Prop({ ...BaseSchemaDefinition.tenantId })
-  tenantId!: Types.ObjectId;
-
-  @Prop({ ...BaseSchemaDefinition.isDeleted })
-  isDeleted!: boolean;
 
   @Prop({ required: true, unique: true })
   surveyId!: string;
@@ -147,6 +141,7 @@ export class Survey {
 export const SurveySchema = SchemaFactory.createForClass(Survey);
 
 // Add indexes for common queries
-SurveySchema.index({ tenantId: 1, status: 1 });
-SurveySchema.index({ tenantId: 1, leadId: 1 });
-SurveySchema.index({ tenantId: 1, createdAt: -1 });
+SurveySchema.index({ status: 1 });
+SurveySchema.index({ leadId: 1 });
+SurveySchema.index({ clientName: 'text', city: 'text' });
+SurveySchema.index({ createdAt: -1 });

@@ -17,6 +17,8 @@ export type PermissionMatrix = Map<string, Map<string, boolean>>;
 /**
  * Cached user permissions with metadata
  */
+
+
 export interface CachedPermissions {
   userId: string;
   tenantId: string | undefined;
@@ -143,7 +145,8 @@ export class PermissionCacheService {
   ): Promise<PermissionMatrix> {
     const matrix: PermissionMatrix = new Map();
     
-    const tid = this.toObjectId(tenantId);
+    // Ensure we handle 'default' tenantId correctly
+    const tid = tenantId === 'default' ? undefined : this.toObjectId(tenantId);
     
     // Check if this is an admin-like role (Base system roles only)
     // Custom roles (starting with custom_) must NEVER hit this auto-grant fallback.
@@ -197,6 +200,9 @@ export class PermissionCacheService {
       
       if (customRole && customRole.permissions) {
         customRolePerms = this.convertPermissionsToMap(customRole.permissions);
+        this.logger.debug(`Loaded custom role permissions for ${customRoleId}: ${JSON.stringify(Array.from(customRolePerms.keys()))}`);
+      } else {
+        this.logger.warn(`Custom role ${customRoleId} not found or has no permissions`);
       }
     }
 
@@ -248,16 +254,27 @@ export class PermissionCacheService {
             if (customPerm !== undefined) {
               permitted = customPerm;
             } else {
-              // 4. Check base RBAC
-              const rbacPerm = baseRbacPerms.get(moduleId)?.get(action);
-              if (rbacPerm !== undefined) {
-                permitted = rbacPerm;
+              // CRM special case: fallback to 'leads'
+              if (moduleId === 'crm' && customRolePerms?.get('leads')?.get(action) !== undefined) {
+                permitted = customRolePerms.get('leads')!.get(action)!;
               } else {
-                // 5. Admin fallback - grant full permissions if no RBAC config
-                permitted = isAdminLike && hasRbacConfig === false;
+                // 4. Check base RBAC
+                const rbacPerm = baseRbacPerms.get(moduleId)?.get(action);
+                if (rbacPerm !== undefined) {
+                  permitted = rbacPerm;
+                } else {
+                  // 5. Admin fallback - grant full permissions if no RBAC config
+                  permitted = isAdminLike && hasRbacConfig === false;
+                }
               }
             }
           }
+        }
+        
+        // Final fallback: if action is 'view', allow if user has ANY permitted action in the module
+        if (!permitted && action === 'view') {
+           const hasAnyAction = Array.from(modulePerms.values()).some(v => v === true);
+           if (hasAnyAction) permitted = true;
         }
         
         modulePerms.set(action, permitted);

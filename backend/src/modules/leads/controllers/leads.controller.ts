@@ -22,7 +22,7 @@ import { CreateLeadDto, UpdateLeadDto, QueryLeadDto, AddActivityDto, BulkActionD
 import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
 import { PermissionGuard } from '../../../modules/settings/guards/permission.guard';
-import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
+import { RequirePermission } from '../../../modules/settings/decorators/permissions.decorator';
 
 @Controller('leads')
 @UseGuards(JwtAuthGuard, TenantGuard, PermissionGuard)
@@ -33,7 +33,7 @@ export class LeadsController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @RequirePermission('leads', 'create')
+  @RequirePermission('crm', 'create')
   async create(@Body() createLeadDto: CreateLeadDto, @Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
@@ -47,12 +47,23 @@ export class LeadsController {
   }
 
   @Get()
-  @RequirePermission('leads', 'view')
+  @RequirePermission('crm', 'view')
   async findAll(@Query() query: QueryLeadDto, @Request() req: any) {
     try {
-      const tenantId = req.tenant?.id;
+      let tenantId = req.tenant?.id;
       const user = req.user;
-      this.logger.log(`[DEBUG] findAll leads - tenantId: ${tenantId}, user: ${user?.id}, dataScope: ${user?.dataScope}`);
+      
+      // TEMPORARY DEBUG: Log full request context
+      this.logger.log(`[DEBUG FINDALL] Full req.tenant: ${JSON.stringify(req.tenant)}`);
+      this.logger.log(`[DEBUG FINDALL] Full req.user: ${JSON.stringify(req.user)}`);
+      this.logger.log(`[DEBUG FINDALL] tenantId: ${tenantId}, user: ${user?.id}, dataScope: ${user?.dataScope}`);
+      
+      // Fallback: If tenantId is missing but user has tenantId in token, use that
+      if (!tenantId && user?.tenantId) {
+        tenantId = user.tenantId;
+        this.logger.log(`[DEBUG FINDALL] Using fallback tenantId from user: ${tenantId}`);
+      }
+      
       const result = await this.leadsService.findAll(query, tenantId, user);
       const page = Number(query?.page || 1);
       const limit = Number(query?.limit || 25);
@@ -101,6 +112,7 @@ export class LeadsController {
   }
 
   @Get(':id')
+  @RequirePermission('crm', 'view')
   async findOne(@Param('id') id: string, @Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
@@ -114,7 +126,7 @@ export class LeadsController {
   }
 
   @Put(':id')
-  @RequirePermission('leads', 'edit')
+  @RequirePermission('crm', 'edit')
   async update(@Param('id') id: string, @Body() updateLeadDto: UpdateLeadDto, @Request() req: any) {
     try {
       this.logger.log(`Updating lead ${id} with data: ${JSON.stringify(updateLeadDto)}`);
@@ -129,7 +141,7 @@ export class LeadsController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @RequirePermission('leads', 'delete')
+  @RequirePermission('crm', 'delete')
   async remove(@Param('id') id: string, @Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
@@ -221,12 +233,16 @@ export class LeadsController {
 
   @Patch(':id/assign')
   @HttpCode(HttpStatus.OK)
+  @RequirePermission('crm', 'assign')
   async assignLead(
     @Param('id') id: string,
     @Body('assignedTo') assignedTo: string,
     @Request() req: any
   ) {
     try {
+      // Log the incoming request for debugging
+      this.logger.log(`[ASSIGN LEAD] Received request - Lead ID: ${id}, assignedTo: ${assignedTo}, type: ${typeof assignedTo}`);
+      
       // Pass full user object from JWT token - NEVER trust frontend role
       const user = req.user;
       this.logger.log(`[DEBUG] assignLead ${id} to ${assignedTo} by ${user?.id} (role: ${user?.role})`);
@@ -267,7 +283,7 @@ export class LeadsController {
 
   @Post('bulk/delete')
   @HttpCode(HttpStatus.OK)
-  @RequirePermission('leads', 'delete')
+  @RequirePermission('crm', 'delete')
   async bulkDelete(@Body() body: { leadIds: string[] }, @Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
@@ -280,7 +296,7 @@ export class LeadsController {
 
   @Delete('bulk')
   @HttpCode(HttpStatus.OK)
-  @RequirePermission('leads', 'delete')
+  @RequirePermission('crm', 'delete')
   async bulkDeleteEndpoint(@Body() body: { leadIds: string[] }, @Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
@@ -293,7 +309,7 @@ export class LeadsController {
 
   @Patch('bulk-assign')
   @HttpCode(HttpStatus.OK)
-  @RequirePermission('leads', 'assign')
+  @RequirePermission('crm', 'assign')
   async bulkAssign(
     @Body() body: { leadIds: string[]; assignedTo: string },
     @Request() req: any
@@ -319,7 +335,7 @@ export class LeadsController {
 
   @Patch('bulk-score')
   @HttpCode(HttpStatus.OK)
-  @RequirePermission('leads', 'edit')
+  @RequirePermission('crm', 'edit')
   async bulkScore(
     @Body() body: { leadIds: string[]; scoreIncrease?: number; score?: number },
     @Request() req: any
@@ -341,7 +357,7 @@ export class LeadsController {
 
   @Post('export')
   @HttpCode(HttpStatus.OK)
-  @RequirePermission('leads', 'export')
+  @RequirePermission('crm', 'export')
   async exportLeads(
     @Body() body: { leadIds: string[] },
     @Request() req: any
@@ -534,7 +550,7 @@ export class LeadsController {
   // CUSTOMERS ENDPOINT
   // ============================================
   @Get('customers')
-  @RequirePermission('leads', 'view')
+  @RequirePermission('crm', 'view')
   async getCustomers(@Query() query: QueryLeadDto, @Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
@@ -556,7 +572,7 @@ export class LeadsController {
   // ============================================
   @Post('import')
   @HttpCode(HttpStatus.OK)
-  @RequirePermission('leads', 'create')
+  @RequirePermission('crm', 'create')
   async importLeads(@Request() req: any) {
     try {
       // Use Fastify multipart to get the file

@@ -7,12 +7,14 @@ import { LoginDto } from './dto/login.dto';
 import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
 import { User, UserDocument } from './schemas/user.schema';
 import { Tenant, TenantDocument } from '../../core/tenant/schemas/tenant.schema';
+import { UserOverride, UserOverrideDocument } from '../../modules/settings/schemas/user-override.schema';
 
 @Injectable()
 export class AuthService {
   constructor(
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     @InjectModel(Tenant.name) private readonly tenantModel: Model<TenantDocument>,
+    @InjectModel(UserOverride.name) private readonly userOverrideModel: Model<UserOverrideDocument>,
     private readonly jwtService: JwtService,
   ) {}
 
@@ -29,11 +31,16 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
+    // Check for custom role override
+    const userOverride = await this.userOverrideModel.findOne({ userId: user._id }).lean();
+    const customRoleId = userOverride?.customRoleId || null;
+
     const payload = {
       sub: String(user._id),
       role: user.role,
       tenantId: user.tenantId ? String(user.tenantId) : null,
       isSuperAdmin: Boolean(user.isSuperAdmin),
+      customRoleId: customRoleId, // Add custom role to JWT payload
     };
 
     const accessToken = await this.jwtService.signAsync(payload);
@@ -46,6 +53,7 @@ export class AuthService {
         role: user.role,
         tenantId: user.tenantId ? String(user.tenantId) : null,
         isSuperAdmin: Boolean(user.isSuperAdmin),
+        roleId: customRoleId, // Include roleId in response for frontend
       },
     };
   }

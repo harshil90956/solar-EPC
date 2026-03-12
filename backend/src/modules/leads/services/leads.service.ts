@@ -1241,10 +1241,12 @@ export class LeadsService {
       const filter = this.buildCompleteFilter(tenantId, user, {});
 
       const agg = await this.leadModel.aggregate([
-        { $match: { ...filter } },
+        { $match: { ...filter, assignedTo: { $nin: [null, ''] } } },
         {
           $addFields: {
-            _assignee: { $ifNull: ['$assignedTo', null] },
+            _assignee: {
+              $cond: [{ $eq: ['$assignedTo', ''] }, null, { $ifNull: ['$assignedTo', null] }],
+            },
             _statusNorm: { $toLower: { $ifNull: ['$statusKey', { $ifNull: ['$status', ''] }] } },
           },
         },
@@ -1854,16 +1856,28 @@ export class LeadsService {
     assignedTo: string,
     user: UserWithVisibility,
   ): Promise<Lead> {
+    Logger.log(`[ASSIGN LEAD SERVICE] Called with - id: ${id}, assignedTo: ${assignedTo}, userId: ${user?.id}`, 'LeadsService');
+    
     // STEP 1: Security - Never trust frontend role, validate from authenticated user
     const userRole = user?.role?.toLowerCase() || '';
     const allowedRoles = ['admin', 'manager'];
     if (!allowedRoles.includes(userRole)) {
+      Logger.error(`[ASSIGN LEAD] Unauthorized: User role ${userRole} not allowed`, 'LeadsService');
       throw new ForbiddenException('Not authorized to assign leads. Only Admin or Manager can assign leads.');
     }
 
     // STEP 2: Validate assignedTo user ID
-    if (!assignedTo || !Types.ObjectId.isValid(assignedTo)) {
-      throw new BadRequestException('Invalid assignedTo user ID');
+    Logger.log(`[ASSIGN LEAD] Validating assignedTo: ${assignedTo}`, 'LeadsService');
+    
+    // Support both MongoDB ObjectId (24 chars) and custom string IDs
+    let assignedToId: Types.ObjectId | string;
+    if (Types.ObjectId.isValid(assignedTo)) {
+      assignedToId = new Types.ObjectId(assignedTo);
+      Logger.log(`[ASSIGN LEAD] Using ObjectId format: ${assignedToId}`, 'LeadsService');
+    } else {
+      // Allow string IDs for flexibility (e.g., "U001", "EMP001", etc.)
+      Logger.log(`[ASSIGN LEAD] Using string ID format: ${assignedTo}`, 'LeadsService');
+      assignedToId = assignedTo;
     }
 
     // Get tenantId from authenticated user (never from frontend)
@@ -1871,7 +1885,8 @@ export class LeadsService {
     if (!tid && !(user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin')) {
       throw new ForbiddenException('Tenant context missing');
     }
-    const assignedToId = new Types.ObjectId(assignedTo);
+    
+    // Use the assignedToId we already created above
     const assignedById = user._id;
 
     // STEP 3: Verify lead belongs to same tenant
@@ -1890,14 +1905,78 @@ export class LeadsService {
 
     // STEP 4: Verify target user belongs to same tenant
     if (tid) {
-      const targetUser = await this.userModel
-        .findOne({ _id: assignedToId, tenantId: tid })
-        .lean()
-        .exec();
+      // Try to find user in User collection first
+      let targetUser;
+      
+      if (typeof assignedToId === 'string') {
+        // If it's a string ID, try matching against employeeId or custom ID fields
+        targetUser = await this.userModel
+          .findOne({ 
+            $or: [
+              { _id: assignedToId as any },
+              { id: assignedToId }
+            ],
+            tenantId: tid 
+          })
+          .lean()
+          .exec();
+          
+        // If not found in User collection, check Employee collection
+        if (!targetUser) {
+          // Use mongoose connection to query Employee collection
+          const EmployeeModel = (this.leadModel as any).db.model('Employee');
+          const employee = await EmployeeModel
+            .findOne({ employeeId: assignedToId, tenantId: tid })
+            .lean()
+            .exec();
+            
+          if (employee) {
+            Logger.log(`[ASSIGN LEAD] Found employee match: ${employee._id}`, 'LeadsService');
+            // Convert employee to user-like structure for assignment
+            targetUser = { 
+              _id: employee._id, 
+              id: employee.employeeId,
+              email: employee.email,
+              name: `${employee.firstName} ${employee.lastName}`
+            };
+          }
+        }
+      } else {
+        // It's an ObjectId - search in BOTH User and Employee collections
+        // First try User collection
+        targetUser = await this.userModel
+          .findOne({ _id: assignedToId, tenantId: tid })
+          .lean()
+          .exec();
+        
+        // If not found in User collection, check Employee collection
+        if (!targetUser) {
+          const EmployeeModel = (this.leadModel as any).db.model('Employee');
+          const employee = await EmployeeModel
+            .findOne({ _id: assignedToId, tenantId: tid })
+            .lean()
+            .exec();
+            
+          if (employee) {
+            Logger.log(`[ASSIGN LEAD] Found employee by ObjectId match: ${employee._id}`, 'LeadsService');
+            // Convert employee to user-like structure for assignment
+            targetUser = { 
+              _id: employee._id, 
+              id: employee.employeeId,
+              email: employee.email,
+              name: `${employee.firstName} ${employee.lastName}`
+            };
+          }
+        }
+      }
 
       if (!targetUser) {
-        throw new BadRequestException('Target user does not belong to your tenant');
+        Logger.error(`[ASSIGN LEAD] Target user not found: ${assignedTo}`, 'LeadsService');
+        Logger.error(`[ASSIGN LEAD] Searched in tenant: ${tid}`, 'LeadsService');
+        throw new BadRequestException('Target user does not belong to your tenant or does not exist');
       }
+      
+      Logger.log(`[ASSIGN LEAD] Target user found: ${targetUser._id || targetUser.id}`, 'LeadsService');
     }
 
     // Check if already assigned to same user

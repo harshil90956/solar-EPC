@@ -50,6 +50,10 @@ const Layout = ({ currentPage, onNavigate, children }) => {
 
   // Fetch dynamic badge counts
   useEffect(() => {
+    // Don't fetch if no user/token
+    const token = localStorage.getItem('solar_token') || localStorage.getItem('accessToken') || localStorage.getItem('token');
+    if (!token || !user) return;
+
     const resolveTenantId = () => {
       try {
         const savedUser = JSON.parse(localStorage.getItem('solar_user') || '{}');
@@ -73,6 +77,13 @@ const Layout = ({ currentPage, onNavigate, children }) => {
 
         // Fetch project stats (avoid /projects list which may be permission-gated)
         const projectsStats = await api.get('/projects/stats', { tenantId }).catch(() => null);
+
+        // Fetch survey stats (only if user has survey view permission)
+        const canViewSurvey = resolvePermission(user?.id || user?._id, user?.roleId || user?.role, 'survey', 'view');
+        let surveyStats = null;
+        if (canViewSurvey) {
+          surveyStats = await api.get('/surveys/stats', { tenantId }).catch(() => null);
+        }
 
         // Calculate counts
         const lowStockCount =
@@ -112,7 +123,7 @@ const Layout = ({ currentPage, onNavigate, children }) => {
     // Refresh every 30 seconds
     const interval = setInterval(fetchBadgeCounts, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [user]);
 
   const close = useCallback(() => setSidebarOpen(false), []);
 

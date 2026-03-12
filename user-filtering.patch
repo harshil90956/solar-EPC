@@ -1,0 +1,21 @@
+--- a/frontend/src/pages/SiteSurveyPage.js
++++ b/frontend/src/pages/SiteSurveyPage.js
+@@ -1643,7 +1643,9 @@ const SiteSurveyPage = () => {
+     try {
+       setLoading(true);
+       const status = activeTab === 'all' ? '' : activeTab;
+-      const response = await siteSurveysApi.getAll({ status, search: searchQuery, limit: 100 });
++      // Filter by assigned engineer - non-admin users only see their assigned surveys
++      const engineerFilter = (!isAdmin && user?.name) ? user.name : '';
++      const response = await siteSurveysApi.getAll({ status, search: searchQuery, engineer: engineerFilter, limit: 100 });
+       const surveyData = response.data?.data || response.data || [];
+       setSurveys(surveyData);
+ 
+@@ -1656,7 +1658,7 @@ const SiteSurveyPage = () => {
+     } finally {
+       setLoading(false);
+     }
+-  }, [activeTab, searchQuery]);
++  }, [activeTab, searchQuery, isAdmin, user?.name]);
+ 
+   useEffect(() => { fetchSurveys(); }, [fetchSurveys]);

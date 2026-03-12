@@ -903,17 +903,7 @@ export class InventoryService {
 
     // Try to find item by name first, then by description
     let item = await this.inventoryModel.findOne({ tenantId, name: itemName }).exec();
-
-    // If not found by name, try searching by description
-    if (!item) {
-      item = await this.inventoryModel.findOne({ tenantId, description: itemName }).exec();
-    }
-
-    // If still not found, try searching by itemId
-    if (!item) {
-      item = await this.inventoryModel.findOne({ tenantId, itemId: itemName }).exec();
-    }
-
+    
     if (!item) {
       // Create new inventory item if it doesn't exist
       const newItem = new this.inventoryModel({

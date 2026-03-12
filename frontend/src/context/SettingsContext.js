@@ -9,7 +9,6 @@ import React, {
 } from 'react';
 import {
     buildDefaultFlags,
-    buildDefaultRBAC,
     MODULE_DEFS,
     ROLE_DEFS,
     ACTION_DEFS,
@@ -23,6 +22,31 @@ const emptyPerms = () =>
     Object.fromEntries(ACTION_DEFS.map(a => [a.id, false]));
 const fullPerms = () =>
     Object.fromEntries(ACTION_DEFS.map(a => [a.id, true]));
+
+const buildDefaultRBAC = () => {
+    const rbac = {};
+    const modules = [
+        'dashboard', 'crm', 'survey', 'design', 'project', 'inventory', 
+        'procurement', 'logistics', 'installation', 'commissioning', 
+        'finance', 'service', 'compliance', 'settings', 'hrm', 'intelligence'
+    ];
+    
+    ROLE_DEFS.forEach(role => {
+        rbac[role.id] = {};
+        modules.forEach(mod => {
+            rbac[role.id][mod] = {
+                view: true,
+                create: role.id === 'admin' || role.id === 'manager',
+                edit: role.id === 'admin' || role.id === 'manager',
+                delete: role.id === 'admin',
+                export: role.id === 'admin' || role.id === 'manager',
+                approve: role.id === 'admin' || role.id === 'manager',
+                assign: role.id === 'admin' || role.id === 'manager',
+            };
+        });
+    });
+    return rbac;
+};
 
 export const SettingsProvider = ({ children }) => {
 
@@ -362,13 +386,9 @@ export const SettingsProvider = ({ children }) => {
     const refreshCustomRoles = useCallback(async () => {
         try {
             const response = await settingsApi.getCustomRoles();
-
-            // Handle wrapped response format {success: true, data: {...}}
-            const raw = response?.data || response;
-            const rolesData = (raw && typeof raw === 'object' && raw.success === true && raw.data)
-                ? raw.data
-                : raw;
-
+            const rolesArray = response.data || response;
+            console.log('[SETTINGS DEBUG] getCustomRoles response:', JSON.stringify(rolesArray, null, 2));
+            
             const rolesObj = {};
             const rolesArray = Array.isArray(rolesData) ? rolesData : Object.values(rolesData || {});
             rolesArray.forEach(r => {
@@ -397,25 +417,29 @@ export const SettingsProvider = ({ children }) => {
                             permsObj[moduleId] = modulePerms;
                         }
                     }
-                    perms = permsObj;
+                    rolesObj[roleId] = {
+                        id: roleId,
+                        label: r.label,
+                        description: r.description,
+                        baseRole: r.baseRole,
+                        color: r.color,
+                        bg: r.bg,
+                        isCustom: true,
+                        dataScope: r.dataScope || 'ALL',
+                        permissions: perms,
+                        createdAt: r.createdAt,
+                        updatedAt: r.updatedAt,
+                    };
                 }
-                rolesObj[roleId] = {
-                    id: roleId,
-                    label: normalizeLabel(r.label),
-                    description: r.description,
-                    baseRole: r.baseRole,
-                    color: r.color,
-                    bg: r.bg,
-                    isCustom: true,
-                    dataScope: r.dataScope || 'ALL',
-                    permissions: perms,
-                    createdAt: r.createdAt,
-                    updatedAt: r.updatedAt,
-                };
             });
             setCustomRoles(rolesObj);
-        } catch (e) {
-            // silent fail
+            console.log('[SETTINGS] Refreshed custom roles:', Object.keys(rolesObj));
+            console.log('[SETTINGS DEBUG] Custom roles object keys:', Object.keys(rolesObj));
+            if (Object.keys(rolesObj).length > 0) {
+                console.log('[SETTINGS DEBUG] First role permissions:', rolesObj[Object.keys(rolesObj)[0]]?.permissions);
+            }
+        } catch (error) {
+            console.error('Failed to refresh custom roles:', error);
         }
     }, []);
 
@@ -792,7 +816,7 @@ export const SettingsProvider = ({ children }) => {
 
     /**
      * resolvePermission(userId, roleId, moduleId, actionId)
-     * Priority: User Override → Custom Role → Base RBAC
+     * Priority: Backend Matrix (Pre-computed) -> Feature Flag -> User Override -> Custom Role -> Base RBAC -> Admin Fallback
      */
     const resolvePermission = useCallback((userId, roleId, moduleId, actionId) => {
         // Debug logging
@@ -815,7 +839,7 @@ export const SettingsProvider = ({ children }) => {
         // Normalize roleId to lowercase for case-insensitive matching
         const normalizedRoleId = roleIdTrimmed.toLowerCase();
 
-        // 1. Hard user override
+        // STEP 3: Hard user override (highest priority for specific users)
         const userOvr = userOverrides[userId];
         const hardVal = userOvr?.overrides?.[moduleId]?.[actionId];
         if (hardVal !== undefined && hardVal !== null) {
@@ -859,6 +883,18 @@ export const SettingsProvider = ({ children }) => {
         });
 
         let customRole = candidateCustomRoleId ? customRoles[candidateCustomRoleId] : undefined;
+        
+        // If not found by ID, search by role label (case-insensitive match)
+        if (!customRole && normalizedRoleId) {
+            const matchedByLabel = Object.values(customRoles).find(r => 
+                r.label?.toLowerCase() === normalizedRoleId || 
+                r.id?.toLowerCase() === normalizedRoleId
+            );
+            if (matchedByLabel) {
+                customRole = matchedByLabel;
+            }
+        }
+        
         if (!customRole && candidateCustomRoleId) {
             const normalizedCandidate = String(candidateCustomRoleId).trim().toLowerCase();
             const matchedKey = Object.keys(customRoles).find(key => key.toLowerCase() === normalizedCandidate);
