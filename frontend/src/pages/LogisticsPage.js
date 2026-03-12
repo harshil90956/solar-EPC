@@ -1120,16 +1120,29 @@ const LogisticsPage = () => {
   const [vendors, setVendors] = useState([]);
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [showVendorModal, setShowVendorModal] = useState(false);
-  const [newVendor, setNewVendor] = useState({ name: '', category: '', city: '', contact: '', phone: '', email: '' });
+  const [newVendor, setNewVendor] = useState({ 
+    name: '', 
+    category: '', 
+    city: '', 
+    contact: '', 
+    phone: '', 
+    email: '',
+    itemId: '',
+    itemName: '',
+    unit: '',
+    quantity: ''
+  });
 
-  // Categories state - loaded from API (same source as InventoryPage)
+  // Inventory items and units for dropdowns
+  const [inventoryItems, setInventoryItems] = useState([]);
+  const [inventoryUnits, setInventoryUnits] = useState([]);
+  const [dropdownLoading, setDropdownLoading] = useState(false);
+
+  // Categories state - loaded from Inventory API
   const [vendorCategories, setVendorCategories] = useState([]);
 
-  // Warehouses state - load from localStorage (same as InventoryPage)
-  const [warehouses, setWarehouses] = useState(() => {
-    const saved = localStorage.getItem('warehouses');
-    return saved ? JSON.parse(saved) : ['WH-Ahmedabad', 'WH-Surat', 'WH-Mumbai'];
-  });
+  // Warehouses state - fetch from API (same as InventoryPage)
+  const [warehouses, setWarehouses] = useState([]);
 
   // Vendor delivery state
   const [showVendorDeliveryModal, setShowVendorDeliveryModal] = useState(false);
@@ -1198,18 +1211,21 @@ const LogisticsPage = () => {
     fetchProjects();
     fetchVendors();
     fetchVendorCategories();
+    fetchInventoryItems();
+    fetchInventoryUnits();
+    fetchWarehouses();
   }, []);
 
-  // Listen for storage changes to update warehouses dynamically
+  // Listen for storage changes to update warehouses dynamically from Inventory page
   useEffect(() => {
     const handleStorageChange = () => {
-      const saved = localStorage.getItem('warehouses');
-      if (saved) {
-        setWarehouses(JSON.parse(saved));
+      // When dispatch modal opens or inventory data changes, refresh warehouses from API
+      if (showAdd) {
+        console.log('[LOGISTICS] Dispatch modal opened - refreshing warehouses from API');
+        fetchWarehouses();
       }
     };
     
-    // Check for changes when dispatch modal opens
     handleStorageChange();
     
     // Also listen for storage events from other tabs/windows
@@ -1217,15 +1233,109 @@ const LogisticsPage = () => {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [showAdd]);
 
-  // Fetch categories from API (same as InventoryPage)
+  // Fetch all dropdown data when vendor modal opens
+  useEffect(() => {
+    if (showVendorModal) {
+      console.log('[LOGISTICS] Vendor modal opened - refreshing dropdown data from Inventory...');
+      refreshDropdownData();
+    }
+  }, [showVendorModal]);
+
+  // Function to refresh all dropdown data (called when vendor modal opens)
+  const refreshDropdownData = async () => {
+    setDropdownLoading(true);
+    try {
+      await Promise.all([
+        fetchVendorCategories(),
+        fetchInventoryItems(),
+        fetchInventoryUnits(),
+        fetchWarehouses()  // Also refresh warehouses when vendor modal opens
+      ]);
+      console.log('[LOGISTICS] All dropdown data refreshed');
+    } catch (err) {
+      console.error('Error refreshing dropdown data:', err);
+    } finally {
+      setDropdownLoading(false);
+    }
+  };
   const fetchVendorCategories = async () => {
     try {
-      const data = await api.get('/lookups/categories', { headers: { 'x-tenant-id': TENANT_ID } });
-      const categoriesArray = Array.isArray(data) ? data : (data.data || []);
-      setVendorCategories(categoriesArray.map(c => c.name));
+      const tenantId = localStorage.getItem('tenantId') || 'default';
+      // Use /lookups/categories to get ALL categories from lookup collection
+      const res = await api.get('/lookups/categories', { tenantId });
+      const data = res?.data ?? res;
+      const categoriesData = Array.isArray(data) ? data : (data?.data || []);
+      // Extract category names from lookup objects
+      const categories = categoriesData.map(c => c.name || c.code || c).filter(Boolean);
+      console.log('[LOGISTICS] Fetched categories from lookups:', categories.length, categories);
+      setVendorCategories(categories);
+      if (categories.length === 0) {
+        console.warn('[LOGISTICS] No categories returned from /lookups/categories API');
+      }
     } catch (err) {
-      console.error('Failed to fetch categories:', err);
-      setVendorCategories([]); // No hardcoded fallback
+      console.error('[LOGISTICS] Failed to fetch categories:', err);
+      setVendorCategories([]);
+    }
+  };
+
+  // Fetch warehouses from Lookup API
+  const fetchWarehouses = async () => {
+    try {
+      const tenantId = localStorage.getItem('tenantId') || 'default';
+      console.log('[LOGISTICS] Fetching warehouses from /lookups/warehouses API');
+      const res = await api.get('/lookups/warehouses', { headers: { 'x-tenant-id': tenantId } });
+      const data = res?.data ?? res;
+      const warehousesData = Array.isArray(data) ? data : (data?.data || []);
+      // Extract warehouse names from lookup objects
+      const whNames = warehousesData.map(w => w.name || w.code || w).filter(Boolean);
+      console.log('[LOGISTICS] Fetched warehouses from API:', whNames.length, whNames);
+      setWarehouses(whNames);
+      if (whNames.length === 0) {
+        console.warn('[LOGISTICS] No warehouses returned from /lookups/warehouses API');
+      }
+    } catch (err) {
+      console.error('[LOGISTICS] Failed to fetch warehouses:', err);
+      setWarehouses([]);
+    }
+  };
+
+  // Fetch inventory units from Lookup API
+  const fetchInventoryUnits = async () => {
+    try {
+      const tenantId = localStorage.getItem('tenantId') || 'default';
+      // Use /lookups/units to get ALL units from lookup collection
+      const res = await api.get('/lookups/units', { tenantId });
+      const data = res?.data ?? res;
+      const unitsData = Array.isArray(data) ? data : (data?.data || []);
+      // Extract unit names from lookup objects
+      const units = unitsData.map(u => u.name || u.code || u).filter(Boolean);
+      console.log('[LOGISTICS] Fetched units from lookups:', units.length, units);
+      setInventoryUnits(units);
+      if (units.length === 0) {
+        console.warn('[LOGISTICS] No units returned from /lookups/units API');
+      }
+    } catch (err) {
+      console.error('[LOGISTICS] Failed to fetch units:', err);
+      setInventoryUnits([]);
+    }
+  };
+
+    // Fetch inventory items for dropdown - fetch from /items master data
+  const fetchInventoryItems = async () => {
+    try {
+      const tenantId = localStorage.getItem('tenantId') || 'default';
+      console.log('[LOGISTICS] Fetching items from /items API with tenantId:', tenantId);
+      const res = await api.get('/items', { tenantId });
+      const data = res?.data ?? res;
+      const items = Array.isArray(data) ? data : (data?.data || []);
+      console.log('[LOGISTICS] Fetched items from /items API:', items.length, items);
+      setInventoryItems(items);
+      if (items.length === 0) {
+        console.warn('[LOGISTICS] No items returned from /items API');
+      }
+    } catch (err) {
+      console.error('[LOGISTICS] Failed to fetch items from /items API:', err);
+      setInventoryItems([]);
     }
   };
 
@@ -1285,13 +1395,41 @@ const LogisticsPage = () => {
 
   const handleCreateVendor = async () => {
     try {
-      // Validation
+      // Validation - Basic fields
       if (!newVendor.name || !newVendor.category || !newVendor.city || !newVendor.contact || !newVendor.phone || !newVendor.email) {
         alert('Please fill in all required fields');
         return;
       }
-      console.log('Creating vendor with data:', newVendor);
-      const res = await api.post('/logistics/vendors', newVendor);
+      
+      // Validation - Inventory fields (NOW REQUIRED)
+      if (!newVendor.itemId) {
+        alert('Please select an item (Required field)');
+        return;
+      }
+      if (!newVendor.unit) {
+        alert('Please select a unit (Required field)');
+        return;
+      }
+      if (newVendor.quantity === undefined || newVendor.quantity === null || newVendor.quantity === '') {
+        alert('Please enter quantity (Required field)');
+        return;
+      }
+      if (Number(newVendor.quantity) < 0) {
+        alert('Quantity must be 0 or greater');
+        return;
+      }
+      
+      // Find item name from selected item
+      const selectedItem = inventoryItems.find(item => item.itemId === newVendor.itemId);
+      console.log('[LOGISTICS CREATE] Selected item for vendor:', selectedItem);
+      const payload = {
+        ...newVendor,
+        quantity: newVendor.quantity ? Number(newVendor.quantity) : 0,
+        itemName: selectedItem?.description || selectedItem?.name || '',
+      };
+      
+      console.log('Creating vendor with data:', payload);
+      const res = await api.post('/logistics/vendors', payload);
       console.log('Vendor created response:', res);
       
       // Check if creation was successful
@@ -1303,7 +1441,18 @@ const LogisticsPage = () => {
       // Refresh vendors list immediately
       await fetchVendors();
       setShowVendorModal(false);
-      setNewVendor({ name: '', category: '', city: '', contact: '', phone: '', email: '' });
+      setNewVendor({ 
+        name: '', 
+        category: '', 
+        city: '', 
+        contact: '', 
+        phone: '', 
+        email: '',
+        itemId: '',
+        itemName: '',
+        unit: '',
+        quantity: ''
+      });
       setSearch(''); // Clear search to show new vendor
       alert('Vendor created successfully!');
     } catch (error) {
@@ -1326,7 +1475,29 @@ const LogisticsPage = () => {
   const handleUpdateVendor = async () => {
     try {
       if (!editedVendor) return;
-      // Only send editable fields
+      
+      // Validation - Inventory fields (REQUIRED)
+      if (!editedVendor.itemId) {
+        alert('Please select an item (Required field)');
+        return;
+      }
+      if (!editedVendor.unit) {
+        alert('Please select a unit (Required field)');
+        return;
+      }
+      if (editedVendor.quantity === undefined || editedVendor.quantity === null || editedVendor.quantity === '') {
+        alert('Please enter quantity (Required field)');
+        return;
+      }
+      if (Number(editedVendor.quantity) < 0) {
+        alert('Quantity must be 0 or greater');
+        return;
+      }
+      
+      // Find item name from selected item
+      const selectedItem = inventoryItems.find(item => item.itemId === editedVendor.itemId);
+      
+      // Preserve original itemName if item not found (might be deleted)
       const payload = {
         name: editedVendor.name,
         category: editedVendor.category,
@@ -1334,6 +1505,10 @@ const LogisticsPage = () => {
         contact: editedVendor.contact,
         phone: editedVendor.phone,
         email: editedVendor.email,
+        itemId: editedVendor.itemId,
+        itemName: selectedItem?.description || selectedItem?.name || editedVendor.itemName || '',
+        unit: editedVendor.unit,
+        quantity: editedVendor.quantity !== undefined ? Number(editedVendor.quantity) : undefined,
       };
       console.log('Updating vendor payload:', payload);
       const res = await api.patch(`/logistics/vendors/${editedVendor.id}`, payload);
@@ -1499,11 +1674,16 @@ const LogisticsPage = () => {
     if (!window.confirm(`Are you sure you want to delete dispatch ${dispatch.id}?`)) return;
     try {
       await api.delete(`/logistics/dispatches/${dispatch.id}`);
-      await fetchData();
+      // Optimistic update - remove from state immediately
+      setDispatches(prev => prev.filter(d => d.id !== dispatch.id));
       setSelected(null);
+      // Then refresh from backend to ensure sync
+      await fetchData();
       alert('Dispatch deleted successfully!');
     } catch (error) {
       console.error('Error deleting dispatch:', error);
+      // Refresh data on error to show latest state
+      await fetchData();
       alert('Failed to delete dispatch: ' + (error.response?.data?.error?.message || error.message || 'Unknown error'));
     }
   };
@@ -1609,11 +1789,16 @@ const LogisticsPage = () => {
     if (!window.confirm(`Are you sure you want to delete vendor ${vendor.name}?`)) return;
     try {
       await api.delete(`/logistics/vendors/${vendor.id}`);
-      await fetchData();
+      // Optimistic update - remove from state immediately
+      setVendors(prev => prev.filter(v => v.id !== vendor.id));
       setSelectedVendor(null);
+      // Then refresh from backend to ensure sync
+      await fetchVendors();
       alert('Vendor deleted successfully!');
     } catch (error) {
       console.error('Error deleting vendor:', error);
+      // Refresh data on error to show latest state
+      await fetchVendors();
       alert('Failed to delete vendor: ' + (error.response?.data?.error?.message || error.message || 'Unknown error'));
     }
   };
@@ -1718,16 +1903,16 @@ const LogisticsPage = () => {
             </p>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               <div onClick={() => handleCardClick('inTransit')} className="cursor-pointer transition-transform hover:scale-105">
-                <KPICard title="Total Shipments In Transit" value={inTransit} icon={Truck} sub="Shipments currently moving" gradient="bg-gradient-to-br from-cyan-50 to-cyan-100/50 dark:from-cyan-950/30 dark:to-cyan-900/20" iconBgColor="bg-cyan-100 dark:bg-cyan-900/50" iconColor="text-cyan-600 dark:text-cyan-400" />
+                <KPICard title="Total Shipments In Transit" value={inTransit} icon={Truck} sub="Shipments currently moving" variant="blue" />
               </div>
               <div onClick={() => handleCardClick('scheduled')} className="cursor-pointer transition-transform hover:scale-105">
-                <KPICard title="Total Dispatches Scheduled" value={scheduled} icon={Clock} sub="Dispatches awaiting pickup" gradient="bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-950/30 dark:to-amber-900/20" iconBgColor="bg-amber-100 dark:bg-amber-900/50" iconColor="text-amber-600 dark:text-amber-400" />
+                <KPICard title="Total Dispatches Scheduled" value={scheduled} icon={Clock} sub="Dispatches awaiting pickup" variant="emerald" />
               </div>
               <div onClick={() => handleCardClick('delivered')} className="cursor-pointer transition-transform hover:scale-105">
-                <KPICard title="Total Deliveries Completed" value={delivered} icon={CheckCircle} sub={`${delivered} deliveries done this month`} gradient="bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/30 dark:to-emerald-900/20" iconBgColor="bg-emerald-100 dark:bg-emerald-900/50" iconColor="text-emerald-600 dark:text-emerald-400" />
+                <KPICard title="Total Deliveries Completed" value={delivered} icon={CheckCircle} sub={`${delivered} deliveries done this month`} variant="purple" />
               </div>
               <div onClick={() => handleCardClick('totalFreight')} className="cursor-pointer transition-transform hover:scale-105">
-                <KPICard title="Total Freight Cost" value={`₹${totalFreight.toLocaleString('en-IN')}`} icon={MapPin} sub="Total shipping expenses" gradient="bg-gradient-to-br from-rose-50 to-rose-100/50 dark:from-rose-950/30 dark:to-rose-900/20" iconBgColor="bg-rose-100 dark:bg-rose-900/50" iconColor="text-rose-600 dark:text-rose-400" />
+                <KPICard title="Total Freight Cost" value={`₹${totalFreight.toLocaleString('en-IN')}`} icon={MapPin} sub="Total shipping expenses" variant="amber" />
               </div>
             </div>
           </div>
@@ -1809,15 +1994,14 @@ const LogisticsPage = () => {
                 value={vendors.length} 
                 icon={Store} 
                 sub="Total vendors in system"
-                gradient="bg-gradient-to-br from-violet-50 to-violet-100/50 dark:from-violet-950/30 dark:to-violet-900/20"
-                iconBgColor="bg-violet-100 dark:bg-violet-900/50"
-                iconColor="text-violet-600 dark:text-violet-400"
+                variant="violet"
               />
               <KPICard 
                 title="Unique Cities" 
                 value={new Set(vendors.map(v => v.city).filter(Boolean)).size} 
                 icon={MapPin} 
                 sub="Cities with vendors"
+                variant="cyan"
                 gradient="bg-gradient-to-br from-sky-50 to-sky-100/50 dark:from-sky-950/30 dark:to-sky-900/20"
                 iconBgColor="bg-sky-100 dark:bg-sky-900/50"
                 iconColor="text-sky-600 dark:text-sky-400"
@@ -2063,31 +2247,100 @@ const LogisticsPage = () => {
           <Button onClick={handleCreateVendor}><Plus size={13} /> Add Vendor</Button>
         </div>}>
         <div className="space-y-3">
-          <FormField label="Vendor Name">
+          <FormField label="Vendor Name *">
             <Input value={newVendor.name} onChange={e => setNewVendor({ ...newVendor, name: e.target.value })} placeholder="e.g., ABC Logistics" />
           </FormField>
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="Category">
+            <FormField label="Category *">
               <Select value={newVendor.category} onChange={e => setNewVendor({ ...newVendor, category: e.target.value })}>
-                <option value="">Select Category</option>
+                <option value="">{vendorCategories.length === 0 ? 'No categories available' : 'Select Category'}</option>
                 {vendorCategories.map(cat => (
                   <option key={cat} value={cat}>{cat}</option>
                 ))}
               </Select>
+              {vendorCategories.length === 0 && (
+                <p className="text-[10px] text-amber-500 mt-1">Click refresh button if categories don't load</p>
+              )}
             </FormField>
-            <FormField label="City">
+            <FormField label="City *">
               <Input value={newVendor.city} onChange={e => setNewVendor({ ...newVendor, city: e.target.value })} placeholder="e.g., Ahmedabad" />
             </FormField>
           </div>
-          <FormField label="Contact Person">
+          <FormField label="Contact Person *">
             <Input value={newVendor.contact} onChange={e => setNewVendor({ ...newVendor, contact: e.target.value })} placeholder="e.g., John Doe" />
           </FormField>
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="Phone">
+            <FormField label="Phone *">
               <Input value={newVendor.phone} onChange={e => setNewVendor({ ...newVendor, phone: e.target.value })} placeholder="e.g., +91 98765 43210" />
             </FormField>
-            <FormField label="Email">
+            <FormField label="Email *">
               <Input type="email" value={newVendor.email} onChange={e => setNewVendor({ ...newVendor, email: e.target.value })} placeholder="e.g., vendor@example.com" />
+            </FormField>
+          </div>
+          
+          {/* Inventory Section - REQUIRED */}
+          <div className="pt-3 border-t border-[var(--border-base)]">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs text-[var(--text-muted)] flex items-center gap-1">
+                Inventory Stock Entry 
+                <span className="text-[10px] text-red-500">*</span>
+              </p>
+              <button 
+                onClick={refreshDropdownData}
+                className="text-[10px] text-[var(--primary)] hover:underline flex items-center gap-1"
+                disabled={dropdownLoading}
+              >
+                {dropdownLoading ? 'Loading...' : '↻ Refresh Data'}
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Item">
+                <Select 
+                  value={newVendor.itemId} 
+                  onChange={e => {
+                    const selectedItem = inventoryItems.find(item => item.itemId === e.target.value);
+                    setNewVendor({ 
+                      ...newVendor, 
+                      itemId: e.target.value,
+                      itemName: selectedItem?.description || selectedItem?.name || '',
+                      unit: selectedItem?.unit || newVendor.unit
+                    });
+                  }}
+                >
+                  <option value="">{inventoryItems.length === 0 ? 'No items available' : 'Select Item'}</option>
+                  {inventoryItems.map(item => (
+                    <option key={item.itemId} value={item.itemId}>
+                      {item.description || item.name || 'Unknown Item'}
+                    </option>
+                  ))}
+                </Select>
+                {inventoryItems.length === 0 && (
+                  <p className="text-[10px] text-amber-500 mt-1">No inventory items found in database</p>
+                )}
+              </FormField>
+              <FormField label="Unit">
+                <Select 
+                  value={newVendor.unit} 
+                  onChange={e => setNewVendor({ ...newVendor, unit: e.target.value })}
+                >
+                  <option value="">{inventoryUnits.length === 0 ? 'No units available' : 'Select Unit'}</option>
+                  {inventoryUnits.map(unit => (
+                    <option key={unit} value={unit}>{unit}</option>
+                  ))}
+                </Select>
+                {inventoryUnits.length === 0 && (
+                  <p className="text-[10px] text-amber-500 mt-1">No units found in inventory</p>
+                )}
+              </FormField>
+            </div>
+            <FormField label="Quantity">
+              <Input 
+                type="number" 
+                value={newVendor.quantity} 
+                onChange={e => setNewVendor({ ...newVendor, quantity: e.target.value })} 
+                placeholder="e.g., 100"
+                min="0"
+              />
             </FormField>
           </div>
         </div>
@@ -2153,15 +2406,95 @@ const LogisticsPage = () => {
                   <Input type="email" value={editedVendor.email} onChange={e => setEditedVendor({...editedVendor, email: e.target.value})} placeholder="e.g., vendor@example.com" />
                 </FormField>
               </div>
+              
+              {/* Inventory Section - REQUIRED */}
+              <div className="pt-3 border-t border-[var(--border-base)]">
+                <p className="text-xs text-[var(--text-muted)] mb-3 flex items-center gap-1">
+                  Inventory Stock Entry
+                  <span className="text-[10px] text-red-500">*</span>
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField label="Item">
+                    <Select 
+                      value={editedVendor.itemId || ''} 
+                      onChange={e => {
+                        const selectedItem = inventoryItems.find(item => item.itemId === e.target.value);
+                        setEditedVendor({
+                          ...editedVendor, 
+                          itemId: e.target.value,
+                          itemName: selectedItem?.description || selectedItem?.name || '',
+                          unit: selectedItem?.unit || editedVendor.unit
+                        });
+                      }}
+                    >
+                      <option value="">Select Item</option>
+                      {inventoryItems.map(item => (
+                        <option key={item.itemId} value={item.itemId}>
+                          {item.description || item.name || 'Unknown Item'}
+                        </option>
+                      ))}
+                    </Select>
+                  </FormField>
+                  <FormField label="Unit">
+                    <Select 
+                      value={editedVendor.unit || ''} 
+                      onChange={e => setEditedVendor({...editedVendor, unit: e.target.value})}
+                    >
+                      <option value="">Select Unit</option>
+                      {inventoryUnits.map(unit => (
+                        <option key={unit} value={unit}>{unit}</option>
+                      ))}
+                    </Select>
+                  </FormField>
+                </div>
+                <FormField label="Quantity">
+                  <Input 
+                    type="number" 
+                    value={editedVendor.quantity || ''} 
+                    onChange={e => setEditedVendor({...editedVendor, quantity: e.target.value})} 
+                    placeholder="e.g., 100"
+                    min="0"
+                  />
+                </FormField>
+              </div>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              {[['Vendor ID', selectedVendor.id], ['Name', selectedVendor.name], ['Category', selectedVendor.category], ['Contact', selectedVendor.contact], ['Phone', selectedVendor.phone], ['Email', selectedVendor.email], ['City', selectedVendor.city], ['Total Orders', selectedVendor.totalOrders]].map(([k, v]) => (
-                <div key={k} className="glass-card p-2">
-                  <div className="text-[var(--text-muted)] mb-0.5">{k}</div>
-                  <div className="font-semibold text-[var(--text-primary)]">{v}</div>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                {[['Vendor ID', selectedVendor.id], ['Name', selectedVendor.name], ['Category', selectedVendor.category], ['Contact', selectedVendor.contact], ['Phone', selectedVendor.phone], ['Email', selectedVendor.email], ['City', selectedVendor.city], ['Total Orders', selectedVendor.totalOrders]].map(([k, v]) => (
+                  <div key={k} className="glass-card p-2">
+                    <div className="text-[var(--text-muted)] mb-0.5">{k}</div>
+                    <div className="font-semibold text-[var(--text-primary)]">{v}</div>
+                  </div>
+                ))}
+              </div>
+              
+              {/* Inventory Info Section */}
+              {(selectedVendor.itemId || selectedVendor.itemName || selectedVendor.quantity > 0) && (
+                <div className="pt-2 border-t border-[var(--border-base)]">
+                  <p className="text-xs text-[var(--text-muted)] mb-2">Inventory Details</p>
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    {selectedVendor.itemName && (
+                      <div className="glass-card p-2">
+                        <div className="text-[var(--text-muted)] mb-0.5">Item</div>
+                        <div className="font-semibold text-[var(--text-primary)]">{selectedVendor.itemName}</div>
+                      </div>
+                    )}
+                    {selectedVendor.unit && (
+                      <div className="glass-card p-2">
+                        <div className="text-[var(--text-muted)] mb-0.5">Unit</div>
+                        <div className="font-semibold text-[var(--text-primary)]">{selectedVendor.unit}</div>
+                      </div>
+                    )}
+                    {(selectedVendor.quantity > 0 || selectedVendor.quantity === 0) && (
+                      <div className="glass-card p-2">
+                        <div className="text-[var(--text-muted)] mb-0.5">Quantity</div>
+                        <div className="font-semibold text-[var(--text-primary)]">{selectedVendor.quantity}</div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              ))}
+              )}
             </div>
           )}
         </Modal>

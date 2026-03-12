@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
+import { HydratedDocument, Types } from 'mongoose';
 
 export type VendorDocument = HydratedDocument<Vendor>;
 
@@ -34,6 +34,19 @@ export class Vendor {
 
   @Prop({ default: true })
   isActive!: boolean;
+
+  // Inventory-related fields - REQUIRED
+  @Prop({ type: String, required: [true, 'Item is required'] })
+  itemId!: string;
+
+  @Prop({ type: String, required: [true, 'Item name is required'] })
+  itemName!: string;
+
+  @Prop({ type: String, required: [true, 'Unit is required'] })
+  unit!: string;
+
+  @Prop({ type: Number, required: [true, 'Quantity is required'], min: [0, 'Quantity must be at least 0'] })
+  quantity!: number;
 }
 
 export const VendorSchema = SchemaFactory.createForClass(Vendor);
