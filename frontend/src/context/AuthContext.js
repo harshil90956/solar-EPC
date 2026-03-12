@@ -17,6 +17,9 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Extract tenantId from user object
+  const tenantId = user?.tenantId || localStorage.getItem('tenantId');
+
   const login = useCallback(async (email, password) => {
     setLoading(true);
     setError('');
@@ -61,12 +64,16 @@ export const AuthProvider = ({ children }) => {
           role: 'Employee',
           roleId,
           dataScope,
+          tenantId,
           isEmployee: true,
           permissions: {}, 
           token 
         };
         localStorage.setItem(TOKEN_KEY, token);
         localStorage.setItem(USER_KEY, JSON.stringify(authedUser));
+        if (tenantId) {
+          localStorage.setItem('tenantId', tenantId);
+        }
         setUser(authedUser);
         setError('');
         return true;
@@ -81,17 +88,22 @@ export const AuthProvider = ({ children }) => {
       const permissions = getRolePermissions(userData.role);
       // Normalize role: capitalize first letter (admin -> Admin)
       const normalizedRole = userData.role ? userData.role.charAt(0).toUpperCase() + userData.role.slice(1).toLowerCase() : userData.role;
-      // Decode JWT to extract dataScope
+      // Decode JWT to extract dataScope and tenantId
       let dataScope = userData.dataScope;
+      let extractedTenantId = userData.tenantId;
       try {
         const payload = JSON.parse(atob(accessToken.split('.')[1]));
         dataScope = payload.dataScope || userData.dataScope || null;
+        extractedTenantId = payload.tenantId || userData.tenantId || null;
       } catch (e) { /* ignore */ }
-      const authedUser = { ...userData, role: normalizedRole, dataScope, permissions, token: accessToken };
+      const authedUser = { ...userData, role: normalizedRole, dataScope, tenantId: extractedTenantId, permissions, token: accessToken };
       localStorage.setItem(TOKEN_KEY, accessToken);
       localStorage.setItem(USER_KEY, JSON.stringify(authedUser));
+      if (extractedTenantId) {
+        localStorage.setItem('tenantId', extractedTenantId);
+      }
       setUser(authedUser);
-      console.log('[AUTH] User saved with dataScope:', dataScope);
+      console.log('[AUTH] User saved with tenantId:', extractedTenantId, 'dataScope:', dataScope);
       setError('');
       return true;
     } catch (err) {
@@ -108,13 +120,14 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
+    localStorage.removeItem('tenantId');
     window.location.hash = '';
   }, []);
 
   const can = useCallback((action) => user?.permissions?.[action] ?? false, [user]);
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, error, can, loading }}>
+    <AuthContext.Provider value={{ user, tenantId, login, logout, error, can, loading }}>
       {children}
     </AuthContext.Provider>
   );

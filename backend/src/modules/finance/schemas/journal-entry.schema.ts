@@ -12,10 +12,10 @@ export type JournalEntryLine = {
 
 @Schema({ ...BaseSchemaOptions, collection: 'financeJournalEntries' })
 export class JournalEntry {
-  @Prop(BaseSchemaDefinition.tenantId)
+  @Prop({ ...BaseSchemaDefinition.tenantId })
   tenantId!: Types.ObjectId;
 
-  @Prop(BaseSchemaDefinition.isDeleted)
+  @Prop({ ...BaseSchemaDefinition.isDeleted })
   isDeleted!: boolean;
 
   @Prop({ required: true, index: true })
@@ -44,6 +44,9 @@ export class JournalEntry {
 
   @Prop({ required: false })
   createdBy?: Types.ObjectId;
+
+  @Prop({ required: false })
+  lf?: number;
 }
 
 export const JournalEntrySchema = SchemaFactory.createForClass(JournalEntry);

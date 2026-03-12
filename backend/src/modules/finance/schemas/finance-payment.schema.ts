@@ -11,10 +11,10 @@ export type FinancePaymentStatus = 'Initiated' | 'Processing' | 'Completed';
 
 @Schema({ ...BaseSchemaOptions, collection: 'financePayments' })
 export class FinancePayment {
-  @Prop(BaseSchemaDefinition.tenantId)
+  @Prop({ ...BaseSchemaDefinition.tenantId })
   tenantId!: Types.ObjectId;
 
-  @Prop(BaseSchemaDefinition.isDeleted)
+  @Prop({ ...BaseSchemaDefinition.isDeleted })
   isDeleted!: boolean;
 
   @Prop({ required: true, index: true })

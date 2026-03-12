@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { BaseSchemaDefinition } from '../../../shared/database/base.schema';
 
 export type EmployeeDocument = Employee & Document;
 
@@ -51,8 +52,11 @@ export class Employee {
   @Prop({ enum: EmployeeStatus, default: EmployeeStatus.ACTIVE })
   status!: EmployeeStatus;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Tenant', index: true })
-  tenantId?: Types.ObjectId;
+  @Prop({ ...BaseSchemaDefinition.tenantId })
+  tenantId!: Types.ObjectId;
+
+  @Prop({ ...BaseSchemaDefinition.isDeleted })
+  isDeleted!: boolean;
 
   @Prop({ type: Date })
   createdAt!: Date;

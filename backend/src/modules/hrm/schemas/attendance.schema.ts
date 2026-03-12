@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { BaseSchemaDefinition } from '../../../shared/database/base.schema';
 
 export type AttendanceDocument = Attendance & Document;
 
@@ -45,14 +46,14 @@ export class Attendance {
   @Prop({ default: '' })
   notes!: string;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Tenant', index: true })
-  tenantId?: Types.ObjectId;
-
-  @Prop({ default: false })
+  @Prop({ type: Boolean, default: false })
   isEarlyExit!: boolean;
 
-  @Prop({ type: Date })
-  createdAt!: Date;
+  @Prop({ ...BaseSchemaDefinition.tenantId })
+  tenantId!: Types.ObjectId;
+
+  @Prop({ ...BaseSchemaDefinition.isDeleted })
+  isDeleted!: boolean;
 }
 
 export const AttendanceSchema = SchemaFactory.createForClass(Attendance);

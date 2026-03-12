@@ -1,5 +1,5 @@
 // Solar OS – Document Management Module
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Plus, FileText, Send, DollarSign,
   LayoutGrid, List, Search, Filter,
@@ -32,6 +32,7 @@ import SolarQuotationPage from './SolarQuotationPage';
 import EquipmentPage from './EquipmentPage';
 import EstimatePage from './EstimatePage';
 import ProposalPage from './ProposalPage';
+import { documentsApi } from '../services/documentsApi';
 
 const fmt = CURRENCY.format;
 
@@ -254,8 +255,26 @@ const DocumentPage = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState(null);
   const [documents, setDocuments] = useState(MOCK_DOCUMENTS);
+  const [dashboardStats, setDashboardStats] = useState(null);
 
   const [solarQuoteKey, setSolarQuoteKey] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadDashboardStats = async () => {
+      try {
+        const res = await documentsApi.getDashboardStats();
+        const data = res?.data?.data || res?.data;
+        if (!cancelled) setDashboardStats(data);
+      } catch {
+        // ignore
+      }
+    };
+    loadDashboardStats();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // ── Filter Documents by Tab ────────────────────────────────────────────────
   const filteredDocuments = useMemo(() => {
@@ -501,13 +520,13 @@ const DocumentPage = () => {
                 <FolderOpen size={16} className="text-blue-500" />
               </div>
               <div>
-                <p className="text-lg font-bold text-[var(--text-primary)]">{stats.total.documents}</p>
+                <p className="text-lg font-bold text-[var(--text-primary)]">{dashboardStats?.totalDocuments ?? stats.total.documents}</p>
                 <p className="text-[10px] text-[var(--text-muted)] uppercase">Total Documents</p>
               </div>
             </div>
             <div className="flex items-center gap-1 mt-2">
               <TrendingUp size={10} className="text-emerald-500" />
-              <span className="text-[10px] text-emerald-500">+12%</span>
+              <span className="text-[10px] text-emerald-500">{`${dashboardStats?.documentsMoMPercent ?? 0}%`}</span>
               <span className="text-[10px] text-[var(--text-muted)]">vs last month</span>
             </div>
           </div>
@@ -518,12 +537,15 @@ const DocumentPage = () => {
                 <FileCheck size={16} className="text-purple-500" />
               </div>
               <div>
-                <p className="text-lg font-bold text-[var(--text-primary)]">{stats.epq.sent + stats.epq.draft}</p>
+                <p className="text-lg font-bold text-[var(--text-primary)]">{dashboardStats?.epq?.active ?? (stats.epq.sent + stats.epq.draft)}</p>
                 <p className="text-[10px] text-[var(--text-muted)] uppercase">Active EPQ</p>
               </div>
             </div>
             <div className="w-full bg-[var(--bg-elevated)] rounded-full h-1.5 mt-2">
-              <div className="h-full bg-purple-500 rounded-full" style={{ width: `${Math.round((stats.epq.accepted / (stats.epq.sent + stats.epq.draft || 1)) * 100)}%` }} />
+              <div
+                className="h-full bg-purple-500 rounded-full"
+                style={{ width: `${Math.round(dashboardStats?.epq?.conversionPercent ?? ((stats.epq.accepted / (stats.epq.sent + stats.epq.draft || 1)) * 100))}%` }}
+              />
             </div>
           </div>
 
@@ -533,14 +555,15 @@ const DocumentPage = () => {
                 <Target size={16} className="text-amber-500" />
               </div>
               <div>
-                <p className="text-lg font-bold text-[var(--text-primary)]">
-                  {Math.round((documents.filter(d => ['accepted', 'signed', 'paid'].includes(d.status)).length / (documents.length || 1)) * 100)}%
-                </p>
+                <p className="text-lg font-bold text-[var(--text-primary)]">{`${Math.round(dashboardStats?.epq?.conversionPercent ?? ((documents.filter(d => ['accepted', 'signed', 'paid'].includes(d.status)).length / (documents.length || 1)) * 100))}%`}</p>
                 <p className="text-[10px] text-[var(--text-muted)] uppercase">Conversion</p>
               </div>
             </div>
             <div className="w-full bg-[var(--bg-elevated)] rounded-full h-1.5 mt-2">
-              <div className="h-full bg-amber-500 rounded-full" style={{ width: `${(documents.filter(d => ['accepted', 'signed', 'paid'].includes(d.status)).length / (documents.length || 1)) * 100}%` }} />
+              <div
+                className="h-full bg-amber-500 rounded-full"
+                style={{ width: `${dashboardStats?.epq?.conversionPercent ?? ((documents.filter(d => ['accepted', 'signed', 'paid'].includes(d.status)).length / (documents.length || 1)) * 100)}%` }}
+              />
             </div>
           </div>
         </div>
