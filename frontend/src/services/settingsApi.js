@@ -218,6 +218,14 @@ export const settingsApi = {
     }
   },
 
+  async getTypeOptions() {
+    try {
+      return await apiClient.get('/settings/type-options');
+    } catch (error) {
+      return { projectTypes: [], installationTypes: [] };
+    }
+  },
+
   async updateInstallationTasks(tasks) {
     try {
       return await apiClient.put('/settings/installation/tasks', { tasks });

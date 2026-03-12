@@ -62,8 +62,17 @@ async function bootstrap() {
     instance.get('/', async () => ({ status: 'ok', message: 'Solar EPC API Server' }));
   });
 
-  const port = Number(process.env.APP_PORT ?? 3000);
-  await app.listen({ port, host: '0.0.0.0' });
+  const appPortRaw = process.env.APP_PORT;
+  const basePort = Number(appPortRaw ?? 3000);
+  const host = '0.0.0.0';
+  try {
+    await app.listen({ port: basePort, host });
+  } catch (err: any) {
+    const isAddrInUse = err?.code === 'EADDRINUSE';
+    const shouldFallback = isAddrInUse && (appPortRaw == null || String(appPortRaw).trim() === '');
+    if (!shouldFallback) throw err;
+    await app.listen({ port: 3001, host });
+  }
 
   // Seed logistics data
   try {

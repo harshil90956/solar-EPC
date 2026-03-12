@@ -50,6 +50,10 @@ export const documentsApi = {
     return api.get('/documents/estimates-proposals-quotations/stats');
   },
 
+  async getDashboardStats() {
+    return api.get('/documents/dashboard/stats');
+  },
+
   // Get contracts stats
   async getContractsStats() {
     return api.get('/documents/contracts/stats');
