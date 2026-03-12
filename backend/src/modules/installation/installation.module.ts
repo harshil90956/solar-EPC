@@ -6,6 +6,8 @@ import { InstallationService } from './services/installation.service';
 import { CommissioningIntegrationService } from './services/commissioning-integration.service';
 import { SettingsModule } from '../settings/settings.module';
 import { ProjectsModule } from '../projects/projects.module';
+import { CommissioningModule } from '../commissioning/commissioning.module';
+
 
 @Module({
   imports: [
@@ -14,6 +16,7 @@ import { ProjectsModule } from '../projects/projects.module';
     ]),
     SettingsModule,
     ProjectsModule,
+    CommissioningModule, // needed for automatic creation from delivered installations
   ],
   controllers: [InstallationController],
   providers: [InstallationService, CommissioningIntegrationService],
