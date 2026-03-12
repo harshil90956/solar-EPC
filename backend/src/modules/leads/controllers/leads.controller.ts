@@ -479,6 +479,27 @@ export class LeadsController {
   }
 
   // ============================================
+  // CUSTOMERS ENDPOINT
+  // ============================================
+  @Get('customers')
+  @RequirePermission('leads', 'view')
+  async getCustomers(@Query() query: QueryLeadDto, @Request() req: any) {
+    try {
+      const tenantId = req.tenant?.id;
+      const user = req.user;
+      this.logger.log(`[DEBUG] getCustomers - tenantId: ${tenantId}, user: ${user?.id}`);
+      const result = await this.leadsService.getCustomers(query, tenantId, user);
+      const page = Number(query?.page || 1);
+      const limit = Number(query?.limit || 25);
+      const pages = limit > 0 ? Math.max(1, Math.ceil((result.total || 0) / limit)) : 1;
+      return { success: true, data: result.data, total: result.total, page, pages };
+    } catch (error: any) {
+      this.logger.error(`Get customers failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
+  // ============================================
   // LEAD IMPORT ENDPOINT
   // ============================================
   @Post('import')

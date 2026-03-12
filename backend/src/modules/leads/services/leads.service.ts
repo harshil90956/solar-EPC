@@ -390,6 +390,86 @@ export class LeadsService {
     return { data, total };
   }
 
+  // ============================================
+  // CUSTOMERS
+  // ============================================
+  async getCustomers(
+    query: QueryLeadDto,
+    tenantId?: string,
+    user?: UserWithVisibility
+  ): Promise<{ data: Lead[]; total: number }> {
+    const {
+      page = 1,
+      limit = 25,
+      sortBy = 'createdAt',
+      sortOrder = 'desc',
+      search,
+      city,
+      source,
+      startDate,
+      endDate,
+    } = query;
+
+    // Build complete filter with tenant and visibility
+    // Filter for customers only (status = "customer")
+    const filter = this.buildCompleteFilter(tenantId, user, {
+      status: 'customer',
+      isDeleted: { $ne: true }
+    });
+
+    // Apply additional filters
+    if (city) filter.city = { $regex: city, $options: 'i' };
+    if (source) filter.source = source;
+
+    if (startDate || endDate) {
+      filter.createdAt = {};
+      if (startDate) filter.createdAt.$gte = new Date(startDate);
+      if (endDate) filter.createdAt.$lte = new Date(endDate);
+    }
+
+    if (search) {
+      const searchNum = Number(search);
+      const isNumeric = !isNaN(searchNum) && search.trim() !== '';
+      
+      const orConditions: any[] = [];
+      
+      orConditions.push(
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { company: { $regex: search, $options: 'i' } },
+        { phone: { $regex: search, $options: 'i' } },
+        { source: { $regex: search, $options: 'i' } },
+        { city: { $regex: search, $options: 'i' } }
+      );
+
+      if (isNumeric) {
+        orConditions.push({ value: searchNum });
+      }
+
+      filter.$and = filter.$and || [];
+      filter.$and.push({ $or: orConditions });
+    }
+
+    const sort: any = {};
+    sort[sortBy || 'createdAt'] = sortOrder === 'asc' ? 1 : -1;
+
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await Promise.all([
+      this.leadModel
+        .find(filter)
+        .populate('assignedTo', 'firstName lastName email name')
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .lean()
+        .exec(),
+      this.leadModel.countDocuments(filter),
+    ]);
+
+    return { data, total };
+  }
+
   async findOne(id: string, tenantId?: string, user?: UserWithVisibility): Promise<Lead> {
     const filter: any = this.buildCompleteFilter(tenantId, user, {
       $or: [
@@ -463,6 +543,12 @@ export class LeadsService {
     if (typeof dtoAny.statusKey === 'string') {
       dtoAny.statusKey = dtoAny.statusKey.trim().toLowerCase();
     }
+    
+    // Auto-sync: If stage/statusKey is set to "customer", also update status field
+    if (dtoAny.statusKey && dtoAny.statusKey.toLowerCase() === 'customer') {
+      updateData.status = 'customer';
+    }
+    
     for (const field of allowedFields) {
       if (dtoAny[field] !== undefined) {
         updateData[field] = dtoAny[field];
@@ -1226,6 +1312,11 @@ export class LeadsService {
       statusKey: stage,
       lastContact: now,
     };
+
+    // Auto-set status to "customer" when stage changes to "customer"
+    if (stage.toLowerCase() === 'customer') {
+      updateData.status = 'customer';
+    }
 
     // Add stage change activity
     const activity = {

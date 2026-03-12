@@ -2106,7 +2106,7 @@ const InstallationTasksPanel = () => {
     const togglePhoto = (idx) => {
         setTasks(prev => {
             const arr = [...prev];
-            arr[idx].photoRequired = !arr[idx].photoRequired;
+            arr[idx] = { ...arr[idx], photoRequired: !arr[idx].photoRequired };
             return arr;
         });
     };
@@ -2124,7 +2124,7 @@ const InstallationTasksPanel = () => {
                     <div key={i} className="flex items-center gap-2">
                         <input type="text" value={t.name} disabled className="flex-1 bg-[var(--bg-input)] rounded px-2 py-1 text-xs" />
                         <label className="text-xs flex items-center gap-1">
-                            <input type="checkbox" checked={t.photoRequired} onChange={() => togglePhoto(i)} /> Photo
+                            <input type="checkbox" checked={!!t.photoRequired} onChange={() => togglePhoto(i)} /> Photo
                         </label>
                         <button onClick={() => move(i, -1)} disabled={i===0} className="text-[var(--text-muted)]"><ChevronUp size={12} /></button>
                         <button onClick={() => move(i, 1)} disabled={i===tasks.length-1} className="text-[var(--text-muted)]"><ChevronDown size={12} /></button>

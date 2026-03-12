@@ -160,4 +160,9 @@ export const leadsApi = {
   async getImportDocumentation() {
     return api.get('/leads/import/documentation');
   },
+
+  // Get customers (leads with status = "customer")
+  async getCustomers(params = {}) {
+    return api.get('/leads/customers', params);
+  },
 };

@@ -7,7 +7,7 @@ import { Button } from '../components/ui/Button';
 import { Input, FormField, Select } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { toast } from '../components/ui/Toast';
-import { Calendar, Plus, Search, RefreshCw, Check, X, Trash2, Edit } from 'lucide-react';
+import { Calendar, Plus, Search, RefreshCw, Check, X, Trash2, Edit, Clock, CheckCircle, XCircle, User, FileText, Tag } from 'lucide-react';
 import { format } from 'date-fns';
 import { leaveApi, employeeApi } from '../services/hrmApi';
 import FullCalendar from '@fullcalendar/react';
@@ -15,6 +15,126 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import listPlugin from '@fullcalendar/list';
 import interactionPlugin from '@fullcalendar/interaction';
+
+// ── Leave Detail View Modal ────────────────────────────────────────────────
+const LeaveViewModal = ({ leave, onClose, onApprove, onReject, inline = false }) => {
+  if (!leave) return null;
+  const emp = leave.employeeId || {};
+  const initial = `${emp.firstName?.[0] || ''}${emp.lastName?.[0] || ''}`.toUpperCase() || 'L';
+  const days = leave.startDate && leave.endDate
+    ? Math.ceil((new Date(leave.endDate) - new Date(leave.startDate)) / (1000 * 60 * 60 * 24)) + 1
+    : 0;
+  const statusMap = {
+    pending:  { cls: 'bg-amber-500/10 text-amber-500 border-amber-500/20',   icon: Clock,         label: 'Pending'  },
+    approved: { cls: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20', icon: CheckCircle, label: 'Approved' },
+    rejected: { cls: 'bg-red-500/10 text-red-500 border-red-500/20',          icon: XCircle,       label: 'Rejected' },
+  };
+  const st = statusMap[leave.status] || statusMap.pending;
+  const leaveTypeColor = { paid: 'bg-blue-500/10 text-blue-600', unpaid: 'bg-gray-500/10 text-gray-600', sick: 'bg-amber-500/10 text-amber-600', casual: 'bg-purple-500/10 text-purple-600', earned: 'bg-indigo-500/10 text-indigo-600' };
+
+  const content = (
+    <>
+      {/* Hero */}
+      <div className="relative overflow-hidden rounded-xl mb-4 p-5 bg-gradient-to-br from-blue-500/15 via-blue-500/5 to-transparent border border-[var(--border-base)]">
+        <div className="absolute top-0 right-0 w-28 h-28 rounded-full bg-blue-500/10 -translate-y-6 translate-x-6" />
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-bold text-lg shadow-lg">{initial}</div>
+          <div className="flex-1">
+            <h2 className="text-lg font-bold text-[var(--text-primary)]">{emp.firstName} {emp.lastName}</h2>
+            <p className="text-xs text-[var(--text-muted)]">{emp.employeeId} · {emp.department}</p>
+            <div className="flex items-center gap-2 mt-2">
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${st.cls} flex items-center gap-1`}><st.icon size={11} />{st.label}</span>
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${leaveTypeColor[leave.leaveType] || 'bg-gray-500/10 text-gray-600'}`}>{leave.leaveType || 'paid'}</span>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-3xl font-bold text-blue-500">{days}</p>
+            <p className="text-xs text-[var(--text-faint)]">day{days !== 1 ? 's' : ''}</p>
+          </div>
+        </div>
+      </div>
+      {/* Date & Details */}
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        {[
+          { label: 'Start Date', value: leave.startDate ? format(new Date(leave.startDate), 'dd MMM yyyy') : '—', color: 'bg-emerald-500/10 border-emerald-500/20' },
+          { label: 'End Date',   value: leave.endDate   ? format(new Date(leave.endDate),   'dd MMM yyyy') : '—', color: 'bg-red-500/10 border-red-500/20' },
+        ].map(item => (
+          <div key={item.label} className={`p-3 rounded-xl border ${item.color}`}>
+            <p className="text-[10px] uppercase tracking-wide text-[var(--text-faint)] font-medium">{item.label}</p>
+            <p className="text-sm font-bold text-[var(--text-primary)] mt-1">{item.value}</p>
+          </div>
+        ))}
+      </div>
+      {/* Reason */}
+      {leave.reason && (
+        <div className="glass-card p-4">
+          <p className="text-[11px] uppercase tracking-wide text-[var(--text-faint)] font-medium mb-1.5 flex items-center gap-1"><FileText size={11} /> Reason</p>
+          <p className="text-sm text-[var(--text-primary)]">{leave.reason}</p>
+        </div>
+      )}
+    </>
+  );
+
+  // Inline mode — render without Modal wrapper
+  if (inline) {
+    return (
+      <div>
+        {content}
+        {leave.status === 'pending' && (
+          <div className="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-[var(--border-muted)]">
+            <button onClick={() => { onReject(leave._id); onClose(); }} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-xl bg-red-500/10 text-red-600 border border-red-500/20 hover:bg-red-500/20"><XCircle size={13} /> Reject</button>
+            <button onClick={() => { onApprove(leave._id); onClose(); }} className="flex items-center gap-1.5 px-4 py-1.5 text-xs rounded-xl bg-emerald-500 text-white hover:bg-emerald-600"><CheckCircle size={13} /> Approve</button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Modal mode
+  return (
+    <Modal open={!!leave} onClose={onClose} title="" size="md" footer={
+      <div className="flex items-center justify-between">
+        <button onClick={onClose} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-xl border border-[var(--border-base)] text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"><X size={13} /> Close</button>
+        {leave.status === 'pending' && (
+          <div className="flex gap-2">
+            <button onClick={() => { onReject(leave._id); onClose(); }} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-xl bg-red-500/10 text-red-600 border border-red-500/20 hover:bg-red-500/20"><XCircle size={13} /> Reject</button>
+            <button onClick={() => { onApprove(leave._id); onClose(); }} className="flex items-center gap-1.5 px-4 py-1.5 text-xs rounded-xl bg-emerald-500 text-white hover:bg-emerald-600"><CheckCircle size={13} /> Approve</button>
+          </div>
+        )}
+      </div>
+    }>
+      {content}
+    </Modal>
+  );
+};
+
+// ── Leave KPI List Modal ───────────────────────────────────────────────────
+const LeaveKpiModal = ({ title, leaves, onClose, onViewLeave }) => (
+  <Modal open={true} onClose={onClose} title={title} size="md"
+    footer={<button onClick={onClose} className="px-4 py-1.5 text-xs rounded-xl border border-[var(--border-base)] text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]">Close</button>}
+  >
+    <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+      {leaves.length === 0 ? <p className="text-sm text-[var(--text-muted)] text-center py-8">No leaves found</p> : leaves.map(l => {
+        const emp = l.employeeId || {};
+        const days = l.startDate && l.endDate ? Math.ceil((new Date(l.endDate) - new Date(l.startDate)) / (1000*60*60*24)) + 1 : 0;
+        const stCls = { pending: 'bg-amber-500/10 text-amber-500', approved: 'bg-emerald-500/10 text-emerald-500', rejected: 'bg-red-500/10 text-red-500' };
+        return (
+          <div key={l._id} onClick={() => onViewLeave(l)} className="flex items-center gap-3 p-3 rounded-xl bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] cursor-pointer border border-[var(--border-muted)] hover:border-[var(--primary)]/40 transition-all">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-bold text-sm">{emp.firstName?.[0]}{emp.lastName?.[0]}</div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm text-[var(--text-primary)]">{emp.firstName} {emp.lastName}</p>
+              <p className="text-xs text-[var(--text-muted)]">{l.startDate ? format(new Date(l.startDate), 'dd MMM') : ''} – {l.endDate ? format(new Date(l.endDate), 'dd MMM yyyy') : ''} · {l.leaveType}</p>
+            </div>
+            <div className="text-right">
+              <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${stCls[l.status] || stCls.pending}`}>{l.status}</span>
+              <p className="text-xs text-[var(--text-faint)] mt-1">{days}d</p>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  </Modal>
+);
 
 const LeavesPage = () => {
   const { user } = useAuth();
@@ -30,6 +150,10 @@ const LeavesPage = () => {
   const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(null);
   const calendarRef = useRef(null);
+  // View modal states
+  const [viewLeave, setViewLeave] = useState(null);
+  // KPI filter state - shows filtered data in table instead of modal
+  const [kpiFilter, setKpiFilter] = useState(null); // 'pending' | 'approved' | 'rejected' | null
   const [leaveForm, setLeaveForm] = useState({
     employeeId: '',
     leaveType: 'paid',
@@ -154,7 +278,15 @@ const LeavesPage = () => {
   const filteredLeaves = leaves.filter(leave => {
     const matchesSearch = leaveSearch === '' ||
       `${leave.employeeId?.firstName || ''} ${leave.employeeId?.lastName || ''}`.toLowerCase().includes(leaveSearch.toLowerCase());
-    const matchesStatus = leaveStatusFilter === 'all' || leave.status === leaveStatusFilter;
+    
+    // KPI filter takes precedence over manual status filter
+    let matchesStatus = true;
+    if (kpiFilter) {
+      matchesStatus = leave.status === kpiFilter;
+    } else {
+      matchesStatus = leaveStatusFilter === 'all' || leave.status === leaveStatusFilter;
+    }
+    
     return matchesSearch && matchesStatus;
   });
 
@@ -333,13 +465,33 @@ const LeavesPage = () => {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {kpis.map((kpi, index) => (
+        {[
+          { label: 'Pending Leaves',  value: leaves.filter(l => l.status === 'pending').length,  icon: Calendar, color: '#f59e0b', filter: 'pending'  },
+          { label: 'Approved Leaves', value: leaves.filter(l => l.status === 'approved').length, icon: Calendar, color: '#22c55e', filter: 'approved' },
+          { label: 'Rejected Leaves', value: leaves.filter(l => l.status === 'rejected').length, icon: Calendar, color: '#ef4444', filter: 'rejected' },
+          { label: 'Total Leaves',    value: leaves.length,                                       icon: Calendar, color: '#3b82f6', filter: 'all'      },
+        ].map((kpi, index) => (
           <KPICard
             key={index}
             label={kpi.label}
             value={kpi.value}
             icon={kpi.icon}
             accentColor={kpi.color}
+            onClick={() => { 
+              setKpiFilter(kpi.filter === 'all' ? null : kpi.filter); 
+              setLeaveStatusFilter('all'); 
+              // Auto-expand first leave
+              setTimeout(() => {
+                const filtered = kpi.filter === 'all' || !kpi.filter 
+                  ? leaves 
+                  : leaves.filter(l => l.status === kpi.filter);
+                if (filtered.length > 0) {
+                  setViewLeave(filtered[0]);
+                } else {
+                  setViewLeave(null);
+                }
+              }, 100);
+            }}
           />
         ))}
       </div>
@@ -704,8 +856,14 @@ const LeavesPage = () => {
       <DataTable
         columns={columns}
         data={filteredLeaves}
-        emptyText="No leave records found."
+        emptyText={kpiFilter ? `No ${kpiFilter.replace('_', ' ')} leaves found.` : "No leave records found."}
         loading={loading}
+        expandedRowKey={viewLeave?._id}
+        renderExpanded={(leave) => (
+          <div className="p-4 border-t border-[var(--border-muted)] bg-gradient-to-b from-white to-[var(--bg-elevated)]">
+            <LeaveViewModal leave={leave} onClose={() => setViewLeave(null)} onApprove={handleApproveLeave} onReject={handleRejectLeave} inline />
+          </div>
+        )}
       />
 
       {/* Apply Leave Modal */}
