@@ -47,11 +47,20 @@ export class DepartmentService {
   }
 
   async findAll(tenantId?: string): Promise<Department[]> {
+    console.log('[DEBUG DepartmentService] findAll called with tenantId:', tenantId);
     const tid = await this.resolveTenantObjectId(tenantId || '');
-    return this.departmentModel
+    console.log('[DEBUG DepartmentService] resolved tid:', tid);
+    
+    // Check all departments without tenant filter for debugging
+    const allDepts = await this.departmentModel.find().limit(5).exec();
+    console.log('[DEBUG DepartmentService] All departments (no filter):', allDepts.map(d => ({ name: d.name, tenantId: d.tenantId })));
+    
+    const result = await this.departmentModel
       .find({ tenantId: tid })
       .sort({ createdAt: -1 })
       .exec();
+    console.log('[DEBUG DepartmentService] Filtered result count:', result.length);
+    return result;
   }
 
   async findOne(id: string, tenantId?: string): Promise<Department> {
