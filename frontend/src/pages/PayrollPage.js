@@ -6,9 +6,65 @@ import { Button } from '../components/ui/Button';
 import { Input, FormField, Select } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { toast } from '../components/ui/Toast';
-import { Search, RefreshCw, Plus, Wallet } from 'lucide-react';
+import { Search, RefreshCw, Plus, Wallet, X, User, Calendar, TrendingUp, DollarSign, CheckCircle, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { payrollApi, employeeApi } from '../services/hrmApi';
+
+// ── Payroll Detail View Modal ──────────────────────────────────────────────
+const PayrollViewModal = ({ payroll, onClose }) => {
+  if (!payroll) return null;
+  const emp = payroll.employeeId || {};
+  const initial = `${emp.firstName?.[0] || ''}${emp.lastName?.[0] || ''}`.toUpperCase() || 'P';
+  const monthName = new Date(2000, (payroll.month || 1) - 1, 1).toLocaleString('default', { month: 'long' });
+  const net = payroll.netSalary || (payroll.baseSalary + (payroll.allowances||0) + (payroll.bonus||0) - (payroll.deductions||0));
+  const stCls = { pending: 'bg-amber-500/10 text-amber-500', paid: 'bg-emerald-500/10 text-emerald-500', failed: 'bg-red-500/10 text-red-500' };
+  const BreakItem = ({ label, value, color, bold }) => (
+    <div className={`flex items-center justify-between py-2.5 border-b border-[var(--border-muted)] last:border-0 ${bold ? 'font-bold' : ''}`}>
+      <span className="text-sm text-[var(--text-secondary)]">{label}</span>
+      <span className={`text-sm font-semibold ${color || 'text-[var(--text-primary)]'}`}>₹{Number(value||0).toLocaleString()}</span>
+    </div>
+  );
+  return (
+    <Modal open={!!payroll} onClose={onClose} title="" size="md" footer={
+      <button onClick={onClose} className="px-4 py-1.5 text-xs rounded-xl border border-[var(--border-base)] text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"><X size={13} className="inline mr-1" />Close</button>
+    }>
+      {/* Hero */}
+      <div className="relative overflow-hidden rounded-xl mb-4 p-5 bg-gradient-to-br from-emerald-500/15 via-emerald-500/5 to-transparent border border-[var(--border-base)]">
+        <div className="absolute top-0 right-0 w-28 h-28 rounded-full bg-emerald-500/10 -translate-y-6 translate-x-6" />
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center font-bold text-lg shadow-lg">{initial}</div>
+          <div className="flex-1">
+            <h2 className="text-lg font-bold text-[var(--text-primary)]">{emp.firstName} {emp.lastName}</h2>
+            <p className="text-xs text-[var(--text-muted)]">{emp.employeeId} · {emp.department}</p>
+            <div className="flex items-center gap-2 mt-2">
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${stCls[payroll.paymentStatus] || stCls.pending}`}>{payroll.paymentStatus || 'pending'}</span>
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-[var(--bg-elevated)] text-[var(--text-muted)] border border-[var(--border-muted)]">{monthName} {payroll.year}</span>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-2xl font-bold text-emerald-500">₹{Number(net).toLocaleString()}</p>
+            <p className="text-xs text-[var(--text-faint)]">Net Salary</p>
+          </div>
+        </div>
+      </div>
+      {/* Salary Breakdown */}
+      <div className="glass-card p-4">
+        <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3 flex items-center gap-1.5"><Wallet size={13} /> Salary Breakdown</h3>
+        <BreakItem label="Base Salary" value={payroll.baseSalary} />
+        <BreakItem label="Allowances" value={payroll.allowances} color="text-blue-500" />
+        <BreakItem label="Bonus" value={payroll.bonus} color="text-purple-500" />
+        <BreakItem label="Deductions" value={payroll.deductions} color="text-red-500" />
+        <div className="mt-2 pt-2 flex items-center justify-between border-t-2 border-[var(--border-base)]">
+          <span className="text-sm font-bold text-[var(--text-primary)]">Net Salary</span>
+          <span className="text-xl font-bold text-emerald-500">₹{Number(net).toLocaleString()}</span>
+        </div>
+      </div>
+      {payroll.createdAt && (
+        <p className="text-xs text-[var(--text-faint)] text-center mt-3">Generated on {format(new Date(payroll.createdAt), 'dd MMM yyyy, hh:mm a')}</p>
+      )}
+    </Modal>
+  );
+};
 
 const PayrollPage = () => {
   const [mounted, setMounted] = useState(false);
@@ -17,6 +73,7 @@ const PayrollPage = () => {
   const [loading, setLoading] = useState(false);
   const [payrollSearch, setPayrollSearch] = useState('');
   const [showPayrollModal, setShowPayrollModal] = useState(false);
+  const [viewPayroll, setViewPayroll] = useState(null);
   const [payrollForm, setPayrollForm] = useState({
     employeeId: '',
     month: new Date().getMonth() + 1,
@@ -245,6 +302,16 @@ const PayrollPage = () => {
             value={kpi.value}
             icon={kpi.icon}
             variant={kpi.variant}
+            onClick={() => {
+              // Auto-expand first payroll record
+              setTimeout(() => {
+                if (filteredPayrolls.length > 0) {
+                  setViewPayroll(filteredPayrolls[0]);
+                } else {
+                  setViewPayroll(null);
+                }
+              }, 100);
+            }}
           />
         ))}
       </div>
@@ -274,6 +341,12 @@ const PayrollPage = () => {
         data={filteredPayrolls}
         emptyText="No payroll records found."
         loading={loading}
+        expandedRowKey={viewPayroll?._id}
+        renderExpanded={(payroll) => (
+          <div className="p-4 border-t border-[var(--border-muted)] bg-gradient-to-b from-white to-[var(--bg-elevated)]">
+            <PayrollViewModal payroll={payroll} onClose={() => setViewPayroll(null)} inline />
+          </div>
+        )}
       />
 
       {/* Generate Payroll Modal */}

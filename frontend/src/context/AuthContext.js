@@ -81,10 +81,17 @@ export const AuthProvider = ({ children }) => {
       const permissions = getRolePermissions(userData.role);
       // Normalize role: capitalize first letter (admin -> Admin)
       const normalizedRole = userData.role ? userData.role.charAt(0).toUpperCase() + userData.role.slice(1).toLowerCase() : userData.role;
-      const authedUser = { ...userData, role: normalizedRole, dataScope: userData.dataScope, permissions, token: accessToken };
+      // Decode JWT to extract dataScope
+      let dataScope = userData.dataScope;
+      try {
+        const payload = JSON.parse(atob(accessToken.split('.')[1]));
+        dataScope = payload.dataScope || userData.dataScope || null;
+      } catch (e) { /* ignore */ }
+      const authedUser = { ...userData, role: normalizedRole, dataScope, permissions, token: accessToken };
       localStorage.setItem(TOKEN_KEY, accessToken);
       localStorage.setItem(USER_KEY, JSON.stringify(authedUser));
       setUser(authedUser);
+      console.log('[AUTH] User saved with dataScope:', dataScope);
       setError('');
       return true;
     } catch (err) {

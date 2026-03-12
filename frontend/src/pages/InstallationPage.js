@@ -13,7 +13,34 @@ import { Progress } from '../components/ui/Progress';
 import DataTable from '../components/ui/DataTable';
 import { toast } from '../components/ui/Toast';
 import CanAccess, { CanCreate, CanEdit, CanDelete } from '../components/CanAccess';
-import { Wrench, Plus, LayoutGrid, List, CalendarDays, CheckCircle, Camera, User, MapPin, Clock, Edit, AlertCircle, Download, Trash2, Eye, SortAsc, SortDesc, UserPlus, UserMinus, TrendingUp, BarChart3, PieChart as PieChartIcon, Activity, LayoutDashboard } from 'lucide-react';
+import { 
+  LayoutDashboard, 
+  LayoutGrid, 
+  List, 
+  Plus, 
+  Wrench, 
+  CheckCircle, 
+  User, 
+  Search, 
+  CalendarDays,
+  ClipboardList,
+  Activity,
+  MapPin,
+  Clock,
+  AlertCircle,
+  PieChart as PieChartIcon,
+  TrendingUp,
+  BarChart3,
+  Download,
+  UserPlus,
+  UserMinus,
+  Eye,
+  Edit,
+  Trash2,
+  Camera,
+  X,
+  Layers
+} from 'lucide-react';
 import { APP_CONFIG } from '../config/app.config';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, Legend, AreaChart, Area, LineChart, Line, ComposedChart } from 'recharts';
 
@@ -33,7 +60,7 @@ const InstallBadge = ({ value }) => {
     'Delayed': 'bg-red-100 text-red-600',
     'Completed': 'bg-emerald-100 text-emerald-600',
   };
-  return <span className={`inline-block px-2 py-0.5 rounded text-xs ${map[value]||''}`}>{value}</span>;
+  return <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${map[value]||''}`}>{value}</span>;
 };
 
 // Local cache for settings tasks (keeps stable shape)
@@ -62,6 +89,48 @@ const calculateProgress = (tasks=[]) => {
 };
 
 // ── Installation Kanban Card ──
+const formatEventType = (type) => {
+  const labels = {
+    'installation_created': 'Installation Created',
+    'technician_assigned': 'Technician Assigned',
+    'technician_unassigned': 'Technician Unassigned',
+    'status_changed': 'Status Changed',
+    'tasks_updated': 'Tasks Updated',
+    'photo_added': 'Photo Added',
+    'photo_removed': 'Photo Removed',
+    'quality_check': 'Quality Check',
+    'notes_updated': 'Notes Updated',
+    'installation_completed': 'Installation Completed',
+    'installation_started': 'Installation Started',
+    'delayed': 'Installation Delayed',
+    'assigned': 'Installation Assigned'
+  };
+  return labels[type] || type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+};
+
+const formatEventMetadata = (metadata) => {
+  if (!metadata) return null;
+  const parts = [];
+  if (metadata.from !== undefined && metadata.to !== undefined) {
+    const fromText = metadata.from === null ? 'Unassigned' : 'Previous';
+    const toText = metadata.to === null ? 'Unassigned' : 'New';
+    parts.push(`From: ${fromText} → To: ${toText}`);
+  }
+  if (metadata.oldStatus && metadata.newStatus) {
+    parts.push(`Changed from "${metadata.oldStatus}" to "${metadata.newStatus}"`);
+  }
+  if (metadata.installationId) {
+    parts.push(`Installation ID: ${metadata.installationId}`);
+  }
+  if (metadata.by) {
+    parts.push(`By: ${metadata.by}`);
+  }
+  if (metadata.notes) {
+    parts.push(`Notes: ${metadata.notes}`);
+  }
+  return parts.length > 0 ? parts.join(' | ') : null;
+};
+
 const InstallCard = ({ log, onDragStart, onClick }) => {
   const tasks = mergeWithSettingsTasks(log.tasks);
   const done = tasks.filter(t=>t.done).length;
@@ -71,7 +140,6 @@ const InstallCard = ({ log, onDragStart, onClick }) => {
     <div draggable onDragStart={onDragStart} onClick={onClick}
       className="glass-card p-3 cursor-grab active:cursor-grabbing hover:border-[var(--primary)]/40 transition-all">
       <div className="flex items-start justify-between mb-1">
-        <span className="text-[10px] font-mono text-[var(--accent-light)]">{log.installationId || log.id}</span>
         <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: stage?.bg, color: stage?.color }}>{progress}%</span>
       </div>
       <p className="text-xs font-semibold text-[var(--text-primary)] mb-0.5 leading-tight">{log.customerName || log.customer}</p>
@@ -216,7 +284,13 @@ const InstallKanbanBoard = ({ items, onCardClick, onDrop, canEdit }) => {
 
 const COLUMNS = [
   { key: 'installationId', header: 'Installation ID', sortable: true, render: (v) => <span className="font-mono text-xs font-semibold text-[var(--accent-light)]">{v}</span> },
-  { key: 'projectId', header: 'Project', sortable: true, render: (v) => <span className="text-xs">{typeof v === 'object' ? (v?.projectId || v?.id || '-') : (v || '-')}</span> },
+  { key: 'projectId', header: 'Project', sortable: true, render: (v) => {
+    if (!v) return '-';
+    if (typeof v === 'object') {
+      return <span className="text-xs font-semibold">{v.projectId || v.id || '-'}</span>;
+    }
+    return <span className="text-xs font-semibold">{v}</span>;
+  }},
   { key: 'customerName', header: 'Customer', sortable: true, render: (v, row) => (
     <div>
       <p className="text-xs font-semibold text-[var(--text-primary)]">{v || '-'}</p>
@@ -429,11 +503,12 @@ const InstallationCalendar = ({ logs, onOpenInstallation }) => {
               style={{ animationDelay: `${idx * 50}ms` }}
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-mono font-bold text-[var(--primary)]">{inst.installationId}</span>
                 <span
                   className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold"
                   style={{ backgroundColor: (STATUS_COLORS[inst.status] || '#94a3b8') + '22', color: STATUS_COLORS[inst.status] || '#94a3b8' }}
-                >{inst.status}</span>
+                >
+                  {inst.status}
+                </span>
               </div>
               <p className="text-xs font-semibold text-[var(--text-primary)] truncate">{inst.customerName || '—'}</p>
               {inst.siteAddress && <p className="text-[10px] text-[var(--text-muted)] truncate mt-0.5">📍 {inst.siteAddress}</p>}
@@ -760,23 +835,29 @@ const InstallationDashboard = ({ logs }) => {
             </div>
           </div>
           <ResponsiveContainer width="100%" height={320}>
-            <BarChart data={stats.technicianStats.slice(0, 8)} layout="horizontal" barSize={24}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
-              <XAxis type="number" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis dataKey="name" type="category" tick={{ fill: 'var(--text-primary)', fontSize: 11 }} axisLine={false} tickLine={false} width={100} />
-              <Tooltip
-                contentStyle={{
-                  background: 'var(--bg-surface)',
-                  border: '1px solid var(--border-base)',
-                  borderRadius: 12,
-                  fontSize: 12,
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-                }}
-              />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="total" name="Total Jobs" fill="#3b82f6" radius={[0, 6, 6, 0]} />
-              <Bar dataKey="completed" name="Completed" fill="#22c55e" radius={[0, 6, 6, 0]} />
-            </BarChart>
+            {stats.technicianStats.length > 0 ? (
+              <BarChart data={stats.technicianStats.slice(0, 8)} layout="horizontal" barSize={24} margin={{ left: 20, right: 20, top: 10, bottom: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+                <XAxis type="number" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} domain={[0, 'dataMax + 1']} />
+                <YAxis dataKey="name" type="category" tick={{ fill: 'var(--text-primary)', fontSize: 11 }} axisLine={false} tickLine={false} width={120} />
+                <Tooltip
+                  contentStyle={{
+                    background: 'var(--bg-surface)',
+                    border: '1px solid var(--border-base)',
+                    borderRadius: 12,
+                    fontSize: 12,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                  }}
+                />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Bar dataKey="total" name="Total Jobs" fill="#3b82f6" radius={[0, 6, 6, 0]} />
+                <Bar dataKey="completed" name="Completed" fill="#22c55e" radius={[0, 6, 6, 0]} />
+              </BarChart>
+            ) : (
+              <div className="flex items-center justify-center h-full text-[var(--text-muted)]">
+                No technician data available
+              </div>
+            )}
           </ResponsiveContainer>
         </div>
 
@@ -857,7 +938,9 @@ const InstallationDashboard = ({ logs }) => {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-mono font-bold text-[var(--primary)]">{log.installationId || log.id}</span>
+                  {log.installationId && !/^[0-9a-fA-F]{24}$/.test(log.installationId) && (
+                    <span className="text-[10px] font-mono font-bold text-[var(--primary)]">{log.installationId}</span>
+                  )}
                   <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: (INSTALL_STAGES.find(s => s.id === log.status)?.bg || '#94a3b822'), color: INSTALL_STAGES.find(s => s.id === log.status)?.color || '#94a3b8' }}>{log.status}</span>
                 </div>
                 <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{log.customerName || 'Customer'}</p>
@@ -899,6 +982,11 @@ const InstallationPage = () => {
   const [pageSize, setPageSize] = useState(APP_CONFIG.defaultPageSize || 25);
   const [selectedRows, setSelectedRows] = useState(new Set());
   const [sort, setSort] = useState({ key: null, dir: 'asc' });
+  const [uploadingTaskPhoto, setUploadingTaskPhoto] = useState(false);
+  const taskPhotoInputRef = useRef(null);
+  const [currentTaskForPhoto, setCurrentTaskForPhoto] = useState(null);
+  const [photoModal, setPhotoModal] = useState({ open: false, photo: null });
+  const [showCardsInViews, setShowCardsInViews] = useState(true);
   const handleSort = useCallback(({ key, dir }) => setSort({ key, dir }), []);
 
   // sync settings cache
@@ -927,15 +1015,18 @@ const InstallationPage = () => {
   });
 
   // derive logs with normalized fields and progress
-  const logs = useMemo(() => (installationsRaw || []).map(l => ({
-    ...l,
-    installationId: l.installationId || l.id || l._id,
-    customerName: l.customerName || l.customer,
-    siteAddress: l.siteAddress || l.site,
-    technicianName: (l.technicianName && l.technicianName !== 'TBD') ? l.technicianName : (l.technician && l.technician !== 'TBD' ? l.technician : 'Not Assigned'),
-    tasks: (l.tasks && l.tasks.length) ? l.tasks : (getTasksFromSettings().map(t=>({ ...t, done:false }))),
-    progress: calculateProgress(l.tasks || getTasksFromSettings()),
-  })), [installationsRaw]);
+  const logs = useMemo(() => (installationsRaw || []).map(l => {
+    const normalizedTasks = (l.tasks && l.tasks.length) ? l.tasks : (getTasksFromSettings().map(t=>({ ...t, done:false })));
+    return {
+      ...l,
+      installationId: l.installationId || l.id || l._id,
+      customerName: l.customerName || l.customer,
+      siteAddress: l.siteAddress || l.site,
+      technicianName: (l.technicianName && l.technicianName !== 'TBD') ? l.technicianName : (l.technician && l.technician !== 'TBD' ? l.technician : 'Not Assigned'),
+      tasks: normalizedTasks,
+      progress: calculateProgress(normalizedTasks),
+    };
+  }), [installationsRaw]);
 
   // simple KPIs
   const active = logs.filter(l=>l.status==='In Progress').length;
@@ -949,13 +1040,13 @@ const InstallationPage = () => {
     const log = logs.find(x => x.installationId === id || x.id === id || x._id === id);
     if (!log) return;
     
-    // Check permission: either has edit permission OR is technician/assigned user
-    const isTechnicianByRole = user?.role?.toLowerCase() === 'technician';
+    // Check permission: either has edit permission OR is assigned user OR is employee/technician
     const isAssignedUser = log.technicianId === user?.id || 
                            log.technicianId === user?._id ||
                            log.assignedTo === user?.id ||
                            log.assignedTo === user?._id;
-    const canUpdate = can('installation','edit') || isTechnicianByRole || isAssignedUser;
+    const isEmployeeRole = user?.role?.toLowerCase() === 'employee' || user?.role?.toLowerCase() === 'technician';
+    const canUpdate = can('installation','edit') || isAssignedUser || isEmployeeRole;
     
     if (!canUpdate) return toast.error('Permission denied');
     // enforce completion rule
@@ -982,8 +1073,13 @@ const InstallationPage = () => {
   // table pagination/filter/sort
   const filtered = useMemo(() => {
     let result = logs.filter(l => {
-      if (!search) return true;
+      // If search matches "Active", "Completed", or "Not Assigned", we filter by status/assignment
       const s = search.toLowerCase();
+      if (s === 'active') return l.status === 'In Progress';
+      if (s === 'completed') return l.status === 'Completed';
+      if (s === 'not assigned') return !l.technicianId && (!l.technicianName || l.technicianName === 'Not Assigned' || l.technicianName === 'TBD');
+      
+      if (!search) return true;
       return (l.installationId||'').toString().toLowerCase().includes(s)
         || (l.customerName||'').toLowerCase().includes(s)
         || (l.siteAddress||'').toLowerCase().includes(s)
@@ -1003,6 +1099,12 @@ const InstallationPage = () => {
   }, [logs, search, sort]);
   const paginated = filtered.slice((page-1)*pageSize, page*pageSize).map(l => ({ ...l, progress: calculateProgress(l.tasks) }));
 
+  // Helper function to get task-specific photo count
+  const getTaskPhotoCount = useCallback((taskName) => {
+    if (!selected?.photos || selected.photos.length === 0) return 0;
+    return selected.photos.filter(p => p.taskName === taskName || p.category === taskName).length;
+  }, [selected?.photos]);
+
   // Detail modal: toggle task with photo rule
   const handleToggleTask = async (index) => {
     if (!selected) return;
@@ -1017,15 +1119,15 @@ const InstallationPage = () => {
       hasEditPermission: can('installation','edit')
     });
     
-    // Technician or assigned user can update tasks even without edit permission
-    const isTechnicianByRole = user?.role?.toLowerCase() === 'technician';
+    // Allow task update if: has edit permission OR is assigned user OR is employee/technician
     const isAssignedUser = selected.technicianId === user?.id || 
                            selected.technicianId === user?._id ||
                            selected.assignedTo === user?.id ||
                            selected.assignedTo === user?._id;
-    const canUpdate = can('installation','edit') || isTechnicianByRole || isAssignedUser;
+    const isEmployeeRole = user?.role?.toLowerCase() === 'employee' || user?.role?.toLowerCase() === 'technician';
+    const canUpdate = can('installation','edit') || isAssignedUser || isEmployeeRole;
     
-    console.log('[DEBUG] Permission check:', { isTechnicianByRole, isAssignedUser, canUpdate });
+    console.log('[DEBUG] Permission check:', { isAssignedUser, canUpdate });
     
     if (!canUpdate) {
       return toast.error('Permission denied');
@@ -1036,8 +1138,8 @@ const InstallationPage = () => {
     const t = currentTasks[index];
     if (!t) return;
     
-    if (!t.done && t.photoRequired && (!selected.photos || selected.photos.length===0)) {
-      return toast.error('Photo required before marking this task complete');
+    if (!t.done && t.photoRequired && getTaskPhotoCount(t.name) === 0) {
+      return toast.error(`Photo required for "${t.name}" before marking complete. Please upload a photo first.`);
     }
     
     // Toggle the task - ensure proper data types for backend
@@ -1086,6 +1188,121 @@ const InstallationPage = () => {
     }
   };
 
+  // Handle task photo upload button click
+  const handleTaskPhotoUpload = (taskName) => {
+    if (!selected) return;
+    setCurrentTaskForPhoto(taskName);
+    taskPhotoInputRef.current?.click();
+  };
+
+  // Handle photo file selection and upload
+  const handlePhotoFileChange = async (e) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !selected || !currentTaskForPhoto) return;
+
+    setUploadingTaskPhoto(true);
+    try {
+      // Convert first file to base64
+      const file = files[0];
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = error => reject(error);
+      });
+
+      // Send as JSON with base64 image
+      const response = await apiClient.post('/installations/upload/task-photos', {
+        taskName: currentTaskForPhoto,
+        installationId: selected._id || selected.id,
+        image: base64 // Send base64 encoded image
+      });
+
+      // Update selected installation with new photos
+      const uploadedPhotos = response.data?.urls || [response.data?.url];
+      const newPhotos = uploadedPhotos.map(url => ({
+        url,
+        taskName: currentTaskForPhoto,
+        category: currentTaskForPhoto,
+        uploadedAt: new Date().toISOString()
+      }));
+
+      setSelected(prev => ({
+        ...prev,
+        photos: [...(prev.photos || []), ...newPhotos]
+      }));
+
+      // Auto-mark task as complete after photo upload
+      const currentTasks = selected.tasks || [];
+      const taskIndex = currentTasks.findIndex(t => t.name === currentTaskForPhoto);
+      if (taskIndex >= 0 && !currentTasks[taskIndex].done) {
+        // Task found and not done, mark it complete
+        const updatedTasks = [...currentTasks];
+        updatedTasks[taskIndex] = { ...updatedTasks[taskIndex], done: true };
+        
+        // Update backend
+        await apiClient.patch(`/installations/${selected._id || selected.id}/tasks`, {
+          tasks: updatedTasks
+        });
+        
+        // Update local state
+        setSelected(prev => ({
+          ...prev,
+          tasks: updatedTasks
+        }));
+        
+        toast.success(`Task "${currentTaskForPhoto}" marked as complete`);
+      }
+
+      toast.success(`Photo uploaded for "${currentTaskForPhoto}"`);
+      refetch();
+    } catch (error) {
+      console.error('Photo upload error:', error);
+      toast.error('Failed to upload photo');
+    } finally {
+      setUploadingTaskPhoto(false);
+      setCurrentTaskForPhoto(null);
+      e.target.value = ''; // Reset input
+    }
+  };
+
+  // Handle photo deletion
+  const handleDeletePhoto = async (photo) => {
+    if (!selected || !photo?.key) return;
+    
+    if (!window.confirm('Delete this photo? This will also uncheck the associated task.')) return;
+    
+    try {
+      // Delete photo from backend
+      const response = await apiClient.delete(`/installations/${selected._id || selected.id}/photos/${encodeURIComponent(photo.key)}`);
+      
+      // Update local state - remove photo
+      setSelected(prev => ({
+        ...prev,
+        photos: (prev.photos || []).filter(p => p.key !== photo.key)
+      }));
+      
+      // If task was unchecked, update tasks state
+      if (response.data?.taskUnchecked && response.data?.taskName) {
+        const taskName = response.data.taskName;
+        setSelected(prev => ({
+          ...prev,
+          tasks: (prev.tasks || []).map(t => 
+            t.name === taskName ? { ...t, done: false } : t
+          )
+        }));
+        toast.success(`Task "${taskName}" unchecked due to photo deletion`);
+      }
+      
+      toast.success('Photo deleted successfully');
+      // Don't refetch - we've already updated local state
+      // refetch(); 
+    } catch (error) {
+      console.error('Photo delete error:', error);
+      toast.error('Failed to delete photo');
+    }
+  };
+
   // Calendar data derived from installation events (server stores events array)
   const calendarEvents = useMemo(() => {
     const ev = [];
@@ -1109,36 +1326,10 @@ const InstallationPage = () => {
   const [bulkAssignForm, setBulkAssignForm] = useState({ department: '', technicianId: '', technicianName: '', dueDate: '' });
   const [bulkAssignDept, setBulkAssignDept] = useState('');
   
-  // Fetch pending installations for dropdown
-  const { data: pendingInstallations=[] } = useQuery({
-    queryKey: ['installations', 'pending'],
-    queryFn: async () => { 
-      try {
-        const r = await apiClient.get('/installations?status=Pending'); 
-        console.log('Installations API raw response:', r);
-        
-        // Handle different response structures
-        let instList = [];
-        if (Array.isArray(r)) {
-          instList = r;
-        } else if (r?.data) {
-          instList = r.data;
-        } else if (typeof r === 'object' && r !== null) {
-          instList = [r];
-        }
-        
-        console.log('Installations:', instList);
-        
-        // Filter only Pending installations
-        const pendingList = instList.filter(inst => inst.status === 'Pending' || inst.status === undefined);
-        return pendingList;
-      } catch(err) {
-        console.error('Installations fetch error:', err);
-        return [];
-      }
-    },
-    enabled: showAdd
-  });
+  // Get pending installations from existing logs data (no separate API call needed)
+  const pendingInstallations = useMemo(() => {
+    return logs.filter(l => l.status === 'Pending' || l.status === 'Pending Assign');
+  }, [logs]);
   
   // Fetch departments from HRM
   const { data: hrmDepartments=[] } = useQuery({
@@ -1195,23 +1386,87 @@ const InstallationPage = () => {
   const createInstallation = async () => {
     if (!can('installation','create')) return toast.error('Permission denied');
     try {
-      await apiClient.post('/installations', { ...newForm, tasks: getTasksFromSettings().map(t=>({ name: t.name, photoRequired: !!t.photoRequired, done:false })) });
+      // Find the selected pending installation to get its real IDs
+      const selectedPending = pendingInstallations.find(i => (i._id || i.id) === newForm.installationId);
+      
+      const payload = { 
+        ...newForm, 
+        // Use the actual installationId (like ILMM...) instead of the mongo _id if available
+        installationId: selectedPending?.installationId || newForm.installationId,
+        // Use the formatted projectId (like PXXXX) from the pending installation
+        projectId: selectedPending?.projectId || newForm.projectId,
+        tasks: getTasksFromSettings().map(t=>({ 
+          name: t.name, 
+          photoRequired: !!t.photoRequired, 
+          done:false 
+        })) 
+      };
+
+      await apiClient.post('/installations', payload);
       setShowAdd(false);
+      setNewForm({ department:'', technicianId:'', technicianName:'', customerName:'', site:'', scheduledDate:'', notes:'', projectId:'', installationId:'' });
       refetch();
       toast.success('Installation created');
-    } catch (err) { toast.error(err.message || 'Create failed'); }
+    } catch (err) { 
+      console.error('Create installation error:', err);
+      toast.error(err.response?.data?.message || err.message || 'Create failed'); 
+    }
   };
 
   return (
     <div className="space-y-5 animate-fade-in">
-      <PageHeader title="Installation" subtitle="Site installation logs, checklist and photos" tabs={isTechnician ? [{id:'table',label:'List',icon:List}] : [{id:'dashboard',label:'Dashboard',icon:LayoutDashboard},{id:'kanban',label:'Kanban',icon:LayoutGrid},{id:'table',label:'Table',icon:List},{id:'calendar',label:'Calendar',icon:CalendarDays}]} activeTab={view} onTabChange={setView} actions={can('installation','create') ? [{ type: 'button', label: 'Assign', icon: Plus, variant: 'primary', onClick: () => setShowAdd(true) }] : []} />
+      <PageHeader 
+        title="Installation" 
+        subtitle="Site installation logs, checklist and photos" 
+        tabs={isTechnician ? [{id:'table',label:'List',icon:List}] : [{id:'dashboard',label:'Dashboard',icon:LayoutDashboard},{id:'kanban',label:'Kanban',icon:LayoutGrid},{id:'table',label:'Table',icon:List},{id:'calendar',label:'Calendar',icon:CalendarDays}]} 
+        activeTab={view} 
+        onTabChange={setView} 
+        actions={[
+          can('installation','create') && { type: 'button', label: 'Assign', icon: Plus, variant: 'primary', onClick: () => setShowAdd(true) },
+          view !== 'dashboard' && { type: 'button', label: showCardsInViews ? 'Hide Cards' : 'Show Cards', icon: Layers, variant: 'ghost', onClick: () => setShowCardsInViews(!showCardsInViews) }
+        ].filter(Boolean)} 
+      />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KPICard label="Total Installations" value={logs.length} icon={Wrench} color="solar" />
-        <KPICard label="Active" value={active} icon={Wrench} color="amber" />
-        <KPICard label="Completed" value={completed} icon={CheckCircle} color="emerald" />
-        <KPICard label="Unassigned" value={unassigned} icon={User} color="accent" />
-      </div>
+      {/* KPI Cards - Finance module style with glass-card */}
+      {showCardsInViews && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <KPICard 
+            label="Total Installations" 
+            value={logs.length} 
+            sub="All site logs" 
+            icon={ClipboardList} 
+            variant="purple"
+            onClick={() => { setView('table'); setSearch(''); }}
+          />
+
+          <KPICard 
+            label="Active" 
+            value={active} 
+            sub="In progress" 
+            icon={Activity} 
+            variant="blue"
+            onClick={() => { setView('table'); setSearch('Active'); }}
+          />
+
+          <KPICard 
+            label="Completed" 
+            value={completed} 
+            sub="Marked done" 
+            icon={CheckCircle} 
+            variant="emerald"
+            onClick={() => { setView('table'); setSearch('Completed'); }}
+          />
+
+          <KPICard 
+            label="Unassigned" 
+            value={unassigned} 
+            sub="Pending tech" 
+            icon={User} 
+            variant="amber"
+            onClick={() => { setView('table'); setSearch('Not Assigned'); }}
+          />
+        </div>
+      )}
 
       <div className="flex items-center justify-between">
         {view !== 'table' && view !== 'dashboard' && (
@@ -1460,7 +1715,13 @@ const InstallationPage = () => {
               value={newForm.installationId}
               onChange={e=>{
                 const inst = pendingInstallations.find(i => (i._id || i.id) === e.target.value);
-                setNewForm(p=>({...p, installationId: e.target.value, customerName: inst?.customerName || '', site: inst?.site || ''}));
+                setNewForm(p=>({
+                  ...p, 
+                  installationId: inst?.installationId || e.target.value, 
+                  customerName: inst?.customerName || '', 
+                  site: inst?.site || inst?.siteAddress || '',
+                  projectId: inst?.projectId || ''
+                }));
               }}
             >
               <option value="">{pendingInstallations.length > 0 ? 'Select Pending Installation' : 'No Pending Installations'}</option>
@@ -1573,32 +1834,108 @@ const InstallationPage = () => {
               <div className="text-xs font-semibold">Task Checklist</div>
               <div className="space-y-2 mt-2">
                 {(mergeWithSettingsTasks(selected.tasks) || []).map((t,i)=> {
-                  // Technician or assigned user can update tasks even without edit permission
-                  const isTechnicianByRole = user?.role?.toLowerCase() === 'technician';
+                  // Allow task update if: has edit permission OR is assigned user OR has ASSIGNED dataScope
                   const isAssignedUser = selected.technicianId === user?.id || 
                                          selected.technicianId === user?._id ||
                                          selected.assignedTo === user?.id ||
                                          selected.assignedTo === user?._id;
-                  const canUpdateTask = can('installation','edit') || isTechnicianByRole || isAssignedUser;
+                  const hasAssignedScope = user?.dataScope === 'ASSIGNED' || user?._doc?.dataScope === 'ASSIGNED';
+                  const isEmployeeRole = user?.role?.toLowerCase() === 'employee' || user?.role?.toLowerCase() === 'technician';
+                  const canUpdateTask = can('installation','edit') || isAssignedUser || hasAssignedScope || isEmployeeRole;
+                  
+                  // DEBUG - log everything
+                  if (i === 0) {
+                    console.log('[DEBUG RENDER] Full permission check:', {
+                      userRole: user?.role,
+                      userId: user?.id,
+                      user_id: user?._id,
+                      dataScope: user?.dataScope,
+                      selectedTechId: selected.technicianId,
+                      selectedAssignedTo: selected.assignedTo,
+                      techIdType: typeof selected.technicianId,
+                      assignedToType: typeof selected.assignedTo,
+                      match1: selected.technicianId === user?.id,
+                      match2: selected.technicianId === user?._id,
+                      match3: selected.assignedTo === user?.id,
+                      match4: selected.assignedTo === user?._id,
+                      isAssignedUser,
+                      hasAssignedScope,
+                      canUpdateTask
+                    });
+                  }
                   
                   return (
-                  <div key={i} className="flex items-center justify-between py-2 border-b border-[var(--border-base)]">
-                    <div className="flex items-center gap-3">
+                  <div key={i} className="flex items-center justify-between py-2 border-b border-[var(--border-base)]" style={{ position: 'relative', zIndex: 1 }}>
+                    <div className="flex items-center gap-3" style={{ position: 'relative', zIndex: 2 }}>
                       {canUpdateTask ? (
-                        <div 
-                          onClick={()=>handleToggleTask(i)}
-                          className={`w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer ${t.done?'bg-emerald-500 border-emerald-500':'border-[var(--border-base)]'}`}
+                        <button
+                          type="button"
+                          onMouseEnter={(e) => {
+                            console.log('[TEST] Mouse entered checkbox!', i);
+                            e.target.style.transform = 'scale(1.2)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.target.style.transform = '';
+                          }}
+                          onClick={(e)=>{
+                            e.stopPropagation();
+                            console.log('[DEBUG] Checkbox clicked, index:', i, 'task:', t.name);
+                            handleToggleTask(i);
+                          }}
+                          style={{ 
+                            pointerEvents: 'auto', 
+                            zIndex: 1000,
+                            cursor: 'pointer',
+                            position: 'relative'
+                          }}
+                          className={`w-5 h-5 rounded border-2 flex items-center justify-center relative transition-all duration-200 ${
+                            t.done 
+                              ? 'bg-emerald-500 border-emerald-500' 
+                              : 'border-[var(--border-base)] bg-white hover:border-[var(--primary)]'
+                          }`}
                         >
                           {t.done && <CheckCircle size={14} className="text-white" />}
-                        </div>
+                        </button>
                       ) : (
-                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${t.done?'bg-emerald-500 border-emerald-500':'border-[var(--border-base)]'}`}>
+                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${t.done?'bg-emerald-500 border-emerald-500':'border-[var(--border-base)] bg-white'}`}>
                           {t.done && <CheckCircle size={14} className="text-white" />}
                         </div>
                       )}
-                      <span className={`text-sm ${t.done?'text-[var(--text-muted)] line-through':''}`}>{t.name}</span>
+                      <span 
+                        className={`text-sm ${t.done?'text-[var(--text-muted)] line-through':''} ${canUpdateTask ? 'cursor-pointer select-none' : ''}`} 
+                        onClick={() => canUpdateTask && handleToggleTask(i)}
+                        style={{ 
+                          pointerEvents: canUpdateTask ? 'auto' : 'none',
+                          cursor: canUpdateTask ? 'pointer' : 'default'
+                        }}
+                      >
+                        {t.name}
+                      </span>
                     </div>
                     <div className="flex items-center gap-2">
+                      {/* Camera icon - show for all tasks, enable for technicians/assigned users */}
+                      <button
+                        onClick={() => canUpdateTask && handleTaskPhotoUpload(t.name)}
+                        disabled={!canUpdateTask}
+                        className={`p-1.5 rounded transition-colors ${
+                          getTaskPhotoCount(t.name) > 0 
+                            ? 'text-emerald-500 hover:bg-emerald-500/10' 
+                            : canUpdateTask 
+                              ? 'text-amber-500 hover:bg-amber-500/10' 
+                              : 'text-gray-400 cursor-not-allowed'
+                        }`}
+                        title={getTaskPhotoCount(t.name) > 0 
+                          ? `${getTaskPhotoCount(t.name)} photo(s) uploaded` 
+                          : canUpdateTask 
+                            ? 'Click to upload photo' 
+                            : 'Only technician or assigned user can upload'}
+                        style={{
+                          pointerEvents: 'auto',
+                          cursor: canUpdateTask ? 'pointer' : 'not-allowed'
+                        }}
+                      >
+                        <Camera size={16} />
+                      </button>
                       <label className="flex items-center gap-1 text-[11px] text-[var(--text-muted)]">
                         <div className={`w-3 h-3 rounded border ${t.photoRequired?'bg-emerald-500 border-emerald-500':'border-[var(--border-base)]'}`} />
                         Photo
@@ -1613,24 +1950,45 @@ const InstallationPage = () => {
                   const allTasksDone = tasks.length > 0 && tasks.every(t => t.done);
                   const isCompleted = selected.status?.toLowerCase() === 'completed';
                   
+                  // Check permission for completing project - assigned users can complete
+                  const userId = user?.id || user?._id;
+                  const techId = selected.technicianId?.$oid || selected.technicianId;
+                  const assignedId = selected.assignedTo?.$oid || selected.assignedTo;
+                  
+                  // DEBUG
+                  console.log('[DEBUG COMPLETE] IDs:', {
+                    userId,
+                    techId,
+                    assignedId,
+                    rawTechId: selected.technicianId,
+                    rawAssignedTo: selected.assignedTo,
+                    typeOfUserId: typeof userId,
+                    typeOfTechId: typeof techId
+                  });
+                  
+                  const isAssignedUser = userId === techId || userId === assignedId;
+                  const hasAssignedScope = user?.dataScope === 'ASSIGNED' || user?._doc?.dataScope === 'ASSIGNED';
+                  const isEmployeeRole = user?.role?.toLowerCase() === 'employee' || user?.role?.toLowerCase() === 'technician';
+                  const canComplete = can('installation','edit') || isAssignedUser || hasAssignedScope || isEmployeeRole;
+                  
                   return (
                     <button
                       onClick={() => {
-                        if (allTasksDone && !isCompleted) {
+                        if (allTasksDone && !isCompleted && canComplete) {
                           const confirmed = window.confirm('Are you sure you want to mark this project as Completed?');
                           if (confirmed) {
                             handleMove(selected._id, 'Completed');
                           }
                         }
                       }}
-                      disabled={!allTasksDone || isCompleted}
+                      disabled={!allTasksDone || isCompleted || !canComplete}
                       className={`w-full mt-3 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
-                        allTasksDone && !isCompleted
+                        allTasksDone && !isCompleted && canComplete
                           ? 'bg-emerald-500 hover:bg-emerald-600 text-white cursor-pointer'
                           : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                       }`}
                     >
-                      {isCompleted && allTasksDone ? 'Marked as Completed ✓' : allTasksDone ? 'Complete Project' : 'Complete All Tasks First'}
+                      {isCompleted && allTasksDone ? 'Marked as Completed ✓' : !canComplete ? 'Permission Denied' : allTasksDone ? 'Complete Project' : 'Complete All Tasks First'}
                     </button>
                   );
                 })()}
@@ -1638,14 +1996,145 @@ const InstallationPage = () => {
             </div>
 
             <div>
-              <div className="text-xs font-semibold">Photos</div>
-              <div className="text-[12px] mt-2">{(selected.photos||[]).length} uploaded</div>
+              <div className="text-xs font-semibold mb-2">Photos</div>
+              <div className="text-[12px] mb-3">{(selected.photos||[]).length} uploaded</div>
+              
+              {/* Photo Gallery */}
+              {(selected.photos || []).length > 0 ? (
+                <div className="grid grid-cols-2 gap-2">
+                  {selected.photos.map((photo, idx) => (
+                    <div key={idx} className="relative group cursor-pointer overflow-hidden rounded-lg border border-[var(--border-base)] bg-[var(--bg-surface)]">
+                      {/* Delete button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeletePhoto(photo);
+                        }}
+                        className="absolute top-2 right-2 z-10 p-1.5 rounded-full bg-red-500/80 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                        title="Delete photo"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                      <div className="relative w-full pt-[75%]">
+                        <img
+                          src={photo.url}
+                          alt={photo.taskName || 'Installation photo'}
+                          className="absolute inset-0 w-full h-full object-contain bg-[var(--bg-surface)] transition-transform group-hover:scale-105"
+                          onClick={() => setPhotoModal({ open: true, photo })}
+                          onError={(e) => {
+                            console.error('Photo failed to load URL:', photo.url);
+                            console.error('Error event:', e);
+                            e.target.style.display = 'none';
+                            e.target.nextSibling.style.display = 'flex';
+                          }}
+                        />
+                        <div className="absolute inset-0 hidden items-center justify-center bg-[var(--bg-surface)] text-[var(--text-muted)]">
+                          <div className="text-center">
+                            <Camera size={24} className="mx-auto mb-1" />
+                            <span className="text-xs">Failed to load</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-2 py-1">
+                        <div className="text-[10px] text-white truncate">
+                          {photo.taskName || 'General'}
+                        </div>
+                        <div className="text-[9px] text-gray-300">
+                          {photo.uploadedAt ? new Date(photo.uploadedAt).toLocaleDateString() : ''}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-[var(--text-muted)] text-sm">
+                  <Camera size={32} className="mx-auto mb-2 opacity-50" />
+                  <div>No photos uploaded yet</div>
+                  <div className="text-xs mt-1">Click the camera icon next to tasks to upload photos</div>
+                </div>
+              )}
+              
+              {/* Photo Modal */}
+              {photoModal.open && photoModal.photo && (
+                <div 
+                  className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+                  onClick={() => setPhotoModal({ open: false, photo: null })}
+                >
+                  <div 
+                    className="relative max-w-4xl max-h-[90vh] bg-[var(--bg-surface)] rounded-lg overflow-hidden"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    {/* Close button */}
+                    <button
+                      onClick={() => setPhotoModal({ open: false, photo: null })}
+                      className="absolute top-2 right-2 z-10 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
+                    >
+                      <X size={20} />
+                    </button>
+                    
+                    {/* Photo */}
+                    <div className="flex items-center justify-center min-h-[200px]">
+                      <img
+                        src={photoModal.photo.url}
+                        alt={photoModal.photo.taskName || 'Installation photo'}
+                        className="max-w-full max-h-[80vh] object-contain"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.parentElement.innerHTML = `
+                            <div class="text-center text-[var(--text-muted)] p-8">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mx-auto mb-4"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                              <p>Failed to load image</p>
+                            </div>
+                          `;
+                        }}
+                      />
+                    </div>
+                    
+                    {/* Photo info */}
+                    <div className="p-4 border-t border-[var(--border-base)]">
+                      <div className="text-sm font-medium">{photoModal.photo.taskName || 'General'}</div>
+                      <div className="text-xs text-[var(--text-muted)]">
+                        {photoModal.photo.uploadedAt ? new Date(photoModal.photo.uploadedAt).toLocaleString() : ''}
+                      </div>
+                      <a 
+                        href={photoModal.photo.url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-500 hover:text-blue-600 mt-2 inline-block"
+                      >
+                        Open in new tab
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Hidden file input for task photo upload */}
+              <input
+                ref={taskPhotoInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handlePhotoFileChange}
+                className="hidden"
+              />
             </div>
 
             <div>
-              <div className="text-xs font-semibold">Timeline</div>
-              <div className="space-y-2 mt-2 text-[12px] max-h-40 overflow-auto">
-                {(selected.events||[]).slice().sort((a,b)=> new Date(b.timestamp||0)-new Date(a.timestamp||0)).map((e,i)=>(<div key={i} className="glass-card p-2"><div className="flex justify-between"><div>{e.eventType}</div><div className="text-[10px] text-[var(--text-muted)]">{e.timestamp?new Date(e.timestamp).toLocaleString():'-'}</div></div>{e.metadata && <pre className="text-xs mt-1">{JSON.stringify(e.metadata)}</pre>}</div>))}
+              <div className="text-xs font-semibold mb-2">Timeline</div>
+              <div className="space-y-2 text-[12px] max-h-40 overflow-auto">
+                {(selected.events||[]).slice().sort((a,b)=> new Date(b.timestamp||0)-new Date(a.timestamp||0)).map((e,i)=>{
+                  const metaText = formatEventMetadata(e.metadata);
+                  return (
+                    <div key={i} className="glass-card p-2">
+                      <div className="flex justify-between items-start">
+                        <div className="font-medium text-[var(--text-primary)]">{formatEventType(e.eventType)}</div>
+                        <div className="text-[10px] text-[var(--text-muted)] whitespace-nowrap ml-2">{e.timestamp?new Date(e.timestamp).toLocaleString():'-'}</div>
+                      </div>
+                      {metaText && <div className="text-[10px] text-[var(--text-muted)] mt-1">{metaText}</div>}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>

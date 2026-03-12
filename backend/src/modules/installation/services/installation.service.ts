@@ -170,29 +170,39 @@ export class InstallationService {
 
     let installations = await this.installationModel
       .find(query)
-      .populate('projectId', 'projectId customerName site systemSize')
-      .populate('technicianId', 'firstName lastName email')
       .sort({ createdAt: -1 })
+      .lean()
       .exec();
+
+    // Manually populate projectId only if it's a valid ObjectId
+    const populatedInstallations = await Promise.all(installations.map(async (inst) => {
+      if (inst.projectId && Types.ObjectId.isValid(inst.projectId.toString())) {
+        const project = await this.projectModel.findById(inst.projectId).select('projectId customerName site systemSize').lean().exec();
+        if (project) {
+          (inst as any).projectId = project;
+        }
+      }
+      return inst;
+    }));
+
+    // Populate technicianId (this is usually a valid ObjectId ref)
+    const fullyPopulated = await this.installationModel.populate(populatedInstallations, {
+      path: 'technicianId',
+      select: 'firstName lastName email'
+    });
     
-    console.log('[INSTALLATION] Installations found:', installations.length);
-    console.log('[INSTALLATION] First installation technicianId:', installations[0]?.technicianId);
-    console.log('[INSTALLATION] User context userId:', userContext.userId);
-
-    // Debug: Log first installation to check if projectId is populated
-    if (installations.length > 0) {
-      console.log('[INSTALLATION] First installation projectId:', installations[0].projectId);
-    }
-
+    console.log('[INSTALLATION] Installations found:', fullyPopulated.length);
+    
     // Text search if provided
+    let result = fullyPopulated;
     if (filters.search) {
       const searchRegex = new RegExp(filters.search, 'i');
-      installations = installations.filter(
+      result = fullyPopulated.filter(
         inst => searchRegex.test(inst.customerName) || searchRegex.test(inst.site)
       );
     }
 
-    return installations;
+    return result;
   }
 
   /**
@@ -308,11 +318,19 @@ export class InstallationService {
       tasks,
       createdBy: userId,
       assignedTo: createDto.assignedTo ? this.toObjectId(createDto.assignedTo) : userId,
-      projectId: createDto.projectId ? this.toObjectId(createDto.projectId) : undefined,
-      dispatchId: createDto.dispatchId ? this.toObjectId(createDto.dispatchId) : undefined,
+      // If projectId is a valid mongo ID, convert it, otherwise keep as string (formatted PXXXX)
+      projectId: createDto.projectId ? (Types.ObjectId.isValid(createDto.projectId) ? this.toObjectId(createDto.projectId) : createDto.projectId) : undefined,
+      dispatchId: createDto.dispatchId ? (Types.ObjectId.isValid(createDto.dispatchId) ? this.toObjectId(createDto.dispatchId) : createDto.dispatchId) : undefined,
       technicianId: this.toObjectId(createDto.technicianId),
       supervisorId: createDto.supervisorId ? this.toObjectId(createDto.supervisorId) : undefined,
     };
+
+    console.log('[INSTALLATION] Creating with data:', JSON.stringify({
+      installationId: installationData.installationId,
+      projectId: installationData.projectId,
+      customerName: installationData.customerName,
+      site: installationData.site
+    }));
 
     const installation = new this.installationModel(installationData);
     const saved = await installation.save();
@@ -684,7 +702,29 @@ export class InstallationService {
     const tenantId = this.toObjectId(userContext.tenantId);
     const userId = this.toObjectId(userContext.userId || userContext.id || '');
 
-    await this.getInstallationById(id, userContext); // Verify access
+    // Verify access by checking if installation exists and user has permission
+    const installation = await this.installationModel.findOne({
+      _id: this.toObjectId(id),
+      isDeleted: false,
+    });
+
+    if (!installation) {
+      throw new NotFoundException(`Installation with ID ${id} not found`);
+    }
+
+    // Check data scope permissions
+    if (userContext.dataScope === 'ASSIGNED') {
+      const rawAssignedTo = installation.assignedTo?.toString();
+      const rawTechnicianId = installation.technicianId?.toString();
+      const currentUserId = userContext.userId || userContext.id;
+      
+      const isAssigned = rawAssignedTo === currentUserId;
+      const isTechnician = rawTechnicianId === currentUserId;
+      
+      if (!isAssigned && !isTechnician) {
+        throw new ForbiddenException('You do not have access to this installation');
+      }
+    }
 
     const photo = {
       url: photoDto.url,
@@ -699,7 +739,7 @@ export class InstallationService {
     await this.logEvent(id, 'photo_uploaded', userId || undefined, { key: photo.key });
 
     const updated = await this.installationModel.findOneAndUpdate(
-      { _id: this.toObjectId(id), tenantId, isDeleted: false },
+      { _id: this.toObjectId(id), isDeleted: false },
       {
         $push: { photos: photo },
         $set: {
@@ -725,13 +765,12 @@ export class InstallationService {
     photoKey: string,
     userContext: UserContext,
   ): Promise<Installation> {
-    const tenantId = this.toObjectId(userContext.tenantId);
     const userId = this.toObjectId(userContext.userId || userContext.id || '');
 
     await this.getInstallationById(id, userContext); // Verify access
 
     const updated = await this.installationModel.findOneAndUpdate(
-      { _id: this.toObjectId(id), tenantId, isDeleted: false },
+      { _id: this.toObjectId(id), isDeleted: false },
       {
         $pull: { photos: { key: photoKey } },
         $set: {
