@@ -243,6 +243,10 @@ const ProjectPage = () => {
 
   // Fetch projects stats from backend
   useEffect(() => {
+    // Don't fetch if no token
+    const token = localStorage.getItem('solar_token') || localStorage.getItem('accessToken') || localStorage.getItem('token');
+    if (!token) return;
+
     const fetchStats = async () => {
       try {
         const res = await api.get('/projects/stats', { tenantId: TENANT_ID });
@@ -257,6 +261,10 @@ const ProjectPage = () => {
 
   // Fetch projects by stage for chart
   useEffect(() => {
+    // Don't fetch if no token
+    const token = localStorage.getItem('solar_token') || localStorage.getItem('accessToken') || localStorage.getItem('token');
+    if (!token) return;
+
     const fetchByStage = async () => {
       try {
         const res = await api.get('/projects/by-stage', { tenantId: TENANT_ID });
@@ -271,6 +279,10 @@ const ProjectPage = () => {
 
   // Fetch projects from backend
   useEffect(() => {
+    // Don't fetch if no token
+    const token = localStorage.getItem('solar_token') || localStorage.getItem('accessToken') || localStorage.getItem('token');
+    if (!token) return;
+
     const fetchProjects = async () => {
       try {
         setLoading(true);
@@ -297,6 +309,10 @@ const ProjectPage = () => {
 
   // Fetch project managers from HRM for PM dropdown
   useEffect(() => {
+    // Don't fetch if no token
+    const token = localStorage.getItem('solar_token') || localStorage.getItem('accessToken') || localStorage.getItem('token');
+    if (!token) return;
+
     const fetchProjectManagers = async () => {
       setUsersLoading(true);
       try {
@@ -412,6 +428,10 @@ const ProjectPage = () => {
 
   // Fetch items for material selection
   useEffect(() => {
+    // Don't fetch if no token
+    const token = localStorage.getItem('solar_token') || localStorage.getItem('accessToken') || localStorage.getItem('token');
+    if (!token) return;
+
     const fetchItems = async () => {
       setItemsLoading(true);
       try {

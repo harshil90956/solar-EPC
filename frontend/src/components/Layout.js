@@ -50,6 +50,10 @@ const Layout = ({ currentPage, onNavigate, children }) => {
 
   // Fetch dynamic badge counts
   useEffect(() => {
+    // Don't fetch if no user/token
+    const token = localStorage.getItem('solar_token') || localStorage.getItem('accessToken') || localStorage.getItem('token');
+    if (!token || !user) return;
+
     const resolveTenantId = () => {
       try {
         const savedUser = JSON.parse(localStorage.getItem('solar_user') || '{}');
@@ -112,7 +116,7 @@ const Layout = ({ currentPage, onNavigate, children }) => {
     // Refresh every 30 seconds
     const interval = setInterval(fetchBadgeCounts, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [user]);
 
   const close = useCallback(() => setSidebarOpen(false), []);
 

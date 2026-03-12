@@ -1,0 +1,137 @@
+## CRITICAL FIX - Engineer Survey Filtering
+
+### PROBLEM IDENTIFIED:
+Currently filtering by engineer NAME, but should filter by USER ID for security.
+
+### WHAT NEEDS TO CHANGE:
+
+#### 1. BACKEND SERVICE - site-surveys.service.ts
+
+Line 76: Change method signature from:
+```typescript
+async findAll(query: QuerySiteSurveyDto)
+```
+
+TO:
+```typescript
+async findAll(query: QuerySiteSurveyDto, userId?: string, userRole?: string)
+```
+
+Line 99-101: Change from:
+```typescript
+if (engineer) {
+  filter.engineer = { $regex: engineer, $options: 'i' };
+}
+```
+
+TO:
+```typescript
+// SECURITY FILTER: Only show assigned surveys to non-admin users
+if (userId && userRole !== 'admin') {
+  // Engineer/Employee: Only see surveys assigned to them
+  filter.assignedEngineerId = userId;
+  console.log('[SiteSurveysService] Engineer filter - User ID:', userId);
+} else if (engineer) {
+  // Admin can search by engineer name
+  filter.engineer = { $regex: engineer, $options: 'i' };
+}
+```
+
+#### 2. BACKEND CONTROLLER - site-surveys.controller.ts
+
+Line 75-78: Change from:
+```typescript
+findAll(@Query() query: QuerySiteSurveyDto) {
+  console.log('[SITE-SURVEYS] API called with query:', query);
+  return this.siteSurveysService.findAll(query);
+}
+```
+
+TO:
+```typescript
+@UseGuards(JwtAuthGuard, TenantGuard)
+findAll(@Query() query: QuerySiteSurveyDto, @Request() req: any) {
+  const userId = req.user?.sub || req.user?.id;
+  const userRole = req.user?.role;
+  
+  console.log('[SITE-SURVEYS] User ID:', userId, 'Role:', userRole);
+  return this.siteSurveysService.findAll(query, userId, userRole);
+}
+```
+
+#### 3. FRONTEND - SiteSurveyPage.js
+
+Line 1647: Change from:
+```javascript
+const engineerFilter = (!isAdmin && user?.name) ? user.name : '';
+const response = await siteSurveysApi.getAll({ status, search: searchQuery, engineer: engineerFilter, limit: 100 });
+```
+
+TO:
+```javascript
+// Filter by engineer ID (not name) for security
+const engineerIdFilter = (!isAdmin && user?.id) ? user.id : '';
+console.log('[SiteSurvey] User ID:', user?.id, '| Is Admin:', isAdmin, '| Filter by ID:', engineerIdFilter);
+const response = await siteSurveysApi.getAll({ status, search: searchQuery, engineerId: engineerIdFilter, limit: 100 });
+```
+
+Line 1663: Change dependency array from:
+```javascript
+}, [activeTab, searchQuery, isAdmin, user?.name]);
+```
+
+TO:
+```javascript
+}, [activeTab, searchQuery, isAdmin, user?.id]);
+```
+
+#### 4. BACKEND SCHEMA - site-survey.schema.ts
+
+Add new field after line 110 (after engineer field):
+```typescript
+// Assigned Engineer ID (for security filtering)
+@Prop({ type: String, default: '', index: true })
+assignedEngineerId!: string;
+```
+
+#### 5. BACKEND DTO - site-survey.dto.ts
+
+In CreateSiteSurveyDto, add:
+```typescript
+@IsString()
+@IsOptional()
+assignedTo?: string; // Engineer user ID
+```
+
+In QuerySiteSurveyDto, add:
+```typescript
+@IsString()
+@IsOptional()
+engineerId?: string; // Filter by engineer user ID
+```
+
+#### 6. BACKEND SERVICE CREATE METHOD
+
+When creating survey, save the assignedEngineerId:
+```typescript
+const surveyData = {
+  ...createDto,
+  tenantId,
+  status: createDto.status || 'pending',
+  engineer: createDto.engineer || '',
+  assignedEngineerId: createDto.assignedTo || '', // ADD THIS
+  surveyId: `SUR-${timestamp}-${randomPart}`,
+};
+```
+
+### TESTING:
+
+1. **Admin Login**: Should see ALL surveys (no filter)
+2. **Engineer Login (Jemish)**: Should see ONLY surveys where assignedEngineerId = Jemish's user ID
+3. **Other Engineer**: Should see 0 surveys if none assigned
+
+### WHY THIS WORKS:
+- Backend enforces filtering by USER ID (secure)
+- Database has indexed field for fast queries
+- Frontend sends user ID from JWT token
+- Admin bypasses filter, engineers are restricted
