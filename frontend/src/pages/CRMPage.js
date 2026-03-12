@@ -2338,8 +2338,7 @@ const CRMPage = () => {
                               variant="ghost"
                               size="sm"
                               onClick={() => {
-                                setSelectedLead(customer);
-                                setView('leads');
+                                handleViewLead(customer);
                               }}
                               title="View Lead"
                             >
