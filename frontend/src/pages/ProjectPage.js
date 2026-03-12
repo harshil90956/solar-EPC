@@ -23,6 +23,7 @@ import CanAccess, { CanCreate } from '../components/CanAccess';
 import { toast } from '../components/ui/Toast';
 import { api } from '../lib/apiClient';
 import ImportExport from '../components/ui/ImportExport';
+import CompactCalendarFilter from '../components/ui/CompactCalendarFilter';
 
 const fmt = CURRENCY.format;
 
@@ -195,16 +196,42 @@ const ProjectPage = () => {
   // Month filter state
   const [monthFilter, setMonthFilter] = useState('all');
 
-  // Month options for filter
-  const monthOptions = [
-    { value: 'all', label: 'All Time' },
-    { value: '2026-03', label: 'March 2026' },
-    { value: '2026-02', label: 'February 2026' },
-    { value: '2026-01', label: 'January 2026' },
-    { value: '2025-12', label: 'December 2025' },
-    { value: '2025-11', label: 'November 2025' },
-    { value: '2025-10', label: 'October 2025' },
-  ];
+  // Dynamic month options based on project dates
+  const monthOptions = useMemo(() => {
+    const options = [{ value: 'all', label: 'All Time' }];
+    if (!projects || projects.length === 0) return options;
+    
+    // Find earliest and latest dates from projects
+    const dates = projects
+      .map(p => p.startDate || p.createdAt || p.date)
+      .filter(d => d)
+      .map(d => new Date(d));
+    
+    if (dates.length === 0) return options;
+    
+    const earliestDate = new Date(Math.min(...dates));
+    const now = new Date();
+    
+    // Start from earliest project month, go till current month + 3 future months
+    const startDate = new Date(earliestDate.getFullYear(), earliestDate.getMonth(), 1);
+    const endDate = new Date(now.getFullYear(), now.getMonth() + 3, 1);
+    
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    
+    // Generate all months in range
+    const current = new Date(startDate);
+    while (current <= endDate) {
+      const year = current.getFullYear();
+      const month = current.getMonth();
+      const value = `${year}-${String(month + 1).padStart(2, '0')}`;
+      const label = `${monthNames[month]} ${year}`;
+      options.push({ value, label });
+      current.setMonth(current.getMonth() + 1);
+    }
+    
+    // Reverse to show newest first
+    return options.reverse();
+  }, [projects]);
 
   // Fetch projects stats from backend
   useEffect(() => {
@@ -561,6 +588,24 @@ const ProjectPage = () => {
     [projects]
   );
 
+  // Filter projects for dashboard by selected month
+  const dashboardProjects = useMemo(() => {
+    if (monthFilter === 'all') return projects;
+    
+    const [year, month] = monthFilter.split('-');
+    return projects.filter(p => {
+      const projectDate = p.startDate || p.createdAt || p.date;
+      if (!projectDate) return true; // Include projects without dates
+      const date = new Date(projectDate);
+      return date.getFullYear() === parseInt(year) && date.getMonth() === parseInt(month) - 1;
+    });
+  }, [projects, monthFilter]);
+
+  const dashboardActiveProjects = useMemo(() =>
+    dashboardProjects.filter(p => p.status !== 'Cancelled'),
+    [dashboardProjects]
+  );
+
   const filtered = useMemo(() =>
     projects.filter(p => {
       let matchesStatus = statusFilter === 'All' || p.status === statusFilter;
@@ -865,6 +910,25 @@ const ProjectPage = () => {
         ]}
         activeTab={view}
         onTabChange={setView}
+        preTabsContent={
+          view === 'dashboard' && (
+            <CompactCalendarFilter
+              onDateChange={(dateInfo) => {
+                if (dateInfo === null) {
+                  setMonthFilter('all');
+                } else if (dateInfo.isToday) {
+                  const today = new Date();
+                  setMonthFilter(`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`);
+                } else if (dateInfo.month !== undefined && dateInfo.month !== null) {
+                  setMonthFilter(`${dateInfo.year}-${String(dateInfo.month + 1).padStart(2, '0')}`);
+                } else {
+                  // Full year selected - filter by year
+                  setMonthFilter(`${dateInfo.year}`);
+                }
+              }}
+            />
+          )
+        }
         actions={[
           { type: 'button', label: 'New Project', icon: Plus, variant: 'primary', onClick: () => { if (guardCreate()) setShowAdd(true); } },
           view !== 'dashboard' && { type: 'button', label: showCardsInViews ? 'Hide Cards' : 'Show Cards', icon: Layers, variant: 'ghost', onClick: () => setShowCardsInViews(!showCardsInViews) }
@@ -965,30 +1029,39 @@ const ProjectPage = () => {
       {/* Dashboard View - Comprehensive Charts */}
       {view === 'dashboard' && (
         <div className="space-y-4">
-          {/* Row 1: Projects by Stage & Status Distribution */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Projects by Stage Bar Chart */}
-            <div className="glass-card p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <BarChart2 size={15} className="text-[var(--accent)]" />
-                  <h3 className="text-sm font-semibold text-[var(--text-primary)]">Projects by Stage</h3>
-                </div>
-                {/* Month Filter */}
-                <select 
-                  value={monthFilter} 
-                  onChange={(e) => setMonthFilter(e.target.value)}
-                  className="text-xs px-2 py-1 rounded-lg border border-[var(--border-base)] bg-[var(--bg-elevated)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
-                >
-                  {monthOptions.map(opt => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
+          {/* No Data Message */}
+          {dashboardProjects.length === 0 && monthFilter !== 'all' && (
+            <div className="glass-card p-8 text-center">
+              <div className="flex flex-col items-center gap-3">
+                <Calendar size={48} className="text-[var(--text-muted)]" />
+                <h3 className="text-lg font-semibold text-[var(--text-primary)]">No Data Found</h3>
+                <p className="text-sm text-[var(--text-muted)]">
+                  No projects found for the selected period. Try selecting a different time range.
+                </p>
               </div>
+            </div>
+          )}
+
+          {/* Charts - Only show if data exists */}
+          {(dashboardProjects.length > 0 || monthFilter === 'all') && (
+            <>
+              {/* Row 1: Projects by Stage & Status Distribution */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* Projects by Stage Bar Chart */}
+                <div className="glass-card p-4">
+                  <div className="flex items-center mb-3">
+                    <div className="flex items-center gap-2">
+                      <BarChart2 size={15} className="text-[var(--accent)]" />
+                      <h3 className="text-sm font-semibold text-[var(--text-primary)]">Projects by Stage</h3>
+                    </div>
+                  </div>
               <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={sortedProjectsByStage.map(s => ({ stage: s._id, count: s.count, capacity: Math.round(s.capacity || 0) }))} barSize={20} barGap={3}>
+                <BarChart data={STAGE_ORDER.map(stage => {
+                  const stageData = projectsByStage.find(s => s._id === stage);
+                  return { stage, count: stageData?.count || 0, capacity: Math.round(stageData?.capacity || 0) };
+                })} barSize={20} barGap={3}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-                  <XAxis dataKey="stage" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <XAxis dataKey="stage" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} angle={-30} textAnchor="end" height={50} interval={0} />
                   <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
                   <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)', borderRadius: 8, fontSize: 12 }} />
                   <Bar dataKey="count" fill="#8b5cf6" radius={[3, 3, 0, 0]} name="Projects" />
@@ -1007,10 +1080,10 @@ const ProjectPage = () => {
                 <PieChart>
                   <Pie
                     data={[
-                      { name: 'Active', value: activeProjects.filter(p => p.status !== 'Commissioned' && p.status !== 'On Hold' && p.status !== 'Cancelled').length, color: '#3b82f6' },
-                      { name: 'Commissioned', value: activeProjects.filter(p => p.status === 'Commissioned').length, color: '#22c55e' },
-                      { name: 'On Hold', value: activeProjects.filter(p => p.status === 'On Hold').length, color: '#f59e0b' },
-                      { name: 'Cancelled', value: projects.filter(p => p.status === 'Cancelled').length, color: '#ef4444' },
+                      { name: 'Active', value: dashboardActiveProjects.filter(p => p.status !== 'Commissioned' && p.status !== 'On Hold' && p.status !== 'Cancelled').length, color: '#3b82f6' },
+                      { name: 'Commissioned', value: dashboardActiveProjects.filter(p => p.status === 'Commissioned').length, color: '#22c55e' },
+                      { name: 'On Hold', value: dashboardActiveProjects.filter(p => p.status === 'On Hold').length, color: '#f59e0b' },
+                      { name: 'Cancelled', value: dashboardProjects.filter(p => p.status === 'Cancelled').length, color: '#ef4444' },
                     ].filter(d => d.value > 0)}
                     cx="50%"
                     cy="50%"
@@ -1020,10 +1093,10 @@ const ProjectPage = () => {
                     dataKey="value"
                   >
                     {[
-                      { name: 'Active', value: activeProjects.filter(p => p.status !== 'Commissioned' && p.status !== 'On Hold' && p.status !== 'Cancelled').length, color: '#3b82f6' },
-                      { name: 'Commissioned', value: activeProjects.filter(p => p.status === 'Commissioned').length, color: '#22c55e' },
-                      { name: 'On Hold', value: activeProjects.filter(p => p.status === 'On Hold').length, color: '#f59e0b' },
-                      { name: 'Cancelled', value: projects.filter(p => p.status === 'Cancelled').length, color: '#ef4444' },
+                      { name: 'Active', value: dashboardActiveProjects.filter(p => p.status !== 'Commissioned' && p.status !== 'On Hold' && p.status !== 'Cancelled').length, color: '#3b82f6' },
+                      { name: 'Commissioned', value: dashboardActiveProjects.filter(p => p.status === 'Commissioned').length, color: '#22c55e' },
+                      { name: 'On Hold', value: dashboardActiveProjects.filter(p => p.status === 'On Hold').length, color: '#f59e0b' },
+                      { name: 'Cancelled', value: dashboardProjects.filter(p => p.status === 'Cancelled').length, color: '#ef4444' },
                     ].filter(d => d.value > 0).map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
@@ -1043,10 +1116,10 @@ const ProjectPage = () => {
             </div>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
               {[
-                { label: 'Completion Rate', value: Math.round((activeProjects.filter(p => p.progress === 100).length / (activeProjects.length || 1)) * 100), target: 85, color: '#22c55e', bgColor: 'bg-green-50', iconColor: 'text-green-500', hint: 'Finished projects' },
-                { label: 'Avg Progress', value: avgProgress, target: 75, color: '#3b82f6', bgColor: 'bg-blue-50', iconColor: 'text-blue-500', hint: 'How far along' },
-                { label: 'On Track', value: Math.round((activeProjects.filter(p => p.progress >= 50).length / (activeProjects.length || 1)) * 100), target: 80, color: '#8b5cf6', bgColor: 'bg-purple-50', iconColor: 'text-purple-500', hint: 'Going well' },
-                { label: 'Delayed Risk', value: Math.round((activeProjects.filter(p => p.progress < 25 && p.status !== 'Commissioned').length / (activeProjects.length || 1)) * 100), target: 15, color: '#f59e0b', bgColor: 'bg-amber-50', iconColor: 'text-amber-500', reverse: true, hint: 'Needs attention' },
+                { label: 'Completion Rate', value: Math.round((dashboardActiveProjects.filter(p => p.progress === 100).length / (dashboardActiveProjects.length || 1)) * 100), target: 85, color: '#22c55e', bgColor: 'bg-green-50', iconColor: 'text-green-500', hint: 'Finished projects' },
+                { label: 'Avg Progress', value: dashboardActiveProjects.length > 0 ? Math.round(dashboardActiveProjects.reduce((a, p) => a + p.progress, 0) / dashboardActiveProjects.length) : 0, target: 75, color: '#3b82f6', bgColor: 'bg-blue-50', iconColor: 'text-blue-500', hint: 'How far along' },
+                { label: 'On Track', value: Math.round((dashboardActiveProjects.filter(p => p.progress >= 50).length / (dashboardActiveProjects.length || 1)) * 100), target: 80, color: '#8b5cf6', bgColor: 'bg-purple-50', iconColor: 'text-purple-500', hint: 'Going well' },
+                { label: 'Delayed Risk', value: Math.round((dashboardActiveProjects.filter(p => p.progress < 25 && p.status !== 'Commissioned').length / (dashboardActiveProjects.length || 1)) * 100), target: 15, color: '#f59e0b', bgColor: 'bg-amber-50', iconColor: 'text-amber-500', reverse: true, hint: 'Needs attention' },
               ].map((metric) => {
                 const circumference = 2 * Math.PI * 36;
                 const strokeDashoffset = circumference - (Math.min(metric.value, 100) / 100) * circumference;
@@ -1125,9 +1198,9 @@ const ProjectPage = () => {
               <div className="p-4 rounded-xl bg-gradient-to-br from-slate-50 to-gray-50 border border-gray-200">
                 <h4 className="text-sm font-medium text-[var(--text-primary)] mb-4">Projects by Manager</h4>
                 <div className="space-y-3">
-                  {Array.from(new Set(projects.map(p => p.pm))).filter(pm => pm).slice(0, 6).map((pm, index) => {
-                    const pmProjects = projects.filter(p => p.pm === pm);
-                    const maxProjects = Math.max(...Array.from(new Set(projects.map(p => p.pm))).filter(pm => pm).map(pm => projects.filter(p => p.pm === pm).length));
+                  {Array.from(new Set(dashboardProjects.map(p => p.pm))).filter(pm => pm).slice(0, 6).map((pm, index) => {
+                    const pmProjects = dashboardProjects.filter(p => p.pm === pm);
+                    const maxProjects = Math.max(...Array.from(new Set(dashboardProjects.map(p => p.pm))).filter(pm => pm).map(pm => dashboardProjects.filter(p => p.pm === pm).length));
                     const barWidth = maxProjects > 0 ? (pmProjects.length / maxProjects) * 100 : 0;
                     const colors = [
                       'from-violet-400 to-purple-600',
@@ -1158,8 +1231,8 @@ const ProjectPage = () => {
               <div className="p-4 rounded-xl bg-gradient-to-br from-slate-50 to-gray-50 border border-gray-200">
                 <h4 className="text-sm font-medium text-[var(--text-primary)] mb-4">Active vs Completed Projects</h4>
                 <div className="space-y-3">
-                  {Array.from(new Set(projects.map(p => p.pm))).filter(pm => pm).slice(0, 6).map((pm, index) => {
-                    const pmProjects = projects.filter(p => p.pm === pm);
+                  {Array.from(new Set(dashboardProjects.map(p => p.pm))).filter(pm => pm).slice(0, 6).map((pm, index) => {
+                    const pmProjects = dashboardProjects.filter(p => p.pm === pm);
                     const completed = pmProjects.filter(p => p.status === 'Commissioned').length;
                     const active = pmProjects.filter(p => p.status !== 'Commissioned' && p.status !== 'Cancelled').length;
                     const total = active + completed;
@@ -1196,8 +1269,8 @@ const ProjectPage = () => {
               <div className="p-4 rounded-xl bg-gradient-to-br from-slate-50 to-gray-50 border border-gray-200">
                 <h4 className="text-sm font-medium text-[var(--text-primary)] mb-4">Average Progress</h4>
                 <div className="grid grid-cols-3 gap-4">
-                  {Array.from(new Set(projects.map(p => p.pm))).filter(pm => pm).slice(0, 6).map((pm, index) => {
-                    const pmProjects = projects.filter(p => p.pm === pm);
+                  {Array.from(new Set(dashboardProjects.map(p => p.pm))).filter(pm => pm).slice(0, 6).map((pm, index) => {
+                    const pmProjects = dashboardProjects.filter(p => p.pm === pm);
                     const avgProgress = pmProjects.length > 0 ? Math.round(pmProjects.reduce((a, p) => a + (p.progress || 0), 0) / pmProjects.length) : 0;
                     const colors = ['#8b5cf6', '#3b82f6', '#06b6d4', '#f59e0b', '#ec4899', '#22c55e'];
                     const color = colors[index % colors.length];
@@ -1230,10 +1303,10 @@ const ProjectPage = () => {
               <div className="p-4 rounded-xl bg-gradient-to-br from-slate-50 to-gray-50 border border-gray-200">
                 <h4 className="text-sm font-medium text-[var(--text-primary)] mb-4">Total Project Value</h4>
                 <div className="space-y-3">
-                  {Array.from(new Set(projects.map(p => p.pm))).filter(pm => pm).slice(0, 6).map((pm, index) => {
-                    const pmProjects = projects.filter(p => p.pm === pm);
+                  {Array.from(new Set(dashboardProjects.map(p => p.pm))).filter(pm => pm).slice(0, 6).map((pm, index) => {
+                    const pmProjects = dashboardProjects.filter(p => p.pm === pm);
                     const totalValue = pmProjects.reduce((a, p) => a + (p.value || 0), 0);
-                    const maxValue = Math.max(...Array.from(new Set(projects.map(p => p.pm))).filter(pm => pm).map(pm => projects.filter(p => p.pm === pm).reduce((a, p) => a + (p.value || 0), 0)));
+                    const maxValue = Math.max(...Array.from(new Set(dashboardProjects.map(p => p.pm))).filter(pm => pm).map(pm => dashboardProjects.filter(p => p.pm === pm).reduce((a, p) => a + (p.value || 0), 0)));
                     const barWidth = maxValue > 0 ? (totalValue / maxValue) * 100 : 0;
                     const colors = [
                       'from-violet-400 to-purple-600',
@@ -1263,6 +1336,8 @@ const ProjectPage = () => {
               </div>
             </div>
           </div>
+          </>
+          )}
         </div>
       )}
 
@@ -1321,6 +1396,22 @@ const ProjectPage = () => {
                 </div>
               </>
             )}
+          </div>
+          <div className="flex flex-wrap gap-2 items-center mb-2">
+            <CompactCalendarFilter
+              onDateChange={(dateInfo) => {
+                if (dateInfo === null) {
+                  setMonthFilter('all');
+                } else if (dateInfo.isToday) {
+                  const today = new Date();
+                  setMonthFilter(`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`);
+                } else if (dateInfo.month !== undefined && dateInfo.month !== null) {
+                  setMonthFilter(`${dateInfo.year}-${String(dateInfo.month + 1).padStart(2, '0')}`);
+                } else {
+                  setMonthFilter(`${dateInfo.year}`);
+                }
+              }}
+            />
           </div>
           <DataTable columns={COLUMNS} data={paginated} total={filtered.length}
             page={page} pageSize={pageSize} onPageChange={setPage}
