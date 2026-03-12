@@ -11,9 +11,6 @@ export class Vendor {
   @Prop({ required: true })
   name!: string;
 
-  @Prop({ required: true, type: String })
-  category!: string;
-
   @Prop({ required: true })
   contact!: string;
 
@@ -35,18 +32,18 @@ export class Vendor {
   @Prop({ default: true })
   isActive!: boolean;
 
-  // Inventory-related fields - REQUIRED
-  @Prop({ type: String, required: [true, 'Item is required'] })
-  itemId!: string;
+  // Inventory-related fields - optional
+  @Prop({ type: String, required: false })
+  itemId?: string;
 
-  @Prop({ type: String, required: [true, 'Item name is required'] })
-  itemName!: string;
+  @Prop({ type: String, required: false })
+  itemName?: string;
 
-  @Prop({ type: String, required: [true, 'Unit is required'] })
-  unit!: string;
+  @Prop({ type: String, required: false })
+  unit?: string;
 
-  @Prop({ type: Number, required: [true, 'Quantity is required'], min: [0, 'Quantity must be at least 0'] })
-  quantity!: number;
+  @Prop({ type: Number, required: false, min: [0, 'Quantity must be at least 0'] })
+  quantity?: number;
 }
 
 export const VendorSchema = SchemaFactory.createForClass(Vendor);

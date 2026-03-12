@@ -811,7 +811,7 @@ export class InventoryService {
   }
 
   async getCategories(tenantCode: string, user?: UserWithVisibility): Promise<string[]> {
-    const tenantId = await this.getTenantId(tenantCode);
+    const tenantId = await this.resolveTenantObjectId(tenantCode);
     
     console.log(`[INVENTORY CATEGORIES SERVICE] tenantCode: ${tenantCode}, tenantId: ${tenantId}`);
     console.log(`[INVENTORY CATEGORIES SERVICE] user:`, JSON.stringify(user));
@@ -850,7 +850,7 @@ export class InventoryService {
   }
 
   async getUnits(tenantCode: string, user?: UserWithVisibility): Promise<string[]> {
-    const tenantId = await this.getTenantId(tenantCode);
+    const tenantId = await this.resolveTenantObjectId(tenantCode);
     
     console.log(`[INVENTORY UNITS SERVICE] tenantCode: ${tenantCode}, tenantId: ${tenantId}`);
     console.log(`[INVENTORY UNITS SERVICE] user:`, JSON.stringify(user));
@@ -915,43 +915,26 @@ export class InventoryService {
     }
 
     if (!item) {
-
       // Create new inventory item if it doesn't exist
       const newItem = new this.inventoryModel({
         tenantId,
-
         itemId: `INV${Date.now().toString(36).toUpperCase()}`,
-
         name: itemName,
-
         description: itemName,
-
         category: 'Auto-created',
-
         stock: quantity,
-
         available: quantity,
-
         reserved: 0,
-
         minStock: 0,
-
         rate: 0,
-
         unit: 'Nos',
-
         warehouse: 'Main',
-
         status: 'In Stock',
-
         lastUpdated: new Date().toISOString().split('T')[0],
-
       });
 
       item = await newItem.save();
-
       return item;
-
     }
 
 

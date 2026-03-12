@@ -478,12 +478,12 @@ export class LogisticsService {
 
 
       // Add stock to inventory if quantity > 0 and item is specified
-      if (saved.quantity > 0 && saved.itemName) {
+      if (saved.quantity! > 0 && saved.itemName) {
         try {
           console.log(`[LOGISTICS] Adding stock for new vendor: ${saved.itemName}, quantity: ${saved.quantity}`);
           await this.inventoryService.addStock(
             saved.itemName,
-            saved.quantity,
+            saved.quantity!,
             `Vendor entry created - ${saved.name} (${saved.id})`,
             saved.id,
             tenantId
@@ -612,12 +612,12 @@ export class LogisticsService {
     }
 
     // Remove stock from inventory if vendor had quantity
-    if (vendor.quantity > 0 && vendor.itemName) {
+    if (vendor.quantity! > 0 && vendor.itemName) {
       try {
         console.log(`[LOGISTICS] Removing stock for deleted vendor: ${vendor.itemName}, quantity: ${vendor.quantity}`);
         await this.inventoryService.removeStock(
           vendor.itemName,
-          vendor.quantity,
+          vendor.quantity!,
           `Vendor entry deleted - ${vendor.name} (${vendor.id})`,
           vendor.id,
           tenantId
