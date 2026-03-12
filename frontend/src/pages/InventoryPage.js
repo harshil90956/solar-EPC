@@ -1,7 +1,7 @@
 // Solar OS – EPC Edition — InventoryPage.js
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
-  Package, Plus, AlertTriangle, Warehouse, ArrowUp, ArrowDown, Zap, LayoutGrid, List, Edit2, Trash2, Eye, ArrowRightLeft, Scale, Tag, LayoutDashboard, TrendingUp, BarChart2, PieChartIcon, Activity, DollarSign, Target, Layers, Download
+  Package, Plus, AlertTriangle, Warehouse, ArrowUp, ArrowDown, Zap, LayoutGrid, List, Edit2, Trash2, Eye, ArrowRightLeft, Scale, Tag, LayoutDashboard, TrendingUp, BarChart2, PieChartIcon, Activity, DollarSign, Target, Layers, Download, Calendar
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, Legend, AreaChart, Area } from 'recharts';
 import { StatusBadge } from '../components/ui/Badge';
@@ -14,6 +14,7 @@ import { Progress } from '../components/ui/Progress';
 import DataTable from '../components/ui/DataTable';
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
 import apiClient, { api } from '../lib/apiClient';
+import CompactCalendarFilter from '../components/ui/CompactCalendarFilter';
 
 const fmt = CURRENCY.format;
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
@@ -263,6 +264,10 @@ const InventoryPage = () => {
   const [view, setView] = useState('kanban');
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('All');
+
+  // Month filter for dashboard
+  const [inventoryMonthFilter, setInventoryMonthFilter] = useState('all');
+  
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(APP_CONFIG.defaultPageSize);
   const [showAdd, setShowAdd] = useState(false);
@@ -272,6 +277,8 @@ const InventoryPage = () => {
   const [loadingReservations, setLoadingReservations] = useState(false);
   const [form, setForm] = useState({ itemId: '', name: '', category: '', unit: '', minStock: '', rate: '', warehouse: '' });
   const [stockInForm, setStockInForm] = useState({ itemId: '', quantity: '', poId: '', poReference: '', receivedDate: '', remarks: '', warehouse: '' });
+  // Store warehouses as objects with name and code
+  const [warehouseData, setWarehouseData] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [newWarehouse, setNewWarehouse] = useState('');
   const [showWarehouseModal, setShowWarehouseModal] = useState(false);
@@ -279,7 +286,9 @@ const InventoryPage = () => {
   const [editWarehouseValue, setEditWarehouseValue] = useState('');
   const [viewingWarehouse, setViewingWarehouse] = useState(null);
   const [categories, setCategories] = useState([]);
+  const [categoryData, setCategoryData] = useState([]);
   const [units, setUnits] = useState([]);
+  const [unitData, setUnitData] = useState([]);
   const [newCategory, setNewCategory] = useState('');
   const [newUnit, setNewUnit] = useState('');
   const [editingCategory, setEditingCategory] = useState(null);
@@ -296,6 +305,44 @@ const InventoryPage = () => {
   const [showStockOut, setShowStockOut] = useState(false);
   const [stockOutForm, setStockOutForm] = useState({ itemId: '', quantity: '', projectId: '', issuedDate: '', remarks: '' });
   const [inventory, setInventory] = useState([]);
+  
+  // Dynamic month options based on inventory dates
+  const inventoryMonthOptions = useMemo(() => {
+    const options = [{ value: 'all', label: 'All Time' }];
+    if (!inventory || inventory.length === 0) return options;
+    
+    // Find earliest and latest dates from inventory
+    const dates = inventory
+      .map(i => i.lastUpdated || i.updatedAt || i.createdAt || i.date)
+      .filter(d => d)
+      .map(d => new Date(d));
+    
+    if (dates.length === 0) return options;
+    
+    const earliestDate = new Date(Math.min(...dates));
+    const now = new Date();
+    
+    // Start from earliest inventory month, go till current month + 3 future months
+    const startDate = new Date(earliestDate.getFullYear(), earliestDate.getMonth(), 1);
+    const endDate = new Date(now.getFullYear(), now.getMonth() + 3, 1);
+    
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    
+    // Generate all months in range
+    const current = new Date(startDate);
+    while (current <= endDate) {
+      const year = current.getFullYear();
+      const month = current.getMonth();
+      const value = `${year}-${String(month + 1).padStart(2, '0')}`;
+      const label = `${monthNames[month]} ${year}`;
+      options.push({ value, label });
+      current.setMonth(current.getMonth() + 1);
+    }
+    
+    // Reverse to show newest first
+    return options.reverse();
+  }, [inventory]);
+  
   const [items, setItems] = useState([]); // Items from Items module
   const [projects, setProjects] = useState([]); // Projects for reservation display
   const [purchaseOrders, setPurchaseOrders] = useState([]); // POs for Stock In
@@ -353,6 +400,7 @@ const InventoryPage = () => {
       try {
         const data = await api.get('/lookups/warehouses', { headers: { 'x-tenant-id': TENANT_ID } });
         const warehousesArray = Array.isArray(data) ? data : (data.data || []);
+        setWarehouseData(warehousesArray); // Store full objects with code
         setWarehouses(warehousesArray.map(w => w.name));
       } catch (err) {
         console.error('Failed to fetch warehouses:', err);
@@ -368,6 +416,7 @@ const InventoryPage = () => {
       try {
         const data = await api.get('/lookups/categories', { headers: { 'x-tenant-id': TENANT_ID } });
         const categoriesArray = Array.isArray(data) ? data : (data.data || []);
+        setCategoryData(categoriesArray);
         setCategories(categoriesArray.map(c => c.name));
       } catch (err) {
         console.error('Failed to fetch categories:', err);
@@ -383,6 +432,7 @@ const InventoryPage = () => {
       try {
         const data = await api.get('/lookups/units', { headers: { 'x-tenant-id': TENANT_ID } });
         const unitsArray = Array.isArray(data) ? data : (data.data || []);
+        setUnitData(unitsArray);
         setUnits(unitsArray.map(u => u.name));
       } catch (err) {
         console.error('Failed to fetch units:', err);
@@ -435,11 +485,14 @@ const InventoryPage = () => {
 
     setSubmitting(true);
     try {
-      const oldCode = oldName.toUpperCase().replace(/\s+/g, '-');
+      // Find the warehouse data to get the actual code
+      const warehouseObj = warehouseData.find(w => w.name === oldName);
+      const oldCode = warehouseObj?.code || oldName.toUpperCase().replace(/\s+/g, '-');
       await api.patch(`/lookups/warehouses/${oldCode}`, {
         name,
       }, { headers: { 'x-tenant-id': TENANT_ID } });
       setWarehouses(warehouses.map(w => (w === oldName ? name : w)));
+      setWarehouseData(warehouseData.map(w => (w.name === oldName ? { ...w, name } : w)));
       setInventory(prev => prev.map(i => (i.warehouse === oldName ? { ...i, warehouse: name } : i)));
       setEditingWarehouse(null);
       setEditWarehouseValue('');
@@ -456,9 +509,12 @@ const InventoryPage = () => {
 
     setSubmitting(true);
     try {
-      const code = name.toUpperCase().replace(/\s+/g, '-');
+      // Find the warehouse data to get the actual code
+      const warehouseObj = warehouseData.find(w => w.name === name);
+      const code = warehouseObj?.code || name.toUpperCase().replace(/\s+/g, '-');
       await api.delete(`/lookups/warehouses/${code}`, { headers: { 'x-tenant-id': TENANT_ID } });
       setWarehouses(warehouses.filter(w => w !== name));
+      setWarehouseData(warehouseData.filter(w => w.name !== name));
       setInventory(prev => prev.map(i => (i.warehouse === name ? { ...i, warehouse: '' } : i)));
       alert('Warehouse deleted successfully');
     } catch (err) {
@@ -888,7 +944,7 @@ const InventoryPage = () => {
     setSubmitting(true);
     try {
       const updateData = {
-        name: editForm.name,
+        description: editForm.name,
         category: editForm.category,
         unit: editForm.unit,
         minStock: parseInt(editForm.minStock) || 0,
@@ -896,20 +952,25 @@ const InventoryPage = () => {
         status: editForm.status || undefined
       };
 
-      const updatedItem = await apiClient.patch(`/inventory/${editingItem.itemId}`, updateData, { params: { tenantId: TENANT_ID } });
+      const updatedItem = await api.patch(`/items/${editingItem._id}`, updateData, { headers: { 'x-tenant-id': TENANT_ID } });
       const itemData = updatedItem.data || updatedItem;
       
       // Transform the item data to match frontend format
       const transformedItem = {
         ...itemData,
-        _id: itemData._id || itemData.id,
-        name: itemData.description || itemData.name || 'Unnamed Item',
+        _id: itemData._id || itemData.id || editingItem._id,
+        name: itemData.description || itemData.name || editForm.name || 'Unnamed Item',
+        category: itemData.category || editForm.category,
+        unit: itemData.unit || editForm.unit,
+        rate: itemData.rate || parseFloat(editForm.rate) || 0,
+        minStock: itemData.minStock || parseInt(editForm.minStock) || 0,
+        status: itemData.status || editForm.status || editingItem.status,
         reserved: itemData.reserved || 0,
         available: (itemData.stock || 0) - (itemData.reserved || 0),
         lastUpdated: itemData.updatedAt || new Date().toISOString().split('T')[0],
       };
       
-      setInventory(prev => prev.map(i => i.itemId === editingItem.itemId ? transformedItem : i));
+      setInventory(prev => prev.map(i => (i._id === editingItem._id || i.itemId === editingItem.itemId) ? transformedItem : i));
       setShowEdit(false);
       setEditingItem(null);
       setEditForm({ name: '', category: '', unit: '', minStock: '', rate: '', status: '' });
@@ -1083,11 +1144,13 @@ const InventoryPage = () => {
 
     setSubmitting(true);
     try {
-      const oldCode = oldCategory.toUpperCase().replace(/\s+/g, '-');
+      const catObj = categoryData.find(c => c.name === oldCategory);
+      const oldCode = catObj?.code || oldCategory.toUpperCase().replace(/\s+/g, '-');
       await api.patch(`/lookups/categories/${oldCode}`, {
         name: editCategoryValue.trim(),
       }, { headers: { 'x-tenant-id': TENANT_ID } });
       setCategories(categories.map(cat => cat === oldCategory ? editCategoryValue.trim() : cat));
+      setCategoryData(categoryData.map(c => (c.name === oldCategory ? { ...c, name: editCategoryValue.trim() } : c)));
       setEditingCategory(null);
       setEditCategoryValue('');
       alert('Category updated successfully');
@@ -1105,9 +1168,11 @@ const InventoryPage = () => {
 
     setSubmitting(true);
     try {
-      const code = categoryToDelete.toUpperCase().replace(/\s+/g, '-');
+      const catObj = categoryData.find(c => c.name === categoryToDelete);
+      const code = catObj?.code || categoryToDelete.toUpperCase().replace(/\s+/g, '-');
       await api.delete(`/lookups/categories/${code}`, { headers: { 'x-tenant-id': TENANT_ID } });
       setCategories(categories.filter(cat => cat !== categoryToDelete));
+      setCategoryData(categoryData.filter(c => c.name !== categoryToDelete));
       alert('Category deleted successfully');
     } catch (err) {
       alert(err.message || 'Failed to delete category');
@@ -1158,11 +1223,13 @@ const InventoryPage = () => {
 
     setSubmitting(true);
     try {
-      const oldCode = oldUnit.toUpperCase().replace(/\s+/g, '-');
+      const unitObj = unitData.find(u => u.name === oldUnit);
+      const oldCode = unitObj?.code || oldUnit.toUpperCase().replace(/\s+/g, '-');
       await api.patch(`/lookups/units/${oldCode}`, {
         name: editUnitValue.trim(),
       }, { headers: { 'x-tenant-id': TENANT_ID } });
       setUnits(units.map(u => u === oldUnit ? editUnitValue.trim() : u));
+      setUnitData(unitData.map(u => (u.name === oldUnit ? { ...u, name: editUnitValue.trim() } : u)));
       setEditingUnit(null);
       setEditUnitValue('');
       alert('Unit updated successfully');
@@ -1180,9 +1247,11 @@ const InventoryPage = () => {
 
     setSubmitting(true);
     try {
-      const code = unitToDelete.toUpperCase().replace(/\s+/g, '-');
+      const unitObj = unitData.find(u => u.name === unitToDelete);
+      const code = unitObj?.code || unitToDelete.toUpperCase().replace(/\s+/g, '-');
       await api.delete(`/lookups/units/${code}`, { headers: { 'x-tenant-id': TENANT_ID } });
       setUnits(units.filter(u => u !== unitToDelete));
+      setUnitData(unitData.filter(u => u.name !== unitToDelete));
       alert('Unit deleted successfully');
     } catch (err) {
       alert(err.message || 'Failed to delete unit');
@@ -1214,6 +1283,23 @@ const InventoryPage = () => {
           <p className="text-xs text-[var(--text-muted)] mt-0.5">Stock levels · reservations · low-stock alerts · warehouses</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Month Filter - Only for dashboard, placed before tabs */}
+          {activeTab === 'dashboard' && (
+            <CompactCalendarFilter
+              onDateChange={(dateInfo) => {
+                if (dateInfo === null) {
+                  setInventoryMonthFilter('all');
+                } else if (dateInfo.isToday) {
+                  const today = new Date();
+                  setInventoryMonthFilter(`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`);
+                } else if (dateInfo.month !== undefined && dateInfo.month !== null) {
+                  setInventoryMonthFilter(`${dateInfo.year}-${String(dateInfo.month + 1).padStart(2, '0')}`);
+                } else {
+                  setInventoryMonthFilter(`${dateInfo.year}`);
+                }
+              }}
+            />
+          )}
           {/* Main Tabs - Now at top right */}
           <div className="flex items-center gap-1 p-1 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-base)]">
             <button
@@ -3082,17 +3168,43 @@ const InventoryPage = () => {
           </Button>
         </div>}>
         <div className="space-y-3">
+          <FormField label="Item Name / Description" required>
+            <Input placeholder="Enter item name" value={editForm.name}
+              onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
+          </FormField>
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="Status">
-              <Select value={editForm.status} onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))}>
-                <option value="">Auto (calculated from stock)</option>
-                <option value="In Stock">In Stock</option>
-                <option value="Reserved">Reserved</option>
-                <option value="Low Stock">Low Stock</option>
-                <option value="Out of Stock">Out of Stock</option>
+            <FormField label="Category" required>
+              <Select value={editForm.category} onChange={e => setEditForm(f => ({ ...f, category: e.target.value }))}>
+                <option value="">Select Category</option>
+                {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+              </Select>
+            </FormField>
+            <FormField label="Unit" required>
+              <Select value={editForm.unit} onChange={e => setEditForm(f => ({ ...f, unit: e.target.value }))}>
+                <option value="">Select Unit</option>
+                {units.map(u => <option key={u} value={u}>{u}</option>)}
               </Select>
             </FormField>
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Min Stock">
+              <Input type="number" placeholder="0" value={editForm.minStock}
+                onChange={e => setEditForm(f => ({ ...f, minStock: e.target.value }))} />
+            </FormField>
+            <FormField label="Rate (₹)">
+              <Input type="number" placeholder="0" value={editForm.rate}
+                onChange={e => setEditForm(f => ({ ...f, rate: e.target.value }))} />
+            </FormField>
+          </div>
+          <FormField label="Status">
+            <Select value={editForm.status} onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))}>
+              <option value="">Auto (calculated from stock)</option>
+              <option value="In Stock">In Stock</option>
+              <option value="Reserved">Reserved</option>
+              <option value="Low Stock">Low Stock</option>
+              <option value="Out of Stock">Out of Stock</option>
+            </Select>
+          </FormField>
         </div>
       </Modal>
 
