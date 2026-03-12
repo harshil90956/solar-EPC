@@ -8,10 +8,10 @@ export type PaymentMethod = 'Cash' | 'Bank Transfer' | 'Cheque' | 'UPI' | 'Card'
 
 @Schema({ ...BaseSchemaOptions, collection: 'payments' })
 export class Payment {
-  @Prop(BaseSchemaDefinition.tenantId)
+  @Prop({ ...BaseSchemaDefinition.tenantId })
   tenantId!: Types.ObjectId;
 
-  @Prop(BaseSchemaDefinition.isDeleted)
+  @Prop({ ...BaseSchemaDefinition.isDeleted })
   isDeleted!: boolean;
 
   @Prop({ required: true, index: true })

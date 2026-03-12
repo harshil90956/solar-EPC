@@ -42,34 +42,34 @@ async function fetchWithAuth(url, options = {}) {
 export const tenantApi = {
   getAll: (query = {}) => {
     const params = new URLSearchParams(query).toString();
-    return fetchWithAuth(`/superadmin/tenants?${params}`);
+    return fetchWithAuth(`/api/superadmin/tenants?${params}`);
   },
 
-  getById: (id) => fetchWithAuth(`/superadmin/tenants/${id}`),
+  getById: (id) => fetchWithAuth(`/api/superadmin/tenants/${id}`),
 
-  getStats: () => fetchWithAuth('/superadmin/tenants/stats'),
+  getStats: () => fetchWithAuth('/api/superadmin/tenants/stats'),
 
-  create: (data) => fetchWithAuth('/superadmin/tenants', {
+  create: (data) => fetchWithAuth('/api/superadmin/tenants', {
     method: 'POST',
     body: JSON.stringify(data),
   }),
 
-  update: (id, data) => fetchWithAuth(`/superadmin/tenants/${id}`, {
+  update: (id, data) => fetchWithAuth(`/api/superadmin/tenants/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   }),
 
-  updateStatus: (id, status) => fetchWithAuth(`/superadmin/tenants/${id}/status`, {
+  updateStatus: (id, status) => fetchWithAuth(`/api/superadmin/tenants/${id}/status`, {
     method: 'PUT',
     body: JSON.stringify({ status }),
   }),
 
-  updatePlan: (id, plan) => fetchWithAuth(`/superadmin/tenants/${id}/plan`, {
+  updatePlan: (id, plan) => fetchWithAuth(`/api/superadmin/tenants/${id}/plan`, {
     method: 'PUT',
     body: JSON.stringify({ plan }),
   }),
 
-  delete: (id) => fetchWithAuth(`/superadmin/tenants/${id}`, {
+  delete: (id) => fetchWithAuth(`/api/superadmin/tenants/${id}`, {
     method: 'DELETE',
   }),
 };
@@ -78,29 +78,29 @@ export const tenantApi = {
 export const subscriptionApi = {
   getAll: (query = {}) => {
     const params = new URLSearchParams(query).toString();
-    return fetchWithAuth(`/superadmin/subscriptions?${params}`);
+    return fetchWithAuth(`/api/superadmin/subscriptions?${params}`);
   },
 
-  getById: (id) => fetchWithAuth(`/superadmin/subscriptions/${id}`),
+  getById: (id) => fetchWithAuth(`/api/superadmin/subscriptions/${id}`),
 
-  getStats: () => fetchWithAuth('/superadmin/subscriptions/stats'),
+  getStats: () => fetchWithAuth('/api/superadmin/subscriptions/stats'),
 
-  create: (data) => fetchWithAuth('/superadmin/subscriptions', {
+  create: (data) => fetchWithAuth('/api/superadmin/subscriptions', {
     method: 'POST',
     body: JSON.stringify(data),
   }),
 
-  update: (id, data) => fetchWithAuth(`/superadmin/subscriptions/${id}`, {
+  update: (id, data) => fetchWithAuth(`/api/superadmin/subscriptions/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   }),
 
-  cancel: (id, reason) => fetchWithAuth(`/superadmin/subscriptions/${id}/cancel`, {
+  cancel: (id, reason) => fetchWithAuth(`/api/superadmin/subscriptions/${id}/cancel`, {
     method: 'PUT',
     body: JSON.stringify({ reason }),
   }),
 
-  delete: (id) => fetchWithAuth(`/superadmin/subscriptions/${id}`, {
+  delete: (id) => fetchWithAuth(`/api/superadmin/subscriptions/${id}`, {
     method: 'DELETE',
   }),
 };
@@ -109,24 +109,24 @@ export const subscriptionApi = {
 export const backupApi = {
   getAll: (query = {}) => {
     const params = new URLSearchParams(query).toString();
-    return fetchWithAuth(`/superadmin/backups?${params}`);
+    return fetchWithAuth(`/api/superadmin/backups?${params}`);
   },
 
-  getById: (id) => fetchWithAuth(`/superadmin/backups/${id}`),
+  getById: (id) => fetchWithAuth(`/api/superadmin/backups/${id}`),
 
-  getStats: () => fetchWithAuth('/superadmin/backups/stats'),
+  getStats: () => fetchWithAuth('/api/superadmin/backups/stats'),
 
-  create: (data) => fetchWithAuth('/superadmin/backups', {
+  create: (data) => fetchWithAuth('/api/superadmin/backups', {
     method: 'POST',
     body: JSON.stringify(data),
   }),
 
-  updateStatus: (id, status, metadata) => fetchWithAuth(`/superadmin/backups/${id}/status`, {
+  updateStatus: (id, status, metadata) => fetchWithAuth(`/api/superadmin/backups/${id}/status`, {
     method: 'PUT',
     body: JSON.stringify({ status, metadata }),
   }),
 
-  delete: (id) => fetchWithAuth(`/superadmin/backups/${id}`, {
+  delete: (id) => fetchWithAuth(`/api/superadmin/backups/${id}`, {
     method: 'DELETE',
   }),
 };

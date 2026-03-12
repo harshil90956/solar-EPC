@@ -5,6 +5,7 @@ import { FinancePayment, FinancePaymentDocument } from '../schemas/finance-payme
 import { Invoice, InvoiceDocument } from '../schemas/invoice.schema';
 import { Expense, ExpenseDocument } from '../schemas/expense.schema';
 import { RecordPaymentDto } from '../dto/record-payment.dto';
+import { Tenant, TenantDocument } from '../../../core/tenant/schemas/tenant.schema';
 
 @Injectable()
 export class FinancePaymentService {
@@ -13,7 +14,22 @@ export class FinancePaymentService {
     @InjectModel(Invoice.name) private readonly invoiceModel: Model<InvoiceDocument>,
     @InjectModel(Expense.name) private readonly expenseModel: Model<ExpenseDocument>,
     @InjectModel('PurchaseOrder') private readonly purchaseOrderModel: Model<any>,
+    @InjectModel(Tenant.name) private readonly tenantModel: Model<TenantDocument>,
   ) {}
+
+  private async resolveTenantObjectId(tenantId: string): Promise<Types.ObjectId> {
+    if (!tenantId) {
+      throw new BadRequestException('Tenant context is missing');
+    }
+    if (Types.ObjectId.isValid(tenantId)) {
+      return new Types.ObjectId(tenantId);
+    }
+    const tenant = await this.tenantModel.findOne({ code: tenantId }).lean();
+    if (!tenant) {
+      throw new BadRequestException(`Tenant not found for identifier: ${tenantId}`);
+    }
+    return (tenant as any)._id as Types.ObjectId;
+  }
 
   private toObjectId(id: string | undefined): Types.ObjectId | undefined {
     if (!id) return undefined;
@@ -38,6 +54,7 @@ export class FinancePaymentService {
   }
 
   async initiatePayment(tenantId: string, dto: RecordPaymentDto, userId?: string): Promise<FinancePayment> {
+    const tid = await this.resolveTenantObjectId(tenantId);
     console.log('[initiatePayment] Received DTO:', JSON.stringify({
       paymentType: dto.paymentType,
       referenceType: dto.referenceType,
@@ -74,7 +91,7 @@ export class FinancePaymentService {
     }
 
     const financePayment = new this.financePaymentModel({
-      tenantId: this.toObjectId(tenantId),
+      tenantId: tid,
       paymentNumber,
       paymentType: dto.paymentType,
       referenceType: dto.referenceType,
@@ -123,8 +140,9 @@ export class FinancePaymentService {
       if (!/^[A-Za-z0-9\-_/]{6,}$/.test(payload.transactionReference)) {
         throw new BadRequestException('Invalid transaction reference format');
       }
+      const tid = await this.resolveTenantObjectId(tenantId);
       const updated = await this.financePaymentModel.findOneAndUpdate(
-        { _id: new Types.ObjectId(id), tenantId: new Types.ObjectId(tenantId), isDeleted: false },
+        { _id: new Types.ObjectId(id), tenantId: tid, isDeleted: false },
         {
           $set: {
             status: 'Processing',
@@ -148,8 +166,9 @@ export class FinancePaymentService {
       if (!payload.chequeNumber || !payload.bankName || !payload.chequeDate) {
         throw new BadRequestException('chequeNumber, bankName and chequeDate are required');
       }
+      const tid = await this.resolveTenantObjectId(tenantId);
       const updated = await this.financePaymentModel.findOneAndUpdate(
-        { _id: new Types.ObjectId(id), tenantId: new Types.ObjectId(tenantId), isDeleted: false },
+        { _id: new Types.ObjectId(id), tenantId: tid, isDeleted: false },
         {
           $set: {
             status: 'Processing',
@@ -172,8 +191,9 @@ export class FinancePaymentService {
       if (!payload.upiId) {
         throw new BadRequestException('upiId is required');
       }
+      const tid = await this.resolveTenantObjectId(tenantId);
       const interim = await this.financePaymentModel.findOneAndUpdate(
-        { _id: new Types.ObjectId(id), tenantId: new Types.ObjectId(tenantId), isDeleted: false },
+        { _id: new Types.ObjectId(id), tenantId: tid, isDeleted: false },
         {
           $set: {
             methodDetails: {
@@ -192,8 +212,9 @@ export class FinancePaymentService {
       if (!payload.description) {
         throw new BadRequestException('description is required');
       }
+      const tid = await this.resolveTenantObjectId(tenantId);
       const updated = await this.financePaymentModel.findOneAndUpdate(
-        { _id: new Types.ObjectId(id), tenantId: new Types.ObjectId(tenantId), isDeleted: false },
+        { _id: new Types.ObjectId(id), tenantId: tid, isDeleted: false },
         {
           $set: {
             methodDetails: {
@@ -242,8 +263,9 @@ export class FinancePaymentService {
       }
     }
 
+    const tid = await this.resolveTenantObjectId(tenantId);
     const updated = await this.financePaymentModel.findOneAndUpdate(
-      { _id: new Types.ObjectId(id), tenantId: new Types.ObjectId(tenantId), isDeleted: false },
+      { _id: new Types.ObjectId(id), tenantId: tid, isDeleted: false },
       {
         $set: {
           status: 'Completed',
@@ -285,7 +307,7 @@ export class FinancePaymentService {
 
   async updateInvoicePayment(tenantId: string, invoiceId: string, paymentAmount: number): Promise<void> {
     const invoiceObjectId = this.toObjectId(invoiceId);
-    const tenantObjectId = this.toObjectId(tenantId);
+    const tenantObjectId = await this.resolveTenantObjectId(tenantId);
     
     if (!invoiceObjectId) {
       throw new NotFoundException('Invalid invoice ID format');
@@ -329,9 +351,10 @@ export class FinancePaymentService {
   }
 
   async createVendorExpense(tenantId: string, dto: RecordPaymentDto, paymentNumber: string, userId?: string): Promise<void> {
+    const tid = await this.resolveTenantObjectId(tenantId);
     // Create an expense entry for the vendor payment
     const expense = new this.expenseModel({
-      tenantId: new Types.ObjectId(tenantId),
+      tenantId: tid,
       category: 'Vendor Payment',
       amount: dto.amount,
       expenseDate: new Date(dto.paymentDate),
@@ -351,9 +374,10 @@ export class FinancePaymentService {
   }
 
   async updateVendorPurchaseOrders(tenantId: string, vendorId: string, paymentAmount: number): Promise<void> {
+    const tid = await this.resolveTenantObjectId(tenantId);
     // Find all POs for this vendor with outstanding balance
     const vendorPOs = await this.purchaseOrderModel.find({
-      tenantId: new Types.ObjectId(tenantId),
+      tenantId: tid,
       vendorId: new Types.ObjectId(vendorId),
       status: { $ne: 'Cancelled' },
     }).sort({ orderedDate: 1 }).lean();
@@ -382,13 +406,14 @@ export class FinancePaymentService {
   }
 
   async generatePaymentNumber(tenantId: string): Promise<string> {
+    const tid = await this.resolveTenantObjectId(tenantId);
     const prefix = 'PAY-';
     const currentYear = new Date().getFullYear();
     
     // Find the last payment for this tenant in the current year
     const lastPayment = await this.financePaymentModel
       .findOne({ 
-        tenantId: new Types.ObjectId(tenantId),
+        tenantId: tid,
         paymentNumber: { $regex: `^${prefix}${currentYear}-` },
       })
       .sort({ paymentNumber: -1 })
@@ -406,7 +431,8 @@ export class FinancePaymentService {
   }
 
   async findAll(tenantId: string, filters?: { paymentType?: string; referenceId?: string }): Promise<FinancePayment[]> {
-    const query: any = { tenantId: new Types.ObjectId(tenantId), isDeleted: false };
+    const tid = await this.resolveTenantObjectId(tenantId);
+    const query: any = { tenantId: tid, isDeleted: false };
     
     if (filters?.paymentType) {
       query.paymentType = filters.paymentType;
@@ -423,9 +449,10 @@ export class FinancePaymentService {
   }
 
   async findById(tenantId: string, id: string): Promise<FinancePayment> {
+    const tid = await this.resolveTenantObjectId(tenantId);
     const payment = await this.financePaymentModel.findOne({
       _id: new Types.ObjectId(id),
-      tenantId: new Types.ObjectId(tenantId),
+      tenantId: tid,
       isDeleted: false,
     }).lean();
 
@@ -437,8 +464,9 @@ export class FinancePaymentService {
   }
 
   async delete(tenantId: string, id: string): Promise<void> {
+    const tid = await this.resolveTenantObjectId(tenantId);
     const result = await this.financePaymentModel.findOneAndUpdate(
-      { _id: new Types.ObjectId(id), tenantId: new Types.ObjectId(tenantId) },
+      { _id: new Types.ObjectId(id), tenantId: tid },
       { $set: { isDeleted: true } },
     );
 

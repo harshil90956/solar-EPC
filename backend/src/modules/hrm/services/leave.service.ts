@@ -3,14 +3,31 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Leave, LeaveDocument, LeaveStatus } from '../schemas/leave.schema';
 import { CreateLeaveDto, UpdateLeaveStatusDto, ApproveLeaveDto } from '../dto/leave.dto';
+import { Tenant, TenantDocument } from '../../../core/tenant/schemas/tenant.schema';
 
 @Injectable()
 export class LeaveService {
   constructor(
     @InjectModel(Leave.name) private readonly leaveModel: Model<LeaveDocument>,
+    @InjectModel(Tenant.name) private readonly tenantModel: Model<TenantDocument>,
   ) {}
 
+  private async resolveTenantObjectId(tenantId: string): Promise<Types.ObjectId> {
+    if (!tenantId) {
+      throw new BadRequestException('Tenant context is missing');
+    }
+    if (Types.ObjectId.isValid(tenantId)) {
+      return new Types.ObjectId(tenantId);
+    }
+    const tenant = await this.tenantModel.findOne({ code: tenantId }).lean();
+    if (!tenant) {
+      throw new BadRequestException(`Tenant not found for identifier: ${tenantId}`);
+    }
+    return (tenant as any)._id as Types.ObjectId;
+  }
+
   async create(createLeaveDto: CreateLeaveDto, tenantId?: string): Promise<Leave> {
+    const tid = await this.resolveTenantObjectId(tenantId || '');
     // Calculate days between start and end date
     const start = new Date(createLeaveDto.startDate);
     const end = new Date(createLeaveDto.endDate);
@@ -22,18 +39,15 @@ export class LeaveService {
       employeeId: new Types.ObjectId(createLeaveDto.employeeId),
       days,
       status: LeaveStatus.PENDING,
-      tenantId: tenantId && tenantId !== 'default' ? new Types.ObjectId(tenantId) : undefined,
+      tenantId: tid,
     });
 
     return leave.save();
   }
 
   async findAll(employeeId?: string, status?: LeaveStatus, startDate?: Date, endDate?: Date, tenantId?: string): Promise<Leave[]> {
-    const query: any = {};
-    
-    if (tenantId && tenantId !== 'default') {
-      query.tenantId = new Types.ObjectId(tenantId);
-    }
+    const tid = await this.resolveTenantObjectId(tenantId || '');
+    const query: any = { tenantId: tid };
     
     if (employeeId) {
       query.employeeId = new Types.ObjectId(employeeId);
@@ -62,11 +76,8 @@ export class LeaveService {
   }
 
   async findOne(id: string, tenantId?: string): Promise<Leave> {
-    const query: any = { _id: new Types.ObjectId(id) };
-    
-    if (tenantId && tenantId !== 'default') {
-      query.tenantId = new Types.ObjectId(tenantId);
-    }
+    const tid = await this.resolveTenantObjectId(tenantId || '');
+    const query: any = { _id: new Types.ObjectId(id), tenantId: tid };
 
     const leave = await this.leaveModel
       .findOne(query)
@@ -82,11 +93,8 @@ export class LeaveService {
   }
 
   async approve(id: string, approveDto: ApproveLeaveDto, tenantId?: string): Promise<Leave> {
-    const query: any = { _id: new Types.ObjectId(id) };
-    
-    if (tenantId && tenantId !== 'default') {
-      query.tenantId = new Types.ObjectId(tenantId);
-    }
+    const tid = await this.resolveTenantObjectId(tenantId || '');
+    const query: any = { _id: new Types.ObjectId(id), tenantId: tid };
 
     const leave = await this.leaveModel
       .findOneAndUpdate(
@@ -112,11 +120,8 @@ export class LeaveService {
   }
 
   async reject(id: string, updateDto: UpdateLeaveStatusDto, tenantId?: string): Promise<Leave> {
-    const query: any = { _id: new Types.ObjectId(id) };
-    
-    if (tenantId && tenantId !== 'default') {
-      query.tenantId = new Types.ObjectId(tenantId);
-    }
+    const tid = await this.resolveTenantObjectId(tenantId || '');
+    const query: any = { _id: new Types.ObjectId(id), tenantId: tid };
 
     const leave = await this.leaveModel
       .findOneAndUpdate(
@@ -140,11 +145,8 @@ export class LeaveService {
   }
 
   async delete(id: string, tenantId?: string): Promise<void> {
-    const query: any = { _id: new Types.ObjectId(id) };
-    
-    if (tenantId && tenantId !== 'default') {
-      query.tenantId = new Types.ObjectId(tenantId);
-    }
+    const tid = await this.resolveTenantObjectId(tenantId || '');
+    const query: any = { _id: new Types.ObjectId(id), tenantId: tid };
 
     const result = await this.leaveModel.deleteOne(query).exec();
     
@@ -154,15 +156,13 @@ export class LeaveService {
   }
 
   async getLeaveBalance(employeeId: string, year: number, tenantId?: string): Promise<any> {
+    const tid = await this.resolveTenantObjectId(tenantId || '');
     const query: any = {
       employeeId: new Types.ObjectId(employeeId),
       year: year,
       status: LeaveStatus.APPROVED,
+      tenantId: tid,
     };
-
-    if (tenantId && tenantId !== 'default') {
-      query.tenantId = new Types.ObjectId(tenantId);
-    }
 
     const leaves = await this.leaveModel.find(query).exec();
 

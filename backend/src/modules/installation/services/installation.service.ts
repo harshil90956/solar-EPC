@@ -889,52 +889,40 @@ export class InstallationService {
    */
   async getStatistics(userContext: UserContext): Promise<{
     total: number;
-    pending: number;
-    inProgress: number;
-    delayed: number;
+    active: number;
     completed: number;
-    averageProgress: number;
+    delayed: number;
+    unassigned: number;
   }> {
     const tenantId = this.toObjectId(userContext.tenantId);
 
     const query: any = { isDeleted: false };
-    if (tenantId) {
-      query.tenantId = tenantId;
-    }
-    
+    if (tenantId) query.tenantId = tenantId;
+
     if (userContext.dataScope === 'ASSIGNED') {
-      query.assignedTo = userContext.userId;
+      const userId = this.toObjectId(userContext.userId || userContext.id);
+      if (userId) {
+        query.$or = [{ assignedTo: userId }, { technicianId: userId }];
+      }
     }
 
-    const [
-      total,
-      pending,
-      inProgress,
-      delayed,
-      completed,
-      progressData,
-    ] = await Promise.all([
+    const [total, active, completed, delayed, unassigned] = await Promise.all([
       this.installationModel.countDocuments(query),
-      this.installationModel.countDocuments({ ...query, status: 'Pending' }),
       this.installationModel.countDocuments({ ...query, status: 'In Progress' }),
-      this.installationModel.countDocuments({ ...query, status: 'Delayed' }),
       this.installationModel.countDocuments({ ...query, status: 'Completed' }),
-      this.installationModel.aggregate([
-        { $match: { ...query, status: { $in: ['Pending', 'In Progress', 'Delayed'] } } },
-        { $group: { _id: null, avgProgress: { $avg: '$progress' } } },
-      ]),
+      this.installationModel.countDocuments({ ...query, status: 'Delayed' }),
+      this.installationModel.countDocuments({
+        ...query,
+        $or: [
+          { technicianId: { $exists: false } },
+          { technicianId: null },
+          { technicianName: 'Not Assigned' },
+          { technicianName: 'TBD' }
+        ]
+      }),
     ]);
 
-    const averageProgress = progressData.length > 0 ? Math.round(progressData[0].avgProgress) : 0;
-
-    return {
-      total,
-      pending,
-      inProgress,
-      delayed,
-      completed,
-      averageProgress,
-    };
+    return { total, active, completed, delayed, unassigned };
   }
 
   /**

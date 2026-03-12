@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { BaseSchemaDefinition } from '../../../shared/database/base.schema';
 
 export type UserDocument = User & Document;
 
@@ -14,9 +15,6 @@ export class User {
   @Prop({ required: true, index: true })
   role!: string;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Tenant', index: true, required: false })
-  tenantId?: Types.ObjectId;
-
   @Prop({ default: false, index: true })
   isSuperAdmin!: boolean;
 
@@ -25,6 +23,12 @@ export class User {
 
   @Prop({ type: String, default: 'ASSIGNED', enum: ['ALL', 'ASSIGNED'] })
   dataScope!: string;
+
+  @Prop({ ...BaseSchemaDefinition.tenantId, required: false })
+  tenantId?: Types.ObjectId;
+
+  @Prop({ ...BaseSchemaDefinition.isDeleted })
+  isDeleted!: boolean;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

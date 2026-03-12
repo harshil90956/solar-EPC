@@ -82,10 +82,10 @@ export class Project extends Document {
   })
   materials?: Material[];
 
-  @Prop(BaseSchemaDefinition.tenantId)
+  @Prop({ ...BaseSchemaDefinition.tenantId })
   tenantId!: Types.ObjectId;
 
-  @Prop(BaseSchemaDefinition.isDeleted)
+  @Prop({ ...BaseSchemaDefinition.isDeleted })
   isDeleted!: boolean;
 
   @Prop({ required: false })
