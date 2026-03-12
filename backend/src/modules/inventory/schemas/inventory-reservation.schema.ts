@@ -24,7 +24,7 @@ export class InventoryReservation {
   @Prop({ required: true, min: 1 })
   quantity!: number;
 
-  @Prop({ required: true, enum: ['Pending', 'Fulfilled', 'Cancelled'], default: 'Pending' })
+  @Prop({ required: true, enum: ['Pending', 'Fulfilled', 'Cancelled', 'active', 'fulfilled', 'cancelled'], default: 'Pending' })
   status!: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: false })

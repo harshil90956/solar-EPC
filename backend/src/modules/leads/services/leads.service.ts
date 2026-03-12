@@ -1457,15 +1457,10 @@ export class LeadsService {
             };
 
             bulkOps.push({
-<<<<<<< Updated upstream
-              insertOne: {
-                document: leadData,
-=======
               updateOne: {
                 filter: { leadId },
                 update: { $set: leadData },
                 upsert: true,
->>>>>>> Stashed changes
               },
             });
             result.inserted++;
