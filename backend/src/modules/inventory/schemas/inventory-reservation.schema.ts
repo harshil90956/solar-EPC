@@ -12,14 +12,14 @@ export class InventoryReservation {
   @Prop({ ...BaseSchemaDefinition.isDeleted })
   isDeleted!: boolean;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Inventory', required: true, index: true })
-  inventoryId!: Types.ObjectId;
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Inventory', required: false, index: true })
+  inventoryId?: Types.ObjectId;
 
   @Prop({ type: String, required: true })
   itemId!: string;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Project', required: true, index: true })
-  projectId!: Types.ObjectId;
+  @Prop({ type: MongooseSchema.Types.Mixed, required: true, index: true })
+  projectId!: Types.ObjectId | string;
 
   @Prop({ required: true, min: 1 })
   quantity!: number;
@@ -27,8 +27,8 @@ export class InventoryReservation {
   @Prop({ required: true, enum: ['Pending', 'Fulfilled', 'Cancelled'], default: 'Pending' })
   status!: string;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
-  reservedBy!: Types.ObjectId;
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: false })
+  reservedBy?: Types.ObjectId;
 
   @Prop({ default: Date.now })
   reservedAt!: Date;
