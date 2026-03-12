@@ -88,6 +88,7 @@ export class JournalEntryService {
       relatedAdjustmentId: this.toObjectId(dto.relatedAdjustmentId),
       createdBy: createdByObjectId,
       isDeleted: false,
+      lf: dto.lf,
     });
 
     const saved = await entry.save();
@@ -142,6 +143,7 @@ export class JournalEntryService {
       reference: dto.reference,
       lines,
       relatedAdjustmentId: adjustmentId,
+      lf: dto.lf,
     };
 
     return this.create(tenantId, journalEntryDto, userId);

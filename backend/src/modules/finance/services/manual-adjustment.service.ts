@@ -184,6 +184,7 @@ export class ManualAdjustmentService {
       date: new Date(dto.date),
       createdBy: createdByObjectId,
       isDeleted: false,
+      lf: dto.lf,
     });
 
     const saved = await adjustment.save();
@@ -236,6 +237,7 @@ export class ManualAdjustmentService {
         relatedAdjustmentId: saved._id,
         createdBy: createdByObjectId,
         isDeleted: false,
+        lf: dto.lf,
       });
 
       const savedJournal = await journalEntryDoc.save();

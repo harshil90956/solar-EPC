@@ -247,25 +247,9 @@ const INV_STAGES = [
 /* ── Invoice card ────────────────────────────────────────────────────────────── */
 
 
-
-
-
-
-
 const InvCard = ({ inv, onDragStart, onClick }) => {
-
-
-
-
-
-
-
-  const balancePct = inv.amount > 0 ? Math.round((inv.paid / inv.amount) * 100) : 0;
-
-
-
-
-
+  const paid = inv.paid || inv.amountPaid || 0;
+  const balancePct = inv.amount > 0 ? Math.round((paid / inv.amount) * 100) : 0;
 
 
   const isOverdue = inv.status === 'Overdue';
@@ -2175,6 +2159,10 @@ const FinancePage = ({ onNavigate }) => {
 
 
     amount: '',
+
+
+
+    lf: '',
 
 
 
@@ -6398,7 +6386,97 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-      setInvoices(prev => prev.map(i => (i._id === id || i.id === id) ? { ...i, status: newStage } : i));
+      setInvoices(prev => prev.map(i => {
+        if (i._id === id || i.id === id) {
+          // If becoming Paid, set paid = amount and balance = 0
+          if (newStage === 'Paid') {
+            return { 
+              ...i, 
+              status: newStage, 
+              paid: i.amount || 0, 
+              balance: 0 
+            };
+          }
+          return { ...i, status: newStage };
+        }
+        return i;
+      }));
+
+      // Open adjust modal when Sent -> Partial with pre-filled data
+      if (newStage === 'Partial' && previousStatus === 'Sent' && existing) {
+        const outstandingAmount = (existing.amount || 0) - (existing.paid || 0);
+        setAdjustForm({ 
+          type: 'credit',
+          category: 'Invoice Amount Received',
+          amount: String(outstandingAmount),
+          lf: '',
+          reason: `Partial payment for invoice ${existing.invoiceNumber || ''}`,
+          reference: '',
+          date: new Date().toISOString().slice(0, 10),
+          selectedInvoiceId: existing._id || existing.id,
+          selectedVendorId: '',
+          paymentMethod: 'Bank Transfer',
+        });
+        setShowAdjustModal(true);
+      }
+
+
+
+      // Create journal entry when invoice becomes Paid (from Sent or Partial)
+      if (newStage === 'Paid' && existing) {
+        const outstandingAmount = (existing.amount || 0) - (existing.paid || 0);
+        if (outstandingAmount > 0) {
+          const tenantId = localStorage.getItem('tenantId') || 'solarcorp';
+          const today = new Date().toISOString().slice(0, 10);
+          
+          // Create journal entry for the outstanding amount as credit
+          const invoiceJournalEntry = {
+            id: `je-inv-paid-${Date.now()}`,
+            _id: `je-inv-paid-${Date.now()}`,
+            entryDate: today,
+            reference: existing.invoiceNumber || existing._id || existing.id,
+            description: `Invoice marked as Paid - ${existing.customerName || 'Customer'}`,
+            entryType: 'Invoice Payment',
+            totalDebit: outstandingAmount,
+            totalCredit: outstandingAmount,
+            lines: [
+              {
+                accountName: 'Cash/Bank A/c',
+                debitAmount: outstandingAmount,
+                creditAmount: 0,
+                description: 'Cash/Bank A/c Dr.'
+              },
+              {
+                accountName: existing.customerName || 'Customer',
+                debitAmount: 0,
+                creditAmount: outstandingAmount,
+                description: `To ${existing.customerName || 'Customer'}`
+              }
+            ]
+          };
+          
+          // Add to journalEntries state immediately
+          setJournalEntries(prev => [invoiceJournalEntry, ...prev]);
+          
+          // Save to backend
+          try {
+            await financeApi.createManualAdjustment({
+              type: 'credit',
+              category: 'Invoice Payment',
+              amount: outstandingAmount,
+              reason: `Invoice ${existing.invoiceNumber || ''} marked as Paid - Outstanding amount received from ${existing.customerName || 'Customer'}`,
+              reference: existing._id || existing.id,
+              date: today,
+              tenantId
+            });
+            console.log('✅ Saved to backend');
+          // Note: Local journal entry already added above with lf field
+          // Backend may not return lf, so we keep local state
+          } catch (err) {
+            console.error('Failed to create journal entry for paid invoice:', err);
+          }
+        }
+      }
 
 
 
@@ -7640,13 +7718,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
       nextErrors.selectedVendorId = 'Please select a vendor';
     }
 
-    // Validate payment amount doesn't exceed outstanding for invoice payments only
-    if (adjustForm.type === 'credit' && adjustForm.category === 'Invoice Amount Received' && adjustForm.selectedInvoiceId) {
+    // Validate payment amount doesn't exceed total invoice amount for invoice payments
+    if (adjustForm.type === 'credit' && (adjustForm.category === 'Invoice Payment' || adjustForm.category === 'Invoice Amount Received') && adjustForm.selectedInvoiceId) {
       const inv = invoices.find(i => (i._id || i.id) === adjustForm.selectedInvoiceId);
       if (inv) {
-        const outstanding = inv.amount - (inv.paid || 0);
-        if (amountNum > outstanding) {
-          nextErrors.amount = `Amount cannot exceed outstanding balance of ${fmt(outstanding)}`;
+        // Check if amount exceeds total invoice amount (not just outstanding)
+        if (amountNum > inv.amount) {
+          nextErrors.amount = `Amount cannot exceed total invoice amount of ${fmt(inv.amount)}`;
+          toast.error(`Cannot pay more than total invoice amount of ${fmt(inv.amount)}`);
         }
       }
     }
@@ -7734,6 +7813,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
           status: 'Completed',
           narration: adjustForm.reason || `Payment received from ${inv?.customerName || 'Customer'}`,
           createdAt: new Date(adjustForm.date + 'T00:00:00.000Z'),
+          lf: adjustForm.lf ? parseInt(adjustForm.lf) : undefined,
           lines: [
             {
               accountName: 'Cash/Bank A/c',
@@ -7750,19 +7830,8 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
           ]
         };
         
-        console.log('Created invoice journal entry:', invoiceJournalEntry);
-        
-        // Add to journalEntries state immediately
-        setJournalEntries(prev => {
-          console.log('Adding to journalEntries. Current count:', prev.length);
-          const updated = [invoiceJournalEntry, ...prev];
-          console.log('Updated journalEntries count:', updated.length);
-          return updated;
-        });
-        
-        // Save to backend with tenantId
+        const tenantId = localStorage.getItem('tenantId') || 'solarcorp';
         try {
-          const tenantId = localStorage.getItem('tenantId') || 'solarcorp';
           console.log('Saving to backend with tenantId:', tenantId);
           await financeApi.createManualAdjustment({
             type: 'credit',
@@ -7771,27 +7840,36 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
             reason: adjustForm.reason || `Payment received from ${inv?.customerName || 'Customer'}`,
             reference: adjustForm.selectedInvoiceId,
             date: adjustForm.date,
-            tenantId
+            tenantId,
+            lf: adjustForm.lf ? parseInt(adjustForm.lf) : undefined
           });
           console.log('✅ Saved to backend');
           
-          // Refetch journal entries to ensure data matches database
-          const updatedEntries = await financeApi.getJournalEntries();
-          setJournalEntries(updatedEntries || []);
+          // Note: Local journal entry already added above with lf field
+          // Backend may not return lf, so we keep local state
         } catch (err) {
           console.error('Backend save error:', err?.response?.data || err?.message);
         }
         
-        // Update local invoice state
-        setInvoices(prev => prev.map(inv => {
-          if ((inv._id || inv.id) === adjustForm.selectedInvoiceId) {
-            const newPaid = (inv.paid || 0) + amountNum;
-            const newBalance = inv.amount - newPaid;
-            const newStatus = newBalance <= 0 ? 'Paid' : 'Partial';
-            return { ...inv, paid: newPaid, balance: newBalance, status: newStatus };
+        // Update local invoice state (will be overwritten by refetch, but keeps UI responsive)
+        let becamePaid = false;
+        const newPaid = (inv?.paid || 0) + amountNum;
+        const newBalance = inv?.amount - newPaid;
+        const newStatus = newBalance <= 0 ? 'Paid' : 'Partial';
+        if (newStatus === 'Paid') {
+          becamePaid = true;
+        }
+        setInvoices(prev => prev.map(invItem => {
+          if ((invItem._id || invItem.id) === adjustForm.selectedInvoiceId) {
+            return { ...invItem, paid: newPaid, balance: newBalance, status: newStatus, paidDate: adjustForm.date };
           }
-          return inv;
+          return invItem;
         }));
+
+        // Show notification if invoice became fully paid
+        if (becamePaid) {
+          toast.success('Invoice fully paid! Status moved to Paid.', { duration: 4000 });
+        }
 
         // Update manual balance locally (increase cash position for credit)
         setManualBalance(prev => prev + amountNum);
@@ -7801,6 +7879,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
           type: 'credit',
           category: '',
           amount: '',
+          lf: '',
           reason: '',
           reference: '',
           date: new Date().toISOString().slice(0, 10),
@@ -7838,6 +7917,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
           status: 'Completed',
           narration: adjustForm.reason || `Payment made to ${vendor?.vendorName || 'Vendor'}`,
           createdAt: new Date(adjustForm.date + 'T00:00:00.000Z'),
+          lf: adjustForm.lf ? parseInt(adjustForm.lf) : undefined,
           lines: [
             {
               accountName: vendor?.vendorName || 'Vendor',
@@ -7872,16 +7952,16 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
             type: 'debit',
             category: 'Vendor Payment',
             amount: amountNum,
-            reason: adjustForm.reason || `Payment made to ${vendor?.vendorName || 'Vendor'}`,
+            reason: adjustForm.reason || `Payment to ${vendor?.vendorName || 'Vendor'}`,
             reference: adjustForm.selectedVendorId,
             date: adjustForm.date,
-            tenantId
+            tenantId,
+            lf: adjustForm.lf ? parseInt(adjustForm.lf) : undefined
           });
           console.log('✅ Saved to backend');
           
-          // Refetch journal entries to ensure data matches database
-          const updatedEntries = await financeApi.getJournalEntries();
-          setJournalEntries(updatedEntries || []);
+          // Note: Local journal entry already added above with lf field
+          // Backend may not return lf, so we keep local state
         } catch (err) {
           console.error('Backend save error:', err?.response?.data || err?.message);
         }
@@ -7912,6 +7992,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
           type: 'credit',
           category: '',
           amount: '',
+          lf: '',
           reason: '',
           reference: '',
           date: new Date().toISOString().slice(0, 10),
@@ -7943,6 +8024,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
         status: 'Completed',
         narration: adjustForm.reason || `${adjustForm.type} adjustment - ${adjustForm.category}`,
         createdAt: new Date(adjustForm.date + 'T00:00:00.000Z'),
+        lf: adjustForm.lf ? parseInt(adjustForm.lf) : undefined,
         lines: adjustForm.type === 'debit' ? [
           {
             accountName: adjustForm.category || 'Expense',
@@ -7990,16 +8072,16 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
           type: adjustForm.type,
           category: adjustForm.category || 'Manual Adjustment',
           amount: amountNum,
-          reason: adjustForm.reason,
-          reference: adjustForm.reference,
+          reason: adjustForm.reason || 'Manual adjustment',
+          reference: adjustForm.reference || '',
           date: adjustForm.date,
-          tenantId
+          tenantId,
+          lf: adjustForm.lf ? parseInt(adjustForm.lf) : undefined
         });
         console.log('✅ Saved to backend');
         
-        // Refetch journal entries to ensure data matches database
-        const updatedEntries = await financeApi.getJournalEntries();
-        setJournalEntries(updatedEntries || []);
+        // Note: Local journal entry already added above with lf field
+        // Backend may not return lf, so we keep local state
       } catch (err) {
         console.error('Backend save error:', err?.response?.data || err?.message);
       }
@@ -9757,7 +9839,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-              <Button variant="outline" onClick={() => setShowAdjustModal(true)}><TrendingUp size={13} /> Adjust</Button>
+              <Button variant="outline" onClick={() => setShowAdjustModal(true)}><TrendingUp size={13} /> Adjust Amount</Button>
 
 
 
@@ -10518,7 +10600,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
                                     </div>
 
-                                    <div className="col-span-1 px-1 py-2 text-center text-[var(--text-muted)] text-[10px]"></div>
+                                    <div className="col-span-1 px-1 py-2 text-center text-[var(--text-primary)] font-medium text-[13px]">{idx === 0 ? (entry.lf || '') : ''}</div>
 
                                     <div className="col-span-2 px-2 py-2 text-right font-medium text-[var(--text-primary)]">
 
@@ -17055,6 +17137,96 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
                 <div className="text-[11px] text-red-400 mt-1">{adjustErrors.amount}</div>
+
+
+
+              )}
+
+
+
+            </FormField>
+
+
+
+
+
+
+
+            <FormField label="L.F.">
+
+
+
+              <Input
+
+
+
+                type="number"
+
+
+
+                value={adjustForm.lf || ''}
+
+
+
+                onChange={e => {
+
+
+
+                  const val = e.target.value;
+
+
+
+                  // Only allow numbers 1-1000
+
+
+
+                  if (val === '' || (/^\d+$/.test(val) && parseInt(val) >= 1 && parseInt(val) <= 1000)) {
+
+
+
+                    setAdjustForm({ ...adjustForm, lf: val });
+
+
+
+
+
+                  }
+
+
+
+                  if (adjustErrors.lf) setAdjustErrors(prev => ({ ...prev, lf: undefined }));
+
+
+
+                }}
+
+
+
+                placeholder="Enter L.F. (1-1000)"
+
+
+
+                min="1"
+
+
+
+                max="1000"
+
+
+
+                disabled={submittingAdjust}
+
+
+
+              />
+
+
+
+              {adjustErrors.lf && (
+
+
+
+                <div className="text-[11px] text-red-400 mt-1">{adjustErrors.lf}</div>
 
 
 

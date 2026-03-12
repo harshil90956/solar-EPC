@@ -36,6 +36,10 @@ export class CreateJournalEntryDto {
   @IsOptional()
   @IsString()
   relatedAdjustmentId?: string;
+
+  @IsOptional()
+  @IsNumber()
+  lf?: number;
 }
 
 export class CreateJournalEntryFromAdjustmentDto {
@@ -63,4 +67,8 @@ export class CreateJournalEntryFromAdjustmentDto {
 
   @IsDateString()
   date!: string;
+
+  @IsOptional()
+  @IsNumber()
+  lf?: number;
 }

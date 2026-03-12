@@ -44,6 +44,9 @@ export class JournalEntry {
 
   @Prop({ required: false })
   createdBy?: Types.ObjectId;
+
+  @Prop({ required: false })
+  lf?: number;
 }
 
 export const JournalEntrySchema = SchemaFactory.createForClass(JournalEntry);
