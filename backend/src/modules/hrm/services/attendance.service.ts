@@ -2,8 +2,10 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Attendance, AttendanceDocument, AttendanceStatus } from '../schemas/attendance.schema';
+import { Employee, EmployeeSchema } from '../schemas/employee.schema';
 import { CheckInDto, CheckOutDto } from '../dto/attendance.dto';
 import { Tenant, TenantDocument } from '../../../core/tenant/schemas/tenant.schema';
+import { UserWithVisibility } from '../../../common/utils/visibility-filter';
 
 @Injectable()
 export class AttendanceService {
@@ -26,17 +28,33 @@ export class AttendanceService {
     return (tenant as any)._id as Types.ObjectId;
   }
 
-  async checkIn(checkInDto: CheckInDto, tenantId?: string): Promise<Attendance> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
+  async checkIn(checkInDto: CheckInDto, tenantId?: string, user?: UserWithVisibility): Promise<Attendance> {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Check if already checked in today
-    const existingAttendance = await this.attendanceModel.findOne({
+    // 1. First, find the employee to get their actual tenantId
+    const employee = await this.tenantModel.db.model('Employee', EmployeeSchema).findById(checkInDto.employeeId).lean();
+    if (!employee) {
+      throw new NotFoundException('Employee not found');
+    }
+    const employeeTenantId = (employee as any).tenantId;
+
+    console.log(`[DEBUG] Check-In for Employee: ${checkInDto.employeeId}, Tenant: ${employeeTenantId}, Date (Local): ${today.toLocaleDateString()}, Date (ISO): ${today.toISOString()}`);
+
+    const query: any = {
       employeeId: new Types.ObjectId(checkInDto.employeeId),
-      date: today,
-      tenantId: tid,
-    });
+      date: {
+        $gte: new Date(today.setHours(0, 0, 0, 0)),
+        $lt: new Date(today.setHours(23, 59, 59, 999))
+      },
+      tenantId: new Types.ObjectId(employeeTenantId.toString()),
+    };
+    
+    // Reset today for next steps
+    today.setHours(0, 0, 0, 0);
+
+    // Check if already checked in today
+    const existingAttendance = await this.attendanceModel.findOne(query);
 
     if (existingAttendance && existingAttendance.checkIn) {
       throw new BadRequestException('Already checked in for today');
@@ -44,11 +62,10 @@ export class AttendanceService {
 
     // Calculate status based on check-in time (Late if after 9:30 AM)
     const now = new Date();
-    const checkInTime = new Date();
     const lateThreshold = new Date();
     lateThreshold.setHours(9, 30, 0, 0);
     
-    const status = checkInTime > lateThreshold ? AttendanceStatus.LATE : AttendanceStatus.PRESENT;
+    const status = now > lateThreshold ? AttendanceStatus.LATE : AttendanceStatus.PRESENT;
 
     if (existingAttendance) {
       // Update existing record
@@ -69,22 +86,38 @@ export class AttendanceService {
       type: checkInDto.type,
       location: checkInDto.location,
       notes: checkInDto.notes,
-      tenantId: tid,
+      tenantId: employeeTenantId,
     });
 
     return attendance.save();
   }
 
-  async checkOut(checkOutDto: CheckOutDto, tenantId?: string): Promise<Attendance> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
+  async checkOut(checkOutDto: CheckOutDto, tenantId?: string, user?: UserWithVisibility): Promise<Attendance> {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const attendance = await this.attendanceModel.findOne({
+    // 1. First, find the employee to get their actual tenantId
+    const employee = await this.tenantModel.db.model('Employee', EmployeeSchema).findById(checkOutDto.employeeId).lean();
+    if (!employee) {
+      throw new NotFoundException('Employee not found');
+    }
+    const employeeTenantId = (employee as any).tenantId;
+
+    console.log(`[DEBUG] Check-Out for Employee: ${checkOutDto.employeeId}, Tenant: ${employeeTenantId}, Date (Local): ${today.toLocaleDateString()}, Date (ISO): ${today.toISOString()}`);
+
+    const query: any = {
       employeeId: new Types.ObjectId(checkOutDto.employeeId),
-      date: today,
-      tenantId: tid,
-    });
+      date: {
+        $gte: new Date(today.setHours(0, 0, 0, 0)),
+        $lt: new Date(today.setHours(23, 59, 59, 999))
+      },
+      tenantId: new Types.ObjectId(employeeTenantId.toString()),
+    };
+
+    // Reset today for next steps
+    today.setHours(0, 0, 0, 0);
+
+    const attendance = await this.attendanceModel.findOne(query);
 
     if (!attendance) {
       throw new NotFoundException('No check-in record found for today');
@@ -123,9 +156,27 @@ export class AttendanceService {
     return attendance.save();
   }
 
-  async findAll(employeeId?: string, startDate?: Date, endDate?: Date, tenantId?: string): Promise<Attendance[]> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
-    const query: any = { tenantId: tid };
+  async findAll(
+    employeeId?: string,
+    startDate?: Date,
+    endDate?: Date,
+    tenantId?: string,
+    user?: UserWithVisibility,
+  ): Promise<Attendance[]> {
+    const query: any = {};
+
+    // SuperAdmin global view support
+    if (user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin') {
+      if (tenantId && tenantId !== 'default' && tenantId !== 'undefined' && Types.ObjectId.isValid(tenantId)) {
+        query.tenantId = new Types.ObjectId(tenantId);
+      }
+    } else {
+      // Regular users MUST have a tenantId
+      if (!tenantId || tenantId === 'default' || tenantId === 'undefined') {
+        throw new BadRequestException('Tenant context is missing');
+      }
+      query.tenantId = await this.resolveTenantObjectId(tenantId);
+    }
     
     if (employeeId) {
       query.employeeId = new Types.ObjectId(employeeId);
@@ -148,12 +199,22 @@ export class AttendanceService {
       .exec();
   }
 
-  async findByEmployeeId(employeeId: string, tenantId?: string): Promise<Attendance[]> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
+  async findByEmployeeId(employeeId: string, tenantId?: string, user?: UserWithVisibility): Promise<Attendance[]> {
     const query: any = { 
       employeeId: new Types.ObjectId(employeeId),
-      tenantId: tid,
     };
+
+    // SuperAdmin global view support
+    if (user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin') {
+      if (tenantId && tenantId !== 'default' && tenantId !== 'undefined' && Types.ObjectId.isValid(tenantId)) {
+        query.tenantId = new Types.ObjectId(tenantId);
+      }
+    } else {
+      if (!tenantId || tenantId === 'default' || tenantId === 'undefined') {
+        throw new BadRequestException('Tenant context is missing');
+      }
+      query.tenantId = await this.resolveTenantObjectId(tenantId);
+    }
 
     return this.attendanceModel
       .find(query)
@@ -161,16 +222,26 @@ export class AttendanceService {
       .exec();
   }
 
-  async getMonthlySummary(employeeId: string, month: number, year: number, tenantId?: string): Promise<any> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
+  async getMonthlySummary(employeeId: string, month: number, year: number, tenantId?: string, user?: UserWithVisibility): Promise<any> {
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0);
 
     const query: any = {
       employeeId: new Types.ObjectId(employeeId),
       date: { $gte: startDate, $lte: endDate },
-      tenantId: tid,
     };
+
+    // SuperAdmin global view support
+    if (user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin') {
+      if (tenantId && tenantId !== 'default' && tenantId !== 'undefined' && Types.ObjectId.isValid(tenantId)) {
+        query.tenantId = new Types.ObjectId(tenantId);
+      }
+    } else {
+      if (!tenantId || tenantId === 'default' || tenantId === 'undefined') {
+        throw new BadRequestException('Tenant context is missing');
+      }
+      query.tenantId = await this.resolveTenantObjectId(tenantId);
+    }
 
     const attendances = await this.attendanceModel.find(query).exec();
 
@@ -189,9 +260,20 @@ export class AttendanceService {
     };
   }
 
-  async update(id: string, updateData: Partial<Attendance>, tenantId?: string): Promise<Attendance> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
-    const query: any = { _id: new Types.ObjectId(id), tenantId: tid };
+  async update(id: string, updateData: Partial<Attendance>, tenantId?: string, user?: UserWithVisibility): Promise<Attendance> {
+    const query: any = { _id: new Types.ObjectId(id) };
+
+    // SuperAdmin global view support
+    if (user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin') {
+      if (tenantId && tenantId !== 'default' && tenantId !== 'undefined' && Types.ObjectId.isValid(tenantId)) {
+        query.tenantId = new Types.ObjectId(tenantId);
+      }
+    } else {
+      if (!tenantId || tenantId === 'default' || tenantId === 'undefined') {
+        throw new BadRequestException('Tenant context is missing');
+      }
+      query.tenantId = await this.resolveTenantObjectId(tenantId);
+    }
 
     const attendance = await this.attendanceModel.findOneAndUpdate(
       query,
@@ -206,9 +288,20 @@ export class AttendanceService {
     return attendance;
   }
 
-  async delete(id: string, tenantId?: string): Promise<void> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
-    const query: any = { _id: new Types.ObjectId(id), tenantId: tid };
+  async delete(id: string, tenantId?: string, user?: UserWithVisibility): Promise<void> {
+    const query: any = { _id: new Types.ObjectId(id) };
+
+    // SuperAdmin global view support
+    if (user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin') {
+      if (tenantId && tenantId !== 'default' && tenantId !== 'undefined' && Types.ObjectId.isValid(tenantId)) {
+        query.tenantId = new Types.ObjectId(tenantId);
+      }
+    } else {
+      if (!tenantId || tenantId === 'default' || tenantId === 'undefined') {
+        throw new BadRequestException('Tenant context is missing');
+      }
+      query.tenantId = await this.resolveTenantObjectId(tenantId);
+    }
 
     const result = await this.attendanceModel.deleteOne(query).exec();
     
@@ -217,12 +310,23 @@ export class AttendanceService {
     }
   }
 
-  async getTodaySummary(tenantId?: string): Promise<any> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
+  async getTodaySummary(tenantId?: string, user?: UserWithVisibility): Promise<any> {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const query: any = { date: today, tenantId: tid };
+    const query: any = { date: today };
+
+    // SuperAdmin global view support
+    if (user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin') {
+      if (tenantId && tenantId !== 'default' && tenantId !== 'undefined' && Types.ObjectId.isValid(tenantId)) {
+        query.tenantId = new Types.ObjectId(tenantId);
+      }
+    } else {
+      if (!tenantId || tenantId === 'default' || tenantId === 'undefined') {
+        throw new BadRequestException('Tenant context is missing');
+      }
+      query.tenantId = await this.resolveTenantObjectId(tenantId);
+    }
 
     const attendances = await this.attendanceModel.find(query).exec();
     

@@ -12,10 +12,6 @@ export class CreateDepartmentDto {
   @IsOptional()
   @IsString()
   description?: string;
-
-  @IsOptional()
-  @IsString()
-  managerId?: string;
 }
 
 export class UpdateDepartmentDto {
@@ -30,8 +26,4 @@ export class UpdateDepartmentDto {
   @IsOptional()
   @IsString()
   description?: string;
-
-  @IsOptional()
-  @IsString()
-  managerId?: string;
 }

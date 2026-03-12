@@ -34,6 +34,29 @@ export class MaterialDto {
   remarks?: string;
 }
 
+export class QuotationItemDto {
+  @IsString()
+  itemId!: string;
+
+  @IsString()
+  category!: string;
+
+  @IsString()
+  itemName!: string;
+
+  @IsNumber()
+  @Min(1)
+  quantity!: number;
+
+  @IsNumber()
+  @Min(0)
+  unitPrice!: number;
+
+  @IsNumber()
+  @Min(0)
+  totalPrice!: number;
+}
+
 export class CreateProjectDto {
   @IsString()
   projectId!: string;
@@ -41,6 +64,10 @@ export class CreateProjectDto {
   @IsOptional()
   @IsString()
   quotationId?: string;
+
+  @IsOptional()
+  @IsString()
+  leadId?: string;
 
   @IsString()
   customerName!: string;
@@ -93,6 +120,27 @@ export class CreateProjectDto {
   @ValidateNested({ each: true })
   @Type(() => MaterialDto)
   materials?: MaterialDto[];
+
+  // Quotation-related fields
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => QuotationItemDto)
+  items?: QuotationItemDto[];
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  tax?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  discount?: number;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
 }
 
 export class UpdateProjectDto extends PartialType(CreateProjectDto) {}

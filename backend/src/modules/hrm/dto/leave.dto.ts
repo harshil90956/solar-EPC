@@ -26,6 +26,30 @@ export class CreateLeaveDto {
   reason!: string;
 }
 
+export class UpdateLeaveDto {
+  @IsEnum(LeaveType)
+  @IsOptional()
+  leaveType?: LeaveType;
+
+  @IsDate()
+  @Type(() => Date)
+  @IsOptional()
+  startDate?: Date;
+
+  @IsDate()
+  @Type(() => Date)
+  @IsOptional()
+  endDate?: Date;
+
+  @IsString()
+  @IsOptional()
+  reason?: string;
+
+  @IsEnum(LeaveStatus)
+  @IsOptional()
+  status?: LeaveStatus;
+}
+
 export class UpdateLeaveStatusDto {
   @IsEnum(LeaveStatus)
   @IsNotEmpty()
