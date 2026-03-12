@@ -411,10 +411,14 @@ export class LeadsService {
     } = query;
 
     // Build complete filter with tenant and visibility
-    // Filter for customers only (status = "customer")
+    // Filter for customers only (status = "customer" OR stage = "customer")
     const filter = this.buildCompleteFilter(tenantId, user, {
-      status: 'customer',
-      isDeleted: { $ne: true }
+      isDeleted: { $ne: true },
+      $or: [
+        { status: { $regex: '^customer$', $options: 'i' } },
+        { stage: { $regex: '^customer$', $options: 'i' } },
+        { statusKey: { $regex: '^customer$', $options: 'i' } },
+      ],
     });
 
     // Apply additional filters
@@ -1454,24 +1458,39 @@ export class LeadsService {
         'firstName', 'lastName', 'stage', 'status'
       ];
 
+      // Dedupe by email within the file (last occurrence wins) and ignore rows with empty email.
+      // This prevents duplicate ops in the same bulkWrite and keeps results deterministic.
+      const emailRowMap = new Map<string, { normalized: any; rowNumber: number }>();
+      for (let i = 0; i < rows.length; i++) {
+        const rowNumber = i + 1;
+        try {
+          const normalized = this.normalizeRowData(rows[i], knownFields);
+          const email = String(normalized?.email || '').trim().toLowerCase();
+          normalized.email = email || undefined;
+          normalized.phone = normalized?.phone != null ? String(normalized.phone).trim() : normalized.phone;
+          normalized.name = normalized?.name != null ? String(normalized.name).trim() : normalized.name;
+          if (!email) {
+            // Ignore rows without email completely
+            continue;
+          }
+          emailRowMap.set(email, { normalized, rowNumber });
+        } catch (e: any) {
+          result.errors.push({ row: rowNumber, reason: e?.message || 'Row normalization failed' });
+          result.failed++;
+        }
+      }
+
+      const dedupedRows = Array.from(emailRowMap.values());
+      console.log(`[IMPORT] Rows after email dedupe: ${dedupedRows.length}`);
+
       // Process rows in batches of 500
       const batchSize = 500;
       const bulkOps: any[] = [];
 
-      for (let i = 0; i < rows.length; i++) {
-        const row = rows[i];
-        const rowNumber = i + 1;
+      for (let i = 0; i < dedupedRows.length; i++) {
+        const { normalized: normalizedData, rowNumber } = dedupedRows[i];
 
         try {
-          // Debug: Log raw row keys for first few rows
-          if (i < 3) {
-            console.log(`[IMPORT] Row ${rowNumber} - Raw keys:`, Object.keys(row));
-            console.log(`[IMPORT] Row ${rowNumber} - Raw data:`, JSON.stringify(row));
-          }
-
-          // Normalize row data FIRST
-          const normalizedData = this.normalizeRowData(row, knownFields);
-
           // Debug: Log normalized data for first few rows
           if (i < 3) {
             console.log(`[IMPORT] Row ${rowNumber} - Normalized data:`, JSON.stringify(normalizedData));
@@ -1486,122 +1505,89 @@ export class LeadsService {
             continue;
           }
 
-          // Check for duplicate by email or phone using $or query
-          const duplicate = await this.findDuplicate(
-            normalizedData.email,
-            normalizedData.phone,
-            tenantId
-          );
+          // email was normalized and deduped above; still double-check.
+          const normalizedEmail = String(normalizedData.email || '').trim().toLowerCase();
+          if (!normalizedEmail) {
+            continue;
+          }
 
-          if (duplicate) {
-            // Update existing lead - convert duplicates to updates
-            const updateData = this.buildUpdateData(normalizedData);
-            updateData.lastContact = new Date();
-            
-            // Handle activity logs if present - use $push to append
-            if (normalizedData.activityLogs && normalizedData.activityLogs.length > 0) {
-              const activities = normalizedData.activityLogs.map((log: string) => ({
-                type: 'import',
-                ts: this.formatTimestamp(new Date()),
-                note: log,
-                by: user?.id || 'System',
-                timestamp: new Date(),
-              }));
-              
-              // Use $push to append activities instead of overwriting
-              bulkOps.push({
-                updateOne: {
-                  filter: tenantId
-                    ? { _id: duplicate._id, tenantId: this.toObjectId(tenantId) }
-                    : { _id: duplicate._id },
-                  update: {
-                    $set: updateData,
-                    $push: { activities: { $each: activities } }
-                  },
-                },
-              });
-            } else {
-              // No activity logs, simple update
-              bulkOps.push({
-                updateOne: {
-                  filter: tenantId
-                    ? { _id: duplicate._id, tenantId: this.toObjectId(tenantId) }
-                    : { _id: duplicate._id },
-                  update: { $set: updateData },
-                },
-              });
-            }
-            
-            result.updated++;
-            console.log(`[IMPORT] Row ${rowNumber} - Updated existing lead (ID: ${duplicate._id})`);
-          } else {
-            // Create new lead - no duplicates found
-            const leadId = `LEAD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          {
             const now = new Date();
+            const updateData = this.buildUpdateData(normalizedData);
+            updateData.lastContact = now;
 
-            const leadData: any = {
-              leadId,
-              ...normalizedData,
+            const insertLeadId = `LEAD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            const setOnInsert: any = {
+              leadId: insertLeadId,
               created: now,
-              lastContact: now,
-              statusKey: normalizedData.statusKey || 'new',
-              activities: [],
             };
 
-            // Add createdBy from authenticated user
-            if (user?._id) {
-              leadData.createdBy = new Types.ObjectId(user._id.toString());
-            }
-
-            // Add tenantId
             if (tenantId) {
-              leadData.tenantId = new Types.ObjectId(tenantId);
+              setOnInsert.tenantId = new Types.ObjectId(tenantId);
+            }
+            if (user?._id) {
+              setOnInsert.createdBy = new Types.ObjectId(user._id.toString());
             }
 
-            // Add import activity
-            leadData.activities.push({
-              type: 'created',
-              ts: this.formatTimestamp(now),
-              note: 'Lead imported',
-              by: user?.id || 'System',
-              timestamp: now,
-            });
+            // Score/SLA/automation for inserts and updates
+            const mergedForScore = { ...setOnInsert, ...updateData };
+            const computedScore = this.calculateScore(mergedForScore);
+            updateData.score = computedScore;
+            updateData.slaBreached = this.checkSlaBreached(mergedForScore);
+            updateData.activeAutomation = this.applyAutomation(mergedForScore);
 
-            // Add activity logs if present
-            if (normalizedData.activityLogs && normalizedData.activityLogs.length > 0) {
-              normalizedData.activityLogs.forEach((log: string) => {
-                leadData.activities.push({
-                  type: 'import',
-                  ts: this.formatTimestamp(now),
-                  note: log,
-                  by: user?.id || 'System',
-                  timestamp: now,
-                });
-              });
-            }
+            const filter: any = { email: normalizedEmail };
+            if (tenantId) filter.tenantId = this.toObjectId(tenantId);
 
-            // Calculate score and SLA
-            leadData.score = this.calculateScore(leadData);
-            leadData.slaBreached = this.checkSlaBreached(leadData);
-            leadData.activeAutomation = this.applyAutomation(leadData);
+            const updateDoc: any = {
+              $set: updateData,
+              $setOnInsert: setOnInsert,
+            };
 
             bulkOps.push({
-              insertOne: { document: leadData },
+              updateOne: {
+                filter,
+                update: updateDoc,
+                upsert: true,
+              },
             });
-            result.inserted++;
-            console.log(`[IMPORT] Row ${rowNumber} - Inserted new lead (ID: ${leadId})`);
           }
 
           // Execute batch when size reached
-          if (bulkOps.length >= batchSize || i === rows.length - 1) {
+          if (bulkOps.length >= batchSize || i === dedupedRows.length - 1) {
             if (bulkOps.length > 0) {
-              await this.leadModel.bulkWrite(bulkOps);
+              try {
+                const bwResult: any = await this.leadModel.bulkWrite(bulkOps, { ordered: false });
+                result.inserted += Number(bwResult?.upsertedCount || 0);
+                result.updated += Number(bwResult?.modifiedCount || 0);
+              } catch (e: any) {
+                // Defensive: never crash import on any bulkWrite error.
+                const writeErrors = e?.writeErrors || e?.result?.getWriteErrors?.() || [];
+                const failures = Array.isArray(writeErrors) && writeErrors.length > 0 ? writeErrors.length : 1;
+                result.failed += failures;
+
+                if (Array.isArray(writeErrors) && writeErrors.length > 0) {
+                  for (const we of writeErrors) {
+                    const msg = we?.errmsg || we?.message || e?.message || 'Bulk write error';
+                    result.errors.push({ row: 0, reason: msg });
+                  }
+                } else {
+                  result.errors.push({ row: 0, reason: e?.message || 'Bulk write error' });
+                }
+              }
               bulkOps.length = 0; // Clear array
             }
           }
         } catch (error: any) {
           // Handle any unexpected errors during insert/update
           console.error(`[IMPORT] Row ${rowNumber} - Error:`, error.message);
+
+          // Defensive: never stop on duplicate key.
+          if (error?.code === 11000) {
+            result.errors.push({ row: rowNumber, reason: 'Duplicate key (email, tenantId)' });
+            result.failed++;
+            continue;
+          }
           
           // Add to failed rows
           result.errors.push({ row: rowNumber, reason: error.message || 'Unknown error' });
