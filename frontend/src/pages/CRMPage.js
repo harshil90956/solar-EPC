@@ -897,7 +897,7 @@ const CRMPage = () => {
   });
 
   const { logCreate, logUpdate, logDelete } = useAuditLog('CRM');
-  const { can } = usePermissions();
+  const { can, featureOn } = usePermissions();
   const { user } = useAuth();
 
   // Get user's data scope for visibility indicator
@@ -2126,6 +2126,15 @@ const CRMPage = () => {
     setShowSortDropdown(false);
   };
 
+  const crmFeatures = useMemo(() => {
+    return {
+      kanban: featureOn('crm', 'kanban_view'),
+      analytics: featureOn('crm', 'analytics_view'),
+      importCsv: featureOn('crm', 'import_csv'),
+      bulkActions: featureOn('crm', 'bulk_actions'),
+    };
+  }, [featureOn]);
+
   return (
     <div className="animate-fade-in space-y-5">
       {/* ── Header ── */}
@@ -2134,9 +2143,9 @@ const CRMPage = () => {
           title="CRM Module"
           subtitle="Rulebook Compliant Lead Management"
           tabs={[
-            { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+            ...(crmFeatures.analytics ? [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }] : []),
             { id: 'leads', label: 'Leads', icon: List },
-            { id: 'kanban', label: 'Kanban', icon: LayoutDashboard },
+            ...(crmFeatures.kanban ? [{ id: 'kanban', label: 'Kanban', icon: LayoutDashboard }] : []),
             { id: 'customers', label: 'Customers', icon: Users },
           ]}
           activeTab={view}
@@ -2156,7 +2165,7 @@ const CRMPage = () => {
       </div>
 
       {/* ── Date Filters ── */}
-      {view === 'dashboard' && (
+      {view === 'dashboard' && crmFeatures.analytics && (
         <div className="glass-card p-3">
           <div className="flex flex-wrap gap-3 items-center">
             <div className="flex items-center gap-2">
@@ -2234,7 +2243,7 @@ const CRMPage = () => {
       )}
 
       {/* ── Advanced Dashboard ── */}
-      {view === 'dashboard' && (
+      {view === 'dashboard' && crmFeatures.analytics && (
         <LeadAnalyticsDashboard onNavigate={(nextView) => setView(nextView)} />
       )}
 
@@ -2387,7 +2396,7 @@ const CRMPage = () => {
       )}
 
       {/* ── Kanban Board View ── */}
-      {view === 'kanban' && (
+      {view === 'kanban' && crmFeatures.kanban && (
         <div className="space-y-4">
           {(() => { console.log('[KANBAN DEBUG] statusOptions:', statusOptions); console.log('[KANBAN DEBUG] enhancedLeads first 3:', enhancedLeads.slice(0, 3).map(l => ({ name: l.name, statusKey: l.statusKey, status: l.status }))); return null; })()}
           <div className="flex items-center justify-between">
@@ -2753,7 +2762,15 @@ const CRMPage = () => {
               {can('crm', 'create') && (
                 <Button variant="outline" onClick={() => setShowAddModal(true)}><Plus size={14} /> Add Lead</Button>
               )}
-              <ImportExport moduleName="Leads" fields={crmFields} onImport={handleImport} onExport={handleExport} />
+              <ImportExport
+                moduleName="Leads"
+                fields={crmFields}
+                onImport={handleImport}
+                onExport={handleExport}
+                hideImport={!crmFeatures.importCsv || !can('crm', 'create')}
+                hideGuide={!crmFeatures.importCsv}
+                hideExport={!can('crm', 'export')}
+              />
             </div>
           </div>
 
@@ -2933,7 +2950,7 @@ const CRMPage = () => {
             onSearch={setSearch}
             selectedRows={selected}
             onSelectRows={setSelected}
-            bulkActions={[
+            bulkActions={crmFeatures.bulkActions ? [
               ...(can('crm', 'export') ? [{
                 label: 'Export',
                 icon: Download,
@@ -2944,15 +2961,15 @@ const CRMPage = () => {
               ...(can('crm', 'edit') ? [{ label: 'Score Boost', icon: Brain, onClick: (selectedIds) => { if (guardEdit()) handleOpenScoreBoostModal(selectedIds); } }] : []),
               ...(can('crm', 'assign') ? [{ label: 'Assign', icon: UserCheck, onClick: (selectedIds) => handleOpenAssignModal(selectedIds) }] : []),
               ...(can('crm', 'delete') ? [{ label: 'Delete', icon: Trash2, onClick: (selectedIds) => { if (guardDelete()) handleBulkDelete(selectedIds); }, danger: true }] : []),
-            ]}
+            ] : []}
             rowActions={[
               { label: 'View', icon: Eye, onClick: handleViewLead },
               { label: 'Lead Tracker', icon: Target, onClick: handleViewTracker },
-              { label: 'Edit', icon: Edit2, onClick: handleEditLead },
-              { label: 'Assign Lead', icon: UserCheck, onClick: (lead) => handleOpenAssignModal([lead._id || lead.id]), showWhen: () => can('crm', 'assign') },
+              ...(can('crm', 'edit') ? [{ label: 'Edit', icon: Edit2, onClick: handleEditLead }] : []),
+              ...(can('crm', 'assign') ? [{ label: 'Assign Lead', icon: UserCheck, onClick: (lead) => handleOpenAssignModal([lead._id || lead.id]) }] : []),
               { label: 'Flip to Survey', icon: Zap, onClick: handleFlipToSurvey },
               { label: 'Score', icon: Brain, onClick: handleRecalculateScore },
-              { label: 'Delete', icon: Trash2, onClick: handleDeleteLead, danger: true },
+              ...(can('crm', 'delete') ? [{ label: 'Delete', icon: Trash2, onClick: handleDeleteLead, danger: true }] : []),
               { label: 'Activity Log', icon: Activity, onClick: handleViewActivity },
             ]}
           />

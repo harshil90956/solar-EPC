@@ -83,6 +83,8 @@ export class DepartmentService {
       .find(query)
       .sort({ createdAt: -1 })
       .exec();
+    console.log('[DEBUG DepartmentService] Filtered result count:', result.length);
+    return result;
   }
 
   async findOne(id: string, tenantId?: string, user?: UserWithVisibility): Promise<Department> {

@@ -430,7 +430,7 @@ export class LogisticsService {
 
 
 
-  async createVendor(data: Partial<Vendor>): Promise<Vendor> {
+  async createVendor(data: Partial<Vendor>, tenantId: string = 'default'): Promise<Vendor> {
 
     try {
 
@@ -476,6 +476,25 @@ export class LogisticsService {
 
       console.log('Vendor created successfully:', saved.id);
 
+
+      // Add stock to inventory if quantity > 0 and item is specified
+      if (saved.quantity! > 0 && saved.itemName) {
+        try {
+          console.log(`[LOGISTICS] Adding stock for new vendor: ${saved.itemName}, quantity: ${saved.quantity}`);
+          await this.inventoryService.addStock(
+            saved.itemName,
+            saved.quantity!,
+            `Vendor entry created - ${saved.name} (${saved.id})`,
+            saved.id,
+            tenantId
+          );
+          console.log(`[LOGISTICS] Stock added successfully for vendor ${saved.id}`);
+        } catch (stockError: any) {
+          console.error(`[LOGISTICS] Failed to add stock for vendor ${saved.id}:`, stockError.message);
+          // Don't throw here - vendor is already created, just log the error
+        }
+      }
+
       return saved;
 
     } catch (error: any) {
@@ -490,11 +509,85 @@ export class LogisticsService {
 
 
 
-  async updateVendor(id: string, data: Partial<Vendor>): Promise<Vendor | null> {
+  async updateVendor(id: string, data: Partial<Vendor>, tenantId: string = 'default'): Promise<Vendor | null> {
     console.log(`[LOGISTICS] Updating vendor ${id} with data:`, data);
     
     const oldVendor = await this.vendorModel.findOne({ id }).exec();
+    if (!oldVendor) {
+      console.log(`[LOGISTICS] Vendor ${id} not found`);
+      return null;
+    }
+
+    // Calculate stock difference if quantity or itemName changed
+    const oldQuantity = oldVendor.quantity || 0;
+    const newQuantity = data.quantity !== undefined ? data.quantity : oldQuantity;
+    const oldItemName = oldVendor.itemName;
+    const newItemName = data.itemName !== undefined ? data.itemName : oldItemName;
+    
     const updated = await this.vendorModel.findOneAndUpdate({ id }, data, { new: true }).exec();
+    
+    if (!updated) {
+      return null;
+    }
+
+    // Handle stock adjustments
+    if (newItemName && newQuantity !== oldQuantity) {
+      const quantityDiff = newQuantity - oldQuantity;
+      if (quantityDiff !== 0) {
+        try {
+          console.log(`[LOGISTICS] Adjusting stock for vendor ${id}: ${newItemName}, diff: ${quantityDiff}`);
+          if (quantityDiff > 0) {
+            // Adding stock
+            await this.inventoryService.addStock(
+              newItemName,
+              quantityDiff,
+              `Vendor entry updated - ${updated.name} (${updated.id})`,
+              updated.id,
+              tenantId
+            );
+          } else {
+            // Removing stock
+            await this.inventoryService.removeStock(
+              newItemName,
+              Math.abs(quantityDiff),
+              `Vendor entry updated (quantity reduced) - ${updated.name} (${updated.id})`,
+              updated.id,
+              tenantId
+            );
+          }
+          console.log(`[LOGISTICS] Stock adjusted successfully for vendor ${id}`);
+        } catch (stockError: any) {
+          console.error(`[LOGISTICS] Failed to adjust stock for vendor ${id}:`, stockError.message);
+        }
+      }
+    }
+
+    // If item name changed, handle stock transfer
+    if (oldItemName && newItemName && oldItemName !== newItemName && oldQuantity > 0) {
+      try {
+        console.log(`[LOGISTICS] Item name changed from ${oldItemName} to ${newItemName} for vendor ${id}`);
+        // Remove from old item
+        await this.inventoryService.removeStock(
+          oldItemName,
+          oldQuantity,
+          `Vendor item changed - ${updated.name} (${updated.id})`,
+          updated.id,
+          tenantId
+        );
+        // Add to new item
+        if (newQuantity > 0) {
+          await this.inventoryService.addStock(
+            newItemName,
+            newQuantity,
+            `Vendor item changed - ${updated.name} (${updated.id})`,
+            updated.id,
+            tenantId
+          );
+        }
+      } catch (stockError: any) {
+        console.error(`[LOGISTICS] Failed to transfer stock for vendor ${id}:`, stockError.message);
+      }
+    }
     
     if (updated && data.name && data.name !== oldVendor?.name) {
       console.log(`[LOGISTICS] Vendor name changed from "${oldVendor?.name}" to "${data.name}" - syncing with POs`);
@@ -510,10 +603,35 @@ export class LogisticsService {
 
 
 
-  async deleteVendor(id: string): Promise<Vendor | null> {
+  async deleteVendor(id: string, tenantId: string = 'default'): Promise<Vendor | null> {
+    const vendor = await this.vendorModel.findOne({ id }).exec();
+    
+    if (!vendor) {
+      console.log(`[LOGISTICS] Vendor ${id} not found for deletion`);
+      return null;
+    }
 
-    return this.vendorModel.findOneAndUpdate({ id }, { isActive: false }, { new: true }).exec();
+    // Remove stock from inventory if vendor had quantity
+    if (vendor.quantity! > 0 && vendor.itemName) {
+      try {
+        console.log(`[LOGISTICS] Removing stock for deleted vendor: ${vendor.itemName}, quantity: ${vendor.quantity}`);
+        await this.inventoryService.removeStock(
+          vendor.itemName,
+          vendor.quantity!,
+          `Vendor entry deleted - ${vendor.name} (${vendor.id})`,
+          vendor.id,
+          tenantId
+        );
+        console.log(`[LOGISTICS] Stock removed successfully for deleted vendor ${id}`);
+      } catch (stockError: any) {
+        console.error(`[LOGISTICS] Failed to remove stock for deleted vendor ${id}:`, stockError.message);
+        // Don't throw - continue with deletion
+      }
+    }
 
+    // Hard delete - remove from database completely
+    console.log(`[LOGISTICS] Permanently deleting vendor ${id} from database`);
+    return this.vendorModel.findOneAndDelete({ id }).exec();
   }
 
 

@@ -40,6 +40,25 @@ export class PurchaseOrder {
 
   @Prop({ default: true })
   isActive!: boolean;
+
+  // Inventory fields
+  @Prop({ type: Types.ObjectId, ref: 'Category', default: null })
+  categoryId!: Types.ObjectId | null;
+
+  @Prop({ type: String, default: '' })
+  categoryName!: string;
+
+  @Prop({ type: String, default: null })
+  itemId!: string | null;
+
+  @Prop({ type: String, default: '' })
+  itemName!: string;
+
+  @Prop({ type: String, default: '' })
+  unit!: string;
+
+  @Prop({ type: Number, default: 0 })
+  requiredQuantity!: number;
 }
 
 export const PurchaseOrderSchema = SchemaFactory.createForClass(PurchaseOrder);

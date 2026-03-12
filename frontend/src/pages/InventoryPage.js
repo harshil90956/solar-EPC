@@ -1031,15 +1031,21 @@ const InventoryPage = () => {
           const project = projects.find(p => p.projectId === stockOutForm.projectId);
           const projectName = project?.customerName || project?.name || 'Unknown Project';
 
-          await apiClient.post('/inventory/reservations', {
+          console.log('[FRONTEND] Creating reservation for item:', item?.itemId, 'project:', stockOutForm.projectId);
+          
+          const resResponse = await apiClient.post('/inventory/reservations', {
             reservationId: `RES-${Date.now()}`,
             itemId: item?.itemId || stockOutForm.itemId,
+            inventoryId: item?._id,
             projectId: stockOutForm.projectId,
             projectName: projectName,
             quantity: parseInt(stockOutForm.quantity),
             notes: stockOutForm.remarks || `Stock issued on ${stockOutForm.issuedDate || new Date().toISOString().split('T')[0]}`,
           }, { params: { tenantId: TENANT_ID } });
+          
+          console.log('[FRONTEND] Reservation created:', resResponse);
         } catch (resErr) {
+          console.error('[FRONTEND] Reservation creation failed:', resErr);
           // Don't fail the whole operation if reservation creation fails
         }
       }
@@ -2495,7 +2501,7 @@ const InventoryPage = () => {
                               <Edit2 size={14} />
                             </button>
                             <button
-                              onClick={(e) => { e.stopPropagation(); handleDeleteItem(item.itemId); }}
+                              onClick={(e) => { e.stopPropagation(); handleDeleteItem(item); }}
                               className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-red-500 hover:bg-red-500/10"
                               title="Delete"
                             >
@@ -2943,12 +2949,11 @@ const InventoryPage = () => {
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Add Inventory Item"
         footer={<div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={() => setShowAdd(false)}>Cancel</Button>
-          <Button onClick={handleAddItem} disabled={submitting || !form.name || !form.category || !form.warehouse}>
+          <Button onClick={handleAddItem} disabled={submitting || !form.name || !form.category}>
             {submitting ? 'Adding...' : <><Plus size={13} /> Add Item</>}
           </Button>
         </div>}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <FormField label="Item ID (Optional)"><Input placeholder="e.g. INV001" value={form.itemId} onChange={e => setForm(f => ({ ...f, itemId: e.target.value }))} /></FormField>
           <FormField label="Item Name"><Input placeholder="e.g. 400W Mono PERC Panel" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></FormField>
           <FormField label="Category">
             <Select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
@@ -2964,12 +2969,6 @@ const InventoryPage = () => {
           </FormField>
           <FormField label="Min Stock Level"><Input type="number" placeholder="100" value={form.minStock} onChange={e => setForm(f => ({ ...f, minStock: e.target.value }))} /></FormField>
           <FormField label="Unit Rate (₹)"><Input type="number" placeholder="14500" value={form.rate} onChange={e => setForm(f => ({ ...f, rate: e.target.value }))} /></FormField>
-          <FormField label="Warehouse">
-            <Select value={form.warehouse} onChange={e => setForm(f => ({ ...f, warehouse: e.target.value }))}>
-              <option value="">Select Warehouse</option>
-              {warehouses.map(w => <option key={w}>{w}</option>)}
-            </Select>
-          </FormField>
         </div>
       </Modal>
 

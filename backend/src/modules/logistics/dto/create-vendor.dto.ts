@@ -1,13 +1,9 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, Max } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, Max, ValidateIf } from 'class-validator';
 
 export class CreateLogisticsVendorDto {
   @IsString()
   @IsNotEmpty()
   name!: string;
-
-  @IsString()
-  @IsNotEmpty()
-  category!: string;
 
   @IsString()
   @IsNotEmpty()
@@ -30,16 +26,30 @@ export class CreateLogisticsVendorDto {
   @Min(0)
   @Max(5)
   rating?: number;
+
+  // Inventory-related fields - optional
+  @IsOptional()
+  @IsString()
+  itemId?: string;
+
+  @IsOptional()
+  @IsString()
+  itemName?: string;
+
+  @IsOptional()
+  @IsString()
+  unit?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  quantity?: number;
 }
 
 export class UpdateLogisticsVendorDto {
   @IsOptional()
   @IsString()
   name?: string;
-
-  @IsOptional()
-  @IsString()
-  category?: string;
 
   @IsOptional()
   @IsString()
@@ -62,4 +72,22 @@ export class UpdateLogisticsVendorDto {
   @Min(0)
   @Max(5)
   rating?: number;
+
+  // Inventory-related fields
+  @IsOptional()
+  @IsString()
+  itemId?: string;
+
+  @IsOptional()
+  @IsString()
+  itemName?: string;
+
+  @IsOptional()
+  @IsString()
+  unit?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  quantity?: number;
 }

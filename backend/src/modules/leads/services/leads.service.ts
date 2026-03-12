@@ -9,6 +9,7 @@ import { LeadStatus, LeadStatusDocument } from '../../settings/schemas/lead-stat
 import { buildVisibilityFilter, applyVisibilityFilter, buildCompleteFilter, canAccessRecord, UserWithVisibility } from '../../../common/utils/visibility-filter';
 import { User, UserDocument } from '../../../core/auth/schemas/user.schema';
 import { Tenant, TenantDocument } from '../../../core/tenant/schemas/tenant.schema';
+import { Project, ProjectDocument } from '../../projects/schemas/project.schema';
 
 import { SiteSurveysService } from '../../survey/services/site-surveys.service';
 
@@ -19,6 +20,7 @@ export class LeadsService {
     @InjectModel(LeadStatus.name) private leadStatusModel: Model<LeadStatusDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Tenant.name) private readonly tenantModel: Model<TenantDocument>,
+    @InjectModel(Project.name) private readonly projectModel: Model<ProjectDocument>,
     @Inject(forwardRef(() => SiteSurveysService))
     private readonly siteSurveysService: SiteSurveysService,
   ) {}
@@ -699,7 +701,8 @@ export class LeadsService {
 
     const skip = (page - 1) * limit;
 
-    const [data, total] = await Promise.all([
+    // Fetch leads customers
+    const [leadsData, leadsTotal] = await Promise.all([
       this.leadModel
         .find(filter)
         .populate('assignedTo', 'firstName lastName email name')
@@ -711,7 +714,65 @@ export class LeadsService {
       this.leadModel.countDocuments(filter),
     ]);
 
-    return { data, total };
+    // Fetch unique customers from projects
+    const tid = this.toObjectId(tenantId);
+    const projectFilter: any = { isDeleted: { $ne: true } };
+    if (tid) {
+      projectFilter.tenantId = tid;
+    }
+
+    // Get unique customers from projects
+    const projectCustomers = await this.projectModel.aggregate([
+      { $match: projectFilter },
+      {
+        $group: {
+          _id: '$customerName',
+          name: { $first: '$customerName' },
+          email: { $first: '$email' },
+          phone: { $first: '$mobileNumber' },
+          mobileNumber: { $first: '$mobileNumber' },
+          site: { $first: '$site' },
+          createdAt: { $min: '$createdAt' },
+          source: { $first: 'Project' },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          id: { $concat: ['project_', { $toString: '$_id' }] },
+          name: 1,
+          email: 1,
+          phone: 1,
+          mobileNumber: 1,
+          site: 1,
+          createdAt: 1,
+          source: 1,
+          statusKey: 'customer',
+          status: 'customer',
+        },
+      },
+      ...(search ? [{
+        $match: {
+          $or: [
+            { name: { $regex: search, $options: 'i' } },
+            { email: { $regex: search, $options: 'i' } },
+          ],
+        },
+      }] : []),
+    ]);
+
+    // Merge leads customers with project customers
+    // Filter out project customers that already exist in leads by email
+    const existingEmails = new Set(leadsData.map(l => l.email?.toLowerCase()).filter(Boolean));
+    const uniqueProjectCustomers = projectCustomers.filter(
+      p => !existingEmails.has(p.email?.toLowerCase())
+    );
+
+    // Combine both lists
+    const combinedData = [...leadsData, ...uniqueProjectCustomers];
+    const total = leadsTotal + uniqueProjectCustomers.length;
+
+    return { data: combinedData, total };
   }
 
   async findOne(id: string, tenantId?: string, user?: UserWithVisibility): Promise<Lead> {
@@ -1044,7 +1105,8 @@ export class LeadsService {
       count: await this.leadModel.countDocuments({ ...filter, statusKey: s.key })
     })));
 
-    return counts;
+      return { stages: counts };
+    });
   }
 
   async getDashboardSources(
@@ -1407,9 +1469,20 @@ export class LeadsService {
             leadData.slaBreached = this.checkSlaBreached(leadData);
             leadData.activeAutomation = this.applyAutomation(leadData);
 
+            const filter = {
+              tenantId: tid,
+              leadId,
+            };
+
+            const updateDoc = {
+              $setOnInsert: leadData,
+            };
+
             bulkOps.push({
-              insertOne: {
-                document: leadData,
+              updateOne: {
+                filter: { leadId },
+                update: { $set: leadData },
+                upsert: true,
               },
             });
             result.inserted++;

@@ -138,6 +138,8 @@ export class Project extends Document {
 
 export const ProjectSchema = SchemaFactory.createForClass(Project);
 
+export type ProjectDocument = Project & Document;
+
 // Index for efficient querying
 ProjectSchema.index({ tenantId: 1, status: 1 });
 ProjectSchema.index({ tenantId: 1, assignedTo: 1 });

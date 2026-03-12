@@ -34,7 +34,7 @@ const PO_KANBAN_STAGES = [
 
 const PO_COLUMNS = [
   { key: 'id', header: 'PO Number', render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span> },
-  { key: 'vendorName', header: 'Vendor', sortable: true, render: v => <span className="text-xs font-semibold text-[var(--text-primary)]">{v}</span> },
+  { key: 'vendorName', header: 'Vendor', sortable: true, render: (v, row) => <span className="text-xs font-semibold text-[var(--text-primary)] cursor-pointer hover:text-[var(--primary)] transition-colors" onClick={() => row._onVendorClick && row._onVendorClick(v)}>{v}</span> },
   { key: 'items', header: 'Items', render: v => <span className="text-xs text-[var(--text-secondary)]">{v}</span> },
   { key: 'totalAmount', header: 'Amount', sortable: true, render: v => <span className="text-xs font-bold text-[var(--text-primary)]">{fmt(v)}</span> },
   { key: 'status', header: 'Status', render: v => <StatusBadge domain="purchaseOrder" value={v} /> },
@@ -685,8 +685,26 @@ const ProcurementPage = () => {
   const [vizYear, setVizYear] = useState(currentYear);
 
   // Form states
-  const [newPO, setNewPO] = useState({ vendorId: '', items: '', totalAmount: '', expectedDate: '', relatedProjectId: '' });
+  const [newPO, setNewPO] = useState({ 
+    vendorId: '', 
+    items: '', 
+    totalAmount: '', 
+    expectedDate: '', 
+    relatedProjectId: '',
+    categoryId: '',
+    categoryName: '',
+    itemId: '',
+    itemName: '',
+    unit: '',
+    requiredQuantity: ''
+  });
   const [newVendor, setNewVendor] = useState({ name: '', category: '', city: '', contact: '', phone: '', email: '' });
+
+  // Inventory data states
+  const [inventoryCategories, setInventoryCategories] = useState([]);
+  const [inventoryItems, setInventoryItems] = useState([]);
+  const [inventoryUnits, setInventoryUnits] = useState([]);
+  const [inventoryLoading, setInventoryLoading] = useState(false);
 
   // Vendors list for dropdown
   const [vendors, setVendors] = useState([]);
@@ -699,6 +717,9 @@ const ProcurementPage = () => {
 
   // Vendor detail modal state
   const [selectedVendor, setSelectedVendor] = useState(null);
+
+  // Kanban hide cards state
+  const [hidePOCards, setHidePOCards] = useState(false);
 
   // PO Edit state
   const [isEditingPO, setIsEditingPO] = useState(false);
@@ -714,6 +735,13 @@ const ProcurementPage = () => {
         expectedDate: editedPO.expectedDate,
         deliveredDate: editedPO.deliveredDate,
         relatedProjectId: editedPO.relatedProjectId,
+        // Inventory fields
+        categoryId: editedPO.categoryId,
+        categoryName: editedPO.categoryName,
+        itemId: editedPO.itemId,
+        itemName: editedPO.itemName,
+        unit: editedPO.unit,
+        requiredQuantity: Number(editedPO.requiredQuantity),
       };
       await api.patch(`/procurement/purchase-orders/${editedPO.id}`, payload);
       await fetchData();
@@ -786,12 +814,76 @@ const ProcurementPage = () => {
     }
   };
 
+  // Fetch inventory data when Create PO modal opens
+  useEffect(() => {
+    if (showPO) {
+      fetchInventoryData();
+    }
+  }, [showPO]);
+
   // Fetch data on mount
   useEffect(() => {
     fetchData();
     fetchVendors();
     fetchProjects();
   }, []);
+
+  // Fetch inventory data from backend
+  const fetchInventoryData = async () => {
+    setInventoryLoading(true);
+    try {
+      const tenantId = localStorage.getItem('tenantId') || 'default';
+      const [categoriesRes, itemsRes, unitsRes] = await Promise.all([
+        api.get('/lookups/categories', { tenantId }),
+        api.get('/items', { tenantId }),
+        api.get('/lookups/units', { tenantId })
+      ]);
+      
+      // Process categories
+      const categoriesData = categoriesRes?.data ?? categoriesRes;
+      const categories = Array.isArray(categoriesData) ? categoriesData : (categoriesData?.data || []);
+      setInventoryCategories(categories.map(c => ({ id: c._id || c.id || c, name: c.name || c.code || c })).filter(c => c.name));
+      
+      // Process items - handle various response structures
+      let itemsRaw = itemsRes?.data ?? itemsRes;
+      // Handle wrapped response like { success: true, data: [...] }
+      if (itemsRaw?.success && Array.isArray(itemsRaw.data)) {
+        itemsRaw = itemsRaw.data;
+      }
+      const items = Array.isArray(itemsRaw) ? itemsRaw : (itemsRaw?.data || []);
+      
+      console.log('[PROCUREMENT] Raw items from API:', items);
+      
+      const processedItems = items.map(item => ({ 
+        id: item.itemId || item._id || item.id || String(item._id), 
+        name: item.description || item.name || item.itemName || 'Unknown Item',
+        categoryId: item.categoryId || item.category || item.category_id,
+        unit: item.unit || item.unitName || item.uom
+      }));
+      
+      console.log('[PROCUREMENT] Processed items:', processedItems);
+      setInventoryItems(processedItems);
+      
+      // Process units
+      let unitsRaw = unitsRes?.data ?? unitsRes;
+      if (unitsRaw?.success && Array.isArray(unitsRaw.data)) {
+        unitsRaw = unitsRaw.data;
+      }
+      const units = Array.isArray(unitsRaw) ? unitsRaw : (unitsRaw?.data || []);
+      setInventoryUnits(units.map(u => u.name || u.code || u.unit || u).filter(Boolean));
+      
+      console.log('[PROCUREMENT] Inventory data loaded:', { 
+        categories: categories.length, 
+        items: processedItems.length, 
+        units: units.length 
+      });
+    } catch (err) {
+      console.error('[PROCUREMENT] Failed to fetch inventory data:', err);
+      toast.error('Failed to load inventory data');
+    } finally {
+      setInventoryLoading(false);
+    }
+  };
 
   // Click outside handler for project dropdown
   useEffect(() => {
@@ -939,17 +1031,56 @@ const ProcurementPage = () => {
         toast.error('Please select an expected delivery date');
         return;
       }
+      // Inventory fields validation
+      if (!newPO.categoryId) {
+        toast.error('Please select a category');
+        return;
+      }
+      if (!newPO.itemId) {
+        toast.error('Please select an item');
+        return;
+      }
+      if (!newPO.unit) {
+        toast.error('Please select a unit');
+        return;
+      }
+      if (!newPO.requiredQuantity || Number(newPO.requiredQuantity) <= 0) {
+        toast.error('Please enter a valid required quantity (must be greater than 0)');
+        return;
+      }
+      
+      console.log('[PROCUREMENT] Creating PO with newPO state:', newPO);
+      console.log('[PROCUREMENT] Inventory fields check:', {
+        categoryId: newPO.categoryId,
+        itemId: newPO.itemId,
+        unit: newPO.unit,
+        requiredQuantity: newPO.requiredQuantity
+      });
+      
       const payload = {
         ...newPO,
         totalAmount: Number(newPO.totalAmount),
+        requiredQuantity: Number(newPO.requiredQuantity),
       };
-      console.log('Payload:', payload);
+      console.log('[PROCUREMENT] Final payload:', JSON.stringify(payload, null, 2));
       const res = await api.post('/procurement/purchase-orders', payload);
       console.log('Create PO response:', res);
       // Refetch all data to ensure UI is in sync with backend
       await fetchData();
       setShowPO(false);
-      setNewPO({ vendorId: '', items: '', totalAmount: '', expectedDate: '', relatedProjectId: '' });
+      setNewPO({ 
+        vendorId: '', 
+        items: '', 
+        totalAmount: '', 
+        expectedDate: '', 
+        relatedProjectId: '',
+        categoryId: '',
+        categoryName: '',
+        itemId: '',
+        itemName: '',
+        unit: '',
+        requiredQuantity: ''
+      });
       toast.success('Purchase Order created successfully');
       logCreate('purchase_order', res.data?.data?.id);
     } catch (error) {
@@ -1102,32 +1233,42 @@ const ProcurementPage = () => {
           {can('procurement', 'create') && (
             <Button onClick={() => setShowPO(true)}><Plus size={13} /> Create PO</Button>
           )}
+          {poView === 'kanban' && (
+            <button 
+              onClick={() => setHidePOCards(!hidePOCards)}
+              className="text-xs px-3 py-1.5 rounded-md bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-primary)] border border-[var(--border-base)] transition-colors"
+            >
+              {hidePOCards ? 'Show Cards' : 'Hide Cards'}
+            </button>
+          )}
         </div>
       </div>
       {/* Procurement KPI Cards with Descriptive Label */}
-      <div className="mb-2">
-        <p className="text-xs text-[var(--text-muted)] mb-2 flex items-center gap-2">
-          <ShoppingCart size={12} className="text-[var(--accent-light)]" />
-          <span>Procurement Overview - Purchase orders and spending tracking</span>
-        </p>
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-          <div onClick={() => handleCardClick('pending')} className="cursor-pointer transition-transform hover:scale-105">
-            <KPICard title="Total Pending Approvals" value={pendingPOs} icon={ShoppingCart} sub="Draft & ordered POs awaiting approval" gradient="bg-gradient-to-br from-rose-50 to-rose-100/50 dark:from-rose-950/30 dark:to-rose-900/20" iconBgColor="bg-rose-100 dark:bg-rose-900/50" iconColor="text-rose-600 dark:text-rose-400" />
-          </div>
-          <div onClick={() => handleCardClick('active')} className="cursor-pointer transition-transform hover:scale-105">
-            <KPICard title="Total Active POs" value={activePOs} icon={Package} sub="All active purchase orders" gradient="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20" iconBgColor="bg-blue-100 dark:bg-blue-900/50" iconColor="text-blue-600 dark:text-blue-400" />
-          </div>
-          <div onClick={() => handleCardClick('delivered')} className="cursor-pointer transition-transform hover:scale-105">
-            <KPICard title="Total POs Delivered" value={delivered} icon={CheckCircle} sub="Completed deliveries" gradient="bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/30 dark:to-emerald-900/20" iconBgColor="bg-emerald-100 dark:bg-emerald-900/50" iconColor="text-emerald-600 dark:text-emerald-400" />
-          </div>
-          <div onClick={() => handleCardClick('inTransit')} className="cursor-pointer transition-transform hover:scale-105">
-            <KPICard title="Total POs In Transit" value={inTransit} icon={Truck} sub="On the way" gradient="bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-950/30 dark:to-amber-900/20" iconBgColor="bg-amber-100 dark:bg-amber-900/50" iconColor="text-amber-600 dark:text-amber-400" />
-          </div>
-          <div onClick={() => handleCardClick('totalSpend')} className="cursor-pointer transition-transform hover:scale-105">
-            <KPICard title="Total Spend" value={fmtFull(totalSpend)} icon={Package} sub="Total PO value" gradient="bg-gradient-to-br from-orange-50 to-orange-100/50 dark:from-orange-950/30 dark:to-orange-900/20" iconBgColor="bg-orange-100 dark:bg-orange-900/50" iconColor="text-orange-600 dark:text-orange-400" />
+      {!hidePOCards && (
+        <div className="mb-2">
+          <p className="text-xs text-[var(--text-muted)] mb-2 flex items-center gap-2">
+            <ShoppingCart size={12} className="text-[var(--accent-light)]" />
+            <span>Procurement Overview - Purchase orders and spending tracking</span>
+          </p>
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            <div onClick={() => handleCardClick('pending')} className="cursor-pointer transition-transform hover:scale-105">
+              <KPICard title="Total Pending Approvals" value={pendingPOs} icon={ShoppingCart} sub="Draft & ordered POs awaiting approval" variant="blue" />
+            </div>
+            <div onClick={() => handleCardClick('active')} className="cursor-pointer transition-transform hover:scale-105">
+              <KPICard title="Total Active POs" value={activePOs} icon={Package} sub="All active purchase orders" variant="emerald" />
+            </div>
+            <div onClick={() => handleCardClick('delivered')} className="cursor-pointer transition-transform hover:scale-105">
+              <KPICard title="Total POs Delivered" value={delivered} icon={CheckCircle} sub="Completed deliveries" variant="purple" />
+            </div>
+            <div onClick={() => handleCardClick('inTransit')} className="cursor-pointer transition-transform hover:scale-105">
+              <KPICard title="Total POs In Transit" value={inTransit} icon={Truck} sub="On the way" variant="amber" />
+            </div>
+            <div onClick={() => handleCardClick('totalSpend')} className="cursor-pointer transition-transform hover:scale-105">
+              <KPICard title="Total Spend" value={fmtFull(totalSpend)} icon={Package} sub="Total PO value" variant="cyan" />
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <div className="ai-banner">
         <Zap size={14} className="text-[var(--accent-light)] mt-0.5 shrink-0" />
@@ -1198,7 +1339,17 @@ const ProcurementPage = () => {
               </>
             ) : (
               <div id="po-table-section">
-                <DataTable columns={PO_COLUMNS} data={paginatedPOs} rowActions={PO_ACTIONS}
+                <DataTable columns={PO_COLUMNS} data={paginatedPOs.map(po => ({ 
+                  ...po, 
+                  _onVendorClick: (vendorName) => {
+                    const vendor = vendors.find(v => v.name === vendorName);
+                    if (vendor) {
+                      setSelectedVendor(vendor);
+                    } else {
+                      alert('Vendor not found in system');
+                    }
+                  }
+                }))} rowActions={PO_ACTIONS}
                   pagination={{ page: poPage, pageSize: poPageSize, total: filteredPOs.length, onChange: setPoPage, onPageSizeChange: setPoPageSize }}
                   emptyMessage="No purchase orders found." />
               </div>
@@ -1234,6 +1385,89 @@ const ProcurementPage = () => {
           <FormField label="Items Description">
             <Textarea value={newPO.items} onChange={e => setNewPO({ ...newPO, items: e.target.value })} placeholder="e.g. 200 x 400W Mono PERC Panels" rows={2} />
           </FormField>
+
+          {/* Inventory Fields Section */}
+          <div className="pt-3 border-t border-[var(--border-base)]">
+            <p className="text-xs text-[var(--text-muted)] mb-3 flex items-center gap-1">
+              Inventory Details
+              <span className="text-[10px] text-red-500">*</span>
+            </p>
+            {inventoryLoading && (
+              <p className="text-xs text-[var(--text-muted)] mb-2">Loading inventory data...</p>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Category *">
+                <Select 
+                  value={newPO.categoryId} 
+                  onChange={e => {
+                    const selectedCat = inventoryCategories.find(c => c.id === e.target.value);
+                    setNewPO({ 
+                      ...newPO, 
+                      categoryId: e.target.value,
+                      categoryName: selectedCat?.name || ''
+                    });
+                  }}
+                >
+                  <option value="">{inventoryCategories.length === 0 ? 'No categories' : 'Select Category'}</option>
+                  {inventoryCategories.map(cat => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </Select>
+                {inventoryCategories.length === 0 && !inventoryLoading && (
+                  <p className="text-[10px] text-amber-500 mt-1">No categories found in inventory</p>
+                )}
+              </FormField>
+              <FormField label="Item *">
+                <Select 
+                  value={newPO.itemId} 
+                  onChange={e => {
+                    const selectedItem = inventoryItems.find(item => item.id === e.target.value);
+                    console.log('[PROCUREMENT] Selected item:', selectedItem);
+                    setNewPO({ 
+                      ...newPO, 
+                      itemId: e.target.value,
+                      itemName: selectedItem?.name || '',
+                      unit: selectedItem?.unit || newPO.unit
+                    });
+                  }}
+                >
+                  <option value="">{inventoryItems.length === 0 ? 'No items available' : 'Select Item'}</option>
+                  {inventoryItems.map(item => (
+                    <option key={item.id} value={item.id}>{item.name}</option>
+                  ))}
+                </Select>
+                {inventoryItems.length === 0 && !inventoryLoading && (
+                  <p className="text-[10px] text-amber-500 mt-1">No items found in inventory</p>
+                )}
+              </FormField>
+            </div>
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <FormField label="Unit *">
+                <Select 
+                  value={newPO.unit} 
+                  onChange={e => setNewPO({ ...newPO, unit: e.target.value })}
+                >
+                  <option value="">{inventoryUnits.length === 0 ? 'No units' : 'Select Unit'}</option>
+                  {inventoryUnits.map(unit => (
+                    <option key={unit} value={unit}>{unit}</option>
+                  ))}
+                </Select>
+                {inventoryUnits.length === 0 && !inventoryLoading && (
+                  <p className="text-[10px] text-amber-500 mt-1">No units found in inventory</p>
+                )}
+              </FormField>
+              <FormField label="Required Quantity *">
+                <Input 
+                  type="number" 
+                  value={newPO.requiredQuantity} 
+                  onChange={e => setNewPO({ ...newPO, requiredQuantity: e.target.value })} 
+                  placeholder="e.g., 100"
+                  min="1"
+                />
+              </FormField>
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <FormField label="Total Amount (₹)">
               <Input type="number" value={newPO.totalAmount} onChange={e => setNewPO({ ...newPO, totalAmount: e.target.value })} placeholder="2900000" />
@@ -1386,6 +1620,26 @@ const ProcurementPage = () => {
               <FormField label="Items Description">
                 <Textarea value={editedPO.items} onChange={e => setEditedPO({ ...editedPO, items: e.target.value })} rows={2} />
               </FormField>
+              {/* Inventory Fields in Edit Mode */}
+              <div className="pt-3 border-t border-[var(--border-base)]">
+                <p className="text-xs text-[var(--text-muted)] mb-3">Inventory Details</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField label="Category">
+                    <Input value={editedPO.categoryName || ''} onChange={e => setEditedPO({ ...editedPO, categoryName: e.target.value })} placeholder="Category" />
+                  </FormField>
+                  <FormField label="Item">
+                    <Input value={editedPO.itemName || ''} onChange={e => setEditedPO({ ...editedPO, itemName: e.target.value })} placeholder="Item Name" />
+                  </FormField>
+                </div>
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <FormField label="Unit">
+                    <Input value={editedPO.unit || ''} onChange={e => setEditedPO({ ...editedPO, unit: e.target.value })} placeholder="Unit" />
+                  </FormField>
+                  <FormField label="Required Quantity">
+                    <Input type="number" value={editedPO.requiredQuantity || ''} onChange={e => setEditedPO({ ...editedPO, requiredQuantity: e.target.value })} placeholder="Quantity" />
+                  </FormField>
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <FormField label="Total Amount (₹)">
                   <Input type="number" value={editedPO.totalAmount} onChange={e => setEditedPO({ ...editedPO, totalAmount: e.target.value })} />
@@ -1502,6 +1756,10 @@ const ProcurementPage = () => {
                   {[['PO Number', selectedPO.id], ['Vendor', selectedPO.vendorName], ['Items', selectedPO.items],
                 ['Ordered Date', selectedPO.orderedDate], ['Expected Date', selectedPO.expectedDate],
                 ['Delivered Date', selectedPO.deliveredDate ?? '—'],
+                ['Category', selectedPO.categoryName || '—'],
+                ['Item', selectedPO.itemName || '—'],
+                ['Unit', selectedPO.unit || '—'],
+                ['Required Quantity', selectedPO.requiredQuantity || '—'],
                 ['Related Project', (() => {
                   const project = projects.find(p => (p.id || p._id) === selectedPO.relatedProjectId);
                   if (!project) return selectedPO.relatedProjectId || '—';

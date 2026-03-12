@@ -1,6 +1,7 @@
 ﻿import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { SettingsController } from './controllers/settings.controller';
+import { LeadStatusController } from './controllers/lead-status.controller';
 import { SettingsService } from './services/settings.service';
 import { FeatureFlagService } from './services/feature-flag.service';
 import { RBACService } from './services/rbac.service';
@@ -12,9 +13,10 @@ import { WorkflowEngineService } from './services/workflow-engine.service';
 import { AuditService } from './services/audit.service';
 import { ProjectTypeService } from './services/project-type.service';
 import { InstallationTaskService } from './services/installation-task.service';
+import { CommissioningTaskService } from './services/commissioning-task.service';
 import { LeadStatusService } from './services/lead-status.service';
 import { InstallationTaskConfig, InstallationTaskConfigSchema } from './schemas/installation-task.schema';
-import { LeadStatusController } from './controllers/lead-status.controller';
+import { CommissioningTaskConfig, CommissioningTaskConfigSchema } from './schemas/commissioning-task.schema';
 import { Lead, LeadSchema } from '../leads/schemas/lead.schema';
 import {
   FeatureFlag,
@@ -51,6 +53,7 @@ import {
       { name: InstallationTaskConfig.name, schema: InstallationTaskConfigSchema },
       { name: LeadStatus.name, schema: LeadStatusSchema },
       { name: Lead.name, schema: LeadSchema },
+      { name: CommissioningTaskConfig.name, schema: CommissioningTaskConfigSchema },
     ]),
   ],
   controllers: [SettingsController, LeadStatusController],
@@ -66,6 +69,7 @@ import {
     AuditService,
     ProjectTypeService,
     InstallationTaskService,
+    CommissioningTaskService,
     LeadStatusService,
   ],
   exports: [
@@ -81,6 +85,7 @@ import {
     ProjectTypeService,
     InstallationTaskService,
     LeadStatusService,
+    CommissioningTaskService,
   ],
 })
 export class SettingsModule {}
