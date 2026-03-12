@@ -47,77 +47,41 @@ export const KPICard = ({
     const variants = {
 
         emerald: {
-
             accent: '#22c55e',
-
-            gradient: 'from-emerald-500/20 to-emerald-500/5',
-
-            iconBg: 'bg-emerald-500/20',
-
+            gradient: 'from-emerald-100 to-green-200',
+            iconBg: 'bg-emerald-100',
             iconColor: 'text-emerald-600',
-
         },
-
         blue: {
-
             accent: '#3b82f6',
-
-            gradient: 'from-blue-500/20 to-blue-500/5',
-
-            iconBg: 'bg-blue-500/20',
-
+            gradient: 'from-blue-100 to-sky-200',
+            iconBg: 'bg-blue-100',
             iconColor: 'text-blue-600',
-
         },
-
         amber: {
-
             accent: '#f59e0b',
-
-            gradient: 'from-amber-500/20 to-amber-500/5',
-
-            iconBg: 'bg-amber-500/20',
-
+            gradient: 'from-amber-100 to-orange-200',
+            iconBg: 'bg-amber-100',
             iconColor: 'text-amber-600',
-
         },
-
         red: {
-
             accent: '#ef4444',
-
-            gradient: 'from-red-500/20 to-red-500/5',
-
-            iconBg: 'bg-red-500/20',
-
+            gradient: 'from-red-100 to-rose-200',
+            iconBg: 'bg-red-100',
             iconColor: 'text-red-600',
-
         },
-
         purple: {
-
             accent: '#8b5cf6',
-
-            gradient: 'from-purple-500/20 to-purple-500/5',
-
-            iconBg: 'bg-purple-500/20',
-
-            iconColor: 'text-purple-600',
-
+            gradient: 'from-violet-100 to-purple-200',
+            iconBg: 'bg-violet-100',
+            iconColor: 'text-violet-600',
         },
-
         indigo: {
-
             accent: '#6366f1',
-
-            gradient: 'from-indigo-500/20 to-indigo-500/5',
-
-            iconBg: 'bg-indigo-500/20',
-
+            gradient: 'from-indigo-100 to-slate-200',
+            iconBg: 'bg-indigo-100',
             iconColor: 'text-indigo-600',
-
         },
-
     };
 
 

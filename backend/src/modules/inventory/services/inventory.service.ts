@@ -756,6 +756,84 @@ export class InventoryService {
 
   }
 
+  async getCategories(tenantCode: string, user?: UserWithVisibility): Promise<string[]> {
+    const tenantId = await this.getTenantId(tenantCode);
+    
+    console.log(`[INVENTORY CATEGORIES SERVICE] tenantCode: ${tenantCode}, tenantId: ${tenantId}`);
+    console.log(`[INVENTORY CATEGORIES SERVICE] user:`, JSON.stringify(user));
+    
+    // Build match query with dataScope filter
+    const matchQuery: any = {
+      tenantId,
+      isDeleted: false,
+    };
+    
+    // Apply visibility filter based on user's dataScope
+    if (user?.dataScope === 'ASSIGNED') {
+      const userId = user._id || user.id;
+      if (userId) {
+        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
+          ? new Types.ObjectId(userId)
+          : userId;
+        matchQuery.assignedTo = objectId;
+        console.log(`[INVENTORY CATEGORIES SERVICE] Applied assignedTo filter:`, objectId);
+      }
+    } else {
+      console.log(`[INVENTORY CATEGORIES SERVICE] No assignedTo filter - returning ALL categories`);
+    }
+    
+    console.log(`[INVENTORY CATEGORIES SERVICE] Match query:`, JSON.stringify(matchQuery));
+    
+    // Get distinct categories
+    const categories = await this.inventoryModel.distinct('category', matchQuery);
+    console.log(`[INVENTORY CATEGORIES SERVICE] Raw distinct result:`, categories);
+    
+    // Filter out null/empty values and sort
+    const filteredCategories = categories.filter(cat => cat && cat.trim() !== '').sort();
+    console.log(`[INVENTORY CATEGORIES SERVICE] Filtered categories:`, filteredCategories);
+    
+    return filteredCategories;
+  }
+
+  async getUnits(tenantCode: string, user?: UserWithVisibility): Promise<string[]> {
+    const tenantId = await this.getTenantId(tenantCode);
+    
+    console.log(`[INVENTORY UNITS SERVICE] tenantCode: ${tenantCode}, tenantId: ${tenantId}`);
+    console.log(`[INVENTORY UNITS SERVICE] user:`, JSON.stringify(user));
+    
+    // Build match query with dataScope filter
+    const matchQuery: any = {
+      tenantId,
+      isDeleted: false,
+    };
+    
+    // Apply visibility filter based on user's dataScope
+    if (user?.dataScope === 'ASSIGNED') {
+      const userId = user._id || user.id;
+      if (userId) {
+        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
+          ? new Types.ObjectId(userId)
+          : userId;
+        matchQuery.assignedTo = objectId;
+        console.log(`[INVENTORY UNITS SERVICE] Applied assignedTo filter:`, objectId);
+      }
+    } else {
+      console.log(`[INVENTORY UNITS SERVICE] No assignedTo filter - returning ALL units`);
+    }
+    
+    console.log(`[INVENTORY UNITS SERVICE] Match query:`, JSON.stringify(matchQuery));
+    
+    // Get distinct units
+    const units = await this.inventoryModel.distinct('unit', matchQuery);
+    console.log(`[INVENTORY UNITS SERVICE] Raw distinct result:`, units);
+    
+    // Filter out null/empty values and sort
+    const filteredUnits = units.filter(unit => unit && unit.trim() !== '').sort();
+    console.log(`[INVENTORY UNITS SERVICE] Filtered units:`, filteredUnits);
+    
+    return filteredUnits;
+  }
+
 
 
   // Backward compatibility methods for logistics service
@@ -769,8 +847,35 @@ export class InventoryService {
   ): Promise<Inventory | null> {
     const tenantId = await this.resolveTenantObjectId(tenantCode);
 
+    // Try to find item by name first, then by description
+
     let item = await this.inventoryModel.findOne({ tenantId, name: itemName }).exec();
 
+<<<<<<< HEAD
+    
+
+    // If not found by name, try searching by description
+
+    if (!item) {
+
+      item = await this.inventoryModel.findOne({ tenantId, description: itemName }).exec();
+
+    }
+
+    
+
+    // If still not found, try searching by itemId
+
+    if (!item) {
+
+      item = await this.inventoryModel.findOne({ tenantId, itemId: itemName }).exec();
+
+    }
+
+    
+
+=======
+>>>>>>> 4058873b23c634cbad90911288f4ea97d36f48b1
     if (!item) {
 
       // Create new inventory item if it doesn't exist
@@ -782,6 +887,8 @@ export class InventoryService {
         itemId: `INV${Date.now().toString(36).toUpperCase()}`,
 
         name: itemName,
+
+        description: itemName,
 
         category: 'Auto-created',
 
@@ -856,7 +963,29 @@ export class InventoryService {
 
     
 
-    const item = await this.inventoryModel.findOne({ tenantId, name: itemName }).exec();
+    // Try to find item by name first, then by description
+
+    let item = await this.inventoryModel.findOne({ tenantId, name: itemName }).exec();
+
+    
+
+    // If not found by name, try searching by description
+
+    if (!item) {
+
+      item = await this.inventoryModel.findOne({ tenantId, description: itemName }).exec();
+
+    }
+
+    
+
+    // If still not found, try searching by itemId
+
+    if (!item) {
+
+      item = await this.inventoryModel.findOne({ tenantId, itemId: itemName }).exec();
+
+    }
 
     
 

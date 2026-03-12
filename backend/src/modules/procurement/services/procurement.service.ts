@@ -17,7 +17,7 @@ interface UserWithVisibility {
 @Injectable()
 export class ProcurementService {
   constructor(
-    @InjectModel('LogisticsVendor') private vendorModel: Model<VendorDocument>,
+    @InjectModel('ProcurementVendor') private vendorModel: Model<VendorDocument>,
     @InjectModel(PurchaseOrder.name) private purchaseOrderModel: Model<PurchaseOrderDocument>,
     @InjectModel(Project.name) private projectModel: Model<Project>,
     @InjectModel(Tenant.name) private tenantModel: Model<Tenant>,

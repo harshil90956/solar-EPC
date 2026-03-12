@@ -76,10 +76,11 @@ export class LogisticsController {
   }
 
   @Post('vendors')
-  async createVendor(@Body() createDto: CreateLogisticsVendorDto) {
+  async createVendor(@Body() createDto: CreateLogisticsVendorDto, @Req() req: any) {
     try {
       console.log('[VENDOR CREATE] Received data:', JSON.stringify(createDto));
-      const data = await this.logisticsService.createVendor(createDto);
+      const tenantId = req.headers['x-tenant-id'] || req.user?.tenantId || 'default';
+      const data = await this.logisticsService.createVendor(createDto, tenantId);
       console.log('[VENDOR CREATE] Saved vendor:', JSON.stringify(data));
       return { success: true, data, message: 'Vendor created successfully' };
     } catch (error: any) {
@@ -89,9 +90,10 @@ export class LogisticsController {
   }
 
   @Patch('vendors/:id')
-  async updateVendor(@Param('id') id: string, @Body() updateDto: UpdateLogisticsVendorDto) {
+  async updateVendor(@Param('id') id: string, @Body() updateDto: UpdateLogisticsVendorDto, @Req() req: any) {
     try {
-      const data = await this.logisticsService.updateVendor(id, updateDto);
+      const tenantId = req.headers['x-tenant-id'] || req.user?.tenantId || 'default';
+      const data = await this.logisticsService.updateVendor(id, updateDto, tenantId);
       return { success: true, data, message: 'Vendor updated successfully' };
     } catch (error: any) {
       console.error('Error updating vendor:', error);
@@ -101,8 +103,9 @@ export class LogisticsController {
   }
 
   @Delete('vendors/:id')
-  async deleteVendor(@Param('id') id: string) {
-    await this.logisticsService.deleteVendor(id);
+  async deleteVendor(@Param('id') id: string, @Req() req: any) {
+    const tenantId = req.headers['x-tenant-id'] || req.user?.tenantId || 'default';
+    await this.logisticsService.deleteVendor(id, tenantId);
     return { success: true, message: 'Vendor deleted successfully' };
   }
 

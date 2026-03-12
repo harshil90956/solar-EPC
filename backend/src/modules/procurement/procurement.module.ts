@@ -13,7 +13,7 @@ import { LoggingGuard } from '../../common/guards/logging.guard';
 @Module({
   imports: [
     MongooseModule.forFeature([
-      { name: 'LogisticsVendor', schema: VendorSchema },
+      { name: 'ProcurementVendor', schema: VendorSchema },
       { name: PurchaseOrder.name, schema: PurchaseOrderSchema },
       { name: Project.name, schema: ProjectSchema },
       { name: Tenant.name, schema: TenantSchema },

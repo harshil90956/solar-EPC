@@ -1112,19 +1112,19 @@ const ProcurementPage = () => {
         </p>
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           <div onClick={() => handleCardClick('pending')} className="cursor-pointer transition-transform hover:scale-105">
-            <KPICard title="Total Pending Approvals" value={pendingPOs} icon={ShoppingCart} sub="Draft & ordered POs awaiting approval" gradient="bg-gradient-to-br from-rose-50 to-rose-100/50 dark:from-rose-950/30 dark:to-rose-900/20" iconBgColor="bg-rose-100 dark:bg-rose-900/50" iconColor="text-rose-600 dark:text-rose-400" />
+            <KPICard title="Total Pending Approvals" value={pendingPOs} icon={ShoppingCart} sub="Draft & ordered POs awaiting approval" variant="blue" />
           </div>
           <div onClick={() => handleCardClick('active')} className="cursor-pointer transition-transform hover:scale-105">
-            <KPICard title="Total Active POs" value={activePOs} icon={Package} sub="All active purchase orders" gradient="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20" iconBgColor="bg-blue-100 dark:bg-blue-900/50" iconColor="text-blue-600 dark:text-blue-400" />
+            <KPICard title="Total Active POs" value={activePOs} icon={Package} sub="All active purchase orders" variant="emerald" />
           </div>
           <div onClick={() => handleCardClick('delivered')} className="cursor-pointer transition-transform hover:scale-105">
-            <KPICard title="Total POs Delivered" value={delivered} icon={CheckCircle} sub="Completed deliveries" gradient="bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/30 dark:to-emerald-900/20" iconBgColor="bg-emerald-100 dark:bg-emerald-900/50" iconColor="text-emerald-600 dark:text-emerald-400" />
+            <KPICard title="Total POs Delivered" value={delivered} icon={CheckCircle} sub="Completed deliveries" variant="purple" />
           </div>
           <div onClick={() => handleCardClick('inTransit')} className="cursor-pointer transition-transform hover:scale-105">
-            <KPICard title="Total POs In Transit" value={inTransit} icon={Truck} sub="On the way" gradient="bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-950/30 dark:to-amber-900/20" iconBgColor="bg-amber-100 dark:bg-amber-900/50" iconColor="text-amber-600 dark:text-amber-400" />
+            <KPICard title="Total POs In Transit" value={inTransit} icon={Truck} sub="On the way" variant="amber" />
           </div>
           <div onClick={() => handleCardClick('totalSpend')} className="cursor-pointer transition-transform hover:scale-105">
-            <KPICard title="Total Spend" value={fmtFull(totalSpend)} icon={Package} sub="Total PO value" gradient="bg-gradient-to-br from-orange-50 to-orange-100/50 dark:from-orange-950/30 dark:to-orange-900/20" iconBgColor="bg-orange-100 dark:bg-orange-900/50" iconColor="text-orange-600 dark:text-orange-400" />
+            <KPICard title="Total Spend" value={fmtFull(totalSpend)} icon={Package} sub="Total PO value" variant="cyan" />
           </div>
         </div>
       </div>
