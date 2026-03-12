@@ -1631,6 +1631,7 @@ const SiteSurveyPage = () => {
   const [detailsModalOpen, setDetailsModalOpen]   = useState(false);
   const [calendarModalOpen, setCalendarModalOpen] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedSurvey, setSelectedSurvey]       = useState(null);
   
   // Calendar State
@@ -1687,6 +1688,7 @@ const SiteSurveyPage = () => {
   const openPendingModal  = (s) => { setSelectedSurvey(s); setPendingModalOpen(true);  };
   const openCompleteModal = (s) => { setSelectedSurvey(s); setCompleteModalOpen(true); };
   const openDetailsModal  = (s) => { setSelectedSurvey(s); setDetailsModalOpen(true);  };
+  const openEditModal = (s) => { setSelectedSurvey(s); setEditModalOpen(true); };
 
   const handleSaveSurvey = async (id, data) => {
     await siteSurveysApi.update(id, data);
@@ -1696,6 +1698,7 @@ const SiteSurveyPage = () => {
   // Table row actions
   const ROW_ACTIONS = [
     { label: 'View Details', icon: Eye,       onClick: row => openDetailsModal(row) },
+    { label: 'Edit',         icon: Edit2,      onClick: row => openEditModal(row) },
     { label: 'Start Survey', icon: Play,       onClick: row => row.status === 'pending' && openPendingModal(row) },
     { label: 'Fill Form',    icon: FileText,   onClick: row => row.status === 'active'  && openCompleteModal(row) },
     { label: 'Delete',       icon: Trash2,     onClick: row => handleDelete(row), danger: true },
@@ -2080,6 +2083,13 @@ const SiteSurveyPage = () => {
         </Modal>
       )}
 
+      <EditSurveyModal
+        isOpen={editModalOpen}
+        onClose={() => { setEditModalOpen(false); setSelectedSurvey(null); }}
+        survey={selectedSurvey}
+        onSave={handleSaveSurvey}
+      />
+
       {/* ==================== CREATE SURVEY MODAL ==================== */}
       {createModalOpen && (
         <CreateSurveyModal
@@ -2280,6 +2290,222 @@ const CreateSurveyModal = ({ isOpen, onClose, onCreate }) => {
         <div className="space-y-3 pt-3">
           <h4 className="text-sm font-bold text-gray-700 border-b border-gray-200 pb-2">Additional Information</h4>
           
+          <FormField label="Notes">
+            <Textarea
+              value={formData.notes}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              placeholder="Any additional notes or instructions..."
+              rows={3}
+            />
+          </FormField>
+        </div>
+      </form>
+    </Modal>
+  );
+};
+
+// ── EDIT SURVEY MODAL ───────────────────────────────────────────────────────
+const EditSurveyModal = ({ isOpen, onClose, survey, onSave }) => {
+  const [formData, setFormData] = useState({
+    clientName: '',
+    city: '',
+    projectCapacity: '',
+    engineer: '',
+    roofType: '',
+    structureType: '',
+    structureHeight: '',
+    moduleType: '',
+    notes: '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [employees, setEmployees] = useState([]);
+  const [empLoading, setEmpLoading] = useState(false);
+
+  // Fetch employees from HRM when modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+    const fetchEmployees = async () => {
+      setEmpLoading(true);
+      try {
+        const res = await employeeApi.getAll();
+        const data = res?.data || res || [];
+        setEmployees(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error('Failed to fetch employees:', err);
+        setEmployees([]);
+      } finally {
+        setEmpLoading(false);
+      }
+    };
+    fetchEmployees();
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (survey) {
+      setFormData({
+        clientName: survey.clientName || '',
+        city: survey.city || '',
+        projectCapacity: survey.projectCapacity || '',
+        engineer: survey.engineer || '',
+        roofType: survey.roofType || '',
+        structureType: survey.structureType || '',
+        structureHeight: survey.structureHeight || '',
+        moduleType: survey.moduleType || '',
+        notes: survey.notes || '',
+      });
+    }
+  }, [survey]);
+
+  // Group employees by department
+  const employeesByDept = employees.reduce((acc, emp) => {
+    const dept = emp.department || 'Other';
+    if (!acc[dept]) acc[dept] = [];
+    acc[dept].push(emp);
+    return acc;
+  }, {});
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.clientName || !formData.city) {
+      toast.error('Please fill in required fields');
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave(survey._id || survey.surveyId, formData);
+      toast.success('Survey updated successfully');
+      onClose();
+    } catch (error) {
+      toast.error('Failed to update survey');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      title="Edit Site Survey"
+      size="lg"
+      footer={
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={handleSubmit} disabled={saving}>
+            {saving ? 'Saving...' : <><CheckCircle size={16} /> Save Changes</>}
+          </Button>
+        </div>
+      }
+    >
+      <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto p-1">
+        {/* Basic Information */}
+        <div className="space-y-3">
+          <h4 className="text-sm font-bold text-gray-700 border-b border-gray-200 pb-2">Basic Information</h4>
+          <FormField label="Customer Name *" required>
+            <Input
+              value={formData.clientName}
+              onChange={(e) => setFormData({ ...formData, clientName: e.target.value })}
+              placeholder="Enter customer name"
+              required
+            />
+          </FormField>
+          <FormField label="Location / City *" required>
+            <Input
+              value={formData.city}
+              onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+              placeholder="Enter city name"
+              required
+            />
+          </FormField>
+          <FormField label="Project Capacity (kWp)">
+            <Input
+              value={formData.projectCapacity}
+              onChange={(e) => setFormData({ ...formData, projectCapacity: e.target.value })}
+              placeholder="e.g., 10 kWp"
+            />
+          </FormField>
+          <FormField label="Assigned Engineer">
+            <select
+              value={formData.engineer}
+              onChange={(e) => setFormData({ ...formData, engineer: e.target.value })}
+              disabled={empLoading}
+              className="w-full border border-[var(--border-base)] bg-[var(--bg-elevated)] rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--text-primary)] disabled:opacity-50"
+            >
+              <option value="">{empLoading ? 'Loading employees...' : '— Select Engineer —'}</option>
+              {Object.entries(employeesByDept).map(([dept, emps]) => (
+                <optgroup key={dept} label={dept}>
+                  {emps.map(emp => {
+                    const fullName = `${emp.firstName} ${emp.lastName}`.trim();
+                    return (
+                      <option key={emp._id} value={fullName}>
+                        {fullName}{emp.designation ? ` (${emp.designation})` : ''}
+                      </option>
+                    );
+                  })}
+                </optgroup>
+              ))}
+            </select>
+            {empLoading && (
+              <p className="text-[11px] text-[var(--text-faint)] mt-1 flex items-center gap-1">
+                <span className="inline-block w-3 h-3 border border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+                Fetching from HRM...
+              </p>
+            )}
+          </FormField>
+        </div>
+        {/* Technical Specifications */}
+        <div className="space-y-3 pt-3">
+          <h4 className="text-sm font-bold text-gray-700 border-b border-gray-200 pb-2">Technical Specifications</h4>
+          <FormField label="Roof Type">
+            <Select
+              value={formData.roofType}
+              onChange={(e) => setFormData({ ...formData, roofType: e.target.value })}
+            >
+              <option value="">Select roof type</option>
+              {ROOF_TYPES.map(type => (
+                <option key={type.id} value={type.id}>{type.label}</option>
+              ))}
+            </Select>
+          </FormField>
+          <FormField label="Structure Type">
+            <Select
+              value={formData.structureType}
+              onChange={(e) => setFormData({ ...formData, structureType: e.target.value })}
+            >
+              <option value="">Select structure type</option>
+              {STRUCTURE_TYPES.map(type => (
+                <option key={type.id} value={type.id}>{type.label}</option>
+              ))}
+            </Select>
+          </FormField>
+          <FormField label="Structure Height">
+            <Select
+              value={formData.structureHeight}
+              onChange={(e) => setFormData({ ...formData, structureHeight: e.target.value })}
+            >
+              <option value="">Select height</option>
+              {STRUCTURE_HEIGHTS.map(height => (
+                <option key={height.id} value={height.id}>{height.label}</option>
+              ))}
+            </Select>
+          </FormField>
+          <FormField label="Module Type">
+            <Select
+              value={formData.moduleType}
+              onChange={(e) => setFormData({ ...formData, moduleType: e.target.value })}
+            >
+              <option value="">Select module type</option>
+              {MODULE_TYPES.map(type => (
+                <option key={type.id} value={type.id}>{type.label}</option>
+              ))}
+            </Select>
+          </FormField>
+        </div>
+        {/* Additional Notes */}
+        <div className="space-y-3 pt-3">
+          <h4 className="text-sm font-bold text-gray-700 border-b border-gray-200 pb-2">Additional Information</h4>
           <FormField label="Notes">
             <Textarea
               value={formData.notes}

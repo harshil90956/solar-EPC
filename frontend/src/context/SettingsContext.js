@@ -841,22 +841,33 @@ export const SettingsProvider = ({ children }) => {
         const hardVal = userOvr?.overrides?.[moduleId]?.[actionId];
         if (hardVal !== undefined && hardVal !== null) return hardVal;
 
-        // STEP 4: Custom role permissions
+        // 2. Custom role permissions
+        // Priority for custom role id:
+        //   (a) explicit user override customRoleId
+        //   (b) user's roleId itself if it looks like a custom role id
+        //   (c) ANY matching role label in customRoles (case-insensitive)
         const explicitCustomRoleId = userOvr?.customRoleId;
-        const roleIdAsCustomRoleId = (typeof roleId === 'string' && roleId.toLowerCase().startsWith('custom_')) ? roleId : undefined;
-        const candidateCustomRoleId = explicitCustomRoleId || roleIdAsCustomRoleId;
-
-        let customRole = undefined;
-        if (candidateCustomRoleId) {
-            // Try exact match first
-            customRole = customRoles[candidateCustomRoleId];
-            
-            // Try case-insensitive match if not found
-            if (!customRole) {
-                const normalizedCandidate = candidateCustomRoleId.toLowerCase();
-                const matchedKey = Object.keys(customRoles).find(key => key.toLowerCase() === normalizedCandidate);
-                if (matchedKey) customRole = customRoles[matchedKey];
+        const roleIdAsCustomRoleId = normalizedRoleId?.startsWith('custom_') ? roleId : undefined;
+        
+        // Try to find matching custom role by ID first
+        let candidateCustomRoleId = explicitCustomRoleId || roleIdAsCustomRoleId;
+        let customRole = candidateCustomRoleId ? customRoles[candidateCustomRoleId] : undefined;
+        
+        // If not found by ID, search by role label (case-insensitive match)
+        if (!customRole && normalizedRoleId) {
+            const matchedByLabel = Object.values(customRoles).find(r => 
+                r.label?.toLowerCase() === normalizedRoleId || 
+                r.id?.toLowerCase() === normalizedRoleId
+            );
+            if (matchedByLabel) {
+                customRole = matchedByLabel;
             }
+        }
+        
+        if (!customRole && candidateCustomRoleId) {
+            const normalizedCandidate = candidateCustomRoleId.toLowerCase();
+            const matchedKey = Object.keys(customRoles).find(key => key.toLowerCase() === normalizedCandidate);
+            if (matchedKey) customRole = customRoles[matchedKey];
         }
 
         if (customRole) {

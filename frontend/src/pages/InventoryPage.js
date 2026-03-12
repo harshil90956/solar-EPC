@@ -396,6 +396,10 @@ const InventoryPage = () => {
 
   // Fetch warehouses from API
   useEffect(() => {
+    // Don't fetch if no token
+    const token = localStorage.getItem('solar_token') || localStorage.getItem('accessToken') || localStorage.getItem('token');
+    if (!token) return;
+
     const fetchWarehouses = async () => {
       try {
         const data = await api.get('/lookups/warehouses', { headers: { 'x-tenant-id': TENANT_ID } });
@@ -412,6 +416,10 @@ const InventoryPage = () => {
 
   // Fetch categories from API
   useEffect(() => {
+    // Don't fetch if no token
+    const token = localStorage.getItem('solar_token') || localStorage.getItem('accessToken') || localStorage.getItem('token');
+    if (!token) return;
+
     const fetchCategories = async () => {
       try {
         const data = await api.get('/lookups/categories', { headers: { 'x-tenant-id': TENANT_ID } });
@@ -428,6 +436,10 @@ const InventoryPage = () => {
 
   // Fetch units from API
   useEffect(() => {
+    // Don't fetch if no token
+    const token = localStorage.getItem('solar_token') || localStorage.getItem('accessToken') || localStorage.getItem('token');
+    if (!token) return;
+
     const fetchUnits = async () => {
       try {
         const data = await api.get('/lookups/units', { headers: { 'x-tenant-id': TENANT_ID } });
@@ -640,6 +652,10 @@ const InventoryPage = () => {
 
   // Fetch inventory stats from backend
   useEffect(() => {
+    // Don't fetch if no token
+    const token = localStorage.getItem('solar_token') || localStorage.getItem('accessToken') || localStorage.getItem('token');
+    if (!token) return;
+
     const fetchInventoryStats = async () => {
       try {
         const data = await api.get('/inventory/stats');
@@ -653,6 +669,10 @@ const InventoryPage = () => {
 
   // Fetch items by category for chart
   useEffect(() => {
+    // Don't fetch if no token
+    const token = localStorage.getItem('solar_token') || localStorage.getItem('accessToken') || localStorage.getItem('token');
+    if (!token) return;
+
     const fetchByCategory = async () => {
       try {
         const data = await api.get('/inventory/by-category');
@@ -666,6 +686,10 @@ const InventoryPage = () => {
 
   // Fetch items from Items module (instead of inventory)
   useEffect(() => {
+    // Don't fetch if no token
+    const token = localStorage.getItem('solar_token') || localStorage.getItem('accessToken') || localStorage.getItem('token');
+    if (!token) return;
+
     const fetchInventory = async () => {
       try {
         setLoading(true);
@@ -711,6 +735,10 @@ const InventoryPage = () => {
 
   // Fetch items from Items module for Stock In/Out modals
   useEffect(() => {
+    // Don't fetch if no token
+    const token = localStorage.getItem('solar_token') || localStorage.getItem('accessToken') || localStorage.getItem('token');
+    if (!token) return;
+
     const fetchItems = async () => {
       try {
         const data = await api.get('/items');
@@ -726,6 +754,10 @@ const InventoryPage = () => {
 
   // Fetch projects for reservation display
   useEffect(() => {
+    // Don't fetch if no token
+    const token = localStorage.getItem('solar_token') || localStorage.getItem('accessToken') || localStorage.getItem('token');
+    if (!token) return;
+
     const fetchProjects = async () => {
       try {
         const data = await api.get('/projects');
