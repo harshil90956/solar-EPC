@@ -386,11 +386,13 @@ export const SettingsProvider = ({ children }) => {
     const refreshCustomRoles = useCallback(async () => {
         try {
             const response = await settingsApi.getCustomRoles();
-            const rolesArray = response.data || response;
-            console.log('[SETTINGS DEBUG] getCustomRoles response:', JSON.stringify(rolesArray, null, 2));
+            // Handle response which could be { data: [...] } or just [...]
+            const rawData = response.data || response;
+            console.log('[SETTINGS DEBUG] getCustomRoles response data:', JSON.stringify(rawData, null, 2));
             
             const rolesObj = {};
-            const rolesArray = Array.isArray(rolesData) ? rolesData : Object.values(rolesData || {});
+            const rolesArray = Array.isArray(rawData) ? rawData : Object.values(rawData || {});
+            
             rolesArray.forEach(r => {
                 const rawRoleId = r?.roleId || r?.id || r?._id;
                 if (!rawRoleId) return;
