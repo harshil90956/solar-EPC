@@ -34,6 +34,9 @@ export class ManualAdjustment {
 
   @Prop({ required: false })
   createdBy?: Types.ObjectId;
+
+  @Prop({ required: false })
+  lf?: number;
 }
 
 export const ManualAdjustmentSchema = SchemaFactory.createForClass(ManualAdjustment);
