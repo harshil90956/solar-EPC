@@ -10,10 +10,10 @@ export type ExpenseStatus = 'Pending' | 'Approved' | 'Paid' | 'Rejected';
 
 @Schema({ ...BaseSchemaOptions, collection: 'expenses' })
 export class Expense {
-  @Prop(BaseSchemaDefinition.tenantId)
+  @Prop({ ...BaseSchemaDefinition.tenantId })
   tenantId!: Types.ObjectId;
 
-  @Prop(BaseSchemaDefinition.isDeleted)
+  @Prop({ ...BaseSchemaDefinition.isDeleted })
   isDeleted!: boolean;
 
   @Prop({ required: true, index: true })

@@ -12,6 +12,10 @@ export class CreateUserDto {
   role!: string;
 
   @IsOptional()
+  @IsString()
+  tenantId?: string;
+
+  @IsOptional()
   @IsBoolean()
   isSuperAdmin?: boolean;
 }

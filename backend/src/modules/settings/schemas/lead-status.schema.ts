@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { BaseSchemaDefinition } from '../../../shared/database/base.schema';
 
 export type LeadStatusDocument = LeadStatus & Document;
 
@@ -12,8 +13,11 @@ export enum StatusType {
 
 @Schema({ timestamps: true, collection: 'lead_statuses' })
 export class LeadStatus {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Tenant', index: true, required: true })
+  @Prop({ ...BaseSchemaDefinition.tenantId })
   tenantId!: Types.ObjectId;
+
+  @Prop({ ...BaseSchemaDefinition.isDeleted })
+  isDeleted!: boolean;
 
   @Prop({ type: String, required: true, default: 'crm' })
   module!: string;

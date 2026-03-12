@@ -1,7 +1,7 @@
 // CENTRAL API CLIENT — All API calls route through here. No direct fetch/axios in components.
 import axios from 'axios';
 
-const BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api';
+const BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api';
 const TIMEOUT = parseInt(process.env.REACT_APP_API_TIMEOUT || '30000', 10);
 
 export const apiClient = axios.create({
@@ -23,13 +23,14 @@ const getTenantId = () => {
         if (storedTenantId && storedTenantId !== 'default') {
             return storedTenantId;
         }
-        return 'solarcorp';
+        // Return null for superadmin or not logged in
+        return null;
     } catch {
         const storedTenantId = localStorage.getItem('tenantId');
         if (storedTenantId && storedTenantId !== 'default') {
             return storedTenantId;
         }
-        return 'solarcorp';
+        return null;
     }
 };
 
@@ -43,7 +44,10 @@ apiClient.interceptors.request.use(
         console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url} - Token: ${token ? 'present' : 'missing'}`);
         if (token) config.headers.Authorization = `Bearer ${token}`;
         const tenantId = getTenantId();
-        if (tenantId) config.headers['x-tenant-id'] = tenantId;
+        // Only add tenant header if tenantId exists (not for superadmin)
+        if (tenantId) {
+            config.headers['x-tenant-id'] = tenantId;
+        }
         return config;
     },
     (error) => Promise.reject(error)

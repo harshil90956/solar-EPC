@@ -1,11 +1,17 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
+import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import { BaseSchemaDefinition, BaseSchemaOptions } from '../../../shared/database/base.schema';
 
-export type StockStatus = 'In Stock' | 'Reserved' | 'Low Stock' | 'Out of Stock';
+export type InventoryDocument = Inventory & Document;
 
-@Schema(BaseSchemaOptions)
+@Schema({ ...BaseSchemaOptions, collection: 'inventories' })
 export class Inventory extends Document {
+  @Prop({ ...BaseSchemaDefinition.tenantId })
+  tenantId!: Types.ObjectId;
+
+  @Prop({ ...BaseSchemaDefinition.isDeleted })
+  isDeleted!: boolean;
+
   @Prop({ required: true, unique: true })
   itemId!: string;
 
@@ -50,12 +56,6 @@ export class Inventory extends Document {
     enum: ['In Stock', 'Reserved', 'Low Stock', 'Out of Stock'],
   })
   status!: string;
-
-  @Prop(BaseSchemaDefinition.tenantId)
-  tenantId!: Types.ObjectId;
-
-  @Prop(BaseSchemaDefinition.isDeleted)
-  isDeleted!: boolean;
 
   @Prop({ type: Types.ObjectId, ref: 'User', index: true, required: false })
   assignedTo?: Types.ObjectId;

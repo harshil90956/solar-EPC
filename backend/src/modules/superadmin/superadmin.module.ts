@@ -9,6 +9,8 @@ import { BackupService } from './services/backup.service';
 import { Tenant, TenantSchema } from './schemas/tenant.schema';
 import { Subscription, SubscriptionSchema } from './schemas/subscription.schema';
 import { SystemBackup, SystemBackupSchema } from './schemas/backup.schema';
+import { User, UserSchema } from '../../core/auth/schemas/user.schema';
+import { AuthModule } from '../../core/auth/auth.module';
 
 @Module({
   imports: [
@@ -16,7 +18,9 @@ import { SystemBackup, SystemBackupSchema } from './schemas/backup.schema';
       { name: Tenant.name, schema: TenantSchema },
       { name: Subscription.name, schema: SubscriptionSchema },
       { name: SystemBackup.name, schema: SystemBackupSchema },
+      { name: User.name, schema: UserSchema },
     ]),
+    AuthModule,
   ],
   controllers: [
     TenantController,

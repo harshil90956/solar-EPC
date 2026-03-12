@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Project } from '../schemas/project.schema';
@@ -19,25 +19,23 @@ export class ProjectsService {
     @InjectModel(InventoryReservation.name) private readonly reservationModel: Model<InventoryReservation>,
   ) {}
 
-  private async getTenantId(tenantCode: string): Promise<Types.ObjectId> {
-    // If no tenant code provided, use 'default'
-    if (!tenantCode || tenantCode === 'undefined') {
-      tenantCode = 'default';
+  private async resolveTenantObjectId(tenantId: string): Promise<Types.ObjectId> {
+    if (!tenantId) {
+      throw new BadRequestException('Tenant context is missing');
     }
-    // If it looks like an ObjectId (24 hex chars), use it directly
-    if (/^[0-9a-fA-F]{24}$/.test(tenantCode)) {
-      return new Types.ObjectId(tenantCode);
+    if (Types.ObjectId.isValid(tenantId)) {
+      return new Types.ObjectId(tenantId);
     }
-    // Otherwise, look up by code
-    const tenant = await this.tenantModel.findOne({ code: tenantCode });
+    // Try to find by code if it's not a valid ObjectId
+    const tenant = await this.tenantModel.findOne({ code: tenantId }).lean();
     if (!tenant) {
-      throw new NotFoundException(`Tenant ${tenantCode} not found`);
+      throw new BadRequestException(`Tenant not found for identifier: ${tenantId}`);
     }
-    return tenant._id as Types.ObjectId;
+    return (tenant as any)._id as Types.ObjectId;
   }
 
   async findAll(tenantCode: string, user?: UserWithVisibility, status?: string, search?: string) {
-    const tenantId = await this.getTenantId(tenantCode);
+    const tenantId = await this.resolveTenantObjectId(tenantCode);
     const query: any = { tenantId, isDeleted: false };
     
     console.log(`[PROJECTS VISIBILITY] user:`, JSON.stringify(user));
@@ -75,7 +73,7 @@ export class ProjectsService {
   }
 
   async findOne(tenantCode: string, projectId: string) {
-    const tenantId = await this.getTenantId(tenantCode);
+    const tenantId = await this.resolveTenantObjectId(tenantCode);
     const project = await this.projectModel.findOne({
       tenantId,
       projectId,
@@ -90,7 +88,7 @@ export class ProjectsService {
   }
 
   async create(tenantCode: string, createProjectDto: CreateProjectDto) {
-    const tenantId = await this.getTenantId(tenantCode);
+    const tenantId = await this.resolveTenantObjectId(tenantCode);
 
     const project = new this.projectModel({
       ...createProjectDto,
@@ -101,7 +99,7 @@ export class ProjectsService {
   }
 
   async update(tenantCode: string, projectId: string, updateProjectDto: UpdateProjectDto) {
-    const tenantId = await this.getTenantId(tenantCode);
+    const tenantId = await this.resolveTenantObjectId(tenantCode);
 
     const project = await this.projectModel.findOneAndUpdate(
       { tenantId, projectId },
@@ -122,7 +120,7 @@ export class ProjectsService {
     updateStatusDto: UpdateProjectStatusDto,
     user?: UserWithVisibility,
   ) {
-    const tenantId = await this.getTenantId(tenantCode);
+    const tenantId = await this.resolveTenantObjectId(tenantCode);
     
     // Extract user role and ID from user object
     const userRole = user?.role;
@@ -177,7 +175,7 @@ export class ProjectsService {
   }
 
   async remove(tenantCode: string, projectId: string) {
-    const tenantId = await this.getTenantId(tenantCode);
+    const tenantId = await this.resolveTenantObjectId(tenantCode);
     const project = await this.projectModel.findOneAndUpdate(
       { tenantId, projectId },
       { $set: { isDeleted: true } },
@@ -192,7 +190,7 @@ export class ProjectsService {
   }
 
   async restore(tenantCode: string, projectId: string) {
-    const tenantId = await this.getTenantId(tenantCode);
+    const tenantId = await this.resolveTenantObjectId(tenantCode);
     const project = await this.projectModel.findOneAndUpdate(
       { tenantId, projectId, isDeleted: true },
       { $set: { isDeleted: false } },
@@ -207,7 +205,7 @@ export class ProjectsService {
   }
 
   async getStats(tenantCode: string, user?: UserWithVisibility) {
-    const tenantId = await this.getTenantId(tenantCode);
+    const tenantId = await this.resolveTenantObjectId(tenantCode);
     
     // Build match conditions for aggregation
     const matchConditions: any = {
@@ -263,7 +261,7 @@ export class ProjectsService {
   }
 
   async getProjectsByStage(tenantCode: string) {
-    const tenantId = await this.getTenantId(tenantCode);
+    const tenantId = await this.resolveTenantObjectId(tenantCode);
     return this.projectModel.aggregate([
       {
         $match: {
@@ -283,7 +281,7 @@ export class ProjectsService {
   }
 
   async getProjectManagers(tenantCode: string) {
-    const tenantId = await this.getTenantId(tenantCode);
+    const tenantId = await this.resolveTenantObjectId(tenantCode);
     const projects = await this.projectModel
       .find({ tenantId, isDeleted: false })
       .select('pm')

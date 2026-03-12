@@ -8,10 +8,10 @@ export type ManualAdjustmentType = 'credit' | 'debit';
 
 @Schema({ ...BaseSchemaOptions, collection: 'financeManualAdjustments' })
 export class ManualAdjustment {
-  @Prop(BaseSchemaDefinition.tenantId)
+  @Prop({ ...BaseSchemaDefinition.tenantId })
   tenantId!: Types.ObjectId;
 
-  @Prop(BaseSchemaDefinition.isDeleted)
+  @Prop({ ...BaseSchemaDefinition.isDeleted })
   isDeleted!: boolean;
 
   @Prop({ required: true, enum: ['credit', 'debit'], index: true })
@@ -34,6 +34,9 @@ export class ManualAdjustment {
 
   @Prop({ required: false })
   createdBy?: Types.ObjectId;
+
+  @Prop({ required: false })
+  lf?: number;
 }
 
 export const ManualAdjustmentSchema = SchemaFactory.createForClass(ManualAdjustment);

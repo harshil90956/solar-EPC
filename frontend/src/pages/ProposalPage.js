@@ -19,6 +19,7 @@ import { CURRENCY } from '../config/app.config';
 import { cn } from '../lib/utils';
 import { downloadRayzonPDF } from '../lib/pdfTemplate';
 import PDFTemplateCustomizer from '../components/documents/PDFTemplateCustomizer';
+import { settingsApi } from '../services/settingsApi';
 
 const fmt = CURRENCY.format;
 
@@ -61,14 +62,13 @@ const PROPOSAL_STATUS = {
   },
 };
 
-// ── Project Types ────────────────────────────────────────────────────────────
-const PROJECT_TYPES = [
+const DEFAULT_PROJECT_TYPES = [
   { value: 'residential', label: 'Residential', icon: User },
   { value: 'commercial', label: 'Commercial', icon: Building2 },
   { value: 'industrial', label: 'Industrial', icon: Zap },
 ];
 
-const INSTALLATION_TYPES = [
+const DEFAULT_INSTALLATION_TYPES = [
   { value: 'rooftop', label: 'Rooftop' },
   { value: 'ground_mounted', label: 'Ground Mounted' },
   { value: 'carport', label: 'Carport' },
@@ -333,12 +333,36 @@ const DocumentHeader = ({
 
 // ── Main Proposal Page Component ─────────────────────────────────────────────
 const ProposalPage = () => {
+  const [projectTypeOptions, setProjectTypeOptions] = useState(DEFAULT_PROJECT_TYPES);
+  const [installationTypeOptions, setInstallationTypeOptions] = useState(DEFAULT_INSTALLATION_TYPES);
+  const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadTypeOptions = async () => {
+      try {
+        const res = await settingsApi.getTypeOptions();
+        const pts = res?.projectTypes || res?.data?.projectTypes;
+        const its = res?.installationTypes || res?.data?.installationTypes;
+        if (!cancelled) {
+          if (Array.isArray(pts) && pts.length > 0) setProjectTypeOptions(pts);
+          if (Array.isArray(its) && its.length > 0) setInstallationTypeOptions(its);
+        }
+      } catch {
+        // ignore
+      }
+    };
+    loadTypeOptions();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const [proposals, setProposals] = useState(MOCK_PROPOSALS);
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'grid' | 'kanban' 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
   const [selectedProposal, setSelectedProposal] = useState(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [isPDFCustomizerOpen, setIsPDFCustomizerOpen] = useState(false);
@@ -781,6 +805,8 @@ const ProposalPage = () => {
       >
         <CreateProposalWizard
           initialData={isEditMode ? selectedProposal : null}
+          projectTypeOptions={projectTypeOptions}
+          installationTypeOptions={installationTypeOptions}
           onSubmit={isEditMode ? (data) => handleUpdateProposal(selectedProposal.id, data) : handleCreateProposal}
           onCancel={() => { setIsCreateModalOpen(false); setSelectedProposal(null); setIsEditMode(false); }}
         />
@@ -1041,7 +1067,13 @@ const ConvertFromEstimate = ({ estimates, onConvert, onCancel }) => {
 };
 
 // ── Create Proposal Wizard Component ──────────────────────────────────────
-const CreateProposalWizard = ({ initialData, onSubmit, onCancel }) => {
+const CreateProposalWizard = ({
+  initialData,
+  projectTypeOptions = DEFAULT_PROJECT_TYPES,
+  installationTypeOptions = DEFAULT_INSTALLATION_TYPES,
+  onSubmit,
+  onCancel,
+}) => {
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState(initialData || {
     customerName: '',
@@ -1220,14 +1252,14 @@ const CreateProposalWizard = ({ initialData, onSubmit, onCancel }) => {
                 <Select
                   value={formData.projectType}
                   onChange={(v) => setFormData({ ...formData, projectType: v })}
-                  options={PROJECT_TYPES.map(t => ({ value: t.value, label: t.label }))}
+                  options={projectTypeOptions.map(t => ({ value: t.value, label: t.label }))}
                 />
               </FormField>
               <FormField label="Installation Type">
                 <Select
                   value={formData.installationType}
                   onChange={(v) => setFormData({ ...formData, installationType: v })}
-                  options={INSTALLATION_TYPES}
+                  options={installationTypeOptions}
                 />
               </FormField>
               <FormField label="Project Description" className="md:col-span-2">

@@ -60,6 +60,7 @@ import {
   CalculatePriceDto,
   FinancialProjectionsDto,
 } from '../dto/project-type.dto';
+import { InstallationType, ProjectType } from '../../estimates/schemas/estimate.schema';
 
 @Controller('settings')
 @UseGuards(JwtAuthGuard, TenantGuard)
@@ -77,6 +78,29 @@ export class SettingsController {
     private readonly projectTypeService: ProjectTypeService,
     private readonly installationTaskService: InstallationTaskService,
   ) {}
+
+  @Get('type-options')
+  async getTypeOptions(@Request() req: any) {
+    const tenantId = req.tenant?.id;
+    const configs = await this.settingsService.getProjectTypeConfigs(tenantId);
+    const labelByTypeId: Record<string, string> = {};
+    configs.forEach((c: any) => {
+      const label = c?.config?.shortLabel || c?.config?.label;
+      if (c?.typeId && label) labelByTypeId[c.typeId] = String(label);
+    });
+
+    const projectTypes = Object.values(ProjectType).map((value) => ({
+      value,
+      label: labelByTypeId[value] || value.replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase()),
+    }));
+
+    const installationTypes = Object.values(InstallationType).map((value) => ({
+      value,
+      label: value.replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase()),
+    }));
+
+    return { projectTypes, installationTypes };
+  }
 
   // ── Full Settings ─────────────────────────────────────────────────────────
   @Get()
