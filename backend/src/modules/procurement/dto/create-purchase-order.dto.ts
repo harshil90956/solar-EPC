@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsIn, IsOptional, IsMongoId, IsNotEmpty } from 'class-validator';
+import { IsString, IsNumber, IsIn, IsOptional, IsMongoId, IsNotEmpty, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreatePurchaseOrderDto {
@@ -20,6 +20,33 @@ export class CreatePurchaseOrderDto {
   @IsOptional()
   @IsString()
   relatedProjectId?: string;
+
+  // Inventory fields
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
+
+  @IsOptional()
+  @IsString()
+  categoryName?: string;
+
+  @IsOptional()
+  @IsString()
+  itemId?: string;
+
+  @IsOptional()
+  @IsString()
+  itemName?: string;
+
+  @IsOptional()
+  @IsString()
+  unit?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  requiredQuantity?: number;
 }
 
 export class UpdatePurchaseOrderStatusDto {
@@ -56,4 +83,31 @@ export class UpdatePurchaseOrderDto {
   @IsOptional()
   @IsString()
   relatedProjectId?: string;
+
+  // Inventory fields
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
+
+  @IsOptional()
+  @IsString()
+  categoryName?: string;
+
+  @IsOptional()
+  @IsString()
+  itemId?: string;
+
+  @IsOptional()
+  @IsString()
+  itemName?: string;
+
+  @IsOptional()
+  @IsString()
+  unit?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  requiredQuantity?: number;
 }

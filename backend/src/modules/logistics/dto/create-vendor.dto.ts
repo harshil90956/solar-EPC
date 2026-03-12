@@ -7,10 +7,6 @@ export class CreateLogisticsVendorDto {
 
   @IsString()
   @IsNotEmpty()
-  category!: string;
-
-  @IsString()
-  @IsNotEmpty()
   contact!: string;
 
   @IsString()
@@ -31,33 +27,29 @@ export class CreateLogisticsVendorDto {
   @Max(5)
   rating?: number;
 
-  // Inventory-related fields - NOW REQUIRED
+  // Inventory-related fields - optional
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  itemId!: string;
+  itemId?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  itemName!: string;
+  itemName?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  unit!: string;
+  unit?: string;
 
+  @IsOptional()
   @IsNumber()
-  @IsNotEmpty()
   @Min(0)
-  quantity!: number;
+  quantity?: number;
 }
 
 export class UpdateLogisticsVendorDto {
   @IsOptional()
   @IsString()
   name?: string;
-
-  @IsOptional()
-  @IsString()
-  category?: string;
 
   @IsOptional()
   @IsString()
