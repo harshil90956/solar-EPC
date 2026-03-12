@@ -1105,8 +1105,7 @@ export class LeadsService {
       count: await this.leadModel.countDocuments({ ...filter, statusKey: s.key })
     })));
 
-      return { stages: counts };
-    });
+    return { stages: counts };
   }
 
   async getDashboardSources(
