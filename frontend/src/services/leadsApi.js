@@ -130,7 +130,11 @@ export const leadsApi = {
 
   // Assign lead to user
   async assignLead(id, assignedTo) {
-    return api.patch(`/leads/${id}/assign`, { assignedTo });
+    console.log('[LEADS API] assignLead called with:', { id, assignedTo, type: typeof assignedTo });
+    if (!assignedTo) {
+      throw new Error('assignedTo is required');
+    }
+    return api.patch(`/leads/${id}/assign`, { assignedTo: String(assignedTo) });
   },
 
   // Bulk assign leads to user - PATCH /api/v1/leads/bulk-assign

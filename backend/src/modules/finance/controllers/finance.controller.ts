@@ -11,7 +11,6 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import type { FastifyRequest } from 'fastify';
 import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
 import { InvoiceService } from '../services/invoice.service';
 import { PaymentService } from '../services/payment.service';
@@ -30,7 +29,8 @@ import { CreateAdjustmentCategoryDto } from '../dto/adjustment-category.dto';
 import { JournalEntryService } from '../services/journal-entry.service';
 import { InvoiceStatus } from '../schemas/invoice.schema';
 
-interface RequestWithUser extends FastifyRequest {
+interface RequestWithUser {
+  headers?: unknown;
   user?: {
     id?: string;
     _id?: string;

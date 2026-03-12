@@ -291,7 +291,7 @@ const AgentLeaderboard = ({ data, loading }) => {
           <Award size={16} className="text-amber-500" />
         </div>
         <div className="flex items-center justify-center min-h-[160px]">
-          <p className="text-xs text-[var(--text-muted)]">No performer data available yet</p>
+          <p className="text-xs text-[var(--text-muted)]">Assign leads to see top performers</p>
         </div>
       </div>
     );
@@ -318,10 +318,18 @@ const AgentLeaderboard = ({ data, loading }) => {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-bold text-[var(--text-primary)] truncate">{agent.name || 'Unknown'}</p>
-                <p className="text-[9px] text-[var(--text-muted)]">{formatNumber(agent.converted)}/{formatNumber(agent.leadsHandled)}</p>
+                <p className="text-[9px] text-[var(--text-muted)]">Converted: {formatNumber(agent.converted)}, Total: {formatNumber(agent.leadsHandled)}</p>
+                <div className="mt-1 h-1.5 w-full bg-[var(--bg-base)] rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-[var(--accent)] rounded-full"
+                    style={{ width: `${Math.max(0, Math.min(100, rate))}%` }}
+                  />
+                </div>
               </div>
               <div className="text-right">
-                <p className="text-xs font-bold text-[var(--accent)]">{rate.toFixed(0)}%</p>
+                <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-[var(--bg-base)] text-[var(--accent)]">
+                  {rate.toFixed(0)}%
+                </span>
               </div>
             </div>
           );

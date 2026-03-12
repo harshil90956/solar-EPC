@@ -58,12 +58,16 @@ apiClient.interceptors.response.use(
     (response) => response.data,
     (error) => {
         const status = error?.response?.status;
+        const responseData = error?.response?.data;
         const message =
-            error?.response?.data?.message ||
+            responseData?.message ||
+            responseData?.error?.message ||
             error?.message ||
             'An unexpected error occurred';
 
-        console.log(`[API Error] Status: ${status}, Message: ${message}`, error?.response?.config?.url);
+        const url = error?.response?.config?.url;
+        const method = error?.response?.config?.method?.toUpperCase();
+        console.log(`[API Error] ${method || ''} ${url || ''} Status: ${status}, Message: ${message}`, responseData);
         
         if (status === 401) {
             console.warn('[API Error] 401 Unauthorized - clearing token and redirecting to login');
@@ -74,7 +78,7 @@ apiClient.interceptors.response.use(
             }
         }
 
-        return Promise.reject({ status, message, raw: error });
+        return Promise.reject({ status, message, data: responseData, raw: error });
     }
 );
 
