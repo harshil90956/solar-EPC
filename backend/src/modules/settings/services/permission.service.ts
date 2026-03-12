@@ -74,6 +74,16 @@ export class PermissionService {
       };
     }
 
+    // Keep backend consistent with frontend: admin-like roles have full access by default
+    // (unless blocked by feature flags above).
+    if (isAdminLike) {
+      return {
+        permitted: true,
+        source: 'default',
+        reason: `Admin role ${baseRoleId} granted permission by default`,
+      };
+    }
+
     // ─────────────────────────────────────────────────────────────────────
     // STEP 2: User Override Check (Highest Priority)
     // ─────────────────────────────────────────────────────────────────────
@@ -107,6 +117,16 @@ export class PermissionService {
           reason: `Custom role ${customRoleId} sets ${actionId}=${customPerm}`,
         };
       }
+      // Frontend behavior: for custom roles, 'view' defaults to allow unless explicitly denied.
+      // Keep backend consistent to avoid UI allowing access while API denies.
+      if (actionId === 'view') {
+        return {
+          permitted: true,
+          source: 'custom_role',
+          reason: `Custom role ${customRoleId} defaults view=true (not explicitly denied)`,
+        };
+      }
+
       // If custom role doesn't define this permission, fall through to base role
     }
 
@@ -121,18 +141,6 @@ export class PermissionService {
         permitted: basePerm,
         source: 'base_rbac',
         reason: `Base role ${baseRoleId} sets ${actionId}=${basePerm}`,
-      };
-    }
-
-    // ─────────────────────────────────────────────────────────────────────
-    // STEP 5: Admin Fallback (No RBAC config found)
-    // Admin roles get full permissions by default if no explicit config
-    // ─────────────────────────────────────────────────────────────────────
-    if (isAdminLike) {
-      return {
-        permitted: true,
-        source: 'default',
-        reason: `Admin role ${baseRoleId} granted permission by default (no RBAC config)`,
       };
     }
 
@@ -283,7 +291,7 @@ export class PermissionService {
     userOverride: boolean | null;
     customRoleId: string | null;
     customRolePermission: boolean | undefined;
-    baseRolePermission: boolean;
+    baseRolePermission: boolean | undefined;
   }> {
     const [featureFlagEnabled, actionEnabled, userOverride, customRoleId, customRolePermission, baseRolePermission] = 
       await Promise.all([

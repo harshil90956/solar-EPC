@@ -1,11 +1,10 @@
 import { Injectable, NestMiddleware, Logger } from '@nestjs/common';
-import type { FastifyReply, FastifyRequest } from 'fastify';
 
 @Injectable()
 export class RequestLoggingMiddleware implements NestMiddleware {
   private readonly logger = new Logger(RequestLoggingMiddleware.name);
 
-  use(req: FastifyRequest, res: FastifyReply, next: () => void) {
+  use(req: any, res: any, next: () => void) {
     const path = (req as any).routerPath || (req as any).raw?.url || req.url;
     const method = (req as any).raw?.method || req.method;
     const authHeader = (req.headers as any)?.authorization;

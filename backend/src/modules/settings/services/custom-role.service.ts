@@ -67,8 +67,41 @@ export class CustomRoleService {
   // ─────────────────────────────────────────────────────────────────────────
 
   async getCustomRoles(tenantId: string | undefined): Promise<CustomRole[]> {
-    const tid = this.toObjectId(tenantId);
-    return this.customRoleModel.find(tid ? { tenantId: tid } : {}).exec();
+    console.log('[DEBUG] getCustomRoles - tenantId:', tenantId);
+    
+    // For 'default' or undefined, return all custom roles without tenant filter
+    if (!tenantId || tenantId === 'default') {
+      const filter = { $or: [{ tenantId: { $exists: false } }, { tenantId: null }] };
+      console.log('[DEBUG] getCustomRoles - using default/global filter:', JSON.stringify(filter));
+      const roles = await this.customRoleModel.find(filter).exec();
+      console.log('[DEBUG] getCustomRoles - found', roles.length, 'roles');
+      return roles;
+    }
+    
+    // Check if tenantId is a valid ObjectId format (24 hex chars)
+    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(tenantId);
+    
+    if (isValidObjectId) {
+      // For ObjectIds, search by ObjectId OR default/global roles
+      const filter = { 
+        $or: [
+          { tenantId: new Types.ObjectId(tenantId) },
+          { tenantId: { $exists: false } },
+          { tenantId: null }
+        ] 
+      };
+      console.log('[DEBUG] getCustomRoles - using ObjectId filter:', JSON.stringify(filter));
+      const roles = await this.customRoleModel.find(filter).exec();
+      console.log('[DEBUG] getCustomRoles - found', roles.length, 'roles');
+      return roles;
+    } else {
+      // For other string formats, just check for no tenant
+      const filter = { $or: [{ tenantId: { $exists: false } }, { tenantId: null }] };
+      console.log('[DEBUG] getCustomRoles - using string fallback filter:', JSON.stringify(filter));
+      const roles = await this.customRoleModel.find(filter).exec();
+      console.log('[DEBUG] getCustomRoles - found', roles.length, 'roles');
+      return roles;
+    }
   }
 
   async getCustomRole(tenantId: string | undefined, roleId: string): Promise<CustomRole | null> {
