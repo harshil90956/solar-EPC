@@ -2949,12 +2949,11 @@ const InventoryPage = () => {
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Add Inventory Item"
         footer={<div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={() => setShowAdd(false)}>Cancel</Button>
-          <Button onClick={handleAddItem} disabled={submitting || !form.name || !form.category || !form.warehouse}>
+          <Button onClick={handleAddItem} disabled={submitting || !form.name || !form.category}>
             {submitting ? 'Adding...' : <><Plus size={13} /> Add Item</>}
           </Button>
         </div>}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <FormField label="Item ID (Optional)"><Input placeholder="e.g. INV001" value={form.itemId} onChange={e => setForm(f => ({ ...f, itemId: e.target.value }))} /></FormField>
           <FormField label="Item Name"><Input placeholder="e.g. 400W Mono PERC Panel" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></FormField>
           <FormField label="Category">
             <Select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
@@ -2970,12 +2969,6 @@ const InventoryPage = () => {
           </FormField>
           <FormField label="Min Stock Level"><Input type="number" placeholder="100" value={form.minStock} onChange={e => setForm(f => ({ ...f, minStock: e.target.value }))} /></FormField>
           <FormField label="Unit Rate (₹)"><Input type="number" placeholder="14500" value={form.rate} onChange={e => setForm(f => ({ ...f, rate: e.target.value }))} /></FormField>
-          <FormField label="Warehouse">
-            <Select value={form.warehouse} onChange={e => setForm(f => ({ ...f, warehouse: e.target.value }))}>
-              <option value="">Select Warehouse</option>
-              {warehouses.map(w => <option key={w}>{w}</option>)}
-            </Select>
-          </FormField>
         </div>
       </Modal>
 
