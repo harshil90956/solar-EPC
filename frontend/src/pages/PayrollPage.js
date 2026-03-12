@@ -73,6 +73,8 @@ const PayrollPage = () => {
   const [loading, setLoading] = useState(false);
   const [payrollSearch, setPayrollSearch] = useState('');
   const [showPayrollModal, setShowPayrollModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingPayroll, setEditingPayroll] = useState(null);
   const [viewPayroll, setViewPayroll] = useState(null);
   const [payrollForm, setPayrollForm] = useState({
     employeeId: '',
@@ -164,6 +166,38 @@ const PayrollPage = () => {
       console.error('[DEBUG] Payroll error:', error);
       console.error('[DEBUG] Error response:', error.response);
       toast.error(error.response?.data?.message || error.message || 'Failed to generate payroll');
+    }
+  };
+
+  const handleUpdatePayroll = async () => {
+    if (!editingPayroll) return;
+    
+    const data = {
+      baseSalary: Number(payrollForm.baseSalary),
+      allowances: Number(payrollForm.allowances),
+      deductions: Number(payrollForm.deductions),
+      bonus: Number(payrollForm.bonus),
+    };
+
+    try {
+      await payrollApi.update(editingPayroll._id, data);
+      toast.success('Payroll updated successfully');
+      setShowEditModal(false);
+      setEditingPayroll(null);
+      fetchPayrolls();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to update payroll');
+    }
+  };
+
+  const handleDeletePayroll = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this payroll record?')) return;
+    try {
+      await payrollApi.delete(id);
+      toast.success('Payroll record deleted');
+      fetchPayrolls();
+    } catch (error) {
+      toast.error('Failed to delete payroll record');
     }
   };
 
@@ -264,6 +298,40 @@ const PayrollPage = () => {
         );
       },
     },
+    {
+      key: 'actions',
+      header: 'Actions',
+      render: (_, record) => (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              setEditingPayroll(record);
+              setPayrollForm({
+                employeeId: record.employeeId?._id || record.employeeId,
+                month: record.month,
+                year: record.year,
+                baseSalary: record.baseSalary,
+                allowances: record.allowances,
+                deductions: record.deductions,
+                bonus: record.bonus,
+              });
+              setShowEditModal(true);
+            }}
+            className="p-1.5 rounded-lg hover:bg-blue-500/10 text-[var(--text-muted)] hover:text-blue-500 transition-colors"
+            title="Edit"
+          >
+            <RefreshCw size={14} />
+          </button>
+          <button
+            onClick={() => handleDeletePayroll(record._id)}
+            className="p-1.5 rounded-lg hover:bg-red-500/10 text-[var(--text-muted)] hover:text-red-500 transition-colors"
+            title="Delete"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      ),
+    },
   ];
 
   return (
@@ -341,12 +409,6 @@ const PayrollPage = () => {
         data={filteredPayrolls}
         emptyText="No payroll records found."
         loading={loading}
-        expandedRowKey={viewPayroll?._id}
-        renderExpanded={(payroll) => (
-          <div className="p-4 border-t border-[var(--border-muted)] bg-gradient-to-b from-white to-[var(--bg-elevated)]">
-            <PayrollViewModal payroll={payroll} onClose={() => setViewPayroll(null)} inline />
-          </div>
-        )}
       />
 
       {/* Generate Payroll Modal */}
@@ -433,6 +495,71 @@ const PayrollPage = () => {
           <div className="mt-4 p-3 rounded-lg bg-[var(--bg-elevated)]">
             <p className="text-sm text-[var(--text-muted)]">Net Salary Preview</p>
             <p className="text-2xl font-bold text-[var(--accent)]">
+              ₹{(payrollForm.baseSalary + payrollForm.allowances + payrollForm.bonus - payrollForm.deductions).toLocaleString()}
+            </p>
+          </div>
+        </Modal>
+      )}
+
+      {/* Edit Payroll Modal */}
+      {showEditModal && (
+        <Modal
+          open={showEditModal}
+          onClose={() => {
+            setShowEditModal(false);
+            setEditingPayroll(null);
+          }}
+          title="Edit Payroll Record"
+          footer={
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" onClick={() => setShowEditModal(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleUpdatePayroll}>
+                <RefreshCw size={13} /> Update
+              </Button>
+            </div>
+          }
+        >
+          <div className="mb-4 p-3 rounded-lg bg-[var(--bg-elevated)]">
+            <p className="text-xs text-[var(--text-muted)]">Employee</p>
+            <p className="font-medium">{editingPayroll?.employeeId?.firstName} {editingPayroll?.employeeId?.lastName}</p>
+            <p className="text-xs text-[var(--text-muted)] mt-1">Period: {new Date(2000, editingPayroll?.month - 1, 1).toLocaleString('default', { month: 'long' })} {editingPayroll?.year}</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Base Salary (₹)">
+              <Input
+                type="number"
+                value={payrollForm.baseSalary}
+                onChange={(e) => setPayrollForm({ ...payrollForm, baseSalary: parseFloat(e.target.value) || 0 })}
+              />
+            </FormField>
+            <FormField label="Allowances (₹)">
+              <Input
+                type="number"
+                value={payrollForm.allowances}
+                onChange={(e) => setPayrollForm({ ...payrollForm, allowances: parseFloat(e.target.value) || 0 })}
+              />
+            </FormField>
+            <FormField label="Deductions (₹)">
+              <Input
+                type="number"
+                value={payrollForm.deductions}
+                onChange={(e) => setPayrollForm({ ...payrollForm, deductions: parseFloat(e.target.value) || 0 })}
+              />
+            </FormField>
+            <FormField label="Bonus (₹)">
+              <Input
+                type="number"
+                value={payrollForm.bonus}
+                onChange={(e) => setPayrollForm({ ...payrollForm, bonus: parseFloat(e.target.value) || 0 })}
+              />
+            </FormField>
+          </div>
+          <div className="mt-4 p-3 rounded-lg bg-[var(--bg-elevated)] border-t-2 border-[var(--primary)]">
+            <p className="text-sm text-[var(--text-muted)]">Updated Net Salary</p>
+            <p className="text-2xl font-bold text-emerald-500">
               ₹{(payrollForm.baseSalary + payrollForm.allowances + payrollForm.bonus - payrollForm.deductions).toLocaleString()}
             </p>
           </div>

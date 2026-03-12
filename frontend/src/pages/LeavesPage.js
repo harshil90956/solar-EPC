@@ -145,6 +145,7 @@ const LeavesPage = () => {
   const [leaveSearch, setLeaveSearch] = useState('');
   const [leaveStatusFilter, setLeaveStatusFilter] = useState('all');
   const [showLeaveModal, setShowLeaveModal] = useState(false);
+  const [editingLeave, setEditingLeave] = useState(null);
   const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth());
   const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
@@ -206,9 +207,15 @@ const LeavesPage = () => {
       return;
     }
     try {
-      await leaveApi.create(leaveForm);
-      toast.success('Leave application submitted');
+      if (editingLeave) {
+        await leaveApi.update(editingLeave._id, leaveForm);
+        toast.success('Leave updated successfully');
+      } else {
+        await leaveApi.create(leaveForm);
+        toast.success('Leave application submitted');
+      }
       setShowLeaveModal(false);
+      setEditingLeave(null);
       fetchLeaves();
       setLeaveForm({
         employeeId: '',
@@ -218,7 +225,7 @@ const LeavesPage = () => {
         reason: '',
       });
     } catch (error) {
-      toast.error('Failed to apply leave');
+      toast.error(editingLeave ? 'Failed to update leave' : 'Failed to apply leave');
     }
   };
 
@@ -382,7 +389,15 @@ const LeavesPage = () => {
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                // Edit functionality
+                setEditingLeave(row);
+                setLeaveForm({
+                  employeeId: row.employeeId?._id || row.employeeId,
+                  leaveType: row.leaveType || 'paid',
+                  startDate: row.startDate ? row.startDate.split('T')[0] : '',
+                  endDate: row.endDate ? row.endDate.split('T')[0] : '',
+                  reason: row.reason || '',
+                });
+                setShowLeaveModal(true);
               }}
               className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
               title="Edit"
@@ -448,6 +463,7 @@ const LeavesPage = () => {
           <Button
             variant="primary"
             onClick={() => {
+              setEditingLeave(null);
               setLeaveForm({
                 employeeId: '',
                 leaveType: 'paid',
@@ -866,19 +882,25 @@ const LeavesPage = () => {
         )}
       />
 
-      {/* Apply Leave Modal */}
+      {/* Add/Edit Leave Modal */}
       {showLeaveModal && (
         <Modal
           open={showLeaveModal}
-          onClose={() => setShowLeaveModal(false)}
-          title="Apply for Leave"
+          onClose={() => {
+            setShowLeaveModal(false);
+            setEditingLeave(null);
+          }}
+          title={editingLeave ? "Edit Leave Application" : "Apply for Leave"}
           footer={
             <div className="flex gap-2 justify-end">
-              <Button variant="ghost" onClick={() => setShowLeaveModal(false)}>
+              <Button variant="ghost" onClick={() => {
+                setShowLeaveModal(false);
+                setEditingLeave(null);
+              }}>
                 Cancel
               </Button>
-              <Button onClick={handleApplyLeave}>
-                <Plus size={13} /> Apply
+              <Button onClick={handleApplyLeave} disabled={!leaveForm.employeeId || !leaveForm.startDate || !leaveForm.endDate}>
+                {editingLeave ? 'Save Changes' : 'Submit Application'}
               </Button>
             </div>
           }

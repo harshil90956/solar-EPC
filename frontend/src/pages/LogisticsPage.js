@@ -59,7 +59,7 @@ const VENDOR_COLUMNS = [
   { key: 'id', header: 'Vendor ID', render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span> },
   {
     key: 'name', header: 'Vendor Name', sortable: true, render: (v, row) => (
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 cursor-pointer hover:text-[var(--primary)] transition-colors" onClick={() => row._onVendorClick && row._onVendorClick(row)}>
         <Avatar name={v} size="xs" />
         <span className="text-xs font-semibold text-[var(--text-primary)]">{v}</span>
       </div>
@@ -1122,15 +1122,10 @@ const LogisticsPage = () => {
   const [showVendorModal, setShowVendorModal] = useState(false);
   const [newVendor, setNewVendor] = useState({ 
     name: '', 
-    category: '', 
     city: '', 
     contact: '', 
     phone: '', 
-    email: '',
-    itemId: '',
-    itemName: '',
-    unit: '',
-    quantity: ''
+    email: ''
   });
 
   // Inventory items and units for dropdowns
@@ -1151,6 +1146,10 @@ const LogisticsPage = () => {
   // Vendor edit state
   const [isEditingVendor, setIsEditingVendor] = useState(false);
   const [editedVendor, setEditedVendor] = useState(null);
+
+  // Kanban hide cards state
+  const [hideDispatchCards, setHideDispatchCards] = useState(false);
+  const [hideVendorCards, setHideVendorCards] = useState(false);
 
   // Dispatch edit state
   const [isEditingDispatch, setIsEditingDispatch] = useState(false);
@@ -1396,40 +1395,13 @@ const LogisticsPage = () => {
   const handleCreateVendor = async () => {
     try {
       // Validation - Basic fields
-      if (!newVendor.name || !newVendor.category || !newVendor.city || !newVendor.contact || !newVendor.phone || !newVendor.email) {
+      if (!newVendor.name || !newVendor.city || !newVendor.contact || !newVendor.phone || !newVendor.email) {
         alert('Please fill in all required fields');
         return;
       }
       
-      // Validation - Inventory fields (NOW REQUIRED)
-      if (!newVendor.itemId) {
-        alert('Please select an item (Required field)');
-        return;
-      }
-      if (!newVendor.unit) {
-        alert('Please select a unit (Required field)');
-        return;
-      }
-      if (newVendor.quantity === undefined || newVendor.quantity === null || newVendor.quantity === '') {
-        alert('Please enter quantity (Required field)');
-        return;
-      }
-      if (Number(newVendor.quantity) < 0) {
-        alert('Quantity must be 0 or greater');
-        return;
-      }
-      
-      // Find item name from selected item
-      const selectedItem = inventoryItems.find(item => item.itemId === newVendor.itemId);
-      console.log('[LOGISTICS CREATE] Selected item for vendor:', selectedItem);
-      const payload = {
-        ...newVendor,
-        quantity: newVendor.quantity ? Number(newVendor.quantity) : 0,
-        itemName: selectedItem?.description || selectedItem?.name || '',
-      };
-      
-      console.log('Creating vendor with data:', payload);
-      const res = await api.post('/logistics/vendors', payload);
+      console.log('Creating vendor with data:', newVendor);
+      const res = await api.post('/logistics/vendors', newVendor);
       console.log('Vendor created response:', res);
       
       // Check if creation was successful
@@ -1443,15 +1415,10 @@ const LogisticsPage = () => {
       setShowVendorModal(false);
       setNewVendor({ 
         name: '', 
-        category: '', 
         city: '', 
         contact: '', 
         phone: '', 
-        email: '',
-        itemId: '',
-        itemName: '',
-        unit: '',
-        quantity: ''
+        email: ''
       });
       setSearch(''); // Clear search to show new vendor
       alert('Vendor created successfully!');
@@ -1476,39 +1443,12 @@ const LogisticsPage = () => {
     try {
       if (!editedVendor) return;
       
-      // Validation - Inventory fields (REQUIRED)
-      if (!editedVendor.itemId) {
-        alert('Please select an item (Required field)');
-        return;
-      }
-      if (!editedVendor.unit) {
-        alert('Please select a unit (Required field)');
-        return;
-      }
-      if (editedVendor.quantity === undefined || editedVendor.quantity === null || editedVendor.quantity === '') {
-        alert('Please enter quantity (Required field)');
-        return;
-      }
-      if (Number(editedVendor.quantity) < 0) {
-        alert('Quantity must be 0 or greater');
-        return;
-      }
-      
-      // Find item name from selected item
-      const selectedItem = inventoryItems.find(item => item.itemId === editedVendor.itemId);
-      
-      // Preserve original itemName if item not found (might be deleted)
       const payload = {
         name: editedVendor.name,
-        category: editedVendor.category,
         city: editedVendor.city,
         contact: editedVendor.contact,
         phone: editedVendor.phone,
-        email: editedVendor.email,
-        itemId: editedVendor.itemId,
-        itemName: selectedItem?.description || selectedItem?.name || editedVendor.itemName || '',
-        unit: editedVendor.unit,
-        quantity: editedVendor.quantity !== undefined ? Number(editedVendor.quantity) : undefined,
+        email: editedVendor.email
       };
       console.log('Updating vendor payload:', payload);
       const res = await api.patch(`/logistics/vendors/${editedVendor.id}`, payload);
@@ -1874,7 +1814,22 @@ const LogisticsPage = () => {
           </>
         )}
         actions={[
-          ...(can('logistics', 'create') ? [{ type: 'button', label: activeTab === 'dispatches' ? 'Schedule Dispatch' : 'Add Vendor', icon: Plus, variant: 'primary', onClick: () => activeTab === 'dispatches' ? setShowAdd(true) : setShowVendorModal(true) }] : [])
+          ...(can('logistics', 'create') ? [{ type: 'button', label: activeTab === 'dispatches' ? 'Schedule Dispatch' : 'Add Vendor', icon: Plus, variant: 'primary', onClick: () => activeTab === 'dispatches' ? setShowAdd(true) : setShowVendorModal(true) }] : []),
+          // Hide Cards button - only in Kanban view
+          ...(activeTab === 'dispatches' && view === 'kanban' ? [{ 
+            type: 'button', 
+            label: hideDispatchCards ? 'Show Cards' : 'Hide Cards', 
+            icon: null, 
+            variant: 'secondary', 
+            onClick: () => setHideDispatchCards(!hideDispatchCards) 
+          }] : []),
+          ...(activeTab === 'vendors' && vendorView === 'kanban' ? [{ 
+            type: 'button', 
+            label: hideVendorCards ? 'Show Cards' : 'Hide Cards', 
+            icon: null, 
+            variant: 'secondary', 
+            onClick: () => setHideVendorCards(!hideVendorCards) 
+          }] : [])
         ]}
       />
 
@@ -1896,26 +1851,28 @@ const LogisticsPage = () => {
       {activeTab === 'dispatches' ? (
         <>
           {/* Dispatch KPI Cards with Descriptive Labels */}
-          <div className="mb-2">
-            <p className="text-xs text-[var(--text-muted)] mb-2 flex items-center gap-2">
-              <Package size={12} className="text-[var(--accent-light)]" />
-              <span>Dispatches Overview - Shipment tracking and delivery status</span>
-            </p>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <div onClick={() => handleCardClick('inTransit')} className="cursor-pointer transition-transform hover:scale-105">
-                <KPICard title="Total Shipments In Transit" value={inTransit} icon={Truck} sub="Shipments currently moving" variant="blue" />
-              </div>
-              <div onClick={() => handleCardClick('scheduled')} className="cursor-pointer transition-transform hover:scale-105">
-                <KPICard title="Total Dispatches Scheduled" value={scheduled} icon={Clock} sub="Dispatches awaiting pickup" variant="emerald" />
-              </div>
-              <div onClick={() => handleCardClick('delivered')} className="cursor-pointer transition-transform hover:scale-105">
-                <KPICard title="Total Deliveries Completed" value={delivered} icon={CheckCircle} sub={`${delivered} deliveries done this month`} variant="purple" />
-              </div>
-              <div onClick={() => handleCardClick('totalFreight')} className="cursor-pointer transition-transform hover:scale-105">
-                <KPICard title="Total Freight Cost" value={`₹${totalFreight.toLocaleString('en-IN')}`} icon={MapPin} sub="Total shipping expenses" variant="amber" />
+          {!hideDispatchCards && (
+            <div className="mb-2">
+              <p className="text-xs text-[var(--text-muted)] mb-2 flex items-center gap-2">
+                <Package size={12} className="text-[var(--accent-light)]" />
+                <span>Dispatches Overview - Shipment tracking and delivery status</span>
+              </p>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div onClick={() => handleCardClick('inTransit')} className="cursor-pointer transition-transform hover:scale-105">
+                  <KPICard title="Total Shipments In Transit" value={inTransit} icon={Truck} sub="Shipments currently moving" variant="blue" />
+                </div>
+                <div onClick={() => handleCardClick('scheduled')} className="cursor-pointer transition-transform hover:scale-105">
+                  <KPICard title="Total Dispatches Scheduled" value={scheduled} icon={Clock} sub="Dispatches awaiting pickup" variant="emerald" />
+                </div>
+                <div onClick={() => handleCardClick('delivered')} className="cursor-pointer transition-transform hover:scale-105">
+                  <KPICard title="Total Deliveries Completed" value={delivered} icon={CheckCircle} sub={`${delivered} deliveries done this month`} variant="purple" />
+                </div>
+                <div onClick={() => handleCardClick('totalFreight')} className="cursor-pointer transition-transform hover:scale-105">
+                  <KPICard title="Total Freight Cost" value={`₹${totalFreight.toLocaleString('en-IN')}`} icon={MapPin} sub="Total shipping expenses" variant="amber" />
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Active Shipments strip (kanban-only) */}
           {view === 'kanban' && inTransit > 0 && (
@@ -1961,7 +1918,9 @@ const LogisticsPage = () => {
             <DispatchVisualizationView dispatches={dispatches} />
           ) : view === 'kanban' ? (
             <>
-              <p className="text-xs text-[var(--text-muted)] mb-2">Drag dispatches between columns to update status</p>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs text-[var(--text-muted)]">Drag dispatches between columns to update status</p>
+              </div>
               <DispatchKanbanBoard dispatches={filtered} onStageChange={handleStageChange} onCardClick={setSelected} />
             </>
           ) : (
@@ -1983,31 +1942,33 @@ const LogisticsPage = () => {
         /* Vendors Tab */
         <>
           {/* Vendor Summary Cards with Descriptive Labels */}
-          <div className="mb-2">
-            <p className="text-xs text-[var(--text-muted)] mb-2 flex items-center gap-2">
-              <Store size={12} className="text-[var(--accent-light)]" />
-              <span>Vendors Overview - Summary statistics</span>
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              <KPICard 
-                title="Registered Vendors" 
-                value={vendors.length} 
-                icon={Store} 
-                sub="Total vendors in system"
-                variant="violet"
-              />
-              <KPICard 
-                title="Unique Cities" 
-                value={new Set(vendors.map(v => v.city).filter(Boolean)).size} 
-                icon={MapPin} 
-                sub="Cities with vendors"
-                variant="cyan"
-                gradient="bg-gradient-to-br from-sky-50 to-sky-100/50 dark:from-sky-950/30 dark:to-sky-900/20"
-                iconBgColor="bg-sky-100 dark:bg-sky-900/50"
-                iconColor="text-sky-600 dark:text-sky-400"
-              />
+          {!hideVendorCards && (
+            <div className="mb-2">
+              <p className="text-xs text-[var(--text-muted)] mb-2 flex items-center gap-2">
+                <Store size={12} className="text-[var(--accent-light)]" />
+                <span>Vendors Overview - Summary statistics</span>
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <KPICard 
+                  title="Registered Vendors" 
+                  value={vendors.length} 
+                  icon={Store} 
+                  sub="Total vendors in system"
+                  variant="violet"
+                />
+                <KPICard 
+                  title="Unique Cities" 
+                  value={new Set(vendors.map(v => v.city).filter(Boolean)).size} 
+                  icon={MapPin} 
+                  sub="Cities with vendors"
+                  variant="cyan"
+                  gradient="bg-gradient-to-br from-sky-50 to-sky-100/50 dark:from-sky-950/30 dark:to-sky-900/20"
+                  iconBgColor="bg-sky-100 dark:bg-sky-900/50"
+                  iconColor="text-sky-600 dark:text-sky-400"
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Vendors Section Title */}
           <div className="flex items-center justify-between mb-3">
@@ -2025,9 +1986,11 @@ const LogisticsPage = () => {
             <VendorVisualizationView vendors={vendors} />
           ) : vendorView === 'kanban' ? (
             <>
-              <p className="text-xs text-[var(--text-muted)] mb-2">
-                Showing {vendors.length} vendors in Kanban view. Click any card to view details.
-              </p>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs text-[var(--text-muted)]">
+                  Showing {vendors.length} vendors in Kanban view. Click any card to view details.
+                </p>
+              </div>
               <VendorKanbanBoard 
                 vendors={vendors.filter(v =>
                   !vendorSearch || v.name?.toLowerCase().includes(vendorSearch.toLowerCase()) ||
@@ -2048,7 +2011,7 @@ const LogisticsPage = () => {
               !vendorSearch || v.name?.toLowerCase().includes(vendorSearch.toLowerCase()) ||
               v.city?.toLowerCase().includes(vendorSearch.toLowerCase()) ||
               v.category?.toLowerCase().includes(vendorSearch.toLowerCase())
-            )} rowActions={VENDOR_ACTIONS}
+            ).map(v => ({ ...v, _onVendorClick: (row) => { setSelectedVendor(row); setIsEditingVendor(false); } }))} rowActions={VENDOR_ACTIONS}
               emptyMessage="No vendors found. Click Add Vendor to create one." />
           )}
         </>
@@ -2251,17 +2214,6 @@ const LogisticsPage = () => {
             <Input value={newVendor.name} onChange={e => setNewVendor({ ...newVendor, name: e.target.value })} placeholder="e.g., ABC Logistics" />
           </FormField>
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="Category *">
-              <Select value={newVendor.category} onChange={e => setNewVendor({ ...newVendor, category: e.target.value })}>
-                <option value="">{vendorCategories.length === 0 ? 'No categories available' : 'Select Category'}</option>
-                {vendorCategories.map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </Select>
-              {vendorCategories.length === 0 && (
-                <p className="text-[10px] text-amber-500 mt-1">Click refresh button if categories don't load</p>
-              )}
-            </FormField>
             <FormField label="City *">
               <Input value={newVendor.city} onChange={e => setNewVendor({ ...newVendor, city: e.target.value })} placeholder="e.g., Ahmedabad" />
             </FormField>
@@ -2277,72 +2229,6 @@ const LogisticsPage = () => {
               <Input type="email" value={newVendor.email} onChange={e => setNewVendor({ ...newVendor, email: e.target.value })} placeholder="e.g., vendor@example.com" />
             </FormField>
           </div>
-          
-          {/* Inventory Section - REQUIRED */}
-          <div className="pt-3 border-t border-[var(--border-base)]">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs text-[var(--text-muted)] flex items-center gap-1">
-                Inventory Stock Entry 
-                <span className="text-[10px] text-red-500">*</span>
-              </p>
-              <button 
-                onClick={refreshDropdownData}
-                className="text-[10px] text-[var(--primary)] hover:underline flex items-center gap-1"
-                disabled={dropdownLoading}
-              >
-                {dropdownLoading ? 'Loading...' : '↻ Refresh Data'}
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <FormField label="Item">
-                <Select 
-                  value={newVendor.itemId} 
-                  onChange={e => {
-                    const selectedItem = inventoryItems.find(item => item.itemId === e.target.value);
-                    setNewVendor({ 
-                      ...newVendor, 
-                      itemId: e.target.value,
-                      itemName: selectedItem?.description || selectedItem?.name || '',
-                      unit: selectedItem?.unit || newVendor.unit
-                    });
-                  }}
-                >
-                  <option value="">{inventoryItems.length === 0 ? 'No items available' : 'Select Item'}</option>
-                  {inventoryItems.map(item => (
-                    <option key={item.itemId} value={item.itemId}>
-                      {item.description || item.name || 'Unknown Item'}
-                    </option>
-                  ))}
-                </Select>
-                {inventoryItems.length === 0 && (
-                  <p className="text-[10px] text-amber-500 mt-1">No inventory items found in database</p>
-                )}
-              </FormField>
-              <FormField label="Unit">
-                <Select 
-                  value={newVendor.unit} 
-                  onChange={e => setNewVendor({ ...newVendor, unit: e.target.value })}
-                >
-                  <option value="">{inventoryUnits.length === 0 ? 'No units available' : 'Select Unit'}</option>
-                  {inventoryUnits.map(unit => (
-                    <option key={unit} value={unit}>{unit}</option>
-                  ))}
-                </Select>
-                {inventoryUnits.length === 0 && (
-                  <p className="text-[10px] text-amber-500 mt-1">No units found in inventory</p>
-                )}
-              </FormField>
-            </div>
-            <FormField label="Quantity">
-              <Input 
-                type="number" 
-                value={newVendor.quantity} 
-                onChange={e => setNewVendor({ ...newVendor, quantity: e.target.value })} 
-                placeholder="e.g., 100"
-                min="0"
-              />
-            </FormField>
-          </div>
         </div>
       </Modal>
 
@@ -2353,26 +2239,30 @@ const LogisticsPage = () => {
           onClose={() => { setSelectedVendor(null); setIsEditingVendor(false); setEditedVendor(null); }} 
           title={isEditingVendor ? `Edit Vendor — ${selectedVendor.name}` : `Vendor — ${selectedVendor.name}`}
           footer={
-            <div className="flex gap-2 justify-end">
+            <div className="flex flex-wrap gap-2 justify-between w-full items-center">
               {isEditingVendor ? (
                 <>
-                  <Button variant="ghost" onClick={cancelEditingVendor}>Cancel</Button>
-                  <Button onClick={handleUpdateVendor}><CheckCircle size={13} /> Save Changes</Button>
+                  <Button variant="ghost" onClick={cancelEditingVendor} className="text-xs px-3 py-1.5">Cancel</Button>
+                  <Button onClick={handleUpdateVendor} className="text-xs px-3 py-1.5"><CheckCircle size={12} /> Save</Button>
                 </>
               ) : (
                 <>
-                  <Button variant="ghost" onClick={() => setSelectedVendor(null)}>Close</Button>
-                  {can('logistics', 'delete') && (
-                    <Button variant="danger" onClick={() => handleDeleteVendor(selectedVendor)}><Trash2 size={13} /> Delete</Button>
-                  )}
-                  {can('logistics', 'edit') && (
-                    <Button onClick={startEditingVendor}><Edit size={13} /> Edit</Button>
-                  )}
-                  {can('logistics', 'create') && (
-                    <Button onClick={() => { setShowVendorDeliveryModal(true); }}><Plus size={13} /> Record Delivery</Button>
-                  )}
-                  <Button onClick={() => handleCallVendor(selectedVendor)}><Phone size={13} /> Call</Button>
-                  <Button onClick={() => handleEmailVendor(selectedVendor)}><Mail size={13} /> Email</Button>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" onClick={() => { setSelectedVendor(null); setIsEditingVendor(false); setEditedVendor(null); }} className="text-xs px-3 py-1.5">Close</Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2 justify-end">
+                    {can('logistics', 'delete') && (
+                      <Button variant="danger" onClick={() => handleDeleteVendor(selectedVendor)} className="text-xs px-3 py-1.5"><Trash2 size={12} /> Delete</Button>
+                    )}
+                    {can('logistics', 'edit') && (
+                      <Button onClick={startEditingVendor} className="text-xs px-3 py-1.5"><Edit size={12} /> Edit</Button>
+                    )}
+                    {can('logistics', 'create') && (
+                      <Button onClick={() => { setShowVendorDeliveryModal(true); }} className="text-xs px-3 py-1.5"><Plus size={12} /> Delivery</Button>
+                    )}
+                    <Button onClick={() => handleCallVendor(selectedVendor)} className="text-xs px-3 py-1.5"><Phone size={12} /> Call</Button>
+                    <Button onClick={() => handleEmailVendor(selectedVendor)} className="text-xs px-3 py-1.5"><Mail size={12} /> Email</Button>
+                  </div>
                 </>
               )}
             </div>
@@ -2383,14 +2273,6 @@ const LogisticsPage = () => {
                 <Input value={editedVendor.name} onChange={e => setEditedVendor({...editedVendor, name: e.target.value})} placeholder="e.g., ABC Logistics" />
               </FormField>
               <div className="grid grid-cols-2 gap-3">
-                <FormField label="Category *">
-                  <Select value={editedVendor.category} onChange={e => setEditedVendor({...editedVendor, category: e.target.value})}>
-                    <option value="">Select Category</option>
-                    {vendorCategories.map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </Select>
-                </FormField>
                 <FormField label="City *">
                   <Input value={editedVendor.city} onChange={e => setEditedVendor({...editedVendor, city: e.target.value})} placeholder="e.g., Ahmedabad" />
                 </FormField>
@@ -2406,95 +2288,17 @@ const LogisticsPage = () => {
                   <Input type="email" value={editedVendor.email} onChange={e => setEditedVendor({...editedVendor, email: e.target.value})} placeholder="e.g., vendor@example.com" />
                 </FormField>
               </div>
-              
-              {/* Inventory Section - REQUIRED */}
-              <div className="pt-3 border-t border-[var(--border-base)]">
-                <p className="text-xs text-[var(--text-muted)] mb-3 flex items-center gap-1">
-                  Inventory Stock Entry
-                  <span className="text-[10px] text-red-500">*</span>
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <FormField label="Item">
-                    <Select 
-                      value={editedVendor.itemId || ''} 
-                      onChange={e => {
-                        const selectedItem = inventoryItems.find(item => item.itemId === e.target.value);
-                        setEditedVendor({
-                          ...editedVendor, 
-                          itemId: e.target.value,
-                          itemName: selectedItem?.description || selectedItem?.name || '',
-                          unit: selectedItem?.unit || editedVendor.unit
-                        });
-                      }}
-                    >
-                      <option value="">Select Item</option>
-                      {inventoryItems.map(item => (
-                        <option key={item.itemId} value={item.itemId}>
-                          {item.description || item.name || 'Unknown Item'}
-                        </option>
-                      ))}
-                    </Select>
-                  </FormField>
-                  <FormField label="Unit">
-                    <Select 
-                      value={editedVendor.unit || ''} 
-                      onChange={e => setEditedVendor({...editedVendor, unit: e.target.value})}
-                    >
-                      <option value="">Select Unit</option>
-                      {inventoryUnits.map(unit => (
-                        <option key={unit} value={unit}>{unit}</option>
-                      ))}
-                    </Select>
-                  </FormField>
-                </div>
-                <FormField label="Quantity">
-                  <Input 
-                    type="number" 
-                    value={editedVendor.quantity || ''} 
-                    onChange={e => setEditedVendor({...editedVendor, quantity: e.target.value})} 
-                    placeholder="e.g., 100"
-                    min="0"
-                  />
-                </FormField>
-              </div>
             </div>
           ) : (
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3 text-xs">
-                {[['Vendor ID', selectedVendor.id], ['Name', selectedVendor.name], ['Category', selectedVendor.category], ['Contact', selectedVendor.contact], ['Phone', selectedVendor.phone], ['Email', selectedVendor.email], ['City', selectedVendor.city], ['Total Orders', selectedVendor.totalOrders]].map(([k, v]) => (
+                {[['Vendor ID', selectedVendor.id || selectedVendor._id || selectedVendor.vendorId], ['Name', selectedVendor.name], ['Contact', selectedVendor.contact], ['Phone', selectedVendor.phone], ['Email', selectedVendor.email], ['City', selectedVendor.city], ['Total Orders', selectedVendor.totalOrders || 0], ['Rating', selectedVendor.rating || 5], ['Status', selectedVendor.isActive !== false ? 'Active' : 'Inactive']].map(([k, v]) => (
                   <div key={k} className="glass-card p-2">
                     <div className="text-[var(--text-muted)] mb-0.5">{k}</div>
                     <div className="font-semibold text-[var(--text-primary)]">{v}</div>
                   </div>
                 ))}
               </div>
-              
-              {/* Inventory Info Section */}
-              {(selectedVendor.itemId || selectedVendor.itemName || selectedVendor.quantity > 0) && (
-                <div className="pt-2 border-t border-[var(--border-base)]">
-                  <p className="text-xs text-[var(--text-muted)] mb-2">Inventory Details</p>
-                  <div className="grid grid-cols-2 gap-3 text-xs">
-                    {selectedVendor.itemName && (
-                      <div className="glass-card p-2">
-                        <div className="text-[var(--text-muted)] mb-0.5">Item</div>
-                        <div className="font-semibold text-[var(--text-primary)]">{selectedVendor.itemName}</div>
-                      </div>
-                    )}
-                    {selectedVendor.unit && (
-                      <div className="glass-card p-2">
-                        <div className="text-[var(--text-muted)] mb-0.5">Unit</div>
-                        <div className="font-semibold text-[var(--text-primary)]">{selectedVendor.unit}</div>
-                      </div>
-                    )}
-                    {(selectedVendor.quantity > 0 || selectedVendor.quantity === 0) && (
-                      <div className="glass-card p-2">
-                        <div className="text-[var(--text-muted)] mb-0.5">Quantity</div>
-                        <div className="font-semibold text-[var(--text-primary)]">{selectedVendor.quantity}</div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </Modal>

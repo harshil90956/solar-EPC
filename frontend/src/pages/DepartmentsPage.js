@@ -14,7 +14,7 @@ import { departmentApi, employeeApi } from '../services/hrmApi';
 const DepartmentViewModal = ({ department, employees, onClose, onEdit }) => {
   if (!department) return null;
   const deptEmployees = employees.filter(e => e.department === department.name);
-  const manager = employees.find(e => e._id === department.managerId);
+  const manager = null; // Removed manager feature
   const active = deptEmployees.filter(e => e.status === 'active').length;
   return (
     <Modal open={!!department} onClose={onClose} title="" size="lg" footer={
@@ -103,6 +103,7 @@ const DepartmentsPage = () => {
   const [loading, setLoading] = useState(false);
   const [departmentSearch, setDepartmentSearch] = useState('');
   const [showDepartmentModal, setShowDepartmentModal] = useState(false);
+  const [editingDepartment, setEditingDepartment] = useState(null);
   const [viewDepartment, setViewDepartment] = useState(null);
   // KPI filter state - shows filtered data in table instead of modal
   const [kpiFilter, setKpiFilter] = useState(null); // 'all' | 'active' | 'with_employees' | null
@@ -110,7 +111,6 @@ const DepartmentsPage = () => {
     name: '',
     code: '',
     description: '',
-    managerId: '',
   });
 
   // Functions defined before useEffect
@@ -157,18 +157,23 @@ const DepartmentsPage = () => {
       return;
     }
     try {
-      await departmentApi.create(departmentForm);
-      toast.success('Department created successfully');
+      if (editingDepartment) {
+        await departmentApi.update(editingDepartment._id, departmentForm);
+        toast.success('Department updated successfully');
+      } else {
+        await departmentApi.create(departmentForm);
+        toast.success('Department created successfully');
+      }
       setShowDepartmentModal(false);
+      setEditingDepartment(null);
       fetchDepartments();
       setDepartmentForm({
         name: '',
         code: '',
         description: '',
-        managerId: '',
       });
     } catch (error) {
-      toast.error('Failed to create department');
+      toast.error(editingDepartment ? 'Failed to update department' : 'Failed to create department');
     }
   };
 
@@ -296,21 +301,6 @@ const DepartmentsPage = () => {
       ),
     },
     {
-      key: 'managerId',
-      header: 'Manager',
-      render: (val) => {
-        const manager = employees.find(emp => emp._id === val);
-        return manager ? (
-          <div>
-            <p className="font-medium text-sm">{manager.firstName} {manager.lastName}</p>
-            <p className="text-xs text-[var(--text-muted)]">{manager.employeeId}</p>
-          </div>
-        ) : (
-          <span className="text-[var(--text-muted)]">Not Assigned</span>
-        );
-      },
-    },
-    {
       key: 'employeeCount',
       header: 'Employees',
       render: (_, row) => {
@@ -351,11 +341,11 @@ const DepartmentsPage = () => {
             size="sm"
             variant="outline"
             onClick={() => {
+              setEditingDepartment(row);
               setDepartmentForm({
                 name: row.name,
                 code: row.code || '',
                 description: row.description || '',
-                managerId: row.managerId || '',
               });
               setShowDepartmentModal(true);
             }}
@@ -387,11 +377,11 @@ const DepartmentsPage = () => {
             icon: Plus,
             variant: 'primary',
             onClick: () => {
+              setEditingDepartment(null);
               setDepartmentForm({
                 name: '',
                 code: '',
                 description: '',
-                managerId: '',
               });
               setShowDepartmentModal(true);
             },
@@ -445,7 +435,17 @@ const DepartmentsPage = () => {
         expandedRowKey={viewDepartment?._id}
         renderExpanded={(dept) => (
           <div className="p-4 border-t border-[var(--border-muted)] bg-gradient-to-b from-white to-[var(--bg-elevated)]">
-            <DepartmentViewModal department={dept} employees={employees} onClose={() => setViewDepartment(null)} onEdit={(d) => { setDepartmentForm({ name: d.name, code: d.code || '', description: d.description || '', managerId: d.managerId || '' }); setShowDepartmentModal(true); }} inline />
+            <DepartmentViewModal 
+              department={dept} 
+              employees={employees} 
+              onClose={() => setViewDepartment(null)} 
+              onEdit={(d) => { 
+                setEditingDepartment(d);
+                setDepartmentForm({ name: d.name, code: d.code || '', description: d.description || '' }); 
+                setShowDepartmentModal(true); 
+              }} 
+              inline 
+            />
           </div>
         )}
       />
@@ -456,15 +456,21 @@ const DepartmentsPage = () => {
       {showDepartmentModal && (
         <Modal
           open={showDepartmentModal}
-          onClose={() => setShowDepartmentModal(false)}
-          title="Add Department"
+          onClose={() => {
+            setShowDepartmentModal(false);
+            setEditingDepartment(null);
+          }}
+          title={editingDepartment ? "Edit Department" : "Add Department"}
           footer={
             <div className="flex gap-2 justify-end">
-              <Button variant="ghost" onClick={() => setShowDepartmentModal(false)}>
+              <Button variant="ghost" onClick={() => {
+                setShowDepartmentModal(false);
+                setEditingDepartment(null);
+              }}>
                 Cancel
               </Button>
               <Button onClick={handleCreateDepartment} disabled={!departmentForm.name}>
-                <Plus size={13} /> Create
+                {editingDepartment ? 'Save Changes' : <><Plus size={13} /> Create</>}
               </Button>
             </div>
           }
@@ -482,19 +488,6 @@ const DepartmentsPage = () => {
               onChange={(e) => setDepartmentForm({ ...departmentForm, code: e.target.value })}
               placeholder="ENG"
             />
-          </FormField>
-          <FormField label="Manager" className="mt-3">
-            <Select
-              value={departmentForm.managerId}
-              onChange={(e) => setDepartmentForm({ ...departmentForm, managerId: e.target.value })}
-            >
-              <option value="">Select Manager</option>
-              {employees.map((emp) => (
-                <option key={emp._id} value={emp._id}>
-                  {emp.firstName} {emp.lastName} ({emp.employeeId})
-                </option>
-              ))}
-            </Select>
           </FormField>
           <FormField label="Description" className="mt-3">
             <textarea

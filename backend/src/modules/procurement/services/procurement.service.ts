@@ -124,6 +124,14 @@ export class ProcurementService {
   async createPurchaseOrder(dto: CreatePurchaseOrderDto, tenantId: string): Promise<PurchaseOrder> {
     const tenantObjId = await this.getTenantId(tenantId);
     
+    console.log('[PROCUREMENT] Received DTO:', JSON.stringify(dto, null, 2));
+    console.log('[PROCUREMENT] Inventory fields in DTO:', {
+      categoryId: dto.categoryId,
+      itemId: dto.itemId,
+      unit: dto.unit,
+      requiredQuantity: dto.requiredQuantity
+    });
+    
     // Find the highest existing PO id from active POs and increment
     // Use lean() to get plain objects where 'id' is the actual stored field, not the Mongoose virtual
     const allPOs = await this.purchaseOrderModel.find({}, { id: 1 }).lean().exec();
@@ -166,9 +174,23 @@ export class ProcurementService {
       status: 'Ordered',
       deliveredDate: null,
       tenantId: tenantObjId,
+      // Inventory fields
+      categoryId: dto.categoryId ? new Types.ObjectId(dto.categoryId) : null,
+      categoryName: dto.categoryName || '',
+      itemId: dto.itemId || null,
+      itemName: dto.itemName || '',
+      unit: dto.unit || '',
+      requiredQuantity: dto.requiredQuantity ? Number(dto.requiredQuantity) : 0,
     });
 
-    console.log('[PROCUREMENT] Creating PO:', JSON.stringify(purchaseOrder));
+    console.log('[PROCUREMENT] Creating PO with inventory fields:', {
+      categoryId: dto.categoryId,
+      categoryName: dto.categoryName,
+      itemId: dto.itemId,
+      itemName: dto.itemName,
+      unit: dto.unit,
+      requiredQuantity: dto.requiredQuantity
+    });
 
     // Increment vendor total orders
     await this.vendorModel.findByIdAndUpdate(vendor._id, { $inc: { totalOrders: 1 } });

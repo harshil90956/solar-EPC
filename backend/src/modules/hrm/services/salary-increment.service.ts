@@ -2,8 +2,10 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { SalaryIncrement, SalaryIncrementDocument } from '../schemas/salary-increment.schema';
+import { Employee, EmployeeSchema } from '../schemas/employee.schema';
 import { CreateIncrementDto, UpdateIncrementDto } from '../dto/salary-increment.dto';
 import { Tenant, TenantDocument } from '../../../core/tenant/schemas/tenant.schema';
+import { UserWithVisibility } from '../../../common/utils/visibility-filter';
 
 @Injectable()
 export class SalaryIncrementService {
@@ -26,8 +28,14 @@ export class SalaryIncrementService {
     return (tenant as any)._id as Types.ObjectId;
   }
 
-  async create(createDto: CreateIncrementDto, tenantId?: string): Promise<SalaryIncrement> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
+  async create(createDto: CreateIncrementDto, tenantId?: string, user?: UserWithVisibility): Promise<SalaryIncrement> {
+    // 1. First, find the employee to get their actual tenantId
+    const employee = await this.tenantModel.db.model('Employee', EmployeeSchema).findById(createDto.employeeId).lean();
+    if (!employee) {
+      throw new NotFoundException('Employee not found');
+    }
+    const employeeTenantId = (employee as any).tenantId;
+
     // Validate that new salary is greater than previous
     if (createDto.newSalary <= createDto.previousSalary) {
       throw new BadRequestException('New salary must be greater than previous salary');
@@ -41,15 +49,27 @@ export class SalaryIncrementService {
       employeeId: new Types.ObjectId(createDto.employeeId),
       incrementAmount,
       approvedBy: createDto.approvedBy ? new Types.ObjectId(createDto.approvedBy) : undefined,
-      tenantId: tid,
+      tenantId: employeeTenantId,
     });
 
     return increment.save();
   }
 
-  async findAll(employeeId?: string, tenantId?: string): Promise<SalaryIncrement[]> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
-    const query: any = { tenantId: tid };
+  async findAll(employeeId?: string, tenantId?: string, user?: UserWithVisibility): Promise<SalaryIncrement[]> {
+    const query: any = {};
+
+    // SuperAdmin global view support
+    if (user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin') {
+      if (tenantId && tenantId !== 'default' && tenantId !== 'undefined' && Types.ObjectId.isValid(tenantId)) {
+        query.tenantId = new Types.ObjectId(tenantId);
+      }
+    } else {
+      // Regular users MUST have a tenantId
+      if (!tenantId || tenantId === 'default' || tenantId === 'undefined') {
+        throw new BadRequestException('Tenant context is missing');
+      }
+      query.tenantId = await this.resolveTenantObjectId(tenantId);
+    }
     
     if (employeeId) {
       query.employeeId = new Types.ObjectId(employeeId);
@@ -63,9 +83,20 @@ export class SalaryIncrementService {
       .exec();
   }
 
-  async findOne(id: string, tenantId?: string): Promise<SalaryIncrement> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
-    const query: any = { _id: new Types.ObjectId(id), tenantId: tid };
+  async findOne(id: string, tenantId?: string, user?: UserWithVisibility): Promise<SalaryIncrement> {
+    const query: any = { _id: new Types.ObjectId(id) };
+
+    // SuperAdmin global view support
+    if (user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin') {
+      if (tenantId && tenantId !== 'default' && tenantId !== 'undefined' && Types.ObjectId.isValid(tenantId)) {
+        query.tenantId = new Types.ObjectId(tenantId);
+      }
+    } else {
+      if (!tenantId || tenantId === 'default' || tenantId === 'undefined') {
+        throw new BadRequestException('Tenant context is missing');
+      }
+      query.tenantId = await this.resolveTenantObjectId(tenantId);
+    }
 
     const increment = await this.incrementModel
       .findOne(query)
@@ -80,12 +111,22 @@ export class SalaryIncrementService {
     return increment;
   }
 
-  async findByEmployeeId(employeeId: string, tenantId?: string): Promise<SalaryIncrement[]> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
+  async findByEmployeeId(employeeId: string, tenantId?: string, user?: UserWithVisibility): Promise<SalaryIncrement[]> {
     const query: any = { 
       employeeId: new Types.ObjectId(employeeId),
-      tenantId: tid,
     };
+
+    // SuperAdmin global view support
+    if (user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin') {
+      if (tenantId && tenantId !== 'default' && tenantId !== 'undefined' && Types.ObjectId.isValid(tenantId)) {
+        query.tenantId = new Types.ObjectId(tenantId);
+      }
+    } else {
+      if (!tenantId || tenantId === 'default' || tenantId === 'undefined') {
+        throw new BadRequestException('Tenant context is missing');
+      }
+      query.tenantId = await this.resolveTenantObjectId(tenantId);
+    }
 
     return this.incrementModel
       .find(query)
@@ -94,12 +135,22 @@ export class SalaryIncrementService {
       .exec();
   }
 
-  async getLatestSalary(employeeId: string, tenantId?: string): Promise<number> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
+  async getLatestSalary(employeeId: string, tenantId?: string, user?: UserWithVisibility): Promise<number> {
     const query: any = { 
       employeeId: new Types.ObjectId(employeeId),
-      tenantId: tid,
     };
+
+    // SuperAdmin global view support
+    if (user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin') {
+      if (tenantId && tenantId !== 'default' && tenantId !== 'undefined' && Types.ObjectId.isValid(tenantId)) {
+        query.tenantId = new Types.ObjectId(tenantId);
+      }
+    } else {
+      if (!tenantId || tenantId === 'default' || tenantId === 'undefined') {
+        throw new BadRequestException('Tenant context is missing');
+      }
+      query.tenantId = await this.resolveTenantObjectId(tenantId);
+    }
 
     const latestIncrement = await this.incrementModel
       .findOne(query)
@@ -109,8 +160,8 @@ export class SalaryIncrementService {
     return latestIncrement ? latestIncrement.newSalary : 0;
   }
 
-  async getIncrementHistory(employeeId: string, tenantId?: string): Promise<any> {
-    const increments = await this.findByEmployeeId(employeeId, tenantId);
+  async getIncrementHistory(employeeId: string, tenantId?: string, user?: UserWithVisibility): Promise<any> {
+    const increments = await this.findByEmployeeId(employeeId, tenantId, user);
     
     const currentSalary = increments.length > 0 ? increments[0].newSalary : 0;
     const totalIncrementPercentage = increments.reduce((sum, inc) => sum + inc.incrementPercentage, 0);
@@ -133,9 +184,20 @@ export class SalaryIncrementService {
     };
   }
 
-  async update(id: string, updateDto: UpdateIncrementDto, tenantId?: string): Promise<SalaryIncrement> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
-    const query: any = { _id: new Types.ObjectId(id), tenantId: tid };
+  async update(id: string, updateDto: UpdateIncrementDto, tenantId?: string, user?: UserWithVisibility): Promise<SalaryIncrement> {
+    const query: any = { _id: new Types.ObjectId(id) };
+
+    // SuperAdmin global view support
+    if (user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin') {
+      if (tenantId && tenantId !== 'default' && tenantId !== 'undefined' && Types.ObjectId.isValid(tenantId)) {
+        query.tenantId = new Types.ObjectId(tenantId);
+      }
+    } else {
+      if (!tenantId || tenantId === 'default' || tenantId === 'undefined') {
+        throw new BadRequestException('Tenant context is missing');
+      }
+      query.tenantId = await this.resolveTenantObjectId(tenantId);
+    }
 
     // If updating salaries, recalculate increment amount
     const updateData: any = { ...updateDto };
@@ -167,9 +229,20 @@ export class SalaryIncrementService {
     return increment;
   }
 
-  async delete(id: string, tenantId?: string): Promise<void> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
-    const query: any = { _id: new Types.ObjectId(id), tenantId: tid };
+  async delete(id: string, tenantId?: string, user?: UserWithVisibility): Promise<void> {
+    const query: any = { _id: new Types.ObjectId(id) };
+
+    // SuperAdmin global view support
+    if (user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin') {
+      if (tenantId && tenantId !== 'default' && tenantId !== 'undefined' && Types.ObjectId.isValid(tenantId)) {
+        query.tenantId = new Types.ObjectId(tenantId);
+      }
+    } else {
+      if (!tenantId || tenantId === 'default' || tenantId === 'undefined') {
+        throw new BadRequestException('Tenant context is missing');
+      }
+      query.tenantId = await this.resolveTenantObjectId(tenantId);
+    }
 
     const result = await this.incrementModel.deleteOne(query).exec();
     

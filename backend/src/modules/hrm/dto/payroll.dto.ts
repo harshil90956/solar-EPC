@@ -41,6 +41,40 @@ export class GeneratePayrollDto {
   bonus?: number;
 }
 
+export class UpdatePayrollDto {
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  @Type(() => Number)
+  baseSalary?: number;
+
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  @Type(() => Number)
+  allowances?: number;
+
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  @Type(() => Number)
+  deductions?: number;
+
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  @Type(() => Number)
+  bonus?: number;
+
+  @IsString()
+  @IsOptional()
+  paymentStatus?: string;
+
+  @IsString()
+  @IsOptional()
+  paymentReference?: string;
+}
+
 export class GetPayrollQueryDto {
   @IsMongoId()
   @IsOptional()

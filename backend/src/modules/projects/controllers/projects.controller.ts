@@ -87,6 +87,17 @@ export class ProjectsController {
     return this.projectsService.create(tenantId, createProjectDto);
   }
 
+  @Post('from-quotation/:quotationId')
+  async createFromQuotation(
+    @Param('quotationId') quotationId: string,
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
+  ) {
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
+    const project = await this.projectsService.createFromQuotation(quotationId, tenantId);
+    return { success: true, data: project };
+  }
+
   @Patch(':projectId')
   @RequirePermission('projects', 'edit')
   async update(

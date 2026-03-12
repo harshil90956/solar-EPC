@@ -71,7 +71,7 @@ export const departmentApi = {
   getAll: () => apiClient.get('/hrm/departments'),
   getById: (id) => apiClient.get(`/hrm/departments/${id}`),
   create: (data) => apiClient.post('/hrm/departments', data),
-  update: (id, data) => apiClient.patch(`/hrm/departments/${id}`),
+  update: (id, data) => apiClient.patch(`/hrm/departments/${id}`, data),
   delete: (id) => apiClient.delete(`/hrm/departments/${id}`),
 };
 

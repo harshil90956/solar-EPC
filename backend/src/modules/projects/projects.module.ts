@@ -7,6 +7,7 @@ import { Tenant, TenantSchema } from '../../core/tenant/schemas/tenant.schema';
 import { Item, ItemSchema } from '../items/schemas/item.schema';
 import { Inventory, InventorySchema } from '../inventory/schemas/inventory.schema';
 import { InventoryReservation, InventoryReservationSchema } from '../inventory/schemas/inventory-reservation.schema';
+import { DocumentEntity, DocumentEntitySchema } from '../document/schemas/document.schema';
 import { SettingsModule } from '../settings/settings.module';
 
 @Module({
@@ -17,6 +18,7 @@ import { SettingsModule } from '../settings/settings.module';
       { name: Item.name, schema: ItemSchema },
       { name: Inventory.name, schema: InventorySchema },
       { name: InventoryReservation.name, schema: InventoryReservationSchema },
+      { name: DocumentEntity.name, schema: DocumentEntitySchema },
     ]),
     SettingsModule,
   ],

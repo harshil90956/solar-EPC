@@ -2,8 +2,10 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Payroll, PayrollDocument } from '../schemas/payroll.schema';
-import { GeneratePayrollDto, MarkAsPaidDto } from '../dto/payroll.dto';
+import { Employee, EmployeeSchema } from '../schemas/employee.schema';
+import { GeneratePayrollDto, MarkAsPaidDto, UpdatePayrollDto } from '../dto/payroll.dto';
 import { Tenant, TenantDocument } from '../../../core/tenant/schemas/tenant.schema';
+import { UserWithVisibility } from '../../../common/utils/visibility-filter';
 
 @Injectable()
 export class PayrollService {
@@ -26,14 +28,20 @@ export class PayrollService {
     return (tenant as any)._id as Types.ObjectId;
   }
 
-  async generate(generateDto: GeneratePayrollDto, tenantId?: string): Promise<Payroll> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
+  async generate(generateDto: GeneratePayrollDto, tenantId?: string, user?: UserWithVisibility): Promise<Payroll> {
+    // 1. First, find the employee to get their actual tenantId
+    const employee = await this.tenantModel.db.model('Employee', EmployeeSchema).findById(generateDto.employeeId).lean();
+    if (!employee) {
+      throw new NotFoundException('Employee not found');
+    }
+    const employeeTenantId = (employee as any).tenantId;
+
     // Check if payroll already exists for this month/year
     const existingPayroll = await this.payrollModel.findOne({
       employeeId: new Types.ObjectId(generateDto.employeeId),
       month: generateDto.month,
       year: generateDto.year,
-      tenantId: tid,
+      tenantId: employeeTenantId,
     });
 
     if (existingPayroll) {
@@ -54,15 +62,27 @@ export class PayrollService {
       bonus,
       netSalary,
       isPaid: false,
-      tenantId: tid,
+      tenantId: employeeTenantId,
     });
 
     return payroll.save();
   }
 
-  async findAll(employeeId?: string, month?: number, year?: number, tenantId?: string): Promise<Payroll[]> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
-    const query: any = { tenantId: tid };
+  async findAll(employeeId?: string, month?: number, year?: number, tenantId?: string, user?: UserWithVisibility): Promise<Payroll[]> {
+    const query: any = {};
+
+    // SuperAdmin global view support
+    if (user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin') {
+      if (tenantId && tenantId !== 'default' && tenantId !== 'undefined' && Types.ObjectId.isValid(tenantId)) {
+        query.tenantId = new Types.ObjectId(tenantId);
+      }
+    } else {
+      // Regular users MUST have a tenantId
+      if (!tenantId || tenantId === 'default' || tenantId === 'undefined') {
+        throw new BadRequestException('Tenant context is missing');
+      }
+      query.tenantId = await this.resolveTenantObjectId(tenantId);
+    }
     
     if (employeeId) {
       query.employeeId = new Types.ObjectId(employeeId);
@@ -83,9 +103,20 @@ export class PayrollService {
       .exec();
   }
 
-  async findOne(id: string, tenantId?: string): Promise<Payroll> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
-    const query: any = { _id: new Types.ObjectId(id), tenantId: tid };
+  async findOne(id: string, tenantId?: string, user?: UserWithVisibility): Promise<Payroll> {
+    const query: any = { _id: new Types.ObjectId(id) };
+
+    // SuperAdmin global view support
+    if (user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin') {
+      if (tenantId && tenantId !== 'default' && tenantId !== 'undefined' && Types.ObjectId.isValid(tenantId)) {
+        query.tenantId = new Types.ObjectId(tenantId);
+      }
+    } else {
+      if (!tenantId || tenantId === 'default' || tenantId === 'undefined') {
+        throw new BadRequestException('Tenant context is missing');
+      }
+      query.tenantId = await this.resolveTenantObjectId(tenantId);
+    }
 
     const payroll = await this.payrollModel
       .findOne(query)
@@ -99,12 +130,22 @@ export class PayrollService {
     return payroll;
   }
 
-  async findByEmployeeId(employeeId: string, tenantId?: string): Promise<Payroll[]> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
+  async findByEmployeeId(employeeId: string, tenantId?: string, user?: UserWithVisibility): Promise<Payroll[]> {
     const query: any = { 
       employeeId: new Types.ObjectId(employeeId),
-      tenantId: tid,
     };
+
+    // SuperAdmin global view support
+    if (user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin') {
+      if (tenantId && tenantId !== 'default' && tenantId !== 'undefined' && Types.ObjectId.isValid(tenantId)) {
+        query.tenantId = new Types.ObjectId(tenantId);
+      }
+    } else {
+      if (!tenantId || tenantId === 'default' || tenantId === 'undefined') {
+        throw new BadRequestException('Tenant context is missing');
+      }
+      query.tenantId = await this.resolveTenantObjectId(tenantId);
+    }
 
     return this.payrollModel
       .find(query)
@@ -113,9 +154,20 @@ export class PayrollService {
       .exec();
   }
 
-  async markAsPaid(id: string, markDto: MarkAsPaidDto, tenantId?: string): Promise<Payroll> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
-    const query: any = { _id: new Types.ObjectId(id), tenantId: tid };
+  async markAsPaid(id: string, markDto: MarkAsPaidDto, tenantId?: string, user?: UserWithVisibility): Promise<Payroll> {
+    const query: any = { _id: new Types.ObjectId(id) };
+
+    // SuperAdmin global view support
+    if (user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin') {
+      if (tenantId && tenantId !== 'default' && tenantId !== 'undefined' && Types.ObjectId.isValid(tenantId)) {
+        query.tenantId = new Types.ObjectId(tenantId);
+      }
+    } else {
+      if (!tenantId || tenantId === 'default' || tenantId === 'undefined') {
+        throw new BadRequestException('Tenant context is missing');
+      }
+      query.tenantId = await this.resolveTenantObjectId(tenantId);
+    }
 
     const payroll = await this.payrollModel
       .findOneAndUpdate(
@@ -139,8 +191,8 @@ export class PayrollService {
     return payroll;
   }
 
-  async getSalaryBreakdown(id: string, tenantId?: string): Promise<any> {
-    const payroll = await this.findOne(id, tenantId) as PayrollDocument;
+  async getSalaryBreakdown(id: string, tenantId?: string, user?: UserWithVisibility): Promise<any> {
+    const payroll = await this.findOne(id, tenantId, user) as PayrollDocument;
 
     return {
       payrollId: payroll._id,
@@ -165,25 +217,75 @@ export class PayrollService {
     };
   }
 
-  async generateBulk(employeeIds: string[], month: number, year: number, tenantId?: string): Promise<Payroll[]> {
-    const tid = await this.resolveTenantObjectId(tenantId || '');
+  async update(id: string, updateDto: UpdatePayrollDto, tenantId?: string, user?: UserWithVisibility): Promise<Payroll> {
+    const query: any = { _id: new Types.ObjectId(id) };
+
+    // SuperAdmin global view support
+    if (user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin') {
+      if (tenantId && tenantId !== 'default' && tenantId !== 'undefined' && Types.ObjectId.isValid(tenantId)) {
+        query.tenantId = new Types.ObjectId(tenantId);
+      }
+    } else {
+      if (!tenantId || tenantId === 'default' || tenantId === 'undefined') {
+        throw new BadRequestException('Tenant context is missing');
+      }
+      query.tenantId = await this.resolveTenantObjectId(tenantId);
+    }
+
+    const payroll = await this.payrollModel.findOne(query);
+    if (!payroll) {
+      throw new NotFoundException(`Payroll record with ID ${id} not found`);
+    }
+
+    // Recalculate net salary if components are updated
+    const baseSalary = updateDto.baseSalary !== undefined ? updateDto.baseSalary : payroll.baseSalary;
+    const allowances = updateDto.allowances !== undefined ? updateDto.allowances : payroll.allowances;
+    const deductions = updateDto.deductions !== undefined ? updateDto.deductions : payroll.deductions;
+    const bonus = updateDto.bonus !== undefined ? updateDto.bonus : payroll.bonus;
+    
+    const netSalary = baseSalary + allowances + bonus - deductions;
+
+    const updatedPayroll = await this.payrollModel.findOneAndUpdate(
+      query,
+      { 
+        $set: { 
+          ...updateDto,
+          netSalary 
+        } 
+      },
+      { new: true }
+    ).populate('employeeId', 'firstName lastName employeeId email').exec();
+
+    return updatedPayroll!;
+  }
+
+  async delete(id: string, tenantId?: string, user?: UserWithVisibility): Promise<void> {
+    const query: any = { _id: new Types.ObjectId(id) };
+
+    // SuperAdmin global view support
+    if (user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin') {
+      if (tenantId && tenantId !== 'default' && tenantId !== 'undefined' && Types.ObjectId.isValid(tenantId)) {
+        query.tenantId = new Types.ObjectId(tenantId);
+      }
+    } else {
+      if (!tenantId || tenantId === 'default' || tenantId === 'undefined') {
+        throw new BadRequestException('Tenant context is missing');
+      }
+      query.tenantId = await this.resolveTenantObjectId(tenantId);
+    }
+
+    const result = await this.payrollModel.deleteOne(query).exec();
+    if (result.deletedCount === 0) {
+      throw new NotFoundException(`Payroll record with ID ${id} not found`);
+    }
+  }
+
+  async generateBulk(employeeIds: string[], month: number, year: number, tenantId?: string, user?: UserWithVisibility): Promise<Payroll[]> {
     const results: Payroll[] = [];
 
     for (const employeeId of employeeIds) {
       try {
-        // Check if already exists
-        const existing = await this.payrollModel.findOne({
-          employeeId: new Types.ObjectId(employeeId),
-          month,
-          year,
-          tenantId: tid,
-        });
-
-        if (existing) {
-          continue; // Skip if already exists
-        }
-
-        // Generate with default values (can be customized per employee)
+        // Generate using the updated generate method which handles tenantId resolution
         const payroll = await this.generate({
           employeeId,
           month,
@@ -192,7 +294,7 @@ export class PayrollService {
           allowances: 5000,
           deductions: 2000,
           bonus: 0,
-        }, tenantId);
+        }, tenantId, user);
 
         results.push(payroll);
       } catch (error) {

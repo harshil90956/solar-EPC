@@ -1,36 +1,51 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
 import { LeaveService } from '../services/leave.service';
-import { CreateLeaveDto, UpdateLeaveStatusDto, ApproveLeaveDto, GetLeaveQueryDto } from '../dto/leave.dto';
+import { CreateLeaveDto, UpdateLeaveStatusDto, ApproveLeaveDto, GetLeaveQueryDto, UpdateLeaveDto } from '../dto/leave.dto';
+import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
+import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
 
 @Controller('hrm/leaves')
+@UseGuards(JwtAuthGuard, TenantGuard)
 export class LeaveController {
   constructor(private readonly leaveService: LeaveService) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
   async create(@Body() createLeaveDto: CreateLeaveDto, @Req() req: any) {
-    const tenantId = req.tenant?.id || 'default';
+    const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const data = await this.leaveService.create(createLeaveDto, tenantId);
     return { success: true, data };
   }
 
   @Get()
   async findAll(@Query() query: GetLeaveQueryDto, @Req() req: any) {
-    const tenantId = req.tenant?.id || 'default';
+    const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const data = await this.leaveService.findAll(
       query.employeeId,
       query.status,
       query.startDate,
       query.endDate,
       tenantId,
+      req.user,
     );
     return { success: true, data };
   }
 
   @Get(':id')
   async findOne(@Param('id') id: string, @Req() req: any) {
-    const tenantId = req.tenant?.id || 'default';
+    const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const data = await this.leaveService.findOne(id, tenantId);
+    return { success: true, data };
+  }
+
+  @Patch(':id')
+  async update(
+    @Param('id') id: string,
+    @Body() updateLeaveDto: UpdateLeaveDto,
+    @Req() req: any,
+  ) {
+    const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
+    const data = await this.leaveService.update(id, updateLeaveDto, tenantId, req.user);
     return { success: true, data };
   }
 
