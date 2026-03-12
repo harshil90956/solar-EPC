@@ -25,7 +25,7 @@ import { api } from '../lib/apiClient';
 import ImportExport from '../components/ui/ImportExport';
 import CompactCalendarFilter from '../components/ui/CompactCalendarFilter';
 import { leadsApi } from '../services/leadsApi';
-import { employeeApi } from '../services/hrmApi';
+import { employeeApi, departmentApi } from '../services/hrmApi';
 
 const fmt = CURRENCY.format;
 
@@ -181,15 +181,19 @@ const ProjectPage = () => {
   const [selectedProjects, setSelectedProjects] = useState(new Set()); // For bulk selection
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [form, setForm] = useState({ customerName: '', site: '', systemSize: '', pm: '', value: '', estEndDate: '', email: '', mobileNumber: '', materials: [] });
+  const [form, setForm] = useState({ customerName: '', site: '', systemSize: '', pm: '', department: '', value: '', estEndDate: '', email: '', mobileNumber: '', materials: [] });
   const [items, setItems] = useState([]); // Items for material selection
   const [itemsLoading, setItemsLoading] = useState(false);
   const [projectReservations, setProjectReservations] = useState([]);
   const [loadingProjectReservations, setLoadingProjectReservations] = useState(false);
-  const [editForm, setEditForm] = useState({ customerName: '', site: '', systemSize: '', pm: '', value: '', estEndDate: '', email: '', mobileNumber: '', materials: [] });
+  const [editForm, setEditForm] = useState({ customerName: '', site: '', systemSize: '', pm: '', department: '', value: '', estEndDate: '', email: '', mobileNumber: '', materials: [] });
   const [submitting, setSubmitting] = useState(false);
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
+  const [departments, setDepartments] = useState([]);
+  const [departmentsLoading, setDepartmentsLoading] = useState(false);
+  const [employeesByDept, setEmployeesByDept] = useState([]);
+  const [employeesLoading, setEmployeesLoading] = useState(false);
   const [hiddenCols, setHiddenCols] = useState(new Set());
   const [colToggleOpen, setColToggleOpen] = useState(false);
   const [projectStats, setProjectStats] = useState(null);
@@ -336,6 +340,75 @@ const ProjectPage = () => {
     };
     fetchProjectManagers();
   }, []);
+
+  // Fetch departments from HRM
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      setDepartmentsLoading(true);
+      try {
+        console.log('[DEBUG] Fetching departments...');
+        const res = await departmentApi.getAll();
+        console.log('[DEBUG] Departments API response:', res);
+        const result = res?.data ?? res;
+        console.log('[DEBUG] Departments result:', result);
+        const deptsArray = Array.isArray(result) ? result : (result?.data || []);
+        console.log('[DEBUG] Departments array:', deptsArray);
+        setDepartments(deptsArray);
+      } catch (err) {
+        console.error('[DEBUG] Error fetching departments:', err);
+      } finally {
+        setDepartmentsLoading(false);
+      }
+    };
+    fetchDepartments();
+  }, []);
+
+  // Fetch employees when department is selected (for add form)
+  useEffect(() => {
+    const fetchEmployeesByDept = async () => {
+      if (!form.department) {
+        setEmployeesByDept([]);
+        return;
+      }
+      setEmployeesLoading(true);
+      try {
+        console.log('[DEBUG] Fetching employees for department:', form.department);
+        const res = await employeeApi.getByDepartment(form.department);
+        console.log('[DEBUG] Employees API response:', res);
+        const result = res?.data ?? res;
+        const employees = Array.isArray(result) ? result : (result?.data || []);
+        console.log('[DEBUG] Employees array:', employees);
+        setEmployeesByDept(employees);
+      } catch (err) {
+        console.error('[DEBUG] Error fetching employees by department:', err);
+      } finally {
+        setEmployeesLoading(false);
+      }
+    };
+    fetchEmployeesByDept();
+  }, [form.department]);
+
+  // Fetch employees when department is selected (for edit form)
+  useEffect(() => {
+    const fetchEditEmployeesByDept = async () => {
+      if (!editForm.department) {
+        setEmployeesByDept([]);
+        return;
+      }
+      setEmployeesLoading(true);
+      try {
+        const res = await employeeApi.getByDepartment(editForm.department);
+        const result = res?.data ?? res;
+        const employees = Array.isArray(result) ? result : (result?.data || []);
+        setEmployeesByDept(employees);
+      } catch (err) {
+        console.error('Error fetching employees by department:', err);
+      } finally {
+        setEmployeesLoading(false);
+      }
+    };
+    fetchEditEmployeesByDept();
+  }, [editForm.department]);
 
   // Fetch items for material selection
   useEffect(() => {
@@ -1559,7 +1632,7 @@ const ProjectPage = () => {
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="New Project"
         footer={<div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={() => setShowAdd(false)}>Cancel</Button>
-          <Button onClick={handleCreateProject} disabled={!form.customerName || !form.site || !form.systemSize || !form.pm}>
+          <Button onClick={handleCreateProject} disabled={!form.customerName || !form.site || !form.systemSize || !form.pm || !form.department}>
             <Plus size={13} /> Create Project
           </Button>
         </div>}>
@@ -1585,12 +1658,20 @@ const ProjectPage = () => {
             <FormField label="Project Value (₹)"><Input type="number" placeholder="280000" value={form.value} onChange={e => setForm(f => ({ ...f, value: e.target.value }))} /></FormField>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <FormField label="Project Manager">
-              <Select value={form.pm} onChange={e => setForm(f => ({ ...f, pm: e.target.value }))}>
-                <option value="">{usersLoading ? 'Loading...' : 'Assign PM'}</option>
-                {users.map(u => <option key={u.id} value={u.name}>{u.name} {u.role ? `(${u.role})` : ''}</option>)}
+            <FormField label="Department">
+              <Select value={form.department} onChange={e => setForm(f => ({ ...f, department: e.target.value, pm: '' }))}>
+                <option value="">{departmentsLoading ? 'Loading...' : 'Select Department'}</option>
+                {departments.map(d => <option key={d._id || d.id} value={d.name}>{d.name}</option>)}
               </Select>
             </FormField>
+            <FormField label="Assign Employee">
+              <Select value={form.pm} onChange={e => setForm(f => ({ ...f, pm: e.target.value }))} disabled={!form.department || employeesLoading}>
+                <option value="">{employeesLoading ? 'Loading...' : form.department ? 'Select Employee' : 'First select department'}</option>
+                {employeesByDept.map(e => <option key={e._id || e.id} value={`${e.firstName} ${e.lastName}`.trim()}>{`${e.firstName} ${e.lastName}`.trim()} {e.designation ? `(${e.designation})` : ''}</option>)}
+              </Select>
+            </FormField>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="Estimated End Date"><Input type="date" value={form.estEndDate} onChange={e => setForm(f => ({ ...f, estEndDate: e.target.value }))} /></FormField>
           </div>
         </div>
@@ -1626,14 +1707,20 @@ const ProjectPage = () => {
             <FormField label="Project Value (₹)"><Input type="number" placeholder="280000" value={editForm.value} onChange={e => setEditForm(f => ({ ...f, value: e.target.value }))} /></FormField>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="Project Manager">
-              <Select value={editForm.pm} onChange={e => setEditForm(f => ({ ...f, pm: e.target.value }))}>
-                <option value="">{usersLoading ? 'Loading...' : 'Assign PM'}</option>
-                {users.map(u => <option key={u.id} value={u.name}>{u.name} {u.role ? `(${u.role})` : ''}</option>)}
+            <FormField label="Department">
+              <Select value={editForm.department} onChange={e => setEditForm(f => ({ ...f, department: e.target.value, pm: '' }))}>
+                <option value="">{departmentsLoading ? 'Loading...' : 'Select Department'}</option>
+                {departments.map(d => <option key={d._id || d.id} value={d.name}>{d.name}</option>)}
               </Select>
             </FormField>
-            <FormField label="Estimated End Date"><Input type="date" value={editForm.estEndDate} onChange={e => setEditForm(f => ({ ...f, estEndDate: e.target.value }))} /></FormField>
+            <FormField label="Assign Employee">
+              <Select value={editForm.pm} onChange={e => setEditForm(f => ({ ...f, pm: e.target.value }))} disabled={!editForm.department || employeesLoading}>
+                <option value="">{employeesLoading ? 'Loading...' : editForm.department ? 'Select Employee' : 'First select department'}</option>
+                {employeesByDept.map(e => <option key={e._id || e.id} value={`${e.firstName} ${e.lastName}`.trim()}>{`${e.firstName} ${e.lastName}`.trim()} {e.designation ? `(${e.designation})` : ''}</option>)}
+              </Select>
+            </FormField>
           </div>
+          <FormField label="Estimated End Date"><Input type="date" value={editForm.estEndDate} onChange={e => setEditForm(f => ({ ...f, estEndDate: e.target.value }))} /></FormField>
         </div>
       </Modal>
 
