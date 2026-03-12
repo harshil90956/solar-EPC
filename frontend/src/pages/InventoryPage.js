@@ -1031,15 +1031,21 @@ const InventoryPage = () => {
           const project = projects.find(p => p.projectId === stockOutForm.projectId);
           const projectName = project?.customerName || project?.name || 'Unknown Project';
 
-          await apiClient.post('/inventory/reservations', {
+          console.log('[FRONTEND] Creating reservation for item:', item?.itemId, 'project:', stockOutForm.projectId);
+          
+          const resResponse = await apiClient.post('/inventory/reservations', {
             reservationId: `RES-${Date.now()}`,
             itemId: item?.itemId || stockOutForm.itemId,
+            inventoryId: item?._id,
             projectId: stockOutForm.projectId,
             projectName: projectName,
             quantity: parseInt(stockOutForm.quantity),
             notes: stockOutForm.remarks || `Stock issued on ${stockOutForm.issuedDate || new Date().toISOString().split('T')[0]}`,
           }, { params: { tenantId: TENANT_ID } });
+          
+          console.log('[FRONTEND] Reservation created:', resResponse);
         } catch (resErr) {
+          console.error('[FRONTEND] Reservation creation failed:', resErr);
           // Don't fail the whole operation if reservation creation fails
         }
       }
@@ -2495,7 +2501,7 @@ const InventoryPage = () => {
                               <Edit2 size={14} />
                             </button>
                             <button
-                              onClick={(e) => { e.stopPropagation(); handleDeleteItem(item.itemId); }}
+                              onClick={(e) => { e.stopPropagation(); handleDeleteItem(item); }}
                               className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-red-500 hover:bg-red-500/10"
                               title="Delete"
                             >

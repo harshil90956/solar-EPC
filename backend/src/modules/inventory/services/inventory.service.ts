@@ -283,21 +283,33 @@ export class InventoryService {
 
   async getReservationsByProject(tenantCode: string, projectId: string) {
     const tenantId = await this.resolveTenantObjectId(tenantCode);
+    
+    // Build projectId variants to match both string and ObjectId formats
+    const searchProjectIds: any[] = [projectId];
+    if (Types.ObjectId.isValid(projectId)) {
+      searchProjectIds.push(new Types.ObjectId(projectId));
+    }
+    
     return this.reservationModel
-
       .find({ 
-        $or: [
-          { tenantId: tenantId },
-          { tenantId: tenantId.toString() },
+        $and: [
+          {
+            $or: [
+              { tenantId: tenantId },
+              { tenantId: tenantId.toString() },
+            ]
+          },
+          {
+            $or: [
+              { projectId: { $in: searchProjectIds } },
+              { projectId: projectId.toString() }
+            ]
+          }
         ],
-        projectId, 
-        status: { $in: ['active', 'fulfilled'] } 
+        status: { $in: ['active', 'fulfilled', 'Pending', 'Active'] } 
       })
-
       .sort({ createdAt: -1 })
-
       .exec();
-
   }
 
 
@@ -313,17 +325,54 @@ export class InventoryService {
       searchItemIds.push('INV' + itemId);
     }
 
-    return this.reservationModel
+    const reservations = await this.reservationModel
       .find({
         $or: [
           { tenantId: tenantId },
           { tenantId: tenantId.toString() },
         ],
         itemId: { $in: searchItemIds },
-        status: { $in: ['active', 'fulfilled'] },
+        status: { $in: ['active', 'fulfilled', 'Pending'] },
       })
       .sort({ createdAt: -1 })
       .exec();
+
+    // Transform reservations to include project details
+    const transformedReservations = await Promise.all(
+      reservations.map(async (res) => {
+        const resObj = res.toObject();
+        
+        // Try to find project details - projectId could be string or ObjectId
+        let projectDetails = null;
+        try {
+          const projectIdStr = res.projectId?.toString();
+          // Try to find by projectId as string (e.g., P3262)
+          const query: any = { projectId: projectIdStr };
+          // Also try _id if projectId is a valid ObjectId
+          if (Types.ObjectId.isValid(res.projectId)) {
+            query.$or = [
+              { projectId: projectIdStr },
+              { _id: new Types.ObjectId(res.projectId) }
+            ];
+            delete query.projectId;
+          }
+          projectDetails = await this.inventoryModel.db.collection('projects').findOne(query, { projection: { projectId: 1, customerName: 1, name: 1, status: 1 } });
+        } catch (e) {
+          // Ignore errors
+        }
+
+        return {
+          ...resObj,
+          projectId: res.projectId?.toString(),
+          project: projectDetails || {
+            projectId: res.projectId?.toString(),
+            customerName: (res as any).projectName || 'Unknown Project'
+          }
+        };
+      })
+    );
+
+    return transformedReservations;
   }
 
 

@@ -24,6 +24,8 @@ import { toast } from '../components/ui/Toast';
 import { api } from '../lib/apiClient';
 import ImportExport from '../components/ui/ImportExport';
 import CompactCalendarFilter from '../components/ui/CompactCalendarFilter';
+import { leadsApi } from '../services/leadsApi';
+import { employeeApi } from '../services/hrmApi';
 
 const fmt = CURRENCY.format;
 
@@ -192,6 +194,8 @@ const ProjectPage = () => {
   const [colToggleOpen, setColToggleOpen] = useState(false);
   const [projectStats, setProjectStats] = useState(null);
   const [projectsByStage, setProjectsByStage] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [customersLoading, setCustomersLoading] = useState(false);
 
   // Month filter state
   const [monthFilter, setMonthFilter] = useState('all');
@@ -293,21 +297,35 @@ const ProjectPage = () => {
       setUsersLoading(true);
       try {
         // Fetch all employees from HRM
-        const res = await api.get('/hrm/employees', { tenantId: TENANT_ID });
+        const res = await employeeApi.getAll();
         const result = res?.data ?? res;
         const employees = result?.data || result || [];
-        // Filter to get project managers - employees with roleId containing 'manager' or designation 'Project Manager'
-        const projectManagers = employees.filter(e =>
-          e.roleId?.toLowerCase().includes('manager') ||
-          e.designation?.toLowerCase().includes('project manager') ||
-          e.department?.toLowerCase().includes('project')
-        );
+        console.log('[DEBUG] Employees fetched:', employees.length, employees);
+        // Filter to get project managers - check roleId (string), designation, or department
+        const projectManagers = employees.filter(e => {
+          const roleId = (e.roleId || '').toString().toLowerCase();
+          const designation = (e.designation || '').toLowerCase();
+          const department = (e.department || '').toLowerCase();
+          const isManager = roleId.includes('manager') ||
+            designation.includes('project manager') ||
+            designation.includes('manager') ||
+            department.includes('project');
+          console.log('[DEBUG] Employee:', e.firstName, e.lastName, 'roleId:', roleId, 'isManager:', isManager);
+          return isManager;
+        });
+        console.log('[DEBUG] Project managers found:', projectManagers.length);
+        // If no project managers found, show all active employees as fallback
+        const employeesToShow = projectManagers.length > 0 ? projectManagers : employees.filter(e => e.status === 'active' || !e.status);
+        if (projectManagers.length === 0) {
+          console.log('[DEBUG] No PMs found, showing all employees:', employeesToShow.length);
+        }
         // Map to format needed for dropdown
-        const pmList = projectManagers.map(e => ({
+        const pmList = employeesToShow.map(e => ({
           id: e._id || e.id,
           name: `${e.firstName} ${e.lastName}`.trim(),
           email: e.email,
-          department: e.department
+          department: e.department,
+          role: e.roleId || e.designation || 'Staff'
         }));
         setUsers(pmList);
       } catch (err) {
@@ -358,6 +376,24 @@ const ProjectPage = () => {
     };
     fetchProjectReservations();
   }, [selected?.projectId]);
+
+  // Fetch customers from CRM module for dropdown
+  useEffect(() => {
+    const fetchCustomers = async () => {
+      setCustomersLoading(true);
+      try {
+        const res = await leadsApi.getCustomers({ tenantId: TENANT_ID });
+        const result = res?.data ?? res;
+        const customersArray = Array.isArray(result) ? result : (result?.data || []);
+        setCustomers(customersArray);
+      } catch (err) {
+        console.error('Error fetching customers from CRM:', err);
+      } finally {
+        setCustomersLoading(false);
+      }
+    };
+    fetchCustomers();
+  }, []);
 
   // Stage order for detecting backwards moves
   const STAGE_ORDER = ['Survey', 'Design', 'Quotation', 'Procurement', 'Installation', 'Commissioned', 'On Hold', 'Cancelled'];
@@ -797,7 +833,29 @@ const ProjectPage = () => {
     setShowActivity(true);
   };
 
-  // Helper functions for managing edit materials
+  // Handle customer selection from dropdown - auto-fill email and mobile
+  const handleCustomerSelect = (customerId, isEdit = false) => {
+    const selectedCustomer = customers.find(c => c._id === customerId || c.id === customerId);
+    if (selectedCustomer) {
+      if (isEdit) {
+        setEditForm(f => ({
+          ...f,
+          customerName: selectedCustomer.name || '',
+          email: selectedCustomer.email || '',
+          mobileNumber: selectedCustomer.phone || selectedCustomer.mobileNumber || ''
+        }));
+      } else {
+        setForm(f => ({
+          ...f,
+          customerName: selectedCustomer.name || '',
+          email: selectedCustomer.email || '',
+          mobileNumber: selectedCustomer.phone || selectedCustomer.mobileNumber || ''
+        }));
+      }
+    }
+  };
+
+  // Helper functions for managing materials
   const addEditMaterial = () => {
     setEditForm(f => ({
       ...f,
@@ -1506,7 +1564,17 @@ const ProjectPage = () => {
           </Button>
         </div>}>
         <div className="space-y-3 max-h-[70vh] overflow-y-auto">
-          <FormField label="Customer Name"><Input placeholder="Customer name" value={form.customerName} onChange={e => setForm(f => ({ ...f, customerName: e.target.value }))} /></FormField>
+          <FormField label="Select Customer">
+            <Select 
+              value={customers.find(c => c.name === form.customerName)?._id || ''} 
+              onChange={e => handleCustomerSelect(e.target.value, false)}
+            >
+              <option value="">{customersLoading ? 'Loading customers...' : 'Select a customer'}</option>
+              {customers.map(c => (
+                <option key={c._id || c.id} value={c._id || c.id}>{c.name}</option>
+              ))}
+            </Select>
+          </FormField>
           <div className="grid grid-cols-2 gap-3">
             <FormField label="Email"><Input type="email" placeholder="customer@email.com" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} /></FormField>
             <FormField label="Mobile Number"><Input type="tel" placeholder="+91 98765 43210" value={form.mobileNumber} onChange={e => setForm(f => ({ ...f, mobileNumber: e.target.value }))} /></FormField>
@@ -1520,7 +1588,7 @@ const ProjectPage = () => {
             <FormField label="Project Manager">
               <Select value={form.pm} onChange={e => setForm(f => ({ ...f, pm: e.target.value }))}>
                 <option value="">{usersLoading ? 'Loading...' : 'Assign PM'}</option>
-                {users.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+                {users.map(u => <option key={u.id} value={u.name}>{u.name} {u.role ? `(${u.role})` : ''}</option>)}
               </Select>
             </FormField>
             <FormField label="Estimated End Date"><Input type="date" value={form.estEndDate} onChange={e => setForm(f => ({ ...f, estEndDate: e.target.value }))} /></FormField>
@@ -1537,7 +1605,17 @@ const ProjectPage = () => {
           </Button>
         </div>}>
         <div className="space-y-3">
-          <FormField label="Customer Name"><Input placeholder="Customer name" value={editForm.customerName} onChange={e => setEditForm(f => ({ ...f, customerName: e.target.value }))} /></FormField>
+          <FormField label="Select Customer">
+            <Select 
+              value={customers.find(c => c.name === editForm.customerName)?._id || ''} 
+              onChange={e => handleCustomerSelect(e.target.value, true)}
+            >
+              <option value="">{customersLoading ? 'Loading customers...' : 'Select a customer'}</option>
+              {customers.map(c => (
+                <option key={c._id || c.id} value={c._id || c.id}>{c.name}</option>
+              ))}
+            </Select>
+          </FormField>
           <div className="grid grid-cols-2 gap-3">
             <FormField label="Email"><Input type="email" placeholder="customer@email.com" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} /></FormField>
             <FormField label="Mobile Number"><Input type="tel" placeholder="+91 98765 43210" value={editForm.mobileNumber} onChange={e => setEditForm(f => ({ ...f, mobileNumber: e.target.value }))} /></FormField>
@@ -1551,7 +1629,7 @@ const ProjectPage = () => {
             <FormField label="Project Manager">
               <Select value={editForm.pm} onChange={e => setEditForm(f => ({ ...f, pm: e.target.value }))}>
                 <option value="">{usersLoading ? 'Loading...' : 'Assign PM'}</option>
-                {users.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+                {users.map(u => <option key={u.id} value={u.name}>{u.name} {u.role ? `(${u.role})` : ''}</option>)}
               </Select>
             </FormField>
             <FormField label="Estimated End Date"><Input type="date" value={editForm.estEndDate} onChange={e => setEditForm(f => ({ ...f, estEndDate: e.target.value }))} /></FormField>
