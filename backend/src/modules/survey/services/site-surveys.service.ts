@@ -11,7 +11,7 @@ import {
   AssignSurveyDto
 } from '../dto/site-survey.dto';
 import { LeadsService } from '../../leads/services/leads.service';
-import { UserWithVisibility, buildVisibilityFilter, applyVisibilityFilter, canAccessRecord } from '../../../common/utils/visibility-filter';
+import { UserWithVisibility, buildCompleteFilter, canAccessRecord } from '../../../common/utils/visibility-filter';
 
 @Injectable()
 export class SiteSurveysService {
@@ -25,37 +25,9 @@ export class SiteSurveysService {
 
   // Build complete filter with tenant isolation AND visibility rules
   private buildCompleteFilter(tenantId?: string, user?: UserWithVisibility, baseFilter: any = {}): any {
-    // Start with base filter including soft delete protection
-    let filter: any = { isDeleted: { $ne: true }, ...baseFilter };
-
-    // Enforce tenant isolation strictly
-    const tid = tenantId && Types.ObjectId.isValid(tenantId) ? new Types.ObjectId(tenantId) : undefined;
-
-    // SuperAdmin bypass or specific tenant context
-    if (user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin') {
-      if (tid) {
-        filter.tenantId = tid;
-      }
-      // If no tid and SuperAdmin, don't add tenantId filter (Global View)
-    } else {
-      // Regular user MUST have a valid tenant context
-      if (tid) {
-        filter.tenantId = tid;
-      } else {
-        // Match nothing when tenant context is missing for regular users
-        return { _id: { $in: [] as any[] } };
-      }
-    }
-
-    // Apply role-based visibility filtering (for AGENT/MANAGER with ASSIGNED scope)
-    if (user && !(user.isSuperAdmin || user.role?.toLowerCase() === 'superadmin' || user.role?.toLowerCase() === 'admin')) {
-      const visibilityFilter = buildVisibilityFilter(user);
-      if (Object.keys(visibilityFilter).length > 0 && visibilityFilter.tenantId !== null) {
-        filter = applyVisibilityFilter(filter, user);
-      }
-    }
-
-    return filter;
+    // Use the centralized buildCompleteFilter from visibility-filter.ts
+    // This properly respects dataScope (ALL vs ASSIGNED)
+    return buildCompleteFilter(tenantId, user, baseFilter);
   }
 
   // Check if user can access a specific survey

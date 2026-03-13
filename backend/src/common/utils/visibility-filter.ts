@@ -11,63 +11,67 @@ export interface UserWithVisibility {
 }
 
 /**
- * Role-based visibility rules:
- * - SUPER_ADMIN: All tenants, all data
- * - ADMIN: All data in their tenant
- * - MANAGER: Leads created by team members OR assigned to team members
- * - AGENT: Leads they created OR leads assigned to them
- */
-
-/**
- * Builds visibility filter for database queries based on user role
- * @param user - User object with dataScope, role, and team info
- * @param options - Optional configuration
+ * Builds visibility filter for database queries based on user dataScope
+ * @param user - User object with dataScope and id
  * @returns Filter object to be merged into query
  * 
- * Security Rules:
- * - SUPER_ADMIN with ALL scope → returns {} (no restriction, sees all tenants)
- * - ADMIN → returns {} (sees all data in their tenant - tenant filter applied separately)
- * - MANAGER → returns { $or: [{ createdBy: teamMemberIds }, { assignedTo: teamMemberIds }] }
- * - AGENT → returns { $or: [{ createdBy: userId }, { assignedTo: userId }] }
- * - No user context → returns { tenantId: null } (safest default - returns nothing)
+ * DataScope Rules:
+ * - ALL: Returns {} (no visibility restriction, sees all tenant data)
+ * - ASSIGNED: Returns { $or: [{ createdBy: userId }, { assignedTo: userId }] }
+ * - No user context: Returns {} (safest default - no additional restrictions)
  */
 export function buildVisibilityFilter(
   user: UserWithVisibility | null | undefined,
   options?: { allowCrossTenant?: boolean }
 ): Record<string, any> {
+  // Debug logging
+  console.log("[VISIBILITY]", {
+    userId: user?.id || user?._id,
+    role: user?.role,
+    dataScope: user?.dataScope,
+    isSuperAdmin: user?.isSuperAdmin
+  });
+
   if (!user) {
-    // No user context - return filter that matches nothing
-    return { tenantId: null };
+    // No user context - return no additional visibility restrictions
+    return {};
   }
 
-  // NOTE: All users must follow strict visibility rules
-  // Only creator or assigned user can see a lead
-  // No role-based bypasses - Admin, Manager, Agent all follow same rules
+  // FULL ACCESS USERS (ALL dataScope, SuperAdmin, or Admin-like roles)
+  const roleLower = (user.role || '').toLowerCase();
+  const isAdminLike = user.isSuperAdmin 
+    || roleLower === 'admin'
+    || roleLower === 'superadmin'
+    || roleLower === 'super-admin'
+    || roleLower === 'super_admin';
 
+  // Users with ALL scope get no visibility restrictions
+  if (user.dataScope === 'ALL' || isAdminLike) {
+    console.log("[VISIBILITY] Granting full access (dataScope=ALL or Admin)");
+    return {};
+  }
+
+  // LIMITED ACCESS USERS (ASSIGNED dataScope or no dataScope)
   const userId = user._id || user.id;
 
-  // Convert userId to ObjectId if needed
-  const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
-    ? new Types.ObjectId(userId)
-    : userId;
-
-  if (!objectId) {
-    return { tenantId: null };
+  if (!userId) {
+    console.log("[VISIBILITY] No userId found, returning empty filter");
+    return {};
   }
 
-  // Strict visibility for ALL users - no role-based bypasses
-  // Everyone can only see leads they created OR leads assigned to them
-  if (objectId instanceof Types.ObjectId) {
-    return {
-      $or: [
-        { createdBy: objectId },
-        { assignedTo: objectId }
-      ]
-    };
-  }
-  
-  // Fallback - return nothing if we can't build a valid filter
-  return { tenantId: null };
+  const objectId =
+    typeof userId === 'string' && Types.ObjectId.isValid(userId)
+      ? new Types.ObjectId(userId)
+      : userId;
+
+  console.log("[VISIBILITY] Applying ASSIGNED filter for user:", userId.toString());
+
+  return {
+    $or: [
+      { createdBy: objectId },
+      { assignedTo: objectId }
+    ]
+  };
 }
 
 /**
@@ -121,31 +125,54 @@ export function buildCompleteFilter(
   user: UserWithVisibility | null | undefined,
   additionalFilters: Record<string, any> = {}
 ): Record<string, any> {
+  // Debug logging
+  console.log("[BUILD_FILTER]", {
+    tenantId: tenantId?.toString(),
+    userId: user?.id || user?._id,
+    dataScope: user?.dataScope,
+    role: user?.role
+  });
+
   // Start with isDeleted filter (soft delete handling)
   const filter: Record<string, any> = { isDeleted: { $ne: true }, ...additionalFilters };
 
-  // NOTE: All users including SuperAdmin must follow strict visibility rules
-  // No role-based bypasses for tenant or visibility filters
+  // Check if user has ALL access (dataScope=ALL or is Admin/SuperAdmin)
+  const roleLower = (user?.role || '').toLowerCase();
+  const isAdminLike = user?.isSuperAdmin 
+    || roleLower === 'admin'
+    || roleLower === 'superadmin'
+    || roleLower === 'super-admin'
+    || roleLower === 'super_admin';
+  const hasFullAccess = user?.dataScope === 'ALL' || isAdminLike;
 
-  // All users MUST have tenantId
-  if (!tenantId) {
-    // No tenant context - return filter that matches nothing
+  // All users except SuperAdmin in global view MUST have tenantId
+  if (!tenantId && !user?.isSuperAdmin) {
+    console.log("[BUILD_FILTER] No tenantId and not SuperAdmin - returning empty filter");
+    // Return filter that will match nothing - tenant isolation is mandatory
     return { tenantId: null, ...filter };
   }
 
-  // Apply tenant filter
-  const tenantObjId = typeof tenantId === 'string' && Types.ObjectId.isValid(tenantId)
-    ? new Types.ObjectId(tenantId)
-    : tenantId;
-  filter.tenantId = tenantObjId;
-
-  // Apply visibility filter (assignedTo restriction for ASSIGNED scope)
-  const visibilityFilter = buildVisibilityFilter(user);
-  if (Object.keys(visibilityFilter).length > 0) {
-    // Merge visibility filter directly (it's already an AND condition via assignedTo)
-    Object.assign(filter, visibilityFilter);
+  // Apply tenant filter if tenantId is provided
+  if (tenantId) {
+    const tenantObjId = typeof tenantId === 'string' && Types.ObjectId.isValid(tenantId)
+      ? new Types.ObjectId(tenantId)
+      : tenantId;
+    filter.tenantId = tenantObjId;
   }
 
+  // Apply visibility filter ONLY for users with ASSIGNED dataScope
+  if (!hasFullAccess) {
+    const visibilityFilter = buildVisibilityFilter(user);
+    if (Object.keys(visibilityFilter).length > 0) {
+      // Merge visibility filter
+      Object.assign(filter, visibilityFilter);
+      console.log("[BUILD_FILTER] Applied ASSIGNED visibility filter");
+    }
+  } else {
+    console.log("[BUILD_FILTER] Skipping visibility filter (dataScope=ALL or Admin)");
+  }
+
+  console.log("[BUILD_FILTER] Final filter:", JSON.stringify(filter));
   return filter;
 }
 

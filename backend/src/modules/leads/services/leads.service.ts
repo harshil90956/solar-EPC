@@ -29,57 +29,9 @@ export class LeadsService {
   private readonly dashboardCacheTtlMs = 30_000;
 
   private buildCompleteFilter(tenantId?: string, user?: UserWithVisibility, baseFilter: any = {}): any {
-    // Start with base filter conditions (excluding tenantId and visibility which we'll handle separately)
-    const { tenantId: baseTenantId, ...restBaseFilter } = baseFilter;
-    const conditions: any[] = [];
-
-    // Add base filter conditions to $and
-    if (Object.keys(restBaseFilter).length > 0) {
-      conditions.push(restBaseFilter);
-    }
-
-    // Enforce tenant isolation strictly
-    const tid = tenantId && Types.ObjectId.isValid(tenantId) ? new Types.ObjectId(tenantId) : undefined;
-    
-    // SuperAdmin bypass or specific tenant context
-    if (user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin') {
-      if (tid) {
-        conditions.push({ tenantId: tid });
-      }
-      // If no tid and SuperAdmin, don't add tenantId filter (Global View)
-      // Return with just base conditions
-      return conditions.length > 0 ? { $and: conditions } : {};
-    }
-    
-    // Regular user MUST have a valid tenant context
-    if (!tid) {
-      return { _id: { $in: [] as any[] } };
-    }
-    
-    // Add tenant filter
-    conditions.push({ tenantId: tid });
-
-    // Apply role visibility rules - CREATOR OR ASSIGNED
-    if (user) {
-      const userId = user._id || user.id;
-      if (userId) {
-        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
-          ? new Types.ObjectId(userId)
-          : userId;
-        
-        if (objectId) {
-          // CRITICAL: Creator must see their leads even when unassigned
-          conditions.push({
-            $or: [
-              { createdBy: objectId },
-              { assignedTo: objectId }
-            ]
-          });
-        }
-      }
-    }
-
-    return conditions.length > 0 ? { $and: conditions } : {};
+    // Use the centralized buildCompleteFilter from visibility-filter.ts
+    // This properly respects dataScope (ALL vs ASSIGNED)
+    return buildCompleteFilter(tenantId, user, baseFilter);
   }
 
   // Check if user can access a specific lead
