@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Survey, SurveyDocument } from '../schemas/survey.schema';
@@ -12,6 +12,32 @@ export class SurveysService {
     @InjectModel(Survey.name) private surveyModel: Model<SurveyDocument>,
     @InjectModel(Lead.name) private leadModel: Model<LeadDocument>,
   ) {}
+
+  // Build complete filter with tenant isolation
+  private buildCompleteFilter(tenantId?: string, user?: UserWithVisibility, baseFilter: any = {}): any {
+    const filter = { ...baseFilter };
+
+    // Enforce tenant isolation strictly
+    const tid = tenantId && Types.ObjectId.isValid(tenantId) ? new Types.ObjectId(tenantId) : undefined;
+
+    // SuperAdmin bypass or specific tenant context
+    if (user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin') {
+      if (tid) {
+        filter.tenantId = tid;
+      }
+      // If no tid and SuperAdmin, don't add tenantId filter (Global View)
+    } else {
+      // Regular user MUST have a valid tenant context
+      if (tid) {
+        filter.tenantId = tid;
+      } else {
+        // Match nothing when tenant context is missing for regular users
+        return { _id: { $in: [] as any[] } };
+      }
+    }
+
+    return filter;
+  }
 
   private toObjectId(id: string | undefined): Types.ObjectId | undefined {
     if (!id) return undefined;
@@ -27,13 +53,19 @@ export class SurveysService {
     return `S${timestamp}${random}`;
   }
 
-  async create(createSurveyDto: CreateSurveyDto): Promise<Survey> {
+  async create(createSurveyDto: CreateSurveyDto, tenantId?: string, user?: UserWithVisibility): Promise<Survey> {
+    const tid = tenantId && Types.ObjectId.isValid(tenantId) ? new Types.ObjectId(tenantId) : undefined;
+    if (!tid && !(user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin')) {
+      throw new BadRequestException('Tenant context is required for creating surveys');
+    }
+
     // Check if survey already exists for this lead
     if (createSurveyDto.sourceLeadId) {
-      const existingSurvey = await this.surveyModel.findOne({
+      const filter = this.buildCompleteFilter(tenantId, user, {
         sourceLeadId: createSurveyDto.sourceLeadId,
         status: 'Scheduled'
       });
+      const existingSurvey = await this.surveyModel.findOne(filter);
       if (existingSurvey) {
         throw new Error(`Survey already scheduled for this lead`);
       }
@@ -44,6 +76,7 @@ export class SurveysService {
       ...createSurveyDto,
       surveyId,
       status: createSurveyDto.status || 'Scheduled',
+      tenantId: tid,
     });
     return newSurvey.save();
   }
@@ -127,27 +160,30 @@ export class SurveysService {
     };
   }
 
-  async getStats(): Promise<{ total: number; scheduled: number; completed: number; pending: number; totalKw: number }> {
+  async getStats(tenantId?: string, user?: UserWithVisibility): Promise<{ total: number; scheduled: number; completed: number; pending: number; totalKw: number }> {
+    const tenantFilter = this.buildCompleteFilter(tenantId, user, {});
     const [total, scheduled, completed, pending, totalKwResult] = await Promise.all([
-      this.surveyModel.countDocuments(),
-      this.surveyModel.countDocuments({ status: 'Scheduled' }),
-      this.surveyModel.countDocuments({ status: 'Completed' }),
-      this.surveyModel.countDocuments({ status: 'Pending' }),
-      this.surveyModel.aggregate([{ $group: { _id: null, total: { $sum: '$estimatedKw' } } }]),
+      this.surveyModel.countDocuments(tenantFilter),
+      this.surveyModel.countDocuments({ ...tenantFilter, status: 'Scheduled' }),
+      this.surveyModel.countDocuments({ ...tenantFilter, status: 'Completed' }),
+      this.surveyModel.countDocuments({ ...tenantFilter, status: 'Pending' }),
+      this.surveyModel.aggregate([{ $match: tenantFilter }, { $group: { _id: null, total: { $sum: '$estimatedKw' } } }]),
     ]);
 
     return { total, scheduled, completed, pending, totalKw: totalKwResult[0]?.total || 0 };
   }
 
-  async findOne(id: string): Promise<Survey> {
-    const survey = await this.surveyModel.findOne({ $or: [{ _id: id }, { surveyId: id }] });
+  async findOne(id: string, tenantId?: string, user?: UserWithVisibility): Promise<Survey> {
+    const filter = this.buildCompleteFilter(tenantId, user, { $or: [{ _id: id }, { surveyId: id }] });
+    const survey = await this.surveyModel.findOne(filter);
     if (!survey) throw new NotFoundException(`Survey with ID ${id} not found`);
     return survey;
   }
 
-  async update(id: string, updateSurveyDto: UpdateSurveyDto): Promise<Survey> {
+  async update(id: string, updateSurveyDto: UpdateSurveyDto, tenantId?: string, user?: UserWithVisibility): Promise<Survey> {
+    const filter = this.buildCompleteFilter(tenantId, user, { $or: [{ _id: id }, { surveyId: id }] });
     const survey = await this.surveyModel.findOneAndUpdate(
-      { $or: [{ _id: id }, { surveyId: id }] },
+      filter,
       { $set: updateSurveyDto },
       { new: true },
     );
@@ -155,8 +191,9 @@ export class SurveysService {
     return survey;
   }
 
-  async remove(id: string): Promise<void> {
-    const result = await this.surveyModel.deleteOne({ $or: [{ _id: id }, { surveyId: id }] });
+  async remove(id: string, tenantId?: string, user?: UserWithVisibility): Promise<void> {
+    const filter = this.buildCompleteFilter(tenantId, user, { $or: [{ _id: id }, { surveyId: id }] });
+    const result = await this.surveyModel.deleteOne(filter);
     if (result.deletedCount === 0) throw new NotFoundException(`Survey with ID ${id} not found`);
   }
 }

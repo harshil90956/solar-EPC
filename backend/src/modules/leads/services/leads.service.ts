@@ -888,7 +888,7 @@ export class LeadsService {
             city: existingLead.city || 'Unknown',
             projectCapacity: existingLead.kw ? `${existingLead.kw} kW` : 'To be determined',
             engineer: existingLead.assignedTo?.toString() || 'Unassigned',
-          });
+          }, tenantId, user);
           Logger.log(`Auto-created site survey for lead ${existingLead.leadId}`, 'LeadsService');
         } catch (error: any) {
           Logger.error(`Failed to auto-create site survey for lead ${existingLead.leadId}: ${error.message}`, 'LeadsService');
