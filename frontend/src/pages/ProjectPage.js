@@ -147,6 +147,10 @@ const ProjectPage = () => {
   const { canView, canCreate, canEdit, canDelete, canExport, canAssign } = useModulePermissions('project');
   const { logStatusChange } = useAuditLog('project');
 
+  // Permission helpers using can function
+  const canEdit = can('project', 'edit');
+  const canDelete = can('project', 'delete');
+
   // Permission guard helper
   const guardCreate = () => {
     if (!canCreate) {

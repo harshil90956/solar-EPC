@@ -971,7 +971,7 @@ const CommissioningDashboard = ({ logs }) => {
 const CommissioningPage = () => {
   const { can, user, role } = usePermissions();
   const { logCreate, logUpdate, logStatusChange } = useAuditLog('Commissioning');
-  const { CommissioningTasks } = useSettings();
+  const { commissioningTasks } = useSettings();
   const isTechnician = user?.role?.toLowerCase() === 'technician' || user?.role?.toLowerCase() === 'employee' || user?.dataScope === 'ASSIGNED';
   console.log('[DEBUG] User role:', user?.role, 'dataScope:', user?.dataScope, 'isTechnician:', isTechnician);
   const [view, setView] = useState(isTechnician ? 'table' : 'dashboard'); // Default to dashboard for non-technicians
@@ -990,7 +990,7 @@ const CommissioningPage = () => {
   const handleSort = useCallback(({ key, dir }) => setSort({ key, dir }), []);
 
   // sync settings cache
-  useEffect(()=>{ setTasksCache(CommissioningTasks || []); }, [CommissioningTasks]);
+  useEffect(()=>{ setTasksCache(commissioningTasks || []); }, [commissioningTasks]);
 
   // Check overdue Commissionings on page load
   useEffect(() => {
@@ -1014,19 +1014,75 @@ const CommissioningPage = () => {
     queryFn: async () => { const r = await apiClient.get('/commissionings'); return r.data || []; }
   });
 
-  // derive logs with normalized fields and progress
-  const logs = useMemo(() => (CommissioningsRaw || []).map(l => {
-    const normalizedTasks = (l.tasks && l.tasks.length) ? l.tasks : (getTasksFromSettings().map(t=>({ ...t, done:false })));
-    return {
-      ...l,
-      CommissioningId: l.CommissioningId || l.id || l._id,
-      customerName: l.customerName || l.customer,
-      siteAddress: l.siteAddress || l.site,
-      technicianName: (l.technicianName && l.technicianName !== 'TBD') ? l.technicianName : (l.technician && l.technician !== 'TBD' ? l.technician : 'Not Assigned'),
-      tasks: normalizedTasks,
-      progress: calculateProgress(normalizedTasks),
-    };
-  }), [CommissioningsRaw]);
+  // fetch Completed Installations that need Commissioning
+  const { data: completedInstallationsForKanban=[] } = useQuery({
+    queryKey: ['completed-installations-for-kanban'],
+    queryFn: async () => {
+      try {
+        const r = await apiClient.get('/installations?status=Completed');
+        const list = r?.data?.data || r?.data || r || [];
+        return Array.isArray(list) ? list.filter(item => item.status === 'Completed') : [];
+      } catch(err) {
+        console.error('Completed installations fetch error:', err);
+        return [];
+      }
+    }
+  });
+
+  // derive logs with normalized fields and progress - merge commissionings + completed installations
+  const logs = useMemo(() => {
+    // Map existing commissionings
+    const commissioningLogs = (CommissioningsRaw || []).map(l => {
+      const normalizedTasks = (l.tasks && l.tasks.length) ? l.tasks : (getTasksFromSettings().map(t=>({ ...t, done:false })));
+      return {
+        ...l,
+        CommissioningId: l.CommissioningId || l.id || l._id,
+        customerName: l.customerName || l.customer,
+        siteAddress: l.siteAddress || l.site,
+        technicianName: (l.technicianName && l.technicianName !== 'TBD') ? l.technicianName : (l.technician && l.technician !== 'TBD' ? l.technician : 'Not Assigned'),
+        tasks: normalizedTasks,
+        progress: calculateProgress(normalizedTasks),
+      };
+    });
+
+    // Convert completed installations to pending commissioning format
+    const installationLogs = completedInstallationsForKanban
+      .filter(inst => {
+        // Only include installations that don't already have a commissioning entry
+        const instProjectId = String(inst.projectId || inst.project?._id || inst.project?.id || '');
+        const instCustomerName = String(inst.customerName || '').toLowerCase();
+        
+        const hasCommissioning = commissioningLogs.some(log => {
+          const logProjectId = String(log.projectId || '').trim();
+          const logCustomerName = String(log.customerName || '').toLowerCase();
+          
+          const projectMatch = logProjectId && instProjectId && logProjectId === instProjectId;
+          const customerMatch = logCustomerName && instCustomerName && logCustomerName === instCustomerName;
+          
+          return projectMatch || customerMatch;
+        });
+        
+        return !hasCommissioning;
+      })
+      .map(inst => ({
+        _id: inst._id || inst.id,
+        id: inst._id || inst.id,
+        CommissioningId: `PENDING-${inst._id || inst.id}`, // Temporary ID
+        customerName: inst.customerName || inst.customer,
+        siteAddress: inst.site || inst.siteAddress,
+        projectId: inst.projectId || inst.project?._id || inst.project?.id,
+        technicianName: 'Not Assigned',
+        technicianId: null,
+        status: 'Pending Assign',
+        progress: 0,
+        tasks: getTasksFromSettings().map(t => ({ name: t.name, photoRequired: !!t.photoRequired, done: false })),
+        isFromInstallation: true,
+        sourceInstallationId: inst._id || inst.id,
+        createdAt: inst.createdAt || new Date().toISOString(),
+      }));
+
+    return [...commissioningLogs, ...installationLogs];
+  }, [CommissioningsRaw, completedInstallationsForKanban]);
 
   // simple KPIs
   const active = logs.filter(l=>l.status==='In Progress').length;
@@ -1326,10 +1382,50 @@ const CommissioningPage = () => {
   const [bulkAssignForm, setBulkAssignForm] = useState({ department: '', technicianId: '', technicianName: '', dueDate: '' });
   const [bulkAssignDept, setBulkAssignDept] = useState('');
   
-  // Get pending Commissionings from existing logs data (no separate API call needed)
+  // Fetch completed installations to show in commissioning
+  const { data: completedInstallations = [] } = useQuery({
+    queryKey: ['completed-installations'],
+    queryFn: async () => {
+      try {
+        const r = await apiClient.get('/installations?status=Completed');
+        const list = r?.data?.data || r?.data || r || [];
+        return Array.isArray(list) ? list.filter(item => item.status === 'Completed') : [];
+      } catch(err) {
+        console.error('Completed installations fetch error:', err);
+        return [];
+      }
+    },
+    enabled: showAdd,
+  });
+
+  // Get pending commissionings from existing logs
   const pendingCommissionings = useMemo(() => {
     return logs.filter(l => l.status === 'Pending' || l.status === 'Pending Assign');
   }, [logs]);
+
+  // Combine pending commissionings with completed installations for selection
+  const availableProjects = useMemo(() => {
+    const installationsForCommissioning = completedInstallations.filter(inst => {
+      // Only show installations that don't already have a commissioning
+      const hasCommissioning = logs.some(log => 
+        log.projectId === (inst.projectId || inst.project?._id || inst.project?.id) ||
+        log.customerName === inst.customerName
+      );
+      return !hasCommissioning;
+    }).map(inst => ({
+      ...inst,
+      isInstallation: true,
+      displayName: `${inst.customerName || 'Unknown'} — ${inst.site || inst.siteAddress || 'No Site'} (Installation Completed)`,
+    }));
+    
+    const pendingItems = pendingCommissionings.map(inst => ({
+      ...inst,
+      isInstallation: false,
+      displayName: `${inst.customerName || 'Unknown'} — ${inst.site || inst.siteAddress || 'No Site'} (Pending)`,
+    }));
+    
+    return [...installationsForCommissioning, ...pendingItems];
+  }, [completedInstallations, pendingCommissionings, logs]);
   
   // Fetch departments from HRM
   const { data: hrmDepartments=[] } = useQuery({
@@ -1386,15 +1482,27 @@ const CommissioningPage = () => {
   const createCommissioning = async () => {
     if (!can('commissioning','create')) return toast.error('Permission denied');
     try {
-      // Find the selected pending Commissioning to get its real IDs
-      const selectedPending = pendingCommissionings.find(i => (i._id || i.id) === newForm.CommissioningId);
+      // Find the selected item - could be installation or pending commissioning
+      const selectedInstallation = completedInstallations.find(i => (i._id || i.id) === newForm.sourceInstallationId);
+      const selectedPending = pendingCommissionings.find(i => (i._id || i.id) === newForm.CommissioningId || (i._id || i.id) === newForm.projectId);
+      
+      // Determine projectId - prioritize from installation if available
+      let finalProjectId = newForm.projectId;
+      if (selectedInstallation?.projectId) {
+        finalProjectId = selectedInstallation.projectId;
+      } else if (selectedPending?.projectId) {
+        finalProjectId = selectedPending.projectId;
+      }
       
       const payload = { 
         ...newForm, 
-        // Use the actual CommissioningId (like ILMM...) instead of the mongo _id if available
-        CommissioningId: selectedPending?.CommissioningId || newForm.CommissioningId,
-        // Use the formatted projectId (like PXXXX) from the pending Commissioning
-        projectId: selectedPending?.projectId || newForm.projectId,
+        // Use the actual CommissioningId if from pending, otherwise let backend generate
+        CommissioningId: selectedPending?.CommissioningId || '',
+        // Use the correct projectId
+        projectId: finalProjectId,
+        // Include source installation reference if applicable
+        sourceInstallationId: selectedInstallation?._id || selectedInstallation?.id || null,
+        status: 'Pending Assign',
         tasks: getTasksFromSettings().map(t=>({ 
           name: t.name, 
           photoRequired: !!t.photoRequired, 
@@ -1404,7 +1512,7 @@ const CommissioningPage = () => {
 
       await apiClient.post('/commissionings', payload);
       setShowAdd(false);
-      setNewForm({ department:'', technicianId:'', technicianName:'', customerName:'', site:'', scheduledDate:'', notes:'', projectId:'', CommissioningId:'' });
+      setNewForm({ department:'', technicianId:'', technicianName:'', customerName:'', site:'', scheduledDate:'', notes:'', projectId:'', CommissioningId:'', sourceInstallationId: null });
       refetch();
       toast.success('Commissioning created');
     } catch (err) { 
@@ -1707,30 +1815,74 @@ const CommissioningPage = () => {
       }>
         <div className="space-y-4 py-1">
 
-          {/* Section: Commissioning */}
+          {/* Section: Select Project (Completed Installations + Pending Commissionings) */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">Pending Commissioning</label>
+            <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">Select Project</label>
             <select
               className="w-full px-3 py-2.5 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-base)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)] transition-colors"
-              value={newForm.CommissioningId}
+              value={newForm.projectId || newForm.CommissioningId}
               onChange={e=>{
-                const inst = pendingCommissionings.find(i => (i._id || i.id) === e.target.value);
-                setNewForm(p=>({
-                  ...p, 
-                  CommissioningId: inst?.CommissioningId || e.target.value, 
-                  customerName: inst?.customerName || '', 
-                  site: inst?.site || inst?.siteAddress || '',
-                  projectId: inst?.projectId || ''
-                }));
+                const selected = availableProjects.find(i => (i._id || i.id) === e.target.value);
+                if (selected?.isInstallation) {
+                  // Installation selected - populate from installation data
+                  setNewForm(p=>({
+                    ...p, 
+                    projectId: selected.projectId || selected.project?._id || selected.project?.id || e.target.value,
+                    CommissioningId: '', // Will be generated by backend
+                    customerName: selected.customerName || '', 
+                    site: selected.site || selected.siteAddress || '',
+                    sourceInstallationId: selected._id || selected.id,
+                  }));
+                } else {
+                  // Pending commissioning selected
+                  setNewForm(p=>({
+                    ...p, 
+                    CommissioningId: selected?.CommissioningId || e.target.value, 
+                    customerName: selected?.customerName || '', 
+                    site: selected?.site || selected?.siteAddress || '',
+                    projectId: selected?.projectId || '',
+                    sourceInstallationId: null,
+                  }));
+                }
               }}
             >
-              <option value="">{pendingCommissionings.length > 0 ? 'Select Pending Commissioning' : 'No Pending Commissionings'}</option>
-              {pendingCommissionings.map(inst => (
-                <option key={inst._id || inst.id} value={inst._id || inst.id}>
-                  {inst.customerName || 'Unknown'} — {inst.site || 'No Site'}
-                </option>
-              ))}
+              <option value="">{availableProjects.length > 0 ? 'Select Project' : 'No Projects Available'}</option>
+              
+              {/* Completed Installations Group */}
+              {completedInstallations.length > 0 && (
+                <optgroup label="Completed Installations (Ready for Commissioning)">
+                  {completedInstallations
+                    .filter(inst => {
+                      const instCust = String(inst.customerName || '').toLowerCase();
+                      return !logs.some(log => {
+                        const logCust = String(log.customerName || '').toLowerCase();
+                        return logCust === instCust && log.status !== 'Pending Assign';
+                      });
+                    })
+                    .map(inst => (
+                      <option key={inst._id || inst.id} value={inst._id || inst.id}>
+                        {inst.customerName || 'Unknown'} — {inst.site || inst.siteAddress || 'No Site'} ✓
+                      </option>
+                    ))}
+                </optgroup>
+              )}
+              
+              {/* Pending Commissionings Group */}
+              {pendingCommissionings.length > 0 && (
+                <optgroup label="Pending Commissionings">
+                  {pendingCommissionings.map(inst => (
+                    <option key={inst._id || inst.id} value={inst._id || inst.id}>
+                      {inst.customerName || 'Unknown'} — {inst.site || inst.siteAddress || 'No Site'} (Pending)
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
+            {completedInstallations.length === 0 && pendingCommissionings.length === 0 && (
+              <p className="text-[10px] text-amber-500 mt-1">
+                No completed installations or pending commissionings available. Please complete an installation first.
+              </p>
+            )}
           </div>
 
           {/* Section: Assign To */}

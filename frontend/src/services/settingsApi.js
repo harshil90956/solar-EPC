@@ -235,6 +235,15 @@ export const settingsApi = {
     }
   },
 
+  async updateCommissioningTasks(tasks) {
+    try {
+      return await apiClient.put('/settings/commissioning/tasks', { tasks });
+    } catch (error) {
+      console.warn('Failed to update commissioning tasks:', error.message);
+      return { success: false };
+    }
+  },
+
   async updateProjectTypeConfig(typeId, config) {
     try {
       return await apiClient.put(`/settings/project-types/${typeId}`, config);
