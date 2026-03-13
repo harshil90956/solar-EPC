@@ -161,6 +161,10 @@ export class CreateSiteSurveyDto {
   @IsNumber()
   @IsOptional()
   estimatedKw?: number;
+
+  @IsString()
+  @IsOptional()
+  assignedTo?: string; // User ID to assign during creation
 }
 
 // Update Site Survey DTO
@@ -252,6 +256,14 @@ export class MoveToActiveDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @IsString()
+  @IsOptional()
+  engineer?: string;
+
+  @IsString()
+  @IsOptional()
+  solarConsultant?: string;
 }
 
 // Move to Complete DTO
@@ -300,4 +312,14 @@ export class QuerySiteSurveyDto {
   @IsString()
   @IsOptional()
   sortOrder?: 'asc' | 'desc';
+}
+
+// Assign Survey DTO
+export class AssignSurveyDto {
+  @IsString()
+  assignedTo!: string; // User ID to assign the survey to
+
+  @IsString()
+  @IsOptional()
+  notes?: string; // Optional notes about the assignment
 }

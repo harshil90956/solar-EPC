@@ -1632,6 +1632,7 @@ const SiteSurveyPage = () => {
   const [calendarModalOpen, setCalendarModalOpen] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [selectedSurvey, setSelectedSurvey]       = useState(null);
   
   // Calendar State
@@ -1643,8 +1644,12 @@ const SiteSurveyPage = () => {
   const fetchSurveys = useCallback(async () => {
     try {
       setLoading(true);
-      const status = activeTab === 'all' ? '' : activeTab;
-      const response = await siteSurveysApi.getAll({ status, search: searchQuery, limit: 100 });
+      // Build params - only send status if not 'all'
+      const params = { search: searchQuery, limit: 100 };
+      if (activeTab !== 'all') {
+        params.status = activeTab;
+      }
+      const response = await siteSurveysApi.getAll(params);
       const surveyData = response.data?.data || response.data || [];
       setSurveys(surveyData);
 
@@ -1689,9 +1694,15 @@ const SiteSurveyPage = () => {
   const openCompleteModal = (s) => { setSelectedSurvey(s); setCompleteModalOpen(true); };
   const openDetailsModal  = (s) => { setSelectedSurvey(s); setDetailsModalOpen(true);  };
   const openEditModal = (s) => { setSelectedSurvey(s); setEditModalOpen(true); };
+  const openAssignModal = (s) => { setSelectedSurvey(s); setAssignModalOpen(true); };
 
   const handleSaveSurvey = async (id, data) => {
     await siteSurveysApi.update(id, data);
+    fetchSurveys();
+  };
+
+  const handleAssignSurvey = async (id, data) => {
+    await siteSurveysApi.assign(id, data);
     fetchSurveys();
   };
 
@@ -1699,13 +1710,16 @@ const SiteSurveyPage = () => {
   const ROW_ACTIONS = [
     { label: 'View Details', icon: Eye,       onClick: row => openDetailsModal(row) },
     { label: 'Edit',         icon: Edit2,      onClick: row => openEditModal(row) },
+    { label: 'Assign',       icon: User,       onClick: row => openAssignModal(row) },
     { label: 'Start Survey', icon: Play,       onClick: row => row.status === 'pending' && openPendingModal(row) },
     { label: 'Fill Form',    icon: FileText,   onClick: row => row.status === 'active'  && openCompleteModal(row) },
     { label: 'Delete',       icon: Trash2,     onClick: row => handleDelete(row), danger: true },
   ];
 
   // Filtered surveys for current tab
-  const filteredSurveys = surveys;
+  const filteredSurveys = activeTab === 'all' 
+    ? surveys 
+    : surveys.filter(s => s.status === activeTab);
 
   const statusCountMap = { all: stats.total, pending: stats.pending, active: stats.active, complete: stats.complete };
 
@@ -1747,6 +1761,7 @@ const SiteSurveyPage = () => {
           icon={FileText}
           variant="indigo"
           sub="All surveys"
+          onClick={() => setActiveTab('all')}
         />
         <KPICard
           label="Pending"
@@ -1754,6 +1769,7 @@ const SiteSurveyPage = () => {
           icon={Clock}
           variant="amber"
           sub="Awaiting assignment"
+          onClick={() => setActiveTab('pending')}
         />
         <KPICard
           label="Active"
@@ -1761,6 +1777,7 @@ const SiteSurveyPage = () => {
           icon={Play}
           variant="blue"
           sub="In progress"
+          onClick={() => setActiveTab('active')}
         />
         <KPICard
           label="Completed"
@@ -1768,6 +1785,7 @@ const SiteSurveyPage = () => {
           icon={CheckCircle}
           variant="emerald"
           sub="Surveys done"
+          onClick={() => setActiveTab('complete')}
         />
       </div>
 
@@ -2088,6 +2106,13 @@ const SiteSurveyPage = () => {
         onClose={() => { setEditModalOpen(false); setSelectedSurvey(null); }}
         survey={selectedSurvey}
         onSave={handleSaveSurvey}
+      />
+
+      <AssignSurveyModal
+        isOpen={assignModalOpen}
+        onClose={() => { setAssignModalOpen(false); setSelectedSurvey(null); }}
+        survey={selectedSurvey}
+        onAssign={handleAssignSurvey}
       />
 
       {/* ==================== CREATE SURVEY MODAL ==================== */}
@@ -2515,6 +2540,140 @@ const EditSurveyModal = ({ isOpen, onClose, survey, onSave }) => {
             />
           </FormField>
         </div>
+      </form>
+    </Modal>
+  );
+};
+
+// ── ASSIGN SURVEY MODAL ─────────────────────────────────────────────────────
+const AssignSurveyModal = ({ isOpen, onClose, survey, onAssign }) => {
+  const [selectedUser, setSelectedUser] = useState('');
+  const [notes, setNotes] = useState('');
+  const [employees, setEmployees] = useState([]);
+  const [empLoading, setEmpLoading] = useState(false);
+  const [assigning, setAssigning] = useState(false);
+
+  // Fetch employees from HRM when modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+    setSelectedUser('');
+    setNotes('');
+    const fetchEmployees = async () => {
+      setEmpLoading(true);
+      try {
+        const res = await employeeApi.getAll();
+        const data = res?.data || res || [];
+        setEmployees(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error('Failed to fetch employees:', err);
+        setEmployees([]);
+      } finally {
+        setEmpLoading(false);
+      }
+    };
+    fetchEmployees();
+  }, [isOpen]);
+
+  // Pre-select current assignee if exists
+  useEffect(() => {
+    if (survey?.assignedTo && employees.length > 0) {
+      const assigned = employees.find(e => e._id === survey.assignedTo);
+      if (assigned) {
+        setSelectedUser(assigned._id);
+      }
+    }
+  }, [survey, employees]);
+
+  // Group employees by department
+  const employeesByDept = employees.reduce((acc, emp) => {
+    const dept = emp.department || 'Other';
+    if (!acc[dept]) acc[dept] = [];
+    acc[dept].push(emp);
+    return acc;
+  }, {});
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedUser) {
+      toast.error('Please select a user to assign');
+      return;
+    }
+    setAssigning(true);
+    try {
+      await onAssign(survey._id || survey.surveyId, { assignedTo: selectedUser, notes });
+      toast.success('Survey assigned successfully');
+      onClose();
+    } catch (error) {
+      toast.error('Failed to assign survey');
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  return (
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      title="Assign Survey"
+      size="md"
+      footer={
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose} disabled={assigning}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={handleSubmit} disabled={assigning || !selectedUser}>
+            {assigning ? 'Assigning...' : <><User size={16} /> Assign Survey</>}
+          </Button>
+        </div>
+      }
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="bg-blue-50 p-3 rounded-lg mb-4">
+          <p className="text-sm text-blue-700">
+            <strong>Survey:</strong> {survey?.surveyId} - {survey?.clientName}
+          </p>
+          <p className="text-sm text-blue-600 mt-1">
+            <strong>Current Status:</strong> {survey?.status}
+          </p>
+        </div>
+
+        <FormField label="Assign To *" required>
+          <select
+            value={selectedUser}
+            onChange={(e) => setSelectedUser(e.target.value)}
+            disabled={empLoading}
+            className="w-full border border-[var(--border-base)] bg-[var(--bg-elevated)] rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--text-primary)] disabled:opacity-50"
+          >
+            <option value="">{empLoading ? 'Loading employees...' : '— Select Engineer —'}</option>
+            {Object.entries(employeesByDept).map(([dept, emps]) => (
+              <optgroup key={dept} label={dept}>
+                {emps.map(emp => {
+                  const fullName = `${emp.firstName} ${emp.lastName}`.trim();
+                  return (
+                    <option key={emp._id} value={emp._id}>
+                      {fullName}{emp.designation ? ` (${emp.designation})` : ''}
+                    </option>
+                  );
+                })}
+              </optgroup>
+            ))}
+          </select>
+          {empLoading && (
+            <p className="text-[11px] text-[var(--text-faint)] mt-1 flex items-center gap-1">
+              <span className="inline-block w-3 h-3 border border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+              Fetching from HRM...
+            </p>
+          )}
+        </FormField>
+
+        <FormField label="Notes (Optional)">
+          <Textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Add any notes about this assignment..."
+            rows={3}
+          />
+        </FormField>
       </form>
     </Modal>
   );

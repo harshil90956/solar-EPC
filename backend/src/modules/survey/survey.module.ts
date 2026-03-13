@@ -8,6 +8,7 @@ import { SiteSurveysService } from './services/site-surveys.service';
 import { Survey as SiteSurvey, SurveySchema as SiteSurveySchema } from './schemas/site-survey.schema';
 import { LeadsModule } from '../leads/leads.module';
 import { Lead, LeadSchema } from '../leads/schemas/lead.schema';
+import { SettingsModule } from '../settings/settings.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { Lead, LeadSchema } from '../leads/schemas/lead.schema';
       { name: SiteSurvey.name, schema: SiteSurveySchema },
       { name: Lead.name, schema: LeadSchema },
     ]),
+    SettingsModule,
     forwardRef(() => LeadsModule),
   ],
   controllers: [SurveysController, SiteSurveysController],
