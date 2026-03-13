@@ -10,13 +10,20 @@ import { Calendar, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
  * - Jump to today's date with a "Today" button
  * - Filter financial data by selected date range
  */
-const CalendarFilter = ({ onDateChange, initialYear, initialMonth, availableYears }) => {
+const CalendarFilter = ({ onDateChange, initialYear, initialMonth, initialDay, availableYears }) => {
   const currentDate = new Date();
+  
+  // Check if initially today is selected
+  const isInitiallyToday = initialDay !== undefined && 
+    initialYear === currentDate.getFullYear() && 
+    initialMonth === currentDate.getMonth() && 
+    initialDay === currentDate.getDate();
+  
   const [viewYear, setViewYear] = useState(initialYear || currentDate.getFullYear());
   const [viewMonth, setViewMonth] = useState(initialMonth !== undefined ? initialMonth : currentDate.getMonth());
   const [selectedYear, setSelectedYear] = useState(initialYear || currentDate.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(initialMonth !== undefined ? initialMonth : currentDate.getMonth());
-  const [isToday, setIsToday] = useState(false);
+  const [isToday, setIsToday] = useState(isInitiallyToday);
   const [isOpen, setIsOpen] = useState(false);
   const [isYearDropdownOpen, setIsYearDropdownOpen] = useState(false);
 

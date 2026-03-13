@@ -2767,30 +2767,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
-
-
-
   // Calendar filter year state - for filtering data by year
-
-
-
-  const [calendarFilterYear, setCalendarFilterYear] = useState('all');
-
-
+  // Default to TODAY when opening finance module
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  const currentMonth = today.getMonth();
+  const currentDay = today.getDate();
+  const [calendarFilterYear, setCalendarFilterYear] = useState(currentYear.toString());
 
   // Calendar filter month state - for displaying selected month in calendar
+  const [calendarFilterMonth, setCalendarFilterMonth] = useState(currentMonth);
 
-
-
-  const [calendarFilterMonth, setCalendarFilterMonth] = useState(undefined);
-
-
-
-  // Calendar filter day state - for Today filter (exact day, 0=no day filter)
-
-
-
-  const [calendarFilterDay, setCalendarFilterDay] = useState(undefined);
+  // Calendar filter day state - for Today filter (exact day, undefined=no day filter)
+  const [calendarFilterDay, setCalendarFilterDay] = useState(currentDay);
 
 
 
@@ -7786,6 +7775,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+  // Helper function to get valid next statuses based on current status (same as kanban rules)
+  const getValidNextStatuses = (currentStatus) => {
+    const transitions = {
+      'Draft': ['Sent', 'Pending'],
+      'Sent': ['Pending', 'Partial', 'Paid', 'Overdue'],
+      'Pending': ['Partial', 'Paid', 'Overdue'],
+      'Partial': ['Paid', 'Overdue'],
+      'Paid': [], // No further transitions from Paid
+      'Overdue': [] // No further transitions from Overdue
+    };
+    return transitions[currentStatus] || [];
+  };
+
   const openEditInvoice = (row) => {
 
 
@@ -9689,702 +9691,66 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
   const exportAllInvoicesCsv = () => {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     if (!canFinance('export')) return;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     const safe = (v) => {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       const s = v == null ? '' : String(v);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       const needsQuotes = /[\n\r,"]/g.test(s);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       const escaped = s.replace(/"/g, '""');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       return needsQuotes ? `"${escaped}"` : escaped;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     const header = [
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       'Invoice #',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       'Customer',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       'Amount',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       'Paid',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       'Balance',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       'Status',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       'Invoice Date',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       'Due Date',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       'Paid On',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+      'Reminders',
     ].map(safe).join(',');
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     const rows = (invoices || []).map((row) => {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+      // Helper to format date as DD-MM-YYYY for Excel
+      const formatDate = (dateStr) => {
+        if (!dateStr) return '-';
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return '-';
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const year = d.getFullYear();
+        return `${day}-${month}-${year}`;
+      };
+      
       const cols = [
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         row?.invoiceNumber || row?.id || '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         row?.customerName || '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         row?.amount ?? '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         row?.paid ?? '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         row?.balance ?? '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         row?.status || '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        row?.invoiceDate ? new Date(row.invoiceDate).toLocaleDateString() : '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        row?.dueDate ? new Date(row.dueDate).toLocaleDateString() : '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        row?.paidDate ? new Date(row.paidDate).toLocaleDateString() : '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        "'" + formatDate(row?.invoiceDate),
+        "'" + formatDate(row?.dueDate),
+        "'" + formatDate(row?.paidDate),
+        (row?.reminderCount > 0) ? row.reminderCount : '-',
       ];
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       return cols.map(safe).join(',');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     const csv = [header, ...rows].join('\n');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     const url = URL.createObjectURL(blob);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     const a = document.createElement('a');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     a.href = url;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     a.download = `invoices.csv`;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     document.body.appendChild(a);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     a.click();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     a.remove();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     URL.revokeObjectURL(url);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   };
-
-
-
-
 
 
 
@@ -17594,70 +16960,6 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-    ...(canFinance('assign') ? [
-
-
-
-
-
-
-
-      {
-
-
-
-
-
-
-
-        label: 'Assign',
-
-
-
-
-
-
-
-        icon: Zap,
-
-
-
-
-
-
-
-        show: (row) => ['Draft', 'Pending', 'Partial', 'Overdue'].includes(row?.status),
-
-
-
-
-
-
-
-        onClick: (row) => openAssignInvoice(row),
-
-
-
-
-
-
-
-      },
-
-
-
-
-
-
-
-    ] : []),
-
-
-
-
-
-
-
     ...(canFinance('delete') ? [
 
 
@@ -17931,22 +17233,6 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
         return !!financePermissions?.export;
-
-
-
-
-
-
-
-      case 'Assign':
-
-
-
-
-
-
-
-        return !!financePermissions?.assign;
 
 
 
@@ -19136,9 +18422,11 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-              } else {
+              } else 
 
 
+
+              {
 
                 setCalendarFilterYear('all');
 
@@ -19165,6 +18453,10 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
             initialMonth={calendarFilterMonth}
+
+
+
+            initialDay={calendarFilterDay}
 
 
 
@@ -20144,7 +19436,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-                <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Current Month</p>
+                <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Cashflow Summary</p>
 
 
 
@@ -20156,22 +19448,10 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-                    { label: 'Total Invoiced', value: fmt(currentMonthInvoiced), color: 'text-[var(--text-primary)]' },
-
-
-
-                    { label: 'Collected', value: fmt(currentMonthCollected), color: 'text-emerald-400' },
-
-
-
-                    { label: 'Outstanding', value: fmt(currentMonthOutstanding), color: 'text-amber-400' },
-
-
-
-                    { label: 'Collection Rate', value: `${currentMonthCollectionRate}%`, color: 'text-cyan-400' },
-
-
-
+                    { label: 'Total Invoiced', value: fmt(revenueCurrent), color: 'text-[var(--text-primary)]' },
+                    { label: 'Collected', value: fmt(totalCollected), color: 'text-emerald-400' },
+                    { label: 'Outstanding', value: fmt(receivables), color: 'text-amber-400' },
+                    { label: 'Collection Rate', value: `${Math.round((totalCollected / (revenueCurrent || 1)) * 100)}%`, color: 'text-cyan-400' },
                   ].map(stat => (
 
 
@@ -25280,71 +24560,12 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-                  <option value="Draft">Draft</option>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                  <option value="Sent">Sent</option>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                  <option value="Partial">Partial</option>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                  <option value="Paid">Paid</option>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                  <option value="Overdue">Overdue</option>
+                  {editInvoiceTarget?.status && (
+                    <option value={editInvoiceTarget.status}>{editInvoiceTarget.status} (Current)</option>
+                  )}
+                  {getValidNextStatuses(editInvoiceTarget?.status).map(status => (
+                    <option key={status} value={status}>{status}</option>
+                  ))}
 
 
 
