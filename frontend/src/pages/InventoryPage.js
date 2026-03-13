@@ -3152,20 +3152,19 @@ const InventoryPage = () => {
               onChange={e => {
                 const po = purchaseOrders.find(p => p.id === e.target.value || p._id === e.target.value);
                 if (po) {
-                  // Auto-fill item details from PO
-                  const poItem = po.items?.[0];
-                  const itemId = poItem?.itemId || poItem?.id || '';
-                  const quantity = poItem?.quantity || '';
-                  const itemName = poItem?.name || poItem?.description || '';
+                  // Auto-fill item details from PO (flat structure)
+                  const itemId = po.itemId || '';
+                  const quantity = po.requiredQuantity || po.quantity || '';
+                  const itemName = po.itemName || po.itemDescription || po.description || '';
 
                   setStockInForm(f => ({ 
                     ...f, 
                     poId: e.target.value, 
-                    poReference: po.id || '',
+                    poReference: po.id || po.poNumber || '',
                     itemId: itemId,
                     quantity: quantity,
                     // Auto-select warehouse if available
-                    warehouse: po.warehouse || poItem?.warehouse || f.warehouse
+                    warehouse: po.warehouse || f.warehouse
                   }));
                 } else {
                   setStockInForm(f => ({ ...f, poId: '', poReference: '', itemId: '', quantity: '' }));
@@ -3181,12 +3180,22 @@ const InventoryPage = () => {
             </Select>
           </FormField>
           <FormField label="Item (Auto-filled from PO)">
-            <Select 
-              value={stockInForm.itemId} 
-              disabled={true}
-            >
-              <option value="">{stockInForm.itemId ? inventory.find(i => i.itemId === stockInForm.itemId)?.name || 'Item from PO' : 'Select PO first'}</option>
-            </Select>
+            <div className="glass-card p-2 border border-[var(--border-base)] rounded-lg bg-[var(--bg-surface)]">
+              {stockInForm.itemId ? (
+                <div className="flex items-center gap-2">
+                  <Package size={14} className="text-[var(--accent-light)]" />
+                  <span className="text-sm text-[var(--text-primary)]">
+                    {(() => {
+                      const po = purchaseOrders.find(p => (p.id || p._id) === stockInForm.poId);
+                      return po?.itemName || po?.itemDescription || inventory.find(i => i.itemId === stockInForm.itemId)?.name || stockInForm.itemId;
+                    })()}
+                  </span>
+                  <span className="text-xs text-[var(--text-muted)]">({stockInForm.itemId})</span>
+                </div>
+              ) : (
+                <span className="text-sm text-[var(--text-muted)]">Select PO to auto-fill item</span>
+              )}
+            </div>
           </FormField>
           <div className="grid grid-cols-2 gap-3">
             <FormField label="Quantity Received"><Input type="number" placeholder="100" value={stockInForm.quantity} onChange={e => setStockInForm(f => ({ ...f, quantity: e.target.value }))} /></FormField>
@@ -3263,7 +3272,7 @@ const InventoryPage = () => {
           <FormField label="Item">
             <Select value={stockOutForm.itemId} onChange={e => setStockOutForm(f => ({ ...f, itemId: e.target.value }))}>
               <option value="">Select Item</option>
-              {inventory.map(i => <option key={i._id} value={i.itemId}>{i.name || i.description} ({i.warehouse}) - Stock: {i.stock || 0}</option>)}
+              {inventory.map(i => <option key={i._id} value={i.itemId}>{i.name || i.description} ({i.warehouse}) - Available: {(i.stock || 0) - (i.reserved || 0)}</option>)}
             </Select>
           </FormField>
           <div className="grid grid-cols-2 gap-3">
