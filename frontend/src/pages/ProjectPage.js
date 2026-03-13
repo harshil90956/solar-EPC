@@ -17,7 +17,7 @@ import { Progress } from '../components/ui/Progress';
 import { Stepper } from '../components/ui/Stepper';
 import DataTable from '../components/ui/DataTable';
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
-import { usePermissions } from '../hooks/usePermissions';
+import { usePermissions, useModulePermissions } from '../hooks/usePermissions';
 import { useAuditLog } from '../hooks/useAuditLog';
 import CanAccess, { CanCreate } from '../components/CanAccess';
 import { toast } from '../components/ui/Toast';
@@ -144,13 +144,12 @@ const KanbanBoard = ({ projects, onStageChange, onCardClick }) => {
 
 /* ── Main Page ── */
 const ProjectPage = () => {
-  const { can } = usePermissions();
-  const { canEdit, canDelete } = useModulePermissions('project');
+  const { canView, canCreate, canEdit, canDelete, canExport, canAssign } = useModulePermissions('project');
   const { logStatusChange } = useAuditLog('project');
 
   // Permission guard helper
   const guardCreate = () => {
-    if (!can('project', 'create')) {
+    if (!canCreate) {
       toast.error('Permission denied: Cannot create projects');
       return false;
     }
@@ -651,6 +650,12 @@ const ProjectPage = () => {
     const project = projects.find(p => p.id === id);
     const currentStage = project?.status;
     
+    // Validation: Commissioned status requires 100% progress
+    if (newStage === 'Commissioned' && project?.progress < 100) {
+      alert('Project progress must be 100% before marking as Commissioned. Please complete all milestones first.');
+      return;
+    }
+    
     // Calculate progress based on stage movement
     const totalStages = STAGE_ORDER.length - 2; // Exclude On Hold and Cancelled
     const currentIndex = STAGE_ORDER.indexOf(newStage);
@@ -666,18 +671,60 @@ const ProjectPage = () => {
       newProgress = project?.progress || 0;
     }
     
+    // Sync milestones based on new status
+    let updatedMilestones = project?.milestones || [
+      { name: 'Material Ready', status: 'Pending', date: null },
+      { name: 'Installation', status: 'Pending', date: null },
+      { name: 'Commission', status: 'Pending', date: null },
+      { name: 'Billing', status: 'Pending', date: null },
+      { name: 'Closure', status: 'Pending', date: null }
+    ];
+    
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Update milestones based on status
+    if (newStage === 'Survey' || newStage === 'Design' || newStage === 'Quotation') {
+      // Early stages - all milestones pending
+      updatedMilestones = updatedMilestones.map(m => ({ ...m, status: 'Pending', date: null }));
+    } else if (newStage === 'Procurement') {
+      // Material procurement stage
+      updatedMilestones = updatedMilestones.map(m => 
+        m.name === 'Material Ready' ? { ...m, status: 'In Progress', date: null } :
+        { ...m, status: 'Pending', date: null }
+      );
+    } else if (newStage === 'Installation') {
+      // Installation stage - Material Ready done, Installation in progress
+      updatedMilestones = updatedMilestones.map(m => 
+        m.name === 'Material Ready' ? { ...m, status: 'Done', date: m.date || today } :
+        m.name === 'Installation' ? { ...m, status: 'In Progress', date: null } :
+        { ...m, status: 'Pending', date: null }
+      );
+    } else if (newStage === 'Commissioned') {
+      // Commissioned - all main milestones done
+      updatedMilestones = updatedMilestones.map(m => 
+        m.name === 'Material Ready' || m.name === 'Installation' || m.name === 'Commission' 
+          ? { ...m, status: 'Done', date: m.date || today } :
+        { ...m, status: 'Pending', date: null }
+      );
+    }
+    
     // Optimistic update
-    setProjects(prev => prev.map(p => p.id === id ? { ...p, status: newStage, progress: newProgress } : p));
+    setProjects(prev => prev.map(p => p.id === id ? { ...p, status: newStage, progress: newProgress, milestones: updatedMilestones } : p));
     logStatusChange(project, project.status, newStage);
 
     // API call to update status
     try {
-      await api.patch(`/projects/${id}/status?tenantId=${TENANT_ID}`, { status: newStage, progress: newProgress, userRole });
+      await api.patch(`/projects/${id}/status?tenantId=${TENANT_ID}`, { 
+        status: newStage, 
+        progress: newProgress, 
+        milestones: updatedMilestones,
+        userRole 
+      });
     } catch (err) {
       console.error('Error updating project status:', err);
       alert(err.message || 'Failed to update project status');
       // Revert the change
-      setProjects(prev => prev.map(p => p.id === id ? { ...p, status: project.status, progress: project.progress } : p));
+      setProjects(prev => prev.map(p => p.id === id ? { ...p, status: project.status, progress: project.progress, milestones: project.milestones } : p));
     }
   };
 
@@ -763,12 +810,12 @@ const ProjectPage = () => {
     : 0;
 
   const ROW_ACTIONS = [
-    { label: 'View Details', icon: FolderOpen, onClick: row => setSelected(row) },
-    { label: 'Edit', icon: Edit2, onClick: row => handleEditClick(row) },
-    { label: 'Update Status', icon: CheckCircle, onClick: row => handleUpdateStatusClick(row) },
-    { label: 'Timeline', icon: Clock3, onClick: row => handleViewTimeline(row) },
-    { label: 'Activity Log', icon: History, onClick: row => handleViewActivity(row) },
-    { label: 'Delete', icon: Trash2, onClick: row => handleDeleteProject(row.id), danger: true },
+    ...(canView ? [{ label: 'View Details', icon: FolderOpen, onClick: row => setSelected(row) }] : []),
+    ...(canEdit ? [{ label: 'Edit', icon: Edit2, onClick: row => handleEditClick(row) }] : []),
+    ...(canAssign ? [{ label: 'Update Status', icon: CheckCircle, onClick: row => handleUpdateStatusClick(row) }] : []),
+    ...(canView ? [{ label: 'Timeline', icon: Clock3, onClick: row => handleViewTimeline(row) }] : []),
+    ...(canView ? [{ label: 'Activity Log', icon: History, onClick: row => handleViewActivity(row) }] : []),
+    ...(canDelete ? [{ label: 'Delete', icon: Trash2, onClick: row => handleDeleteProject(row.id), danger: true }] : []),
   ];
 
   const STEPPER_STEPS = selected?.milestones?.map(m => ({ name: m.name, status: m.status, date: m.date })) ?? [];
@@ -1082,7 +1129,7 @@ const ProjectPage = () => {
           )
         }
         actions={[
-          { type: 'button', label: 'New Project', icon: Plus, variant: 'primary', onClick: () => { if (guardCreate()) setShowAdd(true); } },
+          ...(canCreate ? [{ type: 'button', label: 'New Project', icon: Plus, variant: 'primary', onClick: () => { if (guardCreate()) setShowAdd(true); } }] : []),
           view !== 'dashboard' && { type: 'button', label: showCardsInViews ? 'Hide Cards' : 'Show Cards', icon: Layers, variant: 'ghost', onClick: () => setShowCardsInViews(!showCardsInViews) }
         ].filter(Boolean)}
       />
