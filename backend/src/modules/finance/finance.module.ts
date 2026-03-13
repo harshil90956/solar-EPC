@@ -2,11 +2,12 @@
 import { MongooseModule } from '@nestjs/mongoose';
 import { SettingsModule } from '../settings/settings.module';
 import { FinanceController } from './controllers/finance.controller';
+import { FinanceVendorController } from './controllers/finance-vendor.controller';
 import { Tenant, TenantSchema } from '../../core/tenant/schemas/tenant.schema';
 
-import { InvoiceService, PaymentService, ExpenseService, TransactionService, FinancePaymentService, ManualAdjustmentService, AdjustmentCategoryService, JournalEntryService } from './services';
+import { InvoiceService, PaymentService, ExpenseService, TransactionService, FinancePaymentService, ManualAdjustmentService, AdjustmentCategoryService, JournalEntryService, FinanceVendorService } from './services';
 
-import { Invoice, InvoiceSchema, Payment, PaymentSchema, Expense, ExpenseSchema, Transaction, TransactionSchema, Project, ProjectSchema, ReminderLog, ReminderLogSchema, Activity, ActivitySchema, FinancePayment, FinancePaymentSchema, ManualAdjustment, ManualAdjustmentSchema, AdjustmentCategory, AdjustmentCategorySchema, JournalEntry, JournalEntrySchema } from './schemas';
+import { Invoice, InvoiceSchema, Payment, PaymentSchema, Expense, ExpenseSchema, Transaction, TransactionSchema, Project, ProjectSchema, ReminderLog, ReminderLogSchema, Activity, ActivitySchema, FinancePayment, FinancePaymentSchema, ManualAdjustment, ManualAdjustmentSchema, AdjustmentCategory, AdjustmentCategorySchema, JournalEntry, JournalEntrySchema, FinanceVendor, FinanceVendorSchema } from './schemas';
 
 @Module({
   imports: [
@@ -22,16 +23,17 @@ import { Invoice, InvoiceSchema, Payment, PaymentSchema, Expense, ExpenseSchema,
       { name: ManualAdjustment.name, schema: ManualAdjustmentSchema },
       { name: AdjustmentCategory.name, schema: AdjustmentCategorySchema },
       { name: JournalEntry.name, schema: JournalEntrySchema },
+      { name: FinanceVendor.name, schema: FinanceVendorSchema },
       { name: 'PurchaseOrder', schema: require('../procurement/schemas/purchase-order.schema').PurchaseOrderSchema },
       { name: Tenant.name, schema: TenantSchema },
     ]),
     SettingsModule,
   ],
-  controllers: [FinanceController],
+  controllers: [FinanceController, FinanceVendorController],
 
-  providers: [InvoiceService, PaymentService, FinancePaymentService, ExpenseService, TransactionService, ManualAdjustmentService, AdjustmentCategoryService, JournalEntryService],
+  providers: [InvoiceService, PaymentService, FinancePaymentService, ExpenseService, TransactionService, ManualAdjustmentService, AdjustmentCategoryService, JournalEntryService, FinanceVendorService],
 
-  exports: [InvoiceService, PaymentService, FinancePaymentService, ExpenseService, TransactionService, ManualAdjustmentService, AdjustmentCategoryService, JournalEntryService],
+  exports: [InvoiceService, PaymentService, FinancePaymentService, ExpenseService, TransactionService, ManualAdjustmentService, AdjustmentCategoryService, JournalEntryService, FinanceVendorService],
 
 })
 export class FinanceModule {}

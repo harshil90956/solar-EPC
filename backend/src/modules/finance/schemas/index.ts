@@ -9,3 +9,4 @@ export { JournalEntry, JournalEntrySchema, JournalEntryDocument, JournalEntryLin
 export { Project, ProjectSchema, ProjectDocument } from './project.schema';
 export { ReminderLog, ReminderLogSchema, ReminderLogDocument, ReminderType } from './reminder-log.schema';
 export { Activity, ActivitySchema, ActivityDocument, ActivityAction, ActivityModule } from './activity.schema';
+export { FinanceVendor, FinanceVendorSchema, FinanceVendorDocument } from './finance-vendor.schema';

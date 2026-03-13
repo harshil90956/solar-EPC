@@ -1790,11 +1790,11 @@ const ProcurementPage = () => {
             </div>
           ) : (
                 <div className="grid grid-cols-2 gap-3 text-xs">
-                  {[['PO Number', selectedPO.id], ['Vendor', selectedPO.vendorName], ['Items', selectedPO.items],
+                  {[['PO Number', selectedPO.id], ['Vendor', selectedPO.vendorName], ['Items Description', selectedPO.items],
                 ['Ordered Date', selectedPO.orderedDate], ['Expected Date', selectedPO.expectedDate],
                 ['Delivered Date', selectedPO.deliveredDate ?? '—'],
                 ['Category', selectedPO.categoryName || '—'],
-                ['Item', selectedPO.itemName || '—'],
+                ['Item Name', selectedPO.itemName || '—'],
                 ['Unit', selectedPO.unit || '—'],
                 ['Required Quantity', selectedPO.requiredQuantity || '—'],
                 ['Related Project', (() => {

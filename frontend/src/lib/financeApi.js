@@ -4,6 +4,120 @@ import { api } from './apiClient';
 
 
 
+
+
+// Helper functions for invoice calculations
+
+export const getPaidAmount = (inv, manualAdjustments = []) => {
+
+  // Get base paid amount from invoice data
+
+  let basePaid = 0;
+
+  if (inv.status === 'Paid') {
+
+    basePaid = Number(inv.amount || 0);
+
+  } else if (inv.status === 'Partial') {
+
+    basePaid = Number(inv.paid || inv.amountPaid || 0);
+
+  } else {
+
+    basePaid = Number(inv.paid || 0);
+
+  }
+
+
+
+  // Add payments from manual adjustments (Invoice Payment category)
+
+  const invoiceId = inv._id || inv.id;
+
+  
+
+  // DEBUG: Log the comparison
+
+  console.log('🔍 getPaidAmount DEBUG:', {
+
+    invoiceId: invoiceId,
+
+    invoiceNumber: inv.invoiceNumber,
+
+    basePaid: basePaid,
+
+    manualAdjustmentsCount: manualAdjustments?.length || 0,
+
+    invoicePaymentAdjustments: manualAdjustments?.filter(a => a.category === 'Invoice Payment').map(a => ({ref: a.reference, amt: a.amount}))
+
+  });
+
+  
+
+  const adjustmentPayments = manualAdjustments
+
+    .filter(adj => {
+
+      const isCredit = adj.type === 'credit';
+
+      const isInvoicePayment = adj.category === 'Invoice Payment';
+
+      const refMatch = String(adj.reference) === String(invoiceId);
+
+      
+
+      console.log('🔍 Checking adjustment:', {
+
+        adjRef: adj.reference,
+
+        adjRefString: String(adj.reference),
+
+        invoiceId: invoiceId,
+
+        invoiceIdString: String(invoiceId),
+
+        isCredit,
+
+        isInvoicePayment,
+
+        refMatch
+
+      });
+
+      
+
+      return isCredit && isInvoicePayment && refMatch;
+
+    })
+
+    .reduce((sum, adj) => sum + Number(adj.amount || 0), 0);
+
+  
+
+  console.log('✅ getPaidAmount RESULT:', { invoiceId, basePaid, adjustmentPayments, total: basePaid + adjustmentPayments });
+
+
+
+  return basePaid + adjustmentPayments;
+
+};
+
+
+
+export const getBalance = (inv, manualAdjustments = []) => {
+
+  if (inv.status === 'Paid') return 0;
+
+  const amount = Number(inv.amount || 0);
+
+  const paid = getPaidAmount(inv, manualAdjustments);
+
+  return amount - paid;
+
+};
+
+
+
 // Helper to extract data from wrapped response { success: true, data: ... }
 
 const extractData = (response) => {
@@ -215,6 +329,18 @@ export const financeApi = {
   getJournalEntry: (id) => api.get(`/finance/journal-entries/${id}`).then(extractData).catch(handleError),
 
   deleteJournalEntry: (id) => api.delete(`/finance/journal-entries/${id}`).then(extractData).catch(handleError),
+
+  // Finance Vendors (Vendor Payables)
+
+  getFinanceVendors: () => api.get('/finance/vendors').then(extractData).catch(handleError),
+
+  getFinanceVendor: (vendorId) => api.get(`/finance/vendors/${vendorId}`).then(extractData).catch(handleError),
+
+  syncFinanceVendor: (data) => api.post('/finance/vendors/sync', data).then(extractData).catch(handleError),
+
+  recordVendorPayment: (vendorId, data) => api.post(`/finance/vendors/${vendorId}/payment`, data).then(extractData).catch(handleError),
+
+  deleteFinanceVendor: (vendorId) => api.delete(`/finance/vendors/${vendorId}`).then(extractData).catch(handleError),
 
 };
 

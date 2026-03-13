@@ -14,6 +14,7 @@ import { Progress } from '../components/ui/Progress';
 import DataTable from '../components/ui/DataTable';
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
 import apiClient, { api } from '../lib/apiClient';
+import { usePermissions, useModulePermissions } from '../hooks/usePermissions';
 import CompactCalendarFilter from '../components/ui/CompactCalendarFilter';
 
 const fmt = CURRENCY.format;
@@ -260,6 +261,7 @@ const InvKanbanBoard = ({ items, onCardClick, onDrop }) => {
 
 /* ── Main Page ── */
 const InventoryPage = () => {
+  const { canView, canCreate, canEdit, canDelete, canExport, canAssign } = useModulePermissions('inventory');
   const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'inventory', 'warehouse', 'items', 'category', 'unit'
   const [view, setView] = useState('kanban');
   const [search, setSearch] = useState('');
@@ -1299,18 +1301,18 @@ const InventoryPage = () => {
   };
 
   const ROW_ACTIONS = [
-    { label: 'View Details', icon: Package, onClick: row => setSelected(row) },
-    { label: 'Edit', icon: Edit2, onClick: row => handleEditClick(row) },
-    { label: 'Stock In', icon: ArrowUp, onClick: row => { 
+    ...(canView ? [{ label: 'View Details', icon: Package, onClick: row => setSelected(row) }] : []),
+    ...(canEdit ? [{ label: 'Edit', icon: Edit2, onClick: row => handleEditClick(row) }] : []),
+    ...(canCreate ? [{ label: 'Stock In', icon: ArrowUp, onClick: row => { 
       setStockInForm({ 
         ...stockInForm, 
         itemId: row.itemId,
         warehouse: row.warehouse || '' // Auto-select the item's current warehouse
       }); 
       setStockIn(true); 
-    } },
-    { label: 'Stock Out', icon: ArrowDown, onClick: row => { setStockOutForm({ ...stockOutForm, itemId: row.itemId }); setShowStockOut(true); } },
-    { label: 'Delete', icon: Trash2, onClick: row => handleDeleteItem(row), danger: true },
+    } }] : []),
+    ...(canAssign ? [{ label: 'Stock Out', icon: ArrowDown, onClick: row => { setStockOutForm({ ...stockOutForm, itemId: row.itemId }); setShowStockOut(true); } }] : []),
+    ...(canDelete ? [{ label: 'Delete', icon: Trash2, onClick: row => handleDeleteItem(row), danger: true }] : []),
   ];
 
   return (
@@ -1852,8 +1854,8 @@ const InventoryPage = () => {
                 <button onClick={() => setView('table')}
                   className={`view-toggle-btn ${view === 'table' ? 'active' : ''}`}><List size={14} /></button>
               </div>
-              <Button variant="ghost" onClick={() => setStockIn(true)}><ArrowUp size={13} /> Stock In</Button>
-              <Button variant="ghost" onClick={() => setShowStockOut(true)}><ArrowDown size={13} /> Stock Out</Button>
+              {canCreate && <Button variant="ghost" onClick={() => setStockIn(true)}><ArrowUp size={13} /> Stock In</Button>}
+              {canAssign && <Button variant="ghost" onClick={() => setShowStockOut(true)}><ArrowDown size={13} /> Stock Out</Button>}
               <Button variant="ghost" onClick={() => setShowCardsInViews(!showCardsInViews)}>
                 <Layers size={13} /> {showCardsInViews ? 'Hide Cards' : 'Show Cards'}
               </Button>
@@ -3139,42 +3141,61 @@ const InventoryPage = () => {
       <Modal open={showStockIn} onClose={() => setStockIn(false)} title="Stock In — Receive Materials"
         footer={<div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={() => setStockIn(false)}>Cancel</Button>
-          <Button onClick={handleStockIn} disabled={submitting || !stockInForm.itemId || !stockInForm.quantity}>
+          <Button onClick={handleStockIn} disabled={submitting || !stockInForm.poId || !stockInForm.itemId || !stockInForm.quantity}>
             {submitting ? 'Processing...' : <><ArrowUp size={13} /> Confirm Receipt</>}
           </Button>
         </div>}>
         <div className="space-y-3">
-          <FormField label="Item">
-            <Select 
-              value={stockInForm.itemId} 
-              onChange={e => {
-                const selectedItem = inventory.find(i => i.itemId === e.target.value);
-                setStockInForm(f => ({ 
-                  ...f, 
-                  itemId: e.target.value,
-                  warehouse: selectedItem?.warehouse || f.warehouse // Auto-select item's warehouse
-                }));
-              }}
-            >
-              <option value="">Select Item</option>
-              {inventory.map(i => <option key={i._id} value={i.itemId}>{i.name || i.description} ({i.warehouse}) - Stock: {i.stock || 0}</option>)}
-            </Select>
-          </FormField>
-          <FormField label="Purchase Order (PO)">
+          <FormField label="Purchase Order (PO)" required>
             <Select
               value={stockInForm.poId}
               onChange={e => {
                 const po = purchaseOrders.find(p => p.id === e.target.value || p._id === e.target.value);
-                setStockInForm(f => ({ ...f, poId: e.target.value, poReference: po ? po.id : '' }));
+                if (po) {
+                  // Auto-fill item details from PO (flat structure)
+                  const itemId = po.itemId || '';
+                  const quantity = po.requiredQuantity || po.quantity || '';
+                  const itemName = po.itemName || po.itemDescription || po.description || '';
+
+                  setStockInForm(f => ({ 
+                    ...f, 
+                    poId: e.target.value, 
+                    poReference: po.id || po.poNumber || '',
+                    itemId: itemId,
+                    quantity: quantity,
+                    // Auto-select warehouse if available
+                    warehouse: po.warehouse || f.warehouse
+                  }));
+                } else {
+                  setStockInForm(f => ({ ...f, poId: '', poReference: '', itemId: '', quantity: '' }));
+                }
               }}
             >
-              <option value="">Select PO (optional)</option>
+              <option value="">Select PO</option>
               {purchaseOrders.map(po => (
                 <option key={po._id || po.id} value={po.id || po._id}>
                   {po.id} — {po.vendorName} | ₹{(po.totalAmount || 0).toLocaleString('en-IN')} | {po.status}
                 </option>
               ))}
             </Select>
+          </FormField>
+          <FormField label="Item (Auto-filled from PO)">
+            <div className="glass-card p-2 border border-[var(--border-base)] rounded-lg bg-[var(--bg-surface)]">
+              {stockInForm.itemId ? (
+                <div className="flex items-center gap-2">
+                  <Package size={14} className="text-[var(--accent-light)]" />
+                  <span className="text-sm text-[var(--text-primary)]">
+                    {(() => {
+                      const po = purchaseOrders.find(p => (p.id || p._id) === stockInForm.poId);
+                      return po?.itemName || po?.itemDescription || inventory.find(i => i.itemId === stockInForm.itemId)?.name || stockInForm.itemId;
+                    })()}
+                  </span>
+                  <span className="text-xs text-[var(--text-muted)]">({stockInForm.itemId})</span>
+                </div>
+              ) : (
+                <span className="text-sm text-[var(--text-muted)]">Select PO to auto-fill item</span>
+              )}
+            </div>
           </FormField>
           <div className="grid grid-cols-2 gap-3">
             <FormField label="Quantity Received"><Input type="number" placeholder="100" value={stockInForm.quantity} onChange={e => setStockInForm(f => ({ ...f, quantity: e.target.value }))} /></FormField>
@@ -3251,7 +3272,7 @@ const InventoryPage = () => {
           <FormField label="Item">
             <Select value={stockOutForm.itemId} onChange={e => setStockOutForm(f => ({ ...f, itemId: e.target.value }))}>
               <option value="">Select Item</option>
-              {inventory.map(i => <option key={i._id} value={i.itemId}>{i.name || i.description} ({i.warehouse}) - Stock: {i.stock || 0}</option>)}
+              {inventory.map(i => <option key={i._id} value={i.itemId}>{i.name || i.description} ({i.warehouse}) - Available: {(i.stock || 0) - (i.reserved || 0)}</option>)}
             </Select>
           </FormField>
           <div className="grid grid-cols-2 gap-3">

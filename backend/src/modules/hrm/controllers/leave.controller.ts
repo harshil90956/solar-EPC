@@ -1,5 +1,6 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, HttpCode, HttpStatus, UseGuards, ForbiddenException } from '@nestjs/common';
 import { LeaveService } from '../services/leave.service';
+import { HrmPermissionService } from '../services/hrm-permission.service';
 import { CreateLeaveDto, UpdateLeaveStatusDto, ApproveLeaveDto, GetLeaveQueryDto, UpdateLeaveDto } from '../dto/leave.dto';
 import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
@@ -7,33 +8,50 @@ import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
 @Controller('hrm/leaves')
 @UseGuards(JwtAuthGuard, TenantGuard)
 export class LeaveController {
-  constructor(private readonly leaveService: LeaveService) {}
+  constructor(
+    private readonly leaveService: LeaveService,
+    private readonly hrmPermissionService: HrmPermissionService,
+  ) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
   async create(@Body() createLeaveDto: CreateLeaveDto, @Req() req: any) {
-    const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
+    const tenantId = req.tenant?.id || req.user?.tenantId;
+    const roleId = req.user?.roleId || req.user?.role;
+    await this.hrmPermissionService.validateAction(roleId, 'leaves.apply', tenantId);
+    
     const data = await this.leaveService.create(createLeaveDto, tenantId);
     return { success: true, data };
   }
 
   @Get()
   async findAll(@Query() query: GetLeaveQueryDto, @Req() req: any) {
-    const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
-    const data = await this.leaveService.findAll(
-      query.employeeId,
-      query.status,
-      query.startDate,
-      query.endDate,
-      tenantId,
-      req.user,
-    );
+    const tenantId = req.tenant?.id || req.user?.tenantId;
+    const roleId = req.user?.roleId || req.user?.role;
+    
+    // Check if user has permission to view all leaves
+    const canViewAll = await this.hrmPermissionService.checkPermission(roleId, 'leaves.view', tenantId);
+    
+    if (canViewAll) {
+      const data = await this.leaveService.findAll(
+        query.employeeId,
+        query.status,
+        query.startDate,
+        query.endDate,
+        tenantId,
+        req.user,
+      );
+      return { success: true, data };
+    }
+    
+    // Fallback: employees only see their own leaves
+    const data = await this.leaveService.findByEmployee(req.user.sub, tenantId);
     return { success: true, data };
   }
 
   @Get(':id')
   async findOne(@Param('id') id: string, @Req() req: any) {
-    const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
+    const tenantId = req.tenant?.id || req.user?.tenantId;
     const data = await this.leaveService.findOne(id, tenantId);
     return { success: true, data };
   }
@@ -56,6 +74,9 @@ export class LeaveController {
     @Req() req: any,
   ) {
     const tenantId = req.tenant?.id || 'default';
+    const roleId = req.user?.roleId || req.user?.role;
+    await this.hrmPermissionService.validateAction(roleId, 'leaves.approve', tenantId);
+
     const data = await this.leaveService.approve(id, approveDto, tenantId);
     return { success: true, data };
   }
@@ -67,6 +88,9 @@ export class LeaveController {
     @Req() req: any,
   ) {
     const tenantId = req.tenant?.id || 'default';
+    const roleId = req.user?.roleId || req.user?.role;
+    await this.hrmPermissionService.validateAction(roleId, 'leaves.approve', tenantId);
+
     const data = await this.leaveService.reject(id, updateDto, tenantId);
     return { success: true, data };
   }

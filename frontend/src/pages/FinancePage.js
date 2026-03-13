@@ -6,7 +6,23 @@
 
 
 
+
+
+
+
+
+
+
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+
+
+
+
+
+
+
+
 
 
 
@@ -22,7 +38,23 @@ import * as XLSX from 'xlsx';
 
 
 
+
+
+
+
+
+
+
+
 import {
+
+
+
+
+
+
+
+
 
 
 
@@ -38,7 +70,19 @@ import {
 
 
 
+
+
+
+
+
+
+
+
   CheckCircle, Clock, Zap, FileText, Plus, IndianRupee,
+
+
+
+
 
 
 
@@ -46,11 +90,27 @@ import {
 
 
 
+
+
+
+
   Edit, Download, Trash2, Loader2, X, BarChart3, Eye, EyeOff,
 
 
 
+
+
+
+
 } from 'lucide-react';
+
+
+
+
+
+
+
+
 
 
 
@@ -66,7 +126,23 @@ import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContai
 
 
 
-import { financeApi } from '../lib/financeApi';
+
+
+
+
+
+
+
+
+import { financeApi, getPaidAmount, getBalance } from '../lib/financeApi';
+
+
+
+
+
+
+
+
 
 
 
@@ -82,7 +158,23 @@ import { api } from '../lib/apiClient';
 
 
 
+
+
+
+
+
+
+
+
 import { StatusBadge } from '../components/ui/Badge';
+
+
+
+
+
+
+
+
 
 
 
@@ -98,7 +190,23 @@ import { Button } from '../components/ui/Button';
 
 
 
+
+
+
+
+
+
+
+
 import { Modal } from '../components/ui/Modal';
+
+
+
+
+
+
+
+
 
 
 
@@ -114,7 +222,23 @@ import { Input, FormField, Select } from '../components/ui/Input';
 
 
 
+
+
+
+
+
+
+
+
 import { toast } from '../components/ui/Toast';
+
+
+
+
+
+
+
+
 
 
 
@@ -130,7 +254,23 @@ import { KPICard } from '../components/ui/KPICard';
 
 
 
+
+
+
+
+
+
+
+
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/Tabs';
+
+
+
+
+
+
+
+
 
 
 
@@ -146,7 +286,23 @@ import DataTable from '../components/ui/DataTable';
 
 
 
+
+
+
+
+
+
+
+
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
+
+
+
+
+
+
+
+
 
 
 
@@ -162,7 +318,23 @@ import { useSettings } from '../context/SettingsContext';
 
 
 
+
+
+
+
+
+
+
+
 import { usePermissions } from '../hooks/usePermissions';
+
+
+
+
+
+
+
+
 
 
 
@@ -178,11 +350,31 @@ import { format, subMonths } from 'date-fns';
 
 
 
+
+
+
+
+
+
+
+
 import FinanceDashboard from '../components/finance/FinanceDashboard';
 
 
 
+
+
+
+
 import CalendarFilter from '../components/finance/CalendarFilter';
+
+
+
+
+
+
+
+
 
 
 
@@ -196,7 +388,21 @@ const fmt = CURRENCY.format;
 
 
 
+
+
+
+
+
+
 /* ── Invoice stage definitions ──────────────────────────────────────────────── */
+
+
+
+
+
+
+
+
 
 
 
@@ -208,7 +414,15 @@ const INV_STAGES = [
 
 
 
+
+
+
+
   { id: 'Draft', label: 'Draft', color: '#64748b', bg: 'rgba(100,116,139,0.12)' },
+
+
+
+
 
 
 
@@ -216,7 +430,15 @@ const INV_STAGES = [
 
 
 
+
+
+
+
   { id: 'Partial', label: 'Partial', color: '#3b82f6', bg: 'rgba(59,130,246,0.12)' },
+
+
+
+
 
 
 
@@ -224,7 +446,15 @@ const INV_STAGES = [
 
 
 
+
+
+
+
   { id: 'Overdue', label: 'Overdue', color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
+
+
+
+
 
 
 
@@ -244,15 +474,47 @@ const INV_STAGES = [
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 /* ── Invoice card ────────────────────────────────────────────────────────────── */
 
 
+
+
+
 const InvCard = ({ inv, onDragStart, onClick }) => {
+
   const paid = inv.paid || inv.amountPaid || 0;
+
   const balancePct = inv.amount > 0 ? Math.round((paid / inv.amount) * 100) : 0;
 
 
+
+
+
   const isOverdue = inv.status === 'Overdue';
+
+
+
+
+
+
+
+
 
 
 
@@ -268,7 +530,23 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
+
+
+
+
   return (
+
+
+
+
+
+
+
+
 
 
 
@@ -284,7 +562,23 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
+
+
+
+
       draggable
+
+
+
+
+
+
+
+
 
 
 
@@ -300,7 +594,23 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
+
+
+
+
       onClick={() => onClick(inv)}
+
+
+
+
+
+
+
+
 
 
 
@@ -316,7 +626,23 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
+
+
+
+
     >
+
+
+
+
+
+
+
+
 
 
 
@@ -332,7 +658,23 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
+
+
+
+
         <span className="text-[10px] font-mono text-[var(--accent-light)]">{displayId}</span>
+
+
+
+
+
+
+
+
 
 
 
@@ -348,7 +690,23 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
+
+
+
+
       </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -364,6 +722,14 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
+
+
+
+
       <div className="grid grid-cols-2 gap-1 text-[10px]">
 
 
@@ -372,7 +738,23 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
+
+
+
+
         <div className="glass-card p-1.5 text-center">
+
+
+
+
+
+
+
+
 
 
 
@@ -388,6 +770,14 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
+
+
+
+
           <p className="font-bold text-[var(--text-primary)]">{fmt(inv.amount)}</p>
 
 
@@ -396,7 +786,23 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
+
+
+
+
         </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -412,7 +818,23 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
+
+
+
+
           <p className="text-[var(--text-muted)]">Balance</p>
+
+
+
+
+
+
+
+
 
 
 
@@ -428,6 +850,14 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
+
+
+
+
         </div>
 
 
@@ -436,7 +866,23 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
+
+
+
+
       </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -452,7 +898,23 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
+
+
+
+
         <div className="flex justify-between text-[9px] text-[var(--text-muted)] mb-0.5">
+
+
+
+
+
+
+
+
 
 
 
@@ -468,7 +930,23 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
+
+
+
+
         </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -484,7 +962,23 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
+
+
+
+
           <div className={`h-full rounded-full ${balancePct === 100 ? 'bg-emerald-400' : 'bg-[var(--accent)]'}`}
+
+
+
+
+
+
+
+
 
 
 
@@ -500,6 +994,14 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
+
+
+
+
         </div>
 
 
@@ -508,7 +1010,23 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
+
+
+
+
       </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -524,7 +1042,23 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
+
+
+
+
         <Calendar size={9} /><span>Due: {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : '—'}</span>
+
+
+
+
+
+
+
+
 
 
 
@@ -540,7 +1074,23 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
+
+
+
+
       </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -556,6 +1106,14 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
+
+
+
+
   );
 
 
@@ -564,7 +1122,31 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
+
+
+
+
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -588,7 +1170,23 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
 
 
 
+
+
+
+
+
+
+
+
 const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
+
+
+
+
+
+
+
+
 
 
 
@@ -604,7 +1202,23 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
   const [dragOver, setDragOver] = useState(null);
+
+
+
+
+
+
+
+
 
 
 
@@ -620,7 +1234,23 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
     <div className="overflow-x-auto pb-3">
+
+
+
+
+
+
+
+
 
 
 
@@ -636,7 +1266,23 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
         {INV_STAGES.map(stage => {
+
+
+
+
+
+
+
+
 
 
 
@@ -646,7 +1292,13 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
           // Show Pending invoices in Sent column
 
+
+
           const cards = invoices.filter(i =>
+
+
+
+
 
 
 
@@ -654,7 +1306,19 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
           );
+
+
+
+
+
+
+
+
 
 
 
@@ -670,7 +1334,23 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
           return (
+
+
+
+
+
+
+
+
 
 
 
@@ -686,7 +1366,23 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
               className={`flex flex-col w-60 rounded-xl border transition-colors ${dragOver === stage.id ? 'border-[var(--primary)]/50 bg-[var(--primary)]/5' : 'border-[var(--border-base)] bg-[var(--bg-surface)]'}`}
+
+
+
+
+
+
+
+
 
 
 
@@ -702,7 +1398,23 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
               onDragLeave={() => setDragOver(null)}
+
+
+
+
+
+
+
+
 
 
 
@@ -718,7 +1430,23 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
             >
+
+
+
+
+
+
+
+
 
 
 
@@ -734,7 +1462,23 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <div className="flex items-center gap-2">
+
+
+
+
+
+
+
+
 
 
 
@@ -750,6 +1494,14 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
                   <span className="text-xs font-semibold text-[var(--text-primary)]">{stage.label}</span>
 
 
@@ -758,7 +1510,23 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
                 </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -774,7 +1542,23 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
                   {colAmt > 0 && <span className="text-[10px] text-[var(--text-muted)]">{fmt(colAmt)}</span>}
+
+
+
+
+
+
+
+
 
 
 
@@ -790,7 +1574,23 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
                     style={{ background: stage.bg, color: stage.color }}>{cards.length}</span>
+
+
+
+
+
+
+
+
 
 
 
@@ -806,7 +1606,23 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
               </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -822,7 +1638,23 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
                 {cards.map(inv => (
+
+
+
+
+
+
+
+
 
 
 
@@ -838,7 +1670,23 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
                     onDragStart={id => { draggingId.current = id; }}
+
+
+
+
+
+
+
+
 
 
 
@@ -854,7 +1702,23 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
                   />
+
+
+
+
+
+
+
+
 
 
 
@@ -870,7 +1734,23 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
                 {cards.length === 0 && (
+
+
+
+
+
+
+
+
 
 
 
@@ -886,7 +1766,23 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
                     <p className="text-[11px] text-[var(--text-faint)]">Drop here</p>
+
+
+
+
+
+
+
+
 
 
 
@@ -902,7 +1798,23 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
                 )}
+
+
+
+
+
+
+
+
 
 
 
@@ -918,7 +1830,23 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -934,7 +1862,23 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
         })}
+
+
+
+
+
+
+
+
 
 
 
@@ -950,7 +1894,23 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
     </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -966,7 +1926,31 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -990,7 +1974,23 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
 const INVOICE_COLUMNS = [
+
+
+
+
+
+
+
+
 
 
 
@@ -1006,7 +2006,23 @@ const INVOICE_COLUMNS = [
 
 
 
+
+
+
+
+
+
+
+
   { key: 'customerName', header: 'Customer', sortable: true, render: v => <span className="text-xs font-semibold text-[var(--text-primary)]">{v}</span> },
+
+
+
+
+
+
+
+
 
 
 
@@ -1022,7 +2038,23 @@ const INVOICE_COLUMNS = [
 
 
 
+
+
+
+
+
+
+
+
   { key: 'amount', header: 'Invoice Amt', sortable: true, render: v => <span className="text-xs font-bold text-[var(--text-primary)]">{fmt(v)}</span> },
+
+
+
+
+
+
+
+
 
 
 
@@ -1038,7 +2070,23 @@ const INVOICE_COLUMNS = [
 
 
 
+
+
+
+
+
+
+
+
   { key: 'balance', header: 'Balance', render: v => <span className={`text-xs font-bold ${v > 0 ? 'text-red-400' : 'text-emerald-400'}`}>{fmt(v)}</span> },
+
+
+
+
+
+
+
+
 
 
 
@@ -1054,7 +2102,23 @@ const INVOICE_COLUMNS = [
 
 
 
+
+
+
+
+
+
+
+
   { key: 'invoiceDate', header: 'Date', render: v => <span className="text-xs text-[var(--text-muted)]">{v ? new Date(v).toLocaleDateString() : '—'}</span> },
+
+
+
+
+
+
+
+
 
 
 
@@ -1070,41 +2134,91 @@ const INVOICE_COLUMNS = [
 
 
 
+
+
+
+
+
+
+
+
   { key: 'paidDate', header: 'Paid On', render: v => <span className="text-xs text-[var(--text-muted)]">{v ? new Date(v).toLocaleDateString() : '—'}</span> },
 
 
 
+
+
+
+
   {
+
     key: 'reminderCount', header: 'Reminders', render: (v, row) => (
+
+
 
       <div className="flex items-center gap-1">
 
+
+
         {v > 0 ? (
+
+
 
           <>
 
+
+
             <span className="text-xs font-bold text-orange-400">{v}</span>
+
+
 
             {row.lastReminderSentAt && (
 
+
+
               <span className="text-[10px] text-[var(--text-faint)]">
+
+
 
                 ({new Date(row.lastReminderSentAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })})</span>
 
+
+
             )}
+
+
 
           </>
 
+
+
         ) : (
+
+
 
           <span className="text-xs text-[var(--text-faint)]">—</span>
 
+
+
         )}
+
+
 
       </div>
 
+
+
     )
+
   },
+
+
+
+
+
+
+
+
 
 
 
@@ -1128,7 +2242,31 @@ const INVOICE_COLUMNS = [
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 const CustomTooltip = ({ active, payload, label }) => {
+
+
+
+
+
+
+
+
 
 
 
@@ -1144,7 +2282,23 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 
 
+
+
+
+
+
+
+
+
   return (
+
+
+
+
+
+
+
+
 
 
 
@@ -1160,7 +2314,23 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 
 
+
+
+
+
+
+
+
+
       <p className="text-[var(--text-muted)] mb-1">{label}</p>
+
+
+
+
+
+
+
+
 
 
 
@@ -1176,7 +2346,23 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 
 
+
+
+
+
+
+
+
+
     </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -1192,7 +2378,31 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 
 
+
+
+
+
+
+
+
+
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1224,7 +2434,31 @@ const INV_STATUS_FILTERS = ['All', 'Draft', 'Sent', 'Partial', 'Paid', 'Overdue'
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 /* ══════════════════════════════════════════════════════════════════════════════
+
+
+
+
+
+
+
+
 
 
 
@@ -1240,7 +2474,23 @@ const INV_STATUS_FILTERS = ['All', 'Draft', 'Sent', 'Partial', 'Paid', 'Overdue'
 
 
 
+
+
+
+
+
+
+
+
 ══════════════════════════════════════════════════════════════════════════════ */
+
+
+
+
+
+
+
+
 
 
 
@@ -1252,11 +2502,27 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   const { isActionEnabled } = useSettings();
 
 
 
+
+
+
+
   const { can } = usePermissions();
+
+
+
+
+
+
+
+
 
 
 
@@ -1270,7 +2536,17 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
   // Main view mode: 'dashboard', 'kanban', 'table'
+
+
+
+
 
 
 
@@ -1278,7 +2554,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   // Active tab in table view: 'invoices', 'payables', 'transactions'
+
+
+
+
 
 
 
@@ -1290,11 +2574,31 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   // Table view summary cards visibility (default hidden)
 
 
 
+
+
+
+
   const [showSummaryCards, setShowSummaryCards] = useState(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -1310,7 +2614,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   const [invStatus, setInvStatus] = useState('All');
+
+
+
+
+
+
+
+
 
 
 
@@ -1326,7 +2646,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   const [pageSize, setPageSizeState] = useState(() => {
+
+
+
+
 
 
 
@@ -1334,11 +2666,25 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     return saved ? parseInt(saved, 10) : APP_CONFIG.defaultPageSize;
 
 
 
+
+
+
+
   });
+
+
+
+
+
+
 
 
 
@@ -1348,7 +2694,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     localStorage.setItem('finance_invoice_pageSize', String(size));
+
+
+
+
 
 
 
@@ -1356,7 +2710,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   };
+
+
+
+
 
 
 
@@ -1364,7 +2726,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     start: format(subMonths(new Date(), 6), 'yyyy-MM-dd'),
+
+
+
+
 
 
 
@@ -1372,7 +2742,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   });
+
+
+
+
 
 
 
@@ -1380,25 +2758,55 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+
+
+
+
 
 
 
   // Calendar filter year state - for filtering data by year
 
+
+
   const [calendarFilterYear, setCalendarFilterYear] = useState('all');
+
+
 
   // Calendar filter month state - for displaying selected month in calendar
 
+
+
   const [calendarFilterMonth, setCalendarFilterMonth] = useState(undefined);
 
+
+
   // Calendar filter day state - for Today filter (exact day, 0=no day filter)
+
+
 
   const [calendarFilterDay, setCalendarFilterDay] = useState(undefined);
 
 
 
+
+
+
+
   const [showInvoice, setShowInvoice] = useState(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -1414,7 +2822,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   const [customers, setCustomers] = useState([]);
+
+
+
+
+
+
+
+
 
 
 
@@ -1430,7 +2854,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   const [error, setError] = useState(null);
+
+
+
+
+
+
+
+
 
 
 
@@ -1446,7 +2886,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   const [invoices, setInvoices] = useState([]);
+
+
+
+
+
+
+
+
 
 
 
@@ -1462,7 +2918,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   const [dashboardStats, setDashboardStats] = useState(null);
+
+
+
+
+
+
+
+
 
 
 
@@ -1478,7 +2950,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   const [cashFlow, setCashFlow] = useState([]);
+
+
+
+
+
+
+
+
 
 
 
@@ -1494,7 +2982,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   const [payables, setPayables] = useState([]);
+
+
+
+
+
+
+
+
 
 
 
@@ -1510,7 +3014,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   const [projects, setProjects] = useState([]);
+
+
+
+
+
+
+
+
 
 
 
@@ -1526,7 +3046,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   const [canCreateInvoice, setCanCreateInvoice] = useState(true);
+
+
+
+
+
+
+
+
 
 
 
@@ -1542,7 +3078,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   const [selectedProjectContractValue, setSelectedProjectContractValue] = useState(null);
+
+
+
+
+
+
+
+
 
 
 
@@ -1566,7 +3118,31 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   // Reminder modal state
+
+
+
+
+
+
+
+
 
 
 
@@ -1582,7 +3158,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   const [selectedReminderInvoice, setSelectedReminderInvoice] = useState(null);
+
+
+
+
+
+
+
+
 
 
 
@@ -1598,7 +3190,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
     reminderType: 'Gentle',
+
+
+
+
+
+
+
+
 
 
 
@@ -1614,7 +3222,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
     messageBody: '',
+
+
+
+
+
+
+
+
 
 
 
@@ -1630,7 +3254,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   const [sendingReminder, setSendingReminder] = useState(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -1654,7 +3294,31 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   // Timeline drawer state
+
+
+
+
+
+
+
+
 
 
 
@@ -1670,6 +3334,14 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   const [timelineInvoice, setTimelineInvoice] = useState(null);
 
 
@@ -1678,7 +3350,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   const [timelineData, setTimelineData] = useState([]);
+
+
+
+
+
+
+
+
 
 
 
@@ -1702,7 +3390,31 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   // Edit invoice modal state
+
+
+
+
+
+
+
+
 
 
 
@@ -1718,7 +3430,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   const [editInvoiceTarget, setEditInvoiceTarget] = useState(null);
+
+
+
+
+
+
+
+
 
 
 
@@ -1734,7 +3462,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
     invoiceNumber: '',
+
+
+
+
+
+
+
+
 
 
 
@@ -1750,7 +3494,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
     amount: '',
+
+
+
+
+
+
+
+
 
 
 
@@ -1766,7 +3526,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
     dueDate: '',
+
+
+
+
+
+
+
+
 
 
 
@@ -1782,7 +3558,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
     description: '',
+
+
+
+
+
+
+
+
 
 
 
@@ -1798,7 +3590,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
     status: '',
+
+
+
+
+
+
+
+
 
 
 
@@ -1814,7 +3622,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   const [newInvoiceErrors, setNewInvoiceErrors] = useState({});
+
+
+
+
+
+
+
+
 
 
 
@@ -1826,7 +3650,27 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   const [editModalError, setEditModalError] = useState(null);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1850,6 +3694,14 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   const [showDeleteInvoice, setShowDeleteInvoice] = useState(false);
 
 
@@ -1858,7 +3710,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   const [deleteInvoiceTarget, setDeleteInvoiceTarget] = useState(null);
+
+
+
+
+
+
+
+
 
 
 
@@ -1882,7 +3750,31 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   // Assign invoice modal state
+
+
+
+
+
+
+
+
 
 
 
@@ -1898,7 +3790,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   const [assignInvoiceTarget, setAssignInvoiceTarget] = useState(null);
+
+
+
+
+
+
+
+
 
 
 
@@ -1922,7 +3830,31 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   // Form state for new invoice
+
+
+
+
+
+
+
+
 
 
 
@@ -1938,7 +3870,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
     invoiceNumber: '',
+
+
+
+
+
+
+
+
 
 
 
@@ -1954,7 +3902,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
     customerName: '',
+
+
+
+
+
+
+
+
 
 
 
@@ -1970,7 +3934,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
     invoiceDate: '',
+
+
+
+
+
+
+
+
 
 
 
@@ -1986,7 +3966,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
     paymentTerms: '',
+
+
+
+
+
+
+
+
 
 
 
@@ -2002,6 +3998,14 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
     email: '',
 
 
@@ -2010,7 +4014,31 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -2034,7 +4062,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   const [showRecordPayment, setShowRecordPayment] = useState(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -2050,7 +4094,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
     paymentType: 'Customer Payment',
+
+
+
+
+
+
+
+
 
 
 
@@ -2066,6 +4126,14 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
     referenceId: '',
 
 
@@ -2074,7 +4142,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
     amount: '',
+
+
+
+
+
+
+
+
 
 
 
@@ -2090,6 +4174,14 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
     paymentDate: new Date().toISOString().slice(0, 10),
 
 
@@ -2098,7 +4190,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
     paymentMethod: 'Bank Transfer',
+
+
+
+
+
+
+
+
 
 
 
@@ -2114,7 +4222,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   });
+
+
+
+
+
+
+
+
 
 
 
@@ -2130,7 +4254,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   const [submittingPayment, setSubmittingPayment] = useState(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -2142,7 +4282,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   const [showAdjustModal, setShowAdjustModal] = useState(false);
+
+
+
+
 
 
 
@@ -2150,7 +4298,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     type: 'credit',
+
+
+
+
 
 
 
@@ -2158,7 +4314,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     amount: '',
+
+
+
+
 
 
 
@@ -2166,7 +4330,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     reason: '',
+
+
+
+
 
 
 
@@ -2174,7 +4346,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     date: new Date().toISOString().slice(0, 10),
+
+
+
+
 
 
 
@@ -2182,7 +4362,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     selectedVendorId: '',
+
+
+
+
 
 
 
@@ -2190,7 +4378,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   });
+
+
+
+
 
 
 
@@ -2198,7 +4394,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   const [adjustError, setAdjustError] = useState(null);
+
+
+
+
 
 
 
@@ -2206,7 +4410,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   const [manualAdjustments, setManualAdjustments] = useState([]);
+
+
+
+
 
 
 
@@ -2214,7 +4426,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   // Adjustment categories state
+
+
+
+
 
 
 
@@ -2222,7 +4442,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
+
+
+
+
 
 
 
@@ -2230,7 +4458,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     categoryName: '',
+
+
+
+
 
 
 
@@ -2238,7 +4474,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   });
+
+
+
+
 
 
 
@@ -2246,7 +4490,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   // Journal entries state
+
+
+
+
 
 
 
@@ -2254,11 +4506,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   const [selectedJournalEntry, setSelectedJournalEntry] = useState(null);
 
 
 
+
+
+
+
   const [selectedJournalEntryIndex, setSelectedJournalEntryIndex] = useState(null);
+
+
+
+
 
 
 
@@ -2270,7 +4534,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
   const journalTotals = useMemo(() => {
+
+
+
+
 
 
 
@@ -2278,7 +4554,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
     let creditTotal = 0;
+
+
+
+
+
+
+
+
 
 
 
@@ -2290,7 +4578,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
       (entry?.lines || []).forEach((line) => {
+
+
+
+
 
 
 
@@ -2298,7 +4594,15 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         const c = Number(line?.creditAmount || 0);
+
+
+
+
 
 
 
@@ -2306,11 +4610,23 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
         if (!Number.isNaN(c)) creditTotal += c;
 
 
 
+
+
+
+
       });
+
+
+
+
 
 
 
@@ -2322,7 +4638,19 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
+
+
+
+
     return { debitTotal, creditTotal };
+
+
+
+
 
 
 
@@ -2330,161 +4658,327 @@ const FinancePage = ({ onNavigate }) => {
 
 
 
+
+
+
+
   // Filtered data by selected year from calendar
+
+
 
   const filteredInvoicesByYear = useMemo(() => {
 
+
+
     if (calendarFilterYear === 'all') return invoices;
+
+
 
     return invoices.filter(inv => {
 
+
+
       const invoiceDate = new Date(inv.invoiceDate || inv.createdAt);
+
       const createdAtDate = inv.createdAt ? new Date(inv.createdAt) : null;
 
+
+
       if (calendarFilterDay !== undefined) {
+
         // Today mode: match if invoiceDate OR createdAt is today
+
         const year = parseInt(calendarFilterYear);
+
         const month = calendarFilterMonth;
+
         const day = calendarFilterDay;
+
         const invoiceDateMatch = invoiceDate.getFullYear() === year && invoiceDate.getMonth() === month && invoiceDate.getDate() === day;
+
         const createdAtMatch = createdAtDate && createdAtDate.getFullYear() === year && createdAtDate.getMonth() === month && createdAtDate.getDate() === day;
+
         return invoiceDateMatch || createdAtMatch;
+
       }
 
+
+
       if (invoiceDate.getFullYear().toString() !== calendarFilterYear) return false;
+
       if (calendarFilterMonth !== undefined && invoiceDate.getMonth() !== calendarFilterMonth) return false;
+
       return true;
 
+
+
     });
+
+
 
 }, [invoices, calendarFilterYear, calendarFilterMonth, calendarFilterDay]);
 
+
+
 const filteredJournalEntriesByYear = useMemo(() => {
+
     if (calendarFilterYear === 'all') return journalEntries;
 
+
+
     return journalEntries.filter(entry => {
+
         const entryDate = new Date(entry.date || entry.createdAt);
+
         const entryCreatedAt = entry.createdAt ? new Date(entry.createdAt) : null;
+
         if (calendarFilterDay !== undefined) {
+
           const year = parseInt(calendarFilterYear);
+
           const entryDateMatch = entryDate.getFullYear() === year && entryDate.getMonth() === calendarFilterMonth && entryDate.getDate() === calendarFilterDay;
+
           const createdMatch = entryCreatedAt && entryCreatedAt.getFullYear() === year && entryCreatedAt.getMonth() === calendarFilterMonth && entryCreatedAt.getDate() === calendarFilterDay;
+
           return entryDateMatch || createdMatch;
+
         }
+
         if (entryDate.getFullYear().toString() !== calendarFilterYear) return false;
+
         if (calendarFilterMonth !== undefined && entryDate.getMonth() !== calendarFilterMonth) return false;
+
         return true;
+
     });
+
 }, [journalEntries, calendarFilterYear, calendarFilterMonth, calendarFilterDay]);
 
+
+
 const filteredJournalTotals = useMemo(() => {
+
     let debitTotal = 0;
+
     let creditTotal = 0;
+
     (filteredJournalEntriesByYear || []).forEach((entry) => {
+
       (entry?.lines || []).forEach((line) => {
+
         const d = Number(line?.debitAmount || 0);
+
         const c = Number(line?.creditAmount || 0);
+
         if (!Number.isNaN(d)) debitTotal += d;
+
         if (!Number.isNaN(c)) creditTotal += c;
+
       });
+
     });
+
     return { debitTotal, creditTotal };
+
 }, [filteredJournalEntriesByYear]);
+
+
 
 const filteredManualAdjustmentsByYear = useMemo(() => {
 
+
+
     if (calendarFilterYear === 'all') return manualAdjustments;
+
+
 
     return manualAdjustments.filter(adj => {
 
+
+
       const adjDate = new Date(adj.date || adj.createdAt);
+
       const adjCreatedAt = adj.createdAt ? new Date(adj.createdAt) : null;
 
+
+
       if (calendarFilterDay !== undefined) {
+
         const year = parseInt(calendarFilterYear);
+
         const adjDateMatch = adjDate.getFullYear() === year && adjDate.getMonth() === calendarFilterMonth && adjDate.getDate() === calendarFilterDay;
+
         const createdMatch = adjCreatedAt && adjCreatedAt.getFullYear() === year && adjCreatedAt.getMonth() === calendarFilterMonth && adjCreatedAt.getDate() === calendarFilterDay;
+
         return adjDateMatch || createdMatch;
+
       }
 
+
+
       if (adjDate.getFullYear().toString() !== calendarFilterYear) return false;
+
       if (calendarFilterMonth !== undefined && adjDate.getMonth() !== calendarFilterMonth) return false;
+
       return true;
 
+
+
     });
+
+
 
   }, [manualAdjustments, calendarFilterYear, calendarFilterMonth, calendarFilterDay]);
 
 
 
+
+
+
+
   const filteredPayablesByYear = useMemo(() => {
+
+
 
     if (calendarFilterYear === 'all') return payables;
 
+
+
     return payables.filter(p => {
+
+
 
       if (!p.lastPurchaseOrderDate) return false;
 
+
+
       const poDate = new Date(p.lastPurchaseOrderDate);
 
+
+
       if (poDate.getFullYear().toString() !== calendarFilterYear) return false;
+
       if (calendarFilterMonth !== undefined && poDate.getMonth() !== calendarFilterMonth) return false;
+
       if (calendarFilterDay !== undefined && poDate.getDate() !== calendarFilterDay) return false;
+
       return true;
 
+
+
     });
+
+
 
   }, [payables, calendarFilterYear, calendarFilterMonth, calendarFilterDay]);
 
+
+
   const filteredPaymentsByYear = useMemo(() => {
+
     if (calendarFilterYear === 'all') return payments;
+
     return payments.filter(p => {
+
       const paymentDate = new Date(p.paymentDate || p.date || p.createdAt);
+
       if (calendarFilterDay !== undefined) {
+
         const year = parseInt(calendarFilterYear);
+
         return paymentDate.getFullYear() === year && paymentDate.getMonth() === calendarFilterMonth && paymentDate.getDate() === calendarFilterDay;
+
       }
+
       if (paymentDate.getFullYear().toString() !== calendarFilterYear) return false;
+
       if (calendarFilterMonth !== undefined && paymentDate.getMonth() !== calendarFilterMonth) return false;
+
       return true;
+
     });
+
   }, [payments, calendarFilterYear, calendarFilterMonth, calendarFilterDay]);
+
+
+
+
 
 
 
   // Extract unique years from invoice data for the calendar filter
 
+
+
   const availableYears = useMemo(() => {
+
+
 
     const years = new Set();
 
+
+
     (invoices || []).forEach(inv => {
+
+
 
       const date = new Date(inv.invoiceDate || inv.createdAt);
 
+
+
       if (!isNaN(date.getTime())) {
+
+
 
         years.add(date.getFullYear());
 
+
+
       }
 
+
+
     });
+
+
 
     (journalEntries || []).forEach(entry => {
 
+
+
       const date = new Date(entry.date || entry.createdAt);
+
+
 
       if (!isNaN(date.getTime())) {
 
+
+
         years.add(date.getFullYear());
+
+
 
       }
 
+
+
     });
+
+
 
     return Array.from(years).sort((a, b) => b - a); // Sort descending
 
+
+
   }, [invoices, journalEntries]);
+
+
+
+
+
+
+
+
 
 
 
@@ -2500,7 +4994,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
   useEffect(() => {
+
+
+
+
+
+
+
+
 
 
 
@@ -2516,21 +5026,59 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     // Periodic refetch of manual adjustments and journal entries to keep Transactions tab in sync with database
+
     const intervalId = setInterval(async () => {
+
       try {
+
         const adjustments = await financeApi.getManualAdjustments();
+
         setManualAdjustments(adjustments || []);
+
         const entries = await financeApi.getJournalEntries();
+
         setJournalEntries(entries || []);
+
       } catch (err) {
+
         console.error('Failed to refresh data:', err);
+
       }
+
     }, 5000); // Refresh every 5 seconds
+
+
 
     return () => clearInterval(intervalId);
 
+
+
   }, []);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -2554,7 +5102,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     try {
+
+
+
+
+
+
+
+
 
 
 
@@ -2570,7 +5134,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         setLoading(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -2586,7 +5166,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         return;
+
+
+
+
+
+
+
+
 
 
 
@@ -2602,7 +5198,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       setLoading(true);
+
+
+
+
+
+
+
+
 
 
 
@@ -2622,7 +5234,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
       const [
+
+
+
+
 
 
 
@@ -2630,7 +5258,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         paymentsRes,
+
+
+
+
 
 
 
@@ -2638,7 +5274,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         statsRes,
+
+
+
+
 
 
 
@@ -2646,7 +5290,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         posRes,
+
+
+
+
 
 
 
@@ -2654,7 +5306,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         manualBalanceRes,
+
+
+
+
 
 
 
@@ -2662,7 +5322,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         journalEntriesRes,
+
+
+
+
 
 
 
@@ -2670,7 +5338,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       ] = await Promise.all([
+
+
+
+
+
+
+
+
 
 
 
@@ -2686,7 +5366,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         financeApi.getPayments(),
+
+
+
+
+
+
+
+
 
 
 
@@ -2702,7 +5398,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         financeApi.getDashboardStats(),
+
+
+
+
+
+
+
+
 
 
 
@@ -2718,7 +5430,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         api.get('/procurement/purchase-orders'),
+
+
+
+
+
+
+
+
 
 
 
@@ -2734,7 +5462,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         financeApi.getManualAdjustmentBalance(),
+
+
+
+
+
+
+
+
 
 
 
@@ -2750,6 +5494,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         financeApi.getJournalEntries(),
 
 
@@ -2758,7 +5510,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         financeApi.getTransactionAnalytics(),
+
+
+
+
+
+
+
+
 
 
 
@@ -2778,7 +5546,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
       setInvoices(invoicesRes || []);
+
+
+
+
+
+
+
+
 
 
 
@@ -2794,7 +5582,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       setPayments(payments);
+
+
+
+
+
+
+
+
 
 
 
@@ -2810,7 +5614,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       setDashboardStats(statsRes);
+
+
+
+
+
+
+
+
 
 
 
@@ -2822,7 +5642,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       setManualAdjustments(manualAdjustmentsRes || []);
+
+
+
+
 
 
 
@@ -2834,7 +5662,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       // Set adjustment categories
+
+
+
+
 
 
 
@@ -2846,7 +5686,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       // Set journal entries
+
+
+
+
 
 
 
@@ -2858,7 +5710,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       // Set transaction analytics
+
+
+
+
 
 
 
@@ -2870,7 +5734,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       // Vendor Payables (from Procurement Purchase Orders)
+
+
+
+
 
 
 
@@ -2878,7 +5754,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         ? vendorsRes
+
+
+
+
 
 
 
@@ -2886,11 +5770,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       const purchaseOrders = Array.isArray(posRes)
 
 
 
+
+
+
+
         ? posRes
+
+
+
+
 
 
 
@@ -2902,7 +5798,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       const safeDate = (d) => {
+
+
+
+
 
 
 
@@ -2910,7 +5818,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         if (d instanceof Date) {
+
+
+
+
 
 
 
@@ -2918,7 +5834,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         }
+
+
+
+
 
 
 
@@ -2926,7 +5850,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           const m = d.trim().match(/^([0-3]\d)[-\/](0\d|1[0-2])[-\/](\d{4})$/);
+
+
+
+
 
 
 
@@ -2934,7 +5866,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             const day = Number(m[1]);
+
+
+
+
 
 
 
@@ -2942,7 +5882,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             const year = Number(m[3]);
+
+
+
+
 
 
 
@@ -2950,7 +5898,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             return Number.isNaN(dt.getTime()) ? null : dt;
+
+
+
+
 
 
 
@@ -2958,7 +5914,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         }
+
+
+
+
 
 
 
@@ -2966,11 +5930,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         return Number.isNaN(dt.getTime()) ? null : dt;
 
 
 
+
+
+
+
       };
+
+
+
+
+
+
+
+
 
 
 
@@ -2982,7 +5962,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         const y = dt.getFullYear();
+
+
+
+
 
 
 
@@ -2990,11 +5978,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         return `${y}-${m}`;
 
 
 
+
+
+
+
       };
+
+
+
+
+
+
+
+
 
 
 
@@ -3010,7 +6014,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       const buildLastNMonths = (n) => {
+
+
+
+
 
 
 
@@ -3018,7 +6034,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         const start = new Date(now.getFullYear(), now.getMonth(), 1);
+
+
+
+
 
 
 
@@ -3026,7 +6050,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         for (let i = n - 1; i >= 0; i -= 1) {
+
+
+
+
 
 
 
@@ -3034,7 +6066,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           months.push({
+
+
+
+
 
 
 
@@ -3042,7 +6082,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             month: getMonthLabel(d),
+
+
+
+
 
 
 
@@ -3050,7 +6098,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             end: new Date(d.getFullYear(), d.getMonth() + 1, 1),
+
+
+
+
 
 
 
@@ -3058,7 +6114,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         }
+
+
+
+
 
 
 
@@ -3066,7 +6130,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       };
+
+
+
+
+
+
+
+
 
 
 
@@ -3082,7 +6158,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       const allowedInvoiceStatuses = new Set(['Paid', 'Partial', 'Pending']);
+
+
+
+
+
+
+
+
 
 
 
@@ -3094,7 +6186,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       const paymentDate = (p) => safeDate(p?.paymentDate) || safeDate(p?.createdAt);
+
+
+
+
 
 
 
@@ -3102,7 +6202,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       const expensePaidAt = (exp) => safeDate(exp?.expenseDate) || safeDate(exp?.updatedAt) || safeDate(exp?.createdAt);
+
+
+
+
+
+
+
+
 
 
 
@@ -3118,7 +6230,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       const revenueCostSeries = months.map((m) => {
+
+
+
+
 
 
 
@@ -3126,7 +6250,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           const dt = invoiceCreatedAt(inv);
+
+
+
+
 
 
 
@@ -3134,11 +6266,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           return sum + Number(inv?.amount || inv?.invoiceAmount || 0);
 
 
 
+
+
+
+
         }, 0);
+
+
+
+
+
+
+
+
 
 
 
@@ -3150,7 +6298,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           const dt = expenseCreatedAt(exp);
+
+
+
+
 
 
 
@@ -3158,11 +6314,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           return sum + Number(exp?.amount || exp?.payableAmount || 0);
 
 
 
+
+
+
+
         }, 0);
+
+
+
+
+
+
+
+
 
 
 
@@ -3174,7 +6346,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       });
+
+
+
+
+
+
+
+
 
 
 
@@ -3186,7 +6370,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         // Inflow: Use invoices.paid instead of payments (like backend getBalance)
+
+
+
+
 
 
 
@@ -3194,7 +6386,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           // For paid invoices, use invoiceDate if paidDate is missing
+
+
+
+
 
 
 
@@ -3202,7 +6402,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           if (!dt && inv?.status === 'Paid') {
+
+
+
+
 
 
 
@@ -3210,7 +6418,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           }
+
+
+
+
 
 
 
@@ -3218,7 +6434,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           // Use paid amount (or amount if status is Paid)
+
+
+
+
 
 
 
@@ -3226,7 +6450,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           const amount = Number(inv?.amount || 0);
+
+
+
+
 
 
 
@@ -3234,11 +6466,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           return sum + effectivePaid;
 
 
 
+
+
+
+
         }, 0);
+
+
+
+
+
+
+
+
 
 
 
@@ -3250,7 +6498,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           if (String(exp?.status || '').toLowerCase() !== 'paid') return sum;
+
+
+
+
 
 
 
@@ -3258,11 +6514,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           if (!dt || dt < m.start || dt >= m.end) return sum;
 
 
 
+
+
+
+
           return sum + Number(exp?.amount || exp?.paidAmount || 0);
+
+
+
+
 
 
 
@@ -3274,11 +6542,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         return { month: m.month, inflow, outflow };
 
 
 
+
+
+
+
       });
+
+
+
+
 
 
 
@@ -3286,17 +6570,35 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         months: months.map(m => ({ month: m.month, start: m.start.toISOString(), end: m.end.toISOString() })),
+
+
+
+
 
 
 
         invoicesCount: invoicesRes?.length || 0,
 
+
+
         paidInvoices: invoicesRes?.filter(inv => inv?.status === 'Paid').map(inv => ({
+
+
 
           status: inv.status,
 
+
+
           amount: inv.amount,
+
+
+
+
 
 
 
@@ -3304,19 +6606,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           invoiceDate: inv.invoiceDate,
+
+
 
           paidDate: inv.paidDate
 
 
 
+
+
+
+
         })),
+
+
 
         cashFlowSeries
 
 
 
+
+
+
+
       });
+
+
+
+
+
+
+
+
 
 
 
@@ -3332,7 +6658,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       setCashFlow(cashFlowSeries);
+
+
+
+
+
+
+
+
 
 
 
@@ -3344,7 +6686,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       const adjustmentTrendSeries = months.map((m) => {
+
+
+
+
 
 
 
@@ -3352,7 +6702,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           .filter(adj => adj.type === 'credit')
+
+
+
+
 
 
 
@@ -3360,7 +6718,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             const dt = safeDate(adj?.date) || safeDate(adj?.createdAt);
+
+
+
+
 
 
 
@@ -3368,11 +6734,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             return sum + Number(adj?.amount || 0);
 
 
 
+
+
+
+
           }, 0);
+
+
+
+
+
+
+
+
 
 
 
@@ -3384,7 +6766,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           .filter(adj => adj.type === 'debit')
+
+
+
+
 
 
 
@@ -3392,7 +6782,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             const dt = safeDate(adj?.date) || safeDate(adj?.createdAt);
+
+
+
+
 
 
 
@@ -3400,7 +6798,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             return sum + Number(adj?.amount || 0);
+
+
+
+
 
 
 
@@ -3412,11 +6818,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         return { month: m.month, income, expense };
 
 
 
+
+
+
+
       });
+
+
+
+
+
+
+
+
 
 
 
@@ -3432,199 +6858,355 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-      const computePaymentStatus = (po) => {
 
 
 
-        const total = Number(po?.totalAmount || 0);
 
 
 
-        const paid = Number(po?.amountPaid || 0);
 
 
+      // Vendor Payables (from Finance Vendors API)
 
-        const raw = po?.paymentStatus;
 
 
 
-        if (raw) return raw;
 
 
 
-        if (paid <= 0) return 'Unpaid';
+      try {
 
 
 
-        if (paid >= total) return 'Paid';
 
 
 
-        return 'Partially Paid';
 
+        const financeVendorsRes = await financeApi.getFinanceVendors();
 
 
-      };
 
 
 
 
 
+        const financeVendors = Array.isArray(financeVendorsRes) ? financeVendorsRes : [];
 
 
-      const vendorRows = (vendors || [])
 
 
 
-        .map((v) => {
 
 
 
-          const vendorObjectId = v?._id;
 
 
 
-          if (!vendorObjectId) return null;
+        const vendorRows = financeVendors.map((fv) => ({
 
 
 
+          vendorName: fv?.vendorName || '—',
 
 
 
 
-          const vendorPos = (purchaseOrders || []).filter((po) => {
 
 
 
-            const poVendorId = (po?.vendorId && typeof po.vendorId === 'object') ? po.vendorId?._id : po?.vendorId;
+          vendorId: fv?.vendorCode || fv?.vendorId,
 
 
 
-            return String(poVendorId) === String(vendorObjectId);
 
 
 
-          });
 
+          vendorObjectId: fv?.vendorId,
 
 
 
 
 
 
-          const payablePos = vendorPos.filter((po) => {
 
+          vendorCode: fv?.vendorCode,
 
 
-            const status = computePaymentStatus(po);
 
 
 
-            return status === 'Unpaid' || status === 'Partially Paid';
 
 
+          totalPurchaseOrders: fv?.totalPurchaseOrders || 0,
 
-          });
 
 
 
 
 
 
+          totalPayableAmount: fv?.totalPayable || 0,
 
-          const totals = payablePos.reduce(
 
 
 
-            (acc, po) => {
 
 
 
-              const total = Number(po?.totalAmount || 0);
+          amountPaid: fv?.totalPaid || 0,
 
 
 
-              const paid = Number(po?.amountPaid || 0);
 
 
 
-              acc.totalPurchaseOrders += 1;
 
+          outstandingAmount: fv?.outstandingAmount || 0,
 
 
-              acc.totalPayableAmount += total;
 
 
 
-              acc.amountPaid += paid;
 
 
+          lastPurchaseOrderDate: fv?.lastPaymentDate ? new Date(fv.lastPaymentDate).toLocaleDateString('en-IN') : '',
 
-              acc.outstandingAmount += Math.max(0, total - paid);
 
 
 
-              if (po?.orderedDate) {
 
 
 
-                if (!acc.lastPurchaseOrderDate || String(po.orderedDate) > String(acc.lastPurchaseOrderDate)) {
+          status: fv?.status || 'Active',
 
 
 
-                  acc.lastPurchaseOrderDate = po.orderedDate;
 
 
 
-                }
 
+        })).filter(v => v.outstandingAmount > 0 || v.amountPaid > 0);
 
 
-              }
 
 
 
-              return acc;
 
 
 
-            },
 
 
 
-            {
 
 
 
-              vendorName: v?.name || v?.vendorName || '—',
 
+        setPayables(vendorRows);
 
 
-              vendorId: v?.id || v?._id,
 
 
 
-              vendorObjectId,
 
 
 
-              totalPurchaseOrders: 0,
 
 
 
-              totalPayableAmount: 0,
+        const vendors = Array.isArray(vendorsRes)
 
 
 
-              amountPaid: 0,
+          ? vendorsRes
 
 
 
-              outstandingAmount: 0,
+          : (vendorsRes?.data || []);
 
 
 
-              lastPurchaseOrderDate: '',
+
+
+
+
+
+
+
+
+        const purchaseOrders = Array.isArray(posRes)
+
+
+
+          ? posRes
+
+
+
+          : (posRes?.data || []);
+
+
+
+
+
+
+
+
+
+
+
+        for (const v of vendors) {
+
+
+
+          const vendorId = v?._id || v?.id;
+
+
+
+
+
+
+
+          if (!vendorId) continue;
+
+
+
+
+
+
+
+          const exists = financeVendors.find(fv => String(fv.vendorId) === String(vendorId));
+
+
+
+
+
+
+
+          if (!exists) {
+
+
+
+            const vendorPOs = purchaseOrders.filter(po => {
+
+
+
+              const poVendorId = (po?.vendorId && typeof po.vendorId === 'object') ? po.vendorId?._id : po?.vendorId;
+
+
+
+
+
+
+
+              return String(poVendorId) === String(vendorId);
+
+
+
+
+
+
+
+
+
+
+
+            });
+
+
+
+
+
+
+
+
+
+
+
+            const totalPayable = vendorPOs.reduce((sum, po) => sum + Number(po?.totalAmount || 0), 0);
+
+
+
+
+
+
+
+            const totalPaid = vendorPOs.reduce((sum, po) => sum + Number(po?.amountPaid || 0), 0);
+
+
+
+
+
+
+
+
+
+
+
+            try {
+
+
+
+              await financeApi.syncFinanceVendor({
+
+
+
+                vendorId: String(vendorId),
+
+
+
+                vendorName: v?.name || v?.vendorName || 'Unknown',
+
+
+
+                vendorCode: v?.id || `V-${String(vendorId).slice(-4)}`,
+
+
+
+
+
+
+
+                totalPayable,
+
+
+
+                totalPaid,
+
+
+
+                totalPurchaseOrders: vendorPOs.length,
+
+
+
+
+
+
+
+              });
+
+
+
+
+
+
+
+
+
+
+
+            } catch (syncErr) {
+
+
+
+              console.error('Failed to sync vendor:', vendorId, syncErr);
+
+
+
+
+
+
+
+
 
 
 
@@ -3632,7 +7214,6 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-          );
 
 
 
@@ -3640,23 +7221,12 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-          if (totals.outstandingAmount <= 0) return null;
 
 
 
-          return totals;
 
 
-
-        })
-
-
-
-        .filter(Boolean)
-
-
-
-        .sort((a, b) => (String(b.lastPurchaseOrderDate || '')).localeCompare(String(a.lastPurchaseOrderDate || '')));
+          }
 
 
 
@@ -3664,7 +7234,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-      setPayables(vendorRows.filter(Boolean));
+
+
+
+
+
+
+
+
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      } catch (fvErr) {
+
+
+
+        console.error('Failed to load finance vendors:', fvErr);
+
+
+
+
+
+
+
+
+
+
+
+      }
+
+
+
+
+
+
+
+
 
 
 
@@ -3680,7 +7298,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       setError(err.message || 'Failed to load finance data');
+
+
+
+
+
+
+
+
 
 
 
@@ -3696,7 +7330,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       setLoading(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -3712,7 +7362,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
 
 
 
@@ -3724,7 +7390,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     if (!can('finance', 'create')) {
+
+
+
+
 
 
 
@@ -3732,7 +7406,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       return false;
+
+
+
+
 
 
 
@@ -3740,11 +7422,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     return true;
 
 
 
+
+
+
+
   };
+
+
+
+
+
+
+
+
 
 
 
@@ -3756,7 +7454,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     if (!can('finance', 'approve')) {
+
+
+
+
 
 
 
@@ -3764,7 +7470,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       return false;
+
+
+
+
 
 
 
@@ -3772,11 +7486,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     return true;
 
 
 
+
+
+
+
   };
+
+
+
+
+
+
+
+
 
 
 
@@ -3792,7 +7522,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
   const canViewFinance = canFinance('view');
+
+
+
+
+
+
+
+
 
 
 
@@ -3804,7 +7550,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     create: canFinance('create'),
+
+
+
+
 
 
 
@@ -3812,7 +7566,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     delete: canFinance('delete'),
+
+
+
+
 
 
 
@@ -3820,11 +7582,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     assign: canFinance('assign'),
 
 
 
+
+
+
+
   };
+
+
+
+
+
+
+
+
 
 
 
@@ -3840,7 +7618,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
   const canDeleteInvoice = (inv) => canFinance('delete') && inv?.status !== 'Paid';
+
+
+
+
+
+
+
+
 
 
 
@@ -3864,7 +7658,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   const toDateInputValue = (d) => {
+
+
+
+
+
+
+
+
 
 
 
@@ -3880,7 +7698,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     const dt = new Date(d);
+
+
+
+
+
+
+
+
 
 
 
@@ -3896,6 +7730,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     return dt.toISOString().slice(0, 10);
 
 
@@ -3904,7 +7746,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -3928,7 +7794,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     if (!canEditInvoice(row)) return;
+
+
+
+
+
+
+
+
 
 
 
@@ -3944,7 +7826,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     setEditInvoice({
+
+
+
+
+
+
+
+
 
 
 
@@ -3960,7 +7858,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       customerName: row?.customerName || '',
+
+
+
+
+
+
+
+
 
 
 
@@ -3976,7 +7890,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       invoiceDate: toDateInputValue(row?.invoiceDate),
+
+
+
+
+
+
+
+
 
 
 
@@ -3992,7 +7922,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       paymentTerms: row?.paymentTerms || '',
+
+
+
+
+
+
+
+
 
 
 
@@ -4008,7 +7954,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       email: row?.email || '',
+
+
+
+
+
+
+
+
 
 
 
@@ -4024,7 +7986,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     });
+
+
+
+
+
+
+
+
 
 
 
@@ -4036,6 +8014,10 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     setShowEditInvoice(true);
 
 
@@ -4044,7 +8026,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -4064,7 +8070,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     if (!editInvoiceTarget) return;
+
+
+
+
+
+
+
+
 
 
 
@@ -4076,7 +8094,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       setEditModalError('Invoice Number is required');
+
+
+
+
 
 
 
@@ -4084,7 +8110,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -4096,7 +8134,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       setEditModalError('Customer Name is required');
+
+
+
+
 
 
 
@@ -4104,7 +8150,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -4116,7 +8174,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       setEditModalError('Valid Invoice Amount is required');
+
+
+
+
 
 
 
@@ -4124,7 +8190,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -4136,7 +8214,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       setEditModalError('Invoice Date is required');
+
+
+
+
 
 
 
@@ -4144,7 +8230,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -4156,7 +8254,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       setEditModalError('Due Date is required');
+
+
+
+
 
 
 
@@ -4164,7 +8270,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -4176,7 +8294,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     const previousStatus = editInvoiceTarget?.status;
+
+
+
+
 
 
 
@@ -4188,7 +8314,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     if (previousStatus && previousStatus !== newStatus) {
+
+
+
+
 
 
 
@@ -4196,7 +8334,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         Draft: 0,
+
+
+
+
 
 
 
@@ -4204,7 +8350,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         Pending: 2,
+
+
+
+
 
 
 
@@ -4212,7 +8366,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         Paid: 4,
+
+
+
+
 
 
 
@@ -4220,7 +8382,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       };
+
+
+
+
+
+
+
+
 
 
 
@@ -4232,7 +8406,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       if (isBackward) {
+
+
+
+
 
 
 
@@ -4240,7 +8422,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         return;
+
+
+
+
 
 
 
@@ -4252,27 +8442,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       const allowedTransitions = new Set([
-
-
-
         'Draft->Sent',
-
-
-
         'Draft->Pending',
-
-
-
         'Sent->Pending',
-
-
-
         'Sent->Partial',
-
+        'Sent->Paid',
 
 
         'Pending->Partial',
+
+
+
+
 
 
 
@@ -4280,7 +8470,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         'Pending->Overdue',
+
+
+
+
 
 
 
@@ -4288,7 +8486,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         'Sent->Overdue',
+
+
+
+
 
 
 
@@ -4300,7 +8506,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       const key = `${previousStatus}->${newStatus}`;
+
+
+
+
 
 
 
@@ -4308,7 +8526,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         setEditModalError('Invalid invoice status transition');
+
+
+
+
 
 
 
@@ -4316,7 +8542,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       }
+
+
+
+
 
 
 
@@ -4328,7 +8562,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     const invoiceId = editInvoiceTarget?._id || editInvoiceTarget?.id;
+
+
+
+
 
 
 
@@ -4340,11 +8586,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     try {
 
 
 
+
+
+
+
       setSavingEditInvoice(true);
+
+
+
+
 
 
 
@@ -4356,7 +8618,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       const dto = {
+
+
+
+
 
 
 
@@ -4364,7 +8638,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         customerName: editInvoice.customerName.trim(),
+
+
+
+
 
 
 
@@ -4372,7 +8654,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         invoiceDate: editInvoice.invoiceDate,
+
+
+
+
 
 
 
@@ -4380,11 +8670,25 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         ...(editInvoice.email ? { email: editInvoice.email.trim() } : {}),
 
 
 
+
+
+
+
         ...(editInvoice.status ? { status: editInvoice.status } : {}),
+
+        ...(editInvoice.status === 'Paid' ? { paidDate: new Date().toISOString() } : {}),
+
+
+
+
 
 
 
@@ -4392,11 +8696,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         ...(editInvoice.description ? { description: editInvoice.description } : {}),
 
 
 
+
+
+
+
       };
+
+
+
+
+
+
+
+
 
 
 
@@ -4412,7 +8732,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       setShowEditInvoice(false);
+
+
+
+
 
 
 
@@ -4420,7 +8752,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       toast.success('Invoice updated successfully');
+
+
+
+
 
 
 
@@ -4428,7 +8768,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     } catch (err) {
+
+
+
+
 
 
 
@@ -4436,7 +8784,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     } finally {
+
+
+
+
 
 
 
@@ -4444,11 +8800,35 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     }
 
 
 
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -4472,7 +8852,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     if (!canDeleteInvoice(row)) return;
+
+
+
+
+
+
+
+
 
 
 
@@ -4488,7 +8884,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     setError(null);
+
+
+
+
+
+
+
+
 
 
 
@@ -4504,7 +8916,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -4528,7 +8964,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     if (!canAssignInvoice(row)) return;
+
+
+
+
+
+
+
+
 
 
 
@@ -4544,7 +8996,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     setAssignToUser('');
+
+
+
+
+
+
+
+
 
 
 
@@ -4560,6 +9028,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     setShowAssignInvoice(true);
 
 
@@ -4568,7 +9044,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -4592,7 +9092,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     if (!assignInvoiceTarget) return;
+
+
+
+
+
+
+
+
 
 
 
@@ -4608,7 +9124,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       setError('Please select a user.');
+
+
+
+
+
+
+
+
 
 
 
@@ -4624,7 +9156,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -4640,7 +9188,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     setShowAssignInvoice(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -4656,6 +9220,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     setAssignToUser('');
 
 
@@ -4664,7 +9236,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -4688,6 +9284,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     if (!deleteInvoiceTarget) return;
 
 
@@ -4696,7 +9300,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     const invoiceId = deleteInvoiceTarget?._id || deleteInvoiceTarget?.id;
+
+
+
+
+
+
+
+
 
 
 
@@ -4720,7 +9340,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     try {
+
+
+
+
+
+
+
+
 
 
 
@@ -4736,7 +9380,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       setError(null);
+
+
+
+
+
+
+
+
 
 
 
@@ -4752,7 +9412,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       setShowDeleteInvoice(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -4768,7 +9444,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       await fetchData();
+
+
+
+
+
+
+
+
 
 
 
@@ -4784,7 +9476,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       setError(err.message || 'Failed to delete invoice');
+
+
+
+
+
+
+
+
 
 
 
@@ -4800,7 +9508,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       setDeletingInvoice(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -4816,7 +9540,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
 
 
 
@@ -4828,7 +9568,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
   const getNextInvoiceNumber = () => {
+
+
+
+
 
 
 
@@ -4836,7 +9584,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     const numbers = invoices
+
+
+
+
 
 
 
@@ -4844,7 +9600,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       .filter(num => num && num.startsWith(prefix))
+
+
+
+
 
 
 
@@ -4852,7 +9616,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         const match = num.match(/INV-(\d+)/);
+
+
+
+
 
 
 
@@ -4860,7 +9632,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       });
+
+
+
+
 
 
 
@@ -4868,11 +9648,35 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     return `${prefix}${String(maxNum + 1).padStart(3, '0')}`;
 
 
 
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -4896,7 +9700,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     if (!canFinance('export')) return;
+
+
+
+
+
+
+
+
 
 
 
@@ -4912,7 +9732,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       const s = v == null ? '' : String(v);
+
+
+
+
+
+
+
+
 
 
 
@@ -4928,7 +9764,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       const escaped = s.replace(/"/g, '""');
+
+
+
+
+
+
+
+
 
 
 
@@ -4944,7 +9796,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     };
+
+
+
+
+
+
+
+
 
 
 
@@ -4960,7 +9828,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       'Invoice #',
+
+
+
+
+
+
+
+
 
 
 
@@ -4976,7 +9860,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       'Amount',
+
+
+
+
+
+
+
+
 
 
 
@@ -4992,7 +9892,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       'Balance',
+
+
+
+
+
+
+
+
 
 
 
@@ -5008,7 +9924,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       'Invoice Date',
+
+
+
+
+
+
+
+
 
 
 
@@ -5024,7 +9956,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       'Paid On',
+
+
+
+
+
+
+
+
 
 
 
@@ -5040,7 +9988,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     const rows = (invoices || []).map((row) => {
+
+
+
+
+
+
+
+
 
 
 
@@ -5056,7 +10020,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         row?.invoiceNumber || row?.id || '',
+
+
+
+
+
+
+
+
 
 
 
@@ -5072,7 +10052,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         row?.amount ?? '',
+
+
+
+
+
+
+
+
 
 
 
@@ -5088,7 +10084,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         row?.balance ?? '',
+
+
+
+
+
+
+
+
 
 
 
@@ -5104,7 +10116,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         row?.invoiceDate ? new Date(row.invoiceDate).toLocaleDateString() : '',
+
+
+
+
+
+
+
+
 
 
 
@@ -5120,7 +10148,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         row?.paidDate ? new Date(row.paidDate).toLocaleDateString() : '',
+
+
+
+
+
+
+
+
 
 
 
@@ -5136,7 +10180,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       return cols.map(safe).join(',');
+
+
+
+
+
+
+
+
 
 
 
@@ -5152,7 +10212,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     const csv = [header, ...rows].join('\n');
+
+
+
+
+
+
+
+
 
 
 
@@ -5168,7 +10244,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     const url = URL.createObjectURL(blob);
+
+
+
+
+
+
+
+
 
 
 
@@ -5184,7 +10276,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     a.href = url;
+
+
+
+
+
+
+
+
 
 
 
@@ -5200,7 +10308,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     document.body.appendChild(a);
+
+
+
+
+
+
+
+
 
 
 
@@ -5216,6 +10340,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     a.remove();
 
 
@@ -5224,7 +10356,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     URL.revokeObjectURL(url);
+
+
+
+
+
+
+
+
 
 
 
@@ -5248,7 +10396,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   useEffect(() => {
+
+
+
+
+
+
+
+
 
 
 
@@ -5264,7 +10436,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     let mounted = true;
+
+
+
+
+
+
+
+
 
 
 
@@ -5280,7 +10468,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       try {
+
+
+
+
+
+
+
+
 
 
 
@@ -5296,7 +10500,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           financeApi.getCustomers(),
+
+
+
+
+
+
+
+
 
 
 
@@ -5312,6 +10532,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         ]);
 
 
@@ -5320,7 +10548,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         if (!mounted) return;
+
+
+
+
+
+
+
+
 
 
 
@@ -5336,7 +10580,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         setProjects(Array.isArray(projectsRes) ? projectsRes : []);
+
+
+
+
+
+
+
+
 
 
 
@@ -5352,7 +10612,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         if (!mounted) return;
+
+
+
+
+
+
+
+
 
 
 
@@ -5368,7 +10644,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         setProjects([]);
+
+
+
+
+
+
+
+
 
 
 
@@ -5384,7 +10676,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     })();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -5408,7 +10724,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     setNewInvoice(prev => ({
+
+
+
+
+
+
+
+
 
 
 
@@ -5424,7 +10756,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       invoiceNumber: getNextInvoiceNumber(),
+
+
+
+
+
+
+
+
 
 
 
@@ -5448,7 +10796,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     return () => {
+
+
+
+
+
+
+
+
 
 
 
@@ -5464,7 +10836,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     };
+
+
+
+
+
+
+
+
 
 
 
@@ -5488,7 +10876,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   // Fetch project status and allowed payment terms when project is selected
+
+
+
+
+
+
+
+
 
 
 
@@ -5504,7 +10916,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     if (!newInvoice.projectId) {
+
+
+
+
+
+
+
+
 
 
 
@@ -5520,7 +10948,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       setCanCreateInvoice(true);
+
+
+
+
+
+
+
+
 
 
 
@@ -5536,7 +10980,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       setSelectedProjectContractValue(null);
+
+
+
+
+
+
+
+
 
 
 
@@ -5552,7 +11012,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -5576,7 +11060,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     latestProjectIdRef.current = newInvoice.projectId;
+
+
+
+
+
+
+
+
 
 
 
@@ -5592,7 +11092,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     setAllowedPaymentTerms([]);
+
+
+
+
+
+
+
+
 
 
 
@@ -5608,7 +11124,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     setNewInvoice((prev) => ({ ...prev, paymentTerms: '', email: '' }));
+
+
+
+
+
+
+
+
 
 
 
@@ -5620,7 +11152,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     const selectedProjectFromList = projects.find(p => (p._id || p.id) === newInvoice.projectId);
+
+
+
+
 
 
 
@@ -5628,7 +11168,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       setNewInvoice(prev => ({ ...prev, email: selectedProjectFromList.email }));
+
+
+
+
 
 
 
@@ -5636,7 +11184,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -5660,6 +11228,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     (async () => {
 
 
@@ -5668,7 +11244,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       try {
+
+
+
+
+
+
+
+
 
 
 
@@ -5692,7 +11284,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         // Fetch project details from main projects endpoint
+
+
+
+
+
+
+
+
 
 
 
@@ -5708,6 +11324,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         if (!mounted) return;
 
 
@@ -5716,7 +11340,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         if (latestProjectIdRef.current !== requestedProjectId) return;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -5740,7 +11388,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         const customerName = projectRes?.customerName || projectRes?.data?.customerName || projectRes?.project?.customerName || '';
+
+
+
+
 
 
 
@@ -5750,7 +11410,17 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
         console.log('Project Response:', projectRes);
+
+
+
+
 
 
 
@@ -5762,7 +11432,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         // Get contract value from projects list (already loaded)
+
+
+
+
 
 
 
@@ -5770,7 +11452,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         const contractValueFromList = selectedProject?.value ?? selectedProject?.contractValue ?? selectedProject?.contractAmount;
+
+
+
+
 
 
 
@@ -5778,7 +11468,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           contractValueFromList ??
+
+
+
+
 
 
 
@@ -5786,7 +11484,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           projectRes?.data?.value ??
+
+
+
+
 
 
 
@@ -5794,7 +11500,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           projectRes?.contractValue ??
+
+
+
+
 
 
 
@@ -5802,7 +11516,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           projectRes?.project?.contractValue ??
+
+
+
+
 
 
 
@@ -5810,7 +11532,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           projectRes?.data?.contractAmount ??
+
+
+
+
 
 
 
@@ -5818,7 +11548,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         const contractValue = Number(contractValueRaw);
+
+
+
+
+
+
+
+
 
 
 
@@ -5834,6 +11576,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           console.error('Project status is empty/undefined. Full response:', projectRes);
 
 
@@ -5842,7 +11592,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         }
+
+
+
+
+
+
+
+
 
 
 
@@ -5858,7 +11624,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         setNewInvoice(prev => ({ ...prev, customerName, email: customerEmail }));
+
+
+
+
+
+
+
+
 
 
 
@@ -5870,7 +11652,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           setSelectedProjectContractValue(contractValue);
+
+
+
+
 
 
 
@@ -5878,7 +11668,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           setNewInvoiceErrors(prev => ({ ...prev, amount: undefined }));
+
+
+
+
 
 
 
@@ -5886,11 +11684,35 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           setSelectedProjectContractValue(null);
 
 
 
+
+
+
+
         }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -5914,7 +11736,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         if (!projectStatus) {
+
+
+
+
+
+
+
+
 
 
 
@@ -5930,7 +11768,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           setCanCreateInvoice(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -5946,6 +11800,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           return;
 
 
@@ -5954,7 +11816,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -5978,7 +11864,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         console.log('Fetching allowed terms for status:', projectStatus);
+
+
+
+
+
+
+
+
 
 
 
@@ -5994,6 +11896,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         console.log('Allowed terms response:', termsRes);
 
 
@@ -6002,7 +11912,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         if (!mounted) return;
+
+
+
+
+
+
+
+
 
 
 
@@ -6026,6 +11952,22 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         const allowedTerms = termsRes?.allowedTerms || [];
 
 
@@ -6034,7 +11976,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         setAllowedPaymentTerms(allowedTerms);
+
+
+
+
+
+
+
+
 
 
 
@@ -6058,7 +12016,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         // Clear payment term if not in allowed list
+
+
+
+
+
+
+
+
 
 
 
@@ -6074,7 +12056,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           setNewInvoice(prev => ({ ...prev, paymentTerms: '' }));
+
+
+
+
+
+
+
+
 
 
 
@@ -6090,7 +12088,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       } catch (err) {
+
+
+
+
+
+
+
+
 
 
 
@@ -6106,7 +12120,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         if (!mounted) return;
+
+
+
+
+
+
+
+
 
 
 
@@ -6122,7 +12152,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         setCanCreateInvoice(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -6138,6 +12184,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         setSelectedProjectContractValue(null);
 
 
@@ -6146,7 +12200,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       }
+
+
+
+
+
+
+
+
 
 
 
@@ -6170,7 +12240,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     return () => {
+
+
+
+
+
+
+
+
 
 
 
@@ -6186,7 +12280,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     };
+
+
+
+
+
+
+
+
 
 
 
@@ -6210,7 +12320,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   const handleStageChange = async (id, newStage) => {
+
+
+
+
+
+
+
+
 
 
 
@@ -6222,7 +12356,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     const previousStatus = existing?.status;
+
+
+
+
+
+
+
+
 
 
 
@@ -6234,7 +12380,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       const order = {
+
+
+
+
 
 
 
@@ -6242,7 +12396,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         Sent: 1,
+
+
+
+
 
 
 
@@ -6250,7 +12412,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         Partial: 3,
+
+
+
+
 
 
 
@@ -6258,7 +12428,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         Overdue: 5,
+
+
+
+
 
 
 
@@ -6270,7 +12448,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       const isBackward = order[newStage] < order[previousStatus];
+
+
+
+
 
 
 
@@ -6278,7 +12468,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         toast.error('Invoice status cannot be moved backward.');
+
+
+
+
 
 
 
@@ -6286,7 +12484,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       }
+
+
+
+
+
+
+
+
 
 
 
@@ -6295,62 +12505,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
       const allowedTransitions = new Set([
-
-
-
         'Draft->Sent',
-
-
-
         'Draft->Pending',
-
-
-
         'Sent->Pending',
-
-
-
         'Sent->Partial',
-
-
-
+        'Sent->Paid',
         'Pending->Partial',
-
-
-
         'Partial->Paid',
-
-
-
         'Pending->Overdue',
-
-
-
         'Partial->Overdue',
-
-
-
         'Sent->Overdue',
-
-
-
       ]);
-
-
-
-
-
-
 
       const key = `${previousStatus}->${newStage}`;
 
-
-
       if (!allowedTransitions.has(key)) {
-
-
-
         toast.error('Invalid invoice status transition');
+
 
 
 
@@ -6358,11 +12529,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       }
 
 
 
+
+
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -6378,23 +12565,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
       await financeApi.updateInvoiceStatus(id, newStage);
-
-
-
-
-
-
 
       setInvoices(prev => prev.map(i => {
         if (i._id === id || i.id === id) {
-          // If becoming Paid, set paid = amount and balance = 0
+          // If becoming Paid, set paid = amount, balance = 0, and paidDate = today
           if (newStage === 'Paid') {
             return { 
               ...i, 
               status: newStage, 
               paid: i.amount || 0, 
-              balance: 0 
+              balance: 0,
+              paidDate: new Date().toISOString()
             };
           }
           return { ...i, status: newStage };
@@ -6402,81 +12589,160 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
         return i;
       }));
 
-      // Open adjust modal when Sent -> Partial with pre-filled data
       if (newStage === 'Partial' && previousStatus === 'Sent' && existing) {
         const outstandingAmount = (existing.amount || 0) - (existing.paid || 0);
+
         setAdjustForm({ 
+
           type: 'credit',
+
           category: 'Invoice Amount Received',
+
           amount: String(outstandingAmount),
+
           lf: '',
+
           reason: `Partial payment for invoice ${existing.invoiceNumber || ''}`,
+
           reference: '',
+
           date: new Date().toISOString().slice(0, 10),
+
           selectedInvoiceId: existing._id || existing.id,
+
           selectedVendorId: '',
+
           paymentMethod: 'Bank Transfer',
+
         });
+
         setShowAdjustModal(true);
+
       }
+
+
+
+
 
 
 
       // Create journal entry when invoice becomes Paid (from Sent or Partial)
+
       if (newStage === 'Paid' && existing) {
+
         const outstandingAmount = (existing.amount || 0) - (existing.paid || 0);
+
         if (outstandingAmount > 0) {
+
           const tenantId = localStorage.getItem('tenantId') || 'solarcorp';
+
           const today = new Date().toISOString().slice(0, 10);
+
           
+
           // Create journal entry for the outstanding amount as credit
+
           const invoiceJournalEntry = {
+
             id: `je-inv-paid-${Date.now()}`,
+
             _id: `je-inv-paid-${Date.now()}`,
+
             entryDate: today,
+
             reference: existing.invoiceNumber || existing._id || existing.id,
+
             description: `Invoice marked as Paid - ${existing.customerName || 'Customer'}`,
+
             entryType: 'Invoice Payment',
+
             totalDebit: outstandingAmount,
+
             totalCredit: outstandingAmount,
+
             lines: [
+
               {
+
                 accountName: 'Cash/Bank A/c',
+
                 debitAmount: outstandingAmount,
+
                 creditAmount: 0,
+
                 description: 'Cash/Bank A/c Dr.'
+
               },
+
               {
-                accountName: existing.customerName || 'Customer',
+
+                accountName: existing.invoiceNumber ? `${existing.customerName} (${existing.invoiceNumber})` : (existing.customerName || 'Customer'),
+
                 debitAmount: 0,
+
                 creditAmount: outstandingAmount,
+
                 description: `To ${existing.customerName || 'Customer'}`
+
               }
+
             ]
+
           };
+
           
+
           // Add to journalEntries state immediately
+
           setJournalEntries(prev => [invoiceJournalEntry, ...prev]);
+
           
+
           // Save to backend
+
           try {
+
             await financeApi.createManualAdjustment({
+
               type: 'credit',
+
               category: 'Invoice Payment',
+
               amount: outstandingAmount,
+
               reason: `Invoice ${existing.invoiceNumber || ''} marked as Paid - Outstanding amount received from ${existing.customerName || 'Customer'}`,
+
               reference: existing._id || existing.id,
+
               date: today,
+
               tenantId
+
             });
+
             console.log('✅ Saved to backend');
+
           // Note: Local journal entry already added above with lf field
+
           // Backend may not return lf, so we keep local state
+
           } catch (err) {
+
             console.error('Failed to create journal entry for paid invoice:', err);
+
           }
+
         }
+
       }
+
+
+
+
+
+
+
+
 
 
 
@@ -6492,7 +12758,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       setError(err.message || 'Failed to update invoice status');
+
+
+
+
+
+
+
+
 
 
 
@@ -6508,7 +12790,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -6532,7 +12838,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     // Validation
+
+
+
+
+
+
+
+
 
 
 
@@ -6544,7 +12866,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     if (!newInvoice.invoiceNumber.trim()) nextErrors.invoiceNumber = 'Invoice Number is required';
+
+
+
+
 
 
 
@@ -6552,11 +12882,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     if (!newInvoice.amount || parseFloat(newInvoice.amount) <= 0) nextErrors.amount = 'Valid Invoice Amount is required';
 
 
 
+
+
+
+
     if (!newInvoice.invoiceDate) nextErrors.invoiceDate = 'Invoice Date is required';
+
+
+
+
 
 
 
@@ -6568,7 +12910,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     if (
+
+
+
+
 
 
 
@@ -6576,7 +12930,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       selectedProjectContractValue !== null &&
+
+
+
+
 
 
 
@@ -6584,7 +12946,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       Number(newInvoice.amount) > Number(selectedProjectContractValue)
+
+
+
+
 
 
 
@@ -6592,11 +12962,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       nextErrors.amount = 'Invoice amount cannot exceed the project contract value';
 
 
 
+
+
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -6608,11 +12994,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       nextErrors.dueDate = 'Due Date must be on/after Invoice Date';
 
 
 
+
+
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -6624,7 +13026,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       setNewInvoiceErrors(nextErrors);
+
+
+
+
 
 
 
@@ -6632,7 +13042,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -6648,7 +13070,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     const invoiceNumberExists = (invoices || []).some(
+
+
+
+
+
+
+
+
 
 
 
@@ -6664,7 +13102,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     );
+
+
+
+
+
+
+
+
 
 
 
@@ -6680,7 +13134,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       setNewInvoiceErrors(prev => ({ ...prev, invoiceNumber: 'Invoice Number already exists' }));
+
+
+
+
+
+
+
+
 
 
 
@@ -6696,7 +13166,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     }
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -6716,7 +13206,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       setSubmitting(true);
+
+
+
+
+
+
+
+
 
 
 
@@ -6732,7 +13238,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       setNewInvoiceErrors({});
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -6752,7 +13278,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       const invoiceData = {
+
+
+
+
+
+
+
+
 
 
 
@@ -6768,7 +13310,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         projectId: newInvoice.projectId || undefined,
+
+
+
+
+
+
+
+
 
 
 
@@ -6784,11 +13342,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         customerName: newInvoice.customerName.trim(),
 
 
 
+
+
+
+
         email: newInvoice.email?.trim() || undefined,
+
+
+
+
+
+
+
+
 
 
 
@@ -6804,7 +13382,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         invoiceDate: newInvoice.invoiceDate,
+
+
+
+
+
+
+
+
 
 
 
@@ -6820,7 +13414,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         ...(newInvoice.paymentTerms && { paymentTerms: newInvoice.paymentTerms }),
+
+
+
+
+
+
+
+
 
 
 
@@ -6836,7 +13446,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       };
+
+
+
+
+
+
+
+
 
 
 
@@ -6856,7 +13482,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
       setShowInvoice(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -6872,7 +13518,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         invoiceNumber: getNextInvoiceNumber(),
+
+
+
+
+
+
+
+
 
 
 
@@ -6888,7 +13550,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         customerName: '',
+
+
+
+
+
+
+
+
 
 
 
@@ -6904,7 +13582,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         invoiceDate: '',
+
+
+
+
+
+
+
+
 
 
 
@@ -6920,7 +13614,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         paymentTerms: '',
+
+
+
+
+
+
+
+
 
 
 
@@ -6936,7 +13646,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         email: '',
+
+
+
+
+
+
+
+
 
 
 
@@ -6952,7 +13678,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       setNewInvoiceErrors({});
+
+
+
+
+
+
+
+
 
 
 
@@ -6968,6 +13710,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       setAllowedPaymentTerms([]);
 
 
@@ -6976,7 +13726,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       setCanCreateInvoice(true);
+
+
+
+
+
+
+
+
 
 
 
@@ -6996,7 +13762,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
       // Refresh data to show new invoice
+
+
+
+
+
+
+
+
 
 
 
@@ -7012,7 +13798,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     } catch (err) {
+
+
+
+
+
+
+
+
 
 
 
@@ -7028,7 +13830,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     } finally {
+
+
+
+
+
+
+
+
 
 
 
@@ -7044,7 +13862,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -7068,7 +13902,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   const handleSendReminder = async () => {
+
+
+
+
+
+
+
+
 
 
 
@@ -7092,7 +13950,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     // Validation
+
+
+
+
+
+
+
+
 
 
 
@@ -7108,6 +13990,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       setError('Customer email is required');
 
 
@@ -7116,7 +14006,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       return;
+
+
+
+
+
+
+
+
 
 
 
@@ -7140,6 +14046,22 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     try {
 
 
@@ -7148,7 +14070,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       setSendingReminder(true);
+
+
+
+
+
+
+
+
 
 
 
@@ -7172,7 +14110,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       await financeApi.sendInvoiceReminder(selectedReminderInvoice._id || selectedReminderInvoice.id, {
+
+
+
+
+
+
+
+
 
 
 
@@ -7188,7 +14150,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         customerEmail: reminderForm.customerEmail.trim(),
+
+
+
+
+
+
+
+
 
 
 
@@ -7204,7 +14182,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -7232,7 +14234,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
       // Close modal after 2 seconds
+
+
+
+
+
+
+
+
 
 
 
@@ -7248,7 +14270,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         setShowReminderModal(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -7264,7 +14302,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         setReminderForm({ reminderType: 'Gentle', customerEmail: '', messageBody: '' });
+
+
+
+
 
 
 
@@ -7272,7 +14322,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     } catch (err) {
+
+
+
+
 
 
 
@@ -7280,7 +14338,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     } finally {
+
+
+
+
 
 
 
@@ -7288,11 +14354,35 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     }
 
 
 
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -7312,7 +14402,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     const num = Number(val);
+
+
+
+
 
 
 
@@ -7320,7 +14418,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     if (typeof max === 'number' && max > 0) return String(Math.min(num, max));
+
+
+
+
 
 
 
@@ -7328,7 +14434,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -7352,7 +14478,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     // Validation
+
+
+
+
+
+
+
+
 
 
 
@@ -7368,7 +14510,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     if (!recordPayment.referenceId) nextErrors.referenceId = recordPayment.paymentType === 'Customer Payment' ? 'Invoice is required' : 'Vendor is required';
+
+
+
+
+
+
+
+
 
 
 
@@ -7380,7 +14538,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     const amountNum = Number(recordPayment.amount);
+
+
+
+
 
 
 
@@ -7388,7 +14554,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     if (maxAmount > 0 && amountNum > maxAmount) nextErrors.amount = `Amount cannot exceed ₹${maxAmount}`;
+
+
+
+
 
 
 
@@ -7396,7 +14570,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     if (!recordPayment.paymentMethod) nextErrors.paymentMethod = 'Payment method is required';
+
+
+
+
+
+
+
+
 
 
 
@@ -7412,6 +14598,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       setRecordPaymentErrors(nextErrors);
 
 
@@ -7420,7 +14614,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       return;
+
+
+
+
+
+
+
+
 
 
 
@@ -7444,7 +14654,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     try {
+
+
+
+
+
+
+
+
 
 
 
@@ -7460,7 +14694,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       setError(null);
+
+
+
+
+
+
+
+
 
 
 
@@ -7484,7 +14734,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       const paymentData = {
+
+
+
+
 
 
 
@@ -7492,7 +14762,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         referenceType: recordPayment.referenceType,
+
+
+
+
 
 
 
@@ -7500,7 +14778,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         amount: parseFloat(recordPayment.amount),
+
+
+
+
 
 
 
@@ -7508,7 +14794,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         paymentMethod: recordPayment.paymentMethod,
+
+
+
+
 
 
 
@@ -7516,7 +14810,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       };
+
+
+
+
+
+
+
+
 
 
 
@@ -7532,7 +14838,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       setShowRecordPayment(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -7544,7 +14866,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         paymentType: 'Customer Payment',
+
+
+
+
 
 
 
@@ -7552,7 +14882,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         referenceId: '',
+
+
+
+
 
 
 
@@ -7560,7 +14898,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         maxAmount: 0,
+
+
+
+
 
 
 
@@ -7568,11 +14914,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         paymentMethod: 'Bank Transfer',
 
 
 
+
+
+
+
         notes: '',
+
+
+
+
 
 
 
@@ -7584,7 +14942,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       // Refresh data
+
+
+
+
 
 
 
@@ -7604,7 +14974,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     } catch (err) {
+
+
+
+
+
+
+
+
 
 
 
@@ -7620,7 +15014,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     } finally {
+
+
+
+
+
+
+
+
 
 
 
@@ -7636,6 +15046,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     }
 
 
@@ -7644,7 +15062,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -7664,7 +15106,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     const nextErrors = {};
+
+
+
+
 
 
 
@@ -7672,7 +15122,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     if (!adjustForm.amount || Number.isNaN(amountNum) || amountNum <= 0) {
+
+
+
+
 
 
 
@@ -7680,7 +15138,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     }
+
+
+
+
 
 
 
@@ -7688,11 +15154,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       nextErrors.date = 'Date is required';
 
 
 
+
+
+
+
     }
+
+
+
+
 
 
 
@@ -7700,52 +15178,109 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       nextErrors.category = 'Category is required';
 
 
 
+
+
+
+
     }
+
+
+
+
 
 
 
     // Validate invoice selection for Invoice Amount Received
+
     if (adjustForm.type === 'credit' && adjustForm.category === 'Invoice Amount Received' && !adjustForm.selectedInvoiceId) {
+
       nextErrors.selectedInvoiceId = 'Please select an invoice';
+
     }
+
+
 
     // Validate vendor selection for Vendor Payment
+
     if (adjustForm.type === 'debit' && adjustForm.category === 'Vendor Payment' && !adjustForm.selectedVendorId) {
+
       nextErrors.selectedVendorId = 'Please select a vendor';
+
     }
+
+
 
     // Validate payment amount doesn't exceed total invoice amount for invoice payments
+
     if (adjustForm.type === 'credit' && (adjustForm.category === 'Invoice Payment' || adjustForm.category === 'Invoice Amount Received') && adjustForm.selectedInvoiceId) {
+
       const inv = invoices.find(i => (i._id || i.id) === adjustForm.selectedInvoiceId);
+
       if (inv) {
+
         // Check if amount exceeds total invoice amount (not just outstanding)
+
         if (amountNum > inv.amount) {
+
           nextErrors.amount = `Amount cannot exceed total invoice amount of ${fmt(inv.amount)}`;
+
           toast.error(`Cannot pay more than total invoice amount of ${fmt(inv.amount)}`);
+
         }
+
       }
+
     }
 
+
+
     // Validate amount doesn't exceed cash position for debit transactions
+
     if (adjustForm.type === 'debit') {
+
       if (amountNum > manualBalance) {
+
         nextErrors.amount = `Amount cannot exceed available cash position of ${fmt(manualBalance)}`;
+
         toast.error(`Cannot debit more than available cash position of ${fmt(manualBalance)}`);
+
       }
+
       
+
       // Additional validation for vendor payments - also check outstanding amount
+
       if (adjustForm.category === 'Vendor Payment' && adjustForm.selectedVendorId) {
+
         const vendor = payables.find(p => String(p.vendorObjectId || p.vendorId) === adjustForm.selectedVendorId);
+
         if (vendor && amountNum > (vendor.outstandingAmount || 0)) {
+
           nextErrors.amount = `Amount cannot exceed outstanding balance of ${fmt(vendor.outstandingAmount)}`;
+
           toast.error(`Amount cannot exceed outstanding balance of ${fmt(vendor.outstandingAmount)}`);
+
         }
+
       }
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -7757,7 +15292,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       setAdjustErrors(nextErrors);
+
+
+
+
 
 
 
@@ -7765,7 +15308,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -7777,11 +15332,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       setSubmittingAdjust(true);
 
 
 
+
+
+
+
       setAdjustError(null);
+
+
+
+
+
+
+
+
 
 
 
@@ -7790,335 +15361,693 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
       // Handle Invoice Payment (Credit - Invoice Amount Received)
+
       if (adjustForm.type === 'credit' && adjustForm.category === 'Invoice Amount Received' && adjustForm.selectedInvoiceId) {
+
         const inv = invoices.find(i => (i._id || i.id) === adjustForm.selectedInvoiceId);
+
         
+
         console.log('Processing invoice payment:', {
+
           invoiceId: adjustForm.selectedInvoiceId,
+
           invoiceNumber: inv?.invoiceNumber,
+
           amount: amountNum,
+
           currentPaid: inv?.paid || 0,
+
           outstanding: inv?.amount - (inv?.paid || 0)
+
         });
+
         
+
         // Create journal entry directly for UI display - Double entry format
+
         const invoiceJournalEntry = {
+
           id: `inv-${Date.now()}`,
+
           date: adjustForm.date,
+
           description: `Invoice payment: ${inv?.customerName || 'Customer'}`,
+
           type: 'Income',
+
           category: 'Invoice Payment',
+
           referenceId: adjustForm.selectedInvoiceId,
+
           transactionNumber: `TXN-INV-${Date.now().toString().slice(-6)}`,
+
           status: 'Completed',
+
           narration: adjustForm.reason || `Payment received from ${inv?.customerName || 'Customer'}`,
+
           createdAt: new Date(adjustForm.date + 'T00:00:00.000Z'),
+
           lf: adjustForm.lf ? parseInt(adjustForm.lf) : undefined,
+
           lines: [
+
             {
+
               accountName: 'Cash/Bank A/c',
+
               debitAmount: amountNum,
+
               creditAmount: 0,
+
               description: 'Cash/Bank A/c'
+
             },
+
             {
-              accountName: inv?.customerName || 'Customer',
+
+              accountName: inv?.invoiceNumber ? `${inv.customerName} (${inv.invoiceNumber})` : (inv?.customerName || 'Customer'),
+
               debitAmount: 0,
+
               creditAmount: amountNum,
+
               description: `To ${inv?.customerName || 'Customer'}`
+
             }
+
           ]
+
         };
+
         
+
         const tenantId = localStorage.getItem('tenantId') || 'solarcorp';
+
         try {
+
           console.log('Saving to backend with tenantId:', tenantId);
+
           await financeApi.createManualAdjustment({
+
             type: 'credit',
+
             category: 'Invoice Payment',
+
             amount: amountNum,
+
             reason: adjustForm.reason || `Payment received from ${inv?.customerName || 'Customer'}`,
+
             reference: adjustForm.selectedInvoiceId,
+
             date: adjustForm.date,
+
             tenantId,
+
             lf: adjustForm.lf ? parseInt(adjustForm.lf) : undefined
+
           });
+
           console.log('✅ Saved to backend');
+
           
+
           // Note: Local journal entry already added above with lf field
+
           // Backend may not return lf, so we keep local state
+
         } catch (err) {
+
           console.error('Backend save error:', err?.response?.data || err?.message);
+
         }
+
         
+
         // Update local invoice state (will be overwritten by refetch, but keeps UI responsive)
+
         let becamePaid = false;
+
         const newPaid = (inv?.paid || 0) + amountNum;
+
         const newBalance = inv?.amount - newPaid;
+
         const newStatus = newBalance <= 0 ? 'Paid' : 'Partial';
+
         if (newStatus === 'Paid') {
+
           becamePaid = true;
+
         }
+
         setInvoices(prev => prev.map(invItem => {
+
           if ((invItem._id || invItem.id) === adjustForm.selectedInvoiceId) {
+
             return { ...invItem, paid: newPaid, balance: newBalance, status: newStatus, paidDate: adjustForm.date };
+
           }
+
           return invItem;
+
         }));
 
+
+
         // Show notification if invoice became fully paid
+
         if (becamePaid) {
+
           toast.success('Invoice fully paid! Status moved to Paid.', { duration: 4000 });
+
         }
+
+
 
         // Update manual balance locally (increase cash position for credit)
+
         setManualBalance(prev => prev + amountNum);
 
+
+
         setShowAdjustModal(false);
+
         setAdjustForm({
+
           type: 'credit',
+
           category: '',
+
           amount: '',
+
           lf: '',
+
           reason: '',
+
           reference: '',
+
           date: new Date().toISOString().slice(0, 10),
+
           selectedInvoiceId: '',
+
           selectedVendorId: '',
+
           paymentMethod: 'Bank Transfer',
+
         });
+
         setAdjustErrors({});
+
         setAdjustError(null);
+
+
 
         toast.success(`Payment of ${fmt(amountNum)} recorded for invoice successfully`);
+
+        
+
+        // Refresh data from database to ensure changes persist
+
+        await fetchData();
+
         return;
+
       }
+
+
 
       // Handle Vendor Payment (Debit - Vendor Payment) - Direct Update Method
+
       if (adjustForm.type === 'debit' && adjustForm.category === 'Vendor Payment' && adjustForm.selectedVendorId) {
+
         const vendor = payables.find(p => String(p.vendorObjectId || p.vendorId) === adjustForm.selectedVendorId);
+
         
+
         console.log('Processing vendor payment:', {
+
           vendorId: adjustForm.selectedVendorId,
+
           vendorName: vendor?.vendorName,
+
           amount: amountNum,
+
           outstandingAmount: vendor?.outstandingAmount
+
         });
+
         
+
         // Create journal entry directly for UI display - Double entry format
+
         const journalEntry = {
+
           id: `ven-${Date.now()}`,
+
           date: adjustForm.date,
+
           description: `Vendor payment: ${vendor?.vendorName || 'Vendor'}`,
+
           type: 'Expense',
+
           category: 'Vendor Bill Payment',
+
           referenceId: adjustForm.selectedVendorId,
+
           transactionNumber: `TXN-VEN-${Date.now().toString().slice(-6)}`,
+
           status: 'Completed',
+
           narration: adjustForm.reason || `Payment made to ${vendor?.vendorName || 'Vendor'}`,
+
           createdAt: new Date(adjustForm.date + 'T00:00:00.000Z'),
+
           lf: adjustForm.lf ? parseInt(adjustForm.lf) : undefined,
+
           lines: [
+
             {
+
               accountName: vendor?.vendorName || 'Vendor',
+
               debitAmount: amountNum,
+
               creditAmount: 0,
+
               description: `${vendor?.vendorName || 'Vendor'}`
+
             },
+
             {
+
               accountName: 'Cash/Bank A/c',
+
               debitAmount: 0,
+
               creditAmount: amountNum,
+
               description: 'To Cash/Bank A/c'
+
             }
+
           ]
+
         };
+
         
+
         console.log('Created vendor journal entry:', journalEntry);
+
         
+
         // Add to journalEntries state immediately
+
         setJournalEntries(prev => {
+
           console.log('Adding to journalEntries. Current count:', prev.length);
+
           const updated = [journalEntry, ...prev];
+
           console.log('Updated journalEntries count:', updated.length);
+
           return updated;
+
         });
+
+
 
         // Save to backend with tenantId
+
         try {
+
           const tenantId = localStorage.getItem('tenantId') || 'solarcorp';
+
           console.log('Saving to backend with tenantId:', tenantId);
+
           await financeApi.createManualAdjustment({
+
             type: 'debit',
+
             category: 'Vendor Payment',
+
             amount: amountNum,
+
             reason: adjustForm.reason || `Payment to ${vendor?.vendorName || 'Vendor'}`,
+
             reference: adjustForm.selectedVendorId,
+
             date: adjustForm.date,
+
             tenantId,
+
             lf: adjustForm.lf ? parseInt(adjustForm.lf) : undefined
+
           });
+
           console.log('✅ Saved to backend');
+
           
+
           // Note: Local journal entry already added above with lf field
+
           // Backend may not return lf, so we keep local state
+
         } catch (err) {
+
           console.error('Backend save error:', err?.response?.data || err?.message);
+
         }
 
+
+
         // Update local payables state to reflect the payment
+
         setPayables(prev => {
+
           const updatedPayables = prev.map(p => {
+
             if (String(p.vendorObjectId || p.vendorId) === adjustForm.selectedVendorId) {
+
               const newPaid = (p.amountPaid || 0) + amountNum;
+
               const newOutstanding = (p.outstandingAmount || 0) - amountNum;
+
               return { 
+
                 ...p, 
+
                 amountPaid: newPaid, 
+
                 outstandingAmount: newOutstanding,
+
                 status: newOutstanding <= 0 ? 'Paid' : 'Partial'
+
               };
+
             }
+
             return p;
+
           });
+
           return updatedPayables;
+
         });
+
+
 
         // Update manual balance locally (reduce cash position for debit)
+
         setManualBalance(prev => prev - amountNum);
 
+
+
         setShowAdjustModal(false);
+
         setAdjustForm({
+
           type: 'credit',
+
           category: '',
+
           amount: '',
+
           lf: '',
+
           reason: '',
+
           reference: '',
+
           date: new Date().toISOString().slice(0, 10),
+
           selectedInvoiceId: '',
+
           selectedVendorId: '',
+
           paymentMethod: 'Bank Transfer',
+
         });
+
         setAdjustErrors({});
+
         setAdjustError(null);
 
+
+
         toast.success(`Vendor payment of ${fmt(amountNum)} to ${vendor?.vendorName || 'Vendor'} recorded successfully`);
+
+        
+
+        // Refresh data from database to ensure changes persist
+
+        await fetchData();
+
         return;
+
       }
+
+
 
       // Default: Create manual adjustment for other categories
+
       console.log('Creating manual adjustment for category:', adjustForm.category);
+
       console.log('Current manual balance before adjustment:', manualBalance);
+
       console.log('Adjustment details:', { type: adjustForm.type, amount: amountNum, category: adjustForm.category });
+
       
+
       // Create journal entry directly for UI display - Double entry format
+
       const adjustmentJournalEntry = {
+
         id: `adj-${Date.now()}`,
+
         date: adjustForm.date,
+
         description: `Manual adjustment: ${adjustForm.reason || adjustForm.type}`,
+
         type: adjustForm.type === 'debit' ? 'Expense' : 'Income',
+
         category: adjustForm.category || 'Manual Adjustment',
+
         referenceId: adjustForm.reference,
+
         transactionNumber: `TXN-ADJ-${Date.now().toString().slice(-6)}`,
+
         status: 'Completed',
+
         narration: adjustForm.reason || `${adjustForm.type} adjustment - ${adjustForm.category}`,
+
         createdAt: new Date(adjustForm.date + 'T00:00:00.000Z'),
+
         lf: adjustForm.lf ? parseInt(adjustForm.lf) : undefined,
+
         lines: adjustForm.type === 'debit' ? [
+
           {
+
             accountName: adjustForm.category || 'Expense',
+
             debitAmount: amountNum,
+
             creditAmount: 0,
+
             description: `${adjustForm.category || 'Expense'}`
+
           },
+
           {
+
             accountName: 'Cash/Bank A/c',
+
             debitAmount: 0,
+
             creditAmount: amountNum,
+
             description: 'To Cash/Bank A/c'
+
           }
+
         ] : [
+
           {
+
             accountName: 'Cash/Bank A/c',
+
             debitAmount: amountNum,
+
             creditAmount: 0,
+
             description: 'Cash/Bank A/c'
+
           },
+
           {
+
             accountName: adjustForm.category || 'Income',
+
             debitAmount: 0,
+
             creditAmount: amountNum,
+
             description: `To ${adjustForm.category || 'Income'}`
+
           }
+
         ]
+
       };
+
       
+
       console.log('Created manual adjustment journal entry:', adjustmentJournalEntry);
+
       
+
       // Add to journalEntries state immediately
+
       setJournalEntries(prev => {
+
         console.log('Adding to journalEntries. Current count:', prev.length);
+
         const updated = [adjustmentJournalEntry, ...prev];
+
         console.log('Updated journalEntries count:', updated.length);
+
         return updated;
+
       });
+
+
 
       // Save to backend with tenantId
+
       try {
+
         const tenantId = localStorage.getItem('tenantId') || 'solarcorp';
+
         console.log('Saving to backend with tenantId:', tenantId);
+
         await financeApi.createManualAdjustment({
+
           type: adjustForm.type,
+
           category: adjustForm.category || 'Manual Adjustment',
+
           amount: amountNum,
+
           reason: adjustForm.reason || 'Manual adjustment',
+
           reference: adjustForm.reference || '',
+
           date: adjustForm.date,
+
           tenantId,
+
           lf: adjustForm.lf ? parseInt(adjustForm.lf) : undefined
+
         });
+
         console.log('✅ Saved to backend');
+
         
+
         // Note: Local journal entry already added above with lf field
+
         // Backend may not return lf, so we keep local state
+
       } catch (err) {
+
         console.error('Backend save error:', err?.response?.data || err?.message);
+
       }
 
+
+
       // Update manual balance locally
+
       setManualBalance(prev => {
+
         const newBalance = adjustForm.type === 'credit' ? prev + amountNum : prev - amountNum;
+
         console.log('Updating manual balance:', { old: prev, new: newBalance, amount: amountNum, type: adjustForm.type });
+
         return newBalance;
+
       });
+
       
+
       console.log('Manual adjustment completed successfully');
 
+
+
       setShowAdjustModal(false);
+
       setAdjustForm({
+
         type: 'credit',
+
         category: '',
+
         amount: '',
+
         reason: '',
+
         reference: '',
+
         date: new Date().toISOString().slice(0, 10),
+
         selectedInvoiceId: '',
+
         selectedVendorId: '',
+
         paymentMethod: 'Bank Transfer',
+
       });
+
       setAdjustErrors({});
+
       setAdjustError(null);
+
+
 
       toast.success(`Manual ${adjustForm.type} of ${fmt(amountNum)} recorded successfully`);
 
+      
+
+      // Refresh data from database to ensure changes persist
+
+      await fetchData();
+
+
+
     } catch (err) {
+
       console.error('Error in handleSubmitAdjustment:', err);
+
       setAdjustError(err.message || 'Failed to record adjustment');
+
     } finally {
+
       setSubmittingAdjust(false);
+
     }
+
   };
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -8137,7 +16066,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     try {
+
+
+
+
+
+
+
+
 
 
 
@@ -8153,7 +16098,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       const data = await financeApi.getInvoiceTimeline(invoiceId);
+
+
+
+
+
+
+
+
 
 
 
@@ -8169,7 +16130,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     } catch (err) {
+
+
+
+
+
+
+
+
 
 
 
@@ -8185,7 +16162,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       setTimelineData([]);
+
+
+
+
+
+
+
+
 
 
 
@@ -8201,7 +16194,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       setLoadingTimeline(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -8217,7 +16226,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -8241,13 +16274,35 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     (filteredInvoicesByYear || []).filter(inv =>
+
+
+
+
 
 
 
       (invStatus === 'All' ||
 
+
+
         inv.status === invStatus ||
+
+
+
+
+
+
+
+
 
 
 
@@ -8263,7 +16318,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         (invStatus === 'Sent' && inv.status === 'Pending') ||
+
+
+
+
+
+
+
+
 
 
 
@@ -8279,7 +16350,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         (invStatus === 'Outstanding' && ['Draft', 'Sent', 'Partial', 'Overdue', 'Pending'].includes(inv.status))
+
+
+
+
+
+
+
+
 
 
 
@@ -8295,7 +16382,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       inv.customerName?.toLowerCase().includes(invSearch.toLowerCase())
+
+
+
+
+
+
+
+
 
 
 
@@ -8311,13 +16414,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
   const paginatedInvoices = useMemo(() =>
+
+
+
+
 
 
 
     filteredInvoices.slice((page - 1) * pageSize, page * pageSize),
 
+
+
     [filteredInvoices, page, pageSize]);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -8337,7 +16470,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     if (!d) return null;
+
+
+
+
 
 
 
@@ -8345,11 +16486,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       return Number.isNaN(d.getTime()) ? null : d;
 
 
 
+
+
+
+
     }
+
+
+
+
 
 
 
@@ -8357,7 +16510,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       const m = d.trim().match(/^([0-3]\d)[-\/](0\d|1[0-2])[-\/](\d{4})$/);
+
+
+
+
 
 
 
@@ -8365,7 +16526,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         const day = Number(m[1]);
+
+
+
+
 
 
 
@@ -8373,7 +16542,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         const year = Number(m[3]);
+
+
+
+
 
 
 
@@ -8381,7 +16558,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         return Number.isNaN(dt.getTime()) ? null : dt;
+
+
+
+
 
 
 
@@ -8389,7 +16574,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     }
+
+
+
+
 
 
 
@@ -8397,11 +16590,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     return Number.isNaN(dt.getTime()) ? null : dt;
 
 
 
+
+
+
+
   };
+
+
+
+
+
+
+
+
 
 
 
@@ -8413,7 +16622,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
   const filteredRevenueData = useMemo(() => {
+
+
+
+
 
 
 
@@ -8421,7 +16638,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       const itemDate = new Date(item.month + ' 01, ' + selectedYear);
+
+
+
+
 
 
 
@@ -8429,11 +16654,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     });
 
 
 
+
+
+
+
   }, [dateRange, selectedYear]);
+
+
+
+
+
+
+
+
 
 
 
@@ -8445,7 +16686,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     return (cashFlow || []).filter(item => {
+
+
+
+
 
 
 
@@ -8453,11 +16702,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       return itemDate >= new Date(dateRange.start) && itemDate <= new Date(dateRange.end);
 
 
 
+
+
+
+
     });
+
+
+
+
 
 
 
@@ -8469,7 +16730,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
   const exportInvoiceCsv = (row) => {
+
+
+
+
 
 
 
@@ -8477,7 +16750,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     const headers = ['Invoice Number', 'Customer', 'Status', 'Amount', 'Paid', 'Balance', 'Invoice Date', 'Due Date'];
+
+
+
+
 
 
 
@@ -8485,7 +16766,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       r.invoiceNumber || r.id || '',
+
+
+
+
 
 
 
@@ -8493,7 +16782,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       r.status || '',
+
+
+
+
 
 
 
@@ -8501,7 +16798,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       r.paid ?? '',
+
+
+
+
 
 
 
@@ -8509,7 +16814,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       r.invoiceDate || '',
+
+
+
+
 
 
 
@@ -8517,7 +16830,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     ];
+
+
+
+
 
 
 
@@ -8525,7 +16846,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+
+
+
+
 
 
 
@@ -8533,7 +16862,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     const a = document.createElement('a');
+
+
+
+
 
 
 
@@ -8541,7 +16878,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     a.download = `invoice_${r.invoiceNumber || r.id || 'export'}.csv`;
+
+
+
+
 
 
 
@@ -8549,7 +16894,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     a.click();
+
+
+
+
 
 
 
@@ -8557,7 +16910,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     URL.revokeObjectURL(url);
+
+
+
+
 
 
 
@@ -8569,7 +16930,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
   const exportJournalEntriesCsv = () => {
+
+
+
+
 
 
 
@@ -8581,9 +16954,25 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+    let debitTotal = 0;
 
 
-    journalEntries.forEach(entry => {
+
+    let creditTotal = 0;
+
+
+
+
+
+    const dataToExport = calendarFilterYear === 'all' ? journalEntries : filteredJournalEntriesByYear;
+
+
+
+
+
+    dataToExport.forEach(entry => {
+
+
 
 
 
@@ -8591,11 +16980,17 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
       const narration = entry.narration || '';
 
 
 
+
+
       const debitLines = entry.lines?.filter(l => l.debitAmount > 0) || [];
+
+
 
 
 
@@ -8609,7 +17004,17 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
       debitLines.forEach((line, idx) => {
+
+
+
+
+
+        debitTotal += Number(line.debitAmount || 0);
+
+
 
 
 
@@ -8617,7 +17022,11 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
           Date: idx === 0 ? date : '',
+
+
 
 
 
@@ -8625,7 +17034,17 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
           'Ledger / Account': line.accountName || '',
+
+
+
+
+
+          'L.F.': idx === 0 ? (entry.lf != null && entry.lf !== undefined ? entry.lf : '') : '',
+
+
 
 
 
@@ -8633,7 +17052,11 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
           'Credit Amount (Cr.)': '',
+
+
 
 
 
@@ -8641,7 +17064,11 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
         });
+
+
 
 
 
@@ -8655,7 +17082,17 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
       creditLines.forEach((line) => {
+
+
+
+
+
+        creditTotal += Number(line.creditAmount || 0);
+
+
 
 
 
@@ -8663,7 +17100,11 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
           Date: '',
+
+
 
 
 
@@ -8671,7 +17112,17 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
           'Ledger / Account': line.accountName || '',
+
+
+
+
+
+          'L.F.': '',
+
+
 
 
 
@@ -8679,7 +17130,11 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
           'Credit Amount (Cr.)': line.creditAmount || 0,
+
+
 
 
 
@@ -8687,11 +17142,77 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
         });
 
 
 
+
+
       });
+
+
+
+
+
+    });
+
+
+
+
+
+    // Add totals row
+
+
+
+
+
+    rows.push({
+
+
+
+
+
+      Date: '',
+
+
+
+
+
+      Particulars: 'TOTAL',
+
+
+
+
+
+      'Ledger / Account': '',
+
+
+
+
+
+      'L.F.': '',
+
+
+
+
+
+      'Debit Amount (Dr.)': debitTotal,
+
+
+
+
+
+      'Credit Amount (Cr.)': creditTotal,
+
+
+
+
+
+      'Narration / Notes': ''
+
+
 
 
 
@@ -8705,6 +17226,8 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
     const ws = XLSX.utils.json_to_sheet(rows);
 
 
@@ -8715,7 +17238,11 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
     ws['!cols'] = [
+
+
 
 
 
@@ -8723,7 +17250,11 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
       { wch: 35 },  // Particulars
+
+
 
 
 
@@ -8731,7 +17262,17 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+      { wch: 8 },   // L.F.
+
+
+
+
+
       { wch: 18 },  // Debit Amount
+
+
 
 
 
@@ -8739,7 +17280,11 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
       { wch: 40 }   // Narration
+
+
 
 
 
@@ -8753,7 +17298,11 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
     const wb = XLSX.utils.book_new();
+
+
 
 
 
@@ -8765,7 +17314,13 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
     // Download file
 
+
+
+
+
     XLSX.writeFile(wb, `journal_entries_${new Date().toISOString().slice(0, 10)}.xlsx`);
+
+
 
 
 
@@ -8773,7 +17328,141 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+  const exportManualAdjustmentsCsv = () => {
+
+
+
+    const rows = [];
+
+
+
+    const dataToExport = calendarFilterYear === 'all' ? manualAdjustments : filteredManualAdjustmentsByYear;
+
+
+
+
+
+
+
+    dataToExport.forEach(adj => {
+
+
+
+      rows.push({
+
+
+
+        Date: adj.date ? new Date(adj.date).toISOString().slice(0, 10) : '',
+
+
+
+        Type: adj.type || '',
+
+
+
+        Category: adj.category || '',
+
+
+
+        Amount: adj.amount || 0,
+
+
+
+        Reason: adj.reason || '',
+
+
+
+        Reference: adj.reference || '',
+
+
+
+        'L.F.': adj.lf != null && adj.lf !== undefined ? adj.lf : '',
+
+
+
+      });
+
+
+
+    });
+
+
+
+
+
+
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+
+
+
+    ws['!cols'] = [
+
+
+
+      { wch: 12 },  // Date
+
+
+
+      { wch: 10 },  // Type
+
+
+
+      { wch: 20 },  // Category
+
+
+
+      { wch: 15 },  // Amount
+
+
+
+      { wch: 40 },  // Reason
+
+
+
+      { wch: 20 },  // Reference
+
+
+
+      { wch: 8 },   // L.F.
+
+
+
+    ];
+
+
+
+
+
+
+
+    const wb = XLSX.utils.book_new();
+
+
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Transactions');
+
+
+
+    XLSX.writeFile(wb, `transactions_${new Date().toISOString().slice(0, 10)}.xlsx`);
+
+
+
+  };
+
+
+
+
+
+
+
   const INV_ACTIONS = [
+
+
+
+
 
 
 
@@ -8781,11 +17470,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     ...(canFinance('edit') ? [
 
 
 
+
+
+
+
       {
+
+
+
+
 
 
 
@@ -8793,11 +17494,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         icon: Edit,
 
 
 
+
+
+
+
         show: (row) => row?.status !== 'Paid',
+
+
+
+
 
 
 
@@ -8805,11 +17518,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       },
 
 
 
+
+
+
+
     ] : []),
+
+
+
+
 
 
 
@@ -8817,7 +17542,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       {
+
+
+
+
 
 
 
@@ -8825,7 +17558,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         icon: Download,
+
+
+
+
 
 
 
@@ -8833,11 +17574,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       },
 
 
 
+
+
+
+
     ] : []),
+
+
+
+
 
 
 
@@ -8845,7 +17598,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       {
+
+
+
+
 
 
 
@@ -8853,7 +17614,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         icon: Zap,
+
+
+
+
 
 
 
@@ -8861,7 +17630,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         onClick: (row) => openAssignInvoice(row),
+
+
+
+
 
 
 
@@ -8869,7 +17646,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     ] : []),
+
+
+
+
 
 
 
@@ -8877,7 +17662,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       {
+
+
+
+
 
 
 
@@ -8885,7 +17678,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         icon: Trash2,
+
+
+
+
 
 
 
@@ -8893,7 +17694,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         show: (row) => row?.status !== 'Paid',
+
+
+
+
 
 
 
@@ -8901,7 +17710,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       },
+
+
+
+
 
 
 
@@ -8909,7 +17726,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     {
+
+
+
+
 
 
 
@@ -8917,7 +17742,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       icon: Clock,
+
+
+
+
 
 
 
@@ -8925,7 +17758,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       onClick: (row) => {
+
+
+
+
 
 
 
@@ -8933,7 +17774,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         setReminderForm({
+
+
+
+
 
 
 
@@ -8941,7 +17790,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           customerEmail: row?.email || '',
+
+
+
+
 
 
 
@@ -8949,7 +17806,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         });
+
+
+
+
 
 
 
@@ -8957,7 +17822,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         setReminderSuccess(false);
+
+
+
+
 
 
 
@@ -8965,11 +17838,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       },
 
 
 
+
+
+
+
     },
+
+
+
+
 
 
 
@@ -8981,7 +17866,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
   const filteredRowActions = INV_ACTIONS.filter(action => {
+
+
+
+
 
 
 
@@ -8989,7 +17886,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       case 'Edit':
+
+
+
+
 
 
 
@@ -8997,7 +17902,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       case 'Delete':
+
+
+
+
 
 
 
@@ -9005,7 +17918,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       case 'Export':
+
+
+
+
 
 
 
@@ -9013,7 +17934,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       case 'Assign':
+
+
+
+
 
 
 
@@ -9021,7 +17950,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       default:
+
+
+
+
 
 
 
@@ -9029,7 +17966,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     }
+
+
+
+
 
 
 
@@ -9041,27 +17986,6 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-  // Helper functions to calculate paid and balance from invoice data
-
-
-
-  const getPaidAmount = (inv) => {
-
-
-
-    if (inv.status === 'Paid') return Number(inv.amount || 0);
-
-
-
-    if (inv.status === 'Partial') return Number(inv.paid || inv.amountPaid || 0);
-
-
-
-    return Number(inv.paid || 0);
-
-
-
-  };
 
 
 
@@ -9069,27 +17993,12 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-  const getBalance = (inv) => {
 
 
 
-    if (inv.status === 'Paid') return 0;
 
 
 
-    const amount = Number(inv.amount || 0);
-
-
-
-    const paid = getPaidAmount(inv);
-
-
-
-    return amount - paid;
-
-
-
-  };
 
 
 
@@ -9098,7 +18007,12 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
   // Calculate KPI values from real data
+
   // Use filteredInvoicesByYear so values respect the selected month/year filter
+
+
+
+
 
 
 
@@ -9110,11 +18024,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
   // Calculate total collected from invoices
 
 
 
-  const totalCollected = (filteredInvoicesByYear || []).reduce((sum, inv) => sum + getPaidAmount(inv), 0);
+
+
+
+
+  const totalCollected = (filteredInvoicesByYear || []).reduce((sum, inv) => sum + getPaidAmount(inv, manualAdjustments), 0);
+
+
+
+
+
+
+
+
 
 
 
@@ -9126,7 +18060,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-  const receivables = (filteredInvoicesByYear || []).reduce((sum, inv) => sum + getBalance(inv), 0);
+
+
+
+
+  const receivables = (filteredInvoicesByYear || []).reduce((sum, inv) => sum + getBalance(inv, manualAdjustments), 0);
+
+
+
+
+
+
+
+
 
 
 
@@ -9138,6 +18084,10 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
   const payablesTotal = (filteredPayablesByYear || []).reduce((sum, p) => sum + (p.outstandingAmount || 0), 0);
 
 
@@ -9146,20 +18096,35 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-  // Cash position = collected - payables, filtered by calendar selection
+
 
 
 
   const cashPosition = (() => {
-    // Cash Position should always reflect the TRUE cash balance
-    // Formula: Opening Balance + All Credits - All Debits
-    const openingBalance = manualBalance || 0;
-    const adjCredits = (manualAdjustments || []).filter(a => a.type === 'credit').reduce((s, a) => s + Number(a.amount || 0), 0);
-    const adjDebits = (manualAdjustments || []).filter(a => a.type === 'debit').reduce((s, a) => s + Number(a.amount || 0), 0);
-    const result = openingBalance + adjCredits - adjDebits;
-    console.log('Cash Position Debug:', { openingBalance, adjCredits, adjDebits, result, manualAdjustmentsCount: manualAdjustments?.length });
-    return result;
+
+
+
+    const totalCredit = (manualAdjustments || []).filter(a => a.type === 'credit').reduce((s, a) => s + Number(a.amount || 0), 0);
+
+
+
+    const totalDebit = (manualAdjustments || []).filter(a => a.type === 'debit').reduce((s, a) => s + Number(a.amount || 0), 0);
+
+
+
+    return totalCredit - totalDebit;
+
+
+
   })();
+
+
+
+
+
+
+
+
 
 
 
@@ -9171,25 +18136,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     if (!dt) return false;
 
+
+
     // If a month filter is selected, use it; otherwise use today's month
+
     if (calendarFilterYear !== 'all' && calendarFilterMonth !== undefined) {
+
       if (calendarFilterDay !== undefined) {
+
         // For day filter, caller should check both invoiceDate and createdAt separately
+
         return dt.getFullYear().toString() === calendarFilterYear && dt.getMonth() === calendarFilterMonth && dt.getDate() === calendarFilterDay;
+
       }
+
       return dt.getFullYear().toString() === calendarFilterYear && dt.getMonth() === calendarFilterMonth;
+
     }
+
     if (calendarFilterYear !== 'all') {
+
       return dt.getFullYear().toString() === calendarFilterYear;
+
     }
+
     const now = new Date();
+
     return dt.getFullYear() === now.getFullYear() && dt.getMonth() === now.getMonth();
 
 
 
+
+
+
+
   };
+
+
+
+
+
+
+
+
 
 
 
@@ -9201,7 +18196,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     if (!d) return null;
+
+
+
+
 
 
 
@@ -9209,11 +18212,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     return Number.isNaN(dt.getTime()) ? null : dt;
 
 
 
+
+
+
+
   };
+
+
+
+
+
+
+
+
 
 
 
@@ -9222,18 +18241,34 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
   // Helper: checks if an invoice matches the current period filter (handles Today OR logic)
+
   const isInvoiceInCurrentPeriod = (inv) => {
+
     if (calendarFilterDay !== undefined && calendarFilterYear !== 'all') {
+
       // Today mode: match if invoiceDate OR createdAt is today
+
       const year = parseInt(calendarFilterYear);
+
       const dtInv = safeDate(inv?.invoiceDate);
+
       const dtCreated = safeDate(inv?.createdAt);
+
       const checkDate = (d) => d && d.getFullYear() === year && d.getMonth() === calendarFilterMonth && d.getDate() === calendarFilterDay;
+
       return checkDate(dtInv) || checkDate(dtCreated);
+
     }
+
     const dt = safeDate(inv?.invoiceDate) || safeDate(inv?.createdAt);
+
     return isInCurrentMonth(dt);
+
   };
+
+
+
+
 
 
 
@@ -9241,11 +18276,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     return sum + Number(inv?.amount || inv?.invoiceAmount || 0);
 
 
 
+
+
+
+
   }, 0);
+
+
+
+
+
+
+
+
 
 
 
@@ -9257,11 +18308,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-    return sum + getPaidAmount(inv);
+
+
+
+
+    return sum + getPaidAmount(inv, manualAdjustments);
+
+
+
+
 
 
 
   }, 0);
+
+
+
+
+
+
+
+
 
 
 
@@ -9273,7 +18340,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-    return sum + getBalance(inv);
+
+
+
+
+    return sum + getBalance(inv, manualAdjustments);
+
+
+
+
 
 
 
@@ -9285,7 +18360,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
   const currentMonthCollectionRate = currentMonthInvoiced > 0
+
+
+
+
 
 
 
@@ -9293,7 +18380,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
     : 0;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -9317,7 +18424,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     return (
+
+
+
+
+
+
+
+
 
 
 
@@ -9333,7 +18456,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         <div className="glass-card p-6 text-center max-w-md">
+
+
+
+
+
+
+
+
 
 
 
@@ -9349,7 +18488,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-2">Error Loading Data</h3>
+
+
+
+
+
+
+
+
 
 
 
@@ -9365,7 +18520,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -9381,6 +18552,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     );
 
 
@@ -9389,7 +18568,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
   }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -9413,7 +18616,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     return (
+
+
+
+
+
+
+
+
 
 
 
@@ -9429,7 +18648,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         <div className="flex flex-col items-center gap-3">
+
+
+
+
+
+
+
+
 
 
 
@@ -9445,7 +18680,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           <p className="text-sm text-[var(--text-muted)]">Loading finance data...</p>
+
+
+
+
+
+
+
+
 
 
 
@@ -9461,7 +18712,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -9477,7 +18744,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
   }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -9501,7 +18792,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     return (
+
+
+
+
+
+
+
+
 
 
 
@@ -9517,7 +18824,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         <div className="glass-card p-6 text-center max-w-md">
+
+
+
+
+
+
+
+
 
 
 
@@ -9533,7 +18856,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-2">Error Loading Data</h3>
+
+
+
+
+
+
+
+
 
 
 
@@ -9549,7 +18888,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           <Button onClick={fetchData}><Plus size={13} /> Retry</Button>
+
+
+
+
+
+
+
+
 
 
 
@@ -9565,6 +18920,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       </div>
 
 
@@ -9573,7 +18936,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
     );
+
+
+
+
+
+
+
+
 
 
 
@@ -9597,7 +18976,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   return (
+
+
+
+
+
+
+
+
 
 
 
@@ -9613,7 +19016,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       <div className="page-header flex-wrap gap-2">
+
+
+
+
+
+
+
+
 
 
 
@@ -9629,7 +19048,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           <h1 className="heading-page text-xl sm:text-2xl">Finance</h1>
+
+
+
+
+
+
+
+
 
 
 
@@ -9645,7 +19080,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -9657,37 +19108,75 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           <CalendarFilter 
+
+
 
             onDateChange={(dateInfo) => {
 
+
+
               if (dateInfo) {
+
+
 
                 setCalendarFilterYear(dateInfo.year.toString());
 
+
+
                 setCalendarFilterMonth(dateInfo.month); // undefined for full year
+
+
 
                 setCalendarFilterDay(dateInfo.day); // undefined unless Today selected
 
+
+
               } else {
+
+
 
                 setCalendarFilterYear('all');
 
+
+
                 setCalendarFilterMonth(undefined);
+
+
 
                 setCalendarFilterDay(undefined);
 
+
+
               }
+
+
 
             }}
 
+
+
             initialYear={calendarFilterYear !== 'all' ? parseInt(calendarFilterYear) : undefined}
+
+
 
             initialMonth={calendarFilterMonth}
 
+
+
             availableYears={availableYears}
 
+
+
           />
+
+
+
+
 
 
 
@@ -9699,7 +19188,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           {/* Action Buttons - Row 1: View Toggle + New Invoice, Row 2: Adjust & Record */}
+
+
+
+
 
 
 
@@ -9707,7 +19208,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             <div className="flex items-center gap-2">
+
+
+
+
 
 
 
@@ -9715,7 +19224,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               <div className="flex items-center gap-1 bg-[var(--bg-elevated)] rounded-lg p-1 border border-[var(--border-base)]">
+
+
+
+
 
 
 
@@ -9723,9 +19240,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   onClick={() => setMainView('dashboard')}
 
+
+
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${mainView === 'dashboard'
+
+
+
+
 
 
 
@@ -9733,13 +19260,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                       : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+
+
 
                     }`}
 
 
 
+
+
+
+
                 >
+
+
+
+
 
 
 
@@ -9747,7 +19288,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 </button>
+
+
+
+
 
 
 
@@ -9755,9 +19304,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   onClick={() => setMainView('kanban')}
 
+
+
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${mainView === 'kanban'
+
+
+
+
 
 
 
@@ -9765,13 +19324,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                       : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+
+
 
                     }`}
 
 
 
+
+
+
+
                 >
+
+
+
+
 
 
 
@@ -9779,7 +19352,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 </button>
+
+
+
+
 
 
 
@@ -9787,9 +19368,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   onClick={() => setMainView('table')}
 
+
+
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${mainView === 'table'
+
+
+
+
 
 
 
@@ -9797,9 +19388,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                       : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
 
+
+
                     }`}
+
+
+
+
 
 
 
@@ -9807,7 +19408,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   <List size={14} /> Table
+
+
+
+
 
 
 
@@ -9815,7 +19424,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               </div>
+
+
+
+
 
 
 
@@ -9823,7 +19440,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 <Button onClick={() => setShowInvoice(true)}><Plus size={13} /> New Invoice</Button>
+
+
+
+
 
 
 
@@ -9831,7 +19456,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             </div>
+
+
+
+
 
 
 
@@ -9839,7 +19472,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               <Button variant="outline" onClick={() => setShowAdjustModal(true)}><TrendingUp size={13} /> Adjust Amount</Button>
+
+
+
+
 
 
 
@@ -9847,7 +19488,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             {mainView === 'table' && (
+
+
+
+
 
 
 
@@ -9855,7 +19504,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 <Button variant="outline" onClick={() => setShowSummaryCards(!showSummaryCards)}>
+
+
+
+
 
 
 
@@ -9863,7 +19520,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 </Button>
+
+
+
+
 
 
 
@@ -9871,7 +19536,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             )}
+
+
+
+
 
 
 
@@ -9883,7 +19556,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -9899,54 +19588,113 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       {/* Dashboard View */}
+
+
+
+
 
 
 
       {mainView === 'dashboard' && (
 
+
+
         <>
+
+
 
           {calendarFilterYear !== 'all' && filteredInvoicesByYear.length === 0 && filteredJournalEntriesByYear.length === 0 && filteredManualAdjustmentsByYear.length === 0 ? (
 
+
+
             <div className="flex flex-col items-center justify-center py-16 px-4">
+
+
 
               <div className="text-6xl mb-4">📅</div>
 
+
+
               <h3 className="text-lg font-semibold text-gray-700 mb-2">No data available for the selected period</h3>
+
+
 
               <p className="text-sm text-gray-500 text-center max-w-md mb-4">
 
+
+
                 {calendarFilterMonth !== undefined
+
                   ? `There are no invoices, journal entries, or transactions recorded for ${new Date(parseInt(calendarFilterYear), calendarFilterMonth, 1).toLocaleString('default', { month: 'long' })} ${calendarFilterYear}.`
+
                   : `There are no invoices, journal entries, or transactions recorded for ${calendarFilterYear}.`
+
                 }
+
+
 
               </p>
 
+
+
               <button
+
+
 
                 onClick={() => { setCalendarFilterYear('all'); setCalendarFilterMonth(undefined); setCalendarFilterDay(undefined); }}
 
+
+
                 className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+
+
 
               >
 
+
+
                 Show All Data
+
+
 
               </button>
 
+
+
             </div>
 
+
+
           ) : (
+
+
 
         <FinanceDashboard
 
 
 
+
+
+
+
           isOpen={true}
 
+
+
           onClose={() => { }}
+
+
+
+
 
 
 
@@ -9954,7 +19702,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           payables={filteredPayablesByYear}
+
+
+
+
 
 
 
@@ -9962,7 +19718,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           payments={filteredPaymentsByYear}
+
+
+
+
 
 
 
@@ -9970,7 +19734,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           monthlyRevenue={monthlyRevenue}
+
+
+
+
 
 
 
@@ -9978,7 +19750,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           manualBalance={manualBalance}
+
+
+
+
 
 
 
@@ -9986,33 +19766,157 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           transactionAnalytics={transactionAnalytics}
+
+
+
+
 
 
 
           adjustmentTrend={adjustmentTrend}
 
+
+
           calendarFilterYear={calendarFilterYear}
+
+
 
           calendarFilterMonth={calendarFilterMonth}
 
+
+
           calendarFilterDay={calendarFilterDay}
 
-          onInvoicesClick={() => { }}
 
-          onStatusClick={() => { }}
+
+          onInvoicesClick={() => {
+
+            setMainView('table');
+
+            setActiveTab('invoices');
+
+            setInvStatus('All');
+
+            setPage(1);
+
+          }}
+
+
+
+          onPayablesClick={() => {
+
+            setMainView('table');
+
+            setActiveTab('payables');
+
+            setPage(1);
+
+          }}
+
+
+
+          onReceivablesClick={() => {
+
+            setMainView('table');
+
+            setActiveTab('invoices');
+
+            setInvStatus('Outstanding');
+
+            setPage(1);
+
+          }}
+
+
+
+          onCollectedClick={() => {
+
+            setMainView('table');
+
+            setActiveTab('invoices');
+
+            setInvStatus('Paid');
+
+            setPage(1);
+
+          }}
+
+
+
+          onInvoicedClick={() => {
+
+            setMainView('table');
+
+            setActiveTab('invoices');
+
+            setInvStatus('All');
+
+            setPage(1);
+
+          }}
+
+
+
+          onCashPositionClick={() => {
+
+            setMainView('table');
+
+            setActiveTab('transactions');
+
+            setPage(1);
+
+          }}
+
+
+
+          onOutstandingClick={() => {
+
+            setMainView('table');
+
+            setActiveTab('invoices');
+
+            setInvStatus('Outstanding');
+
+            setPage(1);
+
+          }}
+
+
+
+
 
 
 
         />
 
+
+
           )}
+
+
 
         </>
 
 
 
+
+
+
+
       )}
+
+
+
+
+
+
+
+
 
 
 
@@ -10024,7 +19928,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       {mainView === 'kanban' && (
+
+
+
+
 
 
 
@@ -10032,7 +19944,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           <div className="flex flex-wrap gap-2 items-center">
+
+
+
+
 
 
 
@@ -10040,7 +19960,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             {INV_STATUS_FILTERS.map(s => (
+
+
+
+
 
 
 
@@ -10048,7 +19976,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 className={`filter-chip ${invStatus === s ? 'filter-chip-active' : ''}`}>{s}</button>
+
+
+
+
 
 
 
@@ -10056,7 +19992,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             <div className="flex items-center gap-2 ml-auto">
+
+
+
+
 
 
 
@@ -10064,7 +20008,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 onChange={e => { setInvSearch(e.target.value); setPage(1); }}
+
+
+
+
 
 
 
@@ -10072,7 +20024,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             </div>
+
+
+
+
 
 
 
@@ -10080,7 +20040,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           <InvKanbanBoard invoices={filteredInvoices} onStageChange={handleStageChange} onCardClick={setSelected} />
+
+
+
+
 
 
 
@@ -10088,7 +20056,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       )}
+
+
+
+
+
+
+
+
 
 
 
@@ -10100,23 +20080,45 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       {mainView === 'table' && (
+
+
+
+
 
 
 
         <>
 
+
+
           {showSummaryCards && (
+
+
 
             <>
 
+
+
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+
+
 
                 <KPICard className="glass-card bg-white" label="Total Revenue" value={fmt(revenueCurrent)} sub="From invoices" icon={TrendingUp} variant="emerald" />
 
+
+
                 <KPICard className="glass-card bg-white" label="Cash Position" value={fmt(cashPosition)} sub="Collected - Payables" icon={IndianRupee} variant="blue" />
 
+
+
                 <KPICard className="glass-card bg-white" label="Receivables" value={fmt(receivables)} sub="Outstanding" icon={Clock} variant="amber" />
+
+
 
                 <KPICard className="glass-card bg-white" label="Payables" value={fmt(payablesTotal)} sub="Due" icon={TrendingDown} variant="red" />
 
@@ -10124,45 +20126,91 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
               </div>
+
+
+
+
 
 
 
               <div className="space-y-2">
 
+
+
                 <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Current Month</p>
+
+
 
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
 
+
+
                   {[
+
+
 
                     { label: 'Total Invoiced', value: fmt(currentMonthInvoiced), color: 'text-[var(--text-primary)]' },
 
+
+
                     { label: 'Collected', value: fmt(currentMonthCollected), color: 'text-emerald-400' },
+
+
 
                     { label: 'Outstanding', value: fmt(currentMonthOutstanding), color: 'text-amber-400' },
 
+
+
                     { label: 'Collection Rate', value: `${currentMonthCollectionRate}%`, color: 'text-cyan-400' },
+
+
 
                   ].map(stat => (
 
+
+
                     <div key={stat.label} className="glass-card p-3 text-center bg-white">
 
+
+
                       <p className="text-[11px] text-[var(--text-muted)] mb-1">{stat.label}</p>
+
+
 
                       <p className={`text-base font-black ${stat.color}`}>{stat.value}</p>
 
 
 
+
+
+
+
                     </div>
+
+
 
                   ))}
 
+
+
                 </div>
+
+
 
               </div>
 
+
+
             </>
+
+
 
           )}
 
@@ -10172,7 +20220,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-          <Tabs defaultValue="invoices">
+
+
+
+
+
+
+
+
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+
+
+
+
 
 
 
@@ -10180,7 +20240,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               <TabsTrigger value="invoices">Invoices ({calendarFilterYear === 'all' ? invoices.length : filteredInvoicesByYear.length})</TabsTrigger>
+
+
+
+
 
 
 
@@ -10188,7 +20256,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               <TabsTrigger value="transactions">Transactions ({calendarFilterYear === 'all' ? manualAdjustments.length : filteredManualAdjustmentsByYear.length})</TabsTrigger>
+
+
+
+
 
 
 
@@ -10200,7 +20276,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             <TabsContent value="invoices">
+
+
+
+
 
 
 
@@ -10208,7 +20296,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 <div className="flex flex-wrap gap-2 items-center">
+
+
+
+
 
 
 
@@ -10216,7 +20312,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   {INV_STATUS_FILTERS.map(s => (
+
+
+
+
 
 
 
@@ -10224,7 +20328,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                       className={`filter-chip ${invStatus === s ? 'filter-chip-active' : ''}`}>{s}</button>
+
+
+
+
 
 
 
@@ -10232,7 +20344,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   <div className="flex items-center gap-2 ml-auto">
+
+
+
+
 
 
 
@@ -10240,7 +20360,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                       onChange={e => { setInvSearch(e.target.value); setPage(1); }}
+
+
+
+
 
 
 
@@ -10250,11 +20378,29 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
                   </div>
 
 
 
+
+
+
+
                 </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -10266,7 +20412,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   <InvKanbanBoard invoices={filteredInvoices} onStageChange={handleStageChange} onCardClick={setSelected} />
+
+
+
+
 
 
 
@@ -10274,7 +20428,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   <DataTable
+
+
+
+
 
 
 
@@ -10282,7 +20444,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     data={paginatedInvoices}
+
+
+
+
 
 
 
@@ -10290,7 +20460,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     page={page}
+
+
+
+
 
 
 
@@ -10298,7 +20476,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     onPageChange={setPage}
+
+
+
+
 
 
 
@@ -10306,7 +20492,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     toolbar={canFinance('export') ? (
+
+
+
+
 
 
 
@@ -10314,7 +20508,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                         <Download size={12} /> Export
+
+
+
+
 
 
 
@@ -10322,7 +20524,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     ) : null}
+
+
+
+
 
 
 
@@ -10330,7 +20540,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     onRowClick={setSelected}
+
+
+
+
 
 
 
@@ -10338,7 +20556,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     emptyText="No invoices found."
+
+
+
+
 
 
 
@@ -10346,7 +20572,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 )}
+
+
+
+
 
 
 
@@ -10354,7 +20588,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             </TabsContent>
+
+
+
+
+
+
+
+
 
 
 
@@ -10366,7 +20612,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               <div className="glass-card p-4 space-y-3">
+
+
+
+
 
 
 
@@ -10374,7 +20628,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 {payables.length === 0 ? (
+
+
+
+
 
 
 
@@ -10382,7 +20644,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 ) : (
+
+
+
+
 
 
 
@@ -10390,53 +20660,235 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     <div className="grid grid-cols-7 gap-2 text-[11px] text-[var(--text-muted)] px-2">
+
+
 
                       <div>Vendor</div>
 
+
+
                       <div>Vendor ID</div>
+
+
 
                       <div className="text-right">Total POs</div>
 
+
+
                       <div className="text-right">Total Payable</div>
+
+
 
                       <div className="text-right">Paid</div>
 
+
+
                       <div className="text-right">Outstanding</div>
 
+
+
                       <div className="text-right">Last PO</div>
+
+
 
                     </div>
 
 
 
-                    {payables.map((p) => (
 
-                      <div
 
-                        key={p.vendorObjectId || p.vendorId}
 
-                        className="grid grid-cols-7 gap-2 items-center p-3 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-muted)]"
 
-                      >
+                    {payables.map((p) => {
 
-                        <div className="text-xs font-semibold text-[var(--text-primary)]">{p.vendorName}</div>
 
-                        <div className="text-xs font-mono text-[var(--accent-light)]">{p.vendorId}</div>
 
-                        <div className="text-xs text-right text-[var(--text-primary)]">{p.totalPurchaseOrders}</div>
+                      const isFullyPaid = (p.outstandingAmount || 0) <= 0 && (p.amountPaid || 0) > 0;
 
-                        <div className="text-xs text-right text-[var(--text-primary)]">{fmt(p.totalPayableAmount)}</div>
 
-                        <div className="text-xs text-right text-[var(--text-primary)]">{fmt(p.amountPaid)}</div>
 
-                        <div className="text-xs text-right font-bold text-amber-400">{fmt(p.outstandingAmount)}</div>
 
-                        <div className="text-xs text-right text-[var(--text-muted)]">{p.lastPurchaseOrderDate || '—'}</div>
 
-                      </div>
 
-                    ))}
+
+                      return (
+
+
+
+
+
+
+
+                        <div
+
+
+
+
+
+
+
+                          key={p.vendorObjectId || p.vendorId}
+
+
+
+
+
+
+
+                          className={`grid grid-cols-7 gap-2 items-center p-3 rounded-lg border ${isFullyPaid ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-[var(--bg-elevated)] border-[var(--border-muted)]'}`}
+
+
+
+
+
+
+
+                        >
+
+
+
+
+
+
+
+                          <div className="text-xs font-semibold text-[var(--text-primary)] flex items-center gap-1.5">
+
+
+
+
+
+
+
+                            {p.vendorName}
+
+
+
+
+
+
+
+                            {isFullyPaid && (
+
+
+
+
+
+
+
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/20 text-emerald-400">
+
+
+
+
+
+
+
+                                <CheckCircle size={10} /> Paid
+
+
+
+
+
+
+
+                              </span>
+
+
+
+
+
+
+
+                            )}
+
+
+
+
+
+
+
+                          </div>
+
+
+
+
+
+
+
+                          <div className="text-xs font-mono text-[var(--accent-light)]">{p.vendorId}</div>
+
+
+
+
+
+
+
+                          <div className="text-xs text-right text-[var(--text-primary)]">{p.totalPurchaseOrders}</div>
+
+
+
+
+
+
+
+                          <div className="text-xs text-right text-[var(--text-primary)]">{fmt(p.totalPayableAmount)}</div>
+
+
+
+
+
+
+
+                          <div className="text-xs text-right text-[var(--text-primary)]">{fmt(p.amountPaid)}</div>
+
+
+
+
+
+
+
+                          <div className={`text-xs text-right font-bold ${isFullyPaid ? 'text-emerald-400' : 'text-amber-400'}`}>{fmt(p.outstandingAmount)}</div>
+
+
+
+
+
+
+
+                          <div className="text-xs text-right text-[var(--text-muted)]">{p.lastPurchaseOrderDate || '—'}</div>
+
+
+
+
+
+
+
+                        </div>
+
+
+
+
+
+
+
+                      );
+
+
+
+
+
+
+
+                    })}
+
+
+
+
 
 
 
@@ -10444,7 +20896,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 )}
+
+
+
+
 
 
 
@@ -10452,7 +20912,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             </TabsContent>
+
+
+
+
+
+
+
+
 
 
 
@@ -10464,25 +20936,51 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               <div className="glass-card p-4 space-y-3">
+
+
+
+
 
 
 
                 <div className="flex items-center justify-between">
 
+
+
                   <h3 className="text-sm font-semibold text-[var(--text-primary)]">Journal Entries</h3>
+
+
 
                   {canFinance('export') && (calendarFilterYear === 'all' ? journalEntries : filteredJournalEntriesByYear).length > 0 && (
 
+
+
                     <Button size="sm" onClick={exportJournalEntriesCsv}>
 
-                      <Download size={12} /> Export
+
+
+                      <Download size={12} /> Export Journal
+
+
 
                     </Button>
 
+
+
                   )}
 
+
+
                 </div>
+
+
+
+
 
 
 
@@ -10490,7 +20988,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   <p className="text-sm text-[var(--text-muted)] text-center py-8">No journal entries recorded</p>
+
+
+
+
 
 
 
@@ -10498,185 +21004,371 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   <div className="border border-[var(--border-base)] overflow-auto bg-[var(--bg-elevated)] relative">
+
+
+
+
 
 
 
                     {/* Table Header - Traditional Accounting Format */}
 
+
+
                     <div className="grid grid-cols-12 text-[13px] font-bold text-[var(--text-primary)] border-b-2 border-[var(--border-base)] pb-2 mt-3">
+
+
 
                       <div className="col-span-2 border-r-2 border-[var(--border-base)] pr-2">Date</div>
 
+
+
                       <div className="col-span-6 border-r-2 border-[var(--border-base)] px-2">Particulars</div>
+
+
 
                       <div className="col-span-1 border-r border-[var(--border-base)] px-1 text-center">L.F.</div>
 
+
+
                       <div className="col-span-2 border-r border-[var(--border-base)] px-1 text-right">Amount(Dr.)</div>
 
+
+
                       <div className="col-span-1 pl-1 text-right">Amount(Cr.)</div>
+
+
 
                     </div>
 
 
 
+
+
+
+
                     {[...(calendarFilterYear === 'all' ? journalEntries : filteredJournalEntriesByYear)].reverse().map((entry, entryIdx) => (
+
+
 
                       <div
 
+
+
                         key={entry._id || entry.id}
+
+
 
                         className="relative border-b border-[var(--border-muted)] last:border-b-0 cursor-pointer hover:bg-[var(--bg-hover)] transition-colors"
 
+
+
                         onClick={() => {
+
+
 
                           setSelectedJournalEntry(entry);
 
+
+
                           setSelectedJournalEntryIndex(entryIdx + 1);
+
+
 
                           setShowJournalEntryModal(true);
 
+
+
                         }}
+
+
 
                       >
 
+
+
                         {/* Continuous vertical lines using absolute positioned divs */}
+
+
 
                         <div className="absolute top-0 bottom-0 left-[16.66%] w-[2px] bg-[var(--border-base)] z-10"></div>
 
+
+
                         <div className="absolute top-0 bottom-0 left-[66.66%] w-[1px] bg-[var(--border-base)] z-10"></div>
 
+
+
                         <div className="absolute top-0 bottom-0 left-[75%] w-[1px] bg-[var(--border-base)] z-10"></div>
+
+
 
                         <div className="absolute top-0 bottom-0 left-[91.66%] w-[1px] bg-[var(--border-base)] z-10"></div>
 
 
 
+
+
+
+
                         {/* Journal Entry Content - No internal horizontal lines */}
+
+
 
                         <div>
 
 
 
+
+
+
+
                           {(() => {
 
+
+
                             const debitLines = entry.lines?.filter(l => l.debitAmount > 0) || [];
+
+
 
                             const creditLines = entry.lines?.filter(l => l.creditAmount > 0) || [];
 
 
 
+
+
+
+
                             return (
+
+
 
                               <>
 
+
+
                                 {debitLines.map((line, idx) => (
+
+
 
                                   <div
 
+
+
                                     key={`debit-${idx}`}
+
+
 
                                     className="grid grid-cols-12 text-[13px] items-start relative"
 
+
+
                                   >
+
+
 
                                     <div className="col-span-2 px-2 py-2 text-[var(--text-primary)]">
 
+
+
                                       {idx === 0 ? new Date(entry.date).toLocaleDateString('en-IN', {
+
+
 
                                         day: '2-digit',
 
+
+
                                         month: '2-digit',
+
+
 
                                         year: 'numeric'
 
+
+
                                       }) : ''}
 
+
+
                                     </div>
+
+
 
                                     <div className="col-span-6 px-2 py-2 text-[var(--text-primary)]">
 
+
+
                                       {line.accountName} <span className="text-[var(--text-muted)]">Dr.</span>
+
+
 
                                     </div>
 
-                                    <div className="col-span-1 px-1 py-2 text-center text-[var(--text-primary)] font-medium text-[13px]">{idx === 0 ? (entry.lf || '') : ''}</div>
+
+
+                                    <div className="col-span-1 px-1 py-2 text-center text-[var(--text-primary)] font-medium text-[13px]">{idx === 0 ? (entry.lf != null && entry.lf !== undefined ? entry.lf : '') : ''}</div>
+
+
 
                                     <div className="col-span-2 px-2 py-2 text-right font-medium text-[var(--text-primary)]">
 
+
+
                                       {fmt(line.debitAmount)}
+
+
 
                                     </div>
 
+
+
                                     <div className="col-span-1 px-1 py-2 text-right"></div>
+
+
 
                                   </div>
 
+
+
                                 ))}
+
+
+
+
 
 
 
                                 {creditLines.map((line, idx) => (
 
+
+
                                   <div
+
+
 
                                     key={`credit-${idx}`}
 
+
+
                                     className="grid grid-cols-12 text-[13px] items-start relative"
+
+
 
                                   >
 
+
+
                                     <div className="col-span-2 px-2 py-2"></div>
+
+
 
                                     <div className="col-span-6 px-2 py-2 text-[var(--text-primary)] pl-6">
 
+
+
                                       <span className="text-[var(--text-muted)]">To</span> {line.accountName}
 
+
+
                                     </div>
+
+
 
                                     <div className="col-span-1 px-1 py-2 text-center text-[var(--text-muted)] text-[10px]"></div>
 
+
+
                                     <div className="col-span-2 px-1 py-2 text-right"></div>
+
+
 
                                     <div className="col-span-1 px-1 py-2 text-right font-medium text-[var(--text-primary)]">
 
+
+
                                       {fmt(line.creditAmount)}
+
+
 
                                     </div>
 
+
+
                                   </div>
+
+
 
                                 ))}
 
 
 
+
+
+
+
                                 {entry.narration && (
+
+
 
                                   <div className="grid grid-cols-12 text-[13px] items-start bg-[var(--bg-surface)] relative">
 
+
+
                                     <div className="col-span-2 px-2 py-2"></div>
+
+
 
                                     <div className="col-span-6 px-2 py-2 text-[var(--text-muted)] italic">
 
+
+
                                       ({entry.narration})
+
+
 
                                     </div>
 
+
+
                                     <div className="col-span-1 px-1 py-2"></div>
+
+
 
                                     <div className="col-span-2 px-1 py-2"></div>
 
+
+
                                     <div className="col-span-1 px-1 py-2"></div>
+
+
 
                                   </div>
 
+
+
                                 )}
+
+
 
                               </>
 
+
+
                             );
 
+
+
                           })()}
+
+
+
+
 
 
 
@@ -10684,25 +21376,51 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                       </div>
+
+
 
                     ))}
 
 
 
+
+
+
+
                     <div className="grid grid-cols-12 text-[15px] font-bold text-[var(--text-primary)] bg-[var(--bg-surface)] border-t-2 border-[var(--border-base)] sticky bottom-0 z-20">
+
+
 
                       <div className="col-span-2 border-r-2 border-[var(--border-base)] px-2 py-2">TOTAL</div>
 
+
+
                       <div className="col-span-6 border-r-2 border-[var(--border-base)] px-2 py-2"></div>
+
+
 
                       <div className="col-span-1 border-r border-[var(--border-base)] px-1 py-2"></div>
 
+
+
                       <div className="col-span-2 border-r border-[var(--border-base)] px-1 py-2 text-right">{fmt(filteredJournalTotals.debitTotal)}</div>
+
+
 
                       <div className="col-span-1 pl-1 py-2 text-right">{fmt(filteredJournalTotals.creditTotal)}</div>
 
+
+
                     </div>
+
+
+
+
 
 
 
@@ -10710,7 +21428,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 )}
+
+
+
+
 
 
 
@@ -10718,17 +21444,47 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             </TabsContent>
+
+
+
+
 
 
 
           </Tabs>
 
+
+
         </>
 
 
 
+
+
+
+
       )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -10752,7 +21508,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       <Modal isOpen={showInvoice} onClose={() => { setShowInvoice(false); setError(null); setNewInvoiceErrors({}); }} title="Create Invoice"
+
+
+
+
+
+
+
+
 
 
 
@@ -10768,7 +21540,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           <div className="flex gap-2 justify-end">
+
+
+
+
+
+
+
+
 
 
 
@@ -10784,7 +21572,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             <Button onClick={handleCreateInvoice} disabled={submitting}>
+
+
+
+
+
+
+
+
 
 
 
@@ -10800,7 +21604,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               {submitting ? ' Creating...' : ' Create Invoice'}
+
+
+
+
+
+
+
+
 
 
 
@@ -10816,7 +21636,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -10832,7 +21668,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         <div className="space-y-3 pb-20">
+
+
+
+
+
+
+
+
 
 
 
@@ -10848,7 +21700,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+
+
+
+
+
+
+
+
 
 
 
@@ -10864,6 +21732,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             </div>
 
 
@@ -10872,7 +21748,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           )}
+
+
+
+
+
+
+
+
 
 
 
@@ -10888,7 +21780,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm">
+
+
+
+
+
+
+
+
 
 
 
@@ -10904,7 +21812,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -10920,7 +21844,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           <div className="grid grid-cols-2 gap-3">
+
+
+
+
+
+
+
+
 
 
 
@@ -10932,7 +21872,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               <Input
+
+
+
+
+
+
+
+
 
 
 
@@ -10948,7 +21900,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 onChange={e => {
+
+
+
+
 
 
 
@@ -10956,7 +21920,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   setNewInvoice({ ...newInvoice, invoiceNumber: v });
+
+
+
+
 
 
 
@@ -10964,11 +21936,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 }}
 
 
 
+
+
+
+
                 placeholder="INV-001"
+
+
+
+
+
+
+
+
 
 
 
@@ -10984,11 +21972,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               {newInvoiceErrors.invoiceNumber ? (
 
 
 
+
+
+
+
                 <div className="text-[11px] text-red-400 mt-1">{newInvoiceErrors.invoiceNumber}</div>
+
+
+
+
 
 
 
@@ -11000,7 +22004,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -11016,7 +22036,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               <Select
+
+
+
+
+
+
+
+
 
 
 
@@ -11032,7 +22068,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 onChange={e => {
+
+
+
+
 
 
 
@@ -11040,11 +22088,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   setNewInvoice({ ...newInvoice, projectId: v });
 
 
 
+
+
+
+
                   if (newInvoiceErrors.projectId) setNewInvoiceErrors(prev => ({ ...prev, projectId: undefined }));
+
+
+
+
 
 
 
@@ -11056,7 +22116,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               >
+
+
+
+
+
+
+
+
 
 
 
@@ -11072,7 +22148,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 {projects.map((p) => (
+
+
+
+
+
+
+
+
 
 
 
@@ -11088,7 +22180,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 ))}
+
+
+
+
+
+
+
+
 
 
 
@@ -11104,7 +22212,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               {newInvoiceErrors.projectId ? (
+
+
+
+
 
 
 
@@ -11112,7 +22232,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               ) : null}
+
+
+
+
+
+
+
+
 
 
 
@@ -11128,7 +22260,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -11144,7 +22292,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             <FormField label="Invoice Amount (₹)">
+
+
+
+
 
 
 
@@ -11152,7 +22312,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 type="number"
+
+
+
+
+
+
+
+
 
 
 
@@ -11168,7 +22340,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 onChange={e => {
+
+
+
+
 
 
 
@@ -11176,7 +22360,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   setNewInvoice({ ...newInvoice, amount: v });
+
+
+
+
 
 
 
@@ -11184,7 +22376,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   if (
+
+
+
+
 
 
 
@@ -11192,7 +22392,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     selectedProjectContractValue !== null &&
+
+
+
+
 
 
 
@@ -11200,7 +22408,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     num > Number(selectedProjectContractValue)
+
+
+
+
 
 
 
@@ -11208,7 +22424,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     setNewInvoiceErrors(prev => ({ ...prev, amount: 'Invoice amount cannot exceed the project contract value' }));
+
+
+
+
 
 
 
@@ -11216,7 +22440,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     setNewInvoiceErrors(prev => ({ ...prev, amount: undefined }));
+
+
+
+
 
 
 
@@ -11224,11 +22456,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 }}
 
 
 
+
+
+
+
                 placeholder="280000"
+
+
+
+
+
+
+
+
 
 
 
@@ -11244,7 +22492,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               {newInvoiceErrors.amount ? (
+
+
+
+
 
 
 
@@ -11252,7 +22512,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               ) : null}
+
+
+
+
+
+
+
+
 
 
 
@@ -11268,7 +22540,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             <FormField label="Invoice Date">
+
+
+
+
 
 
 
@@ -11276,7 +22560,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 type="date"
+
+
+
+
+
+
+
+
 
 
 
@@ -11292,7 +22588,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 onChange={e => {
+
+
+
+
 
 
 
@@ -11300,7 +22608,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   setNewInvoice({ ...newInvoice, invoiceDate: v });
+
+
+
+
 
 
 
@@ -11308,7 +22624,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 }}
+
+
+
+
+
+
+
+
 
 
 
@@ -11324,7 +22652,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               {newInvoiceErrors.invoiceDate ? (
+
+
+
+
 
 
 
@@ -11332,7 +22672,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               ) : null}
+
+
+
+
+
+
+
+
 
 
 
@@ -11348,7 +22700,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -11364,7 +22732,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             <FormField label="Due Date">
+
+
+
+
 
 
 
@@ -11372,7 +22752,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 type="date"
+
+
+
+
+
+
+
+
 
 
 
@@ -11388,7 +22780,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 min={newInvoice.invoiceDate || undefined}
+
+
+
+
+
+
+
+
 
 
 
@@ -11400,7 +22808,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   const v = e.target.value;
+
+
+
+
 
 
 
@@ -11408,11 +22824,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   if (newInvoiceErrors.dueDate) setNewInvoiceErrors(prev => ({ ...prev, dueDate: undefined }));
 
 
 
+
+
+
+
                 }}
+
+
+
+
+
+
+
+
 
 
 
@@ -11428,7 +22860,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               {newInvoiceErrors.dueDate ? (
+
+
+
+
 
 
 
@@ -11436,7 +22880,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               ) : null}
+
+
+
+
+
+
+
+
 
 
 
@@ -11452,7 +22908,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             <FormField label="Payment Terms">
+
+
+
+
 
 
 
@@ -11464,11 +22932,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 value={newInvoice.paymentTerms}
 
 
 
+
+
+
+
                 onChange={e => setNewInvoice({ ...newInvoice, paymentTerms: e.target.value })}
+
+
+
+
+
+
+
+
 
 
 
@@ -11484,7 +22972,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               >
+
+
+
+
+
+
+
+
 
 
 
@@ -11500,7 +23004,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   {!canCreateInvoice ? 'Not Available' : allowedPaymentTerms.length === 0 ? 'Select Project First' : 'Select Terms'}
+
+
+
+
+
+
+
+
 
 
 
@@ -11516,7 +23036,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 {(allowedPaymentTerms.length > 0 ? allowedPaymentTerms : []).map((term) => (
+
+
+
+
+
+
+
+
 
 
 
@@ -11532,7 +23068,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 ))}
+
+
+
+
+
+
+
+
 
 
 
@@ -11548,7 +23100,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -11564,9 +23132,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           <FormField label="Customer Email">
 
+
+
             <Input
+
+
+
+
 
 
 
@@ -11574,7 +23156,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               value={newInvoice.email}
+
+
+
+
 
 
 
@@ -11582,7 +23172,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               placeholder="customer@example.com"
+
+
+
+
 
 
 
@@ -11590,11 +23188,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             />
 
 
 
+
+
+
+
           </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -11610,7 +23224,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       </Modal>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -11634,7 +23272,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       {selected && (
+
+
+
+
+
+
+
+
 
 
 
@@ -11650,7 +23304,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           footer={
+
+
+
+
+
+
+
+
 
 
 
@@ -11666,7 +23336,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               <Button variant="ghost" onClick={() => setSelected(null)}>Close</Button>
+
+
+
+
+
+
+
+
 
 
 
@@ -11682,7 +23368,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           }>
+
+
+
+
+
+
+
+
 
 
 
@@ -11698,7 +23400,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             {[
+
+
+
+
+
+
+
+
 
 
 
@@ -11714,7 +23432,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               ['Customer', selected.customerName],
+
+
+
+
+
+
+
+
 
 
 
@@ -11730,7 +23464,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               ['Invoice Amt', fmt(selected.amount)],
+
+
+
+
+
+
+
+
 
 
 
@@ -11746,7 +23496,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               ['Balance Due', fmt(selected.balance || 0)],
+
+
+
+
+
+
+
+
 
 
 
@@ -11762,7 +23528,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               ['Invoice Date', selected.invoiceDate ? new Date(selected.invoiceDate).toLocaleDateString() : '—'],
+
+
+
+
+
+
+
+
 
 
 
@@ -11778,7 +23560,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               ['Paid On', selected.paidDate ? new Date(selected.paidDate).toLocaleDateString() : '—'],
+
+
+
+
+
+
+
+
 
 
 
@@ -11794,7 +23592,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               ['Reminder Count', selected.reminderCount || 0],
+
+
+
+
+
+
+
+
 
 
 
@@ -11810,7 +23624,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               <div key={k} className="glass-card p-2">
+
+
+
+
+
+
+
+
 
 
 
@@ -11826,7 +23656,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 <div className="font-semibold text-[var(--text-primary)]">{v}</div>
+
+
+
+
+
+
+
+
 
 
 
@@ -11842,7 +23688,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             ))}
+
+
+
+
+
+
+
+
 
 
 
@@ -11858,6 +23720,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         </Modal>
 
 
@@ -11866,7 +23736,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -11890,7 +23784,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       {showEditInvoice && editInvoiceTarget && (
+
+
+
+
+
+
+
+
 
 
 
@@ -11906,7 +23816,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           open={showEditInvoice}
+
+
+
+
+
+
+
+
 
 
 
@@ -11922,7 +23848,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             if (savingEditInvoice) return;
+
+
+
+
+
+
+
+
 
 
 
@@ -11938,7 +23880,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             setEditInvoiceTarget(null);
+
+
+
+
+
+
+
+
 
 
 
@@ -11954,7 +23912,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           }}
+
+
+
+
+
+
+
+
 
 
 
@@ -11970,7 +23944,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           footer={
+
+
+
+
+
+
+
+
 
 
 
@@ -11986,7 +23976,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               <Button
+
+
+
+
+
+
+
+
 
 
 
@@ -12002,7 +24008,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 onClick={() => {
+
+
+
+
+
+
+
+
 
 
 
@@ -12018,7 +24040,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   setShowEditInvoice(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -12034,7 +24072,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   setEditModalError(null);
+
+
+
+
+
+
+
+
 
 
 
@@ -12050,7 +24104,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 disabled={savingEditInvoice}
+
+
+
+
+
+
+
+
 
 
 
@@ -12066,6 +24136,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 Cancel
 
 
@@ -12074,7 +24152,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               </Button>
+
+
+
+
+
+
+
+
 
 
 
@@ -12090,7 +24184,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 {savingEditInvoice ? <Loader2 size={13} className="animate-spin" /> : <Edit size={13} />}
+
+
+
+
+
+
+
+
 
 
 
@@ -12106,7 +24216,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               </Button>
+
+
+
+
+
+
+
+
 
 
 
@@ -12122,7 +24248,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           }
+
+
+
+
+
+
+
+
 
 
 
@@ -12138,7 +24280,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           <div className="space-y-3 pb-20">
+
+
+
+
+
+
+
+
 
 
 
@@ -12154,7 +24312,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+
+
+
+
+
+
+
+
 
 
 
@@ -12170,7 +24344,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -12194,7 +24384,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             <div className="grid grid-cols-2 gap-3">
+
+
+
+
+
+
+
+
 
 
 
@@ -12210,7 +24424,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 <Input
+
+
+
+
+
+
+
+
 
 
 
@@ -12226,7 +24456,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   onChange={e => setEditInvoice({ ...editInvoice, invoiceNumber: e.target.value })}
+
+
+
+
+
+
+
+
 
 
 
@@ -12242,7 +24488,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   disabled={savingEditInvoice}
+
+
+
+
+
+
+
+
 
 
 
@@ -12258,7 +24520,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -12274,7 +24552,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 <Input
+
+
+
+
+
+
+
+
 
 
 
@@ -12290,7 +24584,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   onChange={e => setEditInvoice({ ...editInvoice, customerName: e.target.value })}
+
+
+
+
+
+
+
+
 
 
 
@@ -12306,7 +24616,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   disabled={savingEditInvoice}
+
+
+
+
+
+
+
+
 
 
 
@@ -12322,7 +24648,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -12346,7 +24688,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             <div className="grid grid-cols-2 gap-3">
+
+
+
+
+
+
+
+
 
 
 
@@ -12362,7 +24728,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 <Input
+
+
+
+
+
+
+
+
 
 
 
@@ -12378,7 +24760,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   value={editInvoice.amount}
+
+
+
+
+
+
+
+
 
 
 
@@ -12394,7 +24792,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   placeholder="280000"
+
+
+
+
+
+
+
+
 
 
 
@@ -12410,6 +24824,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 />
 
 
@@ -12418,7 +24840,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -12434,6 +24872,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 <Input
 
 
@@ -12442,7 +24888,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   type="date"
+
+
+
+
+
+
+
+
 
 
 
@@ -12458,7 +24920,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   onChange={e => setEditInvoice({ ...editInvoice, invoiceDate: e.target.value })}
+
+
+
+
+
+
+
+
 
 
 
@@ -12474,6 +24952,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 />
 
 
@@ -12482,7 +24968,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -12506,7 +25008,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             <div className="grid grid-cols-2 gap-3">
+
+
+
+
+
+
+
+
 
 
 
@@ -12522,7 +25048,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 <Input
+
+
+
+
+
+
+
+
 
 
 
@@ -12538,7 +25080,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   value={editInvoice.dueDate}
+
+
+
+
+
+
+
+
 
 
 
@@ -12554,7 +25112,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   disabled={savingEditInvoice}
+
+
+
+
+
+
+
+
 
 
 
@@ -12570,7 +25144,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -12586,7 +25176,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 <Select
+
+
+
+
+
+
+
+
 
 
 
@@ -12602,7 +25208,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   onChange={e => setEditInvoice({ ...editInvoice, status: e.target.value })}
+
+
+
+
+
+
+
+
 
 
 
@@ -12618,7 +25240,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 >
+
+
+
+
+
+
+
+
 
 
 
@@ -12634,7 +25272,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   <option value="Draft">Draft</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -12650,7 +25304,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   <option value="Partial">Partial</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -12666,7 +25336,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   <option value="Overdue">Overdue</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -12682,6 +25368,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               </FormField>
 
 
@@ -12690,7 +25384,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12714,6 +25432,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               <FormField label="Payment Terms">
 
 
@@ -12722,7 +25448,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 <Input
+
+
+
+
+
+
+
+
 
 
 
@@ -12738,7 +25480,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   onChange={e => setEditInvoice({ ...editInvoice, paymentTerms: e.target.value })}
+
+
+
+
+
+
+
+
 
 
 
@@ -12754,7 +25512,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   disabled={savingEditInvoice}
+
+
+
+
+
+
+
+
 
 
 
@@ -12770,7 +25544,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -12786,7 +25576,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 <Input
+
+
+
+
+
+
+
+
 
 
 
@@ -12802,7 +25608,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   value={editInvoice.email}
+
+
+
+
+
+
+
+
 
 
 
@@ -12818,7 +25640,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   placeholder="customer@example.com"
+
+
+
+
+
+
+
+
 
 
 
@@ -12834,7 +25672,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 />
+
+
+
+
+
+
+
+
 
 
 
@@ -12850,7 +25704,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -12866,6 +25736,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         </Modal>
 
 
@@ -12874,7 +25752,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12898,7 +25800,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       {showDeleteInvoice && deleteInvoiceTarget && (
+
+
+
+
+
+
+
+
 
 
 
@@ -12914,7 +25832,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           open={showDeleteInvoice}
+
+
+
+
+
+
+
+
 
 
 
@@ -12930,7 +25864,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             if (deletingInvoice) return;
+
+
+
+
+
+
+
+
 
 
 
@@ -12946,7 +25896,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             setDeleteInvoiceTarget(null);
+
+
+
+
+
+
+
+
 
 
 
@@ -12962,7 +25928,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           }}
+
+
+
+
+
+
+
+
 
 
 
@@ -12978,7 +25960,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           footer={
+
+
+
+
+
+
+
+
 
 
 
@@ -12994,7 +25992,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               <Button
+
+
+
+
+
+
+
+
 
 
 
@@ -13010,7 +26024,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 onClick={() => {
+
+
+
+
+
+
+
+
 
 
 
@@ -13026,7 +26056,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   setShowDeleteInvoice(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -13042,7 +26088,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   setError(null);
+
+
+
+
+
+
+
+
 
 
 
@@ -13058,7 +26120,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 disabled={deletingInvoice}
+
+
+
+
+
+
+
+
 
 
 
@@ -13074,6 +26152,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 Cancel
 
 
@@ -13082,7 +26168,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               </Button>
+
+
+
+
+
+
+
+
 
 
 
@@ -13098,7 +26200,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 {deletingInvoice ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+
+
+
+
+
+
+
+
 
 
 
@@ -13114,6 +26232,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               </Button>
 
 
@@ -13122,7 +26248,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -13138,7 +26280,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         >
+
+
+
+
+
+
+
+
 
 
 
@@ -13154,7 +26312,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             {error && (
+
+
+
+
+
+
+
+
 
 
 
@@ -13170,7 +26344,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 {error}
+
+
+
+
+
+
+
+
 
 
 
@@ -13186,7 +26376,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             )}
+
+
+
+
+
+
+
+
 
 
 
@@ -13202,7 +26408,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               <p className="text-sm text-[var(--text-primary)] font-semibold">Are you sure you want to delete this invoice?</p>
+
+
+
+
+
+
+
+
 
 
 
@@ -13218,7 +26440,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               <p className="text-xs text-[var(--text-muted)] mt-2">This cannot be undone.</p>
+
+
+
+
+
+
+
+
 
 
 
@@ -13234,7 +26472,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -13250,7 +26504,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -13274,7 +26552,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       {showAssignInvoice && assignInvoiceTarget && (
+
+
+
+
+
+
+
+
 
 
 
@@ -13290,7 +26584,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           open={showAssignInvoice}
+
+
+
+
+
+
+
+
 
 
 
@@ -13306,7 +26616,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             setShowAssignInvoice(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -13322,7 +26648,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             setAssignToUser('');
+
+
+
+
+
+
+
+
 
 
 
@@ -13338,7 +26680,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           title={`Assign Invoice — ${assignInvoiceTarget.invoiceNumber || assignInvoiceTarget.id}`}
+
+
+
+
+
+
+
+
 
 
 
@@ -13354,7 +26712,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             <div className="flex gap-2 justify-end">
+
+
+
+
+
+
+
+
 
 
 
@@ -13370,7 +26744,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 variant="ghost"
+
+
+
+
+
+
+
+
 
 
 
@@ -13386,7 +26776,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   setShowAssignInvoice(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -13402,7 +26808,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   setAssignToUser('');
+
+
+
+
+
+
+
+
 
 
 
@@ -13418,7 +26840,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               >
+
+
+
+
+
+
+
+
 
 
 
@@ -13434,7 +26872,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               </Button>
+
+
+
+
+
+
+
+
 
 
 
@@ -13450,7 +26904,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 Save
+
+
+
+
+
+
+
+
 
 
 
@@ -13466,7 +26936,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -13482,7 +26968,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         >
+
+
+
+
+
+
+
+
 
 
 
@@ -13498,7 +27000,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             {error && (
+
+
+
+
+
+
+
+
 
 
 
@@ -13514,7 +27032,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 {error}
+
+
+
+
+
+
+
+
 
 
 
@@ -13530,7 +27064,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             )}
+
+
+
+
+
+
+
+
 
 
 
@@ -13546,7 +27096,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               <Select value={assignToUser} onChange={(e) => setAssignToUser(e.target.value)}>
+
+
+
+
+
+
+
+
 
 
 
@@ -13562,7 +27128,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               </Select>
+
+
+
+
+
+
+
+
 
 
 
@@ -13578,7 +27160,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -13594,7 +27192,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -13618,7 +27240,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       {showReminderModal && selectedReminderInvoice && (
+
+
+
+
 
 
 
@@ -13626,7 +27260,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           open={showReminderModal}
+
+
+
+
 
 
 
@@ -13634,7 +27276,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             setShowReminderModal(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -13650,7 +27304,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             setReminderForm({ reminderType: 'Gentle', customerEmail: '', messageBody: '' });
+
+
+
+
+
+
+
+
 
 
 
@@ -13666,11 +27336,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             setError(null);
 
 
 
+
+
+
+
           }}
+
+
+
+
+
+
+
+
 
 
 
@@ -13686,7 +27376,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           footer={
+
+
+
+
+
+
+
+
 
 
 
@@ -13698,7 +27404,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               <Button
+
+
+
+
 
 
 
@@ -13706,11 +27420,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 onClick={() => {
 
 
 
+
+
+
+
                   setShowReminderModal(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -13726,7 +27456,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   setReminderForm({ reminderType: 'Gentle', customerEmail: '', messageBody: '' });
+
+
+
+
+
+
+
+
 
 
 
@@ -13742,11 +27488,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   setError(null);
 
 
 
+
+
+
+
                 }}
+
+
+
+
+
+
+
+
 
 
 
@@ -13762,7 +27528,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               >
+
+
+
+
+
+
+
+
 
 
 
@@ -13778,7 +27560,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               </Button>
+
+
+
+
 
 
 
@@ -13786,7 +27580,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 onClick={handleSendReminder}
+
+
+
+
+
+
+
+
 
 
 
@@ -13802,7 +27608,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               >
+
+
+
+
+
+
+
+
 
 
 
@@ -13818,7 +27640,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 {sendingReminder ? ' Sending...' : reminderSuccess ? ' Sent!' : ' Send Reminder'}
+
+
+
+
+
+
+
+
 
 
 
@@ -13834,7 +27672,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -13850,7 +27704,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         >
+
+
+
+
+
+
+
+
 
 
 
@@ -13866,7 +27736,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             {error && (
+
+
+
+
+
+
+
+
 
 
 
@@ -13882,7 +27768,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 {error}
+
+
+
+
+
+
+
+
 
 
 
@@ -13898,7 +27800,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             )}
+
+
+
+
+
+
+
+
 
 
 
@@ -13914,7 +27832,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm">
+
+
+
+
+
+
+
+
 
 
 
@@ -13930,6 +27864,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               </div>
 
 
@@ -13938,7 +27880,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             )}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -13958,6 +27920,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             <div className="grid grid-cols-2 gap-3 text-xs">
 
 
@@ -13966,7 +27936,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               <div className="glass-card p-2">
+
+
+
+
+
+
+
+
 
 
 
@@ -13982,7 +27968,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 <div className="font-semibold text-[var(--text-primary)]">{selectedReminderInvoice.invoiceNumber || selectedReminderInvoice.id}</div>
+
+
+
+
+
+
+
+
 
 
 
@@ -13998,7 +28000,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               <div className="glass-card p-2">
+
+
+
+
+
+
+
+
 
 
 
@@ -14014,7 +28032,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 <div className="font-semibold text-[var(--text-primary)]">{selectedReminderInvoice.customerName}</div>
+
+
+
+
+
+
+
+
 
 
 
@@ -14030,7 +28064,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               <div className="glass-card p-2">
+
+
+
+
+
+
+
+
 
 
 
@@ -14046,6 +28096,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 <div className="font-semibold text-red-400">{fmt(selectedReminderInvoice.balance || 0)}</div>
 
 
@@ -14054,7 +28112,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -14070,7 +28144,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 <div className="text-[var(--text-muted)] mb-0.5">Due Date</div>
+
+
+
+
+
+
+
+
 
 
 
@@ -14086,6 +28176,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               </div>
 
 
@@ -14094,7 +28192,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14118,7 +28240,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             <FormField label="Reminder Type">
+
+
+
+
 
 
 
@@ -14130,11 +28264,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 value={reminderForm.reminderType}
 
 
 
+
+
+
+
                 onChange={e => setReminderForm({ ...reminderForm, reminderType: e.target.value })}
+
+
+
+
+
+
+
+
 
 
 
@@ -14150,7 +28304,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               >
+
+
+
+
+
+
+
+
 
 
 
@@ -14166,7 +28336,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 <option value="Due Today">Due Today</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -14182,6 +28368,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               </Select>
 
 
@@ -14190,7 +28384,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14214,11 +28432,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             <FormField label="Customer Email">
 
 
 
+
+
+
+
               <Input
+
+
+
+
+
+
+
+
 
 
 
@@ -14234,11 +28472,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 value={reminderForm.customerEmail}
 
 
 
+
+
+
+
                 onChange={e => setReminderForm({ ...reminderForm, customerEmail: e.target.value })}
+
+
+
+
+
+
+
+
 
 
 
@@ -14254,7 +28512,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 disabled={sendingReminder || reminderSuccess}
+
+
+
+
+
+
+
+
 
 
 
@@ -14270,7 +28544,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14294,7 +28592,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             <FormField label="Message (Optional)">
+
+
+
+
+
+
+
+
 
 
 
@@ -14310,11 +28624,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 value={reminderForm.messageBody}
 
 
 
+
+
+
+
                 onChange={e => setReminderForm({ ...reminderForm, messageBody: e.target.value })}
+
+
+
+
+
+
+
+
 
 
 
@@ -14330,7 +28664,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 disabled={sendingReminder || reminderSuccess}
+
+
+
+
+
+
+
+
 
 
 
@@ -14346,7 +28696,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               />
+
+
+
+
+
+
+
+
 
 
 
@@ -14362,7 +28728,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -14378,7 +28760,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14402,7 +28808,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       {showTimeline && timelineInvoice && (
+
+
+
+
+
+
+
+
 
 
 
@@ -14414,11 +28836,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           <div
 
 
 
+
+
+
+
             className="absolute inset-0 bg-black/50"
+
+
+
+
+
+
+
+
 
 
 
@@ -14434,7 +28872,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           />
+
+
+
+
+
+
+
+
 
 
 
@@ -14450,7 +28904,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             <div className="p-4 border-b border-[var(--border-base)] flex items-center justify-between">
+
+
+
+
+
+
+
+
 
 
 
@@ -14466,7 +28936,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 <h3 className="text-sm font-semibold text-[var(--text-primary)]">Invoice Timeline</h3>
+
+
+
+
+
+
+
+
 
 
 
@@ -14482,11 +28968,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               </div>
 
 
 
+
+
+
+
               <button
+
+
+
+
+
+
+
+
 
 
 
@@ -14502,7 +29008,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 className="p-2 hover:bg-[var(--bg-elevated)] rounded-lg transition-colors"
+
+
+
+
+
+
+
+
 
 
 
@@ -14518,7 +29040,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 <X size={16} />
+
+
+
+
+
+
+
+
 
 
 
@@ -14534,7 +29072,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14558,7 +29120,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               {loadingTimeline ? (
+
+
+
+
+
+
+
+
 
 
 
@@ -14574,6 +29152,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   <Loader2 className="w-6 h-6 animate-spin text-[var(--accent)]" />
 
 
@@ -14582,7 +29168,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -14598,7 +29200,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 <div className="text-center py-8">
+
+
+
+
+
+
+
+
 
 
 
@@ -14614,7 +29232,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   <p className="text-sm text-[var(--text-muted)]">No timeline activity found.</p>
+
+
+
+
+
+
+
+
 
 
 
@@ -14630,7 +29264,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               ) : (
+
+
+
+
+
+
+
+
 
 
 
@@ -14646,7 +29296,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   {timelineData.map((activity, index) => (
+
+
+
+
+
+
+
+
 
 
 
@@ -14662,7 +29328,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                       <div className="flex flex-col items-center">
+
+
+
+
+
+
+
+
 
 
 
@@ -14678,7 +29360,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                           {activity.action === 'INVOICE_CREATED' && <FileText size={14} className="text-blue-400" />}
+
+
+
+
+
+
+
+
 
 
 
@@ -14694,7 +29392,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                           {activity.action === 'STATUS_CHANGED' && <RefreshCw size={14} className="text-purple-400" />}
+
+
+
+
+
+
+
+
 
 
 
@@ -14710,7 +29424,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                           {activity.action === 'REMINDER_SENT' && <Clock size={14} className="text-orange-400" />}
+
+
+
+
+
+
+
+
 
 
 
@@ -14726,7 +29456,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                         {index < timelineData.length - 1 && (
+
+
+
+
+
+
+
+
 
 
 
@@ -14742,7 +29488,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                         )}
+
+
+
+
+
+
+
+
 
 
 
@@ -14758,7 +29520,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                       <div className="flex-1 pb-4">
+
+
+
+
+
+
+
+
 
 
 
@@ -14774,7 +29552,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                           <div className="flex items-center justify-between mb-2">
+
+
+
+
+
+
+
+
 
 
 
@@ -14790,7 +29584,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                               {activity.action.replace(/_/g, ' ')}
+
+
+
+
+
+
+
+
 
 
 
@@ -14806,7 +29616,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                             <span className="text-[10px] text-[var(--text-muted)]">
+
+
+
+
 
 
 
@@ -14814,11 +29636,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                                 day: '2-digit',
 
 
 
+
+
+
+
                                 month: 'short',
+
+
+
+
+
+
+
+
 
 
 
@@ -14834,7 +29672,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                                 hour: '2-digit',
+
+
+
+
+
+
+
+
 
 
 
@@ -14850,6 +29704,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                               })}
 
 
@@ -14858,7 +29720,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                             </span>
+
+
+
+
+
+
+
+
 
 
 
@@ -14878,7 +29756,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                           {activity.metadata && (
+
+
+
+
+
+
+
+
 
 
 
@@ -14894,7 +29792,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                               {activity.action === 'PAYMENT_ADDED' && (
+
+
+
+
+
+
+
+
 
 
 
@@ -14910,7 +29824,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                               )}
+
+
+
+
+
+
+
+
 
 
 
@@ -14926,6 +29856,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                                 <p>{activity.metadata.previousStatus} → {activity.metadata.newStatus}</p>
 
 
@@ -14934,7 +29872,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                               )}
+
+
+
+
+
+
+
+
 
 
 
@@ -14950,6 +29904,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                                 <p>Reminder sent to {activity.metadata.sentTo}</p>
 
 
@@ -14958,7 +29920,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                               )}
+
+
+
+
+
+
+
+
 
 
 
@@ -14974,7 +29952,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                                 <p>Amount: {fmt(activity.metadata.amount || 0)} for {activity.metadata.customerName}</p>
+
+
+
+
+
+
+
+
 
 
 
@@ -14990,6 +29984,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                             </div>
 
 
@@ -14998,7 +30000,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                           )}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -15018,7 +30040,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                             <p className="text-[10px] text-[var(--text-faint)] mt-2">
+
+
+
+
+
+
+
+
 
 
 
@@ -15034,7 +30072,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                             </p>
+
+
+
+
+
+
+
+
 
 
 
@@ -15050,7 +30104,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                         </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -15066,7 +30136,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                     </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -15082,7 +30168,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -15098,7 +30200,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -15114,7 +30232,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -15138,7 +30272,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       {/* Record Payment Modal */}
+
+
+
+
 
 
 
@@ -15146,7 +30300,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         open={showRecordPayment}
+
+
+
+
 
 
 
@@ -15158,11 +30320,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           if (submittingPayment) return;
 
 
 
+
+
+
+
           setShowRecordPayment(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -15178,7 +30360,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           setRecordPaymentErrors({});
+
+
+
+
+
+
+
+
 
 
 
@@ -15194,7 +30392,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         title="Record Payment"
+
+
+
+
+
+
+
+
 
 
 
@@ -15210,7 +30424,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           <div className="flex gap-2 justify-end">
+
+
+
+
 
 
 
@@ -15218,7 +30444,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               variant="ghost"
+
+
+
+
 
 
 
@@ -15230,11 +30464,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 if (submittingPayment) return;
 
 
 
+
+
+
+
                 setShowRecordPayment(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -15250,7 +30504,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 setRecordPaymentErrors({});
+
+
+
+
+
+
+
+
 
 
 
@@ -15266,6 +30536,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               disabled={submittingPayment}
 
 
@@ -15274,7 +30552,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             >
+
+
+
+
+
+
+
+
 
 
 
@@ -15290,11 +30584,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             </Button>
 
 
 
+
+
+
+
             <Button
+
+
+
+
+
+
+
+
 
 
 
@@ -15310,7 +30624,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               disabled={submittingPayment}
+
+
+
+
+
+
+
+
 
 
 
@@ -15326,7 +30656,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               {submittingPayment ? <Loader2 size={13} className="animate-spin" /> : <IndianRupee size={13} />}
+
+
+
+
+
+
+
+
 
 
 
@@ -15342,7 +30688,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             </Button>
+
+
+
+
+
+
+
+
 
 
 
@@ -15358,7 +30720,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         }
+
+
+
+
+
+
+
+
 
 
 
@@ -15374,7 +30752,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         <div className="space-y-4 pb-4">
+
+
+
+
+
+
+
+
 
 
 
@@ -15390,7 +30784,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+
+
+
+
+
+
+
+
 
 
 
@@ -15406,7 +30816,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -15430,7 +30856,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           <div className="grid grid-cols-2 gap-3">
+
+
+
+
+
+
+
+
 
 
 
@@ -15446,7 +30896,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               <Select
+
+
+
+
+
+
+
+
 
 
 
@@ -15462,7 +30928,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 onChange={e => {
+
+
+
+
+
+
+
+
 
 
 
@@ -15474,11 +30956,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   setRecordPayment({
 
 
 
+
+
+
+
                     ...recordPayment,
+
+
+
+
+
+
+
+
 
 
 
@@ -15494,7 +30992,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                     referenceType: newType === 'Customer Payment' ? 'Invoice' : 'Vendor',
+
+
+
+
+
+
+
+
 
 
 
@@ -15510,7 +31024,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                     customerName: '',
+
+
+
+
+
+
+
+
 
 
 
@@ -15526,7 +31056,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                     vendorName: '',
+
+
+
+
+
+
+
+
 
 
 
@@ -15542,7 +31088,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                     maxAmount: 0,
+
+
+
+
+
+
+
+
 
 
 
@@ -15558,7 +31120,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   if (recordPaymentErrors.referenceId) setRecordPaymentErrors(prev => ({ ...prev, referenceId: undefined }));
+
+
+
+
+
+
+
+
 
 
 
@@ -15574,7 +31152,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 disabled={submittingPayment}
+
+
+
+
+
+
+
+
 
 
 
@@ -15590,7 +31184,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 <option value="Customer Payment">Customer Payment</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -15606,6 +31216,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               </Select>
 
 
@@ -15614,7 +31232,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -15638,7 +31280,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               <Select
+
+
+
+
+
+
+
+
 
 
 
@@ -15654,7 +31312,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 onChange={e => {
+
+
+
+
+
+
+
+
 
 
 
@@ -15670,7 +31344,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   if (recordPaymentErrors.referenceId) setRecordPaymentErrors(prev => ({ ...prev, referenceId: undefined }));
+
+
+
+
+
+
+
+
 
 
 
@@ -15686,7 +31376,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 disabled={submittingPayment}
+
+
+
+
+
+
+
+
 
 
 
@@ -15702,7 +31408,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 {recordPayment.paymentType === 'Customer Payment' ? (
+
+
+
+
+
+
+
+
 
 
 
@@ -15718,7 +31440,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 ) : (
+
+
+
+
+
+
+
+
 
 
 
@@ -15734,7 +31472,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 )}
+
+
+
+
+
+
+
+
 
 
 
@@ -15750,6 +31504,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             </FormField>
 
 
@@ -15758,7 +31520,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -15782,7 +31568,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             <Select
+
+
+
+
+
+
+
+
 
 
 
@@ -15798,7 +31600,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               onChange={e => {
+
+
+
+
+
+
+
+
 
 
 
@@ -15814,7 +31632,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 if (!nextId) {
+
+
+
+
 
 
 
@@ -15822,7 +31652,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   if (recordPaymentErrors.referenceId) setRecordPaymentErrors(prev => ({ ...prev, referenceId: undefined }));
+
+
+
+
 
 
 
@@ -15830,7 +31668,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 }
+
+
+
+
+
+
+
+
 
 
 
@@ -15842,7 +31692,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   const inv = (invoices || []).find(i => String(i._id || i.id) === String(nextId));
+
+
+
+
 
 
 
@@ -15850,7 +31708,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   const max = Math.max(0, outstanding || 0);
+
+
+
+
 
 
 
@@ -15858,11 +31724,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     ...recordPayment,
 
 
 
+
+
+
+
                     referenceId: nextId,
+
+
+
+
 
 
 
@@ -15870,7 +31748,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     invoiceNumber: inv?.invoiceNumber || '',
+
+
+
+
 
 
 
@@ -15878,7 +31764,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     maxAmount: max,
+
+
+
+
 
 
 
@@ -15886,7 +31780,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   });
+
+
+
+
 
 
 
@@ -15894,7 +31796,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   const v = (payables || []).find(p => String(p.vendorObjectId || p.vendorId) === String(nextId));
+
+
+
+
 
 
 
@@ -15902,7 +31812,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   setRecordPayment({
+
+
+
+
 
 
 
@@ -15910,7 +31828,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     referenceId: nextId,
+
+
+
+
 
 
 
@@ -15918,7 +31844,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     customerName: '',
+
+
+
+
 
 
 
@@ -15926,7 +31860,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     maxAmount: max,
+
+
+
+
 
 
 
@@ -15934,11 +31876,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   });
 
 
 
+
+
+
+
                 }
+
+
+
+
+
+
+
+
 
 
 
@@ -15954,7 +31912,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               }}
+
+
+
+
+
+
+
+
 
 
 
@@ -15970,7 +31944,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             >
+
+
+
+
+
+
+
+
 
 
 
@@ -15982,7 +31972,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               {recordPayment.paymentType === 'Customer Payment'
+
+
+
+
+
+
+
+
 
 
 
@@ -15994,7 +31996,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   <option key={inv._id || inv.id} value={inv._id || inv.id}>
+
+
+
+
 
 
 
@@ -16002,11 +32012,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   </option>
 
 
 
+
+
+
+
                 ))
+
+
+
+
+
+
+
+
 
 
 
@@ -16018,7 +32044,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   <option key={p.vendorObjectId || p.vendorId} value={p.vendorObjectId || p.vendorId}>
+
+
+
+
 
 
 
@@ -16026,11 +32060,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   </option>
 
 
 
+
+
+
+
                 ))
+
+
+
+
+
+
+
+
 
 
 
@@ -16046,7 +32096,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             </Select>
+
+
+
+
+
+
+
+
 
 
 
@@ -16062,6 +32128,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               <div className="text-[11px] text-red-400 mt-1">{recordPaymentErrors.referenceId}</div>
 
 
@@ -16070,7 +32144,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             )}
+
+
+
+
+
+
+
+
 
 
 
@@ -16094,7 +32184,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           <div className="grid grid-cols-2 gap-3">
+
+
+
+
+
+
+
+
 
 
 
@@ -16106,7 +32220,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               <Input
+
+
+
+
+
+
+
+
 
 
 
@@ -16122,7 +32248,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 value={recordPayment.amount}
+
+
+
+
+
+
+
+
 
 
 
@@ -16138,11 +32280,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   const v = clampAmount(e.target.value, Number(recordPayment.maxAmount || 0));
 
 
 
+
+
+
+
                   setRecordPayment({ ...recordPayment, amount: v });
+
+
+
+
+
+
+
+
 
 
 
@@ -16158,7 +32320,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 }}
+
+
+
+
+
+
+
+
 
 
 
@@ -16174,7 +32352,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 max={recordPayment.maxAmount || undefined}
+
+
+
+
+
+
+
+
 
 
 
@@ -16190,7 +32384,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               />
+
+
+
+
+
+
+
+
 
 
 
@@ -16206,7 +32416,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 <div className="text-[11px] text-red-400 mt-1">{recordPaymentErrors.amount}</div>
+
+
+
+
+
+
+
+
 
 
 
@@ -16222,7 +32448,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16242,7 +32492,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               <Input
+
+
+
+
+
+
+
+
 
 
 
@@ -16258,7 +32520,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 value={recordPayment.paymentDate}
+
+
+
+
+
+
+
+
 
 
 
@@ -16274,7 +32552,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                   setRecordPayment({ ...recordPayment, paymentDate: e.target.value });
+
+
+
+
+
+
+
+
 
 
 
@@ -16290,7 +32584,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 }}
+
+
+
+
+
+
+
+
 
 
 
@@ -16306,7 +32616,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               />
+
+
+
+
+
+
+
+
 
 
 
@@ -16322,7 +32648,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 <div className="text-[11px] text-red-400 mt-1">{recordPaymentErrors.paymentDate}</div>
+
+
+
+
+
+
+
+
 
 
 
@@ -16338,6 +32680,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             </FormField>
 
 
@@ -16346,7 +32696,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16370,7 +32744,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             <Select
+
+
+
+
+
+
+
+
 
 
 
@@ -16386,7 +32776,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               onChange={e => {
+
+
+
+
+
+
+
+
 
 
 
@@ -16402,7 +32808,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
                 if (recordPaymentErrors.paymentMethod) setRecordPaymentErrors(prev => ({ ...prev, paymentMethod: undefined }));
+
+
+
+
+
+
+
+
 
 
 
@@ -16418,7 +32840,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               disabled={submittingPayment}
+
+
+
+
+
+
+
+
 
 
 
@@ -16434,7 +32872,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               <option value="Cash">Cash</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -16450,7 +32904,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               <option value="UPI">UPI</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -16466,7 +32936,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               <option value="Other">Other</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -16482,7 +32968,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             {recordPaymentErrors.paymentMethod && (
+
+
+
+
+
+
+
+
 
 
 
@@ -16498,6 +33000,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             )}
 
 
@@ -16506,7 +33016,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           </FormField>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16530,7 +33064,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             <textarea
+
+
+
+
+
+
+
+
 
 
 
@@ -16546,7 +33096,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               onChange={e => setRecordPayment({ ...recordPayment, notes: e.target.value })}
+
+
+
+
+
+
+
+
 
 
 
@@ -16562,7 +33128,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
               disabled={submittingPayment}
+
+
+
+
+
+
+
+
 
 
 
@@ -16578,7 +33160,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             />
+
+
+
+
+
+
+
+
 
 
 
@@ -16594,6 +33192,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
         </div>
 
 
@@ -16602,7 +33208,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       </Modal>
+
+
+
+
+
+
+
+
 
 
 
@@ -16614,7 +33236,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       <Modal
+
+
+
+
 
 
 
@@ -16622,7 +33252,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         onClose={() => {
+
+
+
+
 
 
 
@@ -16630,7 +33268,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           setShowAdjustModal(false);
+
+
+
+
 
 
 
@@ -16638,7 +33284,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           setAdjustErrors({});
+
+
+
+
 
 
 
@@ -16646,7 +33300,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         title="Manual Adjustment"
+
+
+
+
 
 
 
@@ -16654,7 +33316,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           <div className="flex gap-2 justify-end">
+
+
+
+
 
 
 
@@ -16662,7 +33332,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               variant="ghost"
+
+
+
+
 
 
 
@@ -16670,7 +33348,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 if (submittingAdjust) return;
+
+
+
+
 
 
 
@@ -16678,7 +33364,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 setAdjustError(null);
+
+
+
+
 
 
 
@@ -16686,7 +33380,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               }}
+
+
+
+
 
 
 
@@ -16694,7 +33396,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             >
+
+
+
+
 
 
 
@@ -16702,7 +33412,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             </Button>
+
+
+
+
 
 
 
@@ -16710,7 +33428,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               {submittingAdjust ? <Loader2 size={13} className="animate-spin" /> : <TrendingUp size={13} />}
+
+
+
+
 
 
 
@@ -16718,7 +33444,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             </Button>
+
+
+
+
 
 
 
@@ -16726,7 +33460,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         }
+
+
+
+
 
 
 
@@ -16734,7 +33476,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         <div className="space-y-[64px] pb-4">
+
+
+
+
 
 
 
@@ -16742,7 +33492,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+
+
+
+
 
 
 
@@ -16750,11 +33508,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             </div>
 
 
 
+
+
+
+
           )}
+
+
+
+
+
+
+
+
 
 
 
@@ -16766,7 +33540,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             <FormField label="Type">
+
+
+
+
 
 
 
@@ -16774,7 +33556,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 value={adjustForm.type}
+
+
+
+
 
 
 
@@ -16782,7 +33572,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   setAdjustForm({ ...adjustForm, type: e.target.value, category: '' });
+
+
+
+
 
 
 
@@ -16790,7 +33588,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 }}
+
+
+
+
 
 
 
@@ -16798,7 +33604,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               >
+
+
+
+
 
 
 
@@ -16806,7 +33620,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 <option value="debit">Debit (- Subtract Amount)</option>
+
+
+
+
 
 
 
@@ -16814,7 +33636,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -16826,7 +33660,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               <Select
+
+
+
+
 
 
 
@@ -16834,7 +33676,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 onChange={e => {
+
+
+
+
 
 
 
@@ -16842,7 +33692,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   if (value === '__add_new__') {
+
+
+
+
 
 
 
@@ -16850,7 +33708,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     setNewCategory({ categoryName: '', type: adjustForm.type });
+
+
+
+
 
 
 
@@ -16858,7 +33724,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   }
+
+
+
+
 
 
 
@@ -16866,7 +33740,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   if (adjustErrors.category) setAdjustErrors(prev => ({ ...prev, category: undefined }));
+
+
+
+
 
 
 
@@ -16874,7 +33756,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 disabled={submittingAdjust}
+
+
+
+
 
 
 
@@ -16882,7 +33772,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 <option value="">Select Category</option>
+
+
+
+
 
 
 
@@ -16890,7 +33788,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   .filter(cat => cat.type === adjustForm.type)
+
+
+
+
 
 
 
@@ -16898,7 +33804,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     <option key={cat._id || cat.id} value={cat.categoryName}>
+
+
+
+
 
 
 
@@ -16906,7 +33820,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     </option>
+
+
+
+
 
 
 
@@ -16914,10 +33836,21 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 {/* Special payment categories are already included in adjustmentCategories from API */}
 
 
+
+
+
                 <option value="__add_new__">+ Add New Category</option>
+
+
+
+
 
 
 
@@ -16925,7 +33858,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               {adjustErrors.category && (
+
+
+
+
 
 
 
@@ -16933,11 +33874,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               )}
 
 
 
+
+
+
+
             </FormField>
+
+
+
+
 
 
 
@@ -16945,142 +33898,241 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           {/* Invoice Selection for Customer Payment (Credit - Invoice Amount Received) */}
+
           {adjustForm.type === 'credit' && adjustForm.category === 'Invoice Amount Received' && (
+
             <div className="mt-4">
+
               <FormField label="Select Invoice *">
+
                 <Select
+
                   value={adjustForm.selectedInvoiceId}
+
                   onChange={e => {
+
                     const selectedInv = invoices.find(inv => (inv._id || inv.id) === e.target.value);
+
                     setAdjustForm({ 
+
                       ...adjustForm, 
+
                       selectedInvoiceId: e.target.value,
+
                       amount: selectedInv ? String(selectedInv.amount - (selectedInv.paid || 0)) : ''
+
                     });
+
                     if (adjustErrors.selectedInvoiceId) setAdjustErrors(prev => ({ ...prev, selectedInvoiceId: undefined }));
+
                   }}
+
                   disabled={submittingAdjust}
+
                 >
+
                   <option value="">Select an invoice</option>
+
                   {invoices
+
                     .filter(inv => ['Sent', 'Partial', 'Overdue', 'Pending'].includes(inv.status))
+
                     .map(inv => {
+
                       const id = inv._id || inv.id;
+
                       return (
+
                         <option key={id} value={id}>
+
                           {inv.invoiceNumber} - {inv.customerName} | Total: {fmt(inv.amount)} | Outstanding: {fmt(inv.amount - (inv.paid || 0))}
+
                         </option>
+
                       );
+
                     })}
+
                 </Select>
+
                 {adjustErrors.selectedInvoiceId && (
+
                   <div className="text-[11px] text-red-400 mt-1">{adjustErrors.selectedInvoiceId}</div>
+
                 )}
+
                 {adjustForm.selectedInvoiceId && (
+
                   <div className="text-[11px] text-[var(--text-muted)] mt-2">
+
                     {(() => {
+
                       const inv = invoices.find(i => (i._id || i.id) === adjustForm.selectedInvoiceId);
+
                       if (!inv) return null;
+
                       const outstanding = inv.amount - (inv.paid || 0);
+
                       return (
+
                         <div className="p-2 bg-[var(--bg-elevated)] rounded border border-[var(--border-muted)]">
+
                           <div className="font-medium">Invoice Details:</div>
+
                           <div>Customer: {inv.customerName}</div>
+
                           <div>Total Amount: {fmt(inv.amount)}</div>
+
                           <div>Paid: {fmt(inv.paid || 0)}</div>
+
                           <div className="font-semibold text-amber-400">Outstanding: {fmt(outstanding)}</div>
+
                           <div className="text-[10px] text-gray-500 mt-1">ID: {inv._id || inv.id}</div>
+
                         </div>
+
                       );
+
                     })()}
+
                   </div>
+
                 )}
+
               </FormField>
+
             </div>
+
           )}
+
+
 
           {/* Vendor Selection for Vendor Payment (Debit - Vendor Payment) */}
+
           {adjustForm.type === 'debit' && adjustForm.category === 'Vendor Payment' && (
+
             <div className="mt-4">
+
               <FormField label="Select Vendor *">
+
                 <Select
+
                   value={adjustForm.selectedVendorId}
+
                   onChange={e => {
+
                     const selectedVendor = payables.find(p => String(p.vendorObjectId || p.vendorId) === e.target.value);
+
                     setAdjustForm({ 
+
                       ...adjustForm, 
+
                       selectedVendorId: e.target.value,
+
                       amount: selectedVendor ? String(selectedVendor.outstandingAmount) : ''
+
                     });
+
                     if (adjustErrors.selectedVendorId) setAdjustErrors(prev => ({ ...prev, selectedVendorId: undefined }));
+
                   }}
+
                   disabled={submittingAdjust}
+
                 >
+
                   <option value="">Select a vendor</option>
+
                   {(() => {
+
                     console.log('Vendor dropdown - payables data:', payables);
+
                     console.log('Vendor dropdown - filtered payables:', payables.filter(p => (p.outstandingAmount || 0) > 0));
+
                     
+
                     const vendorsWithOutstanding = payables.filter(p => (p.outstandingAmount || 0) > 0);
+
                     
+
                     if (vendorsWithOutstanding.length === 0) {
+
                       return (
+
                         <option disabled>No vendors with outstanding payments found</option>
+
                       );
+
                     }
+
                     
+
                     return vendorsWithOutstanding.map(p => (
+
                       <option key={p.vendorObjectId || p.vendorId} value={String(p.vendorObjectId || p.vendorId)}>
+
                         {p.vendorName} | Outstanding: {fmt(p.outstandingAmount)}
+
                       </option>
+
                     ));
+
                   })()}
+
                 </Select>
+
                 {adjustErrors.selectedVendorId && (
+
                   <div className="text-[11px] text-red-400 mt-1">{adjustErrors.selectedVendorId}</div>
+
                 )}
+
                 {adjustForm.selectedVendorId && (
+
                   <div className="text-[11px] text-[var(--text-muted)] mt-2">
+
                     {(() => {
+
                       const vendor = payables.find(p => String(p.vendorObjectId || p.vendorId) === adjustForm.selectedVendorId);
+
                       if (!vendor) return null;
+
                       return (
+
                         <div className="p-2 bg-[var(--bg-elevated)] rounded border border-[var(--border-muted)]">
+
                           <div className="font-medium">Vendor Details:</div>
+
                           <div>Vendor: {vendor.vendorName}</div>
+
                           <div>Total Payable: {fmt(vendor.totalPayableAmount)}</div>
+
                           <div>Paid: {fmt(vendor.amountPaid || 0)}</div>
+
                           <div className="font-semibold text-amber-400">Outstanding: {fmt(vendor.outstandingAmount)}</div>
+
                         </div>
+
                       );
+
                     })()}
+
                   </div>
+
                 )}
+
               </FormField>
+
             </div>
+
           )}
 
-          {/* Payment Method for Invoice/Vendor Payments */}
-          {(adjustForm.category === 'Invoice Amount Received' || adjustForm.category === 'Vendor Payment') && (
-            <div className="mt-4">
-              <FormField label="Payment Method">
-                <Select
-                  value={adjustForm.paymentMethod}
-                  onChange={e => setAdjustForm({ ...adjustForm, paymentMethod: e.target.value })}
-                  disabled={submittingAdjust}
-                >
-                  <option value="Bank Transfer">Bank Transfer</option>
-                  <option value="Cash">Cash</option>
-                  <option value="UPI">UPI</option>
-                  <option value="Cheque">Cheque</option>
-                  <option value="Card">Card</option>
-                  <option value="NEFT">NEFT</option>
-                  <option value="RTGS">RTGS</option>
-                </Select>
-              </FormField>
-            </div>
-          )}
+
 
 
 
@@ -17088,7 +34140,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             <FormField label="Amount (₹)">
+
+
+
+
 
 
 
@@ -17096,7 +34156,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 type="number"
+
+
+
+
 
 
 
@@ -17104,7 +34172,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 onChange={e => {
+
+
+
+
 
 
 
@@ -17112,7 +34188,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   if (adjustErrors.amount) setAdjustErrors(prev => ({ ...prev, amount: undefined }));
+
+
+
+
 
 
 
@@ -17120,7 +34204,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 placeholder="Enter amount"
+
+
+
+
 
 
 
@@ -17128,7 +34220,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               />
+
+
+
+
 
 
 
@@ -17136,7 +34236,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 <div className="text-[11px] text-red-400 mt-1">{adjustErrors.amount}</div>
+
+
+
+
 
 
 
@@ -17144,7 +34252,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -17156,7 +34276,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               <Input
+
+
+
+
 
 
 
@@ -17164,7 +34292,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 value={adjustForm.lf || ''}
+
+
+
+
 
 
 
@@ -17172,7 +34308,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   const val = e.target.value;
+
+
+
+
 
 
 
@@ -17180,7 +34324,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   if (val === '' || (/^\d+$/.test(val) && parseInt(val) >= 1 && parseInt(val) <= 1000)) {
+
+
+
+
 
 
 
@@ -17190,7 +34342,17 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
                   }
+
+
+
+
 
 
 
@@ -17198,7 +34360,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 }}
+
+
+
+
 
 
 
@@ -17206,7 +34376,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 min="1"
+
+
+
+
 
 
 
@@ -17214,7 +34392,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 disabled={submittingAdjust}
+
+
+
+
 
 
 
@@ -17222,7 +34408,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               {adjustErrors.lf && (
+
+
+
+
 
 
 
@@ -17230,11 +34424,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               )}
 
 
 
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -17246,7 +34456,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               <Input
+
+
+
+
 
 
 
@@ -17254,7 +34472,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 value={adjustForm.date}
+
+
+
+
 
 
 
@@ -17262,7 +34488,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   setAdjustForm({ ...adjustForm, date: e.target.value });
+
+
+
+
 
 
 
@@ -17270,7 +34504,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 }}
+
+
+
+
 
 
 
@@ -17278,7 +34520,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               />
+
+
+
+
 
 
 
@@ -17286,7 +34536,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 <div className="text-[11px] text-red-400 mt-1">{adjustErrors.date}</div>
+
+
+
+
 
 
 
@@ -17294,7 +34552,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             </FormField>
+
+
+
+
 
 
 
@@ -17306,7 +34572,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
           <div className="mt-4">
+
+
+
+
 
 
 
@@ -17314,7 +34592,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               <Input
+
+
+
+
 
 
 
@@ -17322,7 +34608,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 onChange={e => setAdjustForm({ ...adjustForm, reason: e.target.value })}
+
+
+
+
 
 
 
@@ -17330,7 +34624,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 disabled={submittingAdjust}
+
+
+
+
 
 
 
@@ -17338,11 +34640,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             </FormField>
 
 
 
+
+
+
+
           </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -17354,7 +34672,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             <FormField label="Reference (Optional)">
+
+
+
+
 
 
 
@@ -17362,7 +34688,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 value={adjustForm.reference}
+
+
+
+
 
 
 
@@ -17370,7 +34704,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 placeholder="e.g., ADJ-001, Journal entry reference"
+
+
+
+
 
 
 
@@ -17378,7 +34720,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               />
+
+
+
+
 
 
 
@@ -17386,7 +34736,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           </div>
+
+
+
+
 
 
 
@@ -17394,7 +34752,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       </Modal>
+
+
+
+
+
+
+
+
 
 
 
@@ -17406,7 +34776,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       <Modal
+
+
+
+
 
 
 
@@ -17414,7 +34792,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         onClose={() => {
+
+
+
+
 
 
 
@@ -17422,7 +34808,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           setShowAddCategoryModal(false);
+
+
+
+
 
 
 
@@ -17430,7 +34824,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         }}
+
+
+
+
 
 
 
@@ -17438,7 +34840,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         footer={
+
+
+
+
 
 
 
@@ -17446,7 +34856,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             <Button
+
+
+
+
 
 
 
@@ -17454,7 +34872,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               onClick={() => {
+
+
+
+
 
 
 
@@ -17462,7 +34888,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 setShowAddCategoryModal(false);
+
+
+
+
 
 
 
@@ -17470,7 +34904,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               }}
+
+
+
+
 
 
 
@@ -17478,7 +34920,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             >
+
+
+
+
 
 
 
@@ -17486,7 +34936,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             </Button>
+
+
+
+
 
 
 
@@ -17494,7 +34952,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               onClick={async () => {
+
+
+
+
 
 
 
@@ -17502,7 +34968,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   toast.error('Category name is required');
+
+
+
+
 
 
 
@@ -17510,7 +34984,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 }
+
+
+
+
 
 
 
@@ -17518,7 +35000,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   setAddingCategory(true);
+
+
+
+
 
 
 
@@ -17526,7 +35016,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     categoryName: newCategory.categoryName.trim(),
+
+
+
+
 
 
 
@@ -17534,7 +35032,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   });
+
+
+
+
 
 
 
@@ -17542,7 +35048,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   const newCat = result?.category || result;
+
+
+
+
 
 
 
@@ -17550,7 +35064,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     setAdjustmentCategories(prev => [...prev, newCat]);
+
+
+
+
 
 
 
@@ -17558,7 +35080,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     if (newCat.type === adjustForm.type) {
+
+
+
+
 
 
 
@@ -17566,7 +35096,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     }
+
+
+
+
 
 
 
@@ -17574,7 +35112,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   toast.success(`Category "${newCategory.categoryName}" created successfully`);
+
+
+
+
 
 
 
@@ -17582,7 +35128,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   setNewCategory({ categoryName: '', type: 'credit' });
+
+
+
+
 
 
 
@@ -17590,7 +35144,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   toast.error(err.message || 'Failed to create category');
+
+
+
+
 
 
 
@@ -17598,7 +35160,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   setAddingCategory(false);
+
+
+
+
 
 
 
@@ -17606,7 +35176,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               }}
+
+
+
+
 
 
 
@@ -17614,7 +35192,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             >
+
+
+
+
 
 
 
@@ -17622,7 +35208,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               {addingCategory ? ' Saving...' : ' Save Category'}
+
+
+
+
 
 
 
@@ -17630,7 +35224,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           </div>
+
+
+
+
 
 
 
@@ -17638,7 +35240,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       >
+
+
+
+
 
 
 
@@ -17646,7 +35256,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           <FormField label="Category Name">
+
+
+
+
 
 
 
@@ -17654,7 +35272,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               value={newCategory.categoryName}
+
+
+
+
 
 
 
@@ -17662,11 +35288,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               placeholder="e.g., Customer Advance, Bank Charges"
 
 
 
+
+
+
+
               disabled={addingCategory}
+
+
+
+
 
 
 
@@ -17674,11 +35312,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             />
 
 
 
+
+
+
+
           </FormField>
+
+
+
+
 
 
 
@@ -17686,7 +35336,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             <Select
+
+
+
+
 
 
 
@@ -17694,7 +35352,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               onChange={e => setNewCategory({ ...newCategory, type: e.target.value })}
+
+
+
+
 
 
 
@@ -17702,7 +35368,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             >
+
+
+
+
 
 
 
@@ -17710,7 +35384,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               <option value="debit">Debit</option>
+
+
+
+
 
 
 
@@ -17718,11 +35400,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           </FormField>
 
 
 
+
+
+
+
         </div>
+
+
+
+
 
 
 
@@ -17734,7 +35428,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
       {/* Journal Entry Detail Modal */}
+
+
+
+
 
 
 
@@ -17742,7 +35448,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         <Modal
+
+
+
+
 
 
 
@@ -17750,7 +35464,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           onClose={() => {
+
+
+
+
 
 
 
@@ -17758,7 +35480,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             setSelectedJournalEntry(null);
+
+
+
+
 
 
 
@@ -17766,7 +35496,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           }}
+
+
+
+
 
 
 
@@ -17774,7 +35512,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           footer={
+
+
+
+
 
 
 
@@ -17782,7 +35528,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               <Button
+
+
+
+
 
 
 
@@ -17790,7 +35544,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 onClick={() => {
+
+
+
+
 
 
 
@@ -17798,7 +35560,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   setSelectedJournalEntry(null);
+
+
+
+
 
 
 
@@ -17806,7 +35576,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 }}
+
+
+
+
 
 
 
@@ -17814,7 +35592,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 Close
+
+
+
+
 
 
 
@@ -17822,7 +35608,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             </div>
+
+
+
+
 
 
 
@@ -17830,7 +35624,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
         >
+
+
+
+
 
 
 
@@ -17838,7 +35640,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             {/* Entry Info */}
+
+
+
+
 
 
 
@@ -17846,7 +35656,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               <div className="glass-card p-2">
+
+
+
+
 
 
 
@@ -17854,15 +35672,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 <div className="font-semibold text-[var(--text-primary)]">
+
+
 
                   {new Date(selectedJournalEntry.date).toLocaleDateString('en-IN', {
 
+
+
                     day: '2-digit',
+
+
 
                     month: '2-digit',
 
+
+
                     year: 'numeric'
+
+
+
+
 
 
 
@@ -17870,7 +35704,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 </div>
+
+
+
+
 
 
 
@@ -17878,7 +35720,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               <div className="glass-card p-2">
+
+
+
+
 
 
 
@@ -17886,7 +35736,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 <div className="font-semibold text-[var(--text-primary)]">
+
+
+
+
 
 
 
@@ -17894,7 +35752,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 </div>
+
+
+
+
 
 
 
@@ -17902,7 +35768,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               <div className="glass-card p-2">
+
+
+
+
 
 
 
@@ -17910,11 +35784,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 <div className="font-semibold text-[var(--text-primary)]">
+
+
 
                   {selectedJournalEntry.narration
 
+
+
                     ? selectedJournalEntry.narration.split(':')[0]?.trim()
+
+
+
+
 
 
 
@@ -17922,11 +35808,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 </div>
 
 
 
+
+
+
+
               </div>
+
+
+
+
 
 
 
@@ -17934,7 +35832,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 <div className="text-[var(--text-muted)] mb-0.5">Type</div>
+
+
+
+
 
 
 
@@ -17942,7 +35848,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   {selectedJournalEntry.type === 'credit' ? 'Credit (+)' : 'Debit (-)'}
+
+
+
+
 
 
 
@@ -17950,11 +35864,75 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               </div>
 
 
 
+
+
+
+
+              <div className="glass-card p-2">
+
+
+
+
+
+
+
+                <div className="text-[var(--text-muted)] mb-0.5">L.F.</div>
+
+
+
+
+
+
+
+                <div className="font-semibold text-[var(--text-primary)]">
+
+
+
+
+
+
+
+                  {selectedJournalEntry.lf || '—'}
+
+
+
+
+
+
+
+                </div>
+
+
+
+
+
+
+
+              </div>
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -17966,7 +35944,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             <div className="border border-[var(--border-base)] rounded-lg overflow-hidden">
+
+
+
+
 
 
 
@@ -17974,7 +35960,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               <div className="grid grid-cols-12 text-[11px] font-semibold text-[var(--text-primary)] border-b-2 border-[var(--border-base)] p-2 bg-[var(--bg-surface)]">
+
+
+
+
 
 
 
@@ -17982,7 +35976,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 <div className="col-span-3 border-r-2 border-[var(--border-base)] px-1 text-right">Debit (₹)</div>
+
+
+
+
 
 
 
@@ -17990,7 +35992,17 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               </div>
+
+
+
+
+
+
 
 
 
@@ -18000,7 +36012,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               {(selectedJournalEntry.lines || [])
+
+
+
+
 
 
 
@@ -18008,9 +36028,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 .map((line, idx) => (
 
+
+
                   <div
+
+
+
+
 
 
 
@@ -18018,7 +36048,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     className="grid grid-cols-12 text-xs border-b border-[var(--border-muted)]"
+
+
+
+
 
 
 
@@ -18026,7 +36064,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     <div className="col-span-6 border-r-2 border-[var(--border-base)] px-3 py-2 text-[var(--text-primary)]">
+
+
+
+
 
 
 
@@ -18034,7 +36080,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     </div>
+
+
+
+
 
 
 
@@ -18042,7 +36096,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                       {fmt(line.debitAmount)}
+
+
+
+
 
 
 
@@ -18050,7 +36112,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     <div className="col-span-3 px-3 py-2 text-right">-</div>
+
+
+
+
 
 
 
@@ -18058,7 +36128,17 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 ))}
+
+
+
+
+
+
 
 
 
@@ -18068,7 +36148,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               {(selectedJournalEntry.lines || [])
+
+
+
+
 
 
 
@@ -18076,9 +36164,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 .map((line, idx) => (
 
+
+
                   <div
+
+
+
+
 
 
 
@@ -18086,7 +36184,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     className="grid grid-cols-12 text-xs border-b border-[var(--border-muted)]"
+
+
+
+
 
 
 
@@ -18094,7 +36200,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     <div className="col-span-6 border-r-2 border-[var(--border-base)] px-3 py-2 text-[var(--text-primary)] pl-6">
+
+
+
+
 
 
 
@@ -18102,7 +36216,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     </div>
+
+
+
+
 
 
 
@@ -18110,7 +36232,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     <div className="col-span-3 px-3 py-2 text-right font-medium text-[var(--text-primary)]">
+
+
+
+
 
 
 
@@ -18118,11 +36248,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                     </div>
 
 
 
+
+
+
+
                   </div>
+
+
+
+
 
 
 
@@ -18132,7 +36274,17 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
               {/* Total Row */}
+
+
+
+
 
 
 
@@ -18140,7 +36292,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 <div className="col-span-6 border-r-2 border-[var(--border-base)] px-1">Total</div>
+
+
+
+
 
 
 
@@ -18148,7 +36308,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   {fmt((selectedJournalEntry.lines || [])
+
+
+
+
 
 
 
@@ -18156,7 +36324,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 </div>
+
+
+
+
 
 
 
@@ -18164,7 +36340,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   {fmt((selectedJournalEntry.lines || [])
+
+
+
+
 
 
 
@@ -18172,7 +36356,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 </div>
+
+
+
+
 
 
 
@@ -18180,7 +36372,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -18192,7 +36396,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             {selectedJournalEntry.narration && (
+
+
+
+
 
 
 
@@ -18200,7 +36412,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 <div className="text-[var(--text-muted)] mb-1 text-xs">Narration</div>
+
+
+
+
 
 
 
@@ -18208,7 +36428,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   ({selectedJournalEntry.narration})
+
+
+
+
 
 
 
@@ -18216,11 +36444,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               </div>
 
 
 
+
+
+
+
             )}
+
+
+
+
+
+
+
+
 
 
 
@@ -18232,7 +36476,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
             {selectedJournalEntry.reason && (
+
+
+
+
 
 
 
@@ -18240,7 +36492,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                 <div className="text-[var(--text-muted)] mb-1 text-xs">Reason</div>
+
+
+
+
 
 
 
@@ -18248,7 +36508,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
                   {selectedJournalEntry.reason}
+
+
+
+
 
 
 
@@ -18256,7 +36524,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               </div>
+
+
+
+
 
 
 
@@ -18268,7 +36544,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
             {/* Created Info */}
+
+
+
+
 
 
 
@@ -18276,7 +36564,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
               Created: {selectedJournalEntry.createdAt ? new Date(selectedJournalEntry.createdAt).toLocaleString('en-IN') : '—'}
+
+
+
+
 
 
 
@@ -18284,7 +36580,15 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
           </div>
+
+
+
+
 
 
 
@@ -18292,7 +36596,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
       )}
+
+
+
+
+
+
+
+
 
 
 
@@ -18308,7 +36624,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
   );
+
+
+
+
+
+
+
+
 
 
 
@@ -18324,7 +36656,19 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
 export default FinancePage;
+
+
+
+
 
 
 

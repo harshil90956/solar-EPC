@@ -26,6 +26,7 @@ import CompliancePage from './pages/CompliancePage';
 import SettingsPage from './pages/SettingsPage';
 import AdminPage from './pages/AdminPage';
 import HRMPage from './pages/HRMPage';
+import QuotationBuilderPage from './pages/QuotationBuilderPage';
 import EmployeesPage from './pages/EmployeesPage';
 import AttendancePageHRM from './pages/AttendancePageHRM';
 import LeavesPage from './pages/LeavesPage';
@@ -50,6 +51,8 @@ const PAGE_MAP = {
   'hrm-payroll': { component: PayrollPage, title: 'Payroll' },
   'hrm-increments': { component: IncrementsPage, title: 'Increments' },
   'hrm-departments': { component: DepartmentsPage, title: 'Departments' },
+  'hrm-role-permissions': { component: HRMPage, title: 'Role Permissions' },
+  quotation: { component: QuotationBuilderPage, title: 'Quotation Builder' },
   attendance: { component: AttendancePageV3, title: 'Attendance Management V3.0' },
   reminders: { component: RemindersPage, title: 'Reminder Center' },
   crm: { component: CRMPage, title: 'CRM & Sales' },
