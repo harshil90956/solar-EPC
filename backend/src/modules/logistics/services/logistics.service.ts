@@ -11,13 +11,11 @@ import { ProcurementService } from '../../procurement/services/procurement.servi
 
 
 interface UserWithVisibility {
-
   id?: string;
-
   _id?: string;
-
   dataScope?: 'ALL' | 'ASSIGNED';
-
+  isSuperAdmin?: boolean;
+  role?: string;
 }
 
 
@@ -43,18 +41,32 @@ export class LogisticsService {
 
   ) {}
 
+  // Helper to convert string to ObjectId
+  private toObjectId(id: string | undefined): Types.ObjectId | undefined {
+    if (!id) return undefined;
+    if (Types.ObjectId.isValid(id)) {
+      return new Types.ObjectId(id);
+    }
+    return undefined;
+  }
+
 
 
   // Dispatch methods
 
-  async findAll(user?: UserWithVisibility): Promise<Dispatch[]> {
+  async findAll(user?: UserWithVisibility, tenantId?: string): Promise<Dispatch[]> {
 
     const query: any = { isActive: true };
 
-    
+    // Apply tenant filter (SUPER_ADMIN bypasses)
+    if (tenantId && !user?.isSuperAdmin && user?.role?.toLowerCase() !== 'superadmin') {
+      const tid = this.toObjectId(tenantId);
+      if (tid) {
+        query.tenantId = tid;
+      }
+    }
 
     console.log(`[LOGISTICS VISIBILITY] user:`, JSON.stringify(user));
-
     console.log(`[LOGISTICS VISIBILITY] user?.dataScope:`, user?.dataScope);
 
     
@@ -99,15 +111,24 @@ export class LogisticsService {
 
 
 
-  async findOne(id: string): Promise<Dispatch | null> {
+  async findOne(id: string, tenantId?: string): Promise<Dispatch | null> {
 
-    return this.dispatchModel.findOne({ id }).exec();
+    const query: any = { id };
+    
+    if (tenantId) {
+      const tid = this.toObjectId(tenantId);
+      if (tid) {
+        query.tenantId = tid;
+      }
+    }
+
+    return this.dispatchModel.findOne(query).exec();
 
   }
 
 
 
-  async create(data: Partial<Dispatch>): Promise<Dispatch> {
+  async create(data: Partial<Dispatch>, tenantId?: string): Promise<Dispatch> {
 
     const lastDispatch = await this.dispatchModel.findOne().sort({ _id: -1 }).exec();
 
@@ -129,6 +150,8 @@ export class LogisticsService {
 
       dispatchDate,
 
+      tenantId: tenantId ? this.toObjectId(tenantId) : undefined,
+
     });
 
     return newDispatch.save();
@@ -137,25 +160,41 @@ export class LogisticsService {
 
 
 
-  async update(id: string, data: Partial<Dispatch>, user?: any): Promise<Dispatch | null> {
+  async update(id: string, data: Partial<Dispatch>, user?: any, tenantId?: string): Promise<Dispatch | null> {
 
     // Check if status is being changed to Delivered
 
     if (data.status === 'Delivered') {
 
-      return this.updateStatus(id, 'Delivered', user);
+      return this.updateStatus(id, 'Delivered', user, tenantId);
 
     }
 
-    return this.dispatchModel.findOneAndUpdate({ id }, data, { new: true }).exec();
+    const query: any = { id };
+    if (tenantId) {
+      const tid = this.toObjectId(tenantId);
+      if (tid) {
+        query.tenantId = tid;
+      }
+    }
+
+    return this.dispatchModel.findOneAndUpdate(query, data, { new: true }).exec();
 
   }
 
 
 
-  async updateStatus(id: string, status: string, user?: any): Promise<Dispatch | null> {
+  async updateStatus(id: string, status: string, user?: any, tenantId?: string): Promise<Dispatch | null> {
 
-    const dispatch = await this.dispatchModel.findOne({ id }).exec();
+    const query: any = { id };
+    if (tenantId) {
+      const tid = this.toObjectId(tenantId);
+      if (tid) {
+        query.tenantId = tid;
+      }
+    }
+
+    const dispatch = await this.dispatchModel.findOne(query).exec();
 
     if (!dispatch) {
 
@@ -298,11 +337,17 @@ export class LogisticsService {
 
 
 
-  async getStats(user?: UserWithVisibility) {
+  async getStats(user?: UserWithVisibility, tenantId?: string) {
 
     const query: any = { isActive: true };
 
-    
+    // Apply tenant filter (SUPER_ADMIN bypasses)
+    if (tenantId && !user?.isSuperAdmin && user?.role?.toLowerCase() !== 'superadmin') {
+      const tid = this.toObjectId(tenantId);
+      if (tid) {
+        query.tenantId = tid;
+      }
+    }
 
     // Apply visibility filter based on user's dataScope
 
@@ -354,13 +399,19 @@ export class LogisticsService {
 
   // Vendor methods
 
-  async findAllVendors(user?: UserWithVisibility): Promise<Vendor[]> {
+  async findAllVendors(user?: UserWithVisibility, tenantId?: string): Promise<Vendor[]> {
 
     console.log(`[LOGISTICS VENDORS] Called with user:`, JSON.stringify(user));
 
     const query: any = { $or: [{ isActive: { $ne: false } }, { isActive: { $exists: false } }] };
 
-    
+    // Apply tenant filter (SUPER_ADMIN bypasses)
+    if (tenantId && !user?.isSuperAdmin && user?.role?.toLowerCase() !== 'superadmin') {
+      const tid = this.toObjectId(tenantId);
+      if (tid) {
+        query.tenantId = tid;
+      }
+    }
 
     console.log(`[LOGISTICS VENDORS] user?.dataScope:`, user?.dataScope);
 
@@ -422,10 +473,15 @@ export class LogisticsService {
 
 
 
-  async findVendorById(id: string): Promise<Vendor | null> {
-
-    return this.vendorModel.findOne({ id }).exec();
-
+  async findVendorById(id: string, tenantId?: string): Promise<Vendor | null> {
+    const query: any = { id };
+    if (tenantId) {
+      const tid = this.toObjectId(tenantId);
+      if (tid) {
+        query.tenantId = tid;
+      }
+    }
+    return this.vendorModel.findOne(query).exec();
   }
 
 
@@ -467,6 +523,8 @@ export class LogisticsService {
         totalOrders: 0,
 
         rating: data.rating || 5,
+
+        tenantId: tenantId ? this.toObjectId(tenantId) : undefined,
 
       });
 
@@ -512,7 +570,15 @@ export class LogisticsService {
   async updateVendor(id: string, data: Partial<Vendor>, tenantId: string = 'default'): Promise<Vendor | null> {
     console.log(`[LOGISTICS] Updating vendor ${id} with data:`, data);
     
-    const oldVendor = await this.vendorModel.findOne({ id }).exec();
+    const query: any = { id };
+    if (tenantId) {
+      const tid = this.toObjectId(tenantId);
+      if (tid) {
+        query.tenantId = tid;
+      }
+    }
+    
+    const oldVendor = await this.vendorModel.findOne(query).exec();
     if (!oldVendor) {
       console.log(`[LOGISTICS] Vendor ${id} not found`);
       return null;
@@ -604,7 +670,15 @@ export class LogisticsService {
 
 
   async deleteVendor(id: string, tenantId: string = 'default'): Promise<Vendor | null> {
-    const vendor = await this.vendorModel.findOne({ id }).exec();
+    const query: any = { id };
+    if (tenantId) {
+      const tid = this.toObjectId(tenantId);
+      if (tid) {
+        query.tenantId = tid;
+      }
+    }
+    
+    const vendor = await this.vendorModel.findOne(query).exec();
     
     if (!vendor) {
       console.log(`[LOGISTICS] Vendor ${id} not found for deletion`);
