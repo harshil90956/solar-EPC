@@ -788,15 +788,18 @@ const InventoryPage = () => {
   // Calculate dynamic stats from inventory
   const dynamicStats = useMemo(() => {
     const totalItems = inventory.length;
-    const totalValue = inventory.reduce((a, i) => a + (i.stock || 0) * (i.rate || 0), 0);
+    const totalValue = inventory.reduce((a, i) => a + ((i.stock || 0) - (i.reserved || 0)) * (i.rate || 0), 0);
     
     // Use getStockStatus logic to match Kanban columns exactly
     const lowStockItems = inventory.filter(i => getStockStatus(i) === 'low-stock').length;
     const outOfStockItems = inventory.filter(i => getStockStatus(i) === 'out-of-stock').length;
     const reservedItems = inventory.filter(i => getStockStatus(i) === 'reserved').length;
+    
+    // Total reserved quantity (sum of reserved stock across all items)
+    const totalReservedQuantity = inventory.reduce((sum, i) => sum + (i.reserved || 0), 0);
     const availableItems = inventory.filter(i => getStockStatus(i) === 'available').length;
 
-    return { totalItems, totalValue, lowStockItems, outOfStockItems, reservedItems, availableItems };
+    return { totalItems, totalValue, lowStockItems, outOfStockItems, totalReservedQuantity, availableItems };
   }, [inventory]);
 
   const warehouseItems = useMemo(() => {
@@ -1881,7 +1884,7 @@ const InventoryPage = () => {
                 <div className="relative flex items-start justify-between">
                   <div>
                     <p className="text-xs font-bold text-violet-700 uppercase tracking-wider">Reserved Items</p>
-                    <p className="text-3xl font-bold text-gray-800 mt-2">{dynamicStats.reservedItems}</p>
+                    <p className="text-3xl font-bold text-gray-800 mt-2">{dynamicStats.totalReservedQuantity}</p>
                     <p className="text-xs text-gray-500 mt-1">Allocated to projects</p>
                   </div>
                   <div className="w-12 h-12 rounded-xl bg-violet-200 flex items-center justify-center">
