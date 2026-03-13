@@ -821,6 +821,13 @@ const ProcurementPage = () => {
     }
   }, [showPO]);
 
+  // Fetch inventory data when PO Detail modal opens (for edit mode)
+  useEffect(() => {
+    if (selectedPO) {
+      fetchInventoryData();
+    }
+  }, [selectedPO]);
+
   // Fetch data on mount
   useEffect(() => {
     fetchData();
@@ -1625,15 +1632,45 @@ const ProcurementPage = () => {
                 <p className="text-xs text-[var(--text-muted)] mb-3">Inventory Details</p>
                 <div className="grid grid-cols-2 gap-3">
                   <FormField label="Category">
-                    <Input value={editedPO.categoryName || ''} onChange={e => setEditedPO({ ...editedPO, categoryName: e.target.value })} placeholder="Category" />
+                    <Select value={editedPO.categoryId || ''} onChange={e => {
+                      const selectedCat = inventoryCategories.find(c => c.id === e.target.value);
+                      setEditedPO({ 
+                        ...editedPO, 
+                        categoryId: e.target.value,
+                        categoryName: selectedCat?.name || ''
+                      });
+                    }}>
+                      <option value="">{inventoryCategories.length === 0 ? 'No categories' : 'Select Category'}</option>
+                      {inventoryCategories.map(cat => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))}
+                    </Select>
                   </FormField>
                   <FormField label="Item">
-                    <Input value={editedPO.itemName || ''} onChange={e => setEditedPO({ ...editedPO, itemName: e.target.value })} placeholder="Item Name" />
+                    <Select value={editedPO.itemId || ''} onChange={e => {
+                      const selectedItem = inventoryItems.find(item => item.id === e.target.value);
+                      setEditedPO({ 
+                        ...editedPO, 
+                        itemId: e.target.value,
+                        itemName: selectedItem?.name || '',
+                        unit: selectedItem?.unit || editedPO.unit
+                      });
+                    }}>
+                      <option value="">{inventoryItems.length === 0 ? 'No items' : 'Select Item'}</option>
+                      {inventoryItems.map(item => (
+                        <option key={item.id} value={item.id}>{item.name}</option>
+                      ))}
+                    </Select>
                   </FormField>
                 </div>
                 <div className="grid grid-cols-2 gap-3 mt-3">
                   <FormField label="Unit">
-                    <Input value={editedPO.unit || ''} onChange={e => setEditedPO({ ...editedPO, unit: e.target.value })} placeholder="Unit" />
+                    <Select value={editedPO.unit || ''} onChange={e => setEditedPO({ ...editedPO, unit: e.target.value })}>
+                      <option value="">{inventoryUnits.length === 0 ? 'No units' : 'Select Unit'}</option>
+                      {inventoryUnits.map(unit => (
+                        <option key={unit} value={unit}>{unit}</option>
+                      ))}
+                    </Select>
                   </FormField>
                   <FormField label="Required Quantity">
                     <Input type="number" value={editedPO.requiredQuantity || ''} onChange={e => setEditedPO({ ...editedPO, requiredQuantity: e.target.value })} placeholder="Quantity" />
