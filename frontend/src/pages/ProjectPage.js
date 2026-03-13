@@ -145,8 +145,11 @@ const KanbanBoard = ({ projects, onStageChange, onCardClick }) => {
 /* ── Main Page ── */
 const ProjectPage = () => {
   const { can } = usePermissions();
-  const { canEdit, canDelete } = useModulePermissions('project');
   const { logStatusChange } = useAuditLog('project');
+
+  // Permission helpers using can function
+  const canEdit = can('project', 'edit');
+  const canDelete = can('project', 'delete');
 
   // Permission guard helper
   const guardCreate = () => {
