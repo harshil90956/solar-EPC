@@ -20,24 +20,22 @@ import { HrmModule } from './modules/hrm/hrm.module';
 import { PermissionsModule } from './core/permissions/permissions.module';
 import { AuthModule } from './core/auth/auth.module';
 import { TenantModule } from './core/tenant/tenant.module';
-
 import { DocumentModule } from './modules/document/document.module';
 import { EmailModule } from './modules/email/email.module';
 import { ItemsModule } from './modules/items/items.module';
 import { EstimatesModule } from './modules/estimates/estimates.module';
 import { SuperadminModule } from './modules/superadmin';
+import { AppController } from './app.controller';
 
 @Module({
   imports: [
     CoreConfigModule,
     DatabaseModule,
-
     AuthModule,
     TenantModule,
     WorkflowModule,
     PermissionsModule,
     EmailModule,
-
     InventoryModule,
     LeadsModule,
     LogisticsModule,
@@ -58,5 +56,6 @@ import { SuperadminModule } from './modules/superadmin';
     HrmModule,
     SuperadminModule,
   ],
+  controllers: [AppController],
 })
 export class AppModule {}
