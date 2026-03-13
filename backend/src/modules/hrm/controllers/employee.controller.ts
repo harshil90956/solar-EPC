@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Req, Headers, Query, HttpCode, HttpStatus, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Req, Headers, Query, HttpCode, HttpStatus, UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EmployeeService } from '../services/employee.service';
+import { HrmPermissionService } from '../services/hrm-permission.service';
 import { CreateEmployeeDto, UpdateEmployeeDto } from '../dto/employee.dto';
 import { EmployeeDocument } from '../schemas/employee.schema';
 
@@ -8,6 +9,7 @@ import { EmployeeDocument } from '../schemas/employee.schema';
 export class EmployeeController {
   constructor(
     private readonly employeeService: EmployeeService,
+    private readonly hrmPermissionService: HrmPermissionService,
     private readonly configService: ConfigService,
   ) {}
 
@@ -77,6 +79,9 @@ export class EmployeeController {
   @HttpCode(HttpStatus.CREATED)
   async create(@Body() createEmployeeDto: CreateEmployeeDto, @Req() req: any) {
     const tenantId = req.tenant?.id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.query?.tenantId || 'default';
+    const roleId = req.user?.roleId || req.user?.role;
+    await this.hrmPermissionService.validateAction(roleId, 'employees.manage', tenantId);
+    
     const data = await this.employeeService.create(createEmployeeDto, tenantId);
     return { success: true, data };
   }
@@ -84,6 +89,9 @@ export class EmployeeController {
   @Get()
   async findAll(@Req() req: any) {
     const tenantId = req.tenant?.id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.query?.tenantId || 'default';
+    const roleId = req.user?.roleId || req.user?.role;
+    await this.hrmPermissionService.validateAction(roleId, 'employees.view', tenantId);
+
     const data = await this.employeeService.findAll(tenantId);
     return { success: true, data };
   }
@@ -91,6 +99,13 @@ export class EmployeeController {
   @Get(':id')
   async findOne(@Param('id') id: string, @Req() req: any) {
     const tenantId = req.tenant?.id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.query?.tenantId || 'default';
+    const roleId = req.user?.roleId || req.user?.role;
+    
+    // Allow self-viewing personal profile
+    if (req.user?.sub !== id) {
+      await this.hrmPermissionService.validateAction(roleId, 'employees.view', tenantId);
+    }
+
     const data = await this.employeeService.findOne(id, tenantId);
     return { success: true, data };
   }
@@ -102,6 +117,9 @@ export class EmployeeController {
     @Req() req: any,
   ) {
     const tenantId = req.tenant?.id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.query?.tenantId || 'default';
+    const roleId = req.user?.roleId || req.user?.role;
+    await this.hrmPermissionService.validateAction(roleId, 'employees.manage', tenantId);
+
     const data = await this.employeeService.update(id, updateEmployeeDto, tenantId);
     return { success: true, data };
   }
@@ -109,6 +127,9 @@ export class EmployeeController {
   @Delete(':id')
   async remove(@Param('id') id: string, @Req() req: any) {
     const tenantId = req.tenant?.id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.query?.tenantId || 'default';
+    const roleId = req.user?.roleId || req.user?.role;
+    await this.hrmPermissionService.validateAction(roleId, 'employees.delete', tenantId);
+
     const data = await this.employeeService.remove(id, tenantId);
     return { success: true, data };
   }
@@ -116,6 +137,9 @@ export class EmployeeController {
   @Get('by-department/:department')
   async findByDepartment(@Param('department') department: string, @Req() req: any) {
     const tenantId = req.tenant?.id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.query?.tenantId || 'default';
+    const roleId = req.user?.roleId || req.user?.role;
+    await this.hrmPermissionService.validateAction(roleId, 'employees.view', tenantId);
+
     const data = await this.employeeService.findByDepartment(department, tenantId);
     return { success: true, data };
   }
@@ -123,6 +147,9 @@ export class EmployeeController {
   @Get('by-role/:roleId')
   async findByRole(@Param('roleId') roleId: string, @Req() req: any) {
     const tenantId = req.tenant?.id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.query?.tenantId || 'default';
+    const roleIdUser = req.user?.roleId || req.user?.role;
+    await this.hrmPermissionService.validateAction(roleIdUser, 'employees.view', tenantId);
+
     const data = await this.employeeService.findByRole(roleId, tenantId);
     return { success: true, data };
   }

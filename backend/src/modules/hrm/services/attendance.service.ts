@@ -199,6 +199,26 @@ export class AttendanceService {
       .exec();
   }
 
+  async findByEmployee(employeeId: string, startDate?: Date, endDate?: Date, tenantId?: string, user?: UserWithVisibility): Promise<Attendance[]> {
+    const tid = await this.resolveTenantObjectId(tenantId || '');
+    const query: any = { 
+      employeeId: new Types.ObjectId(employeeId),
+      tenantId: tid 
+    };
+
+    if (startDate || endDate) {
+      query.date = {};
+      if (startDate) query.date.$gte = startDate;
+      if (endDate) query.date.$lte = endDate;
+    }
+
+    return this.attendanceModel
+      .find(query)
+      .populate('employeeId', 'firstName lastName employeeId')
+      .sort({ date: -1 })
+      .exec();
+  }
+
   async findByEmployeeId(employeeId: string, tenantId?: string, user?: UserWithVisibility): Promise<Attendance[]> {
     const query: any = { 
       employeeId: new Types.ObjectId(employeeId),
