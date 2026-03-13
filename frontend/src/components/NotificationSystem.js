@@ -40,11 +40,11 @@ const NotificationSystem = () => {
     }
 
     return (
-        <div className="fixed top-4 right-4 z-50 space-y-3 max-w-sm w-full">
+        <div className="fixed top-16 right-4 z-50 space-y-3 max-w-sm w-full overflow-visible">
             {displayedNotifications.map((notification, index) => (
                 <div
                     key={notification.id}
-                    className={`bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-4 transform transition-all duration-500 ease-out ${index === 0 ? 'animate-slide-in-right' : ''
+                    className={`bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-4 transform transition-all duration-500 ease-out overflow-visible ${index === 0 ? 'animate-slide-in-right' : ''
                         } ${notification.isOverdue ? 'border-l-4 border-l-red-500' : notification.priority === 'critical' ? 'border-l-4 border-l-orange-500' : ''}`}
                     style={{
                         animationDelay: `${index * 100}ms`,
