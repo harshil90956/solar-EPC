@@ -54,7 +54,14 @@ export class LeadsService {
     if (user && !(user.isSuperAdmin || user.role?.toLowerCase() === 'superadmin')) {
       const visibilityFilter = buildVisibilityFilter(user);
       if (visibilityFilter && Object.keys(visibilityFilter).length > 0) {
-        return applyVisibilityFilter(filter, user);
+        // Merge visibility filter with existing filter
+        // This preserves the base filter conditions like status='customer'
+        const mergedFilter = applyVisibilityFilter(filter, user);
+        // Ensure tenantId is preserved in the merged filter
+        if (!mergedFilter.tenantId && filter.tenantId) {
+          mergedFilter.tenantId = filter.tenantId;
+        }
+        return mergedFilter;
       }
     }
 
@@ -441,6 +448,11 @@ export class LeadsService {
       tenantId: tid,
     };
 
+    // Auto-sync: If statusKey is "customer", also set status field
+    if (leadData.statusKey?.toLowerCase() === 'customer') {
+      leadData.status = 'customer';
+    }
+
     // Calculate initial score and SLA
     leadData.score = createLeadDto.score ?? this.calculateScore(leadData);
     leadData.slaBreached = this.checkSlaBreached(leadData);
@@ -654,14 +666,20 @@ export class LeadsService {
 
     // Build complete filter with tenant and visibility
     // Filter for customers only (status = "customer" OR stage = "customer")
-    const filter = this.buildCompleteFilter(tenantId, user, {
+    Logger.log(`[getCustomers] Building filter for tenant=${tenantId}, user=${user?.id || user?._id}`, 'LeadsService');
+    
+    const baseFilter = {
       isDeleted: { $ne: true },
       $or: [
         { status: { $regex: '^customer$', $options: 'i' } },
         { stage: { $regex: '^customer$', $options: 'i' } },
         { statusKey: { $regex: '^customer$', $options: 'i' } },
       ],
-    });
+    };
+    Logger.log(`[getCustomers] Base filter (before visibility): ${JSON.stringify(baseFilter)}`, 'LeadsService');
+    
+    const filter = this.buildCompleteFilter(tenantId, user, baseFilter);
+    Logger.log(`[getCustomers] Final filter (after visibility): ${JSON.stringify(filter)}`, 'LeadsService');
 
     // Apply additional filters
     if (city) filter.city = { $regex: city, $options: 'i' };
@@ -701,6 +719,8 @@ export class LeadsService {
 
     const skip = (page - 1) * limit;
 
+    Logger.log(`[getCustomers] EXECUTING QUERY with filter: ${JSON.stringify(filter)}`, 'LeadsService');
+
     // Fetch leads customers
     const [leadsData, leadsTotal] = await Promise.all([
       this.leadModel
@@ -714,65 +734,11 @@ export class LeadsService {
       this.leadModel.countDocuments(filter),
     ]);
 
-    // Fetch unique customers from projects
-    const tid = this.toObjectId(tenantId);
-    const projectFilter: any = { isDeleted: { $ne: true } };
-    if (tid) {
-      projectFilter.tenantId = tid;
-    }
+    Logger.log(`[getCustomers] Found ${leadsData.length} leads with status='customer'`, 'LeadsService');
 
-    // Get unique customers from projects
-    const projectCustomers = await this.projectModel.aggregate([
-      { $match: projectFilter },
-      {
-        $group: {
-          _id: '$customerName',
-          name: { $first: '$customerName' },
-          email: { $first: '$email' },
-          phone: { $first: '$mobileNumber' },
-          mobileNumber: { $first: '$mobileNumber' },
-          site: { $first: '$site' },
-          createdAt: { $min: '$createdAt' },
-          source: { $first: 'Project' },
-        },
-      },
-      {
-        $project: {
-          _id: 0,
-          id: { $concat: ['project_', { $toString: '$_id' }] },
-          name: 1,
-          email: 1,
-          phone: 1,
-          mobileNumber: 1,
-          site: 1,
-          createdAt: 1,
-          source: 1,
-          statusKey: 'customer',
-          status: 'customer',
-        },
-      },
-      ...(search ? [{
-        $match: {
-          $or: [
-            { name: { $regex: search, $options: 'i' } },
-            { email: { $regex: search, $options: 'i' } },
-          ],
-        },
-      }] : []),
-    ]);
-
-    // Merge leads customers with project customers
-    // Filter out project customers that already exist in leads by email
-    const existingEmails = new Set(leadsData.map(l => l.email?.toLowerCase()).filter(Boolean));
-    const uniqueProjectCustomers = projectCustomers.filter(
-      p => !existingEmails.has(p.email?.toLowerCase())
-    );
-
-    // Combine both lists
-    const combinedData = [...leadsData, ...uniqueProjectCustomers];
-    const total = leadsTotal + uniqueProjectCustomers.length;
-
-    return { data: combinedData, total };
+    // Return ONLY leads with status='customer'
+    // Note: Project customers are NOT included - they are not leads with status='customer'
+    return { data: leadsData, total: leadsTotal };
   }
 
   async findOne(id: string, tenantId?: string, user?: UserWithVisibility): Promise<Lead> {

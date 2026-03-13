@@ -50,10 +50,9 @@ export function buildVisibilityFilter(
     return {};
   }
 
-  // ALL dataScope sees all data in their tenant (not just assigned)
-  if (user.dataScope === 'ALL') {
-    return {};
-  }
+  // NOTE: Removed dataScope === 'ALL' bypass - only Admin can see all leads
+  // All other users (including managers, agents) must respect createdBy/assignedTo visibility
+  // This ensures strict lead ownership and assignment rules
 
   const userRole = user.role?.toLowerCase() || '';
   const userId = user._id || user.id;
@@ -217,10 +216,8 @@ export function canAccessRecord(
     return true;
   }
 
-  // ALL dataScope can access everything in their tenant
-  if (user.dataScope === 'ALL') {
-    return true;
-  }
+  // NOTE: Removed dataScope === 'ALL' bypass - only Admin can access all records
+  // All other users must respect createdBy/assignedTo rules
 
   if (!userId || !record) {
     return false;

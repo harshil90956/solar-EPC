@@ -899,6 +899,23 @@ const CRMPage = () => {
   const { logCreate, logUpdate, logDelete } = useAuditLog('CRM');
   const crmPerms = useModulePermissions('crm');
   const can = crmPerms.can;
+  
+  // DEBUG: Log permission checks
+  useEffect(() => {
+    console.log('[DEBUG] CRM Permissions:', {
+      canView: crmPerms.canView,
+      canCreate: crmPerms.canCreate,
+      canEdit: crmPerms.canEdit,
+      canDelete: crmPerms.canDelete,
+      canAssign: crmPerms.canAssign,
+      canExport: crmPerms.canExport,
+    });
+    console.log('[DEBUG] Permission checks:', {
+      'crm edit': can('crm', 'edit'),
+      'crm assign': can('crm', 'assign'),
+      'crm delete': can('crm', 'delete'),
+    });
+  }, [crmPerms, can]);
   const { user } = useAuth();
 
   // Get user's data scope for visibility indicator
@@ -1088,18 +1105,33 @@ const CRMPage = () => {
       };
 
       const result = await leadsApi.getCustomers(params);
+      
+      console.log('[DEBUG] getCustomers API response:', result);
 
       const customersData = Array.isArray(result?.data) ? result.data : (result?.data?.data || result?.data || []);
-      const totalCount = Number(result?.total || result?.data?.total || 0);
+      
+      console.log('[DEBUG] Raw customers data count:', customersData.length);
+      console.log('[DEBUG] First customer sample:', customersData[0]);
+      
+      // SAFETY FILTER: Only show leads with status="customer" (defense-in-depth)
+      const verifiedCustomers = customersData.filter(l => {
+        const status = (l.status || l.statusKey || l.stage || '').toString().toLowerCase();
+        console.log(`[DEBUG] Customer ${l.name} status:`, status, '| Fields:', {status: l.status, statusKey: l.statusKey, stage: l.stage});
+        return status === 'customer';
+      });
+      
+      console.log('[DEBUG] Verified customers count:', verifiedCustomers.length);
+      
+      const totalCount = verifiedCustomers.length;
       const currentPage = Number(result?.page || customersPage || 1);
-      const totalPages = Number(result?.pages || 1);
+      const totalPages = Math.max(1, Math.ceil(totalCount / customersPageSize));
 
       if (currentPage > totalPages && totalPages > 0) {
         setCustomersPage(totalPages);
         return;
       }
 
-      setCustomers(customersData);
+      setCustomers(verifiedCustomers);
       setCustomersTotal(totalCount);
     } catch (err) {
       console.error('Failed to fetch customers:', err);

@@ -63,6 +63,12 @@ export class Expense {
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', index: true })
   assignedTo?: Types.ObjectId;
+
+  @Prop({ required: false, default: 0 })
+  amountPaid?: number;
+
+  @Prop({ required: false })
+  outstandingAmount?: number;
 }
 
 export const ExpenseSchema = SchemaFactory.createForClass(Expense);
