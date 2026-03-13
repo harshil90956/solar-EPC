@@ -90,7 +90,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 // Section 1: Financial Overview Cards with Animations
-const FinancialOverview = ({ dashboardStats, payablesTotal, manualBalance, cashPosition, onInvoicesClick, onPayablesClick, onReceivablesClick, invoices }) => {
+const FinancialOverview = ({ dashboardStats, payablesTotal, manualBalance, cashPosition, onInvoicesClick, onPayablesClick, onReceivablesClick, onCashPositionClick, invoices }) => {
   // Compute totalRevenue from filtered invoices passed in
   const revenueCurrent = (invoices || []).reduce((sum, inv) => sum + Number(inv.amount || 0), 0);
   
@@ -141,7 +141,7 @@ const FinancialOverview = ({ dashboardStats, payablesTotal, manualBalance, cashP
       accentColor: '#3b82f6',
       gradient: 'from-blue-500/20 to-blue-500/5',
       trend: cashPositionVal >= 0 ? '+8%' : '-5%',
-      onClick: null,
+      onClick: onCashPositionClick,
     },
     {
       label: 'Receivables',
@@ -1168,6 +1168,7 @@ const FinanceDashboard = ({
   onCollectedClick,
   onReceivablesClick,
   onOutstandingClick,
+  onCashPositionClick,
   onStatusClick,
 }) => {
   // Helper functions for calculations
@@ -1256,6 +1257,7 @@ const FinanceDashboard = ({
           onInvoicesClick={onInvoicesClick}
           onPayablesClick={onPayablesClick}
           onReceivablesClick={onReceivablesClick}
+          onCashPositionClick={onCashPositionClick}
           invoices={invoices}
         />
       </section>

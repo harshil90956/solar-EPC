@@ -171,6 +171,29 @@ export class InvoiceService {
       }
     }
     
+    // Auto-update overdue status for invoices with passed due dates
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    for (const invoice of invoices) {
+      // Check if invoice should be overdue (not Paid, not Draft, and due date passed)
+      if (invoice.status !== 'Paid' && invoice.status !== 'Overdue' && invoice.status !== 'Draft') {
+        const dueDate = new Date(invoice.dueDate);
+        dueDate.setHours(0, 0, 0, 0);
+        
+        if (dueDate < today) {
+          // Update status to Overdue
+          await this.invoiceModel.findByIdAndUpdate(
+            invoice._id,
+            { status: 'Overdue' }
+          );
+          // Update in-memory invoice for return
+          invoice.status = 'Overdue';
+          console.log(`[Auto Overdue] Invoice ${invoice.invoiceNumber} marked as Overdue (Due: ${dueDate.toISOString()}, Today: ${today.toISOString()})`);
+        }
+      }
+    }
+    
     const projectIds = invoices.map(inv => inv.projectId?.toString()).filter(Boolean);
     const uniqueProjectIds = [...new Set(projectIds)];
     
@@ -225,20 +248,98 @@ export class InvoiceService {
 
     const tenantObjectId = await this.resolveTenantObjectId(tenantId);
 
+    // Check if due date is in the past (before today)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dueDateObj = new Date(dto.dueDate);
+    dueDateObj.setHours(0, 0, 0, 0);
+    
+    const isOverdue = dueDateObj < today;
+    const initialStatus = isOverdue ? 'Overdue' : this.calculateStatus(dto.amount, dto.paid || 0, dto.status ?? 'Draft');
+
     const invoice = new this.invoiceModel({
       ...dto,
       tenantId: tenantObjectId,
       paid: dto.paid || 0,
       balance: dto.amount - (dto.paid || 0),
-      status: this.calculateStatus(dto.amount, dto.paid || 0, dto.status ?? 'Draft'),
+      status: initialStatus,
       invoiceDate: new Date(dto.invoiceDate),
-      dueDate: new Date(dto.dueDate),
+      dueDate: dueDateObj,
       paidDate: dto.paidDate ? new Date(dto.paidDate) : undefined,
       paymentIds: [],
       milestones,
     });
 
     const saved = await invoice.save();
+    
+    // If invoice is overdue (past due date), send overdue reminder email
+    if (isOverdue && dto.projectId) {
+      try {
+        // Get project email
+        const project = await this.projectModel.findOne({
+          _id: new Types.ObjectId(dto.projectId),
+          ...this.notDeletedMatch(),
+        }).select('customerName email').lean();
+        
+        if (project?.email) {
+          console.log(`[Auto Overdue] Sending reminder for new overdue invoice ${saved.invoiceNumber} to ${project.email}`);
+          
+          const balance = dto.amount - (dto.paid || 0);
+          const emailSubject = this.generateReminderSubject(saved.toObject(), 'Overdue');
+          const emailBody = this.generateDefaultMessage(saved.toObject(), 'Overdue', balance);
+          
+          await this.sendReminderEmail({
+            to: project.email.trim(),
+            subject: emailSubject,
+            html: this.generateReminderEmailBody(saved.toObject(), 'Overdue', balance, emailBody),
+          });
+          
+          // Log the reminder
+          const reminderLog = new this.reminderLogModel({
+            tenantId: tenantObjectId,
+            invoiceId: saved._id,
+            invoiceNumber: saved.invoiceNumber,
+            customerName: saved.customerName,
+            customerEmail: project.email.trim(),
+            reminderType: 'Overdue',
+            messageBody: emailBody,
+            balanceAtSend: balance,
+            dueDate: saved.dueDate,
+            sentAt: new Date(),
+            emailSent: true,
+          });
+          await reminderLog.save();
+          
+          // Update invoice with reminder tracking
+          await this.invoiceModel.findByIdAndUpdate(saved._id, {
+            lastReminderSentAt: new Date(),
+            reminderCount: 1,
+          });
+          
+          // Log activity
+          await this.logActivity(
+            tenantId,
+            saved._id.toString(),
+            'REMINDER_SENT',
+            (dto as any).createdBy || (dto as any).userId || '000000000000000000000000',
+            {
+              invoiceNumber: saved.invoiceNumber,
+              reminderType: 'Overdue',
+              customerEmail: project.email.trim(),
+              balanceAtSend: balance,
+              sentTo: project.email.trim(),
+              autoSent: true,
+              reason: 'Invoice created with past due date',
+            },
+          );
+          
+          console.log(`[Auto Overdue] Reminder sent successfully for ${saved.invoiceNumber}`);
+        }
+      } catch (err) {
+        console.error('[Auto Overdue] Failed to send reminder email:', err);
+        // Don't fail the invoice creation if email fails
+      }
+    }
     
     // Log activity
     await this.logActivity(
@@ -250,7 +351,8 @@ export class InvoiceService {
         invoiceNumber: dto.invoiceNumber,
         amount: dto.amount,
         customerName: dto.customerName,
-        status: this.calculateStatus(dto.amount, dto.paid || 0, dto.status),
+        status: initialStatus,
+        isOverdue: isOverdue,
       },
     );
     
@@ -283,8 +385,42 @@ export class InvoiceService {
       { new: true },
     ).lean();
 
+    // If update with tenant filter fails, try without tenant filter as fallback
     if (!updated) {
-      throw new NotFoundException('Invoice not found');
+      console.log('[update] Update with tenant filter failed, trying without tenant filter');
+      const fallbackUpdated = await this.invoiceModel.findOneAndUpdate(
+        { _id: new Types.ObjectId(id) },
+        {
+          ...dto,
+          balance,
+          status,
+          invoiceDate: dto.invoiceDate ? new Date(dto.invoiceDate) : existing.invoiceDate,
+          dueDate: dto.dueDate ? new Date(dto.dueDate) : existing.dueDate,
+          paidDate: dto.paidDate ? new Date(dto.paidDate) : existing.paidDate,
+        },
+        { new: true },
+      ).lean();
+      
+      if (!fallbackUpdated) {
+        throw new NotFoundException('Invoice not found');
+      }
+      
+      console.log('[update] Invoice updated successfully without tenant filter');
+      
+      // Log activity
+      await this.logActivity(
+        tenantId,
+        id,
+        'INVOICE_UPDATED',
+        (dto as any).updatedBy || (dto as any).userId || '000000000000000000000000',
+        {
+          invoiceNumber: fallbackUpdated.invoiceNumber,
+          changes: Object.keys(dto).filter(k => k !== 'updatedBy' && k !== 'userId'),
+          newStatus: status,
+        },
+      );
+
+      return fallbackUpdated;
     }
 
     // Log activity
@@ -344,6 +480,7 @@ export class InvoiceService {
       'Draft->Pending',
       'Sent->Pending',
       'Sent->Partial',
+      'Sent->Paid',
       'Pending->Partial',
       'Partial->Paid',
       'Pending->Overdue',
@@ -368,7 +505,7 @@ export class InvoiceService {
         tenantId: tid,
         ...this.notDeletedMatch(),
       },
-      { status },
+      { status, ...(status === 'Paid' ? { paidDate: new Date() } : {}) },
       { new: true },
     ).lean();
 
