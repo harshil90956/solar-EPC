@@ -44,6 +44,10 @@ export class Vendor {
 
   @Prop({ type: Number, required: false, min: [0, 'Quantity must be at least 0'] })
   quantity?: number;
+
+  // Multi-tenant support
+  @Prop({ type: Types.ObjectId, ref: 'Tenant', index: true })
+  tenantId?: Types.ObjectId;
 }
 
 export const VendorSchema = SchemaFactory.createForClass(Vendor);

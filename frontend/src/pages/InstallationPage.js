@@ -1389,18 +1389,31 @@ const InstallationPage = () => {
       // Find the selected pending installation to get its real IDs
       const selectedPending = pendingInstallations.find(i => (i._id || i.id) === newForm.installationId);
       
+      // Extract projectId string from object if needed
+      let projectIdStr = newForm.projectId;
+      if (selectedPending?.projectId) {
+        if (typeof selectedPending.projectId === 'object') {
+          projectIdStr = selectedPending.projectId.projectId || selectedPending.projectId._id || selectedPending.projectId.id || newForm.projectId;
+        } else {
+          projectIdStr = selectedPending.projectId;
+        }
+      }
+      
       const payload = { 
         ...newForm, 
-        // Use the actual installationId (like ILMM...) instead of the mongo _id if available
-        installationId: selectedPending?.installationId || newForm.installationId,
+        // Don't send installationId - let backend generate a unique one
+        // installationId: selectedPending?.installationId || newForm.installationId,
         // Use the formatted projectId (like PXXXX) from the pending installation
-        projectId: selectedPending?.projectId || newForm.projectId,
+        projectId: projectIdStr,
         tasks: getTasksFromSettings().map(t=>({ 
           name: t.name, 
           photoRequired: !!t.photoRequired, 
           done:false 
         })) 
       };
+      
+      // Remove installationId from payload to let backend generate unique one
+      delete payload.installationId;
 
       await apiClient.post('/installations', payload);
       setShowAdd(false);
@@ -1715,12 +1728,21 @@ const InstallationPage = () => {
               value={newForm.installationId}
               onChange={e=>{
                 const inst = pendingInstallations.find(i => (i._id || i.id) === e.target.value);
+                // Extract projectId string from object if needed
+                let projectIdStr = '';
+                if (inst?.projectId) {
+                  if (typeof inst.projectId === 'object') {
+                    projectIdStr = inst.projectId.projectId || inst.projectId._id || inst.projectId.id || '';
+                  } else {
+                    projectIdStr = inst.projectId;
+                  }
+                }
                 setNewForm(p=>({
                   ...p, 
-                  installationId: inst?.installationId || e.target.value, 
+                  installationId: e.target.value, // Use _id for form, don't reuse existing installationId
                   customerName: inst?.customerName || '', 
                   site: inst?.site || inst?.siteAddress || '',
-                  projectId: inst?.projectId || ''
+                  projectId: projectIdStr
                 }));
               }}
             >
