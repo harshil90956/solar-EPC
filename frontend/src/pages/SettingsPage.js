@@ -2143,6 +2143,69 @@ const InstallationTasksPanel = () => {
     );
 };
 
+// ─── PANEL I: COMMISSIONING TASK BUILDER ─────────────────────────────────────
+const CommissioningTasksPanel = () => {
+    const { commissioningTasks, updateCommissioningTasks } = useSettings();
+    const { user } = useAuth();
+    const [tasks, setTasks] = useState(commissioningTasks || []);
+    const [newName, setNewName] = useState('');
+
+    const addTask = () => {
+        if (!newName.trim()) return;
+        setTasks(prev => [...prev, { name: newName.trim(), photoRequired: false }]);
+        setNewName('');
+    };
+    const save = () => {
+        updateCommissioningTasks(tasks, user?.name);
+    };
+    const move = (index, dir) => {
+        setTasks(prev => {
+            const arr = [...prev];
+            const [item] = arr.splice(index, 1);
+            arr.splice(index + dir, 0, item);
+            return arr;
+        });
+    };
+    const togglePhoto = (idx) => {
+        setTasks(prev => {
+            const arr = [...prev];
+            arr[idx] = { ...arr[idx], photoRequired: !arr[idx].photoRequired };
+            return arr;
+        });
+    };
+    const remove = (idx) => {
+        setTasks(prev => prev.filter((_, i) => i !== idx));
+    };
+    useEffect(() => {
+        setTasks(commissioningTasks || []);
+    }, [commissioningTasks]);
+    return (
+        <div>
+            <SectionHeader icon={CheckCircle} title="Commissioning Tasks" subtitle="Define task checklist used when creating commissionings" badge={user?.role==='Admin'?'Admin Only':''} />
+            <div className="space-y-4">
+                {tasks.map((t, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                        <input type="text" value={t.name} disabled className="flex-1 bg-[var(--bg-input)] rounded px-2 py-1 text-xs" />
+                        <label className="text-xs flex items-center gap-1">
+                            <input type="checkbox" checked={!!t.photoRequired} onChange={() => togglePhoto(i)} /> Photo
+                        </label>
+                        <button onClick={() => move(i, -1)} disabled={i===0} className="text-[var(--text-muted)]"><ChevronUp size={12} /></button>
+                        <button onClick={() => move(i, 1)} disabled={i===tasks.length-1} className="text-[var(--text-muted)]"><ChevronDown size={12} /></button>
+                        <button onClick={() => remove(i)} className="text-red-500"><X size={12} /></button>
+                    </div>
+                ))}
+                <div className="flex gap-2">
+                    <Input placeholder="New task name" value={newName} onChange={e=>setNewName(e.target.value)} className="flex-1 text-xs" />
+                    <Button onClick={addTask}><Plus size={12} /></Button>
+                </div>
+                <div className="flex justify-end">
+                    <Button onClick={save}>Save Changes</Button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // ─── MAIN SETTINGS PAGE ───────────────────────────────────────────────────────
 const TABS = [
     { id: 'modules', label: 'Modules', icon: Flag, panel: ModulesPanel },
@@ -2156,6 +2219,7 @@ const TABS = [
     { id: 'ai', label: 'AI Insights', icon: Cpu, panel: AISuggestionsPanel },
     { id: 'projecttypes', label: 'Project Types', icon: SunMedium, panel: ProjectTypeConfigPanel },
     { id: 'installationTasks', label: 'Install Tasks', icon: List, panel: InstallationTasksPanel },
+    { id: 'commissioningTasks', label: 'Commissioning Tasks', icon: CheckCircle, panel: CommissioningTasksPanel },
 ];
 
 const SettingsPage = () => {
