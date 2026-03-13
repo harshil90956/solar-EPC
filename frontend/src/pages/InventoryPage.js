@@ -785,22 +785,40 @@ const InventoryPage = () => {
     fetchPurchaseOrders();
   }, []);
 
-  // Calculate dynamic stats from inventory
+  // Filtered inventory for dashboard based on calendar filter
+  const filteredInventoryForDashboard = useMemo(() => {
+    if (inventoryMonthFilter === 'all') return inventory;
+    
+    return inventory.filter(item => {
+      const itemDate = item.lastUpdated || item.updatedAt || item.createdAt;
+      if (!itemDate) return false;
+      
+      const date = new Date(itemDate);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const itemMonthKey = `${year}-${month}`;
+      
+      return itemMonthKey === inventoryMonthFilter;
+    });
+  }, [inventory, inventoryMonthFilter]);
+
+  // Calculate dynamic stats from filtered inventory for dashboard
   const dynamicStats = useMemo(() => {
-    const totalItems = inventory.length;
-    const totalValue = inventory.reduce((a, i) => a + ((i.stock || 0) - (i.reserved || 0)) * (i.rate || 0), 0);
+    const data = filteredInventoryForDashboard;
+    const totalItems = data.length;
+    const totalValue = data.reduce((a, i) => a + ((i.stock || 0) - (i.reserved || 0)) * (i.rate || 0), 0);
     
     // Use getStockStatus logic to match Kanban columns exactly
-    const lowStockItems = inventory.filter(i => getStockStatus(i) === 'low-stock').length;
-    const outOfStockItems = inventory.filter(i => getStockStatus(i) === 'out-of-stock').length;
-    const reservedItems = inventory.filter(i => getStockStatus(i) === 'reserved').length;
+    const lowStockItems = data.filter(i => getStockStatus(i) === 'low-stock').length;
+    const outOfStockItems = data.filter(i => getStockStatus(i) === 'out-of-stock').length;
+    const reservedItems = data.filter(i => getStockStatus(i) === 'reserved').length;
     
     // Total reserved quantity (sum of reserved stock across all items)
-    const totalReservedQuantity = inventory.reduce((sum, i) => sum + (i.reserved || 0), 0);
-    const availableItems = inventory.filter(i => getStockStatus(i) === 'available').length;
+    const totalReservedQuantity = data.reduce((sum, i) => sum + (i.reserved || 0), 0);
+    const availableItems = data.filter(i => getStockStatus(i) === 'available').length;
 
     return { totalItems, totalValue, lowStockItems, outOfStockItems, totalReservedQuantity, availableItems };
-  }, [inventory]);
+  }, [filteredInventoryForDashboard]);
 
   const warehouseItems = useMemo(() => {
     if (!viewingWarehouse) return [];
@@ -1401,7 +1419,19 @@ const InventoryPage = () => {
             </div>
           </div>
 
-          {/* 5 Cards Row - One for each tab */}
+{filteredInventoryForDashboard.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 px-4">
+              <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+                <Package size={32} className="text-gray-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-700 mb-2">No Data Available</h3>
+              <p className="text-sm text-gray-500 text-center max-w-md">
+                No inventory data found for the selected time period. Try selecting a different month or click "All Time" to view all data.
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* 5 Cards Row - One for each tab */}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
             {/* Inventory Card */}
             <div
@@ -1411,7 +1441,7 @@ const InventoryPage = () => {
               <div className="relative flex items-start justify-between">
                 <div>
                   <p className="text-xs font-bold text-blue-700 uppercase tracking-wider">Total Stock</p>
-                  <p className="text-3xl font-bold text-gray-800 mt-2">{inventory.reduce((sum, i) => sum + (i.stock || 0), 0)}</p>
+                  <p className="text-3xl font-bold text-gray-800 mt-2">{filteredInventoryForDashboard.reduce((sum, i) => sum + (i.stock || 0), 0)}</p>
                   <p className="text-xs text-gray-500 mt-1">Total quantity in inventory</p>
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-blue-200 flex items-center justify-center">
@@ -1440,7 +1470,7 @@ const InventoryPage = () => {
                 </div>
               </div>
               <div className="relative mt-3 flex gap-2">
-                <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-gray-700 font-medium">{inventory.length} items stored</span>
+                <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-gray-700 font-medium">{filteredInventoryForDashboard.length} items stored</span>
               </div>
             </div>
 
@@ -1452,7 +1482,7 @@ const InventoryPage = () => {
               <div className="relative flex items-start justify-between">
                 <div>
                   <p className="text-xs font-bold text-violet-700 uppercase tracking-wider">Items</p>
-                  <p className="text-3xl font-bold text-gray-800 mt-2">{new Set(inventory.map(i => i.itemId)).size}</p>
+                  <p className="text-3xl font-bold text-gray-800 mt-2">{new Set(filteredInventoryForDashboard.map(i => i.itemId)).size}</p>
                   <p className="text-xs text-gray-500 mt-1">Unique items in system</p>
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-violet-200 flex items-center justify-center">
@@ -1460,7 +1490,7 @@ const InventoryPage = () => {
                 </div>
               </div>
               <div className="relative mt-3 flex gap-2">
-                <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-gray-700 font-medium">{inventory.length} total entries</span>
+                <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-gray-700 font-medium">{filteredInventoryForDashboard.length} total entries</span>
                 <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-gray-700 font-medium">{categories.length} categories</span>
               </div>
             </div>
@@ -1839,6 +1869,8 @@ const InventoryPage = () => {
               <Scale size={16} /> Units
             </button>
           </div>
+            </>
+          )}
         </div>
       )}
 
