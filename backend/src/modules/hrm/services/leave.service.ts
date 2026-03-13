@@ -132,6 +132,16 @@ export class LeaveService {
       .exec();
   }
 
+  async findByEmployee(employeeId: string, tenantId?: string): Promise<Leave[]> {
+    const tid = await this.resolveTenantObjectId(tenantId || '');
+    return this.leaveModel
+      .find({ employeeId: new Types.ObjectId(employeeId), tenantId: tid })
+      .populate('employeeId', 'firstName lastName employeeId')
+      .populate('approvedBy', 'firstName lastName')
+      .sort({ createdAt: -1 })
+      .exec();
+  }
+
   async findOne(id: string, tenantId?: string): Promise<Leave> {
     const tid = await this.resolveTenantObjectId(tenantId || '');
     const query: any = { _id: new Types.ObjectId(id), tenantId: tid };

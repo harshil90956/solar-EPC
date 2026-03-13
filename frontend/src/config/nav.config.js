@@ -34,6 +34,7 @@ export const NAV_CONFIG = [
                     { id: 'hrm-payroll', label: 'Payroll', icon: Wallet },
                     { id: 'hrm-increments', label: 'Increments', icon: TrendingUp },
                     { id: 'hrm-departments', label: 'Departments', icon: Building2 },
+                    { id: 'hrm-role-permissions', label: 'Role Permissions', icon: Shield, adminOnly: true },
                 ]
             },
             { id: 'intelligence', label: 'AI Intelligence', icon: Brain, badge: null, badgeVariant: 'accent' },
@@ -43,6 +44,7 @@ export const NAV_CONFIG = [
         section: 'PIPELINE',
         items: [
             { id: 'crm', label: 'CRM & Sales', icon: Users, badge: hotLeads || null },
+            { id: 'quotation', label: 'Quotation Builder', icon: FileText },
             { id: 'documents', label: 'Documents', icon: Files, badge: null },
             { id: 'survey', label: 'Survey', icon: MapPin, badge: null },
             { id: 'design', label: 'Design & BOQ', icon: Pencil, badge: null },

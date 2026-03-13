@@ -27,8 +27,9 @@ import DataTable from '../components/ui/DataTable';
 import { Tabs, TabsList, TabsTrigger } from '../components/ui/Tabs';
 import { CURRENCY } from '../config/app.config';
 import { cn } from '../lib/utils';
+import api from '../lib/apiClient';
 import { downloadQuotationPDF } from '../lib/pdfTemplate';
-import SolarQuotationPage from './SolarQuotationPage';
+import QuotationBuilderPage from './QuotationBuilderPage';
 import EquipmentPage from './EquipmentPage';
 import EstimatePage from './EstimatePage';
 import ProposalPage from './ProposalPage';
@@ -255,63 +256,91 @@ const DocumentPage = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState(null);
   const [documents, setDocuments] = useState(MOCK_DOCUMENTS);
+  const [realQuotations, setRealQuotations] = useState([]);
   const [dashboardStats, setDashboardStats] = useState(null);
 
   const [solarQuoteKey, setSolarQuoteKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    const loadDashboardStats = async () => {
+    const loadData = async () => {
       try {
-        const res = await documentsApi.getDashboardStats();
-        const data = res?.data?.data || res?.data;
-        if (!cancelled) setDashboardStats(data);
-      } catch {
-        // ignore
+        const [statsRes, quotRes] = await Promise.all([
+          documentsApi.getDashboardStats(),
+          api.get('/quotations')
+        ]);
+        
+        const statsData = statsRes?.data?.data || statsRes?.data;
+        if (!cancelled) setDashboardStats(statsData);
+
+        // Extract and format real quotations to match document structure
+        const rawQuots = quotRes?.data || quotRes || [];
+        const formattedQuots = (Array.isArray(rawQuots) ? rawQuots : []).map(q => ({
+          id: q.quotationId || q._id,
+          dbId: q._id,
+          type: 'quotation',
+          title: q.notes || `Solar Quote - ${q.customerName}`,
+          customerName: q.customerName,
+          customerEmail: q.customerEmail,
+          customerPhone: q.customerPhone,
+          total: q.finalQuotationPrice,
+          status: q.status?.toLowerCase() || 'draft',
+          createdAt: q.createdAt,
+          validUntil: q.validUntil,
+          items: q.materials.map(m => ({
+            name: m.name,
+            quantity: m.quantity,
+            unitPrice: m.unitPrice,
+            total: m.totalPrice
+          }))
+        }));
+        
+        if (!cancelled) setRealQuotations(formattedQuots);
+      } catch (err) {
+        console.error('Error loading documents data:', err);
       }
     };
-    loadDashboardStats();
+    loadData();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [solarQuoteKey]);
+
+  // Merge mock documents with real quotations for the 'All' view
+  const allDocuments = useMemo(() => {
+    const mocksWithoutQuots = MOCK_DOCUMENTS.filter(d => d.type !== 'quotation');
+    return [...realQuotations, ...mocksWithoutQuots].sort((a, b) => 
+      new Date(b.createdAt) - new Date(a.createdAt)
+    );
+  }, [realQuotations]);
 
   // ── Filter Documents by Tab ────────────────────────────────────────────────
   const filteredDocuments = useMemo(() => {
-    let filtered = documents;
-
     // Filter by tab
     switch (activeTab) {
       case 'dashboard':
-        return []; // Dashboard shows stats, not documents
+        return [];
       case 'estimate':
-        filtered = documents.filter(d => d.type === 'estimate');
-        break;
+        return allDocuments.filter(d => d.type === 'estimate');
       case 'proposal':
-        filtered = documents.filter(d => d.type === 'proposal');
-        break;
+        return allDocuments.filter(d => d.type === 'proposal');
       case 'quotation':
-        filtered = documents.filter(d => d.type === 'quotation');
-        break;
+        return realQuotations;
       case 'all':
       default:
-        filtered = documents;
-        break;
+        let filtered = allDocuments;
+        if (searchQuery) {
+          const query = searchQuery.toLowerCase();
+          filtered = filtered.filter(d =>
+            d.id.toLowerCase().includes(query) ||
+            d.title.toLowerCase().includes(query) ||
+            d.customerName.toLowerCase().includes(query) ||
+            d.customerEmail.toLowerCase().includes(query)
+          );
+        }
+        return filtered;
     }
-
-    // Filter by search
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(d =>
-        d.id.toLowerCase().includes(query) ||
-        d.title.toLowerCase().includes(query) ||
-        d.customerName.toLowerCase().includes(query) ||
-        d.customerEmail.toLowerCase().includes(query)
-      );
-    }
-
-    return filtered;
-  }, [documents, activeTab, searchQuery]);
+  }, [allDocuments, realQuotations, activeTab, searchQuery]);
 
   // ── Stats Calculations ───────────────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -910,7 +939,7 @@ const DocumentPage = () => {
       {activeTab === 'dashboard' && <DashboardView />}
       {activeTab === 'estimate' && <EstimatePage />}
       {activeTab === 'proposal' && <ProposalPage />}
-      {activeTab === 'quotation' && <SolarQuotationPage />}
+      {activeTab === 'quotation' && <QuotationBuilderPage key={solarQuoteKey} />}
       {activeTab === 'all' && <DocumentListView />}
 
       {/* Create Document Modal */}
