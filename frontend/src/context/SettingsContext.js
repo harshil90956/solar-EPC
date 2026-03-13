@@ -957,6 +957,13 @@ export const SettingsProvider = ({ children }) => {
                 return basePerm;
             }
 
+            // TEMPORARY FIX: For CRM module, default allow edit/assign/delete if not explicitly denied
+            // This restores actions that disappeared due to missing permission configuration
+            if (moduleId === 'crm' && ['edit', 'assign', 'delete'].includes(actionId)) {
+                console.log(`  ⚠️  CRM ${actionId} permission undefined - defaulting to ALLOW for backward compatibility`);
+                return true;
+            }
+
             console.log('  ❌ Custom permission undefined and no base role fallback, denying');
             return false;
         }
