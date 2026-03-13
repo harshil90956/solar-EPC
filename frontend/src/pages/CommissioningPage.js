@@ -21,6 +21,7 @@ import {
   Wrench, 
   CheckCircle, 
   User, 
+  UserPlus,
   Search, 
   CalendarDays,
   ClipboardList,
@@ -32,7 +33,6 @@ import {
   TrendingUp,
   BarChart3,
   Download,
-  UserPlus,
   UserMinus,
   Eye,
   Edit,
@@ -42,6 +42,7 @@ import {
   Layers
 } from 'lucide-react';
 import { APP_CONFIG } from '../config/app.config';
+import { commissioningApi } from '../services/commissioningApi';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, Legend, AreaChart, Area, LineChart, Line, ComposedChart } from 'recharts';
 
 // ── Kanban columns ─────────────────────────────────────────────────────────────
@@ -1374,6 +1375,7 @@ const CommissioningPage = () => {
 
   // New Commissioning creation uses settings tasks as template
   const [newForm, setNewForm] = useState({ department:'', technicianId:'', technicianName:'', customerName:'', site:'', scheduledDate:'', notes:'', projectId:'' });
+  const [selectedProjectId, setSelectedProjectId] = useState(''); // Track selected project for dropdown
   const [editForm, setEditForm] = useState(null);
   const [showEdit, setShowEdit] = useState(false);
   const [selectedDept, setSelectedDept] = useState('');
@@ -1407,10 +1409,19 @@ const CommissioningPage = () => {
   const availableProjects = useMemo(() => {
     const installationsForCommissioning = completedInstallations.filter(inst => {
       // Only show installations that don't already have a commissioning
-      const hasCommissioning = logs.some(log => 
-        log.projectId === (inst.projectId || inst.project?._id || inst.project?.id) ||
-        log.customerName === inst.customerName
-      );
+      const instProjectId = String(inst.projectId || inst.project?._id || inst.project?.id || '');
+      const instCustomer = String(inst.customerName || '').toLowerCase().trim();
+      
+      const hasCommissioning = logs.some(log => {
+        const logProjectId = String(log.projectId || '').trim();
+        const logCustomer = String(log.customerName || '').toLowerCase().trim();
+        
+        // Match by projectId OR customerName
+        const projectMatch = logProjectId && instProjectId && logProjectId === instProjectId;
+        const customerMatch = logCustomer && instCustomer && logCustomer === instCustomer;
+        
+        return projectMatch || customerMatch;
+      });
       return !hasCommissioning;
     }).map(inst => ({
       ...inst,
@@ -1423,6 +1434,8 @@ const CommissioningPage = () => {
       isInstallation: false,
       displayName: `${inst.customerName || 'Unknown'} — ${inst.site || inst.siteAddress || 'No Site'} (Pending)`,
     }));
+    
+    console.log('[availableProjects] installations:', installationsForCommissioning.length, 'pending:', pendingItems.length);
     
     return [...installationsForCommissioning, ...pendingItems];
   }, [completedInstallations, pendingCommissionings, logs]);
@@ -1500,6 +1513,8 @@ const CommissioningPage = () => {
         CommissioningId: selectedPending?.CommissioningId || '',
         // Use the correct projectId
         projectId: finalProjectId,
+        // projectIdString is required by backend
+        projectIdString: finalProjectId ? String(finalProjectId) : '',
         // Include source installation reference if applicable
         sourceInstallationId: selectedInstallation?._id || selectedInstallation?.id || null,
         status: 'Pending Assign',
@@ -1512,6 +1527,7 @@ const CommissioningPage = () => {
 
       await apiClient.post('/commissionings', payload);
       setShowAdd(false);
+      setSelectedProjectId('');
       setNewForm({ department:'', technicianId:'', technicianName:'', customerName:'', site:'', scheduledDate:'', notes:'', projectId:'', CommissioningId:'', sourceInstallationId: null });
       refetch();
       toast.success('Commissioning created');
@@ -1666,6 +1682,21 @@ const CommissioningPage = () => {
             { label: 'View', icon: Eye, onClick: (row) => setSelected(row) },
             ...(can('commissioning','edit') ? [{ label: 'Edit', icon: Edit, onClick: (row) => { setEditForm(row); setShowEdit(true); } }] : []),
             ...(can('commissioning','assign') || can('commissioning','edit') ? [{
+              label: 'Assign',
+              icon: UserPlus,
+              show: (row) => !(row.assignedTo || row.technicianId || (row.technicianName && row.technicianName !== 'Not Assigned')),
+              onClick: async (row) => {
+                // Open assign modal or directly prompt for user
+                const assignedTo = window.prompt(`Enter user ID to assign Commissioning ${row.CommissioningId}:`);
+                if (!assignedTo) return;
+                try {
+                  await commissioningApi.assign(row._id || row.id, assignedTo);
+                  refetch();
+                  toast.success(`Assigned ${row.CommissioningId} to user`);
+                } catch(err) { toast.error(err.message || 'Assign failed'); }
+              }
+            }] : []),
+            ...(can('commissioning','assign') || can('commissioning','edit') ? [{
               label: 'Unassign',
               icon: UserMinus,
               show: (row) => !!(row.technicianId || (row.technicianName && row.technicianName !== 'Not Assigned')),
@@ -1803,9 +1834,9 @@ const CommissioningPage = () => {
       </Modal>
 
       {/* New Log Modal */}
-      <Modal open={showAdd} onClose={()=>{setShowAdd(false); setSelectedDept('');}} title="Assign Commissioning" footer={
+      <Modal open={showAdd} onClose={()=>{setShowAdd(false); setSelectedDept(''); setSelectedProjectId('');}} title="Assign Commissioning" footer={
         <div className="flex gap-2 justify-end pt-1">
-          <Button variant="ghost" onClick={()=>{setShowAdd(false); setSelectedDept('');}}>
+          <Button variant="ghost" onClick={()=>{setShowAdd(false); setSelectedDept(''); setSelectedProjectId('');}}>
             Cancel
           </Button>
           <Button onClick={createCommissioning} disabled={!newForm.technicianId}>
@@ -1820,24 +1851,35 @@ const CommissioningPage = () => {
             <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">Select Project</label>
             <select
               className="w-full px-3 py-2.5 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-base)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)] transition-colors"
-              value={newForm.projectId || newForm.CommissioningId}
+              value={selectedProjectId}
               onChange={e=>{
-                const selected = availableProjects.find(i => (i._id || i.id) === e.target.value);
-                if (selected?.isInstallation) {
+                const selectedId = e.target.value;
+                setSelectedProjectId(selectedId);
+                
+                // First check in completed installations
+                let selected = completedInstallations.find(i => (i._id || i.id) === selectedId);
+                let isInstallation = !!selected;
+                
+                // If not found, check in pending commissionings
+                if (!selected) {
+                  selected = pendingCommissionings.find(i => (i._id || i.id) === selectedId);
+                }
+                
+                if (isInstallation) {
                   // Installation selected - populate from installation data
                   setNewForm(p=>({
                     ...p, 
-                    projectId: selected.projectId || selected.project?._id || selected.project?.id || e.target.value,
+                    projectId: selected.projectId || selected.project?._id || selected.project?.id || selectedId,
                     CommissioningId: '', // Will be generated by backend
                     customerName: selected.customerName || '', 
                     site: selected.site || selected.siteAddress || '',
                     sourceInstallationId: selected._id || selected.id,
                   }));
-                } else {
+                } else if (selected) {
                   // Pending commissioning selected
                   setNewForm(p=>({
                     ...p, 
-                    CommissioningId: selected?.CommissioningId || e.target.value, 
+                    CommissioningId: selected?.CommissioningId || selectedId, 
                     customerName: selected?.customerName || '', 
                     site: selected?.site || selected?.siteAddress || '',
                     projectId: selected?.projectId || '',
@@ -1851,19 +1893,11 @@ const CommissioningPage = () => {
               {/* Completed Installations Group */}
               {completedInstallations.length > 0 && (
                 <optgroup label="Completed Installations (Ready for Commissioning)">
-                  {completedInstallations
-                    .filter(inst => {
-                      const instCust = String(inst.customerName || '').toLowerCase();
-                      return !logs.some(log => {
-                        const logCust = String(log.customerName || '').toLowerCase();
-                        return logCust === instCust && log.status !== 'Pending Assign';
-                      });
-                    })
-                    .map(inst => (
-                      <option key={inst._id || inst.id} value={inst._id || inst.id}>
-                        {inst.customerName || 'Unknown'} — {inst.site || inst.siteAddress || 'No Site'} ✓
-                      </option>
-                    ))}
+                  {completedInstallations.map(inst => (
+                    <option key={inst._id || inst.id} value={inst._id || inst.id}>
+                      {inst.customerName || 'Unknown'} — {inst.site || inst.siteAddress || 'No Site'} ✓
+                    </option>
+                  ))}
                 </optgroup>
               )}
               
