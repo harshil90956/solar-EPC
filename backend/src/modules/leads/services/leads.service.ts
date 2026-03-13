@@ -29,7 +29,14 @@ export class LeadsService {
   private readonly dashboardCacheTtlMs = 30_000;
 
   private buildCompleteFilter(tenantId?: string, user?: UserWithVisibility, baseFilter: any = {}): any {
-    const filter = { ...baseFilter };
+    // Start with base filter conditions (excluding tenantId and visibility which we'll handle separately)
+    const { tenantId: baseTenantId, ...restBaseFilter } = baseFilter;
+    const conditions: any[] = [];
+
+    // Add base filter conditions to $and
+    if (Object.keys(restBaseFilter).length > 0) {
+      conditions.push(restBaseFilter);
+    }
 
     // Enforce tenant isolation strictly
     const tid = tenantId && Types.ObjectId.isValid(tenantId) ? new Types.ObjectId(tenantId) : undefined;
@@ -37,35 +44,42 @@ export class LeadsService {
     // SuperAdmin bypass or specific tenant context
     if (user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin') {
       if (tid) {
-        filter.tenantId = tid;
+        conditions.push({ tenantId: tid });
       }
       // If no tid and SuperAdmin, don't add tenantId filter (Global View)
-    } else {
-      // Regular user MUST have a valid tenant context
-      if (tid) {
-        filter.tenantId = tid;
-      } else {
-        // Match nothing when tenant context is missing for regular users
-        return { _id: { $in: [] as any[] } };
-      }
+      // Return with just base conditions
+      return conditions.length > 0 ? { $and: conditions } : {};
     }
+    
+    // Regular user MUST have a valid tenant context
+    if (!tid) {
+      return { _id: { $in: [] as any[] } };
+    }
+    
+    // Add tenant filter
+    conditions.push({ tenantId: tid });
 
-    // Apply role visibility rules
-    if (user && !(user.isSuperAdmin || user.role?.toLowerCase() === 'superadmin')) {
-      const visibilityFilter = buildVisibilityFilter(user);
-      if (visibilityFilter && Object.keys(visibilityFilter).length > 0) {
-        // Merge visibility filter with existing filter
-        // This preserves the base filter conditions like status='customer'
-        const mergedFilter = applyVisibilityFilter(filter, user);
-        // Ensure tenantId is preserved in the merged filter
-        if (!mergedFilter.tenantId && filter.tenantId) {
-          mergedFilter.tenantId = filter.tenantId;
+    // Apply role visibility rules - CREATOR OR ASSIGNED
+    if (user) {
+      const userId = user._id || user.id;
+      if (userId) {
+        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
+          ? new Types.ObjectId(userId)
+          : userId;
+        
+        if (objectId) {
+          // CRITICAL: Creator must see their leads even when unassigned
+          conditions.push({
+            $or: [
+              { createdBy: objectId },
+              { assignedTo: objectId }
+            ]
+          });
         }
-        return mergedFilter;
       }
     }
 
-    return filter;
+    return conditions.length > 0 ? { $and: conditions } : {};
   }
 
   // Check if user can access a specific lead
@@ -461,6 +475,16 @@ export class LeadsService {
     // CRITICAL: Always set createdBy from the user creating the lead
     if (user?._id) {
       leadData.createdBy = new Types.ObjectId(user._id.toString());
+      Logger.log(`[create] >>> SET createdBy: ${leadData.createdBy} from user._id=${user._id}`, 'LeadsService');
+    } else if (user?.id) {
+      // Fallback to user.id if _id is not available
+      const creatorId = typeof user.id === 'string' && Types.ObjectId.isValid(user.id)
+        ? new Types.ObjectId(user.id)
+        : user.id;
+      leadData.createdBy = creatorId;
+      Logger.log(`[create] >>> SET createdBy: ${leadData.createdBy} from user.id=${user.id}`, 'LeadsService');
+    } else {
+      Logger.warn(`[create] >>> WARNING: No user._id or user.id found! createdBy will be undefined`, 'LeadsService');
     }
     
     // Set assignedTo to null by default (unassigned)
@@ -468,6 +492,8 @@ export class LeadsService {
     if (!leadData.assignedTo) {
       leadData.assignedTo = null;
     }
+
+    Logger.log(`[create] >>> FINAL LEAD DATA: tenantId=${leadData.tenantId}, createdBy=${leadData.createdBy}, assignedTo=${leadData.assignedTo}`, 'LeadsService');
 
     const createdLead = new this.leadModel(leadData);
     return createdLead.save();
@@ -500,8 +526,9 @@ export class LeadsService {
     // Build complete filter with tenant and visibility
     const filter = this.buildCompleteFilter(tenantId, user, { isDeleted: false });
     
-    Logger.log(`[findAll] User: ${user?.id}, Role: ${user?.role}, Tenant: ${tenantId}`, 'LeadsService');
-    Logger.log(`[findAll] Filter: ${JSON.stringify(filter)}`, 'LeadsService');
+    // CRITICAL DEBUG LOGGING
+    Logger.log(`[findAll] >>> USER CONTEXT: id=${user?.id}, _id=${user?._id}, role=${user?.role}, tenant=${tenantId}`, 'LeadsService');
+    Logger.log(`[findAll] >>> FILTER BUILT: ${JSON.stringify(filter)}`, 'LeadsService');
 
     // Apply quick filters
     if (quickFilter) {
