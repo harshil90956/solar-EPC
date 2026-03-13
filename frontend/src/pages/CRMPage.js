@@ -2185,16 +2185,6 @@ const CRMPage = () => {
           onTabChange={setView}
         />
 
-        {/* Data Visibility Indicator */}
-        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[11px] font-medium ${userDataScope === 'ALL'
-          ? 'bg-blue-500/10 border-blue-500/30 text-blue-400'
-          : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
-          }`}>
-          <Eye size={12} />
-          <span>
-            {userDataScope === 'ALL' ? 'Showing: All Leads' : 'Showing: Assigned Leads Only'}
-          </span>
-        </div>
       </div>
 
       {/* ── Date Filters ── */}

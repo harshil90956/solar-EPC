@@ -49,20 +49,12 @@ export const AuthProvider = ({ children }) => {
           console.error('Invalid employee response:', res);
           throw new Error('Invalid response from server');
         }
-        // Decode JWT to extract tenantId and other claims
+        // Decode JWT to extract tenantId
         let tenantId = null;
-        let extractedRoleId = roleId;
         try {
           const payload = JSON.parse(atob(token.split('.')[1]));
           tenantId = payload.tenantId || null;
-          // Extract roleId from JWT if available
-          if (payload.roleId) {
-            extractedRoleId = payload.roleId;
-          }
-          console.log('[AUTH] Employee JWT payload:', payload);
-        } catch (e) {
-          console.warn('[AUTH] Failed to decode JWT payload:', e);
-        }
+        } catch (e) { /* ignore */ }
         const authedUser = { 
           id, 
           employeeId, 
@@ -70,7 +62,7 @@ export const AuthProvider = ({ children }) => {
           lastName, 
           email,
           role: 'Employee',
-          roleId: extractedRoleId,  // Use extracted roleId
+          roleId,
           dataScope,
           tenantId,
           isEmployee: true,
@@ -84,7 +76,6 @@ export const AuthProvider = ({ children }) => {
         }
         setUser(authedUser);
         setError('');
-        console.log('[AUTH] Employee logged in with roleId:', extractedRoleId);
         return true;
       }
       

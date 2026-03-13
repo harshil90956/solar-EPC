@@ -458,8 +458,15 @@ export class LeadsService {
     leadData.slaBreached = this.checkSlaBreached(leadData);
     leadData.activeAutomation = this.applyAutomation(leadData);
 
+    // CRITICAL: Always set createdBy from the user creating the lead
     if (user?._id) {
       leadData.createdBy = new Types.ObjectId(user._id.toString());
+    }
+    
+    // Set assignedTo to null by default (unassigned)
+    // This ensures visibility filter works correctly
+    if (!leadData.assignedTo) {
+      leadData.assignedTo = null;
     }
 
     const createdLead = new this.leadModel(leadData);
@@ -492,6 +499,9 @@ export class LeadsService {
 
     // Build complete filter with tenant and visibility
     const filter = this.buildCompleteFilter(tenantId, user, { isDeleted: false });
+    
+    Logger.log(`[findAll] User: ${user?.id}, Role: ${user?.role}, Tenant: ${tenantId}`, 'LeadsService');
+    Logger.log(`[findAll] Filter: ${JSON.stringify(filter)}`, 'LeadsService');
 
     // Apply quick filters
     if (quickFilter) {

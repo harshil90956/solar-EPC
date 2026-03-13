@@ -40,21 +40,10 @@ export function buildVisibilityFilter(
     return { tenantId: null };
   }
 
-  // SUPER_ADMIN bypasses all filters (sees everything)
-  if (user.isSuperAdmin || user.role?.toLowerCase() === 'superadmin') {
-    return {};
-  }
+  // NOTE: All users must follow strict visibility rules
+  // Only creator or assigned user can see a lead
+  // No role-based bypasses - Admin, Manager, Agent all follow same rules
 
-  // ADMIN sees all data in their tenant
-  if (user.role?.toLowerCase() === 'admin') {
-    return {};
-  }
-
-  // NOTE: Removed dataScope === 'ALL' bypass - only Admin can see all leads
-  // All other users (including managers, agents) must respect createdBy/assignedTo visibility
-  // This ensures strict lead ownership and assignment rules
-
-  const userRole = user.role?.toLowerCase() || '';
   const userId = user._id || user.id;
 
   // Convert userId to ObjectId if needed
@@ -66,28 +55,8 @@ export function buildVisibilityFilter(
     return { tenantId: null };
   }
 
-  // MANAGER sees leads created by team members OR assigned to team members
-  if (userRole === 'manager') {
-    const teamIds = user.teamMemberIds || [];
-    const teamObjectIds: Types.ObjectId[] = teamIds
-      .filter(id => Types.ObjectId.isValid(id))
-      .map(id => new Types.ObjectId(id));
-    
-    // Include manager themselves in the team
-    if (objectId instanceof Types.ObjectId) {
-      teamObjectIds.push(objectId);
-    }
-
-    return {
-      $or: [
-        { createdBy: { $in: teamObjectIds } },
-        { assignedTo: { $in: teamObjectIds } }
-      ]
-    };
-  }
-
-  // AGENT sees leads they created OR leads assigned to them
-  // Default for any non-admin role with ASSIGNED scope
+  // Strict visibility for ALL users - no role-based bypasses
+  // Everyone can only see leads they created OR leads assigned to them
   if (objectId instanceof Types.ObjectId) {
     return {
       $or: [
@@ -155,19 +124,12 @@ export function buildCompleteFilter(
   // Start with isDeleted filter (soft delete handling)
   const filter: Record<string, any> = { isDeleted: { $ne: true }, ...additionalFilters };
 
-  // SUPER_ADMIN bypasses tenant filtering
-  if (user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin') {
-    // Super admin sees everything, only apply visibility filter if needed
-    const visibilityFilter = buildVisibilityFilter(user);
-    if (Object.keys(visibilityFilter).length > 0) {
-      Object.assign(filter, visibilityFilter);
-    }
-    return filter;
-  }
+  // NOTE: All users including SuperAdmin must follow strict visibility rules
+  // No role-based bypasses for tenant or visibility filters
 
-  // Regular users MUST have tenantId
+  // All users MUST have tenantId
   if (!tenantId) {
-    // No tenant context and not super admin - return filter that matches nothing
+    // No tenant context - return filter that matches nothing
     return { tenantId: null, ...filter };
   }
 
@@ -203,21 +165,10 @@ export function canAccessRecord(
     tenantId?: Types.ObjectId | string | null;
   }
 ): boolean {
-  // SUPER_ADMIN can access everything
-  if (user.isSuperAdmin || user.role?.toLowerCase() === 'superadmin') {
-    return true;
-  }
+  // NOTE: All users must follow strict visibility rules - no role bypasses
+  // Everyone can only access records they created OR records assigned to them
 
-  const userRole = user.role?.toLowerCase() || '';
   const userId = user._id?.toString() || user.id;
-
-  // ADMIN can access everything in their tenant
-  if (userRole === 'admin') {
-    return true;
-  }
-
-  // NOTE: Removed dataScope === 'ALL' bypass - only Admin can access all records
-  // All other users must respect createdBy/assignedTo rules
 
   if (!userId || !record) {
     return false;
@@ -226,14 +177,7 @@ export function canAccessRecord(
   const recordAssignedTo = record.assignedTo?.toString();
   const recordCreatedBy = record.createdBy?.toString();
 
-  // MANAGER can access records created by or assigned to team members
-  if (userRole === 'manager') {
-    const teamIds = user.teamMemberIds || [];
-    const teamSet = new Set([...teamIds, userId]);
-    
-    return teamSet.has(recordAssignedTo || '') || teamSet.has(recordCreatedBy || '');
-  }
-
-  // AGENT can access records they created OR records assigned to them
+  // Strict visibility for ALL users - no role bypasses
+  // Everyone can only access records they created OR records assigned to them
   return recordAssignedTo === userId || recordCreatedBy === userId;
 }
