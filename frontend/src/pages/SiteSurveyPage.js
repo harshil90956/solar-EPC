@@ -628,7 +628,7 @@ const GridDrawingCanvas = ({ drawingData, onChange, readOnly = false }) => {
       {selected && selectedEl && (
         <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg text-xs flex-wrap">
           <span className="text-amber-600 font-medium capitalize">
-            ✦ {selected.type.replace('textLabels','text').replace('freehand','drawing')}
+            ✦ {selected.type?.replace('textLabels','text').replace('freehand','drawing') || 'Unknown'}
             {selectedEl.rotation ? <span className="ml-1 text-amber-500">({Math.round(selectedEl.rotation)}°)</span> : null}
           </span>
 
