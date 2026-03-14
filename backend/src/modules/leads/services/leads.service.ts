@@ -741,7 +741,7 @@ export class LeadsService {
 
     const lead = await this.leadModel.findOne(filter).lean().exec();
     
-    Logger.log(`[findOne] Found lead ${id}: statusKey=${lead?.statusKey}, status=${lead?.status}`, 'LeadsService');
+    Logger.log(`[findOne] Found lead ${id}: statusKey=${lead?.statusKey}`, 'LeadsService');
     
     if (!lead) {
       throw new NotFoundException('Lead not found');
