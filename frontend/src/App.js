@@ -37,7 +37,6 @@ import AttendancePageV3 from './pages/AttendancePageV3';
 import IntelligenceDashboardPage from './pages/IntelligenceDashboardPage';
 import RemindersPage from './pages/RemindersPage';
 import HrmPermissionsPage from './pages/HrmPermissionsPage';
-import DocumentPage from './pages/DocumentPage';
 import NotificationSystem from './components/NotificationSystem';
 
 // ── Page Map ──────────────────────────────────────────────────────────────────
