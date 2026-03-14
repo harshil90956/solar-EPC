@@ -17,12 +17,46 @@ const LeadTracker = ({ leadId, statusOptions, currentStage, onStageChange }) => 
   const fetchTracker = async () => {
     try {
       setLoading(true);
+      console.log('[LeadTracker] Fetching tracker for leadId:', leadId);
       const result = await leadsApi.getTracker(leadId);
-      setTracker(result.data || result);
+      console.log('[LeadTracker] API result:', result);
+      console.log('[LeadTracker] API result type:', typeof result);
+      console.log('[LeadTracker] API result.success:', result?.success);
+      console.log('[LeadTracker] API result.data:', result?.data);
+      
+      // Handle different response structures
+      // Backend returns: { success: true, data: { stages, progress, ... } }
+      // apiClient interceptor returns: response.data (the wrapped object)
+      let data = result;
+      
+      // If result has success and data (standard API wrapper), extract the inner data
+      if (result && result.success === true && result.data) {
+        data = result.data;
+        console.log('[LeadTracker] Extracted from wrapper:', data);
+      } else if (result && result.data && !result.stages) {
+        // If result has data but no stages directly, try extracting
+        data = result.data;
+        console.log('[LeadTracker] Extracted from result.data:', data);
+      }
+      
+      // If data is still not valid, try using result directly
+      if (!data || (!data.stages && !data.progress)) {
+        if (result && (result.stages || result.progress || result.leadId)) {
+          data = result;
+          console.log('[LeadTracker] Using result directly:', data);
+        }
+      }
+      
+      console.log('[LeadTracker] Final data:', data);
+      console.log('[LeadTracker] data.stages:', data?.stages);
+      console.log('[LeadTracker] data.progress:', data?.progress);
+      console.log('[LeadTracker] data.leadId:', data?.leadId);
+      
+      setTracker(data);
       setError(null);
     } catch (err) {
-      console.error('Failed to fetch tracker:', err);
-      setError('Failed to load tracker');
+      console.error('[LeadTracker] Failed to fetch tracker:', err);
+      setError('Failed to load tracker: ' + (err.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
@@ -71,8 +105,30 @@ const LeadTracker = ({ leadId, statusOptions, currentStage, onStageChange }) => 
     );
   }
 
-  if (!tracker || !tracker.stages || tracker.stages.length === 0) {
-    return null;
+  if (!tracker) {
+    return (
+      <div className="p-4 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)]">
+        <p className="text-sm text-[var(--text-muted)] mb-2">
+          {loading ? 'Loading tracker data...' : 'No tracker data available.'}
+        </p>
+        <Button size="sm" variant="outline" onClick={fetchTracker} disabled={loading}>
+          {loading ? 'Loading...' : 'Refresh'}
+        </Button>
+      </div>
+    );
+  }
+
+  if (!tracker.stages || tracker.stages.length === 0) {
+    return (
+      <div className="p-4 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)]">
+        <p className="text-sm text-[var(--text-muted)] mb-2">
+          No stages available for this lead.
+        </p>
+        <Button size="sm" variant="outline" onClick={fetchTracker} disabled={loading}>
+          {loading ? 'Loading...' : 'Refresh'}
+        </Button>
+      </div>
+    );
   }
 
   const { stages, progress } = tracker;

@@ -58,8 +58,9 @@ export class EmployeeService {
     }
 
     // Build email query for duplicate check
+    const emailLower = (createEmployeeDto.email || '').toLowerCase();
     const emailQuery: any = { 
-      email: createEmployeeDto.email.toLowerCase(),
+      email: emailLower,
       tenantId: tid,
     };
     
@@ -157,8 +158,9 @@ export class EmployeeService {
 
     // Check if email is being updated and if it already exists
     if (updateEmployeeDto.email) {
+      const emailLower = updateEmployeeDto.email.toLowerCase();
       const existingEmailQuery: any = {
-        email: updateEmployeeDto.email.toLowerCase(),
+        email: emailLower,
         _id: { $ne: new Types.ObjectId(id) },
       };
       if (tid) existingEmailQuery.tenantId = tid;
@@ -221,8 +223,9 @@ export class EmployeeService {
     const tid = await this.resolveTenantObjectId(tenantId || '');
     
     // Build query to find employee by email
+    const emailLower = (email || '').toLowerCase();
     const query: any = { 
-      email: email.toLowerCase(),
+      email: emailLower,
     };
     if (tid) {
       query.tenantId = tid;
@@ -238,8 +241,9 @@ export class EmployeeService {
     if (!employee) {
       // If employee not found, check users collection and auto-create
       console.log('[DEBUG] Checking users collection for fallback...');
+      const userEmailLower = (email || '').toLowerCase();
       const userQuery: any = { 
-        email: email.toLowerCase(),
+        email: userEmailLower,
       };
       if (tid) {
         userQuery.tenantId = tid;
@@ -267,7 +271,7 @@ export class EmployeeService {
           employeeId,
           firstName: derivedFirstName || 'User',
           lastName: derivedLastName || 'User',
-          email: user.email.toLowerCase(),
+          email: (user.email || '').toLowerCase(),
           password: user.passwordHash, // Already hashed
           phone: derivedPhone || '0000000000',
           address: user.address || '',
@@ -286,8 +290,9 @@ export class EmployeeService {
         // If no specific tenant matches, try searching across all tenants
         if (tid === null) {
           console.log('[DEBUG] Searching for employee across all tenants...');
+          const searchEmailLower = (email || '').toLowerCase();
           employee = await this.employeeModel
-            .findOne({ email: email.toLowerCase() })
+            .findOne({ email: searchEmailLower })
             .populate('roleId', 'roleId label color permissions')
             .exec();
           

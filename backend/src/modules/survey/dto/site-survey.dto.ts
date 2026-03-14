@@ -100,31 +100,40 @@ export class CompleteSurveyDataDto {
 // Create Site Survey DTO
 export class CreateSiteSurveyDto {
   @IsString()
-  leadId!: string;
+  @IsOptional()
+  leadId?: string;
 
   @IsString()
-  clientName!: string;
+  @IsOptional()
+  clientName?: string;
 
   @IsString()
-  city!: string;
+  @IsOptional()
+  city?: string;
 
   @IsString()
-  projectCapacity!: string;
+  @IsOptional()
+  projectCapacity?: string;
 
   @IsString()
-  roofType!: string;
+  @IsOptional()
+  roofType?: string;
 
   @IsString()
-  structureType!: string;
+  @IsOptional()
+  structureType?: string;
 
   @IsString()
-  structureHeight!: string;
+  @IsOptional()
+  structureHeight?: string;
 
   @IsString()
-  moduleType!: string;
+  @IsOptional()
+  moduleType?: string;
 
   @IsString()
-  solarConsultant!: string;
+  @IsOptional()
+  solarConsultant?: string;
 
   @IsNumber()
   @IsOptional()
