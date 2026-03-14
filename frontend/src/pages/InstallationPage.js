@@ -105,7 +105,7 @@ const formatEventType = (type) => {
     'delayed': 'Installation Delayed',
     'assigned': 'Installation Assigned'
   };
-  return labels[type] || type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  return labels[type] || type?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Unknown Event';
 };
 
 const formatEventMetadata = (metadata) => {
