@@ -51,6 +51,7 @@ export const AuthProvider = ({ children }) => {
         }
         // Decode JWT to extract tenantId
         let tenantId = null;
+        let extractedRoleId = null;
         try {
           const payload = JSON.parse(atob(token.split('.')[1]));
           tenantId = payload.tenantId || null;
