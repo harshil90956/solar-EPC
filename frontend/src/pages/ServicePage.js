@@ -26,7 +26,8 @@ import {
 
 
 
-  FolderOpen, Trash2, Pencil, BarChart3, PieChart, Activity, Stethoscope, Users
+  FolderOpen, Trash2, Pencil, BarChart3, PieChart, Activity, Stethoscope, Users,
+  ChevronLeft, ChevronRight
 
 
 
@@ -3218,7 +3219,9 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
   const [schedulingVisit, setSchedulingVisit] = useState(false);
 
-  const [scheduledVisitsCount, setScheduledVisitsCount] = useState(0);
+  const [totalAmcContracts, setTotalAmcContracts] = useState(0);
+  const [totalVisits, setTotalVisits] = useState(0);
+  const [totalTickets, setTotalTickets] = useState(0);
 
 
 
@@ -3277,6 +3280,9 @@ const ServicePage = ({ onNavigate, initialTab }) => {
   const [selectedCustomerForVisit, setSelectedCustomerForVisit] = useState('');
 
   const [selectedVisit, setSelectedVisit] = useState(null);
+  // Visits pagination state
+  const [vPage, setVPage] = useState(1);
+  const [vPageSize, setVPageSize] = useState(10);
 
 
 
@@ -5076,7 +5082,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-  const fetchVisits = async () => {
+  const fetchVisits = async (page, limit) => {
 
 
 
@@ -5124,7 +5130,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-      const response = await getVisits();
+      const response = await getVisits({ page, limit });
 
 
 
@@ -6200,29 +6206,62 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+  // Fetch total AMC contracts count (without pagination for tab count)
+  const fetchTotalAmcContracts = async () => {
+    try {
+      const response = await getAmcContracts({ limit: 10000 });
+      let contractsData = [];
+      if (Array.isArray(response)) {
+        contractsData = response;
+      } else if (response?.data && Array.isArray(response.data)) {
+        contractsData = response.data;
+      } else if (response?.data?.data && Array.isArray(response.data.data)) {
+        contractsData = response.data.data;
+      }
+      setTotalAmcContracts(contractsData.length);
+    } catch (err) {
+      console.error('Total AMC contracts fetch error:', err);
+      setTotalAmcContracts(0);
+    }
+  };
 
+  // Fetch total visits count (without pagination for tab count)
+  const fetchTotalVisits = async () => {
+    try {
+      const response = await getVisits({ limit: 10000 });
+      let visitsData = [];
+      if (Array.isArray(response)) {
+        visitsData = response;
+      } else if (response?.data && Array.isArray(response.data)) {
+        visitsData = response.data;
+      } else if (response?.data?.data && Array.isArray(response.data.data)) {
+        visitsData = response.data.data;
+      }
+      setTotalVisits(visitsData.length);
+    } catch (err) {
+      console.error('Total visits fetch error:', err);
+      setTotalVisits(0);
+    }
+  };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  // Fetch total tickets count (without pagination for tab count)
+  const fetchTotalTickets = async () => {
+    try {
+      const response = await getTickets({ limit: 10000 });
+      let ticketsData = [];
+      if (Array.isArray(response)) {
+        ticketsData = response;
+      } else if (response?.data && Array.isArray(response.data)) {
+        ticketsData = response.data;
+      } else if (response?.data?.data && Array.isArray(response.data.data)) {
+        ticketsData = response.data.data;
+      }
+      setTotalTickets(ticketsData.length);
+    } catch (err) {
+      console.error('Total tickets fetch error:', err);
+      setTotalTickets(0);
+    }
+  };
 
   // Initial fetch
   useEffect(() => {
@@ -6236,6 +6275,10 @@ const ServicePage = ({ onNavigate, initialTab }) => {
     fetchVisits();
     fetchEngineers(); // Load engineers for Team Overview card
     fetchAmcContracts(); // Load AMC contracts with pagination
+    // Fetch total counts for tabs
+    fetchTotalAmcContracts();
+    fetchTotalVisits();
+    fetchTotalTickets();
   }, []);
 
 
@@ -6469,6 +6512,10 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
   }, [aPage, aPageSize]);
+  // Fetch visits when pagination changes
+  useEffect(() => {
+    fetchVisits(vPage, vPageSize);
+  }, [vPage, vPageSize]);
 
 
 
@@ -13652,67 +13699,6 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-      setScheduledVisitsCount(prev => prev + 1);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      // Update the next visit date in AMC contracts (only for AMC contracts with MongoDB ObjectId, not Support Tickets with T-prefixed IDs)
-
-
-
-
-
-
-
 
 
 
@@ -16918,15 +16904,15 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-            <TabsTrigger value="tickets">Support Tickets ({tickets.length})</TabsTrigger>
+            <TabsTrigger value="tickets">Support Tickets ({totalTickets})</TabsTrigger>
 
 
 
-            <TabsTrigger value="amc">AMC Contracts ({amcContracts.length})</TabsTrigger>
+            <TabsTrigger value="amc">AMC Contracts ({totalAmcContracts})</TabsTrigger>
 
 
 
-            <TabsTrigger value="schedule-visit">Schedule Visit ({visits.length})</TabsTrigger>
+            <TabsTrigger value="schedule-visit">Schedule Visit ({totalVisits})</TabsTrigger>
 
 
 
@@ -18958,55 +18944,49 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-                    </tbody>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                  </table>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-              )}
+                                </tbody>
+          </table>
+          {/* Pagination Controls */}
+          <div className="flex items-center justify-between mt-4 pt-4 border-t border-[var(--border-base)]">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[var(--text-muted)]">Show</span>
+              <select
+                value={vPageSize}
+                onChange={(e) => {
+                  setVPageSize(Number(e.target.value));
+                  setVPage(1);
+                }}
+                className="text-xs bg-[var(--bg-base)] border border-[var(--border-base)] rounded px-2 py-1 text-[var(--text-primary)]"
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+              <span className="text-xs text-[var(--text-muted)]">entries</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setVPage(p => Math.max(1, p - 1))}
+                disabled={vPage === 1}
+                className="p-1.5 rounded-lg border border-[var(--border-base)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <span className="text-xs text-[var(--text-muted)]">
+                Page {vPage}
+              </span>
+              <button
+                onClick={() => setVPage(p => p + 1)}
+                disabled={visits.length < vPageSize}
+                className="p-1.5 rounded-lg border border-[var(--border-base)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
 
 
@@ -29971,6 +29951,8 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 export default ServicePage;
+
+
 
 
 
