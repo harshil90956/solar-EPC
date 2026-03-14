@@ -8,3 +8,4 @@ CUSTOM_ROLES_LOADING_FIX.md
 CUSTOM_ROLE_PERMISSION_FIX.md
 PERMISSION_QUICK_REFERENCE.md
 frontend/fix-invalid-role-console.js
+scripts/

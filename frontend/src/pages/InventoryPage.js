@@ -791,19 +791,40 @@ const InventoryPage = () => {
     fetchPurchaseOrders();
   }, []);
 
-  // Calculate dynamic stats from inventory
+  // Filtered inventory for dashboard based on calendar filter
+  const filteredInventoryForDashboard = useMemo(() => {
+    if (inventoryMonthFilter === 'all') return inventory;
+    
+    return inventory.filter(item => {
+      const itemDate = item.lastUpdated || item.updatedAt || item.createdAt;
+      if (!itemDate) return false;
+      
+      const date = new Date(itemDate);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const itemMonthKey = `${year}-${month}`;
+      
+      return itemMonthKey === inventoryMonthFilter;
+    });
+  }, [inventory, inventoryMonthFilter]);
+
+  // Calculate dynamic stats from filtered inventory for dashboard
   const dynamicStats = useMemo(() => {
-    const totalItems = inventory.length;
-    const totalValue = inventory.reduce((a, i) => a + (i.stock || 0) * (i.rate || 0), 0);
+    const data = filteredInventoryForDashboard;
+    const totalItems = data.length;
+    const totalValue = data.reduce((a, i) => a + ((i.stock || 0) - (i.reserved || 0)) * (i.rate || 0), 0);
     
     // Use getStockStatus logic to match Kanban columns exactly
-    const lowStockItems = inventory.filter(i => getStockStatus(i) === 'low-stock').length;
-    const outOfStockItems = inventory.filter(i => getStockStatus(i) === 'out-of-stock').length;
-    const reservedItems = inventory.filter(i => getStockStatus(i) === 'reserved').length;
-    const availableItems = inventory.filter(i => getStockStatus(i) === 'available').length;
+    const lowStockItems = data.filter(i => getStockStatus(i) === 'low-stock').length;
+    const outOfStockItems = data.filter(i => getStockStatus(i) === 'out-of-stock').length;
+    const reservedItems = data.filter(i => getStockStatus(i) === 'reserved').length;
+    
+    // Total reserved quantity (sum of reserved stock across all items)
+    const totalReservedQuantity = data.reduce((sum, i) => sum + (i.reserved || 0), 0);
+    const availableItems = data.filter(i => getStockStatus(i) === 'available').length;
 
-    return { totalItems, totalValue, lowStockItems, outOfStockItems, reservedItems, availableItems };
-  }, [inventory]);
+    return { totalItems, totalValue, lowStockItems, outOfStockItems, totalReservedQuantity, availableItems };
+  }, [filteredInventoryForDashboard]);
 
   const warehouseItems = useMemo(() => {
     if (!viewingWarehouse) return [];
@@ -1404,7 +1425,19 @@ const InventoryPage = () => {
             </div>
           </div>
 
-          {/* 5 Cards Row - One for each tab */}
+{filteredInventoryForDashboard.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 px-4">
+              <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+                <Package size={32} className="text-gray-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-700 mb-2">No Data Available</h3>
+              <p className="text-sm text-gray-500 text-center max-w-md">
+                No inventory data found for the selected time period. Try selecting a different month or click "All Time" to view all data.
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* 5 Cards Row - One for each tab */}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
             {/* Inventory Card */}
             <div
@@ -1414,7 +1447,7 @@ const InventoryPage = () => {
               <div className="relative flex items-start justify-between">
                 <div>
                   <p className="text-xs font-bold text-blue-700 uppercase tracking-wider">Total Stock</p>
-                  <p className="text-3xl font-bold text-gray-800 mt-2">{inventory.reduce((sum, i) => sum + (i.stock || 0), 0)}</p>
+                  <p className="text-3xl font-bold text-gray-800 mt-2">{filteredInventoryForDashboard.reduce((sum, i) => sum + (i.stock || 0), 0)}</p>
                   <p className="text-xs text-gray-500 mt-1">Total quantity in inventory</p>
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-blue-200 flex items-center justify-center">
@@ -1443,7 +1476,7 @@ const InventoryPage = () => {
                 </div>
               </div>
               <div className="relative mt-3 flex gap-2">
-                <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-gray-700 font-medium">{inventory.length} items stored</span>
+                <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-gray-700 font-medium">{filteredInventoryForDashboard.length} items stored</span>
               </div>
             </div>
 
@@ -1455,7 +1488,7 @@ const InventoryPage = () => {
               <div className="relative flex items-start justify-between">
                 <div>
                   <p className="text-xs font-bold text-violet-700 uppercase tracking-wider">Items</p>
-                  <p className="text-3xl font-bold text-gray-800 mt-2">{new Set(inventory.map(i => i.itemId)).size}</p>
+                  <p className="text-3xl font-bold text-gray-800 mt-2">{new Set(filteredInventoryForDashboard.map(i => i.itemId)).size}</p>
                   <p className="text-xs text-gray-500 mt-1">Unique items in system</p>
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-violet-200 flex items-center justify-center">
@@ -1463,7 +1496,7 @@ const InventoryPage = () => {
                 </div>
               </div>
               <div className="relative mt-3 flex gap-2">
-                <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-gray-700 font-medium">{inventory.length} total entries</span>
+                <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-gray-700 font-medium">{filteredInventoryForDashboard.length} total entries</span>
                 <span className="text-[10px] px-2 py-1 bg-white/80 rounded text-gray-700 font-medium">{categories.length} categories</span>
               </div>
             </div>
@@ -1842,6 +1875,8 @@ const InventoryPage = () => {
               <Scale size={16} /> Units
             </button>
           </div>
+            </>
+          )}
         </div>
       )}
 
@@ -1887,7 +1922,7 @@ const InventoryPage = () => {
                 <div className="relative flex items-start justify-between">
                   <div>
                     <p className="text-xs font-bold text-violet-700 uppercase tracking-wider">Reserved Items</p>
-                    <p className="text-3xl font-bold text-gray-800 mt-2">{dynamicStats.reservedItems}</p>
+                    <p className="text-3xl font-bold text-gray-800 mt-2">{dynamicStats.totalReservedQuantity}</p>
                     <p className="text-xs text-gray-500 mt-1">Allocated to projects</p>
                   </div>
                   <div className="w-12 h-12 rounded-xl bg-violet-200 flex items-center justify-center">
@@ -2064,7 +2099,33 @@ const InventoryPage = () => {
                       document.body.removeChild(link);
                       setSelectedInventoryItems(new Set());
                     }
-                  }
+                  },
+                  ...(canDelete ? [{
+                    label: 'Delete Selected',
+                    icon: Trash2,
+                    danger: true,
+                    onClick: async (selectedIds) => {
+                      if (!window.confirm(`Are you sure you want to delete ${selectedIds.size} selected items?`)) return;
+                      
+                      try {
+                        const deletePromises = Array.from(selectedIds).map(id => {
+                          const item = inventory.find(i => i._id === id);
+                          if (item && item._id) {
+                            return api.delete(`/items/${item._id}`, { headers: { 'x-tenant-id': TENANT_ID } });
+                          }
+                          return Promise.resolve();
+                        });
+                        await Promise.all(deletePromises);
+                        
+                        setInventory(prev => prev.filter(i => !selectedIds.has(i._id)));
+                        setSelectedInventoryItems(new Set());
+                        alert(`Successfully deleted ${selectedIds.size} items!`);
+                      } catch (err) {
+                        console.error('Error deleting items:', err);
+                        alert('Failed to delete some items. Please try again.');
+                      }
+                    }
+                  }] : [])
                 ]} />
             </>
           ) : (
@@ -2112,39 +2173,65 @@ const InventoryPage = () => {
             </div>
             <div className="flex items-center gap-2">
               {selectedWarehouses.size > 0 && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => {
-                    const selectedData = warehouses.filter(w => selectedWarehouses.has(w)).map(w => ({
-                      warehouse: w,
-                      itemsCount: inventory.filter(i => i.warehouse === w).length
-                    }));
-                    const columns = [{ key: 'warehouse', header: 'Warehouse' }, { key: 'itemsCount', header: 'Items Count' }];
-                    const headers = columns.map(c => c.header).join(',');
-                    const rows = selectedData.map(row =>
-                      columns.map(col => {
-                        const val = row[col.key] ?? '';
-                        if (String(val).includes(',') || String(val).includes('"')) {
-                          return `"${String(val).replace(/"/g, '""')}"`;
+                <>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => {
+                      const selectedData = warehouses.filter(w => selectedWarehouses.has(w)).map(w => ({
+                        warehouse: w,
+                        itemsCount: inventory.filter(i => i.warehouse === w).length
+                      }));
+                      const columns = [{ key: 'warehouse', header: 'Warehouse' }, { key: 'itemsCount', header: 'Items Count' }];
+                      const headers = columns.map(c => c.header).join(',');
+                      const rows = selectedData.map(row =>
+                        columns.map(col => {
+                          const val = row[col.key] ?? '';
+                          if (String(val).includes(',') || String(val).includes('"')) {
+                            return `"${String(val).replace(/"/g, '""')}"`;
+                          }
+                          return val;
+                        }).join(',')
+                      ).join('\n');
+                      const csvContent = [headers, rows].join('\n');
+                      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                      const link = document.createElement('a');
+                      const url = URL.createObjectURL(blob);
+                      link.setAttribute('href', url);
+                      link.setAttribute('download', `warehouses_selected_${new Date().toISOString().split('T')[0]}.csv`);
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                      setSelectedWarehouses(new Set());
+                    }}
+                  >
+                    <Download size={14} /> Export Selected ({selectedWarehouses.size})
+                  </Button>
+                  {canDelete && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      danger
+                      onClick={async () => {
+                        if (!window.confirm(`Are you sure you want to delete ${selectedWarehouses.size} selected warehouses?`)) return;
+                        
+                        try {
+                          for (const warehouse of selectedWarehouses) {
+                            await api.delete('/warehouses', { headers: { 'x-tenant-id': TENANT_ID }, data: { name: warehouse } });
+                          }
+                          setWarehouses(prev => prev.filter(w => !selectedWarehouses.has(w)));
+                          setSelectedWarehouses(new Set());
+                          alert(`Successfully deleted ${selectedWarehouses.size} warehouses!`);
+                        } catch (err) {
+                          console.error('Error deleting warehouses:', err);
+                          alert('Failed to delete some warehouses. Please try again.');
                         }
-                        return val;
-                      }).join(',')
-                    ).join('\n');
-                    const csvContent = [headers, rows].join('\n');
-                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                    const link = document.createElement('a');
-                    const url = URL.createObjectURL(blob);
-                    link.setAttribute('href', url);
-                    link.setAttribute('download', `warehouses_selected_${new Date().toISOString().split('T')[0]}.csv`);
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    setSelectedWarehouses(new Set());
-                  }}
-                >
-                  <Download size={14} /> Export Selected ({selectedWarehouses.size})
-                </Button>
+                      }}
+                    >
+                      <Trash2 size={14} /> Delete Selected ({selectedWarehouses.size})
+                    </Button>
+                  )}
+                </>
               )}
               <Button variant="outline" size="sm" onClick={() => exportToCSV(
                 warehouses.filter(w => w.toLowerCase().includes(warehouseSearch.toLowerCase())).map(w => ({ 
@@ -2334,57 +2421,89 @@ const InventoryPage = () => {
             </div>
             <div className="flex gap-2">
               {selectedItems.size > 0 && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => {
-                    const selectedData = inventory.filter(item => selectedItems.has(item._id || item.itemId));
-                    const dataToExport = selectedData.map(item => ({
-                      itemId: item.itemId,
-                      name: item.name || item.description,
-                      category: item.category,
-                      warehouse: item.warehouse || '',
-                      unit: item.unit,
-                      rate: item.rate,
-                      stock: item.stock,
-                      reserved: item.reserved,
-                      minStock: item.minStock
-                    }));
-                    const columns = [
-                      { key: 'itemId', header: 'Item ID' },
-                      { key: 'name', header: 'Description' },
-                      { key: 'category', header: 'Category' },
-                      { key: 'warehouse', header: 'Warehouse' },
-                      { key: 'unit', header: 'Unit' },
-                      { key: 'rate', header: 'Rate (₹)' },
-                      { key: 'stock', header: 'Stock' },
-                      { key: 'reserved', header: 'Reserved' },
-                      { key: 'minStock', header: 'Min Stock' }
-                    ];
-                    const headers = columns.map(c => c.header).join(',');
-                    const rows = dataToExport.map(row =>
-                      columns.map(col => {
-                        const val = row[col.key] ?? '';
-                        if (String(val).includes(',') || String(val).includes('"')) {
-                          return `"${String(val).replace(/"/g, '""')}"`;
+                <>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => {
+                      const selectedData = inventory.filter(item => selectedItems.has(item._id || item.itemId));
+                      const dataToExport = selectedData.map(item => ({
+                        itemId: item.itemId,
+                        name: item.name || item.description,
+                        category: item.category,
+                        warehouse: item.warehouse || '',
+                        unit: item.unit,
+                        rate: item.rate,
+                        stock: item.stock,
+                        reserved: item.reserved,
+                        minStock: item.minStock
+                      }));
+                      const columns = [
+                        { key: 'itemId', header: 'Item ID' },
+                        { key: 'name', header: 'Description' },
+                        { key: 'category', header: 'Category' },
+                        { key: 'warehouse', header: 'Warehouse' },
+                        { key: 'unit', header: 'Unit' },
+                        { key: 'rate', header: 'Rate (₹)' },
+                        { key: 'stock', header: 'Stock' },
+                        { key: 'reserved', header: 'Reserved' },
+                        { key: 'minStock', header: 'Min Stock' }
+                      ];
+                      const headers = columns.map(c => c.header).join(',');
+                      const rows = dataToExport.map(row =>
+                        columns.map(col => {
+                          const val = row[col.key] ?? '';
+                          if (String(val).includes(',') || String(val).includes('"')) {
+                            return `"${String(val).replace(/"/g, '""')}"`;
+                          }
+                          return val;
+                        }).join(',')
+                      ).join('\n');
+                      const csvContent = [headers, rows].join('\n');
+                      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                      const link = document.createElement('a');
+                      const url = URL.createObjectURL(blob);
+                      link.setAttribute('href', url);
+                      link.setAttribute('download', `items_selected_${new Date().toISOString().split('T')[0]}.csv`);
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                      setSelectedItems(new Set());
+                    }}
+                  >
+                    <Download size={14} /> Export Selected ({selectedItems.size})
+                  </Button>
+                  {canDelete && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      danger
+                      onClick={async () => {
+                        if (!window.confirm(`Are you sure you want to delete ${selectedItems.size} selected items?`)) return;
+                        
+                        try {
+                          const deletePromises = Array.from(selectedItems).map(id => {
+                            const item = inventory.find(i => (i._id || i.itemId) === id);
+                            if (item && item._id) {
+                              return api.delete(`/items/${item._id}`, { headers: { 'x-tenant-id': TENANT_ID } });
+                            }
+                            return Promise.resolve();
+                          });
+                          await Promise.all(deletePromises);
+                          
+                          setInventory(prev => prev.filter(i => !selectedItems.has(i._id || i.itemId)));
+                          setSelectedItems(new Set());
+                          alert(`Successfully deleted ${selectedItems.size} items!`);
+                        } catch (err) {
+                          console.error('Error deleting items:', err);
+                          alert('Failed to delete some items. Please try again.');
                         }
-                        return val;
-                      }).join(',')
-                    ).join('\n');
-                    const csvContent = [headers, rows].join('\n');
-                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                    const link = document.createElement('a');
-                    const url = URL.createObjectURL(blob);
-                    link.setAttribute('href', url);
-                    link.setAttribute('download', `items_selected_${new Date().toISOString().split('T')[0]}.csv`);
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    setSelectedItems(new Set());
-                  }}
-                >
-                  <Download size={14} /> Export Selected ({selectedItems.size})
-                </Button>
+                      }}
+                    >
+                      <Trash2 size={14} /> Delete Selected ({selectedItems.size})
+                    </Button>
+                  )}
+                </>
               )}
               <Button variant="outline" size="sm" onClick={() => exportToCSV(
                 inventory
@@ -2609,39 +2728,65 @@ const InventoryPage = () => {
                 {showCategoryCards ? 'Hide Cards' : 'Show Cards'}
               </button>
               {selectedCategories.size > 0 && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => {
-                    const selectedData = categories.filter(cat => selectedCategories.has(cat)).map(cat => ({
-                      category: cat,
-                      itemsCount: inventory.filter(i => i.category === cat).length
-                    }));
-                    const columns = [{ key: 'category', header: 'Category Name' }, { key: 'itemsCount', header: 'Items Count' }];
-                    const headers = columns.map(c => c.header).join(',');
-                    const rows = selectedData.map(row =>
-                      columns.map(col => {
-                        const val = row[col.key] ?? '';
-                        if (String(val).includes(',') || String(val).includes('"')) {
-                          return `"${String(val).replace(/"/g, '""')}"`;
+                <>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => {
+                      const selectedData = categories.filter(cat => selectedCategories.has(cat)).map(cat => ({
+                        category: cat,
+                        itemsCount: inventory.filter(i => i.category === cat).length
+                      }));
+                      const columns = [{ key: 'category', header: 'Category Name' }, { key: 'itemsCount', header: 'Items Count' }];
+                      const headers = columns.map(c => c.header).join(',');
+                      const rows = selectedData.map(row =>
+                        columns.map(col => {
+                          const val = row[col.key] ?? '';
+                          if (String(val).includes(',') || String(val).includes('"')) {
+                            return `"${String(val).replace(/"/g, '""')}"`;
+                          }
+                          return val;
+                        }).join(',')
+                      ).join('\n');
+                      const csvContent = [headers, rows].join('\n');
+                      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                      const link = document.createElement('a');
+                      const url = URL.createObjectURL(blob);
+                      link.setAttribute('href', url);
+                      link.setAttribute('download', `categories_selected_${new Date().toISOString().split('T')[0]}.csv`);
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                      setSelectedCategories(new Set());
+                    }}
+                  >
+                    <Download size={14} /> Export Selected ({selectedCategories.size})
+                  </Button>
+                  {canDelete && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      danger
+                      onClick={async () => {
+                        if (!window.confirm(`Are you sure you want to delete ${selectedCategories.size} selected categories?`)) return;
+                        
+                        try {
+                          for (const category of selectedCategories) {
+                            await api.delete('/categories', { headers: { 'x-tenant-id': TENANT_ID }, data: { name: category } });
+                          }
+                          setCategories(prev => prev.filter(c => !selectedCategories.has(c)));
+                          setSelectedCategories(new Set());
+                          alert(`Successfully deleted ${selectedCategories.size} categories!`);
+                        } catch (err) {
+                          console.error('Error deleting categories:', err);
+                          alert('Failed to delete some categories. Please try again.');
                         }
-                        return val;
-                      }).join(',')
-                    ).join('\n');
-                    const csvContent = [headers, rows].join('\n');
-                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                    const link = document.createElement('a');
-                    const url = URL.createObjectURL(blob);
-                    link.setAttribute('href', url);
-                    link.setAttribute('download', `categories_selected_${new Date().toISOString().split('T')[0]}.csv`);
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    setSelectedCategories(new Set());
-                  }}
-                >
-                  <Download size={14} /> Export Selected ({selectedCategories.size})
-                </Button>
+                      }}
+                    >
+                      <Trash2 size={14} /> Delete Selected ({selectedCategories.size})
+                    </Button>
+                  )}
+                </>
               )}
               <Button variant="outline" size="sm" onClick={() => exportToCSV(
                 categories.map(cat => ({

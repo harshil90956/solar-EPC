@@ -35,12 +35,22 @@ export class AuthService {
     const userOverride = await this.userOverrideModel.findOne({ userId: user._id }).lean();
     const customRoleId = userOverride?.customRoleId || null;
 
+    // Determine dataScope: default to 'ALL' for admins, 'ASSIGNED' for others
+    const roleLower = (user.role || '').toLowerCase();
+    const isAdminLike = user.isSuperAdmin 
+      || roleLower === 'admin'
+      || roleLower === 'superadmin'
+      || roleLower === 'super-admin'
+      || roleLower === 'super_admin';
+    const dataScope = isAdminLike ? 'ALL' : 'ASSIGNED';
+
     const payload = {
       sub: String(user._id),
       role: user.role,
       tenantId: user.tenantId ? String(user.tenantId) : null,
       isSuperAdmin: Boolean(user.isSuperAdmin),
-      customRoleId: customRoleId, // Add custom role to JWT payload
+      customRoleId: customRoleId,
+      dataScope: dataScope, // Include dataScope in JWT payload
     };
 
     const accessToken = await this.jwtService.signAsync(payload);
@@ -53,7 +63,8 @@ export class AuthService {
         role: user.role,
         tenantId: user.tenantId ? String(user.tenantId) : null,
         isSuperAdmin: Boolean(user.isSuperAdmin),
-        roleId: customRoleId, // Include roleId in response for frontend
+        roleId: customRoleId,
+        dataScope: dataScope, // Include dataScope in user response
       },
     };
   }

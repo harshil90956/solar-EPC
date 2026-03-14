@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { BaseSchemaDefinition } from '../../../shared/database/base.schema';
 
 export type SurveyDocument = Survey & Document;
 
@@ -130,6 +131,20 @@ export class Survey {
   @Prop({ type: String, default: '' })
   sourceLeadId!: string;
 
+  // Tenant ID for multi-tenancy
+  @Prop({ ...BaseSchemaDefinition.tenantId })
+  tenantId!: Types.ObjectId;
+
+  // Assignment & Ownership fields
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', index: true })
+  createdBy?: Types.ObjectId;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', index: true })
+  assignedTo?: Types.ObjectId;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', index: true })
+  assignedBy?: Types.ObjectId;
+
   // Timestamps
   @Prop({ type: Date })
   createdAt!: Date;
@@ -143,5 +158,11 @@ export const SurveySchema = SchemaFactory.createForClass(Survey);
 // Add indexes for common queries
 SurveySchema.index({ status: 1 });
 SurveySchema.index({ leadId: 1 });
+SurveySchema.index({ tenantId: 1 });
+SurveySchema.index({ tenantId: 1, status: 1 });
+SurveySchema.index({ tenantId: 1, createdBy: 1 }); // For creator-based visibility
+SurveySchema.index({ tenantId: 1, assignedTo: 1 }); // For assignment-based visibility
+SurveySchema.index({ tenantId: 1, assignedBy: 1 }); // For tracking who assigned
+SurveySchema.index({ tenantId: 1, createdBy: 1, assignedTo: 1 }); // Compound for visibility queries
 SurveySchema.index({ clientName: 'text', city: 'text' });
 SurveySchema.index({ createdAt: -1 });

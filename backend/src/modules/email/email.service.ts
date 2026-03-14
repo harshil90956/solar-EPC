@@ -19,7 +19,13 @@ export class EmailService {
     });
   }
 
-  async sendEmail(to: string, subject: string, text: string, html?: string): Promise<{ success: boolean; message: string; messageId?: string }> {
+  async sendEmail(
+    to: string, 
+    subject: string, 
+    text: string, 
+    html?: string, 
+    attachments?: any[]
+  ): Promise<{ success: boolean; message: string; messageId?: string }> {
     try {
       // Check if SMTP is configured
       if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
@@ -35,6 +41,7 @@ export class EmailService {
         subject,
         text,
         html: html || `<pre style="font-family: Arial, sans-serif; line-height: 1.6;">${text.replace(/\n/g, '<br>')}</pre>`,
+        attachments,
       });
 
       console.log('Email sent:', info.messageId);

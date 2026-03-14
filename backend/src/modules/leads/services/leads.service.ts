@@ -29,43 +29,9 @@ export class LeadsService {
   private readonly dashboardCacheTtlMs = 30_000;
 
   private buildCompleteFilter(tenantId?: string, user?: UserWithVisibility, baseFilter: any = {}): any {
-    const filter = { ...baseFilter };
-
-    // Enforce tenant isolation strictly
-    const tid = tenantId && Types.ObjectId.isValid(tenantId) ? new Types.ObjectId(tenantId) : undefined;
-    
-    // SuperAdmin bypass or specific tenant context
-    if (user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin') {
-      if (tid) {
-        filter.tenantId = tid;
-      }
-      // If no tid and SuperAdmin, don't add tenantId filter (Global View)
-    } else {
-      // Regular user MUST have a valid tenant context
-      if (tid) {
-        filter.tenantId = tid;
-      } else {
-        // Match nothing when tenant context is missing for regular users
-        return { _id: { $in: [] as any[] } };
-      }
-    }
-
-    // Apply role visibility rules
-    if (user && !(user.isSuperAdmin || user.role?.toLowerCase() === 'superadmin')) {
-      const visibilityFilter = buildVisibilityFilter(user);
-      if (visibilityFilter && Object.keys(visibilityFilter).length > 0) {
-        // Merge visibility filter with existing filter
-        // This preserves the base filter conditions like status='customer'
-        const mergedFilter = applyVisibilityFilter(filter, user);
-        // Ensure tenantId is preserved in the merged filter
-        if (!mergedFilter.tenantId && filter.tenantId) {
-          mergedFilter.tenantId = filter.tenantId;
-        }
-        return mergedFilter;
-      }
-    }
-
-    return filter;
+    // Use the centralized buildCompleteFilter from visibility-filter.ts
+    // This properly respects dataScope (ALL vs ASSIGNED)
+    return buildCompleteFilter(tenantId, user, baseFilter);
   }
 
   // Check if user can access a specific lead
@@ -458,9 +424,28 @@ export class LeadsService {
     leadData.slaBreached = this.checkSlaBreached(leadData);
     leadData.activeAutomation = this.applyAutomation(leadData);
 
+    // CRITICAL: Always set createdBy from the user creating the lead
     if (user?._id) {
       leadData.createdBy = new Types.ObjectId(user._id.toString());
+      Logger.log(`[create] >>> SET createdBy: ${leadData.createdBy} from user._id=${user._id}`, 'LeadsService');
+    } else if (user?.id) {
+      // Fallback to user.id if _id is not available
+      const creatorId = typeof user.id === 'string' && Types.ObjectId.isValid(user.id)
+        ? new Types.ObjectId(user.id)
+        : user.id;
+      leadData.createdBy = creatorId;
+      Logger.log(`[create] >>> SET createdBy: ${leadData.createdBy} from user.id=${user.id}`, 'LeadsService');
+    } else {
+      Logger.warn(`[create] >>> WARNING: No user._id or user.id found! createdBy will be undefined`, 'LeadsService');
     }
+    
+    // Set assignedTo to null by default (unassigned)
+    // This ensures visibility filter works correctly
+    if (!leadData.assignedTo) {
+      leadData.assignedTo = null;
+    }
+
+    Logger.log(`[create] >>> FINAL LEAD DATA: tenantId=${leadData.tenantId}, createdBy=${leadData.createdBy}, assignedTo=${leadData.assignedTo}`, 'LeadsService');
 
     const createdLead = new this.leadModel(leadData);
     return createdLead.save();
@@ -492,6 +477,10 @@ export class LeadsService {
 
     // Build complete filter with tenant and visibility
     const filter = this.buildCompleteFilter(tenantId, user, { isDeleted: false });
+    
+    // CRITICAL DEBUG LOGGING
+    Logger.log(`[findAll] >>> USER CONTEXT: id=${user?.id}, _id=${user?._id}, role=${user?.role}, tenant=${tenantId}`, 'LeadsService');
+    Logger.log(`[findAll] >>> FILTER BUILT: ${JSON.stringify(filter)}`, 'LeadsService');
 
     // Apply quick filters
     if (quickFilter) {
@@ -854,7 +843,7 @@ export class LeadsService {
             city: existingLead.city || 'Unknown',
             projectCapacity: existingLead.kw ? `${existingLead.kw} kW` : 'To be determined',
             engineer: existingLead.assignedTo?.toString() || 'Unassigned',
-          });
+          }, tenantId, user);
           Logger.log(`Auto-created site survey for lead ${existingLead.leadId}`, 'LeadsService');
         } catch (error: any) {
           Logger.error(`Failed to auto-create site survey for lead ${existingLead.leadId}: ${error.message}`, 'LeadsService');

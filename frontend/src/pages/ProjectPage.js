@@ -1669,7 +1669,29 @@ const ProjectPage = () => {
                   document.body.removeChild(link);
                   setSelectedProjects(new Set()); // Clear selection after export
                 }
-              }
+              },
+              ...(canDelete ? [{
+                label: 'Delete Selected',
+                icon: Trash2,
+                danger: true,
+                onClick: async (selectedIds) => {
+                  if (!window.confirm(`Are you sure you want to delete ${selectedIds.size} selected projects?`)) return;
+                  
+                  try {
+                    const deletePromises = Array.from(selectedIds).map(id => 
+                      api.delete(`/projects/${id}?tenantId=${TENANT_ID}`)
+                    );
+                    await Promise.all(deletePromises);
+                    
+                    setProjects(prev => prev.filter(p => !selectedIds.has(p.id)));
+                    setSelectedProjects(new Set());
+                    alert(`Successfully deleted ${selectedIds.size} projects!`);
+                  } catch (err) {
+                    console.error('Error deleting projects:', err);
+                    alert('Failed to delete some projects. Please try again.');
+                  }
+                }
+              }] : [])
             ]} />
         </>
       )}

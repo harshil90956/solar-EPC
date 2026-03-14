@@ -169,7 +169,7 @@ const ReminderSidebar = ({ isOpen, onClose, onNavigate }) => {
       />
 
       {/* Sidebar Panel */}
-      <div className="relative w-full max-w-md h-full bg-[var(--bg-elevated)] border-l border-[var(--border-base)] shadow-2xl flex flex-col animate-slide-in-right">
+      <div className="relative w-full max-w-md h-full bg-[var(--bg-elevated)] border-l border-[var(--border-base)] shadow-2xl flex flex-col animate-slide-in-right pt-safe">
 
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-base)] bg-gradient-to-r from-[var(--primary)]/10 to-transparent">
@@ -342,7 +342,7 @@ const ReminderSidebar = ({ isOpen, onClose, onNavigate }) => {
               return (
                 <div
                   key={reminder.id}
-                  className={`group rounded-xl border transition-all overflow-hidden ${reminder.status === 'overdue'
+                  className={`group rounded-xl border transition-all ${reminder.status === 'overdue'
                       ? 'bg-red-500/5 border-red-500/20'
                       : 'bg-[var(--bg-base)] border-[var(--border-base)] hover:border-[var(--primary)]/30'
                     }`}

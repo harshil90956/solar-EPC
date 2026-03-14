@@ -39,6 +39,9 @@ export class DepartmentController {
   async create(@Body() createDto: CreateDepartmentDto, @Req() req: any) {
     await this.checkPermission(req, 'departments.create');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'] || req.query.tenantId;
+    const roleId = req.user?.roleId || req.user?.role;
+    await this.hrmPermissionService.validateAction(roleId, 'departments.manage', tenantId);
+
     const data = await this.departmentService.create(createDto, tenantId, req.user);
     return { success: true, data };
   }
@@ -47,6 +50,9 @@ export class DepartmentController {
   async findAll(@Req() req: any) {
     await this.checkPermission(req, 'departments.view');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'] || req.query.tenantId;
+    const roleId = req.user?.roleId || req.user?.role;
+    await this.hrmPermissionService.validateAction(roleId, 'departments.view', tenantId);
+
     const data = await this.departmentService.findAll(tenantId, req.user);
     return { success: true, data };
   }
@@ -55,6 +61,9 @@ export class DepartmentController {
   async findOne(@Param('id') id: string, @Req() req: any) {
     await this.checkPermission(req, 'departments.view');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'] || req.query.tenantId;
+    const roleId = req.user?.roleId || req.user?.role;
+    await this.hrmPermissionService.validateAction(roleId, 'departments.view', tenantId);
+
     const data = await this.departmentService.findOne(id, tenantId, req.user);
     return { success: true, data };
   }
@@ -63,6 +72,9 @@ export class DepartmentController {
   async update(@Param('id') id: string, @Body() updateDto: UpdateDepartmentDto, @Req() req: any) {
     await this.checkPermission(req, 'departments.edit');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'] || req.query.tenantId;
+    const roleId = req.user?.roleId || req.user?.role;
+    await this.hrmPermissionService.validateAction(roleId, 'departments.manage', tenantId);
+
     const data = await this.departmentService.update(id, updateDto, tenantId, req.user);
     return { success: true, data };
   }
@@ -72,6 +84,9 @@ export class DepartmentController {
   async delete(@Param('id') id: string, @Req() req: any) {
     await this.checkPermission(req, 'departments.delete');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'] || req.query.tenantId;
+    const roleId = req.user?.roleId || req.user?.role;
+    await this.hrmPermissionService.validateAction(roleId, 'departments.manage', tenantId);
+
     await this.departmentService.delete(id, tenantId, req.user);
     return { success: true, message: 'Department deleted successfully' };
   }

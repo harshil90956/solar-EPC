@@ -6,7 +6,7 @@ import {
   CheckCircle, XCircle, AlertCircle, ChevronDown, MoreVertical,
   FileText, CheckSquare, XSquare, RefreshCw, Building2, Building,
   Mail, Phone, MapPin, BadgeCheck, ArrowUpRight, ArrowDownRight,
-  LayoutGrid, List, IndianRupee, LogIn, LogOut, Timer
+  LayoutGrid, List, IndianRupee, LogIn, LogOut, Timer, ShieldCheck
 } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { KPICard } from '../components/ui/KPICard';
@@ -52,6 +52,32 @@ const LEAVE_TYPES = {
 
 // ==================== MAIN COMPONENT ====================
 const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
+  const { user } = useAuth();
+  const { hasPermission: canViewEmployees } = useHRMPermission('employees.view');
+  const { hasPermission: canManageEmployees } = useHRMPermission('employees.manage');
+  const { hasPermission: canDeleteEmployees } = useHRMPermission('employees.delete');
+  
+  const { hasPermission: canViewLeaves } = useHRMPermission('leaves.view');
+  const { hasPermission: canApplyLeave } = useHRMPermission('leaves.apply');
+  const { hasPermission: canApproveLeave } = useHRMPermission('leaves.approve');
+  
+  const { hasPermission: canViewAttendanceSelf } = useHRMPermission('attendance.view_self');
+  const { hasPermission: canViewAttendanceAll } = useHRMPermission('attendance.view_all');
+  const { hasPermission: canCheckInOut } = useHRMPermission('attendance.checkin_checkout');
+  const { hasPermission: canManageAttendance } = useHRMPermission('attendance.manage');
+  
+  const { hasPermission: canViewPayroll } = useHRMPermission('payroll.view');
+  const { hasPermission: canManagePayroll } = useHRMPermission('payroll.manage');
+  const { hasPermission: canApprovePayroll } = useHRMPermission('payroll.approve');
+  
+  const { hasPermission: canViewIncrements } = useHRMPermission('increments.view');
+  const { hasPermission: canManageIncrements } = useHRMPermission('increments.manage');
+  
+  const { hasPermission: canViewDepartments } = useHRMPermission('departments.view');
+  const { hasPermission: canManageDepartments } = useHRMPermission('departments.manage');
+  
+  const { hasPermission: canViewHrDashboard } = useHRMPermission('dashboard.view');
+
   const [activeTab, setActiveTab] = useState('employees');
   const [loading, setLoading] = useState(false);
 
@@ -989,15 +1015,15 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
             icon: Plus,
             variant: 'primary',
             onClick: () => {
-              if (activeTab === 'employees') {
+              if (activeTab === 'employees' && canManageEmployees) {
                 resetEmployeeForm();
                 setShowEmployeeModal(true);
-              } else if (activeTab === 'attendance') {
+              } else if (activeTab === 'attendance' && canCheckInOut) {
                 setAttendanceForm({ employeeId: '', type: 'office', notes: '' });
                 setShowAttendanceModal(true);
-              } else if (activeTab === 'leaves') {
+              } else if (activeTab === 'leaves' && canApplyLeave) {
                 setShowLeaveModal(true);
-              } else if (activeTab === 'payroll') {
+              } else if (activeTab === 'payroll' && canManagePayroll) {
                 setPayrollForm({
                   employeeId: '',
                   month: new Date().getMonth() + 1,
@@ -1008,7 +1034,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
                   bonus: 0,
                 });
                 setShowPayrollModal(true);
-              } else if (activeTab === 'increments') {
+              } else if (activeTab === 'increments' && canManageIncrements) {
                 setIncrementForm({
                   employeeId: '',
                   previousSalary: 0,
@@ -1018,7 +1044,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
                   reason: '',
                 });
                 setShowIncrementModal(true);
-              } else if (activeTab === 'departments') {
+              } else if (activeTab === 'departments' && canManageDepartments) {
                 setDepartmentForm({ name: '', code: '', description: '', managerId: '' });
                 setShowDepartmentModal(true);
               }
@@ -1028,97 +1054,131 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
       />
 
       {/* ── HRM Overview KPI Cards ── */}
-      <div className="mb-2">
-        <p className="text-xs text-[var(--text-muted)] mb-2 flex items-center gap-2">
-          <UserCircle size={12} className="text-[var(--accent-light)]" />
-          <span>HRM Overview - Employee statistics and payroll summary</span>
-        </p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {kpis.map((kpi, index) => (
-            <KPICard
-              key={index}
-              label={kpi.label}
-              value={kpi.value}
-              icon={kpi.icon}
-              variant={kpi.variant}
-            />
-          ))}
+      {canViewHrDashboard && (
+        <div className="mb-2">
+          <p className="text-xs text-[var(--text-muted)] mb-2 flex items-center gap-2">
+            <UserCircle size={12} className="text-[var(--accent-light)]" />
+            <span>HRM Overview - Employee statistics and payroll summary</span>
+          </p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {kpis.map((kpi, index) => (
+              <KPICard
+                key={index}
+                label={kpi.label}
+                value={kpi.value}
+                icon={kpi.icon}
+                variant={kpi.variant}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ── Vertical Layout with Sidebar ── */}
       <div className="flex gap-5">
         {/* ── Left Sidebar Navigation ── */}
         <div className="w-56 shrink-0">
           <div className="p-2 space-y-1 sticky top-4">
-            <button
-              onClick={() => onNavigate ? onNavigate('hrm-employees') : setActiveTab('employees')}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'employees'
-                ? 'bg-[var(--primary)] text-white shadow-lg shadow-[var(--primary)]/20'
-                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]'
-                }`}
-            >
-              <UserCircle size={18} />
-              Employees
-            </button>
-            <button
-              onClick={() => onNavigate ? onNavigate('hrm-attendance') : setActiveTab('attendance')}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'attendance'
-                ? 'bg-[var(--primary)] text-white shadow-lg shadow-[var(--primary)]/20'
-                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]'
-                }`}
-            >
-              <Clock size={18} />
-              Attendance
-            </button>
-            <button
-              onClick={() => onNavigate ? onNavigate('hrm-leaves') : setActiveTab('leaves')}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'leaves'
-                ? 'bg-[var(--primary)] text-white shadow-lg shadow-[var(--primary)]/20'
-                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]'
-                }`}
-            >
-              <Calendar size={18} />
-              Leaves
-            </button>
-            <button
-              onClick={() => onNavigate ? onNavigate('hrm-payroll') : setActiveTab('payroll')}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'payroll'
-                ? 'bg-[var(--primary)] text-white shadow-lg shadow-[var(--primary)]/20'
-                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]'
-                }`}
-            >
-              <Wallet size={18} />
-              Payroll
-            </button>
-            <button
-              onClick={() => onNavigate ? onNavigate('hrm-increments') : setActiveTab('increments')}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'increments'
-                ? 'bg-[var(--primary)] text-white shadow-lg shadow-[var(--primary)]/20'
-                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]'
-                }`}
-            >
-              <TrendingUp size={18} />
-              Increments
-            </button>
-            <button
-              onClick={() => onNavigate ? onNavigate('hrm-departments') : setActiveTab('departments')}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'departments'
-                ? 'bg-[var(--primary)] text-white shadow-lg shadow-[var(--primary)]/20'
-                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]'
-                }`}
-            >
-              <Building size={18} />
-              Departments
-            </button>
+            {canViewEmployees && (
+              <button
+                onClick={() => onNavigate ? onNavigate('hrm-employees') : setActiveTab('employees')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'employees'
+                  ? 'bg-[var(--primary)] text-white shadow-lg shadow-[var(--primary)]/20'
+                  : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]'
+                  }`}
+              >
+                <UserCircle size={18} />
+                Employees
+              </button>
+            )}
+            {(canViewAttendanceSelf || canViewAttendanceAll) && (
+              <button
+                onClick={() => onNavigate ? onNavigate('hrm-attendance') : setActiveTab('attendance')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'attendance'
+                  ? 'bg-[var(--primary)] text-white shadow-lg shadow-[var(--primary)]/20'
+                  : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]'
+                  }`}
+              >
+                <Clock size={18} />
+                Attendance
+              </button>
+            )}
+            {(canViewLeaves) && (
+              <button
+                onClick={() => onNavigate ? onNavigate('hrm-leaves') : setActiveTab('leaves')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'leaves'
+                  ? 'bg-[var(--primary)] text-white shadow-lg shadow-[var(--primary)]/20'
+                  : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]'
+                  }`}
+              >
+                <Calendar size={18} />
+                Leaves
+              </button>
+            )}
+            {canViewPayroll && (
+              <button
+                onClick={() => onNavigate ? onNavigate('hrm-payroll') : setActiveTab('payroll')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'payroll'
+                  ? 'bg-[var(--primary)] text-white shadow-lg shadow-[var(--primary)]/20'
+                  : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]'
+                  }`}
+              >
+                <Wallet size={18} />
+                Payroll
+              </button>
+            )}
+            {canViewIncrements && (
+              <button
+                onClick={() => onNavigate ? onNavigate('hrm-increments') : setActiveTab('increments')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'increments'
+                  ? 'bg-[var(--primary)] text-white shadow-lg shadow-[var(--primary)]/20'
+                  : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]'
+                  }`}
+              >
+                <TrendingUp size={18} />
+                Increments
+              </button>
+            )}
+            {canViewDepartments && (
+              <button
+                onClick={() => onNavigate ? onNavigate('hrm-departments') : setActiveTab('departments')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'departments'
+                  ? 'bg-[var(--primary)] text-white shadow-lg shadow-[var(--primary)]/20'
+                  : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]'
+                  }`}
+              >
+                <Building size={18} />
+                Departments
+              </button>
+            )}
+            {/* Role Permissions Link for Admins */}
+            {(user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'superadmin') && (
+              <button
+                onClick={() => onNavigate ? onNavigate('hrm-role-permissions') : setActiveTab('role-permissions')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'role-permissions' || activeTab === 'hrm-role-permissions'
+                  ? 'bg-[var(--primary)] text-white shadow-lg shadow-[var(--primary)]/20'
+                  : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]'
+                  }`}
+              >
+                <ShieldCheck size={18} />
+                Role Permissions
+              </button>
+            )}
           </div>
         </div>
 
         {/* ── Main Content Area ── */}
         <div className="flex-1 min-w-0">
 
+          {/* ── Role Permissions Tab ── */}
+          {(activeTab === 'role-permissions' || activeTab === 'hrm-role-permissions') && (
+            <div className="animate-fade-in">
+              <HRMPermissionsPage />
+            </div>
+          )}
+
           {/* ── Employees Tab ── */}
-          {activeTab === 'employees' && (
+          {activeTab === 'employees' && canViewEmployees && (
             <div className="space-y-4 animate-fade-in">
               <div className="flex items-center gap-3">
                 <div className="relative flex-1 max-w-sm">
@@ -1141,7 +1201,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
           )}
 
           {/* ── Attendance Tab ── */}
-          {activeTab === 'attendance' && (
+          {activeTab === 'attendance' && (canViewAttendanceSelf || canViewAttendanceAll) && (
             <div className="space-y-4 animate-fade-in">
               {/* Simple Date Filter */}
               <div className="flex items-center gap-3 flex-wrap">
@@ -1168,78 +1228,82 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
                 >
                   All Dates
                 </Button>
-                <div className="relative flex-1 max-w-xs ml-auto">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-                  <Input
-                    placeholder="Search employee..."
-                    value={attendanceSearch}
-                    onChange={(e) => setAttendanceSearch(e.target.value)}
-                    className="pl-9 h-9"
-                  />
-                </div>
+                {canViewAttendanceAll && (
+                  <div className="relative flex-1 max-w-xs ml-auto">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+                    <Input
+                      placeholder="Search employee..."
+                      value={attendanceSearch}
+                      onChange={(e) => setAttendanceSearch(e.target.value)}
+                      className="pl-9 h-9"
+                    />
+                  </div>
+                )}
                 <Button variant="outline" onClick={fetchAttendance} className="flex items-center gap-2">
                   <RefreshCw size={14} /> Refresh
                 </Button>
               </div>
 
               {/* Simple Stats Row */}
-              <div className="grid grid-cols-4 gap-3">
-                <div className="glass-card p-3 text-center border-l-4 border-emerald-500">
-                  <p className="text-2xl font-bold text-emerald-500">
-                    {attendance.filter(a => {
-                      const date = selectedDate || new Date().toISOString().split('T')[0];
-                      const recordDate = new Date(a.date).toISOString().split('T')[0];
-                      return recordDate === date && a.checkIn;
-                    }).length}
-                  </p>
-                  <p className="text-xs text-[var(--text-muted)]">Present</p>
+              {canViewAttendanceAll && (
+                <div className="grid grid-cols-4 gap-3">
+                  <div className="glass-card p-3 text-center border-l-4 border-emerald-500">
+                    <p className="text-2xl font-bold text-emerald-500">
+                      {attendance.filter(a => {
+                        const date = selectedDate || new Date().toISOString().split('T')[0];
+                        const recordDate = new Date(a.date).toISOString().split('T')[0];
+                        return recordDate === date && a.checkIn;
+                      }).length}
+                    </p>
+                    <p className="text-xs text-[var(--text-muted)]">Present</p>
+                  </div>
+                  <div className="glass-card p-3 text-center border-l-4 border-red-500">
+                    <p className="text-2xl font-bold text-red-500">
+                      {employees.length - attendance.filter(a => {
+                        const date = selectedDate || new Date().toISOString().split('T')[0];
+                        const recordDate = new Date(a.date).toISOString().split('T')[0];
+                        return recordDate === date && a.checkIn;
+                      }).length}
+                    </p>
+                    <p className="text-xs text-[var(--text-muted)]">Absent</p>
+                  </div>
+                  <div className="glass-card p-3 text-center border-l-4 border-blue-500">
+                    <p className="text-2xl font-bold text-blue-500">
+                      {attendance.filter(a => {
+                        const date = selectedDate || new Date().toISOString().split('T')[0];
+                        const recordDate = new Date(a.date).toISOString().split('T')[0];
+                        return recordDate === date && a.checkOut;
+                      }).length}
+                    </p>
+                    <p className="text-xs text-[var(--text-muted)]">Checked Out</p>
+                  </div>
+                  <div className="glass-card p-3 text-center border-l-4 border-purple-500">
+                    <p className="text-2xl font-bold text-purple-500">
+                      {attendance.filter(a => {
+                        const date = selectedDate || new Date().toISOString().split('T')[0];
+                        const recordDate = new Date(a.date).toISOString().split('T')[0];
+                        return recordDate === date && a.checkIn && !a.checkOut;
+                      }).length}
+                    </p>
+                    <p className="text-xs text-[var(--text-muted)]">Working</p>
+                  </div>
                 </div>
-                <div className="glass-card p-3 text-center border-l-4 border-red-500">
-                  <p className="text-2xl font-bold text-red-500">
-                    {employees.length - attendance.filter(a => {
-                      const date = selectedDate || new Date().toISOString().split('T')[0];
-                      const recordDate = new Date(a.date).toISOString().split('T')[0];
-                      return recordDate === date && a.checkIn;
-                    }).length}
-                  </p>
-                  <p className="text-xs text-[var(--text-muted)]">Absent</p>
-                </div>
-                <div className="glass-card p-3 text-center border-l-4 border-blue-500">
-                  <p className="text-2xl font-bold text-blue-500">
-                    {attendance.filter(a => {
-                      const date = selectedDate || new Date().toISOString().split('T')[0];
-                      const recordDate = new Date(a.date).toISOString().split('T')[0];
-                      return recordDate === date && a.checkOut;
-                    }).length}
-                  </p>
-                  <p className="text-xs text-[var(--text-muted)]">Checked Out</p>
-                </div>
-                <div className="glass-card p-3 text-center border-l-4 border-purple-500">
-                  <p className="text-2xl font-bold text-purple-500">
-                    {attendance.filter(a => {
-                      const date = selectedDate || new Date().toISOString().split('T')[0];
-                      const recordDate = new Date(a.date).toISOString().split('T')[0];
-                      return recordDate === date && a.checkIn && !a.checkOut;
-                    }).length}
-                  </p>
-                  <p className="text-xs text-[var(--text-muted)]">Working</p>
-                </div>
-              </div>
+              )}
 
               {/* All Employees Attendance List */}
               <div className="glass-card p-4">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-semibold">
-                    {selectedDate ? format(new Date(selectedDate), 'dd MMM yyyy') : 'All Dates'} - Employee Attendance
+                    {selectedDate ? format(new Date(selectedDate), 'dd MMM yyyy') : 'All Dates'} - {canViewAttendanceAll ? 'Employee Attendance' : 'My Attendance'}
                   </h3>
                   <p className="text-sm text-[var(--text-muted)]">{filteredAttendance.length} records</p>
                 </div>
 
                 <div className="space-y-2">
-                  {employees.length === 0 ? (
-                    <p className="text-center text-[var(--text-muted)] py-8">No employees found</p>
+                  {filteredAttendance.length === 0 ? (
+                    <p className="text-center text-[var(--text-muted)] py-8">No records found</p>
                   ) : (
-                    employees.map(emp => {
+                    (canViewAttendanceAll ? employees : employees.filter(e => e._id === user?.id)).map(emp => {
                       const date = selectedDate || new Date().toISOString().split('T')[0];
                       const record = attendance.find(a => {
                         const recordDate = new Date(a.date).toISOString().split('T')[0];
@@ -1264,7 +1328,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
                         <div key={emp._id} className={`flex items-center justify-between p-3 bg-[var(--bg-elevated)] rounded-lg border-l-4 ${statusColor}`}>
                           <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--accent)] text-white flex items-center justify-center font-bold text-sm">
-                              {emp.firstName[0]}{emp.lastName[0]}
+                              {emp.firstName?.[0]}{emp.lastName?.[0]}
                             </div>
                             <div>
                               <p className="font-medium">{emp.firstName} {emp.lastName}</p>
@@ -1292,7 +1356,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
                               </div>
                             ) : null}
 
-                            {record && !record.checkOut ? (
+                            {record && !record.checkOut && (canCheckInOut || canManageAttendance) ? (
                               <Button
                                 variant="outline"
                                 onClick={() => handleCheckOut(emp._id)}
@@ -1300,7 +1364,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
                               >
                                 <LogOut size={12} /> Check Out
                               </Button>
-                            ) : !record ? (
+                            ) : !record && (canCheckInOut || canManageAttendance) ? (
                               <Button
                                 variant="outline"
                                 onClick={() => {
@@ -1311,9 +1375,9 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
                               >
                                 <LogIn size={12} /> Check In
                               </Button>
-                            ) : (
+                            ) : record?.checkOut ? (
                               <span className="px-2 py-1 text-xs text-emerald-600 bg-emerald-500/10 rounded">Done</span>
-                            )}
+                            ) : null}
                           </div>
                         </div>
                       );
@@ -1323,62 +1387,64 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
               </div>
 
               {/* Attendance History Table */}
-              <div className="glass-card p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold">Attendance History</h3>
-                  <p className="text-sm text-[var(--text-muted)]">{filteredAttendance.length} records</p>
+              {canViewAttendanceAll && (
+                <div className="glass-card p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-semibold">Attendance History</h3>
+                    <p className="text-sm text-[var(--text-muted)]">{filteredAttendance.length} records</p>
+                  </div>
+                  <DataTable
+                    columns={[
+                      {
+                        key: 'employeeId',
+                        header: 'Employee',
+                        render: (val) => (
+                          <div>
+                            <p className="font-medium text-sm">{val?.firstName} {val?.lastName}</p>
+                            <p className="text-xs text-[var(--text-muted)]">{val?.employeeId}</p>
+                          </div>
+                        ),
+                      },
+                      {
+                        key: 'date',
+                        header: 'Date',
+                        render: (val) => format(new Date(val), 'dd MMM yyyy'),
+                      },
+                      {
+                        key: 'checkIn',
+                        header: 'Check In',
+                        render: (val) => val ? format(new Date(val), 'hh:mm a') : '-',
+                      },
+                      {
+                        key: 'checkOut',
+                        header: 'Check Out',
+                        render: (val) => val ? format(new Date(val), 'hh:mm a') : '-',
+                      },
+                      {
+                        key: 'totalHours',
+                        header: 'Hours',
+                        render: (val) => <span className="font-medium">{val || 0} hrs</span>,
+                      },
+                      {
+                        key: 'type',
+                        header: 'Type',
+                        render: (val) => (
+                          <span className="px-2 py-1 rounded-full text-xs bg-[var(--bg-elevated)] border border-[var(--border-color)]">
+                            {val || 'office'}
+                          </span>
+                        ),
+                      },
+                    ]}
+                    data={filteredAttendance}
+                    emptyText="No attendance records found."
+                  />
                 </div>
-                <DataTable
-                  columns={[
-                    {
-                      key: 'employeeId',
-                      header: 'Employee',
-                      render: (val) => (
-                        <div>
-                          <p className="font-medium text-sm">{val?.firstName} {val?.lastName}</p>
-                          <p className="text-xs text-[var(--text-muted)]">{val?.employeeId}</p>
-                        </div>
-                      ),
-                    },
-                    {
-                      key: 'date',
-                      header: 'Date',
-                      render: (val) => format(new Date(val), 'dd MMM yyyy'),
-                    },
-                    {
-                      key: 'checkIn',
-                      header: 'Check In',
-                      render: (val) => val ? format(new Date(val), 'hh:mm a') : '-',
-                    },
-                    {
-                      key: 'checkOut',
-                      header: 'Check Out',
-                      render: (val) => val ? format(new Date(val), 'hh:mm a') : '-',
-                    },
-                    {
-                      key: 'totalHours',
-                      header: 'Hours',
-                      render: (val) => <span className="font-medium">{val || 0} hrs</span>,
-                    },
-                    {
-                      key: 'type',
-                      header: 'Type',
-                      render: (val) => (
-                        <span className="px-2 py-1 rounded-full text-xs bg-[var(--bg-elevated)] border border-[var(--border-color)]">
-                          {val || 'office'}
-                        </span>
-                      ),
-                    },
-                  ]}
-                  data={filteredAttendance}
-                  emptyText="No attendance records found."
-                />
-              </div>
+              )}
             </div>
           )}
 
           {/* ── Leaves Tab ── */}
-          {activeTab === 'leaves' && (
+          {activeTab === 'leaves' && canViewLeaves && (
             <div className="space-y-4 animate-fade-in">
               <div className="flex items-center gap-3 flex-wrap">
                 <div className="relative flex-1 min-w-[200px] max-w-sm">
@@ -1416,7 +1482,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
           )}
 
           {/* ── Payroll Tab ── */}
-          {activeTab === 'payroll' && (
+          {activeTab === 'payroll' && canViewPayroll && (
             <div className="space-y-4 animate-fade-in">
               <div className="flex items-center gap-3 flex-wrap">
                 <div className="relative flex-1 min-w-[200px] max-w-sm">
@@ -1444,10 +1510,10 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
           )}
 
           {/* ── Increments Tab ── */}
-          {activeTab === 'increments' && (
+          {activeTab === 'increments' && canViewIncrements && (
             <div className="space-y-4 animate-fade-in">
-              <div className="flex items-center gap-3 flex-wrap">
-                <div className="relative flex-1 min-w-[200px] max-w-sm">
+              <div className="flex items-center gap-3">
+                <div className="relative flex-1 max-w-sm">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
                   <Input
                     placeholder="Search increments..."
@@ -1456,12 +1522,6 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
                     className="pl-9 h-9"
                   />
                 </div>
-                <p className="text-sm text-[var(--text-muted)]">
-                  {filteredIncrements.length} of {increments.length} records
-                </p>
-                <Button variant="outline" onClick={fetchIncrements} className="ml-auto">
-                  <RefreshCw size={14} /> Refresh
-                </Button>
               </div>
               <DataTable
                 columns={incrementColumns}
@@ -1472,10 +1532,10 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
           )}
 
           {/* ── Departments Tab ── */}
-          {activeTab === 'departments' && (
+          {activeTab === 'departments' && canViewDepartments && (
             <div className="space-y-4 animate-fade-in">
-              <div className="flex items-center gap-3 flex-wrap">
-                <div className="relative flex-1 min-w-[200px] max-w-sm">
+              <div className="flex items-center gap-3">
+                <div className="relative flex-1 max-w-sm">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
                   <Input
                     placeholder="Search departments..."
@@ -1484,12 +1544,6 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
                     className="pl-9 h-9"
                   />
                 </div>
-                <p className="text-sm text-[var(--text-muted)]">
-                  {filteredDepartments.length} of {departments.length} departments
-                </p>
-                <Button variant="outline" onClick={fetchDepartments} className="ml-auto flex items-center gap-2">
-                  <RefreshCw size={14} /> Refresh
-                </Button>
               </div>
               <DataTable
                 columns={departmentColumns}

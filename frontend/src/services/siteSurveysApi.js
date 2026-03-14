@@ -53,6 +53,11 @@ export const siteSurveysApi = {
     return apiClient.delete(`${BASE_URL}/${id}`);
   },
 
+  // Assign survey to a user
+  assign: (id, data) => {
+    return apiClient.patch(`${BASE_URL}/${id}/assign`, data);
+  },
+
   // Upload survey images
   uploadImages: async (files) => {
     const formData = new FormData();

@@ -234,7 +234,7 @@ const Layout = ({ currentPage, onNavigate, children }) => {
       {/* ════════════════ TOP BAR ════════════════ */}
       <header
         className={cn(
-          ' top-0 left-0 right-0 z-50 h-14 flex items-center px-4 gap-3 border-b transition-colors duration-300 w-full',
+          'fixed top-0 left-0 right-0 z-[60] h-14 flex items-center gap-3 px-4 border-b transition-all duration-300 w-full',
           !topbarHasCustomColor && 'topbar-bg border-[var(--border-base)]',
           topbarHasCustomColor && 'border-white/10',
         )}
@@ -354,8 +354,8 @@ const Layout = ({ currentPage, onNavigate, children }) => {
           )}
           {notifOpen && (
             <>
-              <div className="fixed inset-0 z-40" onClick={() => setNotifOpen(false)} />
-              <div className="absolute right-0 top-10 z-50 w-80 glass-card shadow-2xl shadow-black/60 animate-slide-up overflow-hidden">
+              <div className="fixed inset-0 z-[55]" onClick={() => setNotifOpen(false)} />
+              <div className="absolute right-0 top-10 z-[70] w-80 glass-card shadow-2xl shadow-black/60 animate-slide-up overflow-hidden">
                 {/* Header */}
                 <div className="px-4 py-3 border-b border-[var(--border-base)] flex items-center justify-between">
                   <p className="text-xs font-bold text-[var(--text-primary)]">Notifications</p>
@@ -452,8 +452,8 @@ const Layout = ({ currentPage, onNavigate, children }) => {
           </button>
           {themeMenuOpen && (
             <>
-              <div className="fixed inset-0 z-40" onClick={() => setThemeMenuOpen(false)} />
-              <div className="absolute right-0 top-10 z-50 w-44 glass-card shadow-2xl shadow-black/60 py-1.5 animate-slide-up">
+              <div className="fixed inset-0 z-[55]" onClick={() => setThemeMenuOpen(false)} />
+              <div className="absolute right-0 top-10 z-[70] w-44 glass-card shadow-2xl shadow-black/60 py-1.5 animate-slide-up">
                 <p className="px-4 py-1.5 text-[9px] font-bold text-[var(--text-faint)] uppercase tracking-widest border-b border-[var(--border-base)] mb-1">Theme</p>
                 {themes.map(t => (
                   <button
@@ -501,8 +501,8 @@ const Layout = ({ currentPage, onNavigate, children }) => {
 
           {userMenuOpen && (
             <>
-              <div className="fixed inset-0 z-40" onClick={() => setUserMenuOpen(false)} />
-              <div className="absolute right-0 top-10 z-50 w-56 glass-card shadow-2xl shadow-black/60 py-1.5 animate-slide-up">
+              <div className="fixed inset-0 z-[55]" onClick={() => setUserMenuOpen(false)} />
+              <div className="absolute right-0 top-10 z-[70] w-56 glass-card shadow-2xl shadow-black/60 py-1.5 animate-slide-up">
                 <div className="px-4 py-3 border-b border-[var(--border-base)]">
                   <p className="text-xs font-bold text-[var(--text-primary)]">{user?.name}</p>
                   <p className="text-[10px] text-[var(--text-faint)] mt-0.5">{user?.email}</p>
@@ -814,7 +814,7 @@ const Layout = ({ currentPage, onNavigate, children }) => {
       <main
         className={cn(
           'min-h-[calc(100vh-56px)] p-5 bg-[var(--bg-page)] transition-all duration-300',
-          isHorizontal ? 'mt-[100px]' : '',
+          isHorizontal ? 'mt-[100px]' : 'mt-14',
         )}
         style={{
           marginLeft: isOverlay ? 0 : (windowWidth >= 1024 ? `${sidebarW}px` : 0),

@@ -44,17 +44,18 @@ export const NAV_CONFIG = [
         section: 'PIPELINE',
         items: [
             { id: 'crm', label: 'CRM & Sales', icon: Users, badge: hotLeads || null },
-            { id: 'documents', label: 'Documents', icon: Files, badge: null },
             { id: 'survey', label: 'Survey', icon: MapPin, badge: null },
             { id: 'design', label: 'Design & BOQ', icon: Pencil, badge: null },
-            { id: 'project', label: 'Projects', icon: FolderOpen, badge: activeProjects || null },
+            { id: 'quotation', label: 'Quotation Builder', icon: FileText },
+            { id: 'documents', label: 'Documentation', icon: Files, badge: null },
         ],
     },
     {
         section: 'OPERATIONS',
         items: [
-            { id: 'inventory', label: 'Inventory', icon: Package, badge: lowStockCount || null, badgeVariant: 'amber' },
             { id: 'procurement', label: 'Procurement', icon: ShoppingCart, badge: null },
+            { id: 'inventory', label: 'Inventory', icon: Package, badge: lowStockCount || null, badgeVariant: 'amber' },
+            { id: 'project', label: 'Projects', icon: FolderOpen, badge: activeProjects || null },
             { id: 'logistics', label: 'Logistics', icon: Truck, badge: null },
         ],
     },
@@ -76,6 +77,28 @@ export const NAV_CONFIG = [
         items: [
             { id: 'service', label: 'Service & AMC', icon: Headphones, badge: openTickets || null, badgeVariant: 'red' },
             { id: 'compliance', label: 'Compliance', icon: FileCheck, badge: null },
+        ],
+    },
+    {
+        section: 'STAFF MANAGEMENT',
+        items: [
+            { id: 'admin', label: 'Admin', icon: Shield, badge: null, badgeVariant: 'red' },
+            {
+                id: 'hrm',
+                label: 'HRM',
+                icon: Briefcase,
+                badge: null,
+                badgeVariant: 'accent',
+                children: [
+                    { id: 'hrm-employees', label: 'Employees', icon: UserCircle },
+                    { id: 'hrm-leaves', label: 'Leaves', icon: Calendar },
+                    { id: 'hrm-attendance', label: 'Attendance', icon: Clock },
+                    { id: 'hrm-payroll', label: 'Payroll', icon: Wallet },
+                    { id: 'hrm-increments', label: 'Increments', icon: TrendingUp },
+                    { id: 'hrm-departments', label: 'Departments', icon: Building2 },
+                    { id: 'hrm-role-permissions', label: 'Role Permissions', icon: Shield, adminOnly: true },
+                ]
+            },
         ],
     },
     {
