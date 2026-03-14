@@ -17,7 +17,7 @@ import { Progress } from '../components/ui/Progress';
 import { Stepper } from '../components/ui/Stepper';
 import DataTable from '../components/ui/DataTable';
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
-import { usePermissions, useModulePermissions } from '../hooks/usePermissions';
+import { usePermissions } from '../hooks/usePermissions';
 import { useAuditLog } from '../hooks/useAuditLog';
 import CanAccess, { CanCreate } from '../components/CanAccess';
 import { toast } from '../components/ui/Toast';
@@ -144,7 +144,13 @@ const KanbanBoard = ({ projects, onStageChange, onCardClick }) => {
 
 /* ── Main Page ── */
 const ProjectPage = () => {
-  const { canView, canCreate, canEdit, canDelete, canExport, canAssign } = useModulePermissions('project');
+  const perm = usePermissions('project');
+  const canView = perm.canView();
+  const canCreate = perm.canCreate();
+  const canEdit = perm.canEdit();
+  const canDelete = perm.canDelete();
+  const canExport = perm.canExport();
+  const canAssign = perm.canAssign();
   const { logStatusChange } = useAuditLog('project');
 
   // Permission guard helper

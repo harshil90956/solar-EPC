@@ -121,7 +121,7 @@ const KanbanColumn = ({ status, items, onDrop, onCardClick }) => {
   const totalKW = items.reduce((sum, item) => sum + (item.systemSize || 0), 0);
 
   return (
-    <div className="flex flex-col w-64 rounded-xl border transition-colors">
+    <div className="flex flex-col w-64 rounded-xl border transition-colors h-[600px]">
       {/* Column Header */}
       <div className="p-2.5 border-b border-[var(--border-base)]">
         <div className="flex items-center justify-between mb-0.5">
@@ -139,10 +139,10 @@ const KanbanColumn = ({ status, items, onDrop, onCardClick }) => {
         </div>
       </div>
 
-      {/* Column Body */}
+      {/* Column Body - scrollable, max 5 cards visible */}
       <div
         ref={drop}
-        className={`flex flex-col gap-2 p-2 flex-1 min-h-[120px] transition-colors ${isOver ? 'bg-[var(--primary)]/5' : ''
+        className={`flex flex-col gap-2 p-2 h-[500px] overflow-y-auto transition-colors ${isOver ? 'bg-[var(--primary)]/5' : ''
           }`}
       >
         {items.map((item) => (
@@ -177,18 +177,20 @@ export const DraggableKanban = ({ data, onStatusChange, onCardClick }) => {
           </div>
         </div>
 
-        {/* Kanban Board */}
-        <div className="overflow-x-auto pb-3">
-          <div className="flex gap-3 min-w-max">
-            {columns.map((status) => (
-              <KanbanColumn
-                key={status}
-                status={status}
-                items={data.filter((item) => item.status === status)}
-                onDrop={handleDrop}
-                onCardClick={onCardClick}
-              />
-            ))}
+        {/* Kanban Board - White container with fixed height */}
+        <div className="bg-white rounded-xl border border-[var(--border-base)] p-4 shadow-sm">
+          <div className="overflow-x-auto pb-3 max-h-[calc(100vh-220px)]">
+            <div className="flex gap-3 min-w-max">
+              {columns.map((status) => (
+                <KanbanColumn
+                  key={status}
+                  status={status}
+                  items={data.filter((item) => item.status === status)}
+                  onDrop={handleDrop}
+                  onCardClick={onCardClick}
+                />
+              ))}
+            </div>
           </div>
         </div>
       </div>

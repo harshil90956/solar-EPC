@@ -6,15 +6,40 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 
 
 
+
+
+
+
+
+
+
+
 import {
 
-  Headphones, Plus, Clock, CheckCircle, AlertTriangle, Ticket,
+
+
+  Headphones, Plus, Clock, CheckCircle, AlertTriangle, Ticket, Eye,
+
+
 
   Shield, Zap, Wrench, LayoutGrid, List, Tag, Loader2, Calendar, XCircle,
 
-  FolderOpen, Trash2, Pencil, BarChart3, PieChart, Activity, Stethoscope, Users
+
+
+  FolderOpen, Trash2, Pencil, BarChart3, PieChart, Activity, Stethoscope, Users,
+  ChevronLeft, ChevronRight
+
+
 
 } from 'lucide-react';
+
+
+
+
+
+
+
+
 
 
 
@@ -30,7 +55,23 @@ import { StatusBadge } from '../components/ui/Badge';
 
 
 
+
+
+
+
+
+
+
+
 import { Button } from '../components/ui/Button';
+
+
+
+
+
+
+
+
 
 
 
@@ -46,7 +87,23 @@ import { Modal } from '../components/ui/Modal';
 
 
 
+
+
+
+
+
+
+
+
 import { Input, FormField, Select, Textarea } from '../components/ui/Input';
+
+
+
+
+
+
+
+
 
 
 
@@ -62,7 +119,23 @@ import { PageHeader } from '../components/ui/PageHeader';
 
 
 
+
+
+
+
+
+
+
+
 import { KPICard } from '../components/ui/KPICard';
+
+
+
+
+
+
+
+
 
 
 
@@ -78,7 +151,23 @@ import { Avatar } from '../components/ui/Avatar';
 
 
 
+
+
+
+
+
+
+
+
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/Tabs';
+
+
+
+
+
+
+
+
 
 
 
@@ -94,7 +183,23 @@ import DataTable from '../components/ui/DataTable';
 
 
 
+
+
+
+
+
+
+
+
 import { APP_CONFIG } from '../config/app.config';
+
+
+
+
+
+
+
+
 
 
 
@@ -110,7 +215,23 @@ import { Progress } from '../components/ui/Progress';
 
 
 
+
+
+
+
+
+
+
+
 import { Stepper } from '../components/ui/Stepper';
+
+
+
+
+
+
+
+
 
 
 
@@ -126,7 +247,23 @@ import {
 
 
 
+
+
+
+
+
+
+
+
   getTickets,
+
+
+
+
+
+
+
+
 
 
 
@@ -142,7 +279,23 @@ import {
 
 
 
+
+
+
+
+
+
+
+
   updateTicket,
+
+
+
+
+
+
+
+
 
 
 
@@ -158,7 +311,23 @@ import {
 
 
 
+
+
+
+
+
+
+
+
   getTicketStats,
+
+
+
+
+
+
+
+
 
 
 
@@ -174,7 +343,23 @@ import {
 
 
 
+
+
+
+
+
+
+
+
   createAmcContract,
+
+
+
+
+
+
+
+
 
 
 
@@ -190,7 +375,23 @@ import {
 
 
 
+
+
+
+
+
+
+
+
   deleteAmcContract,
+
+
+
+
+
+
+
+
 
 
 
@@ -206,7 +407,23 @@ import {
 
 
 
+
+
+
+
+
+
+
+
   getAiInsight,
+
+
+
+
+
+
+
+
 
 
 
@@ -222,7 +439,23 @@ import {
 
 
 
+
+
+
+
+
+
+
+
   autoGenerateAmcContracts,
+
+
+
+
+
+
+
+
 
 
 
@@ -238,7 +471,23 @@ import {
 
 
 
+
+
+
+
+
+
+
+
   getCustomers,
+
+
+
+
+
+
+
+
 
 
 
@@ -254,7 +503,23 @@ import {
 
 
 
+
+
+
+
+
+
+
+
   getVisitStats,
+
+
+
+
+
+
+
+
 
 
 
@@ -266,6 +531,10 @@ import {
 
 
 
+
+
+
+
 import { api } from '../lib/apiClient';
 
 
@@ -274,7 +543,23 @@ import { api } from '../lib/apiClient';
 
 
 
+
+
+
+
+
+
+
+
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
+
+
+
+
+
+
+
+
 
 
 
@@ -298,7 +583,31 @@ const TENANT_ID = 'solarcorp';
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 /* ── Ticket stage defs ──────────────────────────────────────────────────────── */
+
+
+
+
+
+
+
+
 
 
 
@@ -314,7 +623,23 @@ const TICKET_STAGES = [
 
 
 
+
+
+
+
+
+
+
+
   { id: 'Open', label: 'Open', color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
+
+
+
+
+
+
+
+
 
 
 
@@ -330,7 +655,23 @@ const TICKET_STAGES = [
 
 
 
+
+
+
+
+
+
+
+
   { id: 'In Progress', label: 'In Progress', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
+
+
+
+
+
+
+
+
 
 
 
@@ -346,6 +687,14 @@ const TICKET_STAGES = [
 
 
 
+
+
+
+
+
+
+
+
   { id: 'Closed', label: 'Closed', color: '#64748b', bg: 'rgba(100,116,139,0.10)' },
 
 
@@ -354,7 +703,31 @@ const TICKET_STAGES = [
 
 
 
+
+
+
+
+
+
+
+
 ];
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -378,7 +751,23 @@ const TICKET_STAGES = [
 
 
 
+
+
+
+
+
+
+
+
 const NEUTRAL_BADGE = 'bg-[var(--bg-elevated)] text-[var(--text-muted)] border-[var(--border-muted)]';
+
+
+
+
+
+
+
+
 
 
 
@@ -394,7 +783,23 @@ const PRIORITY_MAP = {
 
 
 
+
+
+
+
+
+
+
+
   High: { label: 'High', color: 'bg-red-500/15    text-red-400    border-red-500/30' },
+
+
+
+
+
+
+
+
 
 
 
@@ -410,6 +815,14 @@ const PRIORITY_MAP = {
 
 
 
+
+
+
+
+
+
+
+
   Low: { label: 'Low', color: NEUTRAL_BADGE },
 
 
@@ -418,7 +831,23 @@ const PRIORITY_MAP = {
 
 
 
+
+
+
+
+
+
+
+
 };
+
+
+
+
+
+
+
+
 
 
 
@@ -434,7 +863,23 @@ const PriorityBadge = ({ value }) => {
 
 
 
+
+
+
+
+
+
+
+
   const meta = PRIORITY_MAP[value] ?? PRIORITY_MAP.Low;
+
+
+
+
+
+
+
+
 
 
 
@@ -450,7 +895,31 @@ const PriorityBadge = ({ value }) => {
 
 
 
+
+
+
+
+
+
+
+
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -474,7 +943,23 @@ const PriorityBadge = ({ value }) => {
 
 
 
+
+
+
+
+
+
+
+
 const AMC_MAP = {
+
+
+
+
+
+
+
+
 
 
 
@@ -490,7 +975,23 @@ const AMC_MAP = {
 
 
 
+
+
+
+
+
+
+
+
   Expired: { label: 'Expired', color: 'bg-red-500/15    text-red-400    border-red-500/30' },
+
+
+
+
+
+
+
+
 
 
 
@@ -506,7 +1007,23 @@ const AMC_MAP = {
 
 
 
+
+
+
+
+
+
+
+
 };
+
+
+
+
+
+
+
+
 
 
 
@@ -522,7 +1039,23 @@ const AmcBadge = ({ value }) => {
 
 
 
+
+
+
+
+
+
+
+
   const meta = AMC_MAP[value] ?? AMC_MAP.Active;
+
+
+
+
+
+
+
+
 
 
 
@@ -538,7 +1071,31 @@ const AmcBadge = ({ value }) => {
 
 
 
+
+
+
+
+
+
+
+
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -562,7 +1119,31 @@ const AmcBadge = ({ value }) => {
 
 
 
+
+
+
+
+
+
+
+
 const PRIORITY_BORDER = { High: 'border-l-red-500', Medium: 'border-l-amber-500', Low: 'border-l-[var(--border-muted)]' };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -586,7 +1167,23 @@ const TicketCard = ({ ticket, onDragStart, onDragEnd, onClick }) => (
 
 
 
+
+
+
+
+
+
+
+
   <div
+
+
+
+
+
+
+
+
 
 
 
@@ -602,7 +1199,23 @@ const TicketCard = ({ ticket, onDragStart, onDragEnd, onClick }) => (
 
 
 
+
+
+
+
+
+
+
+
     onDragStart={(e) => {
+
+
+
+
+
+
+
+
 
 
 
@@ -618,7 +1231,23 @@ const TicketCard = ({ ticket, onDragStart, onDragEnd, onClick }) => (
 
 
 
+
+
+
+
+
+
+
+
       e.dataTransfer.setData('text/plain', ticket.id);
+
+
+
+
+
+
+
+
 
 
 
@@ -634,7 +1263,23 @@ const TicketCard = ({ ticket, onDragStart, onDragEnd, onClick }) => (
 
 
 
+
+
+
+
+
+
+
+
     }}
+
+
+
+
+
+
+
+
 
 
 
@@ -650,7 +1295,23 @@ const TicketCard = ({ ticket, onDragStart, onDragEnd, onClick }) => (
 
 
 
+
+
+
+
+
+
+
+
     onClick={() => onClick(ticket)}
+
+
+
+
+
+
+
+
 
 
 
@@ -666,7 +1327,23 @@ const TicketCard = ({ ticket, onDragStart, onDragEnd, onClick }) => (
 
 
 
+
+
+
+
+
+
+
+
   >
+
+
+
+
+
+
+
+
 
 
 
@@ -682,7 +1359,23 @@ const TicketCard = ({ ticket, onDragStart, onDragEnd, onClick }) => (
 
 
 
+
+
+
+
+
+
+
+
       <span className="text-[10px] font-mono text-[var(--accent-light)]">{ticket.id}</span>
+
+
+
+
+
+
+
+
 
 
 
@@ -698,7 +1391,23 @@ const TicketCard = ({ ticket, onDragStart, onDragEnd, onClick }) => (
 
 
 
+
+
+
+
+
+
+
+
     </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -714,7 +1423,23 @@ const TicketCard = ({ ticket, onDragStart, onDragEnd, onClick }) => (
 
 
 
+
+
+
+
+
+
+
+
     <div className="flex items-center gap-1 text-[10px] text-[var(--text-muted)]">
+
+
+
+
+
+
+
+
 
 
 
@@ -730,7 +1455,23 @@ const TicketCard = ({ ticket, onDragStart, onDragEnd, onClick }) => (
 
 
 
+
+
+
+
+
+
+
+
     </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -746,7 +1487,23 @@ const TicketCard = ({ ticket, onDragStart, onDragEnd, onClick }) => (
 
 
 
+
+
+
+
+
+
+
+
     <div className="flex items-center gap-1.5 text-[10px] text-[var(--text-muted)]">
+
+
+
+
+
+
+
+
 
 
 
@@ -762,7 +1519,23 @@ const TicketCard = ({ ticket, onDragStart, onDragEnd, onClick }) => (
 
 
 
+
+
+
+
+
+
+
+
       <span className="truncate">{ticket.assignedTo}</span>
+
+
+
+
+
+
+
+
 
 
 
@@ -778,6 +1551,14 @@ const TicketCard = ({ ticket, onDragStart, onDragEnd, onClick }) => (
 
 
 
+
+
+
+
+
+
+
+
     </div>
 
 
@@ -786,7 +1567,23 @@ const TicketCard = ({ ticket, onDragStart, onDragEnd, onClick }) => (
 
 
 
+
+
+
+
+
+
+
+
   </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -810,7 +1607,31 @@ const TicketCard = ({ ticket, onDragStart, onDragEnd, onClick }) => (
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 /* ── Ticket Kanban board ─────────────────────────────────────────────────────── */
+
+
+
+
+
+
+
+
 
 
 
@@ -826,6 +1647,14 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
   const [dragOver, setDragOver] = useState(null);
 
 
@@ -834,7 +1663,23 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
   const [draggedTicketId, setDraggedTicketId] = useState(null);
+
+
+
+
+
+
+
+
 
 
 
@@ -858,7 +1703,31 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   const handleDragOver = (e, stageId) => {
+
+
+
+
+
+
+
+
 
 
 
@@ -874,7 +1743,23 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
     e.stopPropagation();
+
+
+
+
+
+
+
+
 
 
 
@@ -890,7 +1775,23 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
       setDragOver(stageId);
+
+
+
+
+
+
+
+
 
 
 
@@ -906,7 +1807,31 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -930,7 +1855,23 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
     e.preventDefault();
+
+
+
+
+
+
+
+
 
 
 
@@ -946,7 +1887,31 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -970,7 +1935,23 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
     e.preventDefault();
+
+
+
+
+
+
+
+
 
 
 
@@ -986,7 +1967,23 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
     const id = e.dataTransfer.getData('text/plain');
+
+
+
+
+
+
+
+
 
 
 
@@ -1002,7 +1999,23 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
       // Get the ticket being dragged to check if status actually changed
+
+
+
+
+
+
+
+
 
 
 
@@ -1018,7 +2031,23 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
       if (draggedTicket && draggedTicket.status !== stageId) {
+
+
+
+
+
+
+
+
 
 
 
@@ -1034,7 +2063,23 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
         onStageChange(id, stageId, draggedTicket.status);
+
+
+
+
+
+
+
+
 
 
 
@@ -1050,7 +2095,23 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -1066,6 +2127,14 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
     setDraggedTicketId(null);
 
 
@@ -1074,7 +2143,31 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1098,6 +2191,14 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
     setDraggedTicketId(ticketId);
 
 
@@ -1106,7 +2207,27 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1126,6 +2247,14 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
     setDragOver(null);
 
 
@@ -1134,7 +2263,23 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
     setDraggedTicketId(null);
+
+
+
+
+
+
+
+
 
 
 
@@ -1154,7 +2299,27 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
   return (
+
+
+
+
+
+
+
+
 
 
 
@@ -1170,7 +2335,23 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
       <div className="flex gap-3 min-w-max">
+
+
+
+
+
+
+
+
 
 
 
@@ -1186,7 +2367,23 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
           const cards = ticketsArray.filter(t => t.status === stage.id);
+
+
+
+
+
+
+
+
 
 
 
@@ -1202,7 +2399,23 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
             <div key={stage.id}
+
+
+
+
+
+
+
+
 
 
 
@@ -1218,7 +2431,23 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
               onDragOver={e => handleDragOver(e, stage.id)}
+
+
+
+
+
+
+
+
 
 
 
@@ -1234,7 +2463,23 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
               onDrop={e => handleDrop(e, stage.id)}
+
+
+
+
+
+
+
+
 
 
 
@@ -1250,7 +2495,23 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
               <div className="p-2.5 border-b border-[var(--border-base)] flex items-center justify-between">
+
+
+
+
+
+
+
+
 
 
 
@@ -1266,7 +2527,23 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
                   <div className="w-2.5 h-2.5 rounded-full" style={{ background: stage.color }} />
+
+
+
+
+
+
+
+
 
 
 
@@ -1282,7 +2559,23 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
                 </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -1298,6 +2591,14 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
                   style={{ background: stage.bg, color: stage.color }}>{cards.length}</span>
 
 
@@ -1306,7 +2607,23 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
               </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -1322,7 +2639,23 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
                 {cards.map(t => (
+
+
+
+
+
+
+
+
 
 
 
@@ -1338,7 +2671,23 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
                     onDragStart={() => { }}
+
+
+
+
+
+
+
+
 
 
 
@@ -1354,7 +2703,23 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
                     onClick={onCardClick}
+
+
+
+
+
+
+
+
 
 
 
@@ -1370,7 +2735,23 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
                 ))}
+
+
+
+
+
+
+
+
 
 
 
@@ -1386,7 +2767,23 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
                   <div className="flex-1 flex items-center justify-center">
+
+
+
+
+
+
+
+
 
 
 
@@ -1402,7 +2799,23 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
                   </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -1418,7 +2831,23 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
               </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -1434,7 +2863,23 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
           );
+
+
+
+
+
+
+
+
 
 
 
@@ -1450,7 +2895,23 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
       </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -1466,7 +2927,23 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
   );
+
+
+
+
+
+
+
+
 
 
 
@@ -1490,259 +2967,17 @@ const TicketKanbanBoard = ({ tickets, onStageChange, onCardClick }) => {
 
 
 
+
+
+
+
+
+
+
+
+
+
 /* ── Table columns ──────────────────────────────────────────────────────────── */
-
-
-
-
-
-
-
-const TICKET_COLUMNS = [
-
-
-
-
-
-
-
-  { key: 'id', header: 'Ticket ID', render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span> },
-
-
-
-
-
-
-
-  { key: 'customerName', header: 'Customer', sortable: true, render: v => <span className="text-xs font-semibold text-[var(--text-primary)]">{v}</span> },
-
-
-
-
-
-
-
-  { key: 'type', header: 'Type', render: v => <span className="text-xs text-[var(--text-secondary)]">{v}</span> },
-
-
-
-
-
-
-
-  { key: 'description', header: 'Description', render: v => <span className="text-xs text-[var(--text-muted)] max-w-[200px] truncate block">{v}</span> },
-
-
-
-
-
-
-
-  { key: 'priority', header: 'Priority', render: v => <PriorityBadge value={v} /> },
-
-
-
-
-
-
-
-  { key: 'status', header: 'Status', render: v => <StatusBadge domain="ticket" value={v} /> },
-
-
-
-
-
-
-
-  {
-
-
-
-
-
-
-
-    key: 'assignedTo', header: 'Assigned To', render: v => (
-
-
-
-
-
-
-
-      <div className="flex items-center gap-1.5">
-
-
-
-
-
-
-
-        <Avatar name={v} size="xs" />
-
-
-
-
-
-
-
-        <span className="text-xs text-[var(--text-muted)]">{v || '—'}</span>
-
-
-
-
-
-
-
-      </div>
-
-
-
-
-
-
-
-    )
-
-
-
-
-
-
-
-  },
-
-
-
-
-
-
-
-  { key: 'created', header: 'Created', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
-
-
-
-
-
-
-
-  { key: 'resolved', header: 'Resolved', render: v => <span className="text-xs text-[var(--text-muted)]">{v ?? '—'}</span> },
-
-
-
-
-
-
-
-];
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-const AMC_COLUMNS = [
-
-
-
-
-
-
-
-  { key: 'id', header: 'Contract ID', render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span> },
-
-
-
-
-
-
-
-  { key: 'customer', header: 'Customer', sortable: true, render: v => <span className="text-xs font-semibold text-[var(--text-primary)]">{v}</span> },
-
-
-
-
-
-
-
-  { key: 'site', header: 'Site', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
-
-
-
-
-
-
-
-  { key: 'systemSize', header: 'Size', render: v => <span className="text-xs font-bold text-[var(--solar)]">{v} kW</span> },
-
-
-
-
-
-
-
-  { key: 'startDate', header: 'Start Date', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
-
-
-
-
-
-
-
-  { key: 'endDate', header: 'End Date', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
-
-
-
-
-
-
-
-  { key: 'nextVisit', header: 'Next Visit', render: v => <span className="text-xs text-cyan-400">{v}</span> },
-
-
-
-
-
-
-
-  { key: 'amount', header: 'AMC Value', sortable: true, render: v => <span className="text-xs font-bold text-[var(--text-primary)]">₹{v?.toLocaleString?.('en-IN') ?? v}</span> },
-
-
-
-
-
-
-
-  { key: 'status', header: 'Status', render: v => <AmcBadge value={v} /> },
-
-
-
-
-
-
-
-];
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -1750,283 +2985,73 @@ const TICKET_STATUS_FILTERS = ['All', 'Open', 'Scheduled', 'In Progress', 'Resol
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
 /* ══════════════════════════════════════════════════════════════════════════════
 
-
-
-
-
-
-
    PAGE
-
-
-
-
-
-
 
 ══════════════════════════════════════════════════════════════════════════════ */
 
 
 
-
-
-
-
 const ServicePage = ({ onNavigate, initialTab }) => {
-
-
-
-
-
-
 
   // Data states
 
-
-
-
-
-
-
   const [tickets, setTickets] = useState([]);
-
-
-
-
-
-
 
   const [amcContracts, setAmcContracts] = useState([]);
 
-
-
-
-
-
-
   const [ticketStats, setTicketStats] = useState({
-
-
-
-
-
-
 
     openTickets: 0,
 
-
-
-
-
-
-
     inProgress: 0,
-
-
-
-
-
-
 
     resolved: 0,
 
-
-
-
-
-
-
   });
-
-
-
-
-
-
 
   const [amcStats, setAmcStats] = useState({
 
-
-
-
-
-
-
     activeContracts: 0,
 
-
-
-
-
-
-
   });
-
-
-
-
-
-
 
   const [aiInsight, setAiInsight] = useState({ insight: '', recommendations: [] });
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
   // UI states
-
-
-
-
-
-
 
   const [view, setView] = useState('kanban');
 
-
-
-
-
-
-
   const [viewMode, setViewMode] = useState('list'); // 'dashboard' or 'list'
-
-
-
-
-
-
 
   const [ticketSearch, setTicketSearch] = useState('');
 
-
-
-
-
-
-
   const [ticketStatus, setTicketStatus] = useState('All');
-
-
-
-
-
-
 
   const [tPage, setTPage] = useState(1);
 
-
-
-
-
-
-
   const [tPageSize, setTPageSize] = useState(APP_CONFIG.defaultPageSize);
-
-
-
-
-
-
 
   const [aPage, setAPage] = useState(1);
 
-
-
-
-
-
-
-  const [aPageSize, setAPageSize] = useState(APP_CONFIG.defaultPageSize);
-
-
-
-
-
-
+  const [aPageSize, setAPageSize] = useState(10);
 
   const [showAdd, setShowAdd] = useState(false);
 
-
-
-
-
-
-
   const [selected, setSelected] = useState(null);
-
-
-
-
-
-
 
   const [assignModal, setAssignModal] = useState({ open: false, ticket: null });
 
-
-
-
-
-
-
-  const [engineers, setEngineers] = useState([]);
-
-
-
-
-
-
-
-  const [selectedEngineer, setSelectedEngineer] = useState('');
-
-
-
-
-
-
-
   const [assigning, setAssigning] = useState(false);
 
-
-
-
-
-
-
   const [activeTab, setActiveTab] = useState('tickets');
-
-
 
   // Main view state: 'dashboard' | 'kanban' | 'table'
 
   const [buttonView, setButtonView] = useState('dashboard');
-
-
 
   // Toggle for showing/hiding status cards in kanban/table views
 
@@ -2034,35 +3059,17 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-
-
-
-
   // Set active tab from initialTab prop when navigating from dashboard
-
-
 
   useEffect(() => {
 
-
-
     if (initialTab) {
-
-
 
       setActiveTab(initialTab);
 
-
-
     }
 
-
-
   }, [initialTab]);
-
-
-
-
 
 
 
@@ -2070,799 +3077,308 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
   // AMC Contracts row selection state
-
-
-
-
-
-
 
   const [selectedAmcRows, setSelectedAmcRows] = useState(new Set());
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
   // Toast notification state
-
-
-
-
-
-
 
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
   // Toast notification helper
-
-
-
-
-
-
 
   const showToast = (message, type = 'success') => {
 
-
-
-
-
-
-
     setToast({ show: true, message, type });
-
-
-
-
-
-
 
     setTimeout(() => {
 
-
-
-
-
-
-
       setToast({ show: false, message: '', type });
 
-
-
-
-
-
-
     }, 5000);
-
-
-
-
-
-
 
   };
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
   // AMC Project View modal state
-
-
-
-
-
-
 
   const [amcProjectView, setAmcProjectView] = useState(null);
 
-
-
-
-
-
-
   const [amcProjectData, setAmcProjectData] = useState(null);
-
-
-
-
-
-
 
   const [loadingAmcProject, setLoadingAmcProject] = useState(false);
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
   // Edit Ticket modal state
-
-
-
-
-
-
 
   const [editModal, setEditModal] = useState({ open: false, ticket: null });
 
-
-
-
-
-
-
   const [editForm, setEditForm] = useState({
-
-
-
-
-
-
 
     customerName: '',
 
-
-
-
-
-
-
     type: '',
-
-
-
-
-
-
 
     priority: 'Low',
 
-
-
-
-
-
-
     status: 'Open',
-
-
-
-
-
-
 
     description: '',
 
-
-
-
-
-
-
     assignedTo: '',
 
-
-
-
-
-
-
   });
-
-
-
-
-
-
 
   const [updating, setUpdating] = useState(false);
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
   // Service Ticket from AMC modal state
-
-
-
-
-
-
 
   const [serviceTicketModal, setServiceTicketModal] = useState({ open: false, contract: null });
 
-
-
-
-
-
-
   const [serviceTicketForm, setServiceTicketForm] = useState({
-
-
-
-
-
-
 
     customerName: '',
 
-
-
-
-
-
-
     type: 'AMC',
-
-
-
-
-
-
 
     priority: 'Low',
 
-
-
-
-
-
-
     status: 'Open',
-
-
-
-
-
-
 
     description: '',
 
-
-
-
-
-
-
     assignedTo: '',
 
-
-
-
-
-
-
   });
-
-
-
-
-
-
 
   const [creatingServiceTicket, setCreatingServiceTicket] = useState(false);
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
   // AMC Contract Edit modal state
-
-
-
-
-
-
 
   const [amcEditModal, setAmcEditModal] = useState({ open: false, contract: null });
 
-
-
-
-
-
-
   const [amcEditForm, setAmcEditForm] = useState({
-
-
-
-
-
-
 
     customer: '',
 
-
-
-
-
-
-
     site: '',
-
-
-
-
-
-
 
     systemSize: 0,
 
-
-
-
-
-
-
     startDate: '',
-
-
-
-
-
-
 
     endDate: '',
 
-
-
-
-
-
-
     status: 'Active',
-
-
-
-
-
-
 
     amount: 0,
 
-
-
-
-
-
-
     nextVisit: '',
 
-
-
-
-
-
-
   });
-
-
-
-
-
-
 
   const [updatingAmc, setUpdatingAmc] = useState(false);
 
 
 
-
-
-
-
   const [scheduleVisitModal, setScheduleVisitModal] = useState({ open: false, contract: null });
 
-
-
-
-
-
-
   const [scheduleVisitProjectData, setScheduleVisitProjectData] = useState(null);
-
-
-
-
-
-
 
   const [loadingScheduleVisitProject, setLoadingScheduleVisitProject] = useState(false);
 
 
 
-
-
-
-
   const [visitForm, setVisitForm] = useState({
-
-
-
-
-
-
 
     visitType: 'Routine Maintenance',
 
-
-
-
-
-
-
     scheduledDate: '',
-
-
-
-
-
-
 
     scheduledTime: '',
 
-
-
-
-
-
-
     engineerId: '',
-
-
-
-
-
-
 
     priority: 'Low',
 
-
-
-
-
-
-
     notes: '',
 
-
-
-
-
-
-
   });
-
-
-
-
 
 
 
   const [schedulingVisit, setSchedulingVisit] = useState(false);
 
-
-
-
-
-
-
-  const [scheduledVisitsCount, setScheduledVisitsCount] = useState(0);
-
-
-
-
-
-
-
-
-
-
-
-
+  const [totalAmcContracts, setTotalAmcContracts] = useState(0);
+  const [totalVisits, setTotalVisits] = useState(0);
+  const [totalTickets, setTotalTickets] = useState(0);
 
 
 
   // Kanban drag confirmation modal state
 
-
-
   const [dragConfirmModal, setDragConfirmModal] = useState({ open: false, ticketId: null, fromStage: '', toStage: '' });
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
   // Form state for new ticket
 
-
-
-
-
-
-
   const [newTicket, setNewTicket] = useState({
-
-
-
-
-
-
 
     customerId: '',
 
-
-
-
-
-
-
     customerName: '',
-
-
-
-
-
-
 
     type: '',
 
-
-
-
-
-
-
     priority: 'Low',
-
-
-
-
-
-
 
     status: 'Open',
 
-
-
-
-
-
-
     description: '',
 
-
-
-
-
-
-
     assignedTo: '',
-
-
-
-
-
-
 
   });
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
   // Loading states
-
-
-
-
-
-
 
   const [loadingTickets, setLoadingTickets] = useState(false);
 
-
-
-
-
-
-
   const [loadingAmc, setLoadingAmc] = useState(false);
-
-
-
-
-
-
 
   const [loadingStats, setLoadingStats] = useState(false);
 
-
-
-
-
-
-
   const [loadingVisits, setLoadingVisits] = useState(false);
-
-
-
-
-
-
 
   const [error, setError] = useState(null);
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
   // Visits data state
-
-
-
-
-
-
 
   const [visits, setVisits] = useState([]);
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
   // Newly scheduled visits in this session (for table below dropdown)
-
-
-
-
-
-
 
   const [newlyScheduledVisits, setNewlyScheduledVisits] = useState([]);
 
-
-
-
-
-
-
   const [selectedCustomerForVisit, setSelectedCustomerForVisit] = useState('');
 
+  const [selectedVisit, setSelectedVisit] = useState(null);
+  // Visits pagination state
+  const [vPage, setVPage] = useState(1);
+  const [vPageSize, setVPageSize] = useState(10);
 
 
 
+  // Engineers state - must be before TICKET_COLUMNS
+
+  const [engineers, setEngineers] = useState([]);
+
+  const [selectedEngineer, setSelectedEngineer] = useState('');
 
 
 
+  // AMC columns definition
+
+  const AMC_COLUMNS = [
+
+    { key: 'id', header: 'Contract ID', render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span> },
+
+    { key: 'customer', header: 'Customer', sortable: true, render: v => <span className="text-xs font-semibold text-[var(--text-primary)]">{v}</span> },
+
+    { key: 'site', header: 'Site', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
+
+    { key: 'systemSize', header: 'Size', render: v => <span className="text-xs font-bold text-[var(--solar)]">{v} kW</span> },
+
+    { key: 'startDate', header: 'Start Date', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
+
+    { key: 'endDate', header: 'End Date', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
+
+    { key: 'nextVisit', header: 'Next Visit', render: v => <span className="text-xs text-cyan-400">{v}</span> },
+
+    { key: 'amount', header: 'AMC Value', sortable: true, render: v => <span className="text-xs font-bold text-[var(--text-primary)]">₹{v?.toLocaleString?.('en-IN') ?? v}</span> },
+
+    { key: 'status', header: 'Status', render: v => <AmcBadge value={v} /> },
+
+  ];
 
 
 
+  // Ticket columns definition - inside component to access engineers state
 
+  const TICKET_COLUMNS = [
 
+    { key: 'id', header: 'Ticket ID', render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span> },
+
+    { key: 'customerName', header: 'Customer', sortable: true, render: v => <span className="text-xs font-semibold text-[var(--text-primary)]">{v}</span> },
+
+    { key: 'type', header: 'Type', render: v => <span className="text-xs text-[var(--text-secondary)]">{v}</span> },
+
+    { key: 'description', header: 'Description', render: v => <span className="text-xs text-[var(--text-muted)] max-w-[200px] truncate block">{v}</span> },
+
+    { key: 'priority', header: 'Priority', render: v => <PriorityBadge value={v} /> },
+
+    { key: 'status', header: 'Status', render: v => <StatusBadge domain="ticket" value={v} /> },
+
+    {
+
+      key: 'assignedTo', header: 'Assigned To', render: (v, ticket) => {
+
+        // Look up engineer name from engineers list using ID
+
+        const engineer = engineers.find(e => e.id === v || e._id === v);
+
+        const displayName = engineer?.name || engineer?.email?.split('@')[0] || v || '—';
+
+        return (
+
+          <div className="flex items-center gap-1.5">
+
+            <Avatar name={displayName} size="xs" />
+
+            <span className="text-xs text-[var(--text-muted)]">{displayName}</span>
+
+          </div>
+
+        );
+
+      }
+
+    },
+
+    { key: 'created', header: 'Created', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
+
+    { key: 'resolved', header: 'Resolved', render: v => <span className="text-xs text-[var(--text-muted)]">{v ?? '—'}</span> },
+
+  ];
 
 
 
   // Fetch tickets
+
+
+
+
+
+
+
+
 
 
 
@@ -2878,7 +3394,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     setLoadingTickets(true);
+
+
+
+
+
+
+
+
 
 
 
@@ -2894,7 +3426,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       const params = {};
+
+
+
+
+
+
+
+
 
 
 
@@ -2910,6 +3458,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       if (ticketSearch) params.search = ticketSearch;
 
 
@@ -2918,7 +3474,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       params.page = tPage;
+
+
+
+
+
+
+
+
 
 
 
@@ -2942,7 +3514,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       const response = await getTickets(params);
+
+
+
+
+
+
+
+
 
 
 
@@ -2958,7 +3554,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       // Handle various response formats
+
+
+
+
+
+
+
+
 
 
 
@@ -2974,7 +3586,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       if (Array.isArray(response)) {
+
+
+
+
+
+
+
+
 
 
 
@@ -2990,7 +3618,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       } else if (response?.data && Array.isArray(response.data)) {
+
+
+
+
+
+
+
+
 
 
 
@@ -3006,7 +3650,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       } else if (response?.data?.data && Array.isArray(response.data.data)) {
+
+
+
+
+
+
+
+
 
 
 
@@ -3022,7 +3682,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       }
+
+
+
+
+
+
+
+
 
 
 
@@ -3038,7 +3714,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       setTickets(ticketsData);
+
+
+
+
+
+
+
+
 
 
 
@@ -3054,7 +3746,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     } catch (err) {
+
+
+
+
+
+
+
+
 
 
 
@@ -3070,7 +3778,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       setError(err.message || 'Failed to fetch tickets');
+
+
+
+
+
+
+
+
 
 
 
@@ -3086,7 +3810,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     } finally {
+
+
+
+
+
+
+
+
 
 
 
@@ -3102,6 +3842,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     }
 
 
@@ -3110,7 +3858,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -3134,7 +3906,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   const fetchAmcContracts = async () => {
+
+
+
+
+
+
+
+
 
 
 
@@ -3150,7 +3938,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     try {
+
+
+
+
+
+
+
+
 
 
 
@@ -3166,7 +3970,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       const [response, projectsResponse] = await Promise.all([
+
+
+
+
+
+
+
+
 
 
 
@@ -3178,11 +3998,35 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
         api.get('/projects', { tenantId: TENANT_ID })
 
 
 
+
+
+
+
       ]);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -3206,7 +4050,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       let contractsData = [];
+
+
+
+
+
+
+
+
 
 
 
@@ -3222,7 +4082,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         contractsData = response;
+
+
+
+
+
+
+
+
 
 
 
@@ -3238,7 +4114,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         contractsData = response.data;
+
+
+
+
+
+
+
+
 
 
 
@@ -3254,6 +4146,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         contractsData = response.data.data;
 
 
@@ -3262,7 +4162,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -3286,7 +4210,19 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       let projectsData = [];
+
+
+
+
 
 
 
@@ -3294,7 +4230,19 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
       projectsData = Array.isArray(projectsJson) ? projectsJson : (projectsJson?.data || []);
+
+
+
+
+
+
+
+
 
 
 
@@ -3310,7 +4258,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       const filteredContracts = contractsData.filter(c => {
+
+
+
+
+
+
+
+
 
 
 
@@ -3326,7 +4290,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         if (['rutvik', 'prakash agraval', 'prakashagrawal', 'prakash agarwal'].includes(c.customer?.toLowerCase())) {
+
+
+
+
+
+
+
+
 
 
 
@@ -3342,7 +4322,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         }
+
+
+
+
+
+
+
+
 
 
 
@@ -3358,7 +4354,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       });
+
+
+
+
+
+
+
+
 
 
 
@@ -3374,7 +4386,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       console.log('Total contracts before dedup:', filteredContracts.length);
+
+
+
+
+
+
+
+
 
 
 
@@ -3390,7 +4418,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       const uniqueContracts = [];
+
+
+
+
+
+
+
+
 
 
 
@@ -3406,7 +4450,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       for (const contract of filteredContracts) {
+
+
+
+
+
+
+
+
 
 
 
@@ -3422,7 +4482,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         const site = contract.site?.toLowerCase()?.trim();
+
+
+
+
+
+
+
+
 
 
 
@@ -3438,7 +4514,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         console.log('Checking:', uniqueKey, 'Already seen:', seenKeys.has(uniqueKey));
+
+
+
+
+
+
+
+
 
 
 
@@ -3454,7 +4546,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
           seenKeys.add(uniqueKey);
+
+
+
+
+
+
+
+
 
 
 
@@ -3470,7 +4578,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         } else {
+
+
+
+
+
+
+
+
 
 
 
@@ -3486,7 +4610,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         }
+
+
+
+
+
+
+
+
 
 
 
@@ -3502,7 +4642,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       console.log('Total contracts after dedup:', uniqueContracts.length);
+
+
+
+
+
+
+
+
 
 
 
@@ -3518,7 +4674,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     } catch (err) {
+
+
+
+
+
+
+
+
 
 
 
@@ -3534,7 +4706,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     } finally {
+
+
+
+
+
+
+
+
 
 
 
@@ -3550,6 +4738,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     }
 
 
@@ -3558,7 +4754,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -3582,7 +4802,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   const fetchStats = async () => {
+
+
+
+
+
+
+
+
 
 
 
@@ -3598,7 +4834,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     try {
+
+
+
+
+
+
+
+
 
 
 
@@ -3614,7 +4866,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         getTicketStats(),
+
+
+
+
+
+
+
+
 
 
 
@@ -3630,7 +4898,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       ]);
+
+
+
+
+
+
+
+
 
 
 
@@ -3646,7 +4930,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       setAmcStats(aStats || { activeContracts: 0 });
+
+
+
+
+
+
+
+
 
 
 
@@ -3662,7 +4962,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       // Keep default stats on error
+
+
+
+
+
+
+
+
 
 
 
@@ -3678,7 +4994,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       setLoadingStats(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -3694,7 +5026,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -3718,7 +5074,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-  const fetchVisits = async () => {
+
+
+
+
+
+
+
+
+  const fetchVisits = async (page, limit) => {
+
+
+
+
+
+
+
+
 
 
 
@@ -3734,6 +5106,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     try {
 
 
@@ -3742,7 +5122,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-      const response = await getVisits();
+
+
+
+
+
+
+
+
+      const response = await getVisits({ page, limit });
+
+
+
+
+
+
+
+
 
 
 
@@ -3758,7 +5154,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       if (Array.isArray(response)) {
+
+
+
+
+
+
+
+
 
 
 
@@ -3774,7 +5186,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       } else if (response?.data && Array.isArray(response.data)) {
+
+
+
+
+
+
+
+
 
 
 
@@ -3790,7 +5218,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       } else if (response?.data?.data && Array.isArray(response.data.data)) {
+
+
+
+
+
+
+
+
 
 
 
@@ -3806,7 +5250,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       }
+
+
+
+
+
+
+
+
 
 
 
@@ -3822,7 +5282,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     } catch (err) {
+
+
+
+
+
+
+
+
 
 
 
@@ -3838,7 +5314,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       setVisits([]);
+
+
+
+
+
+
+
+
 
 
 
@@ -3854,7 +5346,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       setLoadingVisits(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -3870,7 +5378,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -3894,7 +5426,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   const fetchAiInsight = async () => {
+
+
+
+
+
+
+
+
 
 
 
@@ -3910,7 +5458,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       const response = await getAiInsight();
+
+
+
+
+
+
+
+
 
 
 
@@ -3926,7 +5490,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     } catch (err) {
+
+
+
+
+
+
+
+
 
 
 
@@ -3942,6 +5522,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     }
 
 
@@ -3950,7 +5538,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -3974,7 +5586,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   const autoGenerateContractsFromProjects = async () => {
+
+
+
+
+
+
+
+
 
 
 
@@ -3990,6 +5618,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       console.log('Auto-generating AMC contracts from 100% progress projects...');
 
 
@@ -3998,7 +5634,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       const result = await autoGenerateAmcContracts();
+
+
+
+
+
+
+
+
 
 
 
@@ -4022,6 +5674,22 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       // Refresh AMC contracts after auto-generation
 
 
@@ -4030,7 +5698,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       fetchAmcContracts();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -4054,7 +5746,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       if (result?.data?.created > 0) {
+
+
+
+
+
+
+
+
 
 
 
@@ -4070,7 +5778,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       }
+
+
+
+
+
+
+
+
 
 
 
@@ -4086,7 +5810,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       console.error('Auto-generate contracts error:', err);
+
+
+
+
+
+
+
+
 
 
 
@@ -4102,6 +5842,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     }
 
 
@@ -4110,7 +5858,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -4134,7 +5906,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   const removeDuplicateContracts = async () => {
+
+
+
+
+
+
+
+
 
 
 
@@ -4150,7 +5938,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       console.log('Removing duplicate AMC contracts...');
+
+
+
+
+
+
+
+
 
 
 
@@ -4166,7 +5970,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         method: 'POST',
+
+
+
+
+
+
+
+
 
 
 
@@ -4182,7 +6002,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         body: JSON.stringify({})
+
+
+
+
+
+
+
+
 
 
 
@@ -4198,7 +6034,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       const result = await response.json();
+
+
+
+
+
+
+
+
 
 
 
@@ -4214,7 +6066,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       if (result.deleted > 0) {
+
+
+
+
+
+
+
+
 
 
 
@@ -4230,7 +6098,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       }
+
+
+
+
+
+
+
+
 
 
 
@@ -4246,7 +6130,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     } catch (err) {
+
+
+
+
+
+
+
+
 
 
 
@@ -4262,7 +6162,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       return { deleted: 0, remaining: 0 };
+
+
+
+
+
+
+
+
 
 
 
@@ -4278,51 +6194,100 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
 
 
 
+  // Fetch total AMC contracts count (without pagination for tab count)
+  const fetchTotalAmcContracts = async () => {
+    try {
+      const response = await getAmcContracts({ limit: 10000 });
+      let contractsData = [];
+      if (Array.isArray(response)) {
+        contractsData = response;
+      } else if (response?.data && Array.isArray(response.data)) {
+        contractsData = response.data;
+      } else if (response?.data?.data && Array.isArray(response.data.data)) {
+        contractsData = response.data.data;
+      }
+      setTotalAmcContracts(contractsData.length);
+    } catch (err) {
+      console.error('Total AMC contracts fetch error:', err);
+      setTotalAmcContracts(0);
+    }
+  };
 
+  // Fetch total visits count (without pagination for tab count)
+  const fetchTotalVisits = async () => {
+    try {
+      const response = await getVisits({ limit: 10000 });
+      let visitsData = [];
+      if (Array.isArray(response)) {
+        visitsData = response;
+      } else if (response?.data && Array.isArray(response.data)) {
+        visitsData = response.data;
+      } else if (response?.data?.data && Array.isArray(response.data.data)) {
+        visitsData = response.data.data;
+      }
+      setTotalVisits(visitsData.length);
+    } catch (err) {
+      console.error('Total visits fetch error:', err);
+      setTotalVisits(0);
+    }
+  };
 
-
-
-
-
-
-
-
-
-
+  // Fetch total tickets count (without pagination for tab count)
+  const fetchTotalTickets = async () => {
+    try {
+      const response = await getTickets({ limit: 10000 });
+      let ticketsData = [];
+      if (Array.isArray(response)) {
+        ticketsData = response;
+      } else if (response?.data && Array.isArray(response.data)) {
+        ticketsData = response.data;
+      } else if (response?.data?.data && Array.isArray(response.data.data)) {
+        ticketsData = response.data.data;
+      }
+      setTotalTickets(ticketsData.length);
+    } catch (err) {
+      console.error('Total tickets fetch error:', err);
+      setTotalTickets(0);
+    }
+  };
 
   // Initial fetch
-
-
-
-
-
-
-
   useEffect(() => {
-
     fetchTickets();
-
     // First remove duplicates, then auto-generate contracts from 100% projects
-
     removeDuplicateContracts().then(() => {
-
       autoGenerateContractsFromProjects();
-
     });
-
     fetchStats();
-
     fetchAiInsight();
-
     fetchVisits();
-
     fetchEngineers(); // Load engineers for Team Overview card
-
+    fetchAmcContracts(); // Load AMC contracts with pagination
+    // Fetch total counts for tabs
+    fetchTotalAmcContracts();
+    fetchTotalVisits();
+    fetchTotalTickets();
   }, []);
+
+
+
+
+
+
+
+
 
 
 
@@ -4346,7 +6311,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   useEffect(() => {
+
+
+
+
+
+
+
+
 
 
 
@@ -4362,7 +6343,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       fetchEngineers();
+
+
+
+
+
+
+
+
 
 
 
@@ -4378,7 +6375,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -4394,6 +6407,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   useEffect(() => {
 
 
@@ -4402,7 +6423,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     fetchTickets();
+
+
+
+
+
+
+
+
 
 
 
@@ -4426,7 +6463,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   useEffect(() => {
+
+
+
+
+
+
+
+
 
 
 
@@ -4442,7 +6503,35 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   }, [aPage, aPageSize]);
+  // Fetch visits when pagination changes
+  useEffect(() => {
+    fetchVisits(vPage, vPageSize);
+  }, [vPage, vPageSize]);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -4466,7 +6555,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   const handleStageChange = async (id, newStage, fromStage = null) => {
+
+
+
+
+
+
+
+
 
 
 
@@ -4482,7 +6587,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     if (fromStage) {
+
+
+
+
+
+
+
+
 
 
 
@@ -4498,7 +6619,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       const fromIndex = stageOrder.indexOf(fromStage);
+
+
+
+
+
+
+
+
 
 
 
@@ -4522,7 +6659,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       // If dragging left (to a previous stage), show confirmation
+
+
+
+
+
+
+
+
 
 
 
@@ -4538,7 +6699,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         setDragConfirmModal({ open: true, ticketId: id, fromStage, toStage: newStage });
+
+
+
+
+
+
+
+
 
 
 
@@ -4554,6 +6731,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       }
 
 
@@ -4562,7 +6747,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -4586,6 +6795,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     await executeStageChange(id, newStage);
 
 
@@ -4594,7 +6811,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -4618,7 +6859,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   const executeStageChange = async (id, newStage) => {
+
+
+
+
+
+
+
+
 
 
 
@@ -4634,7 +6891,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       await updateTicket(id, { status: newStage });
+
+
+
+
+
+
+
+
 
 
 
@@ -4650,7 +6923,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       await fetchTickets();
+
+
+
+
+
+
+
+
 
 
 
@@ -4666,7 +6955,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       showToast(`Ticket status updated to "${newStage}" successfully`, 'success');
+
+
+
+
+
+
+
+
 
 
 
@@ -4682,7 +6987,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       showToast('Failed to update ticket status: ' + (err.message || 'Unknown error'), 'error');
+
+
+
+
+
+
+
+
 
 
 
@@ -4698,7 +7019,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -4722,7 +7067,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   const handleDragConfirmYes = async () => {
+
+
+
+
+
+
+
+
 
 
 
@@ -4738,7 +7099,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     setDragConfirmModal({ open: false, ticketId: null, fromStage: '', toStage: '' });
+
+
+
+
+
+
+
+
 
 
 
@@ -4754,7 +7131,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -4778,7 +7179,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   const handleDragConfirmNo = () => {
+
+
+
+
+
+
+
+
 
 
 
@@ -4794,6 +7211,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     // Do nothing - card stays in its current position
 
 
@@ -4802,7 +7227,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -4826,7 +7275,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     try {
+
+
+
+
+
+
+
+
 
 
 
@@ -4842,7 +7307,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       setEngineers(Array.isArray(response) ? response : response?.data || []);
+
+
+
+
+
+
+
+
 
 
 
@@ -4858,7 +7339,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       setEngineers([]);
+
+
+
+
+
+
+
+
 
 
 
@@ -4874,7 +7371,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -4898,7 +7419,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     try {
+
+
+
+
+
+
+
+
 
 
 
@@ -4914,7 +7451,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       const customersData = Array.isArray(response) ? response : response?.data || [];
+
+
+
+
+
+
+
+
 
 
 
@@ -4930,7 +7483,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     } catch (err) {
+
+
+
+
+
+
+
+
 
 
 
@@ -4946,6 +7515,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     }
 
 
@@ -4954,7 +7531,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -4978,7 +7579,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     setAssignModal({ open: true, ticket });
+
+
+
+
+
+
+
+
 
 
 
@@ -4994,6 +7611,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     fetchEngineers();
 
 
@@ -5002,7 +7627,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -5026,7 +7675,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     setAssignModal({ open: false, ticket: null });
+
+
+
+
+
+
+
+
 
 
 
@@ -5042,6 +7707,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     setAssigning(false);
 
 
@@ -5050,7 +7723,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -5074,7 +7771,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     if (!selectedEngineer || !assignModal.ticket) {
+
+
+
+
+
+
+
+
 
 
 
@@ -5090,6 +7803,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       return;
 
 
@@ -5098,7 +7819,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -5122,7 +7867,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     setAssigning(true);
+
+
+
+
+
+
+
+
 
 
 
@@ -5138,7 +7899,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       const result = await updateTicket(assignModal.ticket.id, { assignedTo: selectedEngineer });
+
+
+
+
+
+
+
+
 
 
 
@@ -5154,7 +7931,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       setTickets(prev => prev.map(t => t.id === assignModal.ticket.id ? { ...t, assignedTo: selectedEngineer } : t));
+
+
+
+
+
+
+
+
 
 
 
@@ -5170,7 +7963,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       showToast(`Engineer "${selectedEngineer}" assigned successfully`, 'success');
+
+
+
+
+
+
+
+
 
 
 
@@ -5186,7 +7995,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       console.error('Assign error:', err);
+
+
+
+
+
+
+
+
 
 
 
@@ -5202,7 +8027,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     } finally {
+
+
+
+
+
+
+
+
 
 
 
@@ -5218,6 +8059,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     }
 
 
@@ -5226,7 +8075,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -5250,7 +8123,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     try {
+
+
+
+
+
+
+
+
 
 
 
@@ -5266,7 +8155,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       setShowAdd(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -5282,7 +8187,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         customerId: '',
+
+
+
+
+
+
+
+
 
 
 
@@ -5298,7 +8219,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         type: '',
+
+
+
+
+
+
+
+
 
 
 
@@ -5314,7 +8251,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         status: 'Open',
+
+
+
+
+
+
+
+
 
 
 
@@ -5330,7 +8283,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         assignedTo: '',
+
+
+
+
+
+
+
+
 
 
 
@@ -5346,7 +8315,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       fetchTickets();
+
+
+
+
+
+
+
+
 
 
 
@@ -5362,7 +8347,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       showToast('New ticket created successfully', 'success');
+
+
+
+
+
+
+
+
 
 
 
@@ -5378,7 +8379,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       showToast('Failed to create ticket: ' + (err.message || 'Unknown error'), 'error');
+
+
+
+
+
+
+
+
 
 
 
@@ -5394,7 +8411,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -5418,7 +8459,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   const handleDeleteAmcContract = async (id) => {
+
+
+
+
+
+
+
+
 
 
 
@@ -5434,7 +8491,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       return;
+
+
+
+
+
+
+
+
 
 
 
@@ -5450,7 +8523,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     try {
+
+
+
+
+
+
+
+
 
 
 
@@ -5466,6 +8555,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       fetchAmcContracts();
 
 
@@ -5474,7 +8571,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       fetchStats();
+
+
+
+
+
+
+
+
 
 
 
@@ -5490,7 +8603,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     } catch (err) {
+
+
+
+
+
+
+
+
 
 
 
@@ -5506,6 +8635,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     }
 
 
@@ -5514,7 +8651,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
 
 
 
@@ -5530,7 +8683,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     try {
+
+
+
+
+
+
+
+
 
 
 
@@ -5546,7 +8715,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       fetchTickets();
+
+
+
+
+
+
+
+
 
 
 
@@ -5562,7 +8747,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       showToast('Ticket deleted successfully', 'success');
+
+
+
+
+
+
+
+
 
 
 
@@ -5578,7 +8779,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       showToast('Failed to delete ticket: ' + (err.message || 'Unknown error'), 'error');
+
+
+
+
+
+
+
+
 
 
 
@@ -5594,7 +8811,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -5618,7 +8859,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   const filteredTickets = useMemo(() => tickets, [tickets]);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -5642,7 +8907,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   const dynamicTicketStats = useMemo(() => {
+
+
+
+
+
+
+
+
 
 
 
@@ -5658,7 +8939,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     return {
+
+
+
+
+
+
+
+
 
 
 
@@ -5674,7 +8971,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       scheduled: ticketsArray.filter(t => t.status === 'Scheduled').length,
+
+
+
+
+
+
+
+
 
 
 
@@ -5690,7 +9003,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       resolved: ticketsArray.filter(t => t.status === 'Resolved').length,
+
+
+
+
+
+
+
+
 
 
 
@@ -5706,7 +9035,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     };
+
+
+
+
+
+
+
+
 
 
 
@@ -5730,7 +9075,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   const dynamicAmcStats = useMemo(() => {
+
+
+
+
+
+
+
+
 
 
 
@@ -5746,7 +9115,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     return {
+
+
+
+
+
+
+
+
 
 
 
@@ -5762,7 +9147,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     };
+
+
+
+
+
+
+
+
 
 
 
@@ -5778,7 +9179,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   const dynamicVisitStats = useMemo(() => {
+
+
+
+
+
+
+
+
 
 
 
@@ -5794,7 +9211,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     return {
+
+
+
+
+
+
+
+
 
 
 
@@ -5810,7 +9243,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       scheduled: visitsArray.filter(v => v.status === 'Scheduled').length,
+
+
+
+
+
+
+
+
 
 
 
@@ -5826,6 +9275,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       cancelled: visitsArray.filter(v => v.status === 'Cancelled').length,
 
 
@@ -5834,7 +9291,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     };
+
+
+
+
+
+
+
+
 
 
 
@@ -5858,6 +9331,22 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   const paginatedTickets = filteredTickets;
 
 
@@ -5866,7 +9355,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-  const paginatedAMC = amcContracts;
+
+
+
+
+
+
+
+
+  const paginatedAMC = amcContracts.slice((aPage - 1) * aPageSize, aPage * aPageSize);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -5890,7 +9403,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     setEditModal({ open: true, ticket });
+
+
+
+
+
+
+
+
 
 
 
@@ -5906,7 +9435,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       customerName: ticket.customerName || '',
+
+
+
+
+
+
+
+
 
 
 
@@ -5922,7 +9467,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       priority: ticket.priority || 'Low',
+
+
+
+
+
+
+
+
 
 
 
@@ -5938,7 +9499,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       description: ticket.description || '',
+
+
+
+
+
+
+
+
 
 
 
@@ -5954,7 +9531,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     });
+
+
+
+
+
+
+
+
 
 
 
@@ -5970,6 +9563,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     fetchCustomers();
 
 
@@ -5978,7 +9579,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -6002,7 +9627,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     setEditModal({ open: false, ticket: null });
+
+
+
+
+
+
+
+
 
 
 
@@ -6018,7 +9659,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       customerName: '',
+
+
+
+
+
+
+
+
 
 
 
@@ -6034,7 +9691,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       priority: 'Low',
+
+
+
+
+
+
+
+
 
 
 
@@ -6050,7 +9723,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       description: '',
+
+
+
+
+
+
+
+
 
 
 
@@ -6066,7 +9755,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     });
+
+
+
+
+
+
+
+
 
 
 
@@ -6082,7 +9787,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -6106,7 +9835,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     if (!editModal.ticket) return;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -6130,7 +9883,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     try {
+
+
+
+
+
+
+
+
 
 
 
@@ -6146,7 +9915,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       setTickets(prev => prev.map(t => t.id === editModal.ticket.id ? { ...t, ...editForm } : t));
+
+
+
+
+
+
+
+
 
 
 
@@ -6162,7 +9947,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       showToast('Ticket updated successfully', 'success');
+
+
+
+
+
+
+
+
 
 
 
@@ -6178,7 +9979,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       showToast('Failed to update ticket: ' + (err.message || 'Unknown error'), 'error');
+
+
+
+
+
+
+
+
 
 
 
@@ -6194,7 +10011,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       setUpdating(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -6210,7 +10043,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -6234,7 +10091,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   const openServiceTicketModal = (contract) => {
+
+
+
+
+
+
+
+
 
 
 
@@ -6250,7 +10123,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     setServiceTicketForm({
+
+
+
+
+
+
+
+
 
 
 
@@ -6266,7 +10155,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       type: 'AMC',
+
+
+
+
+
+
+
+
 
 
 
@@ -6282,7 +10187,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       status: 'Open',
+
+
+
+
+
+
+
+
 
 
 
@@ -6298,7 +10219,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       assignedTo: '',
+
+
+
+
+
+
+
+
 
 
 
@@ -6314,7 +10251,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     fetchEngineers();
+
+
+
+
+
+
+
+
 
 
 
@@ -6330,7 +10283,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -6354,7 +10331,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     setServiceTicketModal({ open: false, contract: null });
+
+
+
+
+
+
+
+
 
 
 
@@ -6370,7 +10363,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       customerName: '',
+
+
+
+
+
+
+
+
 
 
 
@@ -6386,7 +10395,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       priority: 'Low',
+
+
+
+
+
+
+
+
 
 
 
@@ -6402,7 +10427,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       description: '',
+
+
+
+
+
+
+
+
 
 
 
@@ -6418,7 +10459,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     });
+
+
+
+
+
+
+
+
 
 
 
@@ -6434,7 +10491,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -6458,7 +10539,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     if (!serviceTicketModal.contract) return;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -6482,7 +10587,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     try {
+
+
+
+
+
+
+
+
 
 
 
@@ -6498,7 +10619,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         customerId: serviceTicketForm.customerName,
+
+
+
+
+
+
+
+
 
 
 
@@ -6514,7 +10651,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         type: serviceTicketForm.type,
+
+
+
+
+
+
+
+
 
 
 
@@ -6530,7 +10683,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         status: serviceTicketForm.status,
+
+
+
+
+
+
+
+
 
 
 
@@ -6546,7 +10715,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         assignedTo: serviceTicketForm.assignedTo,
+
+
+
+
+
+
+
+
 
 
 
@@ -6562,7 +10747,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       await createTicket(ticketData);
+
+
+
+
+
+
+
+
 
 
 
@@ -6578,7 +10779,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       fetchTickets();
+
+
+
+
+
+
+
+
 
 
 
@@ -6594,7 +10811,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       showToast('Service ticket created successfully', 'success');
+
+
+
+
+
+
+
+
 
 
 
@@ -6610,7 +10843,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       showToast('Failed to create service ticket: ' + (err.message || 'Unknown error'), 'error');
+
+
+
+
+
+
+
+
 
 
 
@@ -6626,7 +10875,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       setCreatingServiceTicket(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -6642,7 +10907,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -6666,7 +10955,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   const openAmcEditModal = (contract) => {
+
+
+
+
+
+
+
+
 
 
 
@@ -6682,7 +10987,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     setAmcEditForm({
+
+
+
+
+
+
+
+
 
 
 
@@ -6698,7 +11019,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       site: contract.site || '',
+
+
+
+
+
+
+
+
 
 
 
@@ -6714,7 +11051,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       startDate: contract.startDate || '',
+
+
+
+
+
+
+
+
 
 
 
@@ -6730,7 +11083,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       status: contract.status || 'Active',
+
+
+
+
+
+
+
+
 
 
 
@@ -6746,7 +11115,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       nextVisit: contract.nextVisit || '',
+
+
+
+
+
+
+
+
 
 
 
@@ -6762,7 +11147,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -6786,7 +11195,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     setAmcEditModal({ open: false, contract: null });
+
+
+
+
+
+
+
+
 
 
 
@@ -6802,7 +11227,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       customer: '',
+
+
+
+
+
+
+
+
 
 
 
@@ -6818,7 +11259,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       systemSize: 0,
+
+
+
+
+
+
+
+
 
 
 
@@ -6834,7 +11291,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       endDate: '',
+
+
+
+
+
+
+
+
 
 
 
@@ -6850,7 +11323,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       amount: 0,
+
+
+
+
+
+
+
+
 
 
 
@@ -6866,7 +11355,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     });
+
+
+
+
+
+
+
+
 
 
 
@@ -6882,7 +11387,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -6906,7 +11435,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     if (!amcEditModal.contract) return;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -6930,7 +11483,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     try {
+
+
+
+
+
+
+
+
 
 
 
@@ -6946,7 +11515,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       setAmcContracts(prev => prev.map(c => c.id === amcEditModal.contract.id ? { ...c, ...amcEditForm } : c));
+
+
+
+
+
+
+
+
 
 
 
@@ -6962,7 +11547,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       fetchStats();
+
+
+
+
+
+
+
+
 
 
 
@@ -6978,7 +11579,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     } catch (err) {
+
+
+
+
+
+
+
+
 
 
 
@@ -6994,7 +11611,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     } finally {
+
+
+
+
+
+
+
+
 
 
 
@@ -7010,6 +11643,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     }
 
 
@@ -7018,7 +11659,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -7042,7 +11707,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     { label: 'View Ticket', icon: Headphones, onClick: row => setSelected(row) },
+
+
+
+
+
+
+
+
 
 
 
@@ -7058,7 +11739,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     { label: 'Assign Engineer', icon: Wrench, onClick: row => openAssignModal(row) },
+
+
+
+
+
+
+
+
 
 
 
@@ -7074,7 +11771,18 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     { label: 'Delete', icon: Trash2, danger: true, onClick: (row) => handleDeleteTicket(row.id) },
+    { label: 'Schedule Visit', icon: Clock, onClick: (row) => openScheduleVisitModal(row) },
+
+
 
 
 
@@ -7083,6 +11791,22 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
   ];
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -7106,7 +11830,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     {
+
+
+
+
+
+
+
+
 
 
 
@@ -7122,7 +11862,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       icon: Shield,
+
+
+
+
+
+
+
+
 
 
 
@@ -7138,7 +11894,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         // Open project detail modal for this AMC contract
+
+
+
+
+
+
+
+
 
 
 
@@ -7154,7 +11926,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         fetchProjectForAmc(row.customer, row.site);
+
+
+
+
+
+
+
+
 
 
 
@@ -7170,6 +11958,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     },
 
 
@@ -7178,7 +11974,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     {
+
+
+
+
+
+
+
+
 
 
 
@@ -7194,7 +12006,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       icon: Headphones,
+
+
+
+
+
+
+
+
 
 
 
@@ -7210,39 +12038,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-    },
 
-
-
-
-
-
-
-    {
-
-
-
-
-
-
-
-      label: 'Schedule Visit',
-
-
-
-
-
-
-
-      icon: Clock,
-
-
-
-
-
-
-
-      onClick: (row) => openScheduleVisitModal(row),
 
 
 
@@ -7251,14 +12047,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
     },
-
-
-
-
-
-
-
   ];
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -7282,7 +12087,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   const fetchProjectForAmc = async (customer, site) => {
+
+
+
+
+
+
+
+
 
 
 
@@ -7298,7 +12119,19 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     try {
+
+
+
+
 
 
 
@@ -7306,7 +12139,15 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
       const data = res?.data ?? res;
+
+
+
+
 
 
 
@@ -7314,7 +12155,19 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
       const transformedProjects = projectsArray.map(p => ({
+
+
+
+
+
+
+
+
 
 
 
@@ -7330,7 +12183,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         id: p.projectId,
+
+
+
+
+
+
+
+
 
 
 
@@ -7346,7 +12215,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       // Find matching project by customer and site
+
+
+
+
+
+
+
+
 
 
 
@@ -7362,7 +12247,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         p => p.customerName === customer && p.site === site
+
+
+
+
+
+
+
+
 
 
 
@@ -7378,7 +12279,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       setAmcProjectData(matchingProject || null);
+
+
+
+
+
+
+
+
 
 
 
@@ -7394,7 +12311,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       console.error('Error fetching project for AMC:', err);
+
+
+
+
+
+
+
+
 
 
 
@@ -7410,7 +12343,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     } finally {
+
+
+
+
+
+
+
+
 
 
 
@@ -7426,6 +12375,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     }
 
 
@@ -7434,7 +12391,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -7458,7 +12439,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   const openScheduleVisitModal = async (contract) => {
+
+
+
+
+
+
+
+
 
 
 
@@ -7474,7 +12471,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     setScheduleVisitProjectData(null);
+
+
+
+
+
+
+
+
 
 
 
@@ -7490,7 +12503,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       visitType: 'Routine Maintenance',
+
+
+
+
+
+
+
+
 
 
 
@@ -7506,7 +12535,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       scheduledTime: '',
+
+
+
+
+
+
+
+
 
 
 
@@ -7522,7 +12567,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       priority: 'Low',
+
+
+
+
+
+
+
+
 
 
 
@@ -7538,6 +12599,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     });
 
 
@@ -7546,7 +12615,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     fetchEngineers();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -7570,7 +12663,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     setLoadingScheduleVisitProject(true);
+
+
+
+
+
+
+
+
 
 
 
@@ -7582,7 +12691,15 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
       const res = await api.get('/projects', { tenantId: TENANT_ID });
+
+
+
+
 
 
 
@@ -7590,27 +12707,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
       const projectsArray = Array.isArray(data) ? data : (data?.data || []);
 
-
-
       const matchingProject = projectsArray.find(
+        p => {
+          const projectCustomer = (p.customerName || '').toLowerCase().trim();
 
+          const contractCustomer = (contract.customer || contract.customerName || '').toLowerCase().trim();
 
+          const customerMatch = projectCustomer === contractCustomer;
 
-        p => p.customerName === contract.customer && p.site === contract.site
+          if (!contract.site) return customerMatch;
 
-
-
+          return customerMatch && p.site === contract.site;
+        }
       );
 
-
-
       setScheduleVisitProjectData(matchingProject || null);
-
-
-
     } catch (err) {
+
+
+
 
 
 
@@ -7626,7 +12747,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       setScheduleVisitProjectData(null);
+
+
+
+
+
+
+
+
 
 
 
@@ -7642,7 +12779,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       setLoadingScheduleVisitProject(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -7658,7 +12811,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -7682,7 +12859,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   const closeScheduleVisitModal = () => {
+
+
+
+
+
+
+
+
 
 
 
@@ -7698,7 +12891,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     setScheduleVisitProjectData(null);
+
+
+
+
+
+
+
+
 
 
 
@@ -7714,7 +12923,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       visitType: 'Routine Maintenance',
+
+
+
+
+
+
+
+
 
 
 
@@ -7730,7 +12955,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       scheduledTime: '',
+
+
+
+
+
+
+
+
 
 
 
@@ -7746,7 +12987,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       priority: 'Low',
+
+
+
+
+
+
+
+
 
 
 
@@ -7762,7 +13019,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     });
+
+
+
+
+
+
+
+
 
 
 
@@ -7778,7 +13051,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -7802,7 +13099,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   const handleScheduleVisit = async () => {
+
+
+
+
+
+
+
+
 
 
 
@@ -7818,7 +13131,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     const contractId = scheduleVisitModal.contract?.id;
+
+
+
+
+
+
+
+
 
 
 
@@ -7842,7 +13171,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     if (!contractId || !visitType || !scheduledDate || !scheduledTime || !engineerId) {
+
+
+
+
+
+
+
+
 
 
 
@@ -7858,6 +13211,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       return;
 
 
@@ -7866,7 +13227,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -7890,7 +13275,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     try {
+
+
+
+
+
+
+
+
 
 
 
@@ -7906,7 +13307,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       const visitData = {
+
+
+
+
+
+
+
+
 
 
 
@@ -7922,7 +13339,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         visit_type: visitType,
+
+
+
+
+
+
+
+
 
 
 
@@ -7938,7 +13371,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         scheduled_time: scheduledTime,
+
+
+
+
+
+
+
+
 
 
 
@@ -7954,7 +13403,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         priority: visitForm.priority,
+
+
+
+
+
+
+
+
 
 
 
@@ -7970,7 +13435,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         customer: scheduleVisitModal.contract.customer,
+
+
+
+
+
+
+
+
 
 
 
@@ -7986,7 +13467,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         system_size: scheduleVisitModal.contract.systemSize,
+
+
+
+
+
+
+
+
 
 
 
@@ -8002,7 +13499,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         status: 'Scheduled',
+
+
+
+
+
+
+
+
 
 
 
@@ -8018,7 +13531,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         email: scheduleVisitProjectData?.email || '',
+
+
+
+
+
+
+
+
 
 
 
@@ -8042,7 +13571,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       // Create the visit (this will show in Schedule Visit tab)
+
+
+
+
+
+
+
+
 
 
 
@@ -8066,7 +13619,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       // Add to newly scheduled visits list for table display
+
+
+
+
+
+
+
+
 
 
 
@@ -8090,6 +13667,22 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       // Update scheduled visits count
 
 
@@ -8098,7 +13691,6 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-      setScheduledVisitsCount(prev => prev + 1);
 
 
 
@@ -8114,15 +13706,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-      // Update the next visit date in AMC contracts
 
+      // Only update AMC contracts - they have MongoDB ObjectId format (24 hex chars), Support Tickets have IDs like T16142
 
 
 
 
 
 
-      await updateAmcContract(scheduleVisitModal.contract.id, {
 
 
 
@@ -8130,15 +13721,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-        nextVisit: visitForm.scheduledDate,
 
 
+      if (contractId && !contractId.startsWith('T')) {
 
 
 
 
 
-        tenant_id: TENANT_ID,
 
 
 
@@ -8146,10 +13736,10 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-      });
 
 
 
+        await updateAmcContract(contractId, {
 
 
 
@@ -8162,15 +13752,111 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-      // Refresh AMC contracts to show updated next visit
 
 
 
+          nextVisit: visitForm.scheduledDate,
 
 
 
 
-      fetchAmcContracts();
+
+
+
+
+
+
+
+
+
+
+
+        });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        // Refresh AMC contracts to show updated next visit
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        fetchAmcContracts();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -8194,7 +13880,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       fetchVisits();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -8218,7 +13928,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     } catch (err) {
+
+
+
+
+
+
+
+
 
 
 
@@ -8234,6 +13960,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       showToast('Failed to schedule visit: ' + (err.message || 'Unknown error'), 'error');
 
 
@@ -8242,7 +13976,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       setSchedulingVisit(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -8258,6 +14008,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     } finally {
 
 
@@ -8266,7 +14024,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       setSchedulingVisit(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -8290,7 +14064,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     // Close Schedule Visit modal
+
+
+
+
+
+
+
+
 
 
 
@@ -8314,7 +14112,6 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-    // Pre-fill the New Ticket form with data from Schedule Visit form
 
 
 
@@ -8322,239 +14119,6 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-    const engineerName = engineers.find(e => e.id === engineerId)?.name || '';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    setNewTicket({
-
-
-
-
-
-
-
-      customerId: scheduleVisitModal.contract.customer,
-
-
-
-
-
-
-
-      customerName: scheduleVisitModal.contract.customer,
-
-
-
-
-
-
-
-      type: 'AMC',  // Default type for visit-related tickets
-
-
-
-
-
-
-
-      priority: visitForm.priority || 'Low',
-
-
-
-
-
-
-
-      status: 'Scheduled',  // Set status to Scheduled since it's from a scheduled visit
-
-
-
-
-
-
-
-      description: visitForm.notes || `Visit scheduled for ${scheduleVisitModal.contract.customer} at ${scheduleVisitModal.contract.site}. Visit Type: ${visitType}, Date: ${scheduledDate}, Time: ${scheduledTime}`,
-
-
-
-
-
-
-
-      assignedTo: engineerName,
-
-
-
-
-
-
-
-    });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    // Fetch engineers and customers for the New Ticket modal
-
-
-
-
-
-
-
-    fetchEngineers();
-
-
-
-
-
-
-
-    fetchCustomers();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    // Open New Ticket modal
-
-
-
-
-
-
-
-    setShowAdd(true);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    // Reset visit form
-
-
-
-
-
-
-
-    setVisitForm({
-
-
-
-
-
-
-
-      visitType: 'Routine Maintenance',
-
-
-
-
-
-
-
-      scheduledDate: '',
-
-
-
-
-
-
-
-      scheduledTime: '',
-
-
-
-
-
-
-
-      engineerId: '',
-
-
-
-
-
-
-
-      priority: 'Low',
-
-
-
-
-
-
-
-      notes: '',
-
-
-
-
-
-
-
-    });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    setScheduleVisitProjectData(null);
 
 
 
@@ -8578,7 +14142,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   // Loading indicator component
+
+
+
+
+
+
+
+
 
 
 
@@ -8594,7 +14182,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
     <div className="flex items-center justify-center py-12">
+
+
+
+
+
+
+
+
 
 
 
@@ -8610,7 +14214,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       <span className="ml-2 text-sm text-[var(--text-muted)]">Loading...</span>
+
+
+
+
+
+
+
+
 
 
 
@@ -8626,7 +14246,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   );
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -8650,7 +14294,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   const ErrorState = ({ message }) => (
+
+
+
+
+
+
+
+
 
 
 
@@ -8666,7 +14326,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       <div className="text-center">
+
+
+
+
+
+
+
+
 
 
 
@@ -8682,7 +14358,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         <p className="text-sm text-[var(--text-muted)]">{message}</p>
+
+
+
+
+
+
+
+
 
 
 
@@ -8698,7 +14390,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -8714,7 +14422,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   );
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -8738,7 +14470,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   const aiInsightText = aiInsight?.insight ||
+
+
+
+
+
+
+
+
 
 
 
@@ -8754,7 +14502,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       ? aiInsight.recommendations.join(' ')
+
+
+
+
+
+
+
+
 
 
 
@@ -8778,7 +14542,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   return (
+
+
+
+
+
+
+
+
 
 
 
@@ -8794,61 +14582,125 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       <PageHeader
+
+
 
         title={buttonView === 'dashboard' ? 'Service & AMC Dashboard' : 'Service & AMC'}
 
+
+
         subtitle={buttonView === 'dashboard' ? 'Real-time overview of tickets, AMC contracts, visits, and team performance' : 'Support tickets · maintenance · AMC contracts · warranty claims'}
+
+
 
         preTabsContent={
 
+
+
           <div className="flex items-center gap-1 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-base)] p-1">
 
+
+
             <button
+
+
 
               onClick={() => setButtonView('dashboard')}
 
+
+
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 ${buttonView === 'dashboard' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}`}
 
+
+
             >
+
+
 
               <BarChart3 size={14} /> Dashboard
 
+
+
             </button>
 
+
+
             <button
+
+
 
               onClick={() => { setButtonView('kanban'); setActiveTab('tickets'); }}
 
+
+
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 ${buttonView === 'kanban' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}`}
 
+
+
             >
+
+
 
               <LayoutGrid size={14} /> Kanban
 
+
+
             </button>
+
+
 
             <button
 
+
+
               onClick={() => { setButtonView('table'); setActiveTab('tickets'); }}
+
+
 
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 ${buttonView === 'table' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}`}
 
+
+
             >
+
+
 
               <List size={14} /> Table
 
+
+
             </button>
+
+
 
           </div>
 
+
+
         }
+
+
 
         actions={[
 
+
+
           { type: 'button', label: 'New Ticket', icon: Plus, variant: 'primary', onClick: () => setShowAdd(true) }
 
+
+
         ]}
+
+
 
       />
 
@@ -8857,7 +14709,22 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
       <div className="ai-banner">
+
+
+
+
+
+
+
+
 
 
 
@@ -8873,7 +14740,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         <p className="text-xs text-[var(--text-secondary)]">
+
+
+
+
+
+
+
+
 
 
 
@@ -8889,6 +14772,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
           {aiInsightText}
 
 
@@ -8897,7 +14788,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         </p>
+
+
+
+
+
+
+
+
 
 
 
@@ -8921,1113 +14828,2203 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       {/* Main Content Based on buttonView */}
+
+
 
       {buttonView === 'dashboard' && (
 
+
+
         <>
+
+
 
           {/* Dashboard View - Exactly as per screenshot */}
 
+
+
           <div className="grid grid-cols-4 gap-4 mb-6">
+
+
 
             {/* Row 1 */}
 
+
+
             <div className="bg-blue-200/70 rounded-xl p-4 border border-blue-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setButtonView('table'); setActiveTab('tickets'); setTicketStatus('All'); }}>
+
+
 
               <div className="flex justify-between items-start">
 
+
+
                 <div>
+
+
 
                   <p className="text-xs font-medium text-blue-600 mb-1">TOTAL TICKETS</p>
 
+
+
                   <h3 className="text-2xl font-bold text-gray-800">{tickets.length}</h3>
+
+
 
                   <p className="text-[10px] text-blue-500 mt-1">6 total tickets</p>
 
+
+
                 </div>
+
+
 
                 <div className="bg-blue-100 p-2 rounded-lg">
 
+
+
                   <Headphones size={18} className="text-blue-600" />
+
+
 
                 </div>
 
+
+
               </div>
 
+
+
             </div>
+
+
+
+
 
 
 
             <div className="bg-orange-200/70 rounded-xl p-4 border border-orange-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setButtonView('table'); setActiveTab('tickets'); setTicketStatus('Open'); }}>
 
+
+
               <div className="flex justify-between items-start">
+
+
 
                 <div>
 
+
+
                   <p className="text-xs font-medium text-orange-600 mb-1">OPEN TICKETS</p>
+
+
 
                   <h3 className="text-2xl font-bold text-gray-800">{dynamicTicketStats.openTickets}</h3>
 
+
+
                   <p className="text-[10px] text-orange-500 mt-1">4 need attention</p>
 
+
+
                 </div>
+
+
 
                 <div className="bg-orange-100 p-2 rounded-lg">
 
+
+
                   <AlertTriangle size={18} className="text-orange-600" />
+
+
 
                 </div>
 
+
+
               </div>
 
+
+
             </div>
+
+
+
+
 
 
 
             <div className="bg-purple-200/70 rounded-xl p-4 border border-purple-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setButtonView('table'); setActiveTab('tickets'); setTicketStatus('Scheduled'); }}>
 
+
+
               <div className="flex justify-between items-start">
+
+
 
                 <div>
 
+
+
                   <p className="text-xs font-medium text-purple-600 mb-1">SCHEDULED</p>
+
+
 
                   <h3 className="text-2xl font-bold text-gray-800">{dynamicTicketStats.scheduled}</h3>
 
+
+
                   <p className="text-[10px] text-purple-500 mt-1">4 total visits</p>
 
+
+
                 </div>
+
+
 
                 <div className="bg-purple-100 p-2 rounded-lg">
 
+
+
                   <Calendar size={18} className="text-purple-600" />
+
+
 
                 </div>
 
+
+
               </div>
 
+
+
             </div>
+
+
+
+
 
 
 
             <div className="bg-yellow-200/70 rounded-xl p-4 border border-yellow-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setButtonView('table'); setActiveTab('tickets'); setTicketStatus('In Progress'); }}>
 
+
+
               <div className="flex justify-between items-start">
+
+
 
                 <div>
 
+
+
                   <p className="text-xs font-medium text-yellow-600 mb-1">IN PROGRESS</p>
+
+
 
                   <h3 className="text-2xl font-bold text-gray-800">{dynamicTicketStats.inProgress}</h3>
 
+
+
                   <p className="text-[10px] text-yellow-500 mt-1">Being handled</p>
 
+
+
                 </div>
+
+
 
                 <div className="bg-yellow-100 p-2 rounded-lg">
 
+
+
                   <Clock size={18} className="text-yellow-600" />
+
+
 
                 </div>
 
+
+
               </div>
 
+
+
             </div>
+
+
+
+
 
 
 
             {/* Row 2 */}
 
+
+
             <div className="bg-emerald-200/70 rounded-xl p-4 border border-emerald-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setButtonView('table'); setActiveTab('tickets'); setTicketStatus('Resolved'); }}>
+
+
 
               <div className="flex justify-between items-start">
 
+
+
                 <div>
+
+
 
                   <p className="text-xs font-medium text-emerald-600 mb-1">RESOLVED</p>
 
+
+
                   <h3 className="text-2xl font-bold text-gray-800">{dynamicTicketStats.resolved}</h3>
+
+
 
                   <p className="text-[10px] text-emerald-500 mt-1">This month</p>
 
+
+
                 </div>
+
+
 
                 <div className="bg-emerald-100 p-2 rounded-lg">
 
+
+
                   <CheckCircle size={18} className="text-emerald-600" />
+
+
 
                 </div>
 
+
+
               </div>
 
+
+
             </div>
+
+
+
+
 
 
 
             <div className="bg-gray-200/70 rounded-xl p-4 border border-gray-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setButtonView('table'); setActiveTab('tickets'); setTicketStatus('Closed'); }}>
 
+
+
               <div className="flex justify-between items-start">
+
+
 
                 <div>
 
+
+
                   <p className="text-xs font-medium text-gray-600 mb-1">CLOSED</p>
+
+
 
                   <h3 className="text-2xl font-bold text-gray-800">{dynamicTicketStats.closed}</h3>
 
+
+
                   <p className="text-[10px] text-gray-500 mt-1">Completed</p>
 
+
+
                 </div>
+
+
 
                 <div className="bg-gray-200 p-2 rounded-lg">
 
+
+
                   <XCircle size={18} className="text-gray-600" />
+
+
 
                 </div>
 
+
+
               </div>
 
+
+
             </div>
+
+
+
+
 
 
 
             <div className="bg-indigo-200/70 rounded-xl p-4 border border-indigo-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setButtonView('table'); setActiveTab('amc'); }}>
 
+
+
               <div className="flex justify-between items-start">
+
+
 
                 <div>
 
+
+
                   <p className="text-xs font-medium text-indigo-600 mb-1">AMC CONTRACTS</p>
+
+
 
                   <h3 className="text-2xl font-bold text-gray-800">{dynamicAmcStats.activeContracts}</h3>
 
+
+
                   <p className="text-[10px] text-indigo-500 mt-1">3 total contracts</p>
 
+
+
                 </div>
+
+
 
                 <div className="bg-indigo-100 p-2 rounded-lg">
 
+
+
                   <Shield size={18} className="text-indigo-600" />
+
+
 
                 </div>
 
+
+
               </div>
 
+
+
             </div>
+
+
+
+
 
 
 
             <div className="bg-cyan-200/70 rounded-xl p-4 border border-cyan-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setButtonView('table'); setActiveTab('schedule-visit'); }}>
 
+
+
               <div className="flex justify-between items-start">
+
+
 
                 <div>
 
+
+
                   <p className="text-xs font-medium text-cyan-600 mb-1">TOTAL VISITS</p>
+
+
 
                   <h3 className="text-2xl font-bold text-gray-800">{dynamicVisitStats.total}</h3>
 
+
+
                   <p className="text-[10px] text-cyan-500 mt-1">4 scheduled</p>
 
+
+
                 </div>
+
+
 
                 <div className="bg-cyan-100 p-2 rounded-lg">
 
+
+
                   <Stethoscope size={18} className="text-cyan-600" />
+
+
 
                 </div>
 
+
+
               </div>
+
+
 
             </div>
 
+
+
           </div>
+
+
+
+
 
 
 
           {/* Breakdown Sections Row */}
 
+
+
           <div className="grid grid-cols-2 gap-4 mb-6">
+
+
 
             {/* Ticket Status Breakdown */}
 
+
+
             <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
+
+
 
               <div className="flex items-center gap-2 mb-4">
 
+
+
                 <Activity size={18} className="text-orange-500" />
+
+
 
                 <h3 className="text-sm font-semibold text-gray-700">Ticket Status Breakdown</h3>
 
+
+
                 <span className="ml-auto text-xs text-gray-400">Total: {dynamicTicketStats.total}</span>
 
+
+
               </div>
+
+
 
               <div className="space-y-3">
 
+
+
                 <div className="flex items-center gap-3">
+
+
 
                   <span className="text-xs text-gray-500 w-20">Open</span>
 
+
+
                   <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+
+
 
                     <div className="h-full bg-red-500 rounded-full" style={{ width: `${tickets.length > 0 ? (dynamicTicketStats.openTickets / tickets.length) * 100 : 0}%` }} />
 
+
+
                   </div>
+
+
 
                   <span className="text-xs font-medium text-gray-700 w-6 text-right">{dynamicTicketStats.openTickets}</span>
 
+
+
                 </div>
 
+
+
                 <div className="flex items-center gap-3">
+
+
 
                   <span className="text-xs text-gray-500 w-20">Scheduled</span>
 
+
+
                   <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+
+
 
                     <div className="h-full bg-blue-500 rounded-full" style={{ width: `${tickets.length > 0 ? (dynamicTicketStats.scheduled / tickets.length) * 100 : 0}%` }} />
 
+
+
                   </div>
+
+
 
                   <span className="text-xs font-medium text-gray-700 w-6 text-right">{dynamicTicketStats.scheduled}</span>
 
+
+
                 </div>
 
+
+
                 <div className="flex items-center gap-3">
+
+
 
                   <span className="text-xs text-gray-500 w-20">In Progress</span>
 
+
+
                   <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+
+
 
                     <div className="h-full bg-amber-500 rounded-full" style={{ width: `${tickets.length > 0 ? (dynamicTicketStats.inProgress / tickets.length) * 100 : 0}%` }} />
 
+
+
                   </div>
+
+
 
                   <span className="text-xs font-medium text-gray-700 w-6 text-right">{dynamicTicketStats.inProgress}</span>
 
+
+
                 </div>
 
+
+
                 <div className="flex items-center gap-3">
+
+
 
                   <span className="text-xs text-gray-500 w-20">Resolved</span>
 
+
+
                   <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+
+
 
                     <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${tickets.length > 0 ? (dynamicTicketStats.resolved / tickets.length) * 100 : 0}%` }} />
 
+
+
                   </div>
+
+
 
                   <span className="text-xs font-medium text-gray-700 w-6 text-right">{dynamicTicketStats.resolved}</span>
 
+
+
                 </div>
+
+
 
                 <div className="flex items-center gap-3">
 
+
+
                   <span className="text-xs text-gray-500 w-20">Closed</span>
+
+
 
                   <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
 
+
+
                     <div className="h-full bg-gray-600 rounded-full" style={{ width: `${tickets.length > 0 ? (dynamicTicketStats.closed / tickets.length) * 100 : 0}%` }} />
+
+
 
                   </div>
 
+
+
                   <span className="text-xs font-medium text-gray-700 w-6 text-right">{dynamicTicketStats.closed}</span>
+
+
 
                 </div>
 
+
+
               </div>
 
+
+
             </div>
+
+
+
+
 
 
 
             {/* Visit Statistics */}
 
+
+
             <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
+
+
 
               <div className="flex items-center gap-2 mb-4">
 
+
+
                 <Calendar size={18} className="text-orange-500" />
+
+
 
                 <h3 className="text-sm font-semibold text-gray-700">Visit Statistics</h3>
 
+
+
                 <span className="ml-auto text-xs text-gray-400">Total: {dynamicVisitStats.total}</span>
 
+
+
               </div>
+
+
 
               <div className="space-y-3">
 
+
+
                 <div className="flex items-center gap-3">
+
+
 
                   <span className="text-xs text-gray-500 w-20">Scheduled</span>
 
+
+
                   <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+
+
 
                     <div className="h-full bg-blue-500 rounded-full" style={{ width: `${dynamicVisitStats.total > 0 ? (dynamicVisitStats.scheduled / dynamicVisitStats.total) * 100 : 0}%` }} />
 
+
+
                   </div>
+
+
 
                   <span className="text-xs font-medium text-gray-700 w-6 text-right">{dynamicVisitStats.scheduled}</span>
 
+
+
                 </div>
 
+
+
                 <div className="flex items-center gap-3">
+
+
 
                   <span className="text-xs text-gray-500 w-20">Completed</span>
 
+
+
                   <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+
+
 
                     <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${dynamicVisitStats.total > 0 ? (dynamicVisitStats.completed / dynamicVisitStats.total) * 100 : 0}%` }} />
 
+
+
                   </div>
+
+
 
                   <span className="text-xs font-medium text-gray-700 w-6 text-right">{dynamicVisitStats.completed}</span>
 
+
+
                 </div>
+
+
 
                 <div className="flex items-center gap-3">
 
+
+
                   <span className="text-xs text-gray-500 w-20">Cancelled</span>
+
+
 
                   <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
 
+
+
                     <div className="h-full bg-red-500 rounded-full" style={{ width: `${dynamicVisitStats.total > 0 ? (dynamicVisitStats.cancelled / dynamicVisitStats.total) * 100 : 0}%` }} />
+
+
 
                   </div>
 
+
+
                   <span className="text-xs font-medium text-gray-700 w-6 text-right">{dynamicVisitStats.cancelled}</span>
+
+
 
                 </div>
 
+
+
               </div>
+
+
 
             </div>
 
+
+
           </div>
+
+
+
+
 
 
 
           {/* Recent Sections Row */}
 
+
+
           <div className="grid grid-cols-4 gap-4">
+
+
 
             {/* Recent Tickets */}
 
+
+
             <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+
+
 
               <div className="flex items-center justify-between mb-4">
 
+
+
                 <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+
+
 
                   <Ticket size={16} className="text-orange-500" />
 
+
+
                   Recent Tickets
+
+
 
                 </h3>
 
+
+
                 <button className="text-xs text-gray-400 hover:text-gray-600" onClick={() => { setButtonView('kanban'); }}>View All</button>
 
+
+
               </div>
+
+
 
               <div className="space-y-3 max-h-[300px] overflow-y-auto">
 
+
+
                 {tickets.map((ticket, idx) => (
+
+
 
                   <div key={ticket.id || idx} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
 
+
+
                     <div>
+
+
 
                       <p className="text-xs font-medium text-gray-700">{ticket.id}</p>
 
+
+
                       <p className="text-[10px] text-gray-400">{ticket.customerName || ticket.customer}</p>
+
+
 
                     </div>
 
+
+
                     <span className={`text-[10px] px-2 py-1 rounded-full ${
+
+
 
                       ticket.status === 'Open' ? 'bg-red-100 text-red-600' :
 
+
+
                       ticket.status === 'Scheduled' ? 'bg-blue-100 text-blue-600' :
+
+
 
                       ticket.status === 'In Progress' ? 'bg-amber-100 text-amber-600' :
 
+
+
                       ticket.status === 'Resolved' ? 'bg-emerald-100 text-emerald-600' :
+
+
 
                       'bg-gray-100 text-gray-600'
 
+
+
                     }`}>{ticket.status}</span>
+
+
 
                   </div>
 
+
+
                 ))}
+
+
 
                 {tickets.length === 0 && (
 
+
+
                   <p className="text-xs text-gray-400 text-center py-4">No tickets available</p>
+
+
 
                 )}
 
+
+
               </div>
 
+
+
             </div>
+
+
+
+
 
 
 
             {/* Recent Visits */}
 
+
+
             <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+
+
 
               <div className="flex items-center justify-between mb-4">
 
+
+
                 <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+
+
 
                   <Calendar size={16} className="text-orange-500" />
 
+
+
                   Recent Visits
+
+
 
                 </h3>
 
+
+
                 <button className="text-xs text-gray-400 hover:text-gray-600" onClick={() => { setButtonView('table'); setActiveTab('schedule-visit'); }}>View All</button>
 
+
+
               </div>
+
+
 
               <div className="space-y-3 max-h-[300px] overflow-y-auto">
 
+
+
                 {visits.map((visit, idx) => (
+
+
 
                   <div key={visit.id || idx} className="py-2 border-b border-gray-50 last:border-0">
 
+
+
                     <div className="flex items-center justify-between">
+
+
 
                       <p className="text-xs font-medium text-gray-700">{visit.id || `V${String(idx + 1).padStart(3, '0')}`}</p>
 
+
+
                       <span className={`text-[10px] px-2 py-1 rounded-full ${
+
+
 
                         visit.status === 'Completed' ? 'bg-emerald-100 text-emerald-600' :
 
+
+
                         visit.status === 'Scheduled' ? 'bg-blue-100 text-blue-600' :
+
+
 
                         'bg-red-100 text-red-600'
 
+
+
                       }`}>{visit.status || 'Scheduled'}</span>
+
+
 
                     </div>
 
+
+
                     <p className="text-[10px] text-gray-400 mt-1">{visit.customer || '—'}</p>
+
+
 
                     <p className="text-[10px] text-gray-400">{visit.scheduled_date || visit.scheduledDate || '—'}</p>
 
+
+
                   </div>
+
+
 
                 ))}
 
+
+
                 {visits.length === 0 && (
+
+
 
                   <p className="text-xs text-gray-400 text-center py-4">No visits scheduled</p>
 
+
+
                 )}
+
+
 
               </div>
 
+
+
             </div>
+
+
+
+
 
 
 
             {/* Recent AMC Contracts */}
 
+
+
             <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+
+
 
               <div className="flex items-center justify-between mb-4">
 
+
+
                 <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+
+
 
                   <Shield size={16} className="text-orange-500" />
 
+
+
                   Recent AMC Contracts
+
+
 
                 </h3>
 
+
+
                 <button className="text-xs text-gray-400 hover:text-gray-600" onClick={() => { setButtonView('table'); setActiveTab('amc'); }}>View All</button>
 
+
+
               </div>
+
+
 
               <div className="space-y-3 max-h-[300px] overflow-y-auto">
 
+
+
                 {amcContracts.map((contract, idx) => (
+
+
 
                   <div key={contract.id || idx} className="py-2 border-b border-gray-50 last:border-0">
 
+
+
                     <div className="flex items-center justify-between">
+
+
 
                       <p className="text-xs font-medium text-gray-700">{contract.id || `AMC${String(idx + 1).padStart(3, '0')}`}</p>
 
+
+
                       <span className={`text-[10px] px-2 py-1 rounded-full ${
+
+
 
                         contract.status === 'Active' ? 'bg-emerald-100 text-emerald-600' :
 
+
+
                         contract.status === 'Expired' ? 'bg-red-100 text-red-600' :
+
+
 
                         'bg-amber-100 text-amber-600'
 
+
+
                       }`}>{contract.status || 'Active'}</span>
+
+
 
                     </div>
 
+
+
                     <p className="text-[10px] text-gray-400 mt-1">{contract.customer || '—'}</p>
+
+
 
                     <p className="text-[10px] text-gray-400">{contract.site || '—'}</p>
 
+
+
                   </div>
+
+
 
                 ))}
 
+
+
                 {amcContracts.length === 0 && (
+
+
 
                   <p className="text-xs text-gray-400 text-center py-4">No AMC contracts available</p>
 
+
+
                 )}
+
+
 
               </div>
 
+
+
             </div>
+
+
+
+
 
 
 
             {/* Team Overview */}
 
+
+
             <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+
+
 
               <div className="flex items-center justify-between mb-4">
 
+
+
                 <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+
+
 
                   <Users size={16} className="text-orange-500" />
 
+
+
                   Team Overview
+
+
 
                 </h3>
 
+
+
                 <span className="text-xs text-gray-400">{engineers.length} Engineers</span>
 
+
+
               </div>
+
+
 
               <div className="space-y-3 max-h-[300px] overflow-y-auto">
 
+
+
                 {engineers.map((engineer, idx) => (
+
+
 
                   <div key={engineer.id || idx} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
 
+
+
                     <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center">
+
+
 
                       <span className="text-xs font-medium text-orange-600">{engineer.name?.charAt(0) || 'E'}</span>
 
+
+
                     </div>
+
+
 
                     <div className="flex-1 min-w-0">
 
+
+
                       <p className="text-xs font-medium text-gray-700 truncate">{engineer.name || engineer.email}</p>
+
+
 
                       <p className="text-[10px] text-gray-400 truncate">{engineer.email || 'No email'}</p>
 
+
+
                     </div>
+
+
 
                     <span className="text-[10px] text-emerald-500">●</span>
 
+
+
                   </div>
+
+
 
                 ))}
 
+
+
                 {engineers.length === 0 && (
+
+
 
                   <p className="text-xs text-gray-400 text-center py-4">0 tickets</p>
 
+
+
                 )}
+
+
 
               </div>
 
+
+
             </div>
+
+
 
           </div>
 
+
+
         </>
 
+
+
       )}
+
+
+
+
 
 
 
       {buttonView === 'kanban' && (
 
+
+
         <>
 
-          {/* View Cards Toggle Button */}
 
-          <div className="flex justify-end mb-2">
 
+          {/* View Cards Toggle Button & Search Bar */}
+          <div className="flex justify-between items-center mb-3">
+            {/* Search Bar - Left side */}
+            <div className="relative w-48">
+              <input
+                type="text"
+                placeholder="Search tickets..."
+                value={ticketSearch}
+                onChange={(e) => setTicketSearch(e.target.value)}
+                className="w-full px-3 py-2 pl-9 text-xs bg-[var(--bg-elevated)] border border-[var(--border-base)] rounded-lg text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+              />
+              <svg className="absolute left-3 top-2.5 w-3.5 h-3.5 text-[var(--text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              {ticketSearch && (
+                <button
+                  onClick={() => setTicketSearch('')}
+                  className="absolute right-3 top-2.5 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+            {/* View Cards Button - Right side */}
             <button
-
               onClick={() => setShowKanbanTableCards(!showKanbanTableCards)}
-
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--bg-elevated)] border border-[var(--border-base)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-all duration-150"
-
             >
-
               <LayoutGrid size={14} />
-
               {showKanbanTableCards ? 'Hide Cards' : 'View Cards'}
-
             </button>
-
           </div>
-
           {/* Status Summary Cards */}
+
+
 
           {showKanbanTableCards && (
 
+
+
           <div className="grid grid-cols-7 gap-3 mb-4">
+
+
 
             <div className="bg-red-100 rounded-xl p-4 border border-red-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setTicketStatus('Open'); }}>
 
+
+
               <div className="flex justify-between items-start">
 
+
+
                 <div>
+
+
 
                   <p className="text-xs font-medium text-red-600 mb-1">OPEN TICKETS</p>
 
+
+
                   <h3 className="text-2xl font-bold text-gray-800">{dynamicTicketStats.openTickets}</h3>
 
+
+
                 </div>
+
+
 
                 <div className="bg-red-200 p-2 rounded-lg">
 
+
+
                   <AlertTriangle size={18} className="text-red-600" />
+
+
 
                 </div>
 
+
+
               </div>
 
+
+
             </div>
+
+
 
             <div className="bg-blue-100 rounded-xl p-4 border border-blue-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setTicketStatus('Scheduled'); }}>
 
+
+
               <div className="flex justify-between items-start">
 
+
+
                 <div>
+
+
 
                   <p className="text-xs font-medium text-blue-600 mb-1">SCHEDULED</p>
 
+
+
                   <h3 className="text-2xl font-bold text-gray-800">{dynamicTicketStats.scheduled}</h3>
 
+
+
                 </div>
+
+
 
                 <div className="bg-blue-200 p-2 rounded-lg">
 
+
+
                   <Calendar size={18} className="text-blue-600" />
+
+
 
                 </div>
 
+
+
               </div>
 
+
+
             </div>
+
+
 
             <div className="bg-yellow-100 rounded-xl p-4 border border-yellow-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setTicketStatus('In Progress'); }}>
 
+
+
               <div className="flex justify-between items-start">
 
+
+
                 <div>
+
+
 
                   <p className="text-xs font-medium text-yellow-600 mb-1">IN PROGRESS</p>
 
+
+
                   <h3 className="text-2xl font-bold text-gray-800">{dynamicTicketStats.inProgress}</h3>
 
+
+
                 </div>
+
+
 
                 <div className="bg-yellow-200 p-2 rounded-lg">
 
+
+
                   <Wrench size={18} className="text-yellow-600" />
+
+
 
                 </div>
 
+
+
               </div>
 
+
+
             </div>
+
+
 
             <div className="bg-emerald-100 rounded-xl p-4 border border-emerald-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setTicketStatus('Resolved'); }}>
 
+
+
               <div className="flex justify-between items-start">
 
+
+
                 <div>
+
+
 
                   <p className="text-xs font-medium text-emerald-600 mb-1">RESOLVED</p>
 
+
+
                   <h3 className="text-2xl font-bold text-gray-800">{dynamicTicketStats.resolved}</h3>
 
+
+
                 </div>
+
+
 
                 <div className="bg-emerald-200 p-2 rounded-lg">
 
+
+
                   <CheckCircle size={18} className="text-emerald-600" />
+
+
 
                 </div>
 
+
+
               </div>
 
+
+
             </div>
+
+
 
             <div className="bg-gray-100 rounded-xl p-4 border border-gray-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setTicketStatus('Closed'); }}>
 
+
+
               <div className="flex justify-between items-start">
 
+
+
                 <div>
+
+
 
                   <p className="text-xs font-medium text-gray-600 mb-1">CLOSED</p>
 
+
+
                   <h3 className="text-2xl font-bold text-gray-800">{dynamicTicketStats.closed}</h3>
 
+
+
                 </div>
+
+
 
                 <div className="bg-gray-200 p-2 rounded-lg">
 
+
+
                   <XCircle size={18} className="text-gray-600" />
+
+
 
                 </div>
 
+
+
               </div>
 
+
+
             </div>
+
+
 
             <div className="bg-indigo-100 rounded-xl p-4 border border-indigo-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setButtonView('table'); setActiveTab('amc'); }}>
 
+
+
               <div className="flex justify-between items-start">
 
+
+
                 <div>
+
+
 
                   <p className="text-xs font-medium text-indigo-600 mb-1">AMC CONTRACTS</p>
 
+
+
                   <h3 className="text-2xl font-bold text-gray-800">{dynamicAmcStats.activeContracts}</h3>
 
+
+
                 </div>
+
+
 
                 <div className="bg-indigo-200 p-2 rounded-lg">
 
+
+
                   <Shield size={18} className="text-indigo-600" />
+
+
 
                 </div>
 
+
+
               </div>
 
+
+
             </div>
+
+
 
             <div className="bg-cyan-100 rounded-xl p-4 border border-cyan-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setButtonView('table'); setActiveTab('schedule-visit'); }}>
 
+
+
               <div className="flex justify-between items-start">
+
+
 
                 <div>
 
+
+
                   <p className="text-xs font-medium text-cyan-600 mb-1">SCHEDULE VISIT</p>
+
+
 
                   <h3 className="text-2xl font-bold text-gray-800">{dynamicVisitStats.total}</h3>
 
+
+
                 </div>
+
+
 
                 <div className="bg-cyan-200 p-2 rounded-lg">
 
+
+
                   <Calendar size={18} className="text-cyan-600" />
+
+
 
                 </div>
 
+
+
               </div>
+
+
 
             </div>
 
+
+
           </div>
+
+
 
           )}
 
+
+
           <div className="space-y-3">
+
+
 
             <div className="flex flex-wrap gap-2 items-center">
 
+
+
               <span className="text-xs text-[var(--text-muted)] mr-1">Status:</span>
+
+
 
               {TICKET_STATUS_FILTERS.map(s => (
 
+
+
                 <button key={s} onClick={() => { setTicketStatus(s); setTPage(1); }}
+
+
 
                   className={`filter-chip ${ticketStatus === s ? 'filter-chip-active' : ''}`}>{s}</button>
 
+
+
               ))}
+
+
 
             </div>
 
+
+
             {loadingTickets ? (
+
+
 
               <LoadingState />
 
+
+
             ) : (
+
+
 
               <TicketKanbanBoard tickets={filteredTickets} onStageChange={handleStageChange} onCardClick={setSelected} />
 
+
+
             )}
+
+
 
           </div>
 
+
+
         </>
+
+
 
       )}
 
 
 
+
+
+
+
       {buttonView === 'table' && (
+
+
 
         <>
 
+
+
           {/* View Cards Toggle Button */}
-
-          <div className="flex justify-end mb-2">
-
+          <div className="flex justify-end mb-3">
             <button
-
               onClick={() => setShowKanbanTableCards(!showKanbanTableCards)}
-
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--bg-elevated)] border border-[var(--border-base)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-all duration-150"
-
             >
-
               <LayoutGrid size={14} />
-
               {showKanbanTableCards ? 'Hide Cards' : 'View Cards'}
-
             </button>
-
           </div>
-
           {/* Status Summary Cards */}
+
+
 
           {showKanbanTableCards && (
 
+
+
           <div className="grid grid-cols-7 gap-3 mb-4">
+
+
 
             <div className="bg-red-100 rounded-xl p-4 border border-red-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setActiveTab('tickets'); setTicketStatus('Open'); }}>
 
+
+
               <div className="flex justify-between items-start">
 
+
+
                 <div>
+
+
 
                   <p className="text-xs font-medium text-red-600 mb-1">OPEN TICKETS</p>
 
+
+
                   <h3 className="text-2xl font-bold text-gray-800">{dynamicTicketStats.openTickets}</h3>
 
+
+
                 </div>
+
+
 
                 <div className="bg-red-200 p-2 rounded-lg">
 
+
+
                   <AlertTriangle size={18} className="text-red-600" />
+
+
 
                 </div>
 
+
+
               </div>
 
+
+
             </div>
+
+
 
             <div className="bg-blue-100 rounded-xl p-4 border border-blue-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setActiveTab('tickets'); setTicketStatus('Scheduled'); }}>
 
+
+
               <div className="flex justify-between items-start">
 
+
+
                 <div>
+
+
 
                   <p className="text-xs font-medium text-blue-600 mb-1">SCHEDULED</p>
 
+
+
                   <h3 className="text-2xl font-bold text-gray-800">{dynamicTicketStats.scheduled}</h3>
 
+
+
                 </div>
+
+
 
                 <div className="bg-blue-200 p-2 rounded-lg">
 
+
+
                   <Calendar size={18} className="text-blue-600" />
+
+
 
                 </div>
 
+
+
               </div>
 
+
+
             </div>
+
+
 
             <div className="bg-yellow-100 rounded-xl p-4 border border-yellow-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setActiveTab('tickets'); setTicketStatus('In Progress'); }}>
 
+
+
               <div className="flex justify-between items-start">
 
+
+
                 <div>
+
+
 
                   <p className="text-xs font-medium text-yellow-600 mb-1">IN PROGRESS</p>
 
+
+
                   <h3 className="text-2xl font-bold text-gray-800">{dynamicTicketStats.inProgress}</h3>
 
+
+
                 </div>
+
+
 
                 <div className="bg-yellow-200 p-2 rounded-lg">
 
+
+
                   <Wrench size={18} className="text-yellow-600" />
+
+
 
                 </div>
 
+
+
               </div>
 
+
+
             </div>
+
+
 
             <div className="bg-emerald-100 rounded-xl p-4 border border-emerald-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setActiveTab('tickets'); setTicketStatus('Resolved'); }}>
 
+
+
               <div className="flex justify-between items-start">
 
+
+
                 <div>
+
+
 
                   <p className="text-xs font-medium text-emerald-600 mb-1">RESOLVED</p>
 
+
+
                   <h3 className="text-2xl font-bold text-gray-800">{dynamicTicketStats.resolved}</h3>
 
+
+
                 </div>
+
+
 
                 <div className="bg-emerald-200 p-2 rounded-lg">
 
+
+
                   <CheckCircle size={18} className="text-emerald-600" />
+
+
 
                 </div>
 
+
+
               </div>
 
+
+
             </div>
+
+
 
             <div className="bg-gray-100 rounded-xl p-4 border border-gray-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setActiveTab('tickets'); setTicketStatus('Closed'); }}>
 
+
+
               <div className="flex justify-between items-start">
 
+
+
                 <div>
+
+
 
                   <p className="text-xs font-medium text-gray-600 mb-1">CLOSED</p>
 
+
+
                   <h3 className="text-2xl font-bold text-gray-800">{dynamicTicketStats.closed}</h3>
 
+
+
                 </div>
+
+
 
                 <div className="bg-gray-200 p-2 rounded-lg">
 
+
+
                   <XCircle size={18} className="text-gray-600" />
+
+
 
                 </div>
 
+
+
               </div>
 
+
+
             </div>
+
+
 
             <div className="bg-indigo-100 rounded-xl p-4 border border-indigo-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setActiveTab('amc'); }}>
 
+
+
               <div className="flex justify-between items-start">
 
+
+
                 <div>
+
+
 
                   <p className="text-xs font-medium text-indigo-600 mb-1">AMC CONTRACTS</p>
 
+
+
                   <h3 className="text-2xl font-bold text-gray-800">{dynamicAmcStats.activeContracts}</h3>
 
+
+
                 </div>
+
+
 
                 <div className="bg-indigo-200 p-2 rounded-lg">
 
+
+
                   <Shield size={18} className="text-indigo-600" />
+
+
 
                 </div>
 
+
+
               </div>
 
+
+
             </div>
+
+
 
             <div className="bg-cyan-100 rounded-xl p-4 border border-cyan-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setActiveTab('schedule-visit'); }}>
 
+
+
               <div className="flex justify-between items-start">
+
+
 
                 <div>
 
+
+
                   <p className="text-xs font-medium text-cyan-600 mb-1">SCHEDULE VISIT</p>
+
+
 
                   <h3 className="text-2xl font-bold text-gray-800">{dynamicVisitStats.total}</h3>
 
+
+
                 </div>
+
+
 
                 <div className="bg-cyan-200 p-2 rounded-lg">
 
+
+
                   <Calendar size={18} className="text-cyan-600" />
+
+
 
                 </div>
 
+
+
               </div>
+
+
 
             </div>
 
+
+
           </div>
+
+
 
           )}
 
+
+
           <Tabs value={activeTab} onValueChange={setActiveTab}>
+
+
 
           <TabsList>
 
-            <TabsTrigger value="tickets">Support Tickets ({tickets.length})</TabsTrigger>
 
-            <TabsTrigger value="amc">AMC Contracts ({amcContracts.length})</TabsTrigger>
 
-            <TabsTrigger value="schedule-visit">Schedule Visit ({visits.length})</TabsTrigger>
+            <TabsTrigger value="tickets">Support Tickets ({totalTickets})</TabsTrigger>
+
+
+
+            <TabsTrigger value="amc">AMC Contracts ({totalAmcContracts})</TabsTrigger>
+
+
+
+            <TabsTrigger value="schedule-visit">Schedule Visit ({totalVisits})</TabsTrigger>
+
+
 
           </TabsList>
 
 
 
+
+
+
+
           <TabsContent value="tickets" className="!p-0 !m-0">
+
+
 
             <div className="space-y-3">
 
+
+
               <div className="flex flex-wrap gap-2 items-center">
+
+
 
                 <span className="text-xs text-[var(--text-muted)] mr-1">Status:</span>
 
+
+
                 {TICKET_STATUS_FILTERS.map(s => (
+
+
 
                   <button key={s} onClick={() => { setTicketStatus(s); setTPage(1); }}
 
+
+
                     className={`filter-chip ${ticketStatus === s ? 'filter-chip-active' : ''}`}>{s}</button>
+
+
 
                 ))}
 
+
+
               </div>
+
+
 
               {loadingTickets ? (
 
+
+
                 <LoadingState />
+
+
 
               ) : error ? (
 
+
+
                 <ErrorState message={error} />
+
+
 
               ) : (
 
+
+
                 <DataTable
+
+
 
                   columns={TICKET_COLUMNS}
 
+
+
                   data={paginatedTickets}
+
+
 
                   rowActions={TICKET_ACTIONS}
 
+
+
                   pagination={{ page: tPage, pageSize: tPageSize, total: filteredTickets.length, onChange: setTPage, onPageSizeChange: setTPageSize }}
+
+
 
                   emptyMessage="No tickets found."
 
+
+
                   onRowClick={row => setSelected(row)}
+
+
 
                 />
 
+
+
               )}
+
+
 
             </div>
 
+
+
           </TabsContent>
+
+
+
+
 
 
 
@@ -10035,7 +17032,19 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
           {loadingAmc ? (
+
+
+
+
+
+
+
+
 
 
 
@@ -10051,7 +17060,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
           ) : (
+
+
+
+
+
+
+
+
 
 
 
@@ -10067,7 +17092,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               columns={AMC_COLUMNS}
+
+
+
+
+
+
+
+
 
 
 
@@ -10083,7 +17124,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               rowActions={AMC_ACTIONS}
+
+
+
+
+
+
+
+
 
 
 
@@ -10099,7 +17156,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               emptyMessage="No AMC contracts found."
+
+
+
+
+
+
+
+
 
 
 
@@ -10115,7 +17188,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 setAmcProjectView(row);
+
+
+
+
+
+
+
+
 
 
 
@@ -10131,7 +17220,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               }}
+
+
+
+
+
+
+
+
 
 
 
@@ -10147,6 +17252,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
           )}
 
 
@@ -10155,7 +17268,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         </TabsContent>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -10179,7 +17316,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
           <div className="space-y-4 p-4">
+
+
+
+
+
+
+
+
 
 
 
@@ -10195,7 +17348,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             <div className="glass-card p-4">
+
+
+
+
+
+
+
+
 
 
 
@@ -10211,7 +17380,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <Select
+
+
+
+
+
+
+
+
 
 
 
@@ -10227,7 +17412,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   onChange={e => {
+
+
+
+
+
+
+
+
 
 
 
@@ -10243,7 +17444,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                     setSelectedCustomerForVisit(customer);
+
+
+
+
+
+
+
+
 
 
 
@@ -10259,7 +17476,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                       // Find first contract for this customer
+
+
+
+
+
+
+
+
 
 
 
@@ -10275,7 +17508,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                       if (contract) {
+
+
+
+
+
+
+
+
 
 
 
@@ -10291,7 +17540,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                       }
+
+
+
+
+
+
+
+
 
 
 
@@ -10307,7 +17572,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   }}
+
+
+
+
+
+
+
+
 
 
 
@@ -10323,7 +17604,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   <option value="">Select a customer...</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -10339,7 +17636,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                     <option key={customer} value={customer}>
+
+
+
+
+
+
+
+
 
 
 
@@ -10355,7 +17668,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                     </option>
+
+
+
+
+
+
+
+
 
 
 
@@ -10371,7 +17700,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 </Select>
+
+
+
+
+
+
+
+
 
 
 
@@ -10387,7 +17732,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   <p className="text-xs text-[var(--text-muted)] mt-2">No AMC contracts available.</p>
+
+
+
+
+
+
+
+
 
 
 
@@ -10403,6 +17764,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               </FormField>
 
 
@@ -10411,7 +17780,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -10435,7 +17828,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             <div className="glass-card p-4">
+
+
+
+
+
+
+
+
 
 
 
@@ -10451,6 +17860,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <Calendar size={16} className="text-[var(--accent-light)]" />
 
 
@@ -10459,7 +17876,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 All Scheduled Visits ({visits.length})
+
+
+
+
+
+
+
+
 
 
 
@@ -10483,7 +17916,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               {loadingVisits ? (
+
+
+
+
+
+
+
+
 
 
 
@@ -10499,7 +17956,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   <Loader2 size={24} className="animate-spin text-[var(--primary)]" />
+
+
+
+
+
+
+
+
 
 
 
@@ -10515,7 +17988,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -10531,7 +18020,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <div className="text-center py-8 text-[var(--text-muted)]">
+
+
+
+
+
+
+
+
 
 
 
@@ -10547,6 +18052,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   <p className="text-xs mt-1">Select a customer above to schedule a visit</p>
 
 
@@ -10555,7 +18068,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -10571,7 +18100,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <div className="overflow-x-auto">
+
+
+
+
+
+
+
+
 
 
 
@@ -10587,7 +18132,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                     <thead>
+
+
+
+
+
+
+
+
 
 
 
@@ -10603,7 +18164,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                         <th className="text-left py-2 px-3 text-[11px] font-semibold text-[var(--text-muted)]">Contract ID</th>
+
+
+
+
+
+
+
+
 
 
 
@@ -10619,7 +18196,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                         <th className="text-left py-2 px-3 text-[11px] font-semibold text-[var(--text-muted)]">Site</th>
+
+
+
+
+
+
+
+
 
 
 
@@ -10635,7 +18228,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                         <th className="text-left py-2 px-3 text-[11px] font-semibold text-[var(--text-muted)]">Date & Time</th>
+
+
+
+
+
+
+
+
 
 
 
@@ -10651,6 +18260,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                         <th className="text-left py-2 px-3 text-[11px] font-semibold text-[var(--text-muted)]">Priority</th>
 
 
@@ -10659,7 +18276,27 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                         <th className="text-left py-2 px-3 text-[11px] font-semibold text-[var(--text-muted)]">Status</th>
+
+
+
+                        <th className="text-left py-2 px-3 text-[11px] font-semibold text-[var(--text-muted)]">Action</th>
+
+
+
+
+
+
+
+
 
 
 
@@ -10675,7 +18312,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                     </thead>
+
+
+
+
+
+
+
+
 
 
 
@@ -10691,6 +18344,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                       {visits.map((visit, index) => (
 
 
@@ -10699,7 +18360,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-                        <tr key={visit.id || index} className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)]">
+
+
+
+
+
+
+
+
+                        <tr 
+
+                          key={visit.id || index} 
+
+                          className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)] cursor-pointer"
+
+                          onClick={() => setSelectedVisit(visit)}
+
+                        >
+
+
+
+
+
+
+
+
 
 
 
@@ -10715,7 +18400,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                           <td className="py-3 px-3 text-xs text-[var(--text-primary)]">{visit.customer || '—'}</td>
+
+
+
+
+
+
+
+
 
 
 
@@ -10731,7 +18432,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                           <td className="py-3 px-3 text-xs text-[var(--text-primary)]">{visit.visit_type || visit.visitType || '—'}</td>
+
+
+
+
+
+
+
+
 
 
 
@@ -10747,7 +18464,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                             <div className="flex flex-col">
+
+
+
+
+
+
+
+
 
 
 
@@ -10763,7 +18496,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                               <span className="text-[var(--text-muted)] text-[10px]">{visit.scheduled_time || visit.scheduledTime || '—'}</span>
+
+
+
+
+
+
+
+
 
 
 
@@ -10779,7 +18528,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                           </td>
+
+
+
+
+
+
+
+
 
 
 
@@ -10795,7 +18560,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                           <td className="py-3 px-3 text-xs">
+
+
+
+
+
+
+
+
 
 
 
@@ -10811,7 +18592,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                               ? 'bg-red-500/20 text-red-400'
+
+
+
+
+
+
+
+
 
 
 
@@ -10827,7 +18624,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                                 ? 'bg-amber-500/20 text-amber-400'
+
+
+
+
+
+
+
+
 
 
 
@@ -10843,7 +18656,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                               }`}>
+
+
+
+
+
+
+
+
 
 
 
@@ -10859,6 +18688,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                             </span>
 
 
@@ -10867,7 +18704,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                           </td>
+
+
+
+
+
+
+
+
 
 
 
@@ -10883,7 +18736,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                             <span className={`px-2 py-1 rounded-full text-[10px] ${(visit.status || '').toLowerCase() === 'completed'
+
+
+
+
+
+
+
+
 
 
 
@@ -10899,7 +18768,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                               : (visit.status || '').toLowerCase() === 'scheduled'
+
+
+
+
+
+
+
+
 
 
 
@@ -10915,7 +18800,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                                 : 'bg-red-500/20 text-red-400'
+
+
+
+
+
+
+
+
 
 
 
@@ -10931,7 +18832,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                               {visit.status || 'Scheduled'}
+
+
+
+
+
+
+
+
 
 
 
@@ -10947,6 +18864,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                           </td>
 
 
@@ -10955,7 +18880,47 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
+                          <td className="py-3 px-3 text-xs">
+
+                            <button 
+
+                              onClick={(e) => {
+
+                                e.stopPropagation();
+
+                                setSelectedVisit(visit);
+
+                              }}
+
+                              className="p-1.5 hover:bg-[var(--bg-hover)] rounded-lg transition-colors text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+
+                              title="View Details"
+
+                            >
+
+                              <Eye size={14} />
+
+                            </button>
+
+                          </td>
+
                         </tr>
+
+
+
+
+
+
+
+
 
 
 
@@ -10971,7 +18936,6 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-                    </tbody>
 
 
 
@@ -10979,7 +18943,50 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-                  </table>
+
+                                </tbody>
+          </table>
+          {/* Pagination Controls */}
+          <div className="flex items-center justify-between mt-4 pt-4 border-t border-[var(--border-base)]">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[var(--text-muted)]">Show</span>
+              <select
+                value={vPageSize}
+                onChange={(e) => {
+                  setVPageSize(Number(e.target.value));
+                  setVPage(1);
+                }}
+                className="text-xs bg-[var(--bg-base)] border border-[var(--border-base)] rounded px-2 py-1 text-[var(--text-primary)]"
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+              <span className="text-xs text-[var(--text-muted)]">entries</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setVPage(p => Math.max(1, p - 1))}
+                disabled={vPage === 1}
+                className="p-1.5 rounded-lg border border-[var(--border-base)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <span className="text-xs text-[var(--text-muted)]">
+                Page {vPage}
+              </span>
+              <button
+                onClick={() => setVPage(p => p + 1)}
+                disabled={visits.length < vPageSize}
+                className="p-1.5 rounded-lg border border-[var(--border-base)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
 
 
@@ -10987,15 +18994,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-                </div>
 
-
-
-
-
-
-
-              )}
 
 
 
@@ -11011,7 +19010,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
           </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -11027,7 +19042,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       </Tabs>
+
+
+
+
+
+
+
+
 
 
 
@@ -11043,9 +19074,27 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             }
 
+
+
             {/* New Ticket Modal */}
+
+
+
+
+
+
+
+
 
 
 
@@ -11061,7 +19110,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         footer={
+
+
+
+
+
+
+
+
 
 
 
@@ -11077,7 +19142,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             <Button variant="ghost" onClick={() => setShowAdd(false)}>Cancel</Button>
+
+
+
+
+
+
+
+
 
 
 
@@ -11093,7 +19174,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
           </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -11109,7 +19206,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         <div className="space-y-3">
+
+
+
+
+
+
+
+
 
 
 
@@ -11125,7 +19238,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             <Select
+
+
+
+
+
+
+
+
 
 
 
@@ -11141,6 +19270,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               onChange={e => setNewTicket(prev => ({ ...prev, customerName: e.target.value, customerId: e.target.value }))}
 
 
@@ -11149,7 +19286,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             >
+
+
+
+
+
+
+
+
 
 
 
@@ -11165,7 +19318,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               {customers.map(customer => (
+
+
+
+
+
+
+
+
 
 
 
@@ -11181,6 +19350,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               ))}
 
 
@@ -11189,7 +19366,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             </Select>
+
+
+
+
+
+
+
+
 
 
 
@@ -11205,7 +19398,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               <p className="text-xs text-[var(--text-muted)] mt-1">Loading customers...</p>
+
+
+
+
+
+
+
+
 
 
 
@@ -11221,7 +19430,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
           </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -11237,6 +19462,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             <FormField label="Ticket Type">
 
 
@@ -11245,7 +19478,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               <Select
+
+
+
+
+
+
+
+
 
 
 
@@ -11261,6 +19510,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 onChange={e => setNewTicket(prev => ({ ...prev, type: e.target.value }))}
 
 
@@ -11269,7 +19526,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               >
+
+
+
+
+
+
+
+
 
 
 
@@ -11285,7 +19558,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 {['Maintenance', 'AMC', 'Warranty', 'Breakdown', 'Inspection'].map(t => <option key={t} value={t}>{t}</option>)}
+
+
+
+
+
+
+
+
 
 
 
@@ -11301,7 +19590,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -11317,7 +19622,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               <Select
+
+
+
+
+
+
+
+
 
 
 
@@ -11333,6 +19654,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 onChange={e => setNewTicket(prev => ({ ...prev, priority: e.target.value }))}
 
 
@@ -11341,7 +19670,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               >
+
+
+
+
+
+
+
+
 
 
 
@@ -11357,7 +19702,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <option value="Medium">Medium</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -11373,6 +19734,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               </Select>
 
 
@@ -11381,7 +19750,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -11397,7 +19782,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               <Select
+
+
+
+
+
+
+
+
 
 
 
@@ -11413,7 +19814,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 onChange={e => setNewTicket(prev => ({ ...prev, status: e.target.value }))}
+
+
+
+
+
+
+
+
 
 
 
@@ -11429,7 +19846,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <option value="Open">Open</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -11445,7 +19878,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <option value="In Progress">In Progress</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -11461,7 +19910,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <option value="Closed">Closed</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -11477,7 +19942,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -11493,7 +19974,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
           <FormField label="Description">
+
+
+
+
+
+
+
+
 
 
 
@@ -11509,7 +20006,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               placeholder="Describe the issue in detail..."
+
+
+
+
+
+
+
+
 
 
 
@@ -11525,7 +20038,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               value={newTicket.description}
+
+
+
+
+
+
+
+
 
 
 
@@ -11541,7 +20070,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             />
+
+
+
+
+
+
+
+
 
 
 
@@ -11557,7 +20102,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
           <FormField label="Assigned To">
+
+
+
+
+
+
+
+
 
 
 
@@ -11573,7 +20134,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               value={newTicket.assignedTo}
+
+
+
+
+
+
+
+
 
 
 
@@ -11589,7 +20166,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             >
+
+
+
+
+
+
+
+
 
 
 
@@ -11605,37 +20198,15 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
               {engineers.map(engineer => (
 
-
-
-
-
-
-
-                <option key={engineer.id} value={engineer.name}>
-
-
-
-
-
-
+                <option key={engineer.id} value={engineer.id}>
 
                   {engineer.name} {engineer.email ? `(${engineer.email})` : ''}
 
-
-
-
-
-
-
                 </option>
-
-
-
-
-
-
 
               ))}
 
@@ -11653,7 +20224,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             {engineers.length === 0 && (
+
+
+
+
+
+
+
+
 
 
 
@@ -11669,7 +20256,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             )}
+
+
+
+
+
+
+
+
 
 
 
@@ -11685,6 +20288,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         </div>
 
 
@@ -11693,7 +20304,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       </Modal>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -11717,7 +20352,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       {selected && (
+
+
+
+
+
+
+
+
 
 
 
@@ -11733,7 +20384,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
           footer={
+
+
+
+
+
+
+
+
 
 
 
@@ -11749,7 +20416,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               <Button variant="ghost" onClick={() => setSelected(null)}>Close</Button>
+
+
+
+
+
+
+
+
 
 
 
@@ -11765,7 +20448,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <CheckCircle size={13} /> Mark Resolved
+
+
+
+
+
+
+
+
 
 
 
@@ -11781,7 +20480,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -11797,7 +20512,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
           <div className="space-y-4">
+
+
+
+
+
+
+
+
 
 
 
@@ -11813,7 +20544,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               {[
+
+
+
+
+
+
+
+
 
 
 
@@ -11829,7 +20576,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 ['Customer', selected.customerName],
+
+
+
+
+
+
+
+
 
 
 
@@ -11845,7 +20608,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 ['Priority', <PriorityBadge value={selected.priority} />],
+
+
+
+
+
+
+
+
 
 
 
@@ -11861,7 +20640,35 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-                ['Assigned To', selected.assignedTo],
+
+
+
+
+
+
+
+
+                ['Assigned To', (() => {
+
+
+
+                  const engineer = engineers.find(e => e.id === selected.assignedTo || e._id === selected.assignedTo);
+
+
+
+                  return engineer?.name || engineer?.email?.split('@')[0] || selected.assignedTo || '—';
+
+
+
+                })()],
+
+
+
+
+
+
+
+
 
 
 
@@ -11877,7 +20684,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 ['Resolved', selected.resolved ?? '—'],
+
+
+
+
+
+
+
+
 
 
 
@@ -11893,7 +20716,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <div key={k} className="glass-card p-2">
+
+
+
+
+
+
+
+
 
 
 
@@ -11909,7 +20748,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   <div className="font-semibold text-[var(--text-primary)]">{v}</div>
+
+
+
+
+
+
+
+
 
 
 
@@ -11925,6 +20780,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               ))}
 
 
@@ -11933,7 +20796,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -11949,7 +20828,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               <div className="text-[11px] text-[var(--text-muted)] mb-1">Description</div>
+
+
+
+
+
+
+
+
 
 
 
@@ -11965,7 +20860,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -11981,6 +20892,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         </Modal>
 
 
@@ -11989,7 +20908,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12013,7 +20956,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       {editModal.open && editModal.ticket && (
+
+
+
+
+
+
+
+
 
 
 
@@ -12029,7 +20988,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
           open={editModal.open}
+
+
+
+
+
+
+
+
 
 
 
@@ -12045,7 +21020,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
           title={`Edit Ticket — ${editModal.ticket.id}`}
+
+
+
+
+
+
+
+
 
 
 
@@ -12061,7 +21052,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             <div className="flex gap-2 justify-end">
+
+
+
+
+
+
+
+
 
 
 
@@ -12077,7 +21084,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               <Button onClick={handleUpdateTicket} disabled={updating}>
+
+
+
+
+
+
+
+
 
 
 
@@ -12093,7 +21116,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 {updating ? 'Saving...' : 'Save Changes'}
+
+
+
+
+
+
+
+
 
 
 
@@ -12109,7 +21148,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -12125,7 +21180,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         >
+
+
+
+
+
+
+
+
 
 
 
@@ -12141,6 +21212,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             <FormField label="Customer">
 
 
@@ -12149,7 +21228,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               <Select
+
+
+
+
+
+
+
+
 
 
 
@@ -12165,6 +21260,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 onChange={e => setEditForm(prev => ({ ...prev, customerName: e.target.value }))}
 
 
@@ -12173,7 +21276,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               >
+
+
+
+
+
+
+
+
 
 
 
@@ -12189,7 +21308,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 {customers.map(customer => (
+
+
+
+
+
+
+
+
 
 
 
@@ -12205,6 +21340,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 ))}
 
 
@@ -12213,7 +21356,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               </Select>
+
+
+
+
+
+
+
+
 
 
 
@@ -12229,7 +21388,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <p className="text-xs text-[var(--text-muted)] mt-1">Loading customers...</p>
+
+
+
+
+
+
+
+
 
 
 
@@ -12245,7 +21420,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -12261,6 +21452,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               <FormField label="Ticket Type">
 
 
@@ -12269,7 +21468,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <Select
+
+
+
+
+
+
+
+
 
 
 
@@ -12285,6 +21500,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   onChange={e => setEditForm(prev => ({ ...prev, type: e.target.value }))}
 
 
@@ -12293,7 +21516,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 >
+
+
+
+
+
+
+
+
 
 
 
@@ -12309,7 +21548,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   {['Maintenance', 'AMC', 'Warranty', 'Breakdown', 'Inspection'].map(t => <option key={t} value={t}>{t}</option>)}
+
+
+
+
+
+
+
+
 
 
 
@@ -12325,7 +21580,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -12341,7 +21612,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <Select
+
+
+
+
+
+
+
+
 
 
 
@@ -12357,6 +21644,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   onChange={e => setEditForm(prev => ({ ...prev, priority: e.target.value }))}
 
 
@@ -12365,7 +21660,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 >
+
+
+
+
+
+
+
+
 
 
 
@@ -12381,7 +21692,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   <option value="Medium">Medium</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -12397,6 +21724,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 </Select>
 
 
@@ -12405,7 +21740,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -12421,7 +21772,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <Select
+
+
+
+
+
+
+
+
 
 
 
@@ -12437,7 +21804,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   onChange={e => setEditForm(prev => ({ ...prev, status: e.target.value }))}
+
+
+
+
+
+
+
+
 
 
 
@@ -12453,7 +21836,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   <option value="Open">Open</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -12469,7 +21868,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   <option value="In Progress">In Progress</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -12485,7 +21900,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   <option value="Closed">Closed</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -12501,7 +21932,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -12517,7 +21964,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             <FormField label="Description">
+
+
+
+
+
+
+
+
 
 
 
@@ -12533,7 +21996,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 placeholder="Describe the issue in detail..."
+
+
+
+
+
+
+
+
 
 
 
@@ -12549,7 +22028,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 value={editForm.description}
+
+
+
+
+
+
+
+
 
 
 
@@ -12565,6 +22060,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               />
 
 
@@ -12573,7 +22076,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -12589,7 +22108,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               <Select
+
+
+
+
+
+
+
+
 
 
 
@@ -12605,7 +22140,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 onChange={e => setEditForm(prev => ({ ...prev, assignedTo: e.target.value }))}
+
+
+
+
+
+
+
+
 
 
 
@@ -12621,7 +22172,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <option value="">Select User</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -12637,7 +22204,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   <option key={engineer.id} value={engineer.name}>
+
+
+
+
+
+
+
+
 
 
 
@@ -12653,7 +22236,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   </option>
+
+
+
+
+
+
+
+
 
 
 
@@ -12669,7 +22268,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               </Select>
+
+
+
+
+
+
+
+
 
 
 
@@ -12685,7 +22300,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <p className="text-xs text-[var(--text-muted)] mt-1">Loading users...</p>
+
+
+
+
+
+
+
+
 
 
 
@@ -12701,7 +22332,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -12717,6 +22364,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         </Modal>
 
 
@@ -12725,7 +22380,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12749,7 +22428,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       {serviceTicketModal.open && serviceTicketModal.contract && (
+
+
+
+
+
+
+
+
 
 
 
@@ -12765,7 +22460,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
           open={serviceTicketModal.open}
+
+
+
+
+
+
+
+
 
 
 
@@ -12781,7 +22492,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
           title={`Create Service Ticket — ${serviceTicketModal.contract.id}`}
+
+
+
+
+
+
+
+
 
 
 
@@ -12797,7 +22524,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             <div className="flex gap-2 justify-end">
+
+
+
+
+
+
+
+
 
 
 
@@ -12813,7 +22556,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               <Button onClick={handleCreateServiceTicket} disabled={creatingServiceTicket}>
+
+
+
+
+
+
+
+
 
 
 
@@ -12829,7 +22588,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 {creatingServiceTicket ? 'Creating...' : 'Create Ticket'}
+
+
+
+
+
+
+
+
 
 
 
@@ -12845,7 +22620,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -12861,7 +22652,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         >
+
+
+
+
+
+
+
+
 
 
 
@@ -12877,7 +22684,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             <div className="text-xs text-[var(--text-muted)] mb-2">
+
+
+
+
+
+
+
+
 
 
 
@@ -12893,7 +22716,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               <br />Customer: <span className="font-semibold">{serviceTicketModal.contract.customer}</span>
+
+
+
+
+
+
+
+
 
 
 
@@ -12909,7 +22748,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -12925,7 +22780,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               <Select
+
+
+
+
+
+
+
+
 
 
 
@@ -12941,6 +22812,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 onChange={e => setServiceTicketForm(prev => ({ ...prev, customerName: e.target.value }))}
 
 
@@ -12949,7 +22828,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               >
+
+
+
+
+
+
+
+
 
 
 
@@ -12965,7 +22860,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 {customers.map(customer => (
+
+
+
+
+
+
+
+
 
 
 
@@ -12981,6 +22892,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 ))}
 
 
@@ -12989,7 +22908,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               </Select>
+
+
+
+
+
+
+
+
 
 
 
@@ -13005,7 +22940,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <p className="text-xs text-[var(--text-muted)] mt-1">Loading customers...</p>
+
+
+
+
+
+
+
+
 
 
 
@@ -13021,7 +22972,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -13037,6 +23004,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               <FormField label="Ticket Type">
 
 
@@ -13045,7 +23020,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <Select
+
+
+
+
+
+
+
+
 
 
 
@@ -13061,6 +23052,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   onChange={e => setServiceTicketForm(prev => ({ ...prev, type: e.target.value }))}
 
 
@@ -13069,7 +23068,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 >
+
+
+
+
+
+
+
+
 
 
 
@@ -13085,7 +23100,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   {['Maintenance', 'AMC', 'Warranty', 'Breakdown', 'Inspection'].map(t => <option key={t} value={t}>{t}</option>)}
+
+
+
+
+
+
+
+
 
 
 
@@ -13101,7 +23132,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -13117,7 +23164,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <Select
+
+
+
+
+
+
+
+
 
 
 
@@ -13133,6 +23196,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   onChange={e => setServiceTicketForm(prev => ({ ...prev, priority: e.target.value }))}
 
 
@@ -13141,7 +23212,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 >
+
+
+
+
+
+
+
+
 
 
 
@@ -13157,7 +23244,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   <option value="Medium">Medium</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -13173,6 +23276,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 </Select>
 
 
@@ -13181,7 +23292,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -13197,7 +23324,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <Select
+
+
+
+
+
+
+
+
 
 
 
@@ -13213,7 +23356,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   onChange={e => setServiceTicketForm(prev => ({ ...prev, status: e.target.value }))}
+
+
+
+
+
+
+
+
 
 
 
@@ -13229,7 +23388,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   <option value="Open">Open</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -13245,7 +23420,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   <option value="In Progress">In Progress</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -13261,7 +23452,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   <option value="Closed">Closed</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -13277,7 +23484,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -13293,7 +23516,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             <FormField label="Description">
+
+
+
+
+
+
+
+
 
 
 
@@ -13309,7 +23548,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 placeholder="Describe the issue in detail..."
+
+
+
+
+
+
+
+
 
 
 
@@ -13325,7 +23580,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 value={serviceTicketForm.description}
+
+
+
+
+
+
+
+
 
 
 
@@ -13341,6 +23612,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               />
 
 
@@ -13349,7 +23628,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -13365,7 +23660,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               <Select
+
+
+
+
+
+
+
+
 
 
 
@@ -13381,7 +23692,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 onChange={e => setServiceTicketForm(prev => ({ ...prev, assignedTo: e.target.value }))}
+
+
+
+
+
+
+
+
 
 
 
@@ -13397,7 +23724,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <option value="">Select User</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -13413,7 +23756,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   <option key={engineer.id} value={engineer.name}>
+
+
+
+
+
+
+
+
 
 
 
@@ -13429,7 +23788,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   </option>
+
+
+
+
+
+
+
+
 
 
 
@@ -13445,7 +23820,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               </Select>
+
+
+
+
+
+
+
+
 
 
 
@@ -13461,7 +23852,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <p className="text-xs text-[var(--text-muted)] mt-1">Loading users...</p>
+
+
+
+
+
+
+
+
 
 
 
@@ -13477,7 +23884,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -13493,7 +23916,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         </Modal>
+
+
+
+
+
+
+
+
 
 
 
@@ -13517,7 +23956,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       {/* AMC Contract Edit Modal */}
+
+
+
+
+
+
+
+
 
 
 
@@ -13533,7 +23996,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         <Modal
+
+
+
+
+
+
+
+
 
 
 
@@ -13549,7 +24028,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
           onClose={closeAmcEditModal}
+
+
+
+
+
+
+
+
 
 
 
@@ -13565,7 +24060,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
           footer={
+
+
+
+
+
+
+
+
 
 
 
@@ -13581,7 +24092,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               <Button variant="ghost" onClick={closeAmcEditModal}>Cancel</Button>
+
+
+
+
+
+
+
+
 
 
 
@@ -13597,7 +24124,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 {updatingAmc ? <Loader2 size={13} className="animate-spin" /> : <Pencil size={13} />}
+
+
+
+
+
+
+
+
 
 
 
@@ -13613,6 +24156,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               </Button>
 
 
@@ -13621,7 +24172,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -13637,7 +24204,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         >
+
+
+
+
+
+
+
+
 
 
 
@@ -13653,7 +24236,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             <div className="grid grid-cols-2 gap-3">
+
+
+
+
+
+
+
+
 
 
 
@@ -13669,7 +24268,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <Input
+
+
+
+
+
+
+
+
 
 
 
@@ -13685,7 +24300,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   onChange={e => setAmcEditForm(prev => ({ ...prev, customer: e.target.value }))}
+
+
+
+
+
+
+
+
 
 
 
@@ -13701,6 +24332,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 />
 
 
@@ -13709,7 +24348,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -13725,7 +24380,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <Input
+
+
+
+
+
+
+
+
 
 
 
@@ -13741,7 +24412,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   onChange={e => setAmcEditForm(prev => ({ ...prev, site: e.target.value }))}
+
+
+
+
+
+
+
+
 
 
 
@@ -13757,7 +24444,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 />
+
+
+
+
+
+
+
+
 
 
 
@@ -13773,7 +24476,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -13789,7 +24508,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               <FormField label="System Size (kW)">
+
+
+
+
+
+
+
+
 
 
 
@@ -13805,7 +24540,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   type="number"
+
+
+
+
+
+
+
+
 
 
 
@@ -13821,7 +24572,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   onChange={e => setAmcEditForm(prev => ({ ...prev, systemSize: Number(e.target.value) }))}
+
+
+
+
+
+
+
+
 
 
 
@@ -13837,6 +24604,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 />
 
 
@@ -13845,7 +24620,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -13861,7 +24652,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <Select
+
+
+
+
+
+
+
+
 
 
 
@@ -13877,7 +24684,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   onChange={e => setAmcEditForm(prev => ({ ...prev, status: e.target.value }))}
+
+
+
+
+
+
+
+
 
 
 
@@ -13893,7 +24716,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   <option value="Active">Active</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -13909,7 +24748,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   <option value="Expiring">Expiring</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -13925,7 +24780,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -13941,7 +24812,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <Input
+
+
+
+
+
+
+
+
 
 
 
@@ -13957,7 +24844,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   value={amcEditForm.amount}
+
+
+
+
+
+
+
+
 
 
 
@@ -13973,7 +24876,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   className="h-8 text-xs"
+
+
+
+
+
+
+
+
 
 
 
@@ -13989,7 +24908,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -14005,7 +24940,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             <FormField label="Start Date">
+
+
+
+
+
+
+
+
 
 
 
@@ -14021,7 +24972,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 type="date"
+
+
+
+
+
+
+
+
 
 
 
@@ -14037,6 +25004,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 onChange={e => setAmcEditForm(prev => ({ ...prev, startDate: e.target.value }))}
 
 
@@ -14045,7 +25020,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 className="h-8 text-xs"
+
+
+
+
+
+
+
+
 
 
 
@@ -14061,7 +25052,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -14077,7 +25084,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               <Input
+
+
+
+
+
+
+
+
 
 
 
@@ -14093,7 +25116,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 value={amcEditForm.endDate}
+
+
+
+
+
+
+
+
 
 
 
@@ -14109,7 +25148,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 className="h-8 text-xs"
+
+
+
+
+
+
+
+
 
 
 
@@ -14125,7 +25180,21 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             </FormField>
+
+
+
+
+
+
 
 
 
@@ -14133,39 +25202,75 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
             <FormField label="End Date">
 
+
+
               <Input
+
+
 
                 type="date"
 
+
+
                 value={amcEditForm.endDate}
+
+
 
                 onChange={e => setAmcEditForm(prev => ({ ...prev, endDate: e.target.value }))}
 
+
+
                 className="h-8 text-xs"
+
+
 
               />
 
+
+
             </FormField>
+
+
+
+
 
 
 
             <FormField label="Next Visit">
 
+
+
               <Input
+
+
 
                 type="date"
 
+
+
                 value={amcEditForm.nextVisit}
+
+
 
                 onChange={e => setAmcEditForm(prev => ({ ...prev, nextVisit: e.target.value }))}
 
+
+
                 className="h-8 text-xs"
+
+
 
               />
 
+
+
             </FormField>
 
+
+
           </div>
+
+
 
         </Modal>
 
@@ -14175,9 +25280,35 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       )
 
+
+
       }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14201,9 +25332,27 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       {
 
+
+
         assignModal.open && assignModal.ticket && (
+
+
+
+
+
+
+
+
 
 
 
@@ -14219,7 +25368,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             open={assignModal.open}
+
+
+
+
+
+
+
+
 
 
 
@@ -14235,7 +25400,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             title="Assign Engineer"
+
+
+
+
+
+
+
+
 
 
 
@@ -14251,7 +25432,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               <div className="flex gap-2 justify-end">
+
+
+
+
+
+
+
+
 
 
 
@@ -14267,7 +25464,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <Button onClick={handleAssignEngineer} disabled={!selectedEngineer || assigning}>
+
+
+
+
+
+
+
+
 
 
 
@@ -14283,7 +25496,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   {assigning ? 'Assigning...' : 'Assign'}
+
+
+
+
+
+
+
+
 
 
 
@@ -14299,7 +25528,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -14315,7 +25560,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
           >
+
+
+
+
+
+
+
+
 
 
 
@@ -14331,7 +25592,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               <div className="text-xs text-[var(--text-muted)] mb-2">
+
+
+
+
+
+
+
+
 
 
 
@@ -14347,7 +25624,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -14363,7 +25656,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <Select
+
+
+
+
+
+
+
+
 
 
 
@@ -14379,7 +25688,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   onChange={e => setSelectedEngineer(e.target.value)}
+
+
+
+
+
+
+
+
 
 
 
@@ -14395,7 +25720,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   <option value="">Select an engineer...</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -14411,7 +25752,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                     <option key={engineer.id} value={engineer.name}>
+
+
+
+
+
+
+
+
 
 
 
@@ -14427,7 +25784,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                     </option>
+
+
+
+
+
+
+
+
 
 
 
@@ -14443,7 +25816,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 </Select>
+
+
+
+
+
+
+
+
 
 
 
@@ -14459,7 +25848,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               {engineers.length === 0 && (
+
+
+
+
+
+
+
+
 
 
 
@@ -14475,7 +25880,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               )}
+
+
+
+
+
+
+
+
 
 
 
@@ -14491,7 +25912,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
           </Modal>
+
+
+
+
+
+
+
+
 
 
 
@@ -14501,7 +25938,25 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
         )
 
+
+
       }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14525,9 +25980,27 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       {
 
+
+
         amcProjectView && (
+
+
+
+
+
+
+
+
 
 
 
@@ -14543,7 +26016,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             open={!!amcProjectView}
+
+
+
+
+
+
+
+
 
 
 
@@ -14559,7 +26048,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             title={amcProjectData ? `Project — ${amcProjectData.id}` : 'Project Details'}
+
+
+
+
+
+
+
+
 
 
 
@@ -14575,7 +26080,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               <div className="flex gap-2 justify-end">
+
+
+
+
+
+
+
+
 
 
 
@@ -14591,7 +26112,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -14607,7 +26144,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
           >
+
+
+
+
+
+
+
+
 
 
 
@@ -14623,7 +26176,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               <div className="flex items-center justify-center py-8">
+
+
+
+
+
+
+
+
 
 
 
@@ -14639,7 +26208,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <span className="ml-2 text-sm text-[var(--text-muted)]">Loading project...</span>
+
+
+
+
+
+
+
+
 
 
 
@@ -14655,7 +26240,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             ) : amcProjectData ? (
+
+
+
+
+
+
+
+
 
 
 
@@ -14671,7 +26272,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 {/* Project Info Grid - Same as ProjectPage View Details */}
+
+
+
+
+
+
+
+
 
 
 
@@ -14687,7 +26304,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   {[['Customer', amcProjectData.customerName], ['Email', amcProjectData.email || '—'], ['Mobile', amcProjectData.mobileNumber || '—'], ['Site', amcProjectData.site], ['System Size', `${amcProjectData.systemSize} kW`], ['Project Manager', amcProjectData.pm],
+
+
+
+
+
+
+
+
 
 
 
@@ -14703,7 +26336,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   ].map(([k, v]) => (
+
+
+
+
+
+
+
+
 
 
 
@@ -14719,7 +26368,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                       <div className="text-[var(--text-muted)] mb-0.5">{k}</div>
+
+
+
+
+
+
+
+
 
 
 
@@ -14735,7 +26400,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                     </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -14751,7 +26432,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14775,7 +26480,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <div>
+
+
+
+
+
+
+
+
 
 
 
@@ -14791,7 +26512,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                     <span className="font-semibold text-[var(--text-primary)]">Overall Progress</span>
+
+
+
+
+
+
+
+
 
 
 
@@ -14807,7 +26544,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -14823,7 +26576,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14847,7 +26624,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <div>
+
+
+
+
+
+
+
+
 
 
 
@@ -14863,7 +26656,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   <Stepper steps={amcProjectData.milestones?.map(m => ({ name: m.name, status: m.status, date: m.date })) ?? [
+
+
+
+
+
+
+
+
 
 
 
@@ -14879,7 +26688,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                     { name: 'Installation', status: 'Pending', date: null },
+
+
+
+
+
+
+
+
 
 
 
@@ -14895,7 +26720,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                     { name: 'Billing', status: 'Pending', date: null },
+
+
+
+
+
+
+
+
 
 
 
@@ -14911,6 +26752,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   ]} />
 
 
@@ -14919,7 +26768,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14943,7 +26816,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 {amcProjectData.materials && amcProjectData.materials.length > 0 && (
+
+
+
+
+
+
+
+
 
 
 
@@ -14959,7 +26848,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                     <div className="text-xs font-semibold text-[var(--text-primary)] mb-3">Reserved Materials</div>
+
+
+
+
+
+
+
+
 
 
 
@@ -14975,7 +26880,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                       {amcProjectData.materials.map((m, idx) => (
+
+
+
+
+
+
+
+
 
 
 
@@ -14991,7 +26912,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                           <div>
+
+
+
+
+
+
+
+
 
 
 
@@ -15007,7 +26944,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                             <div className="text-[10px] text-[var(--text-muted)]">Qty: {m.quantity} | Issued: {m.issuedDate || '—'}</div>
+
+
+
+
+
+
+
+
 
 
 
@@ -15023,7 +26976,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                           {m.remarks && (
+
+
+
+
+
+
+
+
 
 
 
@@ -15039,7 +27008,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                               {m.remarks}
+
+
+
+
+
+
+
+
 
 
 
@@ -15055,7 +27040,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                           )}
+
+
+
+
+
+
+
+
 
 
 
@@ -15071,7 +27072,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                       ))}
+
+
+
+
+
+
+
+
 
 
 
@@ -15087,7 +27104,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -15103,7 +27136,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -15119,7 +27168,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               <div className="text-center py-8">
+
+
+
+
+
+
+
+
 
 
 
@@ -15135,7 +27200,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <p className="text-sm text-[var(--text-muted)]">No matching project found for this AMC contract.</p>
+
+
+
+
+
+
+
+
 
 
 
@@ -15151,7 +27232,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -15167,7 +27264,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
           </Modal>
+
+
+
+
+
+
+
+
 
 
 
@@ -15177,7 +27290,25 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
         )
 
+
+
       }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -15201,9 +27332,27 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       {
 
+
+
         scheduleVisitModal.open && scheduleVisitModal.contract && (
+
+
+
+
+
+
+
+
 
 
 
@@ -15219,7 +27368,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             open={scheduleVisitModal.open}
+
+
+
+
+
+
+
+
 
 
 
@@ -15235,7 +27400,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             title="Schedule Visit"
+
+
+
+
+
+
+
+
 
 
 
@@ -15251,7 +27432,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               <div className="flex gap-2 justify-end">
+
+
+
+
+
+
+
+
 
 
 
@@ -15267,7 +27464,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <Button onClick={handleScheduleVisit} disabled={schedulingVisit}>
+
+
+
+
+
+
+
+
 
 
 
@@ -15283,7 +27496,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   {schedulingVisit ? 'Scheduling...' : 'Schedule Visit'}
+
+
+
+
+
+
+
+
 
 
 
@@ -15299,7 +27528,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -15315,7 +27560,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
           >
+
+
+
+
+
+
+
+
 
 
 
@@ -15331,7 +27592,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               {/* Auto-filled Read-only Fields */}
+
+
+
+
+
+
+
+
 
 
 
@@ -15347,7 +27624,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
+
+
+
+
+
+
+
+
 
 
 
@@ -15363,7 +27656,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   <div className="font-semibold text-[var(--text-primary)]">{scheduleVisitModal.contract.id}</div>
+
+
+
+
+
+
+
+
 
 
 
@@ -15379,7 +27688,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
+
+
+
+
+
+
+
+
 
 
 
@@ -15395,7 +27720,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   <div className="font-semibold text-[var(--text-primary)]">
+
+
+
+
+
+
+
+
 
 
 
@@ -15411,6 +27752,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                       <span className="text-[var(--text-muted)]">Loading...</span>
 
 
@@ -15419,7 +27768,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                     ) : (
+
+
+
+
+
+
+
+
 
 
 
@@ -15435,7 +27800,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                     )}
+
+
+
+
+
+
+
+
 
 
 
@@ -15451,6 +27832,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 </div>
 
 
@@ -15459,7 +27848,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
+
+
+
+
+
+
+
+
 
 
 
@@ -15475,7 +27880,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   <div className="font-semibold text-[var(--text-primary)]">
+
+
+
+
+
+
+
+
 
 
 
@@ -15491,7 +27912,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                       <span className="text-[var(--text-muted)]">Loading...</span>
+
+
+
+
+
+
+
+
 
 
 
@@ -15507,7 +27944,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                       scheduleVisitProjectData?.mobileNumber || '—'
+
+
+
+
+
+
+
+
 
 
 
@@ -15523,7 +27976,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -15539,7 +28008,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
+
+
+
+
+
+
+
+
 
 
 
@@ -15555,7 +28040,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-                  <div className="font-semibold text-[var(--text-primary)]">{scheduleVisitModal.contract.site}</div>
+
+
+
+
+
+
+
+
+                  <div className="font-semibold text-[var(--text-primary)]">{scheduleVisitModal.contract.site || scheduleVisitProjectData?.site || '—'}</div>
+
+
+
+
+
+
+
+
 
 
 
@@ -15571,7 +28072,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 <div className="glass-card p-2 bg-[var(--bg-tertiary)]">
+
+
+
+
+
+
+
+
 
 
 
@@ -15587,7 +28104,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-                  <div className="font-semibold text-[var(--text-primary)]">{scheduleVisitModal.contract.customer}</div>
+
+
+
+
+
+
+
+
+                  <div className="font-semibold text-[var(--text-primary)]">{scheduleVisitModal.contract.customer || scheduleVisitModal.contract.customerName || scheduleVisitProjectData?.customerName || '—'}</div>
+
+
+
+
+
+
+
+
 
 
 
@@ -15596,6 +28129,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
                 </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -15611,6 +28152,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   <div className="text-[var(--text-muted)] mb-0.5">Size (kW)</div>
 
 
@@ -15619,7 +28168,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-                  <div className="font-semibold text-[var(--text-primary)]">{scheduleVisitModal.contract.systemSize} kW</div>
+
+
+
+
+
+
+
+
+                  <div className="font-semibold text-[var(--text-primary)]">{(scheduleVisitModal.contract.systemSize || scheduleVisitProjectData?.systemSize || '—')} kW</div>
+
+
+
+
+
+
+
+
 
 
 
@@ -15635,7 +28200,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -15659,7 +28248,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               <div className="space-y-3">
+
+
+
+
+
+
+
+
 
 
 
@@ -15675,7 +28280,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   <Select
+
+
+
+
+
+
+
+
 
 
 
@@ -15691,7 +28312,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                     onChange={e => setVisitForm(prev => ({ ...prev, visitType: e.target.value }))}
+
+
+
+
+
+
+
+
 
 
 
@@ -15707,7 +28344,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                     <option value="Routine Maintenance">Routine Maintenance</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -15723,7 +28376,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                     <option value="Emergency">Emergency</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -15739,6 +28408,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   </Select>
 
 
@@ -15747,7 +28424,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 </FormField>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -15771,6 +28472,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   <FormField label="Scheduled Date *">
 
 
@@ -15779,7 +28488,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                     <Input
+
+
+
+
+
+
+
+
 
 
 
@@ -15795,7 +28520,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                       value={visitForm.scheduledDate}
+
+
+
+
+
+
+
+
 
 
 
@@ -15811,7 +28552,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                       className="h-8 text-xs"
+
+
+
+
+
+
+
+
 
 
 
@@ -15827,7 +28584,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -15843,7 +28616,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                     <Input
+
+
+
+
+
+
+
+
 
 
 
@@ -15859,7 +28648,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                       value={visitForm.scheduledTime}
+
+
+
+
+
+
+
+
 
 
 
@@ -15875,7 +28680,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                       className="h-8 text-xs"
+
+
+
+
+
+
+
+
 
 
 
@@ -15891,7 +28712,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -15915,7 +28752,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 <FormField label="Engineer Assign *">
+
+
+
+
+
+
+
+
 
 
 
@@ -15931,7 +28792,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                     value={visitForm.engineerId}
+
+
+
+
+
+
+
+
 
 
 
@@ -15947,7 +28824,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   >
+
+
+
+
+
+
+
+
 
 
 
@@ -15963,7 +28856,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                     {engineers.map(engineer => (
+
+
+
+
+
+
+
+
 
 
 
@@ -15979,7 +28888,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                         {engineer.name} {engineer.email ? `(${engineer.email})` : ''}
+
+
+
+
+
+
+
+
 
 
 
@@ -15995,7 +28920,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                     ))}
+
+
+
+
+
+
+
+
 
 
 
@@ -16011,7 +28952,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   {engineers.length === 0 && (
+
+
+
+
+
+
+
+
 
 
 
@@ -16027,6 +28984,14 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   )}
 
 
@@ -16035,7 +29000,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 </FormField>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16059,7 +29048,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   <Select
+
+
+
+
+
+
+
+
 
 
 
@@ -16075,7 +29080,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                     onChange={e => setVisitForm(prev => ({ ...prev, priority: e.target.value }))}
+
+
+
+
+
+
+
+
 
 
 
@@ -16091,7 +29112,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                     <option value="Low">Low</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -16107,7 +29144,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                     <option value="High">High</option>
+
+
+
+
+
+
+
+
 
 
 
@@ -16123,7 +29176,31 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 </FormField>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16147,7 +29224,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                   <Textarea
+
+
+
+
+
+
+
+
 
 
 
@@ -16163,7 +29256,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                     rows={3}
+
+
+
+
+
+
+
+
 
 
 
@@ -16179,7 +29288,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                     onChange={e => setVisitForm(prev => ({ ...prev, notes: e.target.value }))}
+
+
+
+
+
+
+
+
 
 
 
@@ -16195,7 +29320,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
                 </FormField>
+
+
+
+
+
+
+
+
 
 
 
@@ -16211,7 +29352,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -16227,7 +29384,17 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         )
+
+
 
       }
 
@@ -16245,11 +29412,149 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+      {/* Visit Details Modal */}
+
+      <Modal
+
+        open={!!selectedVisit}
+
+        onClose={() => setSelectedVisit(null)}
+
+        title="Visit Details"
+
+        footer={
+
+          <div className="flex gap-2 justify-end">
+
+            <Button variant="ghost" onClick={() => setSelectedVisit(null)}>Close</Button>
+
+          </div>
+
+        }
+
+      >
+
+        {selectedVisit && (
+
+          <div className="space-y-4">
+
+            <div className="grid grid-cols-2 gap-4">
+
+              <div>
+
+                <label className="text-xs text-[var(--text-muted)]">Contract ID</label>
+
+                <p className="text-sm font-medium text-[var(--text-primary)]">{selectedVisit.contract_id || selectedVisit.contractId || '—'}</p>
+
+              </div>
+
+              <div>
+
+                <label className="text-xs text-[var(--text-muted)]">Customer</label>
+
+                <p className="text-sm font-medium text-[var(--text-primary)]">{selectedVisit.customer || '—'}</p>
+
+              </div>
+
+              <div>
+
+                <label className="text-xs text-[var(--text-muted)]">Site</label>
+
+                <p className="text-sm font-medium text-[var(--text-primary)]">{selectedVisit.site || '—'}</p>
+
+              </div>
+
+              <div>
+
+                <label className="text-xs text-[var(--text-muted)]">Visit Type</label>
+
+                <p className="text-sm font-medium text-[var(--text-primary)]">{selectedVisit.visit_type || selectedVisit.visitType || '—'}</p>
+
+              </div>
+
+              <div>
+
+                <label className="text-xs text-[var(--text-muted)]">Scheduled Date</label>
+
+                <p className="text-sm font-medium text-[var(--text-primary)]">{selectedVisit.scheduled_date || selectedVisit.scheduledDate || '—'}</p>
+
+              </div>
+
+              <div>
+
+                <label className="text-xs text-[var(--text-muted)]">Scheduled Time</label>
+
+                <p className="text-sm font-medium text-[var(--text-primary)]">{selectedVisit.scheduled_time || selectedVisit.scheduledTime || '—'}</p>
+
+              </div>
+
+              <div>
+
+                <label className="text-xs text-[var(--text-muted)]">Engineer</label>
+
+                <p className="text-sm font-medium text-[var(--text-primary)]">{selectedVisit.engineer_name || selectedVisit.engineerName || selectedVisit.engineer_id || selectedVisit.engineerId || '—'}</p>
+
+              </div>
+
+              <div>
+
+                <label className="text-xs text-[var(--text-muted)]">Priority</label>
+
+                <p className="text-sm font-medium text-[var(--text-primary)]">
+
+                  <span className={`px-2 py-1 rounded-full text-[10px] ${(selectedVisit.priority || '').toLowerCase() === 'high' ? 'bg-red-500/20 text-red-400' : (selectedVisit.priority || '').toLowerCase() === 'medium' ? 'bg-amber-500/20 text-amber-400' : 'bg-blue-1000/20 text-blue-400'}`}>
+
+                    {selectedVisit.priority || 'Low'}
+
+                  </span>
+
+                </p>
+
+              </div>
+
+              <div>
+
+                <label className="text-xs text-[var(--text-muted)]">Status</label>
+
+                <p className="text-sm font-medium text-[var(--text-primary)]">
+
+                  <span className={`px-2 py-1 rounded-full text-[10px] ${(selectedVisit.status || '').toLowerCase() === 'completed' ? 'bg-emerald-1000/20 text-emerald-400' : (selectedVisit.status || '').toLowerCase() === 'scheduled' ? 'bg-blue-1000/20 text-blue-400' : 'bg-red-500/20 text-red-400'}`}>
+
+                    {selectedVisit.status || 'Scheduled'}
+
+                  </span>
+
+                </p>
+
+              </div>
+
+            </div>
+
+            {selectedVisit.notes && (
+
+              <div>
+
+                <label className="text-xs text-[var(--text-muted)]">Notes</label>
+
+                <p className="text-sm text-[var(--text-primary)] bg-[var(--bg-secondary)] p-3 rounded-lg">{selectedVisit.notes}</p>
+
+              </div>
+
+            )}
+
+          </div>
+
+        )}
+
+      </Modal>
+
+
+
       {/* Drag Confirmation Modal */}
-
-
-
-
 
 
 
@@ -16257,7 +29562,15 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
         open={dragConfirmModal.open}
+
+
+
+
 
 
 
@@ -16265,7 +29578,15 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
         title="Confirm Status Change"
+
+
+
+
 
 
 
@@ -16273,7 +29594,15 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
           <div className="flex gap-2 justify-end">
+
+
+
+
 
 
 
@@ -16281,7 +29610,15 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
             <Button onClick={handleDragConfirmYes}>confirm</Button>
+
+
+
+
 
 
 
@@ -16289,7 +29626,15 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
         }
+
+
+
+
 
 
 
@@ -16297,7 +29642,15 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
         <div className="text-center py-4">
+
+
+
+
 
 
 
@@ -16305,7 +29658,15 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
           <p className="text-sm text-[var(--text-secondary)] mb-2">
+
+
+
+
 
 
 
@@ -16313,7 +29674,15 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
           </p>
+
+
+
+
 
 
 
@@ -16321,7 +29690,15 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
             Moving ticket from <strong>{dragConfirmModal.fromStage}</strong> to <strong>{dragConfirmModal.toStage}</strong>
+
+
+
+
 
 
 
@@ -16329,11 +29706,35 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
         </div>
 
 
 
+
+
+
+
       </Modal>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16357,9 +29758,27 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
       {
 
+
+
         toast.show && (
+
+
+
+
+
+
+
+
 
 
 
@@ -16375,7 +29794,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             }`}>
+
+
+
+
+
+
+
+
 
 
 
@@ -16391,7 +29826,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
               {toast.type === 'success' ? <CheckCircle size={16} /> : <AlertTriangle size={16} />}
+
+
+
+
+
+
+
+
 
 
 
@@ -16407,7 +29858,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -16423,9 +29890,27 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
         )
 
+
+
       }
+
+
+
+
+
+
+
+
 
 
 
@@ -16441,7 +29926,19 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
   );
+
+
+
+
 
 
 
@@ -16449,5 +29946,13 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
 export default ServicePage;
+
+
+
+
 

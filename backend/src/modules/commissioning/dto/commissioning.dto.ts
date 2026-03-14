@@ -96,6 +96,10 @@ export class CreateCommissioningDto {
 
   @IsOptional()
   @IsString()
+  projectIdString?: string;
+
+  @IsOptional()
+  @IsString()
   dispatchId?: string;
 
   @IsString()

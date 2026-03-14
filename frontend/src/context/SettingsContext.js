@@ -828,6 +828,55 @@ export const SettingsProvider = ({ children }) => {
 
     // ── Permission resolution ─────────────────────────────────────────────────
 
+    // Map backend permission keys to frontend module/action format
+    const backendPermissionMapping = {
+        // Employees
+        'employees.view': { moduleId: 'hrm-employees', actionId: 'view' },
+        'employees.create': { moduleId: 'hrm-employees', actionId: 'create' },
+        'employees.edit': { moduleId: 'hrm-employees', actionId: 'edit' },
+        'employees.delete': { moduleId: 'hrm-employees', actionId: 'delete' },
+        'employees.export': { moduleId: 'hrm-employees', actionId: 'export' },
+        'employees.assign': { moduleId: 'hrm-employees', actionId: 'assign' },
+        // Leaves
+        'leaves.view': { moduleId: 'hrm-leaves', actionId: 'view' },
+        'leaves.create': { moduleId: 'hrm-leaves', actionId: 'create' },
+        'leaves.edit': { moduleId: 'hrm-leaves', actionId: 'edit' },
+        'leaves.delete': { moduleId: 'hrm-leaves', actionId: 'delete' },
+        'leaves.approve': { moduleId: 'hrm-leaves', actionId: 'approve' },
+        'leaves.export': { moduleId: 'hrm-leaves', actionId: 'export' },
+        // Attendance
+        'attendance.view': { moduleId: 'hrm-attendance', actionId: 'view' },
+        'attendance.create': { moduleId: 'hrm-attendance', actionId: 'create' },
+        'attendance.edit': { moduleId: 'hrm-attendance', actionId: 'edit' },
+        'attendance.delete': { moduleId: 'hrm-attendance', actionId: 'delete' },
+        'attendance.export': { moduleId: 'hrm-attendance', actionId: 'export' },
+        // Payroll
+        'payroll.view': { moduleId: 'hrm-payroll', actionId: 'view' },
+        'payroll.create': { moduleId: 'hrm-payroll', actionId: 'create' },
+        'payroll.edit': { moduleId: 'hrm-payroll', actionId: 'edit' },
+        'payroll.delete': { moduleId: 'hrm-payroll', actionId: 'delete' },
+        'payroll.approve': { moduleId: 'hrm-payroll', actionId: 'approve' },
+        'payroll.export': { moduleId: 'hrm-payroll', actionId: 'export' },
+        'payroll.generate': { moduleId: 'hrm-payroll', actionId: 'generate' },
+        // Increments
+        'increments.view': { moduleId: 'hrm-increments', actionId: 'view' },
+        'increments.create': { moduleId: 'hrm-increments', actionId: 'create' },
+        'increments.edit': { moduleId: 'hrm-increments', actionId: 'edit' },
+        'increments.delete': { moduleId: 'hrm-increments', actionId: 'delete' },
+        'increments.export': { moduleId: 'hrm-increments', actionId: 'export' },
+        // Departments
+        'departments.view': { moduleId: 'hrm-departments', actionId: 'view' },
+        'departments.create': { moduleId: 'hrm-departments', actionId: 'create' },
+        'departments.edit': { moduleId: 'hrm-departments', actionId: 'edit' },
+        'departments.delete': { moduleId: 'hrm-departments', actionId: 'delete' },
+        'departments.export': { moduleId: 'hrm-departments', actionId: 'export' },
+        'departments.assign': { moduleId: 'hrm-departments', actionId: 'assign' },
+    };
+
+    const backendToFrontendPermission = useCallback((backendPermissionKey) => {
+        return backendPermissionMapping[backendPermissionKey];
+    }, []);
+
     const isModuleEnabled = useCallback((moduleId) => flags[moduleId]?.enabled ?? true, [flags]);
     const isFeatureEnabled = useCallback((moduleId, featureId) =>
         (flags[moduleId]?.enabled ?? true) && (flags[moduleId]?.features?.[featureId] ?? true), [flags]);
@@ -838,7 +887,7 @@ export const SettingsProvider = ({ children }) => {
 
     /**
      * resolvePermission(userId, roleId, moduleId, actionId)
-     * Priority: Backend Matrix (Pre-computed) -> Feature Flag -> User Override -> Custom Role -> Base RBAC -> Admin Fallback
+     * Priority: Backend HRM Permissions -> Backend Matrix (Pre-computed) -> Feature Flag -> User Override -> Custom Role -> Base RBAC -> Admin Fallback
      */
     const resolvePermission = useCallback((userId, roleId, moduleId, actionId) => {
         // Debug logging
@@ -861,7 +910,37 @@ export const SettingsProvider = ({ children }) => {
         // Normalize roleId to lowercase for case-insensitive matching
         const normalizedRoleId = roleIdTrimmed.toLowerCase();
 
-        // STEP 3: Hard user override (highest priority for specific users)
+        // STEP 1: Check Backend HRM Permissions from user.permissions (highest priority for HRM modules)
+        // Get user object to check backend permissions
+        const user = (typeof window !== 'undefined') 
+            ? JSON.parse(localStorage.getItem('solar_user') || '{}')
+            : {};
+        
+        const backendPermissions = user?.permissions || [];
+        
+        // Check if this is an HRM module
+        const isHrmModule = moduleId?.startsWith('hrm-');
+        
+        if (isHrmModule && Array.isArray(backendPermissions) && backendPermissions.length > 0) {
+            // Find matching backend permission key for this module/action
+            const matchingBackendKeys = Object.entries(backendPermissionMapping)
+                .filter(([_, mapped]) => mapped?.moduleId === moduleId && mapped?.actionId === actionId)
+                .map(([key]) => key);
+            
+            // Check if user has any of the matching backend permissions
+            const hasBackendPermission = matchingBackendKeys.some(key => backendPermissions.includes(key));
+            
+            if (hasBackendPermission) {
+                console.log('  ✅ Backend permission granted:', matchingBackendKeys);
+                return true;
+            }
+            
+            // If no backend permission found for HRM, deny access
+            console.log('  ❌ No backend permission for HRM module:', { moduleId, actionId, checkedKeys: matchingBackendKeys, userHas: backendPermissions });
+            return false;
+        }
+
+        // STEP 2: Hard user override (highest priority for specific users)
         const userOvr = userOverrides[userId];
         const hardVal = userOvr?.overrides?.[moduleId]?.[actionId];
         if (hardVal !== undefined && hardVal !== null) {
