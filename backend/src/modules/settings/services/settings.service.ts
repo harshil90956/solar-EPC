@@ -202,7 +202,7 @@ export class SettingsService {
       this.getAuditLogs(tenantId),
       this.getCustomRoles(tenantId),
       this.getProjectTypeConfigs(tenantId),
-      this.commissioningTaskConfigModel.findOne(tenantId ? { tenantId: this.toObjectId(tenantId) } : {}).exec(),
+      this.commissioningTaskConfigModel.findOne({ tenantId: this.toObjectId(tenantId) }).exec(),
     ]);
 
     return {

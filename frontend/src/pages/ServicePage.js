@@ -10964,21 +10964,7 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
   const openAmcEditModal = (contract) => {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    // eslint-disable-line no-unused-vars
     setAmcEditModal({ open: true, contract });
 
 

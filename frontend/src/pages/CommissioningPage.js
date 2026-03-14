@@ -106,7 +106,7 @@ const formatEventType = (type) => {
     'delayed': 'Commissioning Delayed',
     'assigned': 'Commissioning Assigned'
   };
-  return labels[type] || type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  return labels[type] || type?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Unknown Event';
 };
 
 const formatEventMetadata = (metadata) => {
