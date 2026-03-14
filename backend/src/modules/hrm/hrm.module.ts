@@ -14,6 +14,7 @@ import { Department, DepartmentSchema } from './schemas/department.schema';
 import { Permission, PermissionSchema } from './schemas/permission.schema';
 import { Role, RoleSchema } from './schemas/role.schema';
 import { RoleColumnPermission, RoleColumnPermissionSchema } from './schemas/role-column-permission.schema';
+import { HrmPermission, HrmPermissionSchema } from './schemas/hrm-permission.schema';
 import { User, UserSchema } from '../../core/auth/schemas/user.schema';
 
 // Services
@@ -24,6 +25,7 @@ import { PayrollService } from './services/payroll.service';
 import { SalaryIncrementService } from './services/salary-increment.service';
 import { DepartmentService } from './services/department.service';
 import { PermissionService } from './services/permission.service';
+import { HrmPermissionService } from './services/hrm-permission.service';
 
 // Controllers
 import { EmployeeController } from './controllers/employee.controller';
@@ -47,6 +49,7 @@ import { PermissionController } from './controllers/permission.controller';
       { name: Permission.name, schema: PermissionSchema },
       { name: Role.name, schema: RoleSchema },
       { name: RoleColumnPermission.name, schema: RoleColumnPermissionSchema },
+      { name: HrmPermission.name, schema: HrmPermissionSchema },
       { name: User.name, schema: UserSchema },
     ]),
   ],
@@ -67,6 +70,7 @@ import { PermissionController } from './controllers/permission.controller';
     SalaryIncrementService,
     DepartmentService,
     PermissionService,
+    HrmPermissionService,
   ],
   exports: [
     EmployeeService,
@@ -76,6 +80,7 @@ import { PermissionController } from './controllers/permission.controller';
     SalaryIncrementService,
     DepartmentService,
     PermissionService,
+    HrmPermissionService,
   ],
 })
 export class HrmModule {}
