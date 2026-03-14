@@ -967,6 +967,7 @@ const LeadAnalyticsDashboard = ({ onAddLead }) => {
   const [isLive, setIsLive] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [showCalendar, setShowCalendar] = useState(false);
+  const [showCards, setShowCards] = useState(true);
   
   const queryOpts = { 
     refetchInterval: 30000, // Refresh every 30 seconds for live data
@@ -1106,6 +1107,13 @@ const LeadAnalyticsDashboard = ({ onAddLead }) => {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => setShowCards(!showCards)}
+          >
+            {showCards ? 'Hide Cards' : 'Show Cards'}
+          </Button>
           <LiveIndicator isLive={isLive} />
           <Button 
             variant="outline" 
@@ -1139,18 +1147,22 @@ const LeadAnalyticsDashboard = ({ onAddLead }) => {
         />
       </Modal>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {isLoading 
-          ? Array(4).fill(0).map((_, i) => <SkeletonCard key={i} />)
-          : kpiData.map((kpi, index) => (
-              <KPICard key={index} {...kpi} loading={false} />
-            ))
-        }
-      </div>
+      {showCards && (
+        <>
+          {/* KPI Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {isLoading 
+              ? Array(4).fill(0).map((_, i) => <SkeletonCard key={i} />)
+              : kpiData.map((kpi, index) => (
+                  <KPICard key={index} {...kpi} loading={false} />
+                ))
+            }
+          </div>
 
-      {/* Smart Insights */}
-      <SmartInsights insights={[]} loading={isLoading} kpis={kpis} />
+          {/* Smart Insights */}
+          <SmartInsights insights={[]} loading={isLoading} kpis={kpis} />
+        </>
+      )}
 
       {/* Charts Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
