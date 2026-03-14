@@ -5,12 +5,13 @@ import {
   Area, AreaChart, PieChart, Pie, Cell, Legend
 } from 'recharts';
 import { 
-  Users, TrendingUp, DollarSign, Download, RefreshCw, Award, 
-  ArrowUpRight, ArrowDownRight, CheckCircle2, Sparkles, Funnel, 
-  PieChart as PieChartIcon, AlertCircle, Zap, Clock, Calendar as CalendarIcon,
-  ChevronLeft, ChevronRight, X
+  Users, DollarSign, Download, RefreshCw, 
+  ArrowUpRight, ArrowDownRight, CheckCircle2, Sparkles, 
+  AlertCircle, Zap, Calendar as CalendarIcon,
+  ChevronLeft, ChevronRight, Target, Activity, UserCheck
 } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { Modal } from '../ui/Modal';
 import { leadsApi } from '../../services/leadsApi';
 
 const fmt = (val) => {
@@ -31,6 +32,7 @@ const titleCase = (s) => {
   return String(s).split(/\s|_/).filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
 };
 
+// eslint-disable-next-line no-unused-vars
 const STAGE_COLORS = {
   new: { color: '#3B82F6', gradient: 'from-blue-500 to-blue-600' },
   contacted: { color: '#6366F1', gradient: 'from-indigo-500 to-indigo-600' },
@@ -137,6 +139,43 @@ const ChartDateFilter = ({ dateRange, onDateRangeChange, size = 'sm' }) => {
   );
 };
 
+// Error State
+// eslint-disable-next-line no-unused-vars
+const ErrorState = ({ onRetry }) => (
+  <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-100 text-center">
+    <div className="w-20 h-20 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
+      <AlertCircle size={40} className="text-red-500" />
+    </div>
+    <h3 className="text-xl font-semibold text-gray-900 mb-2">Failed to Load Data</h3>
+    <p className="text-gray-500 mb-6">
+      There was an error loading the dashboard data. Please try again.
+    </p>
+    {onRetry && (
+      <Button variant="outline" onClick={onRetry}>
+        <RefreshCw size={16} className="mr-2" /> Retry
+      </Button>
+    )}
+  </div>
+);
+
+// Empty State
+const EmptyState = ({ onAddLead }) => (
+  <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-100 text-center">
+    <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+      <Users size={40} className="text-gray-400" />
+    </div>
+    <h3 className="text-xl font-semibold text-gray-900 mb-2">No Leads Available</h3>
+    <p className="text-gray-500 mb-6 max-w-md mx-auto">
+      Import or add leads to see analytics. Once you have leads, this dashboard will show your sales funnel, pipeline value, and conversion metrics.
+    </p>
+    {onAddLead && (
+      <Button variant="outline" onClick={onAddLead}>
+        <Zap size={16} className="mr-2" /> Add Lead
+      </Button>
+    )}
+  </div>
+);
+
 // Filter leads by date range
 const filterLeadsByDateRange = (leads, dateRange) => {
   if (!leads || !Array.isArray(leads) || dateRange === 'all') return leads;
@@ -181,17 +220,13 @@ const FunnelChart = ({ data, loading, leads = [] }) => {
     if (!data || !Array.isArray(data)) return data;
     if (dateRange === 'all' || !leads.length) return data;
     
-    // Filter leads by date range
     const filteredLeads = filterLeadsByDateRange(leads, dateRange);
-    
-    // Recalculate funnel stages based on filtered leads
     const stageCounts = {};
     filteredLeads.forEach(lead => {
       const stage = lead.statusKey || lead.status || 'new';
       stageCounts[stage] = (stageCounts[stage] || 0) + 1;
     });
     
-    // Map to funnel format
     return data.map(stage => ({
       ...stage,
       count: stageCounts[stage.stage] || 0
@@ -272,7 +307,6 @@ const FunnelChart = ({ data, loading, leads = [] }) => {
         </ResponsiveContainer>
       </div>
 
-      {/* Stage summary */}
       <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t border-gray-100">
         {chartData.slice(0, 3).map((stage, idx) => (
           <div key={idx} className="text-center">
@@ -293,10 +327,7 @@ const SourceChart = ({ data, loading, leads = [] }) => {
     if (!leads || !Array.isArray(leads)) return data;
     if (dateRange === 'all') return data;
     
-    // Filter leads by date range and recalculate source counts
     const filteredLeads = filterLeadsByDateRange(leads, dateRange);
-    
-    // Group by source
     const sourceCounts = {};
     filteredLeads.forEach(lead => {
       const source = lead.source || 'Unknown';
@@ -417,17 +448,13 @@ const TrendChart = ({ data, loading }) => {
     if (!data || !Array.isArray(data)) return data;
     if (dateRange === 'all') return data;
     
-    // Filter data based on date range
+    // eslint-disable-next-line no-unused-vars
     const now = new Date();
-    let monthsToShow = 12; // default all
+    let monthsToShow = 12;
     
     switch (dateRange) {
       case 'today':
-        monthsToShow = 1;
-        break;
       case 'week':
-        monthsToShow = 1;
-        break;
       case 'month':
         monthsToShow = 1;
         break;
@@ -441,7 +468,6 @@ const TrendChart = ({ data, loading }) => {
         monthsToShow = 12;
     }
     
-    // Return last N months based on filter
     return data.slice(-monthsToShow);
   }, [data, dateRange]);
 
@@ -559,10 +585,7 @@ const AgentLeaderboard = ({ data, loading, leads = [] }) => {
         .slice(0, 5);
     }
     
-    // Filter leads by date range
     const filteredLeads = filterLeadsByDateRange(leads, dateRange);
-    
-    // Group by assignedTo/agent and calculate metrics
     const agentStats = {};
     filteredLeads.forEach(lead => {
       const agentId = lead.assignedTo?._id || lead.assignedTo || lead.createdBy?._id || lead.createdBy || 'unassigned';
@@ -585,7 +608,6 @@ const AgentLeaderboard = ({ data, loading, leads = [] }) => {
       }
     });
     
-    // Calculate conversion rates and sort
     return Object.values(agentStats)
       .map(agent => ({
         ...agent,
@@ -672,7 +694,6 @@ const LeadCalendar = ({ leads, loading }) => {
   const daysInMonth = getDaysInMonth(year, month);
   const firstDay = getFirstDayOfMonth(year, month);
 
-  // Group leads by date
   const leadsByDate = useMemo(() => {
     if (!leads || !Array.isArray(leads)) return {};
     const grouped = {};
@@ -696,7 +717,6 @@ const LeadCalendar = ({ leads, loading }) => {
   const prevMonth = () => setCurrentMonth(new Date(year, month - 1, 1));
   const nextMonth = () => setCurrentMonth(new Date(year, month + 1, 1));
 
-  // Count total leads for this month
   const totalLeadsThisMonth = useMemo(() => {
     return Object.values(leadsByDate).flat().filter(lead => {
       const date = new Date(lead.createdAt || lead.created_at || lead.date);
@@ -728,12 +748,10 @@ const LeadCalendar = ({ leads, loading }) => {
   }
 
   const days = [];
-  // Empty cells for days before the first day of month
   for (let i = 0; i < firstDay; i++) {
     days.push(<div key={`empty-${i}`} className="h-20 bg-gray-50 rounded-lg" />);
   }
 
-  // Days of the month
   for (let day = 1; day <= daysInMonth; day++) {
     const dateLeads = getLeadsForDate(day);
     const hasLeads = dateLeads.length > 0;
@@ -765,7 +783,6 @@ const LeadCalendar = ({ leads, loading }) => {
           )}
         </div>
         
-        {/* Show lead names */}
         <div className="space-y-0.5">
           {dateLeads.slice(0, 2).map((lead, idx) => (
             <div key={idx} className="text-xs truncate text-gray-600 bg-white/80 px-1 py-0.5 rounded">
@@ -786,7 +803,6 @@ const LeadCalendar = ({ leads, loading }) => {
 
   return (
     <div className="p-4">
-      {/* Header with month/year selector */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <select 
@@ -833,7 +849,6 @@ const LeadCalendar = ({ leads, loading }) => {
         </div>
       </div>
 
-      {/* Day headers */}
       <div className="grid grid-cols-7 gap-2 mb-2">
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
           <div key={day} className="h-10 flex items-center justify-center text-sm font-bold text-gray-600 bg-gray-100 rounded-lg">
@@ -842,12 +857,10 @@ const LeadCalendar = ({ leads, loading }) => {
         ))}
       </div>
 
-      {/* Calendar grid */}
       <div className="grid grid-cols-7 gap-2">
         {days}
       </div>
 
-      {/* Selected date leads detail */}
       {selectedDate && selectedDateLeads.length > 0 && (
         <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
           <h4 className="text-sm font-bold text-gray-900 mb-3">
@@ -880,48 +893,49 @@ const LeadCalendar = ({ leads, loading }) => {
     </div>
   );
 };
-const SmartInsights = ({ insights, loading }) => {
-  if (loading) return (
-    <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 animate-pulse">
-      <div className="w-32 h-4 rounded bg-gray-200 mb-3" />
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {[...Array(4)].map((_, i) => <div key={i} className="h-12 rounded bg-gray-200" />)}
+
+// Smart Insights Component
+const SmartInsights = ({ insights, loading, kpis }) => {
+  if (loading) {
+    return (
+      <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+        <div className="flex items-center gap-2 mb-4">
+          <Sparkles size={18} className="text-amber-500" />
+          <h3 className="text-base font-semibold text-gray-900">Smart Insights</h3>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {Array(4).fill(0).map((_, i) => (
+            <div key={i} className="h-20 bg-gray-100 rounded-lg animate-pulse" />
+          ))}
+        </div>
       </div>
-    </div>
-  );
-  
+    );
+  }
+
   const stats = [
     { 
       label: 'Pipeline Value', 
       value: fmt(kpis?.pipelineValue || 0), 
       icon: DollarSign, 
-      color: 'from-emerald-500 to-teal-600',
-      textColor: 'text-emerald-500',
-      bgColor: 'bg-emerald-500/10'
+      color: 'from-emerald-500 to-teal-600'
     },
     { 
       label: 'Avg Deal Size', 
       value: fmt(kpis?.avgDealSize || 0), 
       icon: Target, 
-      color: 'from-blue-500 to-indigo-600',
-      textColor: 'text-blue-500',
-      bgColor: 'bg-blue-500/10'
+      color: 'from-blue-500 to-indigo-600'
     },
     { 
       label: 'Response Time', 
       value: '< 2h', 
       icon: Activity, 
-      color: 'from-violet-500 to-purple-600',
-      textColor: 'text-violet-500',
-      bgColor: 'bg-violet-500/10'
+      color: 'from-violet-500 to-purple-600'
     },
     { 
       label: 'Active Agents', 
       value: formatNumber(kpis?.activeAgents || 0), 
       icon: UserCheck, 
-      color: 'from-amber-500 to-orange-600',
-      textColor: 'text-amber-500',
-      bgColor: 'bg-amber-500/10'
+      color: 'from-amber-500 to-orange-600'
     }
   ];
 
@@ -932,65 +946,21 @@ const SmartInsights = ({ insights, loading }) => {
         <h3 className="text-base font-semibold text-gray-900">Smart Insights</h3>
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {displayInsights.map((insight, i) => (
-          <div key={i} className={`p-3 rounded-lg ${
-            insight.type === 'positive' ? 'bg-emerald-50 border border-emerald-100' : 
-            insight.type === 'negative' ? 'bg-red-50 border border-red-100' : 
-            'bg-blue-50 border border-blue-100'
-          }`}>
-            <p className={`text-xs font-medium ${
-              insight.type === 'positive' ? 'text-emerald-700' : 
-              insight.type === 'negative' ? 'text-red-700' : 
-              'text-blue-700'
-            }`}>
-              {insight.message}
-            </p>
+        {stats.map((stat, i) => (
+          <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 border border-gray-100">
+            <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${stat.color} flex items-center justify-center flex-shrink-0`}>
+              <stat.icon size={20} className="text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] text-gray-500 uppercase tracking-wider">{stat.label}</p>
+              <p className="text-sm font-bold text-gray-900 truncate">{stat.value}</p>
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">{stat.label}</p>
-            <p className="text-sm font-bold text-[var(--text-primary)] truncate">{stat.value}</p>
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 };
-
-// Empty State
-const EmptyState = ({ onAddLead }) => (
-  <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-100 text-center">
-    <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
-      <Users size={40} className="text-gray-400" />
-    </div>
-    <h3 className="text-xl font-semibold text-gray-900 mb-2">No Leads Available</h3>
-    <p className="text-gray-500 mb-6 max-w-md mx-auto">
-      Import or add leads to see analytics. Once you have leads, this dashboard will show your sales funnel, pipeline value, and conversion metrics.
-    </p>
-    {onAddLead && (
-      <Button variant="outline" onClick={onAddLead}>
-        <Zap size={16} className="mr-2" /> Add Lead
-      </Button>
-    )}
-  </div>
-);
-
-// Error State
-const ErrorState = ({ onRetry }) => (
-  <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-100 text-center">
-    <div className="w-20 h-20 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
-      <AlertCircle size={40} className="text-red-500" />
-    </div>
-    <h3 className="text-xl font-semibold text-gray-900 mb-2">Failed to Load Data</h3>
-    <p className="text-gray-500 mb-6">
-      There was an error loading the dashboard data. Please try again.
-    </p>
-    {onRetry && (
-      <Button variant="outline" onClick={onRetry}>
-        <RefreshCw size={16} className="mr-2" /> Retry
-      </Button>
-    )}
-  </div>
-);
 
 // Main Dashboard Component with Live Data, Calendar and Individual Chart Filters
 const LeadAnalyticsDashboard = ({ onAddLead }) => {
@@ -1004,7 +974,9 @@ const LeadAnalyticsDashboard = ({ onAddLead }) => {
   };
 
   // Fetch all dashboard data
+  // eslint-disable-next-line no-unused-vars
   const { data: kpisRaw, isLoading: kpisLoading, error: kpisError, refetch: refetchKpis } = useQuery({
+    // eslint-disable-next-line no-unused-vars
     queryKey: ['leads-dashboard', 'kpis'],
     queryFn: async () => { const response = await leadsApi.getDashboardKpis(); return response?.data || response; },
     ...queryOpts,
@@ -1025,6 +997,12 @@ const LeadAnalyticsDashboard = ({ onAddLead }) => {
       const response = await leadsApi.getDashboardTopPerformers();
       return response?.data || response;
     },
+    ...queryOpts,
+  });
+
+  const { data: sourcesRaw, isLoading: sourcesLoading } = useQuery({
+    queryKey: ['leads-dashboard', 'sources'],
+    queryFn: async () => { const response = await leadsApi.getDashboardSources(); return response?.data || response; },
     ...queryOpts,
   });
 
@@ -1172,7 +1150,7 @@ const LeadAnalyticsDashboard = ({ onAddLead }) => {
       </div>
 
       {/* Smart Insights */}
-      <SmartInsights insights={[]} loading={isLoading} />
+      <SmartInsights insights={[]} loading={isLoading} kpis={kpis} />
 
       {/* Charts Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
