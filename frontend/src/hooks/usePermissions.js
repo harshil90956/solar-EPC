@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../lib/apiClient';
 import { useAuth } from '../context/AuthContext';
+import { useSettings } from '../context/SettingsContext';
 
 // Module column definitions (must match backend)
 const MODULE_COLUMNS = {
@@ -34,6 +35,7 @@ const MODULE_TO_BACKEND = {
  */
 export const usePermissions = (module) => {
   const { user } = useAuth();
+  const { isModuleEnabled, isFeatureEnabled } = useSettings();
   const [isLoading, setIsLoading] = useState(true);
 
   // Get user's role and permissions from auth context
@@ -191,6 +193,10 @@ export const usePermissions = (module) => {
     setIsLoading(roleLoading);
   }, [roleLoading]);
 
+  // Module/feature enabled checks from SettingsContext
+  const moduleOn = useCallback((mod) => isModuleEnabled(mod), [isModuleEnabled]);
+  const featureOn = useCallback((mod, featureName) => isFeatureEnabled(mod, featureName), [isFeatureEnabled]);
+
   return {
     // Permission checks
     can,
@@ -204,6 +210,9 @@ export const usePermissions = (module) => {
     canGenerate,
     // Feature flags
     feature,
+    // Module/Feature enabled checks
+    moduleOn,
+    featureOn,
     // Column visibility
     columns,
     isColumnVisible,
