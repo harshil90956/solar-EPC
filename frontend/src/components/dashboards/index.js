@@ -8,5 +8,4 @@ export { default as ProcurementOfficerDashboard } from './ProcurementOfficerDash
 export { default as FinanceDashboard } from './FinanceDashboard';
 export { default as TechnicianDashboard } from './TechnicianDashboard';
 export { default as ServiceManagerDashboard } from './ServiceManagerDashboard';
-export { default as AdminDashboard } from './AdminDashboard';
 export { useRoleDashboard, RoleDashboardProvider } from './RoleDashboardProvider';
