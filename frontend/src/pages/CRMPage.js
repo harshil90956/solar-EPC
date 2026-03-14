@@ -2524,8 +2524,8 @@ const CRMPage = ({ onNavigate }) => {
                 const stageLeadIds = stageLeads.map(l => getLeadId(l));
 
                 return (
-                  <div key={stage.key}
-                    className={`flex flex-col w-72 rounded-xl border border-gray-200 bg-gray-50 p-3 transition-colors h-[calc(100vh-220px)]`}
+                  <div key={`stage-${stage.key || stageIndex}-${stageIndex}`}
+                    className={`flex flex-col w-64 rounded-[14px] border border-[#F1F5F9] bg-[#F8FAFC] p-2.5 transition-colors h-[530px]`}
                     onDragOver={e => { e.preventDefault(); }}
                     onDragEnter={() => {
                       if (!dragRef.current) return;

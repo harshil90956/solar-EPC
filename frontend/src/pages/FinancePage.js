@@ -1374,7 +1374,7 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
-              className={`flex flex-col w-60 rounded-xl border transition-colors ${dragOver === stage.id ? 'border-[var(--primary)]/50 bg-[var(--primary)]/5' : 'border-[var(--border-base)] bg-[var(--bg-surface)]'}`}
+              className={`flex flex-col w-60 rounded-xl border transition-colors h-[530px] ${dragOver === stage.id ? 'border-[var(--primary)]/50 bg-[var(--primary)]/5' : 'border-[var(--border-base)] bg-[var(--bg-surface)]'}`}
 
 
 
@@ -1630,7 +1630,7 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 
 
-              <div className="flex flex-col gap-2 p-2 flex-1 min-h-[120px]">
+              <div className="flex flex-col gap-2 p-2 h-[430px] overflow-y-auto">
 
 
 

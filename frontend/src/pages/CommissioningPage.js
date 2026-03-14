@@ -235,7 +235,7 @@ const InstallKanbanBoard = ({ items, onCardClick, onDrop, canEdit }) => {
             const avgProgress = cards.length ? Math.round(cards.reduce((a, i) => a + calculateProgress(i.tasks), 0) / cards.length) : 0;
             return (
               <div key={stage.id}
-                className={`flex flex-col w-72 sm:w-60 rounded-xl border transition-colors ${dragOver === stage.id ? 'border-[var(--primary)]/50 bg-[var(--primary)]/5' : 'border-[var(--border-base)] bg-[var(--bg-surface)]'}`}
+                className={`flex flex-col w-72 sm:w-60 rounded-xl border transition-colors h-[530px] ${dragOver === stage.id ? 'border-[var(--primary)]/50 bg-[var(--primary)]/5' : 'border-[var(--border-base)] bg-[var(--bg-surface)]'}`}
                 onDragOver={e => { e.preventDefault(); setDragOver(stage.id); }}
                 onDragLeave={() => setDragOver(null)}
                 onDrop={() => handleDrop(stage.id)}>
@@ -263,7 +263,7 @@ const InstallKanbanBoard = ({ items, onCardClick, onDrop, canEdit }) => {
                       style={{ background: stage.bg, color: stage.color }}>{cards.length}</span>
                   </div>
                 </div>
-                <div className="flex flex-col gap-2 p-2 flex-1 min-h-[180px]">
+                <div className="flex flex-col gap-2 p-2 h-[430px] overflow-y-auto">
                   {cards.map(i => (
                     <InstallCard key={i.CommissioningId || i.id} log={i}
                       onDragStart={() => { draggingId.current = i.CommissioningId || i.id; }}
