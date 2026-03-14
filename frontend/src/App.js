@@ -67,6 +67,7 @@ const PAGE_MAP = {
   service: { component: ServicePage, title: 'Service & AMC' },
   'service-dashboard': { component: ServiceDashboardPage, title: 'Service & AMC Dashboard' },
   compliance: { component: CompliancePage, title: 'Compliance' },
+  documents: { component: DocumentPage, title: 'Documentation' },
   settings: { component: SettingsPage, title: 'Settings' },
   'hrm-permissions': { component: HrmPermissionsPage, title: 'HRM Permissions' },
   intelligence: { component: IntelligenceDashboardPage, title: 'AI Intelligence' },
