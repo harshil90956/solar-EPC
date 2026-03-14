@@ -37,7 +37,7 @@ import FilterSystem from '../components/ui/FilterSystem';
 import ImportExport from '../components/ui/ImportExport';
 import LeadTracker from '../components/LeadTracker';
 import { useAuditLog } from '../hooks/useAuditLog';
-import { useModulePermissions } from '../hooks/usePermissions';
+import { usePermissions } from '../hooks/usePermissions';
 import { useAuth } from '../context/AuthContext';
 import { CURRENCY } from '../config/app.config';
 import CanAccess, { CanCreate, CanEdit, CanDelete, CanView } from '../components/CanAccess';
@@ -897,7 +897,7 @@ const CRMPage = () => {
   });
 
   const { logCreate, logUpdate, logDelete } = useAuditLog('CRM');
-  const crmPerms = useModulePermissions('crm');
+  const crmPerms = usePermissions('crm');
   const can = crmPerms.can;
   
   // DEBUG: Log permission checks

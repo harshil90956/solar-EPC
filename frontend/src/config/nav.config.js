@@ -34,6 +34,7 @@ export const NAV_CONFIG = [
                     { id: 'hrm-payroll', label: 'Payroll', icon: Wallet },
                     { id: 'hrm-increments', label: 'Increments', icon: TrendingUp },
                     { id: 'hrm-departments', label: 'Departments', icon: Building2 },
+                    { id: 'hrm-permissions', label: 'Permissions', icon: Shield },
                 ]
             },
             { id: 'intelligence', label: 'AI Intelligence', icon: Brain, badge: null, badgeVariant: 'accent' },

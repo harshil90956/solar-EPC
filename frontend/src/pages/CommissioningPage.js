@@ -284,20 +284,16 @@ const InstallKanbanBoard = ({ items, onCardClick, onDrop, canEdit }) => {
 };
 
 const COLUMNS = [
-  { key: 'CommissioningId', header: 'Commissioning ID', sortable: true, render: (v) => <span className="font-mono text-xs font-semibold text-[var(--accent-light)]">{v}</span> },
-  { key: 'projectId', header: 'Project', sortable: true, render: (v) => {
-    if (!v) return '-';
-    if (typeof v === 'object') {
-      return <span className="text-xs font-semibold">{v.projectId || v.id || '-'}</span>;
-    }
-    return <span className="text-xs font-semibold">{v}</span>;
+  { key: 'customerName', header: 'Customer / Site', sortable: true, render: (v, row) => {
+    const customer = v || row.customer || row.customerName || '-';
+    const site = row.siteAddress || row.site || row.location || '';
+    return (
+      <div>
+        <p className="text-xs font-semibold text-[var(--text-primary)]">{customer}</p>
+        {site && <p className="text-[10px] text-[var(--text-muted)]">{site}</p>}
+      </div>
+    );
   }},
-  { key: 'customerName', header: 'Customer', sortable: true, render: (v, row) => (
-    <div>
-      <p className="text-xs font-semibold text-[var(--text-primary)]">{v || '-'}</p>
-      {row.siteAddress && <p className="text-[10px] text-[var(--text-muted)]">{row.siteAddress}</p>}
-    </div>
-  )},
   { key: 'technicianName', header: 'Technician', sortable: true, render: (v) => (
     <span className={`text-xs ${(!v || v === 'Not Assigned') ? 'text-[var(--text-muted)] italic' : 'text-[var(--text-primary)]'}`}>{v || 'Not Assigned'}</span>
   )},
@@ -720,105 +716,218 @@ const CommissioningDashboard = ({ logs }) => {
 
       {/* Charts Row 1 - Status & Trends */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Status Distribution - 3D Donut Chart */}
-        <div className="glass-card p-6 rounded-2xl border border-[var(--border-base)] animate-fade-in">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-xl bg-[var(--primary)]/20 flex items-center justify-center">
-              <PieChartIcon size={20} className="text-[var(--primary)]" />
+        {/* Status Distribution - Professional 3D Donut Chart */}
+        <div className="glass-card p-6 rounded-2xl border border-[var(--border-base)] shadow-xl hover:shadow-2xl transition-all duration-500 animate-fade-in bg-gradient-to-br from-white/50 to-white/30 dark:from-gray-800/50 dark:to-gray-900/30">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/30">
+                <PieChartIcon size={24} className="text-white" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-[var(--text-primary)]">Status Distribution</h3>
+                <p className="text-xs text-[var(--text-muted)]">Real-time Commissioning status breakdown</p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-lg font-bold text-[var(--text-primary)]">Status Distribution</h3>
-              <p className="text-xs text-[var(--text-muted)]">Real-time Commissioning status breakdown</p>
+            <div className="text-right">
+              <p className="text-2xl font-bold text-[var(--primary)]">{stats.total}</p>
+              <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide">Total</p>
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <defs>
-                <linearGradient id="colorCompleted" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#22c55e" stopOpacity={0.9}/>
-                  <stop offset="95%" stopColor="#22c55e" stopOpacity={0.6}/>
-                </linearGradient>
-                <linearGradient id="colorInProgress" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.9}/>
-                  <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.6}/>
-                </linearGradient>
-                <linearGradient id="colorPending" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.9}/>
-                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0.6}/>
-                </linearGradient>
-                <linearGradient id="colorDelayed" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#ef4444" stopOpacity={0.9}/>
-                  <stop offset="95%" stopColor="#ef4444" stopOpacity={0.6}/>
-                </linearGradient>
-              </defs>
-              <Pie
-                data={stats.statusDist}
-                cx="50%"
-                cy="50%"
-                innerRadius={80}
-                outerRadius={110}
-                paddingAngle={4}
-                dataKey="value"
-                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                labelLine={false}
-              >
-                {stats.statusDist.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={`url(#color${entry.name.replace(/\s/g, '')})`} stroke="var(--bg-surface)" strokeWidth={2} />
-                ))}
-              </Pie>
-              <Tooltip
-                contentStyle={{
-                  background: 'var(--bg-surface)',
-                  border: '1px solid var(--border-base)',
-                  borderRadius: 12,
-                  fontSize: 13,
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-                }}
-              />
-              <Legend wrapperStyle={{ fontSize: 12, marginTop: 20 }} />
-            </PieChart>
-          </ResponsiveContainer>
+          
+          <div className="relative">
+            <ResponsiveContainer width="100%" height={320}>
+              <PieChart>
+                <defs>
+                  {/* 3D Gradient Effects */}
+                  <linearGradient id="gradCompleted" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#22c55e" stopOpacity={1}/>
+                    <stop offset="100%" stopColor="#16a34a" stopOpacity={0.8}/>
+                  </linearGradient>
+                  <linearGradient id="gradInProgress" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#f59e0b" stopOpacity={1}/>
+                    <stop offset="100%" stopColor="#d97706" stopOpacity={0.8}/>
+                  </linearGradient>
+                  <linearGradient id="gradPending" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#6366f1" stopOpacity={1}/>
+                    <stop offset="100%" stopColor="#4f46e5" stopOpacity={0.8}/>
+                  </linearGradient>
+                  <linearGradient id="gradDelayed" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#ef4444" stopOpacity={1}/>
+                    <stop offset="100%" stopColor="#dc2626" stopOpacity={0.8}/>
+                  </linearGradient>
+                  {/* Shadow filter for 3D effect */}
+                  <filter id="shadow3d" x="-50%" y="-50%" width="200%" height="200%">
+                    <feDropShadow dx="0" dy="4" stdDeviation="6" floodOpacity="0.3"/>
+                  </filter>
+                </defs>
+                <Pie
+                  data={stats.statusDist}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={70}
+                  outerRadius={110}
+                  paddingAngle={3}
+                  dataKey="value"
+                  animationBegin={0}
+                  animationDuration={1500}
+                  animationEasing="ease-out"
+                  label={({ name, percent, value }) => (
+                    `${name}: ${value} (${(percent * 100).toFixed(0)}%)`
+                  )}
+                  labelLine={{ stroke: 'var(--border-base)', strokeWidth: 1 }}
+                >
+                  {stats.statusDist.map((entry, index) => (
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={`url(#grad${entry.name.replace(/\s/g, '')})`} 
+                      stroke="#fff"
+                      strokeWidth={3}
+                      filter="url(#shadow3d)"
+                      className="transition-all duration-300 hover:opacity-80"
+                    />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={{
+                    background: 'rgba(255,255,255,0.95)',
+                    border: '1px solid var(--border-base)',
+                    borderRadius: 16,
+                    fontSize: 13,
+                    boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
+                    padding: '12px 16px'
+                  }}
+                  formatter={(value, name) => [`${value} Commissionings`, name]}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+            
+            {/* Center Stats */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="text-center">
+                <p className="text-3xl font-bold text-[var(--primary)]">{stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}%</p>
+                <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide">Completed</p>
+              </div>
+            </div>
+          </div>
+          
+          {/* Status Legend */}
+          <div className="grid grid-cols-4 gap-2 mt-4">
+            {stats.statusDist.map((status, idx) => (
+              <div key={idx} className="text-center p-2 rounded-xl bg-[var(--bg-muted)]/50">
+                <div className="w-3 h-3 rounded-full mx-auto mb-1" style={{ backgroundColor: status.color }} />
+                <p className="text-[10px] font-semibold text-[var(--text-muted)]">{status.name}</p>
+                <p className="text-sm font-bold text-[var(--text-primary)]">{status.value}</p>
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* 7-Day Trend - Area Chart with Gradient */}
-        <div className="glass-card p-6 rounded-2xl border border-[var(--border-base)] animate-fade-in" style={{ animationDelay: '0.1s' }}>
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
-              <TrendingUp size={20} className="text-emerald-600" />
+        {/* 7-Day Trend - Professional Area Chart with Animation */}
+        <div className="glass-card p-6 rounded-2xl border border-[var(--border-base)] shadow-xl hover:shadow-2xl transition-all duration-500 animate-fade-in bg-gradient-to-br from-white/50 to-white/30 dark:from-gray-800/50 dark:to-gray-900/30" style={{ animationDelay: '0.1s' }}>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                <TrendingUp size={24} className="text-white" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-[var(--text-primary)]">Weekly Trend</h3>
+                <p className="text-xs text-[var(--text-muted)]">Commissioning activity over last 7 days</p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-lg font-bold text-[var(--text-primary)]">Weekly Trend</h3>
-              <p className="text-xs text-[var(--text-muted)]">Commissioning activity over last 7 days</p>
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <p className="text-lg font-bold text-emerald-600">{stats.trendData.reduce((a, b) => a + b.completed, 0)}</p>
+                <p className="text-[9px] text-[var(--text-muted)] uppercase">Completed</p>
+              </div>
+              <div className="text-right">
+                <p className="text-lg font-bold text-indigo-600">{stats.trendData.reduce((a, b) => a + b.created, 0)}</p>
+                <p className="text-[9px] text-[var(--text-muted)] uppercase">Created</p>
+              </div>
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={stats.trendData}>
+          
+          <ResponsiveContainer width="100%" height={320}>
+            <AreaChart data={stats.trendData} margin={{ top: 20, right: 30, left: 0, bottom: 10 }}>
               <defs>
-                <linearGradient id="colorCreated" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.8}/>
+                <linearGradient id="trendCreated" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4}/>
                   <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
                 </linearGradient>
-                <linearGradient id="colorCompleted" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#22c55e" stopOpacity={0.8}/>
+                <linearGradient id="trendCompleted" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#22c55e" stopOpacity={0.4}/>
                   <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
-              <XAxis dataKey="date" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} dy={10} />
-              <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} dx={-10} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-base)" opacity={0.5} vertical={false} />
+              <XAxis 
+                dataKey="date" 
+                tick={{ fill: 'var(--text-muted)', fontSize: 11, fontWeight: 500 }} 
+                axisLine={false} 
+                tickLine={false} 
+                dy={15}
+              />
+              <YAxis 
+                tick={{ fill: 'var(--text-muted)', fontSize: 11, fontWeight: 500 }} 
+                axisLine={false} 
+                tickLine={false} 
+                dx={-10}
+                allowDecimals={false}
+              />
               <Tooltip
                 contentStyle={{
-                  background: 'var(--bg-surface)',
+                  background: 'rgba(255,255,255,0.98)',
                   border: '1px solid var(--border-base)',
-                  borderRadius: 12,
-                  fontSize: 12,
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                  borderRadius: 16,
+                  fontSize: 13,
+                  boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
+                  padding: '12px 16px'
                 }}
+                formatter={(value, name) => [value, name]}
+                labelStyle={{ color: 'var(--text-muted)', fontWeight: 600, marginBottom: 8 }}
+                itemStyle={{ color: 'var(--text-primary)' }}
               />
-              <Area type="monotone" dataKey="created" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorCreated)" name="Created" />
-              <Area type="monotone" dataKey="completed" stroke="#22c55e" strokeWidth={3} fillOpacity={1} fill="url(#colorCompleted)" name="Completed" />
+              <Area 
+                type="monotone" 
+                dataKey="created" 
+                stroke="#6366f1" 
+                strokeWidth={3} 
+                fillOpacity={1} 
+                fill="url(#trendCreated)" 
+                name="Created"
+                animationDuration={2000}
+                animationEasing="ease-out"
+              />
+              <Area 
+                type="monotone" 
+                dataKey="completed" 
+                stroke="#22c55e" 
+                strokeWidth={3} 
+                fillOpacity={1} 
+                fill="url(#trendCompleted)" 
+                name="Completed"
+                animationDuration={2000}
+                animationEasing="ease-out"
+                animationDelay={300}
+              />
             </AreaChart>
           </ResponsiveContainer>
+          
+          {/* Day Labels */}
+          <div className="flex justify-between mt-4 px-4">
+            {stats.trendData.map((day, idx) => (
+              <div key={idx} className="text-center">
+                <p className="text-[10px] text-[var(--text-muted)]">{day.date}</p>
+                <div className="flex items-center justify-center gap-1 mt-1">
+                  {day.created > 0 && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-600 font-medium">+{day.created}</span>
+                  )}
+                  {day.completed > 0 && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-600 font-medium">✓{day.completed}</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -1716,12 +1825,23 @@ const CommissioningPage = () => {
               }
             }] : []),
             ...(can('commissioning','delete') ? [{ label: 'Delete', icon: Trash2, danger: true, onClick: async (row) => {
+              const rowId = row._id || row.id;
+              console.log('[DEBUG] Delete clicked for row:', row);
+              console.log('[DEBUG] Row ID:', rowId);
               if (!window.confirm('Delete this Commissioning?')) return;
+              if (!rowId) {
+                toast.error('Cannot delete: Missing ID');
+                return;
+              }
               try {
-                await apiClient.delete(`/commissionings/${row._id || row.id}`);
-                refetch();
+                console.log('[DEBUG] Calling delete API for:', `/commissionings/${rowId}`);
+                await apiClient.delete(`/commissionings/${rowId}`);
                 toast.success('Commissioning deleted');
-              } catch(err) { toast.error('Delete failed'); }
+                refetch();
+              } catch(err) { 
+                console.error('[DEBUG] Delete error:', err);
+                toast.error(err.response?.data?.message || err.message || 'Delete failed'); 
+              }
             }}] : []),
           ]}
         />

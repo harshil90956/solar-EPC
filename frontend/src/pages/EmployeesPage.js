@@ -1,14 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Edit, Trash2, Mail, Phone, MapPin, Calendar, Briefcase, DollarSign, Filter, Download, RefreshCw, Eye, X, User, Building, Shield, Clock, CheckCircle, XCircle, Star } from 'lucide-react';
-import { PageHeader } from '../components/ui/PageHeader';
-import { Button } from '../components/ui/Button';
-import DataTable from '../components/ui/DataTable';
-import { Modal } from '../components/ui/Modal';
-import { Input, FormField, Select, Textarea } from '../components/ui/Input';
-import { KPICard } from '../components/ui/KPICard';
-import { toast } from '../components/ui/Toast';
-import { employeeApi, departmentApi } from '../services/hrmApi';
 import { useSettings } from '../context/SettingsContext';
+import { PageHeader } from '../components/ui/PageHeader';
+import { KPICard } from '../components/ui/KPICard';
+import DataTable from '../components/ui/DataTable';
+import { Button } from '../components/ui/Button';
+import { Input, FormField, Select, Textarea } from '../components/ui/Input';
+import { Modal } from '../components/ui/Modal';
+import { toast } from '../components/ui/Toast';
+import { 
+  Search, RefreshCw, Plus, Edit, Trash2, Download,
+  Mail, Phone, Briefcase, Calendar, DollarSign, MapPin,
+  User, Building, Shield, Star, X
+} from 'lucide-react';
+import { employeeApi, departmentApi } from '../services/hrmApi';
+import { usePermissions } from '../hooks/usePermissions';
 
 // ── Employee Detail View Modal ─────────────────────────────────────────────
 const EmployeeViewModal = ({ employee, onClose, onEdit, inline = false }) => {
@@ -103,6 +108,17 @@ const EmployeeViewModal = ({ employee, onClose, onEdit, inline = false }) => {
 
 const EmployeesPage = () => {
   const { customRoles } = useSettings();
+  
+  // Get permissions for employees module
+  const { 
+    canView, 
+    canCreate, 
+    canEdit, 
+    canDelete, 
+    canExport, 
+    columns 
+  } = usePermissions('employees');
+  
   const [employees, setEmployees] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -306,8 +322,9 @@ const EmployeesPage = () => {
     toast.success('Employees exported successfully');
   };
 
-  const columns = [
-    {
+  // Build columns dynamically based on permissions
+  const tableColumns = [
+    columns.employee && {
       key: 'employee',
       header: 'Employee',
       render: (_, row) => (
@@ -322,7 +339,7 @@ const EmployeesPage = () => {
         </div>
       ),
     },
-    {
+    columns.contact && {
       key: 'contact',
       header: 'Contact',
       render: (_, row) => (
@@ -338,7 +355,7 @@ const EmployeesPage = () => {
         </div>
       ),
     },
-    {
+    columns.department && {
       key: 'department',
       header: 'Department',
       render: (val) => (
@@ -348,7 +365,7 @@ const EmployeesPage = () => {
         </div>
       ),
     },
-    {
+    columns.role && {
       key: 'roleId',
       header: 'Role',
       render: (val) => {
@@ -356,7 +373,7 @@ const EmployeesPage = () => {
         return <span className="text-sm">{role?.label || role?.name || val || '-'}</span>;
       },
     },
-    {
+    columns.joinDate && {
       key: 'joinDate',
       header: 'Join Date',
       render: (val) => (
@@ -366,7 +383,7 @@ const EmployeesPage = () => {
         </div>
       ),
     },
-    {
+    columns.salary && {
       key: 'salary',
       header: 'Salary',
       render: (val) => (
@@ -376,7 +393,7 @@ const EmployeesPage = () => {
         </div>
       ),
     },
-    {
+    columns.status && {
       key: 'status',
       header: 'Status',
       render: (val) => (
@@ -388,29 +405,33 @@ const EmployeesPage = () => {
         </span>
       ),
     },
-    {
+    columns.actions && (canEdit() || canDelete()) && {
       key: 'actions',
       header: 'Actions',
       render: (_, row) => (
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => handleEdit(row)}
-            className="p-1.5 rounded hover:bg-blue-500/10 text-blue-600"
-            title="Edit"
-          >
-            <Edit size={16} />
-          </button>
-          <button
-            onClick={() => handleDelete(row._id)}
-            className="p-1.5 rounded hover:bg-red-500/10 text-red-600"
-            title="Delete"
-          >
-            <Trash2 size={16} />
-          </button>
+          {canEdit() && (
+            <button
+              onClick={() => handleEdit(row)}
+              className="p-1.5 rounded hover:bg-blue-500/10 text-blue-600"
+              title="Edit"
+            >
+              <Edit size={16} />
+            </button>
+          )}
+          {canDelete() && (
+            <button
+              onClick={() => handleDelete(row._id)}
+              className="p-1.5 rounded hover:bg-red-500/10 text-red-600"
+              title="Delete"
+            >
+              <Trash2 size={16} />
+            </button>
+          )}
         </div>
       ),
     },
-  ];
+  ].filter(Boolean);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -420,14 +441,18 @@ const EmployeesPage = () => {
         subtitle="Manage all employees and their details"
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={exportToCSV} className="flex items-center gap-2">
-              <Download size={16} />
-              Export CSV
-            </Button>
-            <Button onClick={() => { resetForm(); setShowModal(true); }} className="flex items-center gap-2">
-              <Plus size={16} />
-              Add Employee
-            </Button>
+            {canExport() && (
+              <Button variant="outline" onClick={exportToCSV} className="flex items-center gap-2">
+                <Download size={16} />
+                Export CSV
+              </Button>
+            )}
+            {canCreate() && (
+              <Button onClick={() => { resetForm(); setShowModal(true); }} className="flex items-center gap-2">
+                <Plus size={16} />
+                Add Employee
+              </Button>
+            )}
           </div>
         }
       />
@@ -533,24 +558,26 @@ const EmployeesPage = () => {
             Refresh
           </Button>
 
-          <Button onClick={() => { resetForm(); setShowModal(true); }} className="flex items-center gap-2 ml-auto">
-            <Plus size={16} />
-            Add Employee
-          </Button>
+          {canCreate() && (
+            <Button onClick={() => { resetForm(); setShowModal(true); }} className="flex items-center gap-2 ml-auto">
+              <Plus size={16} />
+              Add Employee
+            </Button>
+          )}
         </div>
       </div>
 
       {/* Data Table */}
       <div className="glass-card p-4">
         <DataTable
-          columns={columns}
+          columns={tableColumns}
           data={filteredEmployees}
           emptyText={kpiFilter ? `No ${kpiFilter} employees found.` : "No employees found."}
           loading={loading}
           expandedRowKey={viewEmployee?._id}
           renderExpanded={(emp) => (
             <div className="p-4 border-t border-[var(--border-muted)] bg-gradient-to-b from-white to-[var(--bg-elevated)]">
-              <EmployeeViewModal employee={emp} onClose={() => setViewEmployee(null)} onEdit={(e) => handleEdit(e)} inline />
+              <EmployeeViewModal employee={emp} onClose={() => setViewEmployee(null)} onEdit={canEdit() ? (e) => handleEdit(e) : null} inline />
             </div>
           )}
         />
