@@ -16,7 +16,7 @@ import Layout from './components/Layout';
 
 import LoginPage from './pages/LoginPage';
 
-import Dashboard from './pages/Dashboard';
+import SolarOSDashboard from './pages/SolarOSDashboard';
 
 import CRMPage from './pages/CRMPage';
 
@@ -84,7 +84,7 @@ import NotificationSystem from './components/NotificationSystem';
 
 const PAGE_MAP = {
 
-  dashboard: { component: Dashboard, title: 'CRM & Sales' },
+  dashboard: { component: SolarOSDashboard, title: 'Solar OS Dashboard' },
 
   hrm: { component: HRMPage, title: 'Human Resource Management' },
 

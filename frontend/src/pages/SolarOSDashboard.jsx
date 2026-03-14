@@ -1,0 +1,581 @@
+// Solar OS Dashboard - Project-Aligned Version
+// Uses Solar OS design system with CSS variables and glass-card styling
+
+import React, { useState, useEffect } from 'react';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell
+} from 'recharts';
+import {
+  FolderOpen, Users, ClipboardList, Package,
+  DollarSign, CheckCircle2, ArrowUpRight,
+  ArrowDownRight, Zap, FileText,
+  Plus, Calendar, Activity, Database,
+  Server, Shield, Sun, Briefcase, ShoppingCart,
+  HardHat, HeadphonesIcon, ChevronRight, RefreshCw,
+  MoreHorizontal, Bell, Search, TrendingUp
+} from 'lucide-react';
+import { KPICard } from '../components/ui/KPICard';
+
+// ============================================
+// CHART COLORS (Solar OS Brand Colors)
+// ============================================
+const CHART_COLORS = {
+  blue: '#3B82F6',
+  purple: '#8B5CF6',
+  green: '#22c55e',
+  orange: '#f59e0b',
+  red: '#ef4444',
+  cyan: '#06b6d4',
+  pink: '#EC4899',
+  indigo: '#6366f1'
+};
+
+// ============================================
+// MOCK DATA
+// ============================================
+const dashboardData = {
+  summaryCards: [
+    { id: 1, label: 'Projects', value: '24', trend: '+12%', trendUp: true, icon: FolderOpen, variant: 'blue' },
+    { id: 2, label: 'Leads', value: '156', trend: '+8%', trendUp: true, icon: Users, variant: 'purple' },
+    { id: 3, label: 'Surveys', value: '42', trend: '+15%', trendUp: true, icon: ClipboardList, variant: 'green' },
+    { id: 4, label: 'Inventory', value: '1,234', trend: '-3%', trendUp: false, icon: Package, variant: 'amber' },
+    { id: 5, label: 'Employees', value: '89', trend: '+5%', trendUp: true, icon: Briefcase, variant: 'indigo' },
+    { id: 6, label: 'Tasks', value: '67', trend: '+18%', trendUp: true, icon: CheckCircle2, variant: 'emerald' },
+    { id: 7, label: 'Commissioned', value: '18', trend: '+22%', trendUp: true, icon: Zap, variant: 'green' },
+    { id: 8, label: 'Revenue', value: '$2.4M', trend: '+25%', trendUp: true, icon: DollarSign, variant: 'indigo' }
+  ],
+  secondRowMetrics: [
+    { label: 'Total Projects', value: '24', change: '+12%' },
+    { label: 'Total Revenue', value: '$2.4M', change: '+25%' },
+    { label: 'Active Leads', value: '156', change: '+8%' },
+    { label: 'Inventory Alerts', value: '3', change: '-2', alert: true },
+    { label: 'Quotations', value: '45', change: '+10%' },
+    { label: 'Installations', value: '12', change: '+5%' },
+    { label: 'Service Tickets', value: '8', change: '-3' },
+    { label: 'Procurement', value: '6', change: '+2' }
+  ],
+  projectPipeline: [
+    { name: 'Leads', value: 156, fill: CHART_COLORS.blue },
+    { name: 'Surveys', value: 42, fill: CHART_COLORS.purple },
+    { name: 'Quotations', value: 45, fill: CHART_COLORS.green },
+    { name: 'Installations', value: 12, fill: CHART_COLORS.orange },
+    { name: 'Commissioned', value: 18, fill: CHART_COLORS.cyan }
+  ],
+  installationStatus: [
+    { name: 'In Progress', value: 8, fill: CHART_COLORS.blue },
+    { name: 'Completed', value: 12, fill: CHART_COLORS.green },
+    { name: 'Pending', value: 4, fill: CHART_COLORS.orange }
+  ],
+  quotationStatus: [
+    { name: 'Approved', value: 28, fill: CHART_COLORS.green },
+    { name: 'Pending', value: 12, fill: CHART_COLORS.orange },
+    { name: 'Rejected', value: 5, fill: CHART_COLORS.red }
+  ],
+  serviceTickets: [
+    { name: 'Open', value: 8, fill: CHART_COLORS.red },
+    { name: 'In Progress', value: 15, fill: CHART_COLORS.orange },
+    { name: 'Resolved', value: 42, fill: CHART_COLORS.green }
+  ],
+  procurementStatus: [
+    { name: 'Completed', value: 24, fill: CHART_COLORS.green },
+    { name: 'Pending', value: 8, fill: CHART_COLORS.orange },
+    { name: 'In Progress', value: 6, fill: CHART_COLORS.blue }
+  ],
+  inventoryCategory: [
+    { name: 'Solar Panels', value: 450, fill: CHART_COLORS.blue },
+    { name: 'Inverters', value: 280, fill: CHART_COLORS.purple },
+    { name: 'Batteries', value: 180, fill: CHART_COLORS.green },
+    { name: 'Mounting', value: 220, fill: CHART_COLORS.orange },
+    { name: 'Cables', value: 104, fill: CHART_COLORS.cyan }
+  ],
+  performanceMetrics: [
+    { label: 'Conversion Rate', value: '68%', target: '70%', status: 'good' },
+    { label: 'On-Time Delivery', value: '92%', target: '95%', status: 'good' },
+    { label: 'Customer Satisfaction', value: '4.8/5', target: '4.5', status: 'excellent' }
+  ],
+  systemHealth: [
+    { label: 'API Status', status: 'operational', icon: Server },
+    { label: 'Database Status', status: 'operational', icon: Database },
+    { label: 'Last Sync', value: '2 min ago', icon: RefreshCw }
+  ]
+};
+
+// ============================================
+// SUB-COMPONENTS
+// ============================================
+
+// Metric Pill for Key Metrics section
+const MetricPill = ({ label, value, change, alert }) => (
+  <div 
+    className={`flex flex-col p-3 rounded-lg ${alert ? 'bg-[var(--red-bg)]' : 'bg-[var(--bg-elevated)]'}`}
+    style={{ border: alert ? '1px solid var(--red)' : '1px solid var(--border-base)' }}
+  >
+    <span className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>{label}</span>
+    <div className="flex items-center justify-between">
+      <span className="text-lg font-bold" style={{ color: alert ? 'var(--red)' : 'var(--text-primary)' }}>
+        {value}
+      </span>
+      <span 
+        className="text-xs font-medium"
+        style={{ 
+          color: change?.startsWith('+') ? 'var(--green)' : change?.startsWith('-') ? 'var(--red)' : 'var(--text-muted)'
+        }}
+      >
+        {change}
+      </span>
+    </div>
+  </div>
+);
+
+// Chart Card using glass-card
+const ChartCard = ({ title, children, icon: Icon }) => (
+  <div className="glass-card h-full overflow-hidden">
+    <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'var(--border-base)' }}>
+      <div className="flex items-center gap-2">
+        {Icon && <Icon className="w-4 h-4" style={{ color: 'var(--accent)' }} />}
+        <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{title}</h3>
+      </div>
+    </div>
+    <div className="p-4 h-48">
+      {children}
+    </div>
+  </div>
+);
+
+// Quick Action Button
+const QuickActionButton = ({ icon: Icon, label, onClick }) => (
+  <button
+    onClick={onClick}
+    className="flex items-center gap-3 w-full p-3 rounded-lg transition-all duration-200 group text-left hover:bg-[var(--bg-hover)]"
+  >
+    <div 
+      className="p-2 rounded-lg transition-transform duration-200 group-hover:scale-110"
+      style={{ backgroundColor: 'var(--bg-elevated)' }}
+    >
+      <Icon className="w-5 h-5" style={{ color: 'var(--primary)' }} />
+    </div>
+    <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>{label}</span>
+    <ChevronRight className="w-4 h-4 ml-auto opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: 'var(--text-muted)' }} />
+  </button>
+);
+
+// Performance Metric Bar
+const PerformanceBar = ({ label, value, target, status }) => {
+  const percentage = parseInt(value) || 0;
+  
+  const statusColors = {
+    excellent: 'var(--green)',
+    good: 'var(--primary)',
+    warning: 'var(--amber)',
+    danger: 'var(--red)'
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between text-sm">
+        <span className="font-medium" style={{ color: 'var(--text-secondary)' }}>{label}</span>
+        <div className="flex items-center gap-2">
+          <span className="font-bold" style={{ color: 'var(--text-primary)' }}>{value}</span>
+          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>/ {target}</span>
+        </div>
+      </div>
+      <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-overlay)' }}>
+        <div
+          className="h-full rounded-full transition-all duration-500"
+          style={{ width: `${Math.min(percentage, 100)}%`, backgroundColor: statusColors[status] }}
+        />
+      </div>
+    </div>
+  );
+};
+
+// System Health Item
+const HealthItem = ({ label, status, value, icon: Icon }) => (
+  <div className="flex items-center justify-between py-2">
+    <div className="flex items-center gap-3">
+      <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--bg-elevated)' }}>
+        <Icon className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
+      </div>
+      <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{label}</span>
+    </div>
+    <div className="flex items-center gap-2">
+      {status && (
+        <span
+          className={`flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${
+            status === 'operational' ? 'bg-[var(--green-bg)] text-[var(--green)]' : 'bg-[var(--amber-bg)] text-[var(--amber)]'
+          }`}
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-current" />
+          {status}
+        </span>
+      )}
+      {value && <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{value}</span>}
+    </div>
+  </div>
+);
+
+// Chart Tooltip
+const CustomTooltip = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    return (
+      <div 
+        className="px-3 py-2 rounded-lg shadow-lg border"
+        style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-base)' }}
+      >
+        <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+          {label || payload[0].name}
+        </p>
+        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+          Value: <span className="font-bold" style={{ color: 'var(--text-primary)' }}>{payload[0].value}</span>
+        </p>
+      </div>
+    );
+  }
+  return null;
+};
+
+// ============================================
+// MAIN DASHBOARD COMPONENT
+// ============================================
+const SolarOSDashboard = () => {
+  const [loading, setLoading] = useState(true);
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 800);
+    const timeInterval = setInterval(() => setCurrentTime(new Date()), 60000);
+    return () => {
+      clearTimeout(timer);
+      clearInterval(timeInterval);
+    };
+  }, []);
+
+  const quickActions = [
+    { icon: Plus, label: 'Create New Lead' },
+    { icon: Package, label: 'Add Inventory Item' },
+    { icon: FileText, label: 'Generate Quotation' },
+    { icon: Calendar, label: 'Schedule Survey' },
+    { icon: FolderOpen, label: 'Create Project' }
+  ];
+
+  if (loading) {
+    return (
+      <div 
+        className="min-h-screen flex items-center justify-center"
+        style={{ backgroundColor: 'var(--bg-page)' }}
+      >
+        <div className="flex flex-col items-center gap-4">
+          <div 
+            className="w-12 h-12 border-4 rounded-full animate-spin"
+            style={{ borderColor: 'var(--bg-elevated)', borderTopColor: 'var(--primary)' }}
+          />
+          <p style={{ color: 'var(--text-muted)' }}>Loading Solar OS Dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen p-6" style={{ backgroundColor: 'var(--bg-page)' }}>
+      {/* Page Header */}
+      <div className="page-header mb-6">
+        <div>
+          <h1 className="heading-page mb-1">Solar OS Dashboard</h1>
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+            {currentTime.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {/* Search */}
+          <div 
+            className="hidden md:flex items-center gap-2 px-4 py-2 rounded-xl"
+            style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-base)' }}
+          >
+            <Search className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
+            <input
+              type="text"
+              placeholder="Search..."
+              className="bg-transparent border-none outline-none text-sm w-48"
+              style={{ color: 'var(--text-primary)' }}
+            />
+          </div>
+          
+          {/* Notifications */}
+          <button className="btn-icon btn-icon-lg relative">
+            <Bell className="w-5 h-5" />
+            <span 
+              className="absolute top-1 right-1 w-2 h-2 rounded-full animate-pulse-dot"
+              style={{ backgroundColor: 'var(--red)' }}
+            />
+          </button>
+          
+          {/* Refresh */}
+          <button className="btn-primary">
+            <RefreshCw className="w-4 h-4" />
+            <span>Refresh</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-6">
+        {/* Summary Cards Grid - Using Project's KPICard */}
+        <section>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4">
+            {dashboardData.summaryCards.map(card => (
+              <KPICard 
+                key={card.id}
+                label={card.label}
+                value={card.value}
+                trend={card.trend}
+                trendUp={card.trendUp}
+                icon={card.icon}
+                variant={card.variant}
+              />
+            ))}
+          </div>
+        </section>
+
+        {/* Second Row Metrics */}
+        <section>
+          <div className="glass-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="heading-section">Key Metrics</h2>
+              <button className="btn-icon">
+                <MoreHorizontal className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+              {dashboardData.secondRowMetrics.map((metric, index) => (
+                <MetricPill key={index} {...metric} />
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Charts Section */}
+        <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {/* Project Pipeline */}
+          <ChartCard title="Project Pipeline" icon={TrendingUp}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={dashboardData.projectPipeline}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+                <XAxis 
+                  dataKey="name" 
+                  tick={{ fontSize: 11, fill: 'var(--text-muted)' }} 
+                  axisLine={false} 
+                  tickLine={false} 
+                />
+                <YAxis 
+                  tick={{ fontSize: 11, fill: 'var(--text-muted)' }} 
+                  axisLine={false} 
+                  tickLine={false} 
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                  {dashboardData.projectPipeline.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
+          {/* Installation Status */}
+          <ChartCard title="Installation Status" icon={HardHat}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={dashboardData.installationStatus}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+                <XAxis 
+                  dataKey="name" 
+                  tick={{ fontSize: 11, fill: 'var(--text-muted)' }} 
+                  axisLine={false} 
+                  tickLine={false} 
+                />
+                <YAxis 
+                  tick={{ fontSize: 11, fill: 'var(--text-muted)' }} 
+                  axisLine={false} 
+                  tickLine={false} 
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                  {dashboardData.installationStatus.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
+          {/* Quotation Status - Pie Chart */}
+          <ChartCard title="Quotation Status" icon={FileText}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={dashboardData.quotationStatus}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={40}
+                  outerRadius={70}
+                  paddingAngle={4}
+                  dataKey="value"
+                >
+                  {dashboardData.quotationStatus.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                  ))}
+                </Pie>
+                <Tooltip content={<CustomTooltip />} />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="flex justify-center gap-4 mt-2">
+              {dashboardData.quotationStatus.map((item, index) => (
+                <div key={index} className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.fill }} />
+                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{item.name}</span>
+                </div>
+              ))}
+            </div>
+          </ChartCard>
+
+          {/* Service Tickets - Horizontal Bar */}
+          <ChartCard title="Service Tickets" icon={HeadphonesIcon}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={dashboardData.serviceTickets} layout="horizontal">
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" horizontal={false} />
+                <XAxis 
+                  type="number" 
+                  tick={{ fontSize: 11, fill: 'var(--text-muted)' }} 
+                  axisLine={false} 
+                  tickLine={false} 
+                />
+                <YAxis 
+                  dataKey="name" 
+                  type="category" 
+                  tick={{ fontSize: 11, fill: 'var(--text-muted)' }} 
+                  axisLine={false} 
+                  tickLine={false} 
+                  width={80} 
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={24}>
+                  {dashboardData.serviceTickets.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
+          {/* Procurement Status */}
+          <ChartCard title="Procurement Status" icon={ShoppingCart}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={dashboardData.procurementStatus}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+                <XAxis 
+                  dataKey="name" 
+                  tick={{ fontSize: 11, fill: 'var(--text-muted)' }} 
+                  axisLine={false} 
+                  tickLine={false} 
+                />
+                <YAxis 
+                  tick={{ fontSize: 11, fill: 'var(--text-muted)' }} 
+                  axisLine={false} 
+                  tickLine={false} 
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                  {dashboardData.procurementStatus.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
+          {/* Inventory by Category */}
+          <ChartCard title="Inventory by Category" icon={Package}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={dashboardData.inventoryCategory}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+                <XAxis 
+                  dataKey="name" 
+                  tick={{ fontSize: 10, fill: 'var(--text-muted)' }} 
+                  axisLine={false} 
+                  tickLine={false} 
+                  interval={0} 
+                />
+                <YAxis 
+                  tick={{ fontSize: 11, fill: 'var(--text-muted)' }} 
+                  axisLine={false} 
+                  tickLine={false} 
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                  {dashboardData.inventoryCategory.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+        </section>
+
+        {/* Bottom Section */}
+        <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Quick Actions */}
+          <div className="glass-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="heading-section">Quick Actions</h3>
+              <Zap className="w-5 h-5" style={{ color: 'var(--accent)' }} />
+            </div>
+            <div className="space-y-1">
+              {quickActions.map((action, index) => (
+                <QuickActionButton
+                  key={index}
+                  icon={action.icon}
+                  label={action.label}
+                  onClick={() => console.log(action.label)}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Performance Metrics */}
+          <div className="glass-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="heading-section">Performance Metrics</h3>
+              <Activity className="w-5 h-5" style={{ color: 'var(--primary)' }} />
+            </div>
+            <div className="space-y-5">
+              {dashboardData.performanceMetrics.map((metric, index) => (
+                <PerformanceBar key={index} {...metric} />
+              ))}
+            </div>
+          </div>
+
+          {/* System Health */}
+          <div className="glass-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="heading-section">System Health</h3>
+              <Shield className="w-5 h-5" style={{ color: 'var(--green)' }} />
+            </div>
+            <div className="space-y-2">
+              {dashboardData.systemHealth.map((item, index) => (
+                <HealthItem key={index} {...item} />
+              ))}
+            </div>
+            <div 
+              className="mt-4 pt-4 border-t flex items-center gap-2 text-xs"
+              style={{ borderColor: 'var(--border-base)', color: 'var(--text-muted)' }}
+            >
+              <CheckCircle2 className="w-4 h-4" style={{ color: 'var(--green)' }} />
+              <span>All systems operational</span>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+};
+
+export default SolarOSDashboard;
