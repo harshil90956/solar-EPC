@@ -7,6 +7,7 @@ import { WorkflowRule, WorkflowRuleDocument } from '../schemas/workflow-rule.sch
 import { AuditLog, AuditLogDocument } from '../schemas/audit-log.schema';
 import { CustomRole, CustomRoleDocument } from '../schemas/custom-role.schema';
 import { ProjectTypeConfig, ProjectTypeConfigDocument } from '../schemas/project-type-config.schema';
+import { CommissioningTaskConfig, CommissioningTaskConfigDocument } from '../schemas/commissioning-task.schema';
 
 @Injectable()
 export class SettingsService {
@@ -17,48 +18,55 @@ export class SettingsService {
     @InjectModel(AuditLog.name) private auditLogModel: Model<AuditLogDocument>,
     @InjectModel(CustomRole.name) private customRoleModel: Model<CustomRoleDocument>,
     @InjectModel(ProjectTypeConfig.name) private projectTypeConfigModel: Model<ProjectTypeConfigDocument>,
+    @InjectModel(CommissioningTaskConfig.name) private commissioningTaskConfigModel: Model<CommissioningTaskConfigDocument>,
   ) {}
 
-  private toObjectId(tenantId: string | undefined): Types.ObjectId | undefined {
-    if (!tenantId) return undefined;
+  private toObjectId(tenantId: string): Types.ObjectId {
+    if (!tenantId) {
+      throw new Error('Tenant ID is required for multi-tenant operations');
+    }
     // Check if tenantId is a valid 24-character hex string (MongoDB ObjectId format)
     const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(tenantId);
-    if (!isValidObjectId) return undefined;
-    return new Types.ObjectId(tenantId);
+    if (!isValidObjectId) {
+      throw new Error(`Invalid tenant ID format: ${tenantId}`);
+    }
+    try { return new Types.ObjectId(tenantId); } catch { 
+      throw new Error(`Failed to convert tenant ID to ObjectId: ${tenantId}`);
+    }
   }
 
   // ── Feature Flags ─────────────────────────────────────────────────────────
-  async getFeatureFlags(tenantId?: string): Promise<FeatureFlag[]> {
+  async getFeatureFlags(tenantId: string): Promise<FeatureFlag[]> {
     const tid = this.toObjectId(tenantId);
-    return this.featureFlagModel.find(tid ? { tenantId: tid } : {}).exec();
+    return this.featureFlagModel.find({ tenantId: tid }).exec();
   }
 
-  async updateFeatureFlag(moduleId: string, update: Partial<FeatureFlag>, tenantId?: string): Promise<FeatureFlag> {
+  async updateFeatureFlag(moduleId: string, update: Partial<FeatureFlag>, tenantId: string): Promise<FeatureFlag> {
     const tid = this.toObjectId(tenantId);
-    const filter = tid ? { moduleId, tenantId: tid } : { moduleId };
+    const filter = { moduleId, tenantId: tid };
     const doc = await this.featureFlagModel.findOneAndUpdate(filter, { $set: update }, { upsert: true, new: true }).exec();
     return doc;
   }
 
-  async toggleModule(moduleId: string, enabled: boolean, tenantId?: string): Promise<FeatureFlag> {
+  async toggleModule(moduleId: string, enabled: boolean, tenantId: string): Promise<FeatureFlag> {
     return this.updateFeatureFlag(moduleId, { enabled }, tenantId);
   }
 
-  async toggleFeature(moduleId: string, featureId: string, enabled: boolean, tenantId?: string): Promise<FeatureFlag> {
+  async toggleFeature(moduleId: string, featureId: string, enabled: boolean, tenantId: string): Promise<FeatureFlag> {
     const flag = await this.getOrCreateFeatureFlag(moduleId, tenantId);
     flag.features.set(featureId, enabled);
     return flag.save();
   }
 
-  async toggleAction(moduleId: string, actionId: string, enabled: boolean, tenantId?: string): Promise<FeatureFlag> {
+  async toggleAction(moduleId: string, actionId: string, enabled: boolean, tenantId: string): Promise<FeatureFlag> {
     const flag = await this.getOrCreateFeatureFlag(moduleId, tenantId);
     flag.actions.set(actionId, enabled);
     return flag.save();
   }
 
-  private async getOrCreateFeatureFlag(moduleId: string, tenantId?: string): Promise<FeatureFlagDocument> {
+  private async getOrCreateFeatureFlag(moduleId: string, tenantId: string): Promise<FeatureFlagDocument> {
     const tid = this.toObjectId(tenantId);
-    const filter = tid ? { moduleId, tenantId: tid } : { moduleId };
+    const filter = { moduleId, tenantId: tid };
     let flag = await this.featureFlagModel.findOne(filter).exec();
     if (!flag) {
       flag = new this.featureFlagModel({ moduleId, tenantId: tid, enabled: true, features: {}, actions: {} });
@@ -68,21 +76,21 @@ export class SettingsService {
   }
 
   // ── RBAC ─────────────────────────────────────────────────────────────────
-  async getRBACConfigs(tenantId?: string): Promise<RBACConfig[]> {
+  async getRBACConfigs(tenantId: string): Promise<RBACConfig[]> {
     const tid = this.toObjectId(tenantId);
-    return this.rbacConfigModel.find(tid ? { tenantId: tid } : {}).exec();
+    return this.rbacConfigModel.find({ tenantId: tid }).exec();
   }
 
-  async updateRBAC(roleId: string, moduleId: string, permissions: Map<string, boolean>, tenantId?: string): Promise<RBACConfig> {
+  async updateRBAC(roleId: string, moduleId: string, permissions: Map<string, boolean>, tenantId: string): Promise<RBACConfig> {
     const tid = this.toObjectId(tenantId);
-    const filter = tid ? { roleId, moduleId, tenantId: tid } : { roleId, moduleId };
+    const filter = { roleId, moduleId, tenantId: tid };
     const doc = await this.rbacConfigModel.findOneAndUpdate(filter, { $set: { permissions } }, { upsert: true, new: true }).exec();
     return doc;
   }
 
-  async toggleRBAC(roleId: string, moduleId: string, actionId: string, enabled: boolean, tenantId?: string): Promise<RBACConfig> {
+  async toggleRBAC(roleId: string, moduleId: string, actionId: string, enabled: boolean, tenantId: string): Promise<RBACConfig> {
     const tid = this.toObjectId(tenantId);
-    const filter = tid ? { roleId, moduleId, tenantId: tid } : { roleId, moduleId };
+    const filter = { roleId, moduleId, tenantId: tid };
     let config = await this.rbacConfigModel.findOne(filter).exec();
     if (!config) {
       config = new this.rbacConfigModel({ roleId, moduleId, tenantId: tid, permissions: new Map() });
@@ -92,36 +100,36 @@ export class SettingsService {
   }
 
   // ── Workflow Rules ──────────────────────────────────────────────────────
-  async getWorkflowRules(tenantId?: string): Promise<WorkflowRule[]> {
+  async getWorkflowRules(tenantId: string): Promise<WorkflowRule[]> {
     const tid = this.toObjectId(tenantId);
-    return this.workflowRuleModel.find(tid ? { tenantId: tid } : {}).exec();
+    return this.workflowRuleModel.find({ tenantId: tid }).exec();
   }
 
-  async createWorkflowRule(rule: Partial<WorkflowRule>, tenantId?: string): Promise<WorkflowRule> {
+  async createWorkflowRule(rule: Partial<WorkflowRule>, tenantId: string): Promise<WorkflowRule> {
     const tid = this.toObjectId(tenantId);
     const newRule = new this.workflowRuleModel({ ...rule, tenantId: tid, wfId: `wf${Date.now()}` });
     return newRule.save();
   }
 
-  async updateWorkflowRule(wfId: string, updates: Partial<WorkflowRule>, tenantId?: string): Promise<WorkflowRule | null> {
+  async updateWorkflowRule(wfId: string, updates: Partial<WorkflowRule>, tenantId: string): Promise<WorkflowRule | null> {
     const tid = this.toObjectId(tenantId);
-    const filter = tid ? { wfId, tenantId: tid } : { wfId };
+    const filter = { wfId, tenantId: tid };
     return this.workflowRuleModel.findOneAndUpdate(filter, { $set: updates }, { new: true }).exec();
   }
 
-  async deleteWorkflowRule(wfId: string, tenantId?: string): Promise<WorkflowRule | null> {
+  async deleteWorkflowRule(wfId: string, tenantId: string): Promise<WorkflowRule | null> {
     const tid = this.toObjectId(tenantId);
-    const filter = tid ? { wfId, tenantId: tid } : { wfId };
+    const filter = { wfId, tenantId: tid };
     return this.workflowRuleModel.findOneAndDelete(filter).exec();
   }
 
   // ── Audit Logs ───────────────────────────────────────────────────────────
-  async getAuditLogs(tenantId?: string, limit = 500): Promise<AuditLog[]> {
+  async getAuditLogs(tenantId: string, limit = 500): Promise<AuditLog[]> {
     const tid = this.toObjectId(tenantId);
-    return this.auditLogModel.find(tid ? { tenantId: tid } : {}).sort({ ts: -1 }).limit(limit).exec();
+    return this.auditLogModel.find({ tenantId: tid }).sort({ ts: -1 }).limit(limit).exec();
   }
 
-  async createAuditLog(log: Partial<AuditLog>, tenantId?: string): Promise<AuditLog> {
+  async createAuditLog(log: Partial<AuditLog>, tenantId: string): Promise<AuditLog> {
     const tid = this.toObjectId(tenantId);
 
     const toSafeString = (value: any): string => {
@@ -149,51 +157,52 @@ export class SettingsService {
   }
 
   // ── Custom Roles ────────────────────────────────────────────────────────
-  async getCustomRoles(tenantId?: string): Promise<CustomRole[]> {
+  async getCustomRoles(tenantId: string): Promise<CustomRole[]> {
     const tid = this.toObjectId(tenantId);
-    return this.customRoleModel.find(tid ? { tenantId: tid } : {}).exec();
+    return this.customRoleModel.find({ tenantId: tid }).exec();
   }
 
-  async createCustomRole(role: Partial<CustomRole>, tenantId?: string): Promise<CustomRole> {
+  async createCustomRole(role: Partial<CustomRole>, tenantId: string): Promise<CustomRole> {
     const tid = this.toObjectId(tenantId);
     const newRole = new this.customRoleModel({ ...role, tenantId: tid, roleId: `custom_${Date.now()}` });
     return newRole.save();
   }
 
-  async updateCustomRole(roleId: string, updates: Partial<CustomRole>, tenantId?: string): Promise<CustomRole | null> {
+  async updateCustomRole(roleId: string, updates: Partial<CustomRole>, tenantId: string): Promise<CustomRole | null> {
     const tid = this.toObjectId(tenantId);
-    const filter = tid ? { roleId, tenantId: tid } : { roleId };
+    const filter = { roleId, tenantId: tid };
     return this.customRoleModel.findOneAndUpdate(filter, { $set: updates }, { new: true }).exec();
   }
 
-  async deleteCustomRole(roleId: string, tenantId?: string): Promise<CustomRole | null> {
+  async deleteCustomRole(roleId: string, tenantId: string): Promise<CustomRole | null> {
     const tid = this.toObjectId(tenantId);
-    const filter = tid ? { roleId, tenantId: tid } : { roleId };
+    const filter = { roleId, tenantId: tid };
     return this.customRoleModel.findOneAndDelete(filter).exec();
   }
 
   // ── Project Type Config ────────────────────────────────────────────────
-  async getProjectTypeConfigs(tenantId?: string): Promise<ProjectTypeConfig[]> {
+  async getProjectTypeConfigs(tenantId: string): Promise<ProjectTypeConfig[]> {
     const tid = this.toObjectId(tenantId);
-    return this.projectTypeConfigModel.find(tid ? { tenantId: tid } : {}).exec();
+    return this.projectTypeConfigModel.find({ tenantId: tid }).exec();
   }
 
-  async updateProjectTypeConfig(typeId: string, config: any, tenantId?: string): Promise<ProjectTypeConfig> {
+  async updateProjectTypeConfig(typeId: string, config: any, tenantId: string): Promise<ProjectTypeConfig> {
     const tid = this.toObjectId(tenantId);
-    const filter = tid ? { typeId, tenantId: tid } : { typeId };
+    const filter = { typeId, tenantId: tid };
     const doc = await this.projectTypeConfigModel.findOneAndUpdate(filter, { $set: { config } }, { upsert: true, new: true }).exec();
     return doc;
   }
 
   // ── Full Settings ───────────────────────────────────────────────────────
-  async getFullSettings(tenantId?: string): Promise<any> {
-    const [flags, rbac, workflows, auditLogs, customRoles, projectTypeConfigs] = await Promise.all([
+  async getFullSettings(tenantId: string): Promise<any> {
+    const [flags, rbac, workflows, auditLogs, customRoles, projectTypeConfigs, commissioningTaskConfig] = await Promise.all([
       this.getFeatureFlags(tenantId),
       this.getRBACConfigs(tenantId),
       this.getWorkflowRules(tenantId),
       this.getAuditLogs(tenantId),
       this.getCustomRoles(tenantId),
       this.getProjectTypeConfigs(tenantId),
+      this.commissioningTaskConfigModel.findOne({ tenantId: this.toObjectId(tenantId) }).exec(),
     ]);
 
     return {
@@ -203,6 +212,7 @@ export class SettingsService {
       auditLogs,
       customRoles,
       projectTypeConfigs,
+      commissioningTasks: commissioningTaskConfig?.tasks || [],
     };
   }
 }

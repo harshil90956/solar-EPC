@@ -13,9 +13,31 @@ export class SalaryIncrementController {
     private readonly hrmPermissionService: HrmPermissionService,
   ) {}
 
+  private async checkPermission(req: any, permission: string) {
+    const user = req.user;
+    if (!user) throw new ForbiddenException('User not authenticated');
+    
+    // Super admin bypass
+    if (user.role === 'Super Admin' || user.role === 'Admin') return true;
+    
+    // Check user permissions from JWT
+    if (user.permissions && Array.isArray(user.permissions)) {
+      if (user.permissions.includes(permission)) return true;
+    }
+    
+    const roleId = user.roleId || user.role;
+    if (!roleId) throw new ForbiddenException('User has no role assigned');
+    
+    const hasPermission = await this.hrmPermissionService.checkPermission(roleId, permission);
+    if (!hasPermission) {
+      throw new ForbiddenException(`Permission denied: ${permission} required`);
+    }
+  }
+
   @Post()
   @HttpCode(HttpStatus.CREATED)
   async create(@Body() createDto: CreateIncrementDto, @Req() req: any) {
+    await this.checkPermission(req, 'increments.create');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const roleId = req.user?.roleId || req.user?.role;
     await this.hrmPermissionService.validateAction(roleId, 'increments.manage', tenantId);
@@ -26,6 +48,7 @@ export class SalaryIncrementController {
 
   @Get()
   async findAll(@Query() query: GetIncrementQueryDto, @Req() req: any) {
+    await this.checkPermission(req, 'increments.view');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const roleId = req.user?.roleId || req.user?.role;
     
@@ -39,6 +62,7 @@ export class SalaryIncrementController {
 
   @Get(':id')
   async findOne(@Param('id') id: string, @Req() req: any) {
+    await this.checkPermission(req, 'increments.view');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const roleId = req.user?.roleId || req.user?.role;
     
@@ -54,6 +78,7 @@ export class SalaryIncrementController {
 
   @Get('employee/:employeeId')
   async findByEmployee(@Param('employeeId') employeeId: string, @Req() req: any) {
+    await this.checkPermission(req, 'increments.view');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const roleId = req.user?.roleId || req.user?.role;
     
@@ -67,6 +92,7 @@ export class SalaryIncrementController {
 
   @Get('history/:employeeId')
   async getIncrementHistory(@Param('employeeId') employeeId: string, @Req() req: any) {
+    await this.checkPermission(req, 'increments.view');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const roleId = req.user?.roleId || req.user?.role;
     
@@ -80,6 +106,7 @@ export class SalaryIncrementController {
 
   @Get('latest-salary/:employeeId')
   async getLatestSalary(@Param('employeeId') employeeId: string, @Req() req: any) {
+    await this.checkPermission(req, 'increments.view');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const roleId = req.user?.roleId || req.user?.role;
     
@@ -97,6 +124,7 @@ export class SalaryIncrementController {
     @Body() updateDto: UpdateIncrementDto,
     @Req() req: any,
   ) {
+    await this.checkPermission(req, 'increments.edit');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const roleId = req.user?.roleId || req.user?.role;
     await this.hrmPermissionService.validateAction(roleId, 'increments.manage', tenantId);
@@ -108,6 +136,7 @@ export class SalaryIncrementController {
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   async delete(@Param('id') id: string, @Req() req: any) {
+    await this.checkPermission(req, 'increments.delete');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const roleId = req.user?.roleId || req.user?.role;
     await this.hrmPermissionService.validateAction(roleId, 'increments.manage', tenantId);

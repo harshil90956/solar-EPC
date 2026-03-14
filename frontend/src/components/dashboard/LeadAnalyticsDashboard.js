@@ -137,7 +137,7 @@ const FunnelChart = ({ data, loading }) => {
           const prev = index > 0 ? (data[index - 1]?.count || 0) : null;
           const conv = prev && prev > 0 ? Math.round(((stage.count || 0) / prev) * 100) : null;
           return (
-            <div key={stage.stage || index}>
+            <div key={`funnel-stage-${index}`}>
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="text-xs font-medium text-[var(--text-primary)] truncate">{titleCase(stage.stage)}</span>

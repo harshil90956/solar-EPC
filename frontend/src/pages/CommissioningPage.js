@@ -21,6 +21,7 @@ import {
   Wrench, 
   CheckCircle, 
   User, 
+  UserPlus,
   Search, 
   CalendarDays,
   ClipboardList,
@@ -32,7 +33,6 @@ import {
   TrendingUp,
   BarChart3,
   Download,
-  UserPlus,
   UserMinus,
   Eye,
   Edit,
@@ -42,6 +42,7 @@ import {
   Layers
 } from 'lucide-react';
 import { APP_CONFIG } from '../config/app.config';
+import { commissioningApi } from '../services/commissioningApi';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, Legend, AreaChart, Area, LineChart, Line, ComposedChart } from 'recharts';
 
 // ── Kanban columns ─────────────────────────────────────────────────────────────
@@ -283,20 +284,16 @@ const InstallKanbanBoard = ({ items, onCardClick, onDrop, canEdit }) => {
 };
 
 const COLUMNS = [
-  { key: 'CommissioningId', header: 'Commissioning ID', sortable: true, render: (v) => <span className="font-mono text-xs font-semibold text-[var(--accent-light)]">{v}</span> },
-  { key: 'projectId', header: 'Project', sortable: true, render: (v) => {
-    if (!v) return '-';
-    if (typeof v === 'object') {
-      return <span className="text-xs font-semibold">{v.projectId || v.id || '-'}</span>;
-    }
-    return <span className="text-xs font-semibold">{v}</span>;
+  { key: 'customerName', header: 'Customer / Site', sortable: true, render: (v, row) => {
+    const customer = v || row.customer || row.customerName || '-';
+    const site = row.siteAddress || row.site || row.location || '';
+    return (
+      <div>
+        <p className="text-xs font-semibold text-[var(--text-primary)]">{customer}</p>
+        {site && <p className="text-[10px] text-[var(--text-muted)]">{site}</p>}
+      </div>
+    );
   }},
-  { key: 'customerName', header: 'Customer', sortable: true, render: (v, row) => (
-    <div>
-      <p className="text-xs font-semibold text-[var(--text-primary)]">{v || '-'}</p>
-      {row.siteAddress && <p className="text-[10px] text-[var(--text-muted)]">{row.siteAddress}</p>}
-    </div>
-  )},
   { key: 'technicianName', header: 'Technician', sortable: true, render: (v) => (
     <span className={`text-xs ${(!v || v === 'Not Assigned') ? 'text-[var(--text-muted)] italic' : 'text-[var(--text-primary)]'}`}>{v || 'Not Assigned'}</span>
   )},
@@ -719,105 +716,218 @@ const CommissioningDashboard = ({ logs }) => {
 
       {/* Charts Row 1 - Status & Trends */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Status Distribution - 3D Donut Chart */}
-        <div className="glass-card p-6 rounded-2xl border border-[var(--border-base)] animate-fade-in">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-xl bg-[var(--primary)]/20 flex items-center justify-center">
-              <PieChartIcon size={20} className="text-[var(--primary)]" />
+        {/* Status Distribution - Professional 3D Donut Chart */}
+        <div className="glass-card p-6 rounded-2xl border border-[var(--border-base)] shadow-xl hover:shadow-2xl transition-all duration-500 animate-fade-in bg-gradient-to-br from-white/50 to-white/30 dark:from-gray-800/50 dark:to-gray-900/30">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/30">
+                <PieChartIcon size={24} className="text-white" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-[var(--text-primary)]">Status Distribution</h3>
+                <p className="text-xs text-[var(--text-muted)]">Real-time Commissioning status breakdown</p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-lg font-bold text-[var(--text-primary)]">Status Distribution</h3>
-              <p className="text-xs text-[var(--text-muted)]">Real-time Commissioning status breakdown</p>
+            <div className="text-right">
+              <p className="text-2xl font-bold text-[var(--primary)]">{stats.total}</p>
+              <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide">Total</p>
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <defs>
-                <linearGradient id="colorCompleted" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#22c55e" stopOpacity={0.9}/>
-                  <stop offset="95%" stopColor="#22c55e" stopOpacity={0.6}/>
-                </linearGradient>
-                <linearGradient id="colorInProgress" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.9}/>
-                  <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.6}/>
-                </linearGradient>
-                <linearGradient id="colorPending" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.9}/>
-                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0.6}/>
-                </linearGradient>
-                <linearGradient id="colorDelayed" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#ef4444" stopOpacity={0.9}/>
-                  <stop offset="95%" stopColor="#ef4444" stopOpacity={0.6}/>
-                </linearGradient>
-              </defs>
-              <Pie
-                data={stats.statusDist}
-                cx="50%"
-                cy="50%"
-                innerRadius={80}
-                outerRadius={110}
-                paddingAngle={4}
-                dataKey="value"
-                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                labelLine={false}
-              >
-                {stats.statusDist.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={`url(#color${entry.name.replace(/\s/g, '')})`} stroke="var(--bg-surface)" strokeWidth={2} />
-                ))}
-              </Pie>
-              <Tooltip
-                contentStyle={{
-                  background: 'var(--bg-surface)',
-                  border: '1px solid var(--border-base)',
-                  borderRadius: 12,
-                  fontSize: 13,
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-                }}
-              />
-              <Legend wrapperStyle={{ fontSize: 12, marginTop: 20 }} />
-            </PieChart>
-          </ResponsiveContainer>
+          
+          <div className="relative">
+            <ResponsiveContainer width="100%" height={320}>
+              <PieChart>
+                <defs>
+                  {/* 3D Gradient Effects */}
+                  <linearGradient id="gradCompleted" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#22c55e" stopOpacity={1}/>
+                    <stop offset="100%" stopColor="#16a34a" stopOpacity={0.8}/>
+                  </linearGradient>
+                  <linearGradient id="gradInProgress" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#f59e0b" stopOpacity={1}/>
+                    <stop offset="100%" stopColor="#d97706" stopOpacity={0.8}/>
+                  </linearGradient>
+                  <linearGradient id="gradPending" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#6366f1" stopOpacity={1}/>
+                    <stop offset="100%" stopColor="#4f46e5" stopOpacity={0.8}/>
+                  </linearGradient>
+                  <linearGradient id="gradDelayed" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#ef4444" stopOpacity={1}/>
+                    <stop offset="100%" stopColor="#dc2626" stopOpacity={0.8}/>
+                  </linearGradient>
+                  {/* Shadow filter for 3D effect */}
+                  <filter id="shadow3d" x="-50%" y="-50%" width="200%" height="200%">
+                    <feDropShadow dx="0" dy="4" stdDeviation="6" floodOpacity="0.3"/>
+                  </filter>
+                </defs>
+                <Pie
+                  data={stats.statusDist}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={70}
+                  outerRadius={110}
+                  paddingAngle={3}
+                  dataKey="value"
+                  animationBegin={0}
+                  animationDuration={1500}
+                  animationEasing="ease-out"
+                  label={({ name, percent, value }) => (
+                    `${name}: ${value} (${(percent * 100).toFixed(0)}%)`
+                  )}
+                  labelLine={{ stroke: 'var(--border-base)', strokeWidth: 1 }}
+                >
+                  {stats.statusDist.map((entry, index) => (
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={`url(#grad${entry.name.replace(/\s/g, '')})`} 
+                      stroke="#fff"
+                      strokeWidth={3}
+                      filter="url(#shadow3d)"
+                      className="transition-all duration-300 hover:opacity-80"
+                    />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={{
+                    background: 'rgba(255,255,255,0.95)',
+                    border: '1px solid var(--border-base)',
+                    borderRadius: 16,
+                    fontSize: 13,
+                    boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
+                    padding: '12px 16px'
+                  }}
+                  formatter={(value, name) => [`${value} Commissionings`, name]}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+            
+            {/* Center Stats */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="text-center">
+                <p className="text-3xl font-bold text-[var(--primary)]">{stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}%</p>
+                <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide">Completed</p>
+              </div>
+            </div>
+          </div>
+          
+          {/* Status Legend */}
+          <div className="grid grid-cols-4 gap-2 mt-4">
+            {stats.statusDist.map((status, idx) => (
+              <div key={idx} className="text-center p-2 rounded-xl bg-[var(--bg-muted)]/50">
+                <div className="w-3 h-3 rounded-full mx-auto mb-1" style={{ backgroundColor: status.color }} />
+                <p className="text-[10px] font-semibold text-[var(--text-muted)]">{status.name}</p>
+                <p className="text-sm font-bold text-[var(--text-primary)]">{status.value}</p>
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* 7-Day Trend - Area Chart with Gradient */}
-        <div className="glass-card p-6 rounded-2xl border border-[var(--border-base)] animate-fade-in" style={{ animationDelay: '0.1s' }}>
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
-              <TrendingUp size={20} className="text-emerald-600" />
+        {/* 7-Day Trend - Professional Area Chart with Animation */}
+        <div className="glass-card p-6 rounded-2xl border border-[var(--border-base)] shadow-xl hover:shadow-2xl transition-all duration-500 animate-fade-in bg-gradient-to-br from-white/50 to-white/30 dark:from-gray-800/50 dark:to-gray-900/30" style={{ animationDelay: '0.1s' }}>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                <TrendingUp size={24} className="text-white" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-[var(--text-primary)]">Weekly Trend</h3>
+                <p className="text-xs text-[var(--text-muted)]">Commissioning activity over last 7 days</p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-lg font-bold text-[var(--text-primary)]">Weekly Trend</h3>
-              <p className="text-xs text-[var(--text-muted)]">Commissioning activity over last 7 days</p>
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <p className="text-lg font-bold text-emerald-600">{stats.trendData.reduce((a, b) => a + b.completed, 0)}</p>
+                <p className="text-[9px] text-[var(--text-muted)] uppercase">Completed</p>
+              </div>
+              <div className="text-right">
+                <p className="text-lg font-bold text-indigo-600">{stats.trendData.reduce((a, b) => a + b.created, 0)}</p>
+                <p className="text-[9px] text-[var(--text-muted)] uppercase">Created</p>
+              </div>
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={stats.trendData}>
+          
+          <ResponsiveContainer width="100%" height={320}>
+            <AreaChart data={stats.trendData} margin={{ top: 20, right: 30, left: 0, bottom: 10 }}>
               <defs>
-                <linearGradient id="colorCreated" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.8}/>
+                <linearGradient id="trendCreated" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4}/>
                   <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
                 </linearGradient>
-                <linearGradient id="colorCompleted" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#22c55e" stopOpacity={0.8}/>
+                <linearGradient id="trendCompleted" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#22c55e" stopOpacity={0.4}/>
                   <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
-              <XAxis dataKey="date" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} dy={10} />
-              <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} dx={-10} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-base)" opacity={0.5} vertical={false} />
+              <XAxis 
+                dataKey="date" 
+                tick={{ fill: 'var(--text-muted)', fontSize: 11, fontWeight: 500 }} 
+                axisLine={false} 
+                tickLine={false} 
+                dy={15}
+              />
+              <YAxis 
+                tick={{ fill: 'var(--text-muted)', fontSize: 11, fontWeight: 500 }} 
+                axisLine={false} 
+                tickLine={false} 
+                dx={-10}
+                allowDecimals={false}
+              />
               <Tooltip
                 contentStyle={{
-                  background: 'var(--bg-surface)',
+                  background: 'rgba(255,255,255,0.98)',
                   border: '1px solid var(--border-base)',
-                  borderRadius: 12,
-                  fontSize: 12,
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                  borderRadius: 16,
+                  fontSize: 13,
+                  boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
+                  padding: '12px 16px'
                 }}
+                formatter={(value, name) => [value, name]}
+                labelStyle={{ color: 'var(--text-muted)', fontWeight: 600, marginBottom: 8 }}
+                itemStyle={{ color: 'var(--text-primary)' }}
               />
-              <Area type="monotone" dataKey="created" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorCreated)" name="Created" />
-              <Area type="monotone" dataKey="completed" stroke="#22c55e" strokeWidth={3} fillOpacity={1} fill="url(#colorCompleted)" name="Completed" />
+              <Area 
+                type="monotone" 
+                dataKey="created" 
+                stroke="#6366f1" 
+                strokeWidth={3} 
+                fillOpacity={1} 
+                fill="url(#trendCreated)" 
+                name="Created"
+                animationDuration={2000}
+                animationEasing="ease-out"
+              />
+              <Area 
+                type="monotone" 
+                dataKey="completed" 
+                stroke="#22c55e" 
+                strokeWidth={3} 
+                fillOpacity={1} 
+                fill="url(#trendCompleted)" 
+                name="Completed"
+                animationDuration={2000}
+                animationEasing="ease-out"
+                animationDelay={300}
+              />
             </AreaChart>
           </ResponsiveContainer>
+          
+          {/* Day Labels */}
+          <div className="flex justify-between mt-4 px-4">
+            {stats.trendData.map((day, idx) => (
+              <div key={idx} className="text-center">
+                <p className="text-[10px] text-[var(--text-muted)]">{day.date}</p>
+                <div className="flex items-center justify-center gap-1 mt-1">
+                  {day.created > 0 && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-600 font-medium">+{day.created}</span>
+                  )}
+                  {day.completed > 0 && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-600 font-medium">✓{day.completed}</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -1175,13 +1285,14 @@ const CommissioningPage = () => {
       hasEditPermission: can('commissioning','edit')
     });
     
-    // Allow task update if: has edit permission OR is assigned user OR is employee/technician
+    // Allow task update if: has edit permission OR is assigned user OR has ASSIGNED dataScope OR is employee/technician
     const isAssignedUser = selected.technicianId === user?.id || 
                            selected.technicianId === user?._id ||
                            selected.assignedTo === user?.id ||
                            selected.assignedTo === user?._id;
+    const hasAssignedScope = user?.dataScope === 'ASSIGNED' || user?._doc?.dataScope === 'ASSIGNED';
     const isEmployeeRole = user?.role?.toLowerCase() === 'employee' || user?.role?.toLowerCase() === 'technician';
-    const canUpdate = can('commissioning','edit') || isAssignedUser || isEmployeeRole;
+    const canUpdate = can('commissioning','edit') || isAssignedUser || hasAssignedScope || isEmployeeRole;
     
     console.log('[DEBUG] Permission check:', { isAssignedUser, canUpdate });
     
@@ -1230,10 +1341,10 @@ const CommissioningPage = () => {
       } else if (shouldRevertStatus) {
         // If project was completed and task unchecked, revert status to In Progress
         await apiClient.patch(`/commissionings/${selected._id || selected.id}/status`, { status: 'In Progress' });
-        setSelected({ ...resp.data, status: 'In Progress' });
+        setSelected({ ...resp.data, status: 'In Progress', tasks: updatedTasks });
         toast.success('Task unchecked — Commissioning reverted to In Progress');
       } else {
-        setSelected(resp.data);
+        setSelected({ ...resp.data, tasks: updatedTasks });
       }
       
       refetch();
@@ -1374,6 +1485,7 @@ const CommissioningPage = () => {
 
   // New Commissioning creation uses settings tasks as template
   const [newForm, setNewForm] = useState({ department:'', technicianId:'', technicianName:'', customerName:'', site:'', scheduledDate:'', notes:'', projectId:'' });
+  const [selectedProjectId, setSelectedProjectId] = useState(''); // Track selected project for dropdown
   const [editForm, setEditForm] = useState(null);
   const [showEdit, setShowEdit] = useState(false);
   const [selectedDept, setSelectedDept] = useState('');
@@ -1407,10 +1519,19 @@ const CommissioningPage = () => {
   const availableProjects = useMemo(() => {
     const installationsForCommissioning = completedInstallations.filter(inst => {
       // Only show installations that don't already have a commissioning
-      const hasCommissioning = logs.some(log => 
-        log.projectId === (inst.projectId || inst.project?._id || inst.project?.id) ||
-        log.customerName === inst.customerName
-      );
+      const instProjectId = String(inst.projectId || inst.project?._id || inst.project?.id || '');
+      const instCustomer = String(inst.customerName || '').toLowerCase().trim();
+      
+      const hasCommissioning = logs.some(log => {
+        const logProjectId = String(log.projectId || '').trim();
+        const logCustomer = String(log.customerName || '').toLowerCase().trim();
+        
+        // Match by projectId OR customerName
+        const projectMatch = logProjectId && instProjectId && logProjectId === instProjectId;
+        const customerMatch = logCustomer && instCustomer && logCustomer === instCustomer;
+        
+        return projectMatch || customerMatch;
+      });
       return !hasCommissioning;
     }).map(inst => ({
       ...inst,
@@ -1423,6 +1544,8 @@ const CommissioningPage = () => {
       isInstallation: false,
       displayName: `${inst.customerName || 'Unknown'} — ${inst.site || inst.siteAddress || 'No Site'} (Pending)`,
     }));
+    
+    console.log('[availableProjects] installations:', installationsForCommissioning.length, 'pending:', pendingItems.length);
     
     return [...installationsForCommissioning, ...pendingItems];
   }, [completedInstallations, pendingCommissionings, logs]);
@@ -1500,6 +1623,8 @@ const CommissioningPage = () => {
         CommissioningId: selectedPending?.CommissioningId || '',
         // Use the correct projectId
         projectId: finalProjectId,
+        // projectIdString is required by backend
+        projectIdString: finalProjectId ? String(finalProjectId) : '',
         // Include source installation reference if applicable
         sourceInstallationId: selectedInstallation?._id || selectedInstallation?.id || null,
         status: 'Pending Assign',
@@ -1512,6 +1637,7 @@ const CommissioningPage = () => {
 
       await apiClient.post('/commissionings', payload);
       setShowAdd(false);
+      setSelectedProjectId('');
       setNewForm({ department:'', technicianId:'', technicianName:'', customerName:'', site:'', scheduledDate:'', notes:'', projectId:'', CommissioningId:'', sourceInstallationId: null });
       refetch();
       toast.success('Commissioning created');
@@ -1666,6 +1792,21 @@ const CommissioningPage = () => {
             { label: 'View', icon: Eye, onClick: (row) => setSelected(row) },
             ...(can('commissioning','edit') ? [{ label: 'Edit', icon: Edit, onClick: (row) => { setEditForm(row); setShowEdit(true); } }] : []),
             ...(can('commissioning','assign') || can('commissioning','edit') ? [{
+              label: 'Assign',
+              icon: UserPlus,
+              show: (row) => !(row.assignedTo || row.technicianId || (row.technicianName && row.technicianName !== 'Not Assigned')),
+              onClick: async (row) => {
+                // Open assign modal or directly prompt for user
+                const assignedTo = window.prompt(`Enter user ID to assign Commissioning ${row.CommissioningId}:`);
+                if (!assignedTo) return;
+                try {
+                  await commissioningApi.assign(row._id || row.id, assignedTo);
+                  refetch();
+                  toast.success(`Assigned ${row.CommissioningId} to user`);
+                } catch(err) { toast.error(err.message || 'Assign failed'); }
+              }
+            }] : []),
+            ...(can('commissioning','assign') || can('commissioning','edit') ? [{
               label: 'Unassign',
               icon: UserMinus,
               show: (row) => !!(row.technicianId || (row.technicianName && row.technicianName !== 'Not Assigned')),
@@ -1685,12 +1826,23 @@ const CommissioningPage = () => {
               }
             }] : []),
             ...(can('commissioning','delete') ? [{ label: 'Delete', icon: Trash2, danger: true, onClick: async (row) => {
+              const rowId = row._id || row.id;
+              console.log('[DEBUG] Delete clicked for row:', row);
+              console.log('[DEBUG] Row ID:', rowId);
               if (!window.confirm('Delete this Commissioning?')) return;
+              if (!rowId) {
+                toast.error('Cannot delete: Missing ID');
+                return;
+              }
               try {
-                await apiClient.delete(`/commissionings/${row._id || row.id}`);
-                refetch();
+                console.log('[DEBUG] Calling delete API for:', `/commissionings/${rowId}`);
+                await apiClient.delete(`/commissionings/${rowId}`);
                 toast.success('Commissioning deleted');
-              } catch(err) { toast.error('Delete failed'); }
+                refetch();
+              } catch(err) { 
+                console.error('[DEBUG] Delete error:', err);
+                toast.error(err.response?.data?.message || err.message || 'Delete failed'); 
+              }
             }}] : []),
           ]}
         />
@@ -1803,9 +1955,9 @@ const CommissioningPage = () => {
       </Modal>
 
       {/* New Log Modal */}
-      <Modal open={showAdd} onClose={()=>{setShowAdd(false); setSelectedDept('');}} title="Assign Commissioning" footer={
+      <Modal open={showAdd} onClose={()=>{setShowAdd(false); setSelectedDept(''); setSelectedProjectId('');}} title="Assign Commissioning" footer={
         <div className="flex gap-2 justify-end pt-1">
-          <Button variant="ghost" onClick={()=>{setShowAdd(false); setSelectedDept('');}}>
+          <Button variant="ghost" onClick={()=>{setShowAdd(false); setSelectedDept(''); setSelectedProjectId('');}}>
             Cancel
           </Button>
           <Button onClick={createCommissioning} disabled={!newForm.technicianId}>
@@ -1820,24 +1972,35 @@ const CommissioningPage = () => {
             <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">Select Project</label>
             <select
               className="w-full px-3 py-2.5 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-base)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)] transition-colors"
-              value={newForm.projectId || newForm.CommissioningId}
+              value={selectedProjectId}
               onChange={e=>{
-                const selected = availableProjects.find(i => (i._id || i.id) === e.target.value);
-                if (selected?.isInstallation) {
+                const selectedId = e.target.value;
+                setSelectedProjectId(selectedId);
+                
+                // First check in completed installations
+                let selected = completedInstallations.find(i => (i._id || i.id) === selectedId);
+                let isInstallation = !!selected;
+                
+                // If not found, check in pending commissionings
+                if (!selected) {
+                  selected = pendingCommissionings.find(i => (i._id || i.id) === selectedId);
+                }
+                
+                if (isInstallation) {
                   // Installation selected - populate from installation data
                   setNewForm(p=>({
                     ...p, 
-                    projectId: selected.projectId || selected.project?._id || selected.project?.id || e.target.value,
+                    projectId: selected.projectId || selected.project?._id || selected.project?.id || selectedId,
                     CommissioningId: '', // Will be generated by backend
                     customerName: selected.customerName || '', 
                     site: selected.site || selected.siteAddress || '',
                     sourceInstallationId: selected._id || selected.id,
                   }));
-                } else {
+                } else if (selected) {
                   // Pending commissioning selected
                   setNewForm(p=>({
                     ...p, 
-                    CommissioningId: selected?.CommissioningId || e.target.value, 
+                    CommissioningId: selected?.CommissioningId || selectedId, 
                     customerName: selected?.customerName || '', 
                     site: selected?.site || selected?.siteAddress || '',
                     projectId: selected?.projectId || '',
@@ -1851,19 +2014,11 @@ const CommissioningPage = () => {
               {/* Completed Installations Group */}
               {completedInstallations.length > 0 && (
                 <optgroup label="Completed Installations (Ready for Commissioning)">
-                  {completedInstallations
-                    .filter(inst => {
-                      const instCust = String(inst.customerName || '').toLowerCase();
-                      return !logs.some(log => {
-                        const logCust = String(log.customerName || '').toLowerCase();
-                        return logCust === instCust && log.status !== 'Pending Assign';
-                      });
-                    })
-                    .map(inst => (
-                      <option key={inst._id || inst.id} value={inst._id || inst.id}>
-                        {inst.customerName || 'Unknown'} — {inst.site || inst.siteAddress || 'No Site'} ✓
-                      </option>
-                    ))}
+                  {completedInstallations.map(inst => (
+                    <option key={inst._id || inst.id} value={inst._id || inst.id}>
+                      {inst.customerName || 'Unknown'} — {inst.site || inst.siteAddress || 'No Site'} ✓
+                    </option>
+                  ))}
                 </optgroup>
               )}
               

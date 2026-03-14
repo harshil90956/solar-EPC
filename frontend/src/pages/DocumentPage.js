@@ -13,6 +13,7 @@ import {
   Activity, PieChart as PieChartIcon,
   BarChart3, Target, Zap,
   Sun, Hammer,
+  MoreVertical, CheckCircle,
 } from 'lucide-react';
 import {
   BarChart, Bar, PieChart, Pie, Cell,
@@ -38,99 +39,7 @@ import { documentsApi } from '../services/documentsApi';
 const fmt = CURRENCY.format;
 
 // ── Mock Data for Documents ───────────────────────────────────────────────────
-const MOCK_DOCUMENTS = [
-  {
-    id: 'DOC-001',
-    type: 'estimate',
-    title: 'Solar Installation Estimate - ABC Corp',
-    customerName: 'ABC Corporation',
-    customerEmail: 'contact@abccorp.com',
-    customerPhone: '+91 9876543210',
-    total: 450000,
-    status: 'draft',
-    createdAt: '2024-03-01',
-    validUntil: '2024-04-01',
-    items: [
-      { name: 'Solar Panels 550W', quantity: 20, unitPrice: 15000, total: 300000 },
-      { name: 'Inverter 10kW', quantity: 1, unitPrice: 80000, total: 80000 },
-      { name: 'Installation', quantity: 1, unitPrice: 70000, total: 70000 },
-    ],
-  },
-  {
-    id: 'DOC-002',
-    type: 'proposal',
-    title: 'Commercial Solar Proposal - XYZ Industries',
-    customerName: 'XYZ Industries Ltd',
-    customerEmail: 'procurement@xyz.com',
-    customerPhone: '+91 9876543211',
-    total: 850000,
-    status: 'sent',
-    createdAt: '2024-03-05',
-    validUntil: '2024-04-05',
-    sentAt: '2024-03-06',
-    items: [
-      { name: 'Solar Panels 550W', quantity: 40, unitPrice: 14500, total: 580000 },
-      { name: 'Inverter 20kW', quantity: 1, unitPrice: 150000, total: 150000 },
-      { name: 'Battery Storage 20kWh', quantity: 1, unitPrice: 80000, total: 80000 },
-      { name: 'Installation & Commissioning', quantity: 1, unitPrice: 40000, total: 40000 },
-    ],
-  },
-  {
-    id: 'DOC-003',
-    type: 'quotation',
-    title: 'Residential Solar Quote - Mr. Sharma',
-    customerName: 'Rajesh Sharma',
-    customerEmail: 'r.sharma@email.com',
-    customerPhone: '+91 9876543212',
-    total: 325000,
-    status: 'accepted',
-    createdAt: '2024-03-08',
-    validUntil: '2024-04-08',
-    sentAt: '2024-03-09',
-    acceptedAt: '2024-03-12',
-    items: [
-      { name: 'Solar Panels 440W', quantity: 10, unitPrice: 12000, total: 120000 },
-      { name: 'Inverter 5kW', quantity: 1, unitPrice: 45000, total: 45000 },
-      { name: 'Mounting Structure', quantity: 1, unitPrice: 35000, total: 35000 },
-      { name: 'Installation', quantity: 1, unitPrice: 125000, total: 125000 },
-    ],
-  },
-  {
-    id: 'DOC-006',
-    type: 'quotation',
-    title: 'Solar Quote - Metro Builders',
-    customerName: 'Metro Builders & Developers',
-    customerEmail: 'info@metrobuilders.com',
-    customerPhone: '+91 9876543214',
-    total: 675000,
-    status: 'sent',
-    createdAt: '2024-03-14',
-    validUntil: '2024-04-14',
-    sentAt: '2024-03-14',
-    items: [
-      { name: 'Solar Panels 550W', quantity: 30, unitPrice: 14800, total: 444000 },
-      { name: 'Inverter 15kW', quantity: 1, unitPrice: 120000, total: 120000 },
-      { name: 'Installation', quantity: 1, unitPrice: 111000, total: 111000 },
-    ],
-  },
-  {
-    id: 'DOC-007',
-    type: 'estimate',
-    title: 'Preliminary Estimate - Sunrise Hospital',
-    customerName: 'Sunrise Hospital',
-    customerEmail: 'admin@sunrisehospital.com',
-    customerPhone: '+91 9876543215',
-    total: 950000,
-    status: 'draft',
-    createdAt: '2024-03-15',
-    validUntil: '2024-04-15',
-    items: [
-      { name: 'Solar Panels 550W', quantity: 50, unitPrice: 14000, total: 700000 },
-      { name: 'Inverter 25kW', quantity: 1, unitPrice: 180000, total: 180000 },
-      { name: 'Battery Backup', quantity: 1, unitPrice: 70000, total: 70000 },
-    ],
-  },
-];
+const MOCK_DOCUMENTS = [];
 
 // ── Status Configurations ─────────────────────────────────────────────────────
 const DOCUMENT_STATUS = {
@@ -258,22 +167,24 @@ const DocumentPage = () => {
   const [documents, setDocuments] = useState(MOCK_DOCUMENTS);
   const [realQuotations, setRealQuotations] = useState([]);
   const [dashboardStats, setDashboardStats] = useState(null);
-
   const [solarQuoteKey, setSolarQuoteKey] = useState(0);
+  const [actionMenuOpen, setActionMenuOpen] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     const loadData = async () => {
       try {
-        const [statsRes, quotRes] = await Promise.all([
+        const [statsRes, quotRes, docsRes] = await Promise.all([
           documentsApi.getDashboardStats(),
-          api.get('/quotations')
+          api.get('/quotations'),
+          api.get('/documents/all')
         ]);
         
         const statsData = statsRes?.data?.data || statsRes?.data;
         if (!cancelled) setDashboardStats(statsData);
 
-        // Extract and format real quotations to match document structure
+        // Extract real quotations
         const rawQuots = quotRes?.data || quotRes || [];
         const formattedQuots = (Array.isArray(rawQuots) ? rawQuots : []).map(q => ({
           id: q.quotationId || q._id,
@@ -287,15 +198,40 @@ const DocumentPage = () => {
           status: q.status?.toLowerCase() || 'draft',
           createdAt: q.createdAt,
           validUntil: q.validUntil,
-          items: q.materials.map(m => ({
+          items: (q.materials || []).map(m => ({
             name: m.name,
             quantity: m.quantity,
             unitPrice: m.unitPrice,
             total: m.totalPrice
           }))
         }));
+
+        // Extract real documents (Estimates, Proposals, etc.)
+        const rawDocs = docsRes?.data?.data || docsRes?.data || [];
+        const formattedDocs = (Array.isArray(rawDocs) ? rawDocs : []).map(d => ({
+          id: d.documentId || d.id || d._id,
+          dbId: d._id,
+          type: d.type || 'estimate',
+          title: d.title || d.projectName || `Document - ${d.customerName}`,
+          customerName: d.customerName,
+          customerEmail: d.customerEmail,
+          customerPhone: d.customerPhone,
+          total: d.total || d.totalValue || 0,
+          status: d.status?.toLowerCase() || 'draft',
+          createdAt: d.createdAt,
+          validUntil: d.validUntil,
+          items: (d.items || []).map(i => ({
+            name: i.name,
+            quantity: i.quantity,
+            unitPrice: i.unitPrice,
+            total: i.total
+          }))
+        }));
         
-        if (!cancelled) setRealQuotations(formattedQuots);
+        if (!cancelled) {
+          setRealQuotations(formattedQuots);
+          setDocuments(formattedDocs);
+        }
       } catch (err) {
         console.error('Error loading documents data:', err);
       }
@@ -306,13 +242,13 @@ const DocumentPage = () => {
     };
   }, [solarQuoteKey]);
 
-  // Merge mock documents with real quotations for the 'All' view
+  // Merge real documents with real quotations for the 'All' view
   const allDocuments = useMemo(() => {
-    const mocksWithoutQuots = MOCK_DOCUMENTS.filter(d => d.type !== 'quotation');
-    return [...realQuotations, ...mocksWithoutQuots].sort((a, b) => 
+    console.log('[DocumentPage] Merging documents for All view:', { documents, realQuotations });
+    return [...documents, ...realQuotations].sort((a, b) => 
       new Date(b.createdAt) - new Date(a.createdAt)
     );
-  }, [realQuotations]);
+  }, [documents, realQuotations]);
 
   // ── Filter Documents by Tab ────────────────────────────────────────────────
   const filteredDocuments = useMemo(() => {
@@ -332,10 +268,10 @@ const DocumentPage = () => {
         if (searchQuery) {
           const query = searchQuery.toLowerCase();
           filtered = filtered.filter(d =>
-            d.id.toLowerCase().includes(query) ||
-            d.title.toLowerCase().includes(query) ||
-            d.customerName.toLowerCase().includes(query) ||
-            d.customerEmail.toLowerCase().includes(query)
+            (d.id && d.id.toLowerCase().includes(query)) ||
+            (d.title && d.title.toLowerCase().includes(query)) ||
+            (d.customerName && d.customerName.toLowerCase().includes(query)) ||
+            (d.customerEmail && d.customerEmail.toLowerCase().includes(query))
           );
         }
         return filtered;
@@ -398,6 +334,133 @@ const DocumentPage = () => {
     }
   };
 
+  // ── New Action Handlers ──────────────────────────────────────────────────────
+  const handleApproveDocument = async (doc) => {
+    if (!window.confirm(`Approve ${doc.id} and create project?`)) return;
+    
+    setIsProcessing(true);
+    try {
+      // Create project from document/quotation
+      const projectData = {
+        projectId: `PRJ-${Date.now()}`, // Required by DTO
+        customerName: doc.customerName,
+        email: doc.customerEmail, // Mapped from customerEmail
+        mobileNumber: doc.customerPhone, // Mapped from customerPhone
+        site: 'TBD', // Required by DTO
+        systemSize: 0, // Required by DTO
+        status: 'Survey', // Must be one of the Enum values
+        pm: 'Unassigned', // Required by DTO
+        startDate: new Date().toISOString(),
+        progress: 0, // Required by DTO
+        value: doc.total, // Mapped from total
+        notes: doc.title,
+        items: doc.items?.map(item => ({
+          itemId: `item-${Math.random().toString(36).substr(2, 9)}`,
+          category: 'Miscellaneous',
+          itemName: item.name,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          totalPrice: item.total
+        })) || []
+      };
+      
+      console.log('Creating project with data:', projectData);
+      
+      // API call to create project
+      const response = await api.post('/projects', projectData);
+      
+      if (response.data) {
+        // Update document status to approved
+        setDocuments(docs => docs.map(d =>
+          d.id === doc.id ? { ...d, status: 'approved', approvedAt: new Date().toISOString() } : d
+        ));
+        
+        alert(`✅ Project created successfully from ${doc.id}!`);
+      }
+    } catch (error) {
+      console.error('Error creating project:', error);
+      alert('❌ Failed to create project. Please try again.');
+    } finally {
+      setIsProcessing(false);
+      setActionMenuOpen(null);
+    }
+  };
+
+  const handleSendEmailAndComplete = async (doc) => {
+    if (!window.confirm(`Send email to ${doc.customerEmail} and mark as completed?`)) return;
+    
+    setIsProcessing(true);
+    try {
+      // Prepare document data for PDF generation
+      const emailData = {
+        to: doc.customerEmail,
+        documentId: doc.id,
+        documentType: doc.type,
+        customerName: doc.customerName,
+        items: doc.items?.map(item => ({
+          name: item.name,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          total: item.total
+        })) || [],
+        total: doc.total,
+        notes: doc.notes || `Document sent from Documents module`,
+      };
+      
+      console.log('Sending email with data:', emailData);
+      
+      // Send email with PDF attachment
+      const response = await api.post('/email/send-document', emailData);
+      
+      console.log('Email API response:', response);
+      
+      // Check if response has data and success flag
+      const result = response.data || response;
+      
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to send email');
+      }
+      
+      // Mark document as completed after successful email send
+      setDocuments(docs => docs.map(d =>
+        d.id === doc.id ? { 
+          ...d, 
+          status: 'completed', 
+          completedAt: new Date().toISOString(),
+          emailSent: true,
+          emailSentAt: new Date().toISOString()
+        } : d
+      ));
+      
+      alert(`✅ Email with PDF sent to ${doc.customerEmail} successfully!`);
+    } catch (error) {
+      console.error('Error sending email:', error);
+      // Show detailed error message
+      const errorMsg = error?.message || error?.data?.message || 'Unknown error';
+      alert(`❌ Failed to send email:\n${errorMsg}`);
+    } finally {
+      setIsProcessing(false);
+      setActionMenuOpen(null);
+    }
+  };
+
+  const handleMarkAsCompleted = async (doc) => {
+    if (!window.confirm(`Mark ${doc.id} as completed and create project?`)) return;
+    
+    setIsProcessing(true);
+    try {
+      // Reuse handleApproveDocument logic as /projects/quotations endpoint doesn't exist
+      await handleApproveDocument(doc);
+      
+      // The local state update is handled within handleApproveDocument
+    } catch (error) {
+      console.error('Error marking as completed:', error);
+    } finally {
+      setIsProcessing(false);
+      setActionMenuOpen(null);
+    }
+  };
+
   // ── Table Columns ────────────────────────────────────────────────────────────
   const tableColumns = [
     {
@@ -450,6 +513,78 @@ const DocumentPage = () => {
       header: 'Created',
       render: v => <span className="text-xs text-[var(--text-muted)]">{new Date(v).toLocaleDateString()}</span>,
     },
+    {
+      key: 'actions',
+      header: 'Actions',
+      render: (v, doc) => (
+        <div className="relative">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setActionMenuOpen(actionMenuOpen === doc.id ? null : doc.id);
+            }}
+            disabled={isProcessing}
+            className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+          >
+            <MoreVertical size={16} />
+          </button>
+          
+          {actionMenuOpen === doc.id && (
+            <div className="action-menu-container absolute right-0 mt-1 w-48 bg-[var(--bg-elevated)] border border-[var(--border-base)] rounded-lg shadow-lg z-50 py-1">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleApproveDocument(doc);
+                }}
+                disabled={isProcessing || doc.status === 'approved'}
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-[var(--bg-hover)] transition-colors disabled:opacity-50"
+              >
+                <CheckCircle size={14} className="text-emerald-500" />
+                <span>Approve & Create Project</span>
+              </button>
+              
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleSendEmailAndComplete(doc);
+                }}
+                disabled={isProcessing || !doc.customerEmail}
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-[var(--bg-hover)] transition-colors disabled:opacity-50"
+              >
+                <Mail size={14} className="text-blue-500" />
+                <span>Send Email & Complete</span>
+              </button>
+              
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleMarkAsCompleted(doc);
+                }}
+                disabled={isProcessing}
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-[var(--bg-hover)] transition-colors disabled:opacity-50"
+              >
+                <FileCheck size={14} className="text-purple-500" />
+                <span>Mark as Completed</span>
+              </button>
+              
+              {/* Removed Send Document and Duplicate as per user request */}
+              
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteDocument(doc);
+                  setActionMenuOpen(null);
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-red-400/10 text-red-400 transition-colors"
+              >
+                <Trash2 size={14} />
+                <span>Delete</span>
+              </button>
+            </div>
+          )}
+        </div>
+      ),
+    },
   ];
 
   // ── Dashboard View ─────────────────────────────────────────────────────────────
@@ -458,25 +593,46 @@ const DocumentPage = () => {
 
     // Filtered monthly data based on time period
     const getFilteredData = () => {
-      const allData = [
-        { month: 'Jan', estimates: 12, proposals: 8, quotations: 15, value: 2400000 },
-        { month: 'Feb', estimates: 18, proposals: 12, quotations: 20, value: 3800000 },
-        { month: 'Mar', estimates: 15, proposals: 15, quotations: 18, value: 4200000 },
-        { month: 'Apr', estimates: 22, proposals: 18, quotations: 25, value: 5800000 },
-        { month: 'May', estimates: 20, proposals: 20, quotations: 22, value: 6200000 },
-        { month: 'Jun', estimates: 25, proposals: 22, quotations: 28, value: 7500000 },
-      ];
+      // Calculate real monthly data from allDocuments
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const currentMonth = new Date().getMonth();
+      const last6Months = [];
+      
+      for (let i = 5; i >= 0; i--) {
+        const monthIndex = (currentMonth - i + 12) % 12;
+        last6Months.push({
+          month: months[monthIndex],
+          estimates: 0,
+          proposals: 0,
+          quotations: 0,
+          value: 0,
+          monthNum: monthIndex
+        });
+      }
+
+      allDocuments.forEach(doc => {
+        const date = new Date(doc.createdAt);
+        const monthName = months[date.getMonth()];
+        const entry = last6Months.find(m => m.month === monthName);
+        
+        if (entry) {
+          if (doc.type === 'estimate') entry.estimates++;
+          else if (doc.type === 'proposal') entry.proposals++;
+          else if (doc.type === 'quotation') entry.quotations++;
+          entry.value += (doc.total || 0);
+        }
+      });
 
       switch (timeFilter) {
         case '7days':
-          return allData.slice(-1);
+          return last6Months.slice(-1);
         case '30days':
-          return allData.slice(-1);
+          return last6Months.slice(-1);
         case '3months':
-          return allData.slice(-3);
+          return last6Months.slice(-3);
         case '6months':
         default:
-          return allData;
+          return last6Months;
       }
     };
 
@@ -484,34 +640,34 @@ const DocumentPage = () => {
 
     // Document type distribution for pie chart
     const typeDistribution = [
-      { name: 'Estimates', value: documents.filter(d => d.type === 'estimate').length, color: '#3b82f6' },
-      { name: 'Proposals', value: documents.filter(d => d.type === 'proposal').length, color: '#8b5cf6' },
-      { name: 'Quotations', value: documents.filter(d => d.type === 'quotation').length, color: '#22c55e' },
+      { name: 'Estimates', value: allDocuments.filter(d => d.type === 'estimate').length, color: '#3b82f6' },
+      { name: 'Proposals', value: allDocuments.filter(d => d.type === 'proposal').length, color: '#8b5cf6' },
+      { name: 'Quotations', value: allDocuments.filter(d => d.type === 'quotation').length, color: '#22c55e' },
     ].filter(item => item.value > 0);
 
     // Status distribution
     const statusData = [
-      { status: 'Draft', count: documents.filter(d => d.status === 'draft').length, color: '#64748b' },
-      { status: 'Sent', count: documents.filter(d => d.status === 'sent').length, color: '#3b82f6' },
-      { status: 'Accepted', count: documents.filter(d => d.status === 'accepted').length, color: '#22c55e' },
-      { status: 'Signed', count: documents.filter(d => d.status === 'signed').length, color: '#10b981' },
-      { status: 'Paid', count: documents.filter(d => d.status === 'paid').length, color: '#059669' },
+      { status: 'Draft', count: allDocuments.filter(d => d.status === 'draft').length, color: '#64748b' },
+      { status: 'Sent', count: allDocuments.filter(d => d.status === 'sent').length, color: '#3b82f6' },
+      { status: 'Accepted', count: allDocuments.filter(d => d.status === 'accepted').length, color: '#22c55e' },
+      { status: 'Signed', count: allDocuments.filter(d => d.status === 'signed').length, color: '#10b981' },
+      { status: 'Paid', count: allDocuments.filter(d => d.status === 'paid').length, color: '#059669' },
     ].filter(item => item.count > 0);
 
     // Top customers by value
     const topCustomers = useMemo(() => {
       const customerTotals = {};
-      documents.forEach(doc => {
+      allDocuments.forEach(doc => {
         if (!customerTotals[doc.customerName]) {
           customerTotals[doc.customerName] = { name: doc.customerName, value: 0, count: 0 };
         }
-        customerTotals[doc.customerName].value += doc.total;
+        customerTotals[doc.customerName].value += (doc.total || 0);
         customerTotals[doc.customerName].count += 1;
       });
       return Object.values(customerTotals)
         .sort((a, b) => b.value - a.value)
         .slice(0, 5);
-    }, [documents]);
+    }, [allDocuments]);
 
     return (
       <div className="space-y-4 animate-fade-in">
@@ -773,89 +929,115 @@ const DocumentPage = () => {
   };
 
   // ── Document List View ───────────────────────────────────────────────────────
-  const DocumentListView = () => (
-    <div className="space-y-4 animate-fade-in">
-      {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-          <div className="relative flex-1">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-            <input
-              type="text"
-              placeholder="Search documents..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-base)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--primary)]"
+  const DocumentListView = () => {
+    const [selectedDocForView, setSelectedDocForView] = useState(null);
+
+    return (
+      <div className="space-y-4 animate-fade-in">
+        {/* Toolbar */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+            <div className="relative flex-1">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+              <input
+                type="text"
+                placeholder="Search documents..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-base)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--primary)]"
+              />
+            </div>
+            <button className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-base)] text-xs font-medium text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors">
+              <Filter size={14} />
+              Filter
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="flex items-center p-1 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-base)]">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={cn(
+                  'p-1.5 rounded-lg transition-colors',
+                  viewMode === 'grid' ? 'bg-[var(--primary)] text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                )}
+              >
+                <LayoutGrid size={16} />
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={cn(
+                  'p-1.5 rounded-lg transition-colors',
+                  viewMode === 'list' ? 'bg-[var(--primary)] text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                )}
+              >
+                <List size={16} />
+              </button>
+            </div>
+
+            <Button onClick={() => setIsCreateModalOpen(true)} className="flex items-center gap-1.5">
+              <Plus size={16} />
+              <span className="hidden sm:inline">Add Document</span>
+            </Button>
+          </div>
+        </div>
+
+        {/* Documents Display */}
+        {filteredDocuments.length === 0 ? (
+          <div className="glass-card p-12 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-[var(--bg-elevated)] flex items-center justify-center mx-auto mb-4">
+              <FileText size={32} className="text-[var(--text-muted)]" />
+            </div>
+            <h3 className="text-lg font-bold text-[var(--text-primary)] mb-1">No documents found</h3>
+            <p className="text-sm text-[var(--text-muted)] mb-4">Create your first document to get started</p>
+            <Button onClick={() => setIsCreateModalOpen(true)}>
+              <Plus size={16} className="mr-1.5" />
+              Create Document
+            </Button>
+          </div>
+        ) : viewMode === 'grid' ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {filteredDocuments.map(doc => (
+              <DocumentCard
+                key={doc.id}
+                document={doc}
+                onClick={setSelectedDocForView}
+                onSend={handleSendDocument}
+                onDuplicate={handleDuplicateDocument}
+                onDelete={handleDeleteDocument}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="glass-card overflow-hidden">
+            <DataTable 
+              columns={tableColumns} 
+              data={filteredDocuments} 
+              onRowClick={(doc) => setSelectedDocForView(doc)}
             />
           </div>
-          <button className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-base)] text-xs font-medium text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors">
-            <Filter size={14} />
-            Filter
-          </button>
-        </div>
+        )}
 
-        <div className="flex items-center gap-2">
-          <div className="flex items-center p-1 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-base)]">
-            <button
-              onClick={() => setViewMode('grid')}
-              className={cn(
-                'p-1.5 rounded-lg transition-colors',
-                viewMode === 'grid' ? 'bg-[var(--primary)] text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-              )}
-            >
-              <LayoutGrid size={16} />
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={cn(
-                'p-1.5 rounded-lg transition-colors',
-                viewMode === 'list' ? 'bg-[var(--primary)] text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-              )}
-            >
-              <List size={16} />
-            </button>
-          </div>
-
-          <Button onClick={() => setIsCreateModalOpen(true)} className="flex items-center gap-1.5">
-            <Plus size={16} />
-            <span className="hidden sm:inline">Add Document</span>
-          </Button>
-        </div>
+        {/* View Modal */}
+        <Modal
+          isOpen={!!selectedDocForView}
+          onClose={() => setSelectedDocForView(null)}
+          title={selectedDocForView?.title || 'Document Details'}
+          size="lg"
+        >
+          {selectedDocForView && (
+            <DocumentDetail
+              document={selectedDocForView}
+              onClose={() => setSelectedDocForView(null)}
+              onSend={() => handleSendDocument(selectedDocForView)}
+              onDuplicate={() => handleDuplicateDocument(selectedDocForView)}
+              onDelete={() => handleDeleteDocument(selectedDocForView)}
+            />
+          )}
+        </Modal>
       </div>
-
-      {/* Documents Display */}
-      {filteredDocuments.length === 0 ? (
-        <div className="glass-card p-12 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-[var(--bg-elevated)] flex items-center justify-center mx-auto mb-4">
-            <FileText size={32} className="text-[var(--text-muted)]" />
-          </div>
-          <h3 className="text-lg font-bold text-[var(--text-primary)] mb-1">No documents found</h3>
-          <p className="text-sm text-[var(--text-muted)] mb-4">Create your first document to get started</p>
-          <Button onClick={() => setIsCreateModalOpen(true)}>
-            <Plus size={16} className="mr-1.5" />
-            Create Document
-          </Button>
-        </div>
-      ) : viewMode === 'grid' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredDocuments.map(doc => (
-            <DocumentCard
-              key={doc.id}
-              document={doc}
-              onClick={setSelectedDocument}
-              onSend={handleSendDocument}
-              onDuplicate={handleDuplicateDocument}
-              onDelete={handleDeleteDocument}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="glass-card overflow-hidden">
-          <DataTable columns={tableColumns} data={filteredDocuments} />
-        </div>
-      )}
-    </div>
-  );
+    );
+  };
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (

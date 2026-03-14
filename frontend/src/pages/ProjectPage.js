@@ -17,7 +17,7 @@ import { Progress } from '../components/ui/Progress';
 import { Stepper } from '../components/ui/Stepper';
 import DataTable from '../components/ui/DataTable';
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
-import { usePermissions, useModulePermissions } from '../hooks/usePermissions';
+import { usePermissions } from '../hooks/usePermissions';
 import { useAuditLog } from '../hooks/useAuditLog';
 import CanAccess, { CanCreate } from '../components/CanAccess';
 import { toast } from '../components/ui/Toast';
@@ -32,10 +32,8 @@ const fmt = CURRENCY.format;
 const TENANT_ID = 'solarcorp'; // Default tenant for seed data
 
 const KANBAN_STAGES = [
-  { id: 'Survey', label: 'Survey', color: '#7c5cfc', bg: 'rgba(124,92,252,0.12)' },
-  { id: 'Design', label: 'Design', color: '#06b6d4', bg: 'rgba(6,182,212,0.12)' },
-  { id: 'Quotation', label: 'Quotation', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
   { id: 'Procurement', label: 'Procurement', color: '#f97316', bg: 'rgba(249,115,22,0.12)' },
+  { id: 'Logistics', label: 'Logistics', color: '#8b5cf6', bg: 'rgba(139,92,246,0.12)' },
   { id: 'Installation', label: 'Installation', color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
   { id: 'Commissioned', label: 'Commissioned', color: '#22c55e', bg: 'rgba(34,197,94,0.12)' },
   { id: 'On Hold', label: 'On Hold', color: '#6b7280', bg: 'rgba(107,114,128,0.12)' },
@@ -61,7 +59,7 @@ const COLUMNS = [
   { key: 'value', header: 'Value', sortable: true, render: v => <span className="text-xs font-bold text-[var(--text-primary)]">{fmt(v)}</span> },
 ];
 
-const STATUS_FILTERS = ['All', 'Survey', 'Design', 'Quotation', 'Procurement', 'Installation', 'Commissioned', 'On Hold', 'Cancelled'];
+const STATUS_FILTERS = ['All', 'Procurement', 'Logistics', 'Installation', 'Commissioned', 'On Hold', 'Cancelled'];
 
 const PROGRESS_FILTERS = [
   { label: 'All', value: 'all' },
@@ -144,7 +142,13 @@ const KanbanBoard = ({ projects, onStageChange, onCardClick }) => {
 
 /* ── Main Page ── */
 const ProjectPage = () => {
-  const { canView, canCreate, canEdit, canDelete, canExport, canAssign } = useModulePermissions('project');
+  const perm = usePermissions('project');
+  const canView = perm.canView();
+  const canCreate = perm.canCreate();
+  const canEdit = perm.canEdit();
+  const canDelete = perm.canDelete();
+  const canExport = perm.canExport();
+  const canAssign = perm.canAssign();
   const { logStatusChange } = useAuditLog('project');
 
   // Permission guard helper
@@ -489,7 +493,7 @@ const ProjectPage = () => {
   }, []);
 
   // Stage order for detecting backwards moves
-  const STAGE_ORDER = ['Survey', 'Design', 'Quotation', 'Procurement', 'Installation', 'Commissioned', 'On Hold', 'Cancelled'];
+  const STAGE_ORDER = ['Procurement', 'Logistics', 'Installation', 'Commissioned', 'On Hold', 'Cancelled'];
 
   // Import/Export fields definition
   const PROJECT_IMPORT_FIELDS = [
@@ -576,7 +580,7 @@ const ProjectPage = () => {
           systemSize: parseFloat(row.systemSize) || 0,
           pm: row.pm || row.projectManager || '',
           value: parseFloat(row.value) || 0,
-          status: row.status || 'Survey',
+          status: row.status || 'Procurement',
           progress: parseInt(row.progress) || 0,
           email: row.email || '',
           mobileNumber: row.mobileNumber || row.phone || '',
@@ -662,7 +666,7 @@ const ProjectPage = () => {
     let newProgress = project?.progress || 0;
     
     if (currentIndex >= 0 && currentIndex < totalStages) {
-      // Calculate percentage based on stage position
+      // Calculate percentage based on stage position (Procurement=16%, Logistics=33%, Installation=50%, Commissioned=100%)
       newProgress = Math.round(((currentIndex + 1) / totalStages) * 100);
     } else if (newStage === 'Commissioned') {
       newProgress = 100;
@@ -683,11 +687,8 @@ const ProjectPage = () => {
     const today = new Date().toISOString().split('T')[0];
     
     // Update milestones based on status
-    if (newStage === 'Survey' || newStage === 'Design' || newStage === 'Quotation') {
-      // Early stages - all milestones pending
-      updatedMilestones = updatedMilestones.map(m => ({ ...m, status: 'Pending', date: null }));
-    } else if (newStage === 'Procurement') {
-      // Material procurement stage
+    if (newStage === 'Procurement' || newStage === 'Logistics') {
+      // Material procurement and logistics stages
       updatedMilestones = updatedMilestones.map(m => 
         m.name === 'Material Ready' ? { ...m, status: 'In Progress', date: null } :
         { ...m, status: 'Pending', date: null }
@@ -1214,14 +1215,6 @@ const ProjectPage = () => {
               <div className="text-xs text-gray-500 mt-1">Across all projects</div>
             </div>
           </div>
-
-          <div className="ai-banner">
-            <Zap size={14} className="text-[var(--accent-light)] mt-0.5 shrink-0" />
-            <p className="text-xs text-[var(--text-secondary)]">
-              <span className="text-[var(--accent-light)] font-semibold">AI Insight:</span>{' '}
-              Project P001 (Joshi Industries) is on track for on-time commissioning. P004 (Trivedi Foods) may face a 5-day delay — procurement ETA slipped by 2 days. Review PO002 immediately.
-            </p>
-          </div>
         </>
       )}
 
@@ -1596,22 +1589,6 @@ const ProjectPage = () => {
               </>
             )}
           </div>
-          <div className="flex flex-wrap gap-2 items-center mb-2">
-            <CompactCalendarFilter
-              onDateChange={(dateInfo) => {
-                if (dateInfo === null) {
-                  setMonthFilter('all');
-                } else if (dateInfo.isToday) {
-                  const today = new Date();
-                  setMonthFilter(`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`);
-                } else if (dateInfo.month !== undefined && dateInfo.month !== null) {
-                  setMonthFilter(`${dateInfo.year}-${String(dateInfo.month + 1).padStart(2, '0')}`);
-                } else {
-                  setMonthFilter(`${dateInfo.year}`);
-                }
-              }}
-            />
-          </div>
           <DataTable columns={COLUMNS} data={paginated} total={filtered.length}
             page={page} pageSize={pageSize} onPageChange={setPage}
             onPageSizeChange={s => { setPageSize(s); setPage(1); }}
@@ -1848,7 +1825,7 @@ const ProjectPage = () => {
             <FormField label="New Status">
               <Select value={newStatus} onChange={e => setNewStatus(e.target.value)}>
                 <option value="">Select Status</option>
-                {['Survey', 'Design', 'Quotation', 'Procurement', 'Installation', 'Commissioned', 'On Hold', 'Cancelled'].map(s => (
+                {['Procurement', 'Logistics', 'Installation', 'Commissioned', 'On Hold', 'Cancelled'].map(s => (
                   <option key={s} value={s}>{s}</option>
                 ))}
               </Select>

@@ -67,12 +67,17 @@ export class FeatureFlagService {
     }
   }
 
-  private toObjectId(tenantId: string | undefined): Types.ObjectId | undefined {
-    if (!tenantId) return undefined;
-    // Check if tenantId is a valid 24-character hex string (MongoDB ObjectId format)
+  private toObjectId(tenantId: string | undefined): Types.ObjectId {
+    if (!tenantId) {
+      throw new Error('Tenant ID is required for multi-tenant operations');
+    }
     const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(tenantId);
-    if (!isValidObjectId) return undefined;
-    try { return new Types.ObjectId(tenantId); } catch { return undefined; }
+    if (!isValidObjectId) {
+      throw new Error(`Invalid tenant ID format: ${tenantId}`);
+    }
+    try { return new Types.ObjectId(tenantId); } catch { 
+      throw new Error(`Failed to convert tenant ID to ObjectId: ${tenantId}`);
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -172,7 +177,7 @@ export class FeatureFlagService {
     }
 
     const tid = this.toObjectId(tenantId);
-    const filter = tid ? { tenantId: tid } : {};
+    const filter = { tenantId: tid };
     
     const flags = await this.featureFlagModel.find(filter).exec();
     const result: Record<string, any> = {};
@@ -199,12 +204,12 @@ export class FeatureFlagService {
 
   async getFeatureFlags(tenantId: string | undefined): Promise<FeatureFlag[]> {
     const tid = this.toObjectId(tenantId);
-    return this.featureFlagModel.find(tid ? { tenantId: tid } : {}).exec();
+    return this.featureFlagModel.find({ tenantId: tid }).exec();
   }
 
-  async getFeatureFlag(tenantId: string | undefined, moduleId: string): Promise<FeatureFlag | null> {
+  async getFeatureFlag(tenantId: string, moduleId: string): Promise<FeatureFlag | null> {
     const tid = this.toObjectId(tenantId);
-    const filter = tid ? { tenantId: tid, moduleId } : { moduleId };
+    const filter = { tenantId: tid, moduleId };
     return this.featureFlagModel.findOne(filter).exec();
   }
 
@@ -217,7 +222,7 @@ export class FeatureFlagService {
     userId?: string,
   ): Promise<FeatureFlag> {
     const tid = this.toObjectId(tenantId);
-    const filter = tid ? { tenantId: tid, moduleId } : { moduleId };
+    const filter = { tenantId: tid, moduleId };
 
     const update: any = {};
     
@@ -258,7 +263,7 @@ export class FeatureFlagService {
     update: Partial<FeatureFlag>,
   ): Promise<FeatureFlag> {
     const tid = this.toObjectId(tenantId);
-    const filter = tid ? { tenantId: tid, moduleId } : { moduleId };
+    const filter = { tenantId: tid, moduleId };
 
     const doc = await this.featureFlagModel.findOneAndUpdate(
       filter,
@@ -280,12 +285,12 @@ export class FeatureFlagService {
     
     if (moduleId) {
       // Delete specific module
-      const filter = tid ? { tenantId: tid, moduleId } : { moduleId };
+      const filter = { tenantId: tid, moduleId };
       await this.featureFlagModel.deleteOne(filter).exec();
       this.invalidateCache(tenantId, `module:${moduleId}`);
     } else {
       // Delete all flags for tenant
-      const filter = tid ? { tenantId: tid } : {};
+      const filter = { tenantId: tid };
       await this.featureFlagModel.deleteMany(filter).exec();
       this.invalidateCache(tenantId);
     }

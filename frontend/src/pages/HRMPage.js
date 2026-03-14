@@ -18,10 +18,11 @@ import DataTable from '../components/ui/DataTable';
 import { StatusBadge } from '../components/ui/Badge';
 import { employeeApi, attendanceApi, leaveApi, payrollApi, incrementApi, departmentApi } from '../services/hrmApi';
 import { api } from '../lib/apiClient';
+import { useQuery } from '@tanstack/react-query';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
-import useHRMPermission from '../hooks/useHRMPermission';
-import HRMPermissionsPage from './HRMPermissionsPage';
+import { usePermissions } from '../hooks/usePermissions';
+import HrmPermissionsPage from './HRMPermissionsPage';
 import { toast } from '../components/ui/Toast';
 import { CURRENCY } from '../config/app.config';
 import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
@@ -54,33 +55,41 @@ const LEAVE_TYPES = {
 // ==================== MAIN COMPONENT ====================
 const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
   const { user } = useAuth();
-  const { hasPermission: canViewEmployees } = useHRMPermission('employees.view');
-  const { hasPermission: canManageEmployees } = useHRMPermission('employees.manage');
-  const { hasPermission: canDeleteEmployees } = useHRMPermission('employees.delete');
+  const { hasPermission: canViewEmployees } = usePermissions('employees.view');
+  const { hasPermission: canManageEmployees } = usePermissions('employees.manage');
+  const { hasPermission: canDeleteEmployees } = usePermissions('employees.delete');
   
-  const { hasPermission: canViewLeaves } = useHRMPermission('leaves.view');
-  const { hasPermission: canApplyLeave } = useHRMPermission('leaves.apply');
-  const { hasPermission: canApproveLeave } = useHRMPermission('leaves.approve');
+  const { hasPermission: canViewLeaves } = usePermissions('leaves.view');
+  const { hasPermission: canApplyLeave } = usePermissions('leaves.apply');
+  const { hasPermission: canApproveLeave } = usePermissions('leaves.approve');
   
-  const { hasPermission: canViewAttendanceSelf } = useHRMPermission('attendance.view_self');
-  const { hasPermission: canViewAttendanceAll } = useHRMPermission('attendance.view_all');
-  const { hasPermission: canCheckInOut } = useHRMPermission('attendance.checkin_checkout');
-  const { hasPermission: canManageAttendance } = useHRMPermission('attendance.manage');
+  const { hasPermission: canViewAttendanceSelf } = usePermissions('attendance.view_self');
+  const { hasPermission: canViewAttendanceAll } = usePermissions('attendance.view_all');
+  const { hasPermission: canCheckInOut } = usePermissions('attendance.checkin_checkout');
+  const { hasPermission: canManageAttendance } = usePermissions('attendance.manage');
   
-  const { hasPermission: canViewPayroll } = useHRMPermission('payroll.view');
-  const { hasPermission: canManagePayroll } = useHRMPermission('payroll.manage');
-  const { hasPermission: canApprovePayroll } = useHRMPermission('payroll.approve');
+  const { hasPermission: canViewPayroll } = usePermissions('payroll.view');
+  const { hasPermission: canManagePayroll } = usePermissions('payroll.manage');
+  const { hasPermission: canApprovePayroll } = usePermissions('payroll.approve');
   
-  const { hasPermission: canViewIncrements } = useHRMPermission('increments.view');
-  const { hasPermission: canManageIncrements } = useHRMPermission('increments.manage');
+  const { hasPermission: canViewIncrements } = usePermissions('increments.view');
+  const { hasPermission: canManageIncrements } = usePermissions('increments.manage');
   
-  const { hasPermission: canViewDepartments } = useHRMPermission('departments.view');
-  const { hasPermission: canManageDepartments } = useHRMPermission('departments.manage');
+  const { hasPermission: canViewDepartments } = usePermissions('departments.view');
+  const { hasPermission: canManageDepartments } = usePermissions('departments.manage');
   
-  const { hasPermission: canViewHrDashboard } = useHRMPermission('dashboard.view');
+  const { hasPermission: canViewHrDashboard } = usePermissions('dashboard.view');
 
   const [activeTab, setActiveTab] = useState('employees');
   const [loading, setLoading] = useState(false);
+
+  // Permission hooks for each module
+  const employeePermissions = usePermissions('employees');
+  const leavePermissions = usePermissions('leaves');
+  const attendancePermissions = usePermissions('attendance');
+  const payrollPermissions = usePermissions('payroll');
+  const incrementPermissions = usePermissions('increments');
+  const departmentPermissions = usePermissions('departments');
 
   // Employee State
   const [employees, setEmployees] = useState([]);
@@ -170,7 +179,15 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
     managerId: '',
   });
 
-  // ==================== FETCH DATA ====================
+  // Fetch HRM roles from backend (created in Permission Matrix)
+  const { data: hrmRoles = [] } = useQuery({
+    queryKey: ['hrm-roles'],
+    queryFn: async () => {
+      const response = await api.get('/hrm/permissions/roles');
+      return response.data || [];
+    },
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
   useEffect(() => {
     fetchEmployees();
     fetchProjectManagers();
@@ -690,7 +707,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
             </span>
           );
         }
-        const role = allRoles.find(r => (r._id || r.id) === val);
+        const role = hrmRoles.find(r => r._id === val);
         return (
           <span className="px-2 py-1 rounded-full text-xs font-medium bg-[var(--primary)]/10 text-[var(--primary)]">
             {role?.label || role?.name || val || 'No Role'}
@@ -1158,7 +1175,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
           {/* ── Role Permissions Tab ── */}
           {(activeTab === 'role-permissions' || activeTab === 'hrm-role-permissions') && (
             <div className="animate-fade-in">
-              <HRMPermissionsPage />
+              <HrmPermissionsPage />
             </div>
           )}
 
@@ -1641,9 +1658,9 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
                 required
               >
                 <option value="">Select Role</option>
-                {Object.values(customRoles || {}).map((role) => (
-                  <option key={role._id || role.id} value={role._id || role.id}>
-                    {role.label || role.name}
+                {hrmRoles?.map((role) => (
+                  <option key={role._id} value={role._id}>
+                    {role.name}
                   </option>
                 ))}
               </Select>
