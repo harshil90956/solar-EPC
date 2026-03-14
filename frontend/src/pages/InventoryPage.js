@@ -624,10 +624,9 @@ const InventoryPage = () => {
         // Create new item in destination warehouse
         const createdItem = await api.post('/items', newItemData, { headers: { 'x-tenant-id': TENANT_ID } });
 
-        // Stock out from source warehouse
-        await api.post(`/items/${item._id || item.itemId}/stock-out`, {
-          quantity: qty,
-          remarks: `Transferred to ${transferToWarehouse} (new item created): ${transferRemarks || 'Stock transfer'}`,
+        // Reduce stock from source warehouse directly (don't use stock-out which affects reserved)
+        await api.patch(`/items/${item._id}`, {
+          stock: (item.stock || 0) - qty,
         }, { headers: { 'x-tenant-id': TENANT_ID } });
       }
 
@@ -714,20 +713,23 @@ const InventoryPage = () => {
         }
 
         // Map items to inventory format (description -> name, add reserved/available)
-        const inventoryData = itemsArray.map(item => {
-          const id = item._id || item.id;
-          if (!id) {
-            console.warn('Item _id is missing:', item.itemId || item.name || 'Unknown');
-          }
-          return {
-            ...item,
-            _id: id,
-            name: item.description || item.name || 'Unnamed Item',
-            reserved: item.reserved || 0,
-            available: (item.stock || 0) - (item.reserved || 0),
-            lastUpdated: item.updatedAt || new Date().toISOString().split('T')[0]
-          };
-        });
+        // Filter out items with 0 stock to avoid duplicate entries after stock-in
+        const inventoryData = itemsArray
+          .filter(item => (item.stock || 0) > 0) // Only keep items with stock > 0
+          .map(item => {
+            const id = item._id || item.id;
+            if (!id) {
+              console.warn('Item _id is missing:', item.itemId || item.name || 'Unknown');
+            }
+            return {
+              ...item,
+              _id: id,
+              name: item.description || item.name || 'Unnamed Item',
+              reserved: item.reserved || 0,
+              available: (item.stock || 0) - (item.reserved || 0),
+              lastUpdated: item.updatedAt || new Date().toISOString().split('T')[0]
+            };
+          });
 
         setInventory(inventoryData);
         setError(null);
@@ -853,21 +855,32 @@ const InventoryPage = () => {
           ...item,
           _originalWarehouses: [{ warehouse: item.warehouse, stock: item.stock, reserved: item.reserved, available: item.available }],
         };
+        // If first warehouse has 0 stock, show "0 warehouses" or the warehouse name if it has stock
+        const warehousesWithStock = acc[key]._originalWarehouses.filter(wh => (wh.stock || 0) > 0);
+        acc[key].warehouse = warehousesWithStock.length === 0 ? '—' : 
+                            warehousesWithStock.length === 1 ? warehousesWithStock[0].warehouse : 
+                            `${warehousesWithStock.length} warehouses`;
       } else {
         // Aggregate stock across warehouses
         acc[key].stock += (item.stock || 0);
         acc[key].reserved += (item.reserved || 0);
         acc[key].available = (acc[key].stock || 0) - (acc[key].reserved || 0);
         acc[key]._originalWarehouses.push({ warehouse: item.warehouse, stock: item.stock, reserved: item.reserved, available: item.available });
-        // Use the first warehouse as primary for display
-        acc[key].warehouse = `${acc[key]._originalWarehouses.length} warehouses`;
+        // Count only warehouses with stock > 0 for display
+        const warehousesWithStock = acc[key]._originalWarehouses.filter(wh => (wh.stock || 0) > 0);
+        acc[key].warehouse = warehousesWithStock.length === 1 ? warehousesWithStock[0].warehouse : `${warehousesWithStock.length} warehouses`;
       }
       return acc;
     }, {});
     return Object.values(grouped);
   }, [filtered]);
 
-  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
+  // Filter for table view - only show items with stock > 0 (hide empty Out of Stock entries)
+  const filteredWithStock = useMemo(() => {
+    return filtered.filter(item => (item.stock || 0) > 0);
+  }, [filtered]);
+
+  const paginated = filteredWithStock.slice((page - 1) * pageSize, page * pageSize);
 
   const chartData = inventory.slice(0, 10).map(i => ({
     name: (i.name || i.description || 'Unknown').length > 14 ? (i.name || i.description || 'Unknown').slice(0, 14) + '…' : (i.name || i.description || 'Unknown'),
@@ -936,14 +949,17 @@ const InventoryPage = () => {
       // Reload all inventory to reflect any new warehouse records created
       const allItems = await api.get('/items');
       let itemsArray = Array.isArray(allItems) ? allItems : (allItems.data || []);
-      const inventoryData = itemsArray.map(i => ({
-        ...i,
-        _id: i._id || i.id,
-        name: i.description || i.name || 'Unnamed Item',
-        reserved: i.reserved || 0,
-        available: (i.stock || 0) - (i.reserved || 0),
-        lastUpdated: i.updatedAt || new Date().toISOString().split('T')[0],
-      }));
+      // Filter out 0-stock items to avoid duplicate entries
+      const inventoryData = itemsArray
+        .filter(i => (i.stock || 0) > 0)
+        .map(i => ({
+          ...i,
+          _id: i._id || i.id,
+          name: i.description || i.name || 'Unnamed Item',
+          reserved: i.reserved || 0,
+          available: (i.stock || 0) - (i.reserved || 0),
+          lastUpdated: i.updatedAt || new Date().toISOString().split('T')[0],
+        }));
       setInventory(inventoryData);
 
       setStockIn(false);
@@ -1973,24 +1989,6 @@ const InventoryPage = () => {
             </div>
           )}
 
-          {dynamicStats.lowStockItems > 0 && (
-            <div className="ai-banner border-amber-500/20 bg-amber-500/5">
-              <AlertTriangle size={14} className="text-amber-400 mt-0.5 shrink-0" />
-              <p className="text-xs text-[var(--text-secondary)]">
-                <span className="text-amber-400 font-semibold">Low Stock Alert:</span>{' '}
-                {inventory.filter(i => i.status === 'Low Stock' || ((i.stock || 0) - (i.reserved || 0)) <= (i.minStock || 0) && ((i.stock || 0) - (i.reserved || 0)) > 0).map(i => i.name || i.description).slice(0, 3).join(', ')}{inventory.filter(i => i.status === 'Low Stock' || ((i.stock || 0) - (i.reserved || 0)) <= (i.minStock || 0) && ((i.stock || 0) - (i.reserved || 0)) > 0).length > 3 ? '...' : ''} — reorder immediately to avoid project delays.
-              </p>
-            </div>
-          )}
-
-          <div className="ai-banner">
-            <Zap size={14} className="text-[var(--accent-light)] mt-0.5 shrink-0" />
-            <p className="text-xs text-[var(--text-secondary)]">
-              <span className="text-[var(--accent-light)] font-semibold">AI Insight:</span>{' '}
-              Based on current project pipeline, you need 500 additional panels by Mar 10. PO002 covers 5 inverters — approve immediately. 10kW inverter stock is critically low at 2 units.
-            </p>
-          </div>
-
           {view === 'table' ? (
             <>
               <div className="flex flex-wrap gap-2 items-center justify-between">
@@ -2037,7 +2035,7 @@ const InventoryPage = () => {
                     onChange={e => { setSearch(e.target.value); setPage(1); }} className="h-8 text-xs w-52" />
                 </div>
               </div>
-              <DataTable columns={COLUMNS} data={paginated} total={filtered.length}
+              <DataTable columns={COLUMNS} data={paginated} total={filteredWithStock.length}
                 page={page} pageSize={pageSize} onPageChange={setPage}
                 onPageSizeChange={s => { setPageSize(s); setPage(1); }}
                 search={search} onSearch={v => { setSearch(v); setPage(1); }}
@@ -3323,7 +3321,9 @@ const InventoryPage = () => {
               }}
             >
               <option value="">Select PO</option>
-              {purchaseOrders.map(po => (
+              {purchaseOrders
+                .filter(po => po.status === 'Delivered')
+                .map(po => (
                 <option key={po._id || po.id} value={po.id || po._id}>
                   {po.id} — {po.vendorName} | ₹{(po.totalAmount || 0).toLocaleString('en-IN')} | {po.status}
                 </option>
@@ -3463,12 +3463,14 @@ const InventoryPage = () => {
             ))}
           </div>
 
-          {/* Warehouse Breakdown Section */}
-          {selected._originalWarehouses && selected._originalWarehouses.length > 0 && (
+          {/* Warehouse Breakdown Section - Only show warehouses with stock > 0 */}
+          {selected._originalWarehouses && selected._originalWarehouses.filter(wh => (wh.stock || 0) > 0).length > 0 && (
             <div className="border-t border-[var(--border-base)] pt-3 mb-4">
               <h4 className="text-xs font-semibold text-[var(--text-primary)] mb-2">Warehouse Distribution</h4>
               <div className="grid grid-cols-1 gap-2">
-                {selected._originalWarehouses.map((wh) => (
+                {selected._originalWarehouses
+                  .filter(wh => (wh.stock || 0) > 0)
+                  .map((wh) => (
                   <div key={wh.warehouse} className="glass-card p-2 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Warehouse size={14} className="text-[var(--accent-light)]" />

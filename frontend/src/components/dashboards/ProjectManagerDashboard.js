@@ -238,7 +238,17 @@ const ProjectManagerDashboard = ({ onNavigate }) => {
             {/* Project Analytics */}
             <Grid2>
                 {/* Project Timeline Performance */}
-                <ChartCard title="Project Timeline Performance" subtitle="Planned vs actual project completion">
+                <ChartCard 
+                    title="Project Timeline Performance" 
+                    subtitle="Planned vs actual project completion"
+                    headerRight={
+                        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                            {['All', 'Today', 'Week', 'Month', 'Quarter', 'Year'].map((filter) => (
+                                <button key={filter} className="px-2 py-1 text-xs rounded-md font-medium text-gray-600 hover:text-gray-900 transition-all">{filter}</button>
+                            ))}
+                        </div>
+                    }
+                >
                     <ResponsiveContainer width="100%" height={300}>
                         <ComposedChart data={projectTimelineData}>
                             <defs>
@@ -261,7 +271,17 @@ const ProjectManagerDashboard = ({ onNavigate }) => {
                 </ChartCard>
 
                 {/* Project Status Distribution */}
-                <ChartCard title="Project Portfolio Status" subtitle="Current project distribution">
+                <ChartCard 
+                    title="Project Portfolio Status" 
+                    subtitle="Current project distribution"
+                    headerRight={
+                        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                            {['All', 'Today', 'Week', 'Month', 'Quarter', 'Year'].map((filter) => (
+                                <button key={filter} className="px-2 py-1 text-xs rounded-md font-medium text-gray-600 hover:text-gray-900 transition-all">{filter}</button>
+                            ))}
+                        </div>
+                    }
+                >
                     <div className="flex items-center justify-between">
                         <ResponsiveContainer width="60%" height={200}>
                             <PieChart>
@@ -297,7 +317,17 @@ const ProjectManagerDashboard = ({ onNavigate }) => {
             </Grid2>
 
             {/* Milestone Progress Tracking */}
-            <ChartCard title="Milestone Progress Tracking" subtitle="Phase-wise completion status across all projects">
+            <ChartCard 
+                title="Milestone Progress Tracking" 
+                subtitle="Phase-wise completion status across all projects"
+                headerRight={
+                    <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                        {['All', 'Today', 'Week', 'Month', 'Quarter', 'Year'].map((filter) => (
+                            <button key={filter} className="px-2 py-1 text-xs rounded-md font-medium text-gray-600 hover:text-gray-900 transition-all">{filter}</button>
+                        ))}
+                    </div>
+                }
+            >
                 <div className="space-y-4">
                     {milestoneData.map((milestone) => (
                         <div key={milestone.phase} className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">

@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quotation {{quotationId}}</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-size: 12px;
+      line-height: 1.4;
+      color: #333;
+      padding: 20px;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 3px solid #f97316;
+    }
+    .header h1 {
+      color: #f97316;
+      font-size: 28px;
+      margin-bottom: 10px;
+    }
+    .header p {
+      color: #666;
+      font-size: 14px;
+    }
+    .quotation-info {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 30px;
+      background: #f9fafb;
+      padding: 15px;
+      border-radius: 8px;
+    }
+    .quotation-info .left,
+    .quotation-info .right {
+      flex: 1;
+    }
+    .quotation-info .right {
+      text-align: right;
+    }
+    .quotation-info p {
+      margin: 5px 0;
+    }
+    .quotation-info strong {
+      color: #374151;
+    }
+    .customer-section {
+      margin-bottom: 30px;
+    }
+    .customer-section h2 {
+      color: #f97316;
+      font-size: 16px;
+      margin-bottom: 10px;
+      padding-bottom: 5px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .customer-info p {
+      margin: 5px 0;
+    }
+    .system-config {
+      margin-bottom: 30px;
+      background: #fef3c7;
+      padding: 15px;
+      border-radius: 8px;
+    }
+    .system-config h2 {
+      color: #d97706;
+      font-size: 16px;
+      margin-bottom: 10px;
+    }
+    .config-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+    .config-item {
+      display: flex;
+      justify-content: space-between;
+    }
+    .config-item strong {
+      color: #92400e;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+    th {
+      background: #f97316;
+      color: white;
+      padding: 10px;
+      text-align: left;
+      font-weight: 600;
+    }
+    td {
+      padding: 10px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    tr:nth-child(even) {
+      background: #f9fafb;
+    }
+    .total-section {
+      background: #f3f4f6;
+      padding: 20px;
+      border-radius: 8px;
+      margin-top: 20px;
+    }
+    .total-row {
+      display: flex;
+      justify-content: space-between;
+      margin: 8px 0;
+    }
+    .total-row.total {
+      font-size: 18px;
+      font-weight: bold;
+      color: #f97316;
+      border-top: 2px solid #f97316;
+      padding-top: 10px;
+      margin-top: 10px;
+    }
+    .footer {
+      margin-top: 40px;
+      text-align: center;
+      padding-top: 20px;
+      border-top: 1px solid #e5e7eb;
+      color: #6b7280;
+      font-size: 11px;
+    }
+    .terms {
+      margin-top: 30px;
+      padding: 15px;
+      background: #eff6ff;
+      border-radius: 8px;
+    }
+    .terms h3 {
+      color: #1e40af;
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+    .terms ul {
+      list-style: disc;
+      padding-left: 20px;
+    }
+    .terms li {
+      margin: 5px 0;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 5px 15px;
+      border-radius: 20px;
+      font-weight: bold;
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+    .status-draft { background: #e5e7eb; color: #374151; }
+    .status-sent { background: #dbeafe; color: #1e40af; }
+    .status-approved { background: #d1fae5; color: #065f46; }
+    .status-rejected { background: #fee2e2; color: #991b1b; }
+    .status-expired { background: #fef3c7; color: #92400e; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>SOLAR SYSTEM QUOTATION</h1>
+    <p>Professional Solar Solutions for Your Home & Business</p>
+  </div>
+
+  <div class="quotation-info">
+    <div class="left">
+      <p><strong>Quotation ID:</strong> {{quotationId}}</p>
+      <p><strong>Date:</strong> {{date}}</p>
+      <p><strong>Valid Until:</strong> {{validUntil}}</p>
+    </div>
+    <div class="right">
+      <span class="status-badge status-{{status.toLowerCase}}">{{status}}</span>
+    </div>
+  </div>
+
+  <div class="customer-section">
+    <h2>Customer Information</h2>
+    <div class="customer-info">
+      <p><strong>Name:</strong> {{customerName}}</p>
+      {{#if customerEmail}}
+      <p><strong>Email:</strong> {{customerEmail}}</p>
+      {{/if}}
+      {{#if customerPhone}}
+      <p><strong>Phone:</strong> {{customerPhone}}</p>
+      {{/if}}
+      {{#if customerAddress}}
+      <p><strong>Address:</strong> {{customerAddress}}</p>
+      {{/if}}
+    </div>
+  </div>
+
+  {{#if systemConfig}}
+  <div class="system-config">
+    <h2>System Configuration</h2>
+    <div class="config-grid">
+      <div class="config-item">
+        <span>System Size:</span>
+        <strong>{{systemConfig.systemSize}} kW</strong>
+      </div>
+      <div class="config-item">
+        <span>Panel Count:</span>
+        <strong>{{systemConfig.panelCount}} panels</strong>
+      </div>
+      <div class="config-item">
+        <span>Inverter Type:</span>
+        <strong>{{systemConfig.inverterType}}</strong>
+      </div>
+      <div class="config-item">
+        <span>Battery Option:</span>
+        <strong>{{systemConfig.batteryOption}}</strong>
+      </div>
+      <div class="config-item">
+        <span>Mounting Structure:</span>
+        <strong>{{systemConfig.mountingStructure}}</strong>
+      </div>
+    </div>
+  </div>
+  {{/if}}
+
+  <h2 style="color: #f97316; font-size: 16px; margin: 20px 0 10px; padding-bottom: 5px; border-bottom: 1px solid #e5e7eb;">
+    Materials & Equipment
+  </h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 40%;">Item</th>
+        <th>Category</th>
+        <th>Qty</th>
+        <th>Unit Price</th>
+        <th style="text-align: right;">Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each materials}}
+      <tr>
+        <td>
+          <strong>{{name}}</strong>
+        </td>
+        <td>{{category}}</td>
+        <td>{{quantity}} {{unit}}</td>
+        <td>₹{{unitPrice}}</td>
+        <td style="text-align: right;">₹{{totalPrice}}</td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+
+  <div class="total-section">
+    <div class="total-row">
+      <span>Material Total:</span>
+      <span>₹{{materialTotal}}</span>
+    </div>
+    {{#if installationCost}}
+    <div class="total-row">
+      <span>Installation Cost:</span>
+      <span>₹{{installationCost}}</span>
+    </div>
+    {{/if}}
+    {{#if transportCost}}
+    <div class="total-row">
+      <span>Transport Cost:</span>
+      <span>₹{{transportCost}}</span>
+    </div>
+    {{/if}}
+    {{#if tax}}
+    <div class="total-row">
+      <span>GST ({{gstPercentage}}%):</span>
+      <span>₹{{tax}}</span>
+    </div>
+    {{/if}}
+    <div class="total-row total">
+      <span>Final Quotation Price:</span>
+      <span>₹{{finalQuotationPrice}}</span>
+    </div>
+  </div>
+
+  {{#if notes}}
+  <div style="margin-top: 20px; padding: 15px; background: #f3f4f6; border-radius: 8px;">
+    <h3 style="color: #374151; font-size: 14px; margin-bottom: 10px;">Notes</h3>
+    <p style="color: #6b7280;">{{notes}}</p>
+  </div>
+  {{/if}}
+
+  <div class="terms">
+    <h3>Terms & Conditions</h3>
+    <ul>
+      <li>This quotation is valid until the date mentioned above.</li>
+      <li>Prices are subject to change after the validity period.</li>
+      <li>50% advance payment required to confirm the order.</li>
+      <li>Installation will be completed within 15-30 days of order confirmation.</li>
+      <li>Warranty: 25 years for panels, 5 years for inverter.</li>
+      <li>GST will be charged as per government regulations.</li>
+    </ul>
+  </div>
+
+  <div class="footer">
+    <p><strong>Thank you for choosing our solar solutions!</strong></p>
+    <p>For any queries, please contact us at support@solarcompany.com</p>
+    <p style="margin-top: 10px; font-size: 10px;">This is a computer-generated quotation and does not require signature.</p>
+  </div>
+</body>
+</html>

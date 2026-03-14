@@ -124,6 +124,23 @@ export class EmployeeController {
     return { success: true, data };
   }
 
+  @Get('stats')
+  async getStats(@Req() req: any) {
+    await this.checkPermission(req, 'employees.view');
+    const tenantId = req.tenant?.id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.query?.tenantId || 'default';
+    
+    // Return basic stats - counts by status
+    const data = await this.employeeService.findAll(tenantId);
+    const stats = {
+      total: data.length,
+      active: data.filter((e: any) => e.status === 'active').length,
+      inactive: data.filter((e: any) => e.status === 'inactive').length,
+      suspended: data.filter((e: any) => e.status === 'suspended').length,
+      terminated: data.filter((e: any) => e.status === 'terminated').length,
+    };
+    return { success: true, data: stats };
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string, @Req() req: any) {
     await this.checkPermission(req, 'employees.view');

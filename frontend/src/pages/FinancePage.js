@@ -6886,167 +6886,73 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-
-        const vendorRows = financeVendors.map((fv) => ({
-
-
-
-          vendorName: fv?.vendorName || '—',
-
-
-
-
-
-
-
-          vendorId: fv?.vendorCode || fv?.vendorId,
-
-
-
-
-
-
-
-          vendorObjectId: fv?.vendorId,
-
-
-
-
-
-
-
-          vendorCode: fv?.vendorCode,
-
-
-
-
-
-
-
-          totalPurchaseOrders: fv?.totalPurchaseOrders || 0,
-
-
-
-
-
-
-
-          totalPayableAmount: fv?.totalPayable || 0,
-
-
-
-
-
-
-
-          amountPaid: fv?.totalPaid || 0,
-
-
-
-
-
-
-
-          outstandingAmount: fv?.outstandingAmount || 0,
-
-
-
-
-
-
-
-          lastPurchaseOrderDate: fv?.lastPaymentDate ? new Date(fv.lastPaymentDate).toLocaleDateString('en-IN') : '',
-
-
-
-
-
-
-
-          status: fv?.status || 'Active',
-
-
-
-
-
-
-
-        })).filter(v => v.outstandingAmount > 0 || v.amountPaid > 0);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        setPayables(vendorRows);
-
-
-
-
-
-
-
-
-
-
-
         const vendors = Array.isArray(vendorsRes)
-
-
-
           ? vendorsRes
-
-
-
           : (vendorsRes?.data || []);
-
-
-
-
-
-
-
-
-
-
-
         const purchaseOrders = Array.isArray(posRes)
-
-
-
           ? posRes
-
-
-
           : (posRes?.data || []);
 
-
-
-
-
-
-
-
-
-
+        // Build vendor rows from procurement vendors (source of truth) with calculated PO counts
+        const vendorMap = new Map();
+        
+        console.log('[Finance] Total vendors:', vendors.length);
+        console.log('[Finance] Total purchase orders:', purchaseOrders.length);
+        
+        // First, add all procurement vendors who have POs
+        for (const v of vendors) {
+          const vendorId = v?._id || v?.id;
+          if (!vendorId) continue;
+          
+          const vendorPOs = purchaseOrders.filter(po => {
+            const poVendorId = (po?.vendorId && typeof po.vendorId === 'object') ? po.vendorId?._id : po?.vendorId;
+            return String(poVendorId) === String(vendorId);
+          });
+          
+          console.log(`[Finance] Vendor ${v?.name} (${vendorId}): ${vendorPOs.length} POs`);
+          
+          if (vendorPOs.length > 0) {
+            const totalPayable = vendorPOs.reduce((sum, po) => sum + Number(po?.totalAmount || 0), 0);
+            const totalPaid = vendorPOs.reduce((sum, po) => sum + Number(po?.amountPaid || 0), 0);
+            
+            vendorMap.set(String(vendorId), {
+              vendorName: v?.name || v?.vendorName || 'Unknown',
+              vendorId: v?.id || `V-${String(vendorId).slice(-4)}`,
+              vendorObjectId: vendorId,
+              vendorCode: v?.id || `V-${String(vendorId).slice(-4)}`,
+              totalPurchaseOrders: vendorPOs.length,
+              totalPayableAmount: totalPayable,
+              amountPaid: totalPaid,
+              outstandingAmount: totalPayable - totalPaid,
+              lastPurchaseOrderDate: '',
+              status: 'Active',
+            });
+          }
+        }
+        
+        console.log('[Finance] Vendor map size:', vendorMap.size);
+        console.log('[Finance] Vendor rows:', Array.from(vendorMap.values()).map(v => ({ name: v.vendorName, pos: v.totalPurchaseOrders })));
+        
+        // Merge with existing finance vendor data (for any additional info like last payment date)
+        for (const fv of financeVendors) {
+          const vendorId = fv?.vendorId;
+          if (!vendorId) continue;
+          
+          const existing = vendorMap.get(String(vendorId));
+          if (existing) {
+            // Keep calculated values but merge additional finance data
+            existing.lastPurchaseOrderDate = fv?.lastPaymentDate ? new Date(fv.lastPaymentDate).toLocaleDateString('en-IN') : '';
+            existing.status = fv?.status || 'Active';
+            // Add finance-paid amounts if any
+            existing.amountPaid += fv?.totalPaid || 0;
+            existing.outstandingAmount = existing.totalPayableAmount - existing.amountPaid;
+          }
+        }
+        
+        const vendorRows = Array.from(vendorMap.values());
+        setPayables(vendorRows);
 
         for (const v of vendors) {
-
-
-
           const vendorId = v?._id || v?.id;
 
 
@@ -7071,7 +6977,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-          if (!exists) {
+          // Always sync vendor data (new and existing)
 
 
 
@@ -7215,7 +7121,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-          }
+          // Vendor sync completed
 
 
 
@@ -18768,7 +18674,18 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-              <Button variant="outline" onClick={() => setShowAdjustModal(true)}><TrendingUp size={13} /> Adjust Amount</Button>
+              <Button variant="outline" onClick={async () => {
+                // Refresh categories from database before opening modal
+                try {
+                  const catsRes = await financeApi.getAdjustmentCategories();
+                  const cats = Array.isArray(catsRes) ? catsRes : (catsRes?.data || []);
+                  setAdjustmentCategories(cats);
+                  console.log('[Finance] Loaded', cats.length, 'adjustment categories');
+                } catch (err) {
+                  console.error('Failed to refresh adjustment categories:', err);
+                }
+                setShowAdjustModal(true);
+              }}><TrendingUp size={13} /> Adjust Amount</Button>
 
 
 

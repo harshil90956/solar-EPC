@@ -2,6 +2,7 @@
 // URL: http://localhost:8000/survey
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
+import SiteSurveyDashboard from '../components/dashboards/SiteSurveyDashboard';
 import {
   MapPin, Calendar, CheckCircle, Clock, Search, Filter,
   Plus, Eye, Play, CheckSquare, Upload, X, ChevronLeft,
@@ -9,7 +10,7 @@ import {
   Image as ImageIcon, LayoutGrid, List, MoreVertical,
   ArrowRight, Trash2, Edit2, Download, Phone, Mail,
   User, HardHat, StickyNote, Compass, Layers, Zap,
-  TrendingUp, TrendingDown, BarChart3, PenTool
+  TrendingUp, TrendingDown, BarChart3, PenTool, Dashboard as DashboardIcon
 } from 'lucide-react';
 import { format } from 'date-fns';
 import FullCalendar from '@fullcalendar/react';
@@ -627,7 +628,7 @@ const GridDrawingCanvas = ({ drawingData, onChange, readOnly = false }) => {
       {selected && selectedEl && (
         <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg text-xs flex-wrap">
           <span className="text-amber-600 font-medium capitalize">
-            ✦ {selected.type.replace('textLabels','text').replace('freehand','drawing')}
+            ✦ {selected.type?.replace('textLabels','text').replace('freehand','drawing') || 'Unknown'}
             {selectedEl.rotation ? <span className="ml-1 text-amber-500">({Math.round(selectedEl.rotation)}°)</span> : null}
           </span>
 
@@ -777,69 +778,116 @@ const SurveyStatusBadge = ({ status }) => {
 };
 
 // ── Survey Card (Grid View) ──────────────────────────────────────────────────
-const SurveyCard = ({ survey, onView, onStart, onComplete, onDelete }) => (
-  <div className="glass-card p-4 hover:border-[var(--primary)]/40 transition-all cursor-pointer group">
-    <div className="flex items-start justify-between mb-3">
-      <div className="flex items-center gap-2.5">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-bold text-xs shadow-sm">
-          {survey.clientName?.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
-        </div>
+const SurveyCard = ({ survey, onView, onStart, onComplete, onDelete }) => {
+  const statusConfig = {
+    pending: { label: 'Pending', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', icon: Clock },
+    active: { label: 'Active', color: '#3b82f6', bg: 'rgba(59,130,246,0.12)', icon: Play },
+    complete: { label: 'Completed', color: '#22c55e', bg: 'rgba(34,197,94,0.12)', icon: CheckCircle },
+  }[survey.status] || { label: 'Pending', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', icon: Clock };
+  
+  const StatusIcon = statusConfig.icon;
+
+  return (
+    <div className="glass-card p-4 space-y-3 hover:scale-[1.01] transition-all cursor-pointer" onClick={() => onView(survey)}>
+      {/* Header */}
+      <div className="flex items-start justify-between">
         <div>
-          <h4 className="font-semibold text-[var(--text-primary)] text-sm leading-tight">{survey.clientName}</h4>
-          <p className="text-[11px] text-[var(--text-muted)] flex items-center gap-0.5 mt-0.5">
-            <MapPin size={10} /> {survey.city}
-          </p>
+          <p className="text-xs font-mono text-[var(--primary)] font-semibold">{survey.surveyId}</p>
+          <p className="text-sm font-bold text-[var(--text-primary)] line-clamp-1">{survey.clientName}</p>
+        </div>
+        <div
+          className="px-2 py-1 rounded-full text-[10px] font-medium flex items-center gap-1"
+          style={{ background: statusConfig.bg, color: statusConfig.color }}
+        >
+          <StatusIcon size={10} />
+          {statusConfig.label}
         </div>
       </div>
-      <SurveyStatusBadge status={survey.status} />
-    </div>
 
-    <div className="grid grid-cols-2 gap-2 mb-3">
-      <div className="bg-[var(--bg-elevated)] rounded-lg p-2">
-        <p className="text-[10px] text-[var(--text-faint)] uppercase tracking-wide">Capacity</p>
-        <p className="text-xs font-bold text-[var(--solar)] mt-0.5">{survey.projectCapacity || '—'}</p>
+      {/* Location Info */}
+      <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
+        <MapPin size={12} />
+        <span className="line-clamp-1">{survey.city}</span>
       </div>
-      <div className="bg-[var(--bg-elevated)] rounded-lg p-2">
-        <p className="text-[10px] text-[var(--text-faint)] uppercase tracking-wide">Engineer</p>
-        <p className="text-xs font-semibold text-[var(--text-primary)] mt-0.5 truncate">{survey.engineer || '—'}</p>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 gap-2">
+        <div className="glass-card p-2 text-center">
+          <p className="text-[10px] text-[var(--text-muted)]">System</p>
+          <p className="text-sm font-bold text-[var(--text-primary)]">{survey.projectCapacity || '—'}</p>
+        </div>
+        <div className="glass-card p-2 text-center">
+          <p className="text-[10px] text-[var(--text-muted)]">Engineer</p>
+          <p className="text-xs font-semibold text-[var(--text-primary)] truncate">{survey.engineer || 'Unassigned'}</p>
+        </div>
       </div>
-    </div>
 
-    <div className="mb-3 px-2 py-1 bg-[var(--bg-elevated)] rounded-lg text-[11px] font-mono text-[var(--text-muted)] truncate border border-[var(--border-muted)]">
-      {survey.surveyId}
-    </div>
-
-    <div className="flex items-center justify-between pt-3 border-t border-[var(--border-muted)]">
-      <div className="text-[11px] text-[var(--text-faint)] flex items-center gap-1">
-        <Calendar size={11} />
+      {/* Date */}
+      <div className="flex items-center gap-2 text-[10px] text-[var(--text-muted)]">
+        <Calendar size={10} />
         {survey.createdAt ? format(new Date(survey.createdAt), 'dd MMM yyyy') : '—'}
       </div>
-      <div className="flex items-center gap-1">
-        <button onClick={() => onView(survey)} className="p-1.5 text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/10 rounded-lg transition-colors" title="View">
-          <Eye size={14} />
-        </button>
+
+      {/* Actions */}
+      <div className="flex items-center gap-1 pt-2 border-t border-[var(--border-base)]">
         {survey.status === 'pending' && (
-          <button onClick={() => onStart(survey)} className="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[11px] font-medium flex items-center gap-1 transition-colors">
-            <Play size={12} /> Start
+          <button
+            onClick={(e) => { e.stopPropagation(); onStart(survey); }}
+            className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-amber-500 text-white text-[10px] font-medium hover:opacity-90 transition-opacity"
+          >
+            <Play size={10} />
+            Start
           </button>
         )}
         {survey.status === 'active' && (
-          <button onClick={() => onComplete(survey)} className="px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-[11px] font-medium flex items-center gap-1 transition-colors">
-            <FileText size={12} /> Fill
+          <button
+            onClick={(e) => { e.stopPropagation(); onComplete(survey); }}
+            className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-blue-500 text-white text-[10px] font-medium hover:opacity-90 transition-opacity"
+          >
+            <FileText size={10} />
+            Fill
           </button>
         )}
         {survey.status === 'complete' && (
-          <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-[11px] font-medium flex items-center gap-1">
-            <CheckCircle size={12} /> Done
-          </span>
+          <div className="flex-1 text-center text-[10px] text-[var(--text-muted)] py-1.5">
+            <span className="flex items-center justify-center gap-1 text-emerald-500">
+              <CheckCircle size={14} />
+              Completed
+            </span>
+          </div>
         )}
-        <button onClick={() => onDelete(survey)} className="p-1.5 text-[var(--text-muted)] hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+        <button
+          onClick={(e) => { e.stopPropagation(); onView(survey); }}
+          className="flex items-center justify-center p-1.5 rounded-lg bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+          title="View"
+        >
+          <Eye size={14} />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); /* download handler */ }}
+          className="flex items-center justify-center p-1.5 rounded-lg bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+          title="Download"
+        >
+          <Download size={14} />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); /* edit handler */ }}
+          className="flex items-center justify-center p-1.5 rounded-lg bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+          title="Edit"
+        >
+          <Edit2 size={14} />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(survey); }}
+          className="flex items-center justify-center p-1.5 rounded-lg bg-[var(--bg-elevated)] text-red-400 hover:bg-red-400/10 transition-colors"
+          title="Delete"
+        >
           <Trash2 size={14} />
         </button>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 // ── Assign Survey Modal (Pending → Active) ───────────────────────────────────
 const PendingToActiveModal = ({ isOpen, onClose, survey, onSubmit }) => {
@@ -1635,6 +1683,10 @@ const SiteSurveyPage = () => {
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [selectedSurvey, setSelectedSurvey]       = useState(null);
   
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 12;
+  
   // Calendar State
   const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth());
   const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
@@ -1711,8 +1763,8 @@ const SiteSurveyPage = () => {
     { label: 'View Details', icon: Eye,       onClick: row => openDetailsModal(row) },
     { label: 'Edit',         icon: Edit2,      onClick: row => openEditModal(row) },
     { label: 'Assign',       icon: User,       onClick: row => openAssignModal(row) },
-    { label: 'Start Survey', icon: Play,       onClick: row => row.status === 'pending' && openPendingModal(row) },
-    { label: 'Fill Form',    icon: FileText,   onClick: row => row.status === 'active'  && openCompleteModal(row) },
+    { label: 'Start Survey', icon: Play,       onClick: row => openPendingModal(row), show: row => row.status === 'pending' },
+    { label: 'Fill Form',    icon: FileText,   onClick: row => openCompleteModal(row), show: row => row.status === 'active' },
     { label: 'Delete',       icon: Trash2,     onClick: row => handleDelete(row), danger: true },
   ];
 
@@ -1720,6 +1772,18 @@ const SiteSurveyPage = () => {
   const filteredSurveys = activeTab === 'all' 
     ? surveys 
     : surveys.filter(s => s.status === activeTab);
+
+  // Pagination Logic
+  const totalPages = Math.ceil(filteredSurveys.length / itemsPerPage);
+  const paginatedSurveys = filteredSurveys.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchQuery, view]);
 
   const statusCountMap = { all: stats.total, pending: stats.pending, active: stats.active, complete: stats.complete };
 
@@ -1730,6 +1794,7 @@ const SiteSurveyPage = () => {
         title="Site Survey Management"
         subtitle="Manage site surveys · from lead assignment to completion"
         tabs={[
+          { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
           { id: 'grid',  label: 'Grid',  icon: LayoutGrid },
           { id: 'table', label: 'Table', icon: List        },
         ]}
@@ -1828,7 +1893,14 @@ const SiteSurveyPage = () => {
       </div>
 
       {/* Content Area */}
-      {loading ? (
+      {view === 'dashboard' ? (
+        /* Advanced Dashboard View */
+        <SiteSurveyDashboard 
+          surveys={surveys}
+          loading={loading}
+          onRefresh={fetchSurveys}
+        />
+      ) : loading ? (
         <div className="glass-card p-12 text-center">
           <div className="animate-spin w-8 h-8 border-2 border-[var(--border-muted)] border-t-[var(--primary)] rounded-full mx-auto mb-4" />
           <p className="text-sm text-[var(--text-muted)]">Loading surveys...</p>
@@ -1845,24 +1917,69 @@ const SiteSurveyPage = () => {
         </div>
       ) : view === 'grid' ? (
         /* Grid / Card View */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredSurveys.map(survey => (
-            <SurveyCard
-              key={survey._id || survey.surveyId}
-              survey={survey}
-              onView={openDetailsModal}
-              onStart={openPendingModal}
-              onComplete={openCompleteModal}
-              onDelete={handleDelete}
-            />
-          ))}
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {paginatedSurveys.map(survey => (
+              <SurveyCard
+                key={survey._id || survey.surveyId}
+                survey={survey}
+                onView={openDetailsModal}
+                onStart={openPendingModal}
+                onComplete={openCompleteModal}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between glass-card p-3">
+              <div className="text-sm text-[var(--text-muted)]">
+                Showing {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredSurveys.length)} of {filteredSurveys.length} surveys
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="p-2 rounded-lg border border-[var(--border-base)] bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
+                        currentPage === page
+                          ? 'bg-[var(--primary)] text-white'
+                          : 'bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-primary)] border border-[var(--border-base)]'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="p-2 rounded-lg border border-[var(--border-base)] bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
-        /* Table View */
+        /* Table View - DataTable has built-in pagination */
         <div className="glass-card overflow-hidden">
           <DataTable
             columns={COLUMNS}
-            data={filteredSurveys}
+            data={paginatedSurveys}
+            total={filteredSurveys.length}
+            page={currentPage}
+            pageSize={itemsPerPage}
+            onPageChange={setCurrentPage}
             rowKey={row => row._id || row.surveyId}
             rowActions={ROW_ACTIONS}
             loading={loading}
