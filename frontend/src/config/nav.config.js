@@ -19,8 +19,7 @@ export const NAV_CONFIG = [
     {
         section: 'OVERVIEW',
         items: [
-            { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, badge: null },
-            { id: 'admin', label: 'Admin', icon: Shield, badge: null, badgeVariant: 'red' },
+            { id: 'crm', label: 'CRM & Sales', icon: Users, badge: hotLeads || null },
             {
                 id: 'hrm',
                 label: 'HRM',

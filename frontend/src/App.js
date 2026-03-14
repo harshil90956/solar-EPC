@@ -24,7 +24,6 @@ import ServicePage from './pages/ServicePage';
 import ServiceDashboardPage from './pages/ServiceDashboardPage';
 import CompliancePage from './pages/CompliancePage';
 import SettingsPage from './pages/SettingsPage';
-import AdminPage from './pages/AdminPage';
 import HRMPage from './pages/HRMPage';
 import QuotationBuilderPage from './pages/QuotationBuilderPage';
 import EmployeesPage from './pages/EmployeesPage';
@@ -42,8 +41,7 @@ import NotificationSystem from './components/NotificationSystem';
 
 // ── Page Map ──────────────────────────────────────────────────────────────────
 const PAGE_MAP = {
-  dashboard: { component: Dashboard, title: 'Dashboard' },
-  admin: { component: AdminPage, title: 'Admin Dashboard' },
+  dashboard: { component: Dashboard, title: 'CRM & Sales' },
   hrm: { component: HRMPage, title: 'Human Resource Management' },
   'hrm-employees': { component: EmployeesPage, title: 'Employees' },
   'hrm-attendance': { component: AttendancePageV3, title: 'Attendance V3.0' },

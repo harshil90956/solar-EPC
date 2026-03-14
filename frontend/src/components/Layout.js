@@ -484,7 +484,7 @@ const Layout = ({ currentPage, onNavigate, children }) => {
         </div>
 
         {/* User menu */}
-        <div className="relative">
+        <div className="relative z-[1000]">
           <button
             onClick={() => setUserMenuOpen(p => !p)}
             className={cn(
@@ -502,7 +502,7 @@ const Layout = ({ currentPage, onNavigate, children }) => {
           {userMenuOpen && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setUserMenuOpen(false)} />
-              <div className="absolute right-0 top-10 z-[100] w-56 glass-card shadow-2xl shadow-black/60 py-1.5 animate-slide-up">
+              <div className="absolute right-0 top-10 z-[9999] w-56 glass-card shadow-2xl shadow-black/60 py-1.5 animate-slide-up">
                 <div className="px-4 py-3 border-b border-[var(--border-base)]">
                   <p className="text-xs font-bold text-[var(--text-primary)]">{user?.name}</p>
                   <p className="text-[10px] text-[var(--text-faint)] mt-0.5">{user?.email}</p>
