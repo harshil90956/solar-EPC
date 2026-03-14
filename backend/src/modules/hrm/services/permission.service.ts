@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Permission, PermissionModule, PermissionAction } from '../schemas/permission.schema';
 import { Role } from '../schemas/role.schema';
 import { RoleColumnPermission } from '../schemas/role-column-permission.schema';
@@ -215,14 +215,23 @@ export class PermissionService implements OnModuleInit {
     return !!result;
   }
 
+  private async findRoleByIdOrName(roleId: string): Promise<Role | null> {
+    // Check if it's a valid ObjectId
+    if (Types.ObjectId.isValid(roleId)) {
+      return this.roleModel.findById(roleId).populate('permissions').exec();
+    }
+    // Otherwise treat it as a role name
+    return this.roleModel.findOne({ name: roleId }).populate('permissions').exec();
+  }
+
   async getRolePermissions(roleId: string): Promise<string[]> {
-    const role = await this.roleModel.findById(roleId).populate('permissions').exec();
+    const role = await this.findRoleByIdOrName(roleId);
     if (!role) return [];
     return role.permissions.map((p: any) => p.key);
   }
 
   async hasPermission(roleId: string, permissionKey: string): Promise<boolean> {
-    const role = await this.roleModel.findById(roleId).populate('permissions').exec();
+    const role = await this.findRoleByIdOrName(roleId);
     if (!role) return false;
     return role.permissions.some((p: any) => p.key === permissionKey);
   }
@@ -305,6 +314,25 @@ export class PermissionService implements OnModuleInit {
   async isColumnVisible(roleId: string, module: string, columnName: string): Promise<boolean> {
     const perm = await this.roleColumnPermissionModel.findOne({ roleId, module, columnName }).exec();
     return perm?.isVisible ?? true; // Default to visible if not set
+  }
+
+  // ==================== HELPER METHODS FOR CONTROLLERS ====================
+
+  async checkPermission(roleId: string, permissionKey: string, tenantId?: string): Promise<boolean> {
+    // Admin/Super Admin always have permission
+    const role = await this.findRoleByIdOrName(roleId);
+    if (role?.name === 'Admin' || role?.name === 'Super Admin') {
+      return true;
+    }
+    if (!role) return false;
+    return role.permissions.some((p: any) => p.key === permissionKey);
+  }
+
+  async validateAction(roleId: string, permissionKey: string, tenantId?: string): Promise<void> {
+    const hasPerm = await this.checkPermission(roleId, permissionKey, tenantId);
+    if (!hasPerm) {
+      throw new Error(`Permission denied: ${permissionKey} required`);
+    }
   }
 
   async copyColumnPermissions(sourceRoleId: string, targetRoleId: string): Promise<void> {
