@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { api } from '../lib/apiClient';
 import { getRolePermissions } from '../config/roles.config';
 
@@ -51,10 +51,29 @@ export const AuthProvider = ({ children }) => {
         }
         // Decode JWT to extract tenantId
         let tenantId = null;
+        let extractedRoleId = null;
         try {
           const payload = JSON.parse(atob(token.split('.')[1]));
           tenantId = payload.tenantId || null;
-        } catch (e) { /* ignore */ }
+          // Extract roleId from JWT if available
+          if (payload.roleId) {
+            extractedRoleId = payload.roleId;
+          }
+          console.log('[AUTH] Employee JWT payload:', payload);
+        } catch (e) {
+          console.warn('[AUTH] Failed to decode JWT payload:', e);
+        }
+        // For employees, fetch HRM permissions
+        let hrmPermissions = [];
+        if (isEmployee && extractedRoleId) {
+          try {
+            hrmPermissions = await fetchHrmPermissions(extractedRoleId);
+            console.log('[AUTH] Fetched HRM permissions for employee:', hrmPermissions);
+          } catch (e) {
+            console.warn('[AUTH] Failed to fetch HRM permissions:', e);
+          }
+        }
+
         const authedUser = { 
           id, 
           employeeId, 
@@ -66,7 +85,7 @@ export const AuthProvider = ({ children }) => {
           dataScope,
           tenantId,
           isEmployee: true,
-          permissions: {}, 
+          permissions: hrmPermissions, // Use HRM permissions array
           token 
         };
         localStorage.setItem(TOKEN_KEY, token);
@@ -96,12 +115,23 @@ export const AuthProvider = ({ children }) => {
         dataScope = payload.dataScope || userData.dataScope || null;
         extractedTenantId = payload.tenantId || userData.tenantId || null;
       } catch (e) { /* ignore */ }
+      // Fetch HRM permissions for regular users too
+      let hrmPermissions = [];
+      if (userData.roleId || normalizedRole === 'Employee') {
+        try {
+          hrmPermissions = await fetchHrmPermissions(userData.roleId);
+          console.log('[AUTH] Fetched HRM permissions for user:', hrmPermissions);
+        } catch (e) {
+          console.warn('[AUTH] Failed to fetch HRM permissions for user:', e);
+        }
+      }
+
       const authedUser = { 
         ...userData, 
         role: normalizedRole, 
         dataScope, 
         tenantId: extractedTenantId, 
-        permissions, 
+        permissions: hrmPermissions.length > 0 ? hrmPermissions : permissions, 
         token: accessToken,
         roleId: userData.roleId || null, // Include custom role ID if present
       };
@@ -132,10 +162,30 @@ export const AuthProvider = ({ children }) => {
     window.location.hash = '';
   }, []);
 
-  const can = useCallback((action) => user?.permissions?.[action] ?? false, [user]);
+  // Fetch HRM permissions for the user
+  const fetchHrmPermissions = useCallback(async (roleId) => {
+    if (!roleId) return [];
+    try {
+      const response = await api.get(`/hrm/permissions/roles/${roleId}/permissions`);
+      return response.data || [];
+    } catch (error) {
+      console.error('Failed to fetch HRM permissions:', error);
+      return [];
+    }
+  }, []);
+
+  const can = useCallback((action) => {
+    if (!user?.permissions) return false;
+    // Handle array permissions (HRM style)
+    if (Array.isArray(user.permissions)) {
+      return user.permissions.includes(action);
+    }
+    // Handle object permissions (legacy style)
+    return user.permissions[action] ?? false;
+  }, [user]);
 
   return (
-    <AuthContext.Provider value={{ user, tenantId, login, logout, error, can, loading }}>
+    <AuthContext.Provider value={{ user, tenantId, login, logout, error, can, loading, fetchHrmPermissions }}>
       {children}
     </AuthContext.Provider>
   );

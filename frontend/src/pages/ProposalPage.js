@@ -9,7 +9,7 @@ import {
   TrendingDown, LayoutGrid, List, Kanban, ChevronRight, ChevronLeft, Save, Printer,
   Check, ArrowRight, FileSpreadsheet, RefreshCw, EyeIcon, CheckSquare,
   XSquare, FileSignature, ArrowLeftRight, BadgeCheck, FileCheck, MailOpen,
-  Sparkles, Shield, Leaf, Battery, Gauge, Settings
+  Sparkles, Shield, Leaf, Battery, Gauge, Settings, MoreVertical
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
@@ -20,6 +20,10 @@ import { cn } from '../lib/utils';
 import { downloadRayzonPDF } from '../lib/pdfTemplate';
 import PDFTemplateCustomizer from '../components/documents/PDFTemplateCustomizer';
 import { settingsApi } from '../services/settingsApi';
+import { toast } from '../components/ui/Toast';
+import { documentsApi } from '../services/documentsApi';
+
+import api from '../lib/apiClient';
 
 const fmt = CURRENCY.format;
 
@@ -358,7 +362,8 @@ const ProposalPage = () => {
     };
   }, []);
 
-  const [proposals, setProposals] = useState(MOCK_PROPOSALS);
+  const [proposals, setProposals] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'grid' | 'kanban' 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -366,6 +371,8 @@ const ProposalPage = () => {
   const [selectedProposal, setSelectedProposal] = useState(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [isPDFCustomizerOpen, setIsPDFCustomizerOpen] = useState(false);
+  const [actionMenuOpen, setActionMenuOpen] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // ── Filter Proposals ────────────────────────────────────────────────────────
   const filteredProposals = useMemo(() => {
@@ -374,10 +381,10 @@ const ProposalPage = () => {
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(p =>
-        p.proposalNumber.toLowerCase().includes(query) ||
-        p.customerName.toLowerCase().includes(query) ||
-        p.projectName.toLowerCase().includes(query) ||
-        p.projectLocation.toLowerCase().includes(query)
+        (p.proposalNumber && p.proposalNumber.toLowerCase().includes(query)) ||
+        (p.customerName && p.customerName.toLowerCase().includes(query)) ||
+        (p.projectName && p.projectName.toLowerCase().includes(query)) ||
+        (p.projectLocation && p.projectLocation.toLowerCase().includes(query))
       );
     }
 
@@ -391,25 +398,65 @@ const ProposalPage = () => {
   // ── Stats Calculations ─────────────────────────────────────────────────────
   const stats = useMemo(() => {
     const total = proposals.length;
-    const totalValue = proposals.reduce((a, p) => a + p.total, 0);
+    const totalValue = proposals.reduce((a, p) => a + (p.total || 0), 0);
     const accepted = proposals.filter(p => p.status === 'accepted').length;
     const pending = proposals.filter(p => ['draft', 'sent', 'viewed'].includes(p.status)).length;
-    const acceptedValue = proposals.filter(p => p.status === 'accepted').reduce((a, p) => a + p.total, 0);
+    const acceptedValue = proposals.filter(p => p.status === 'accepted').reduce((a, p) => a + (p.total || 0), 0);
 
     return { total, totalValue, accepted, pending, acceptedValue };
   }, [proposals]);
 
-  // ── Handlers ───────────────────────────────────────────────────────────────
-  const handleCreateProposal = (data) => {
-    const newProposal = {
-      id: `PROP-${String(proposals.length + 1).padStart(3, '0')}`,
-      proposalNumber: generateProposalNumber(proposals),
-      ...data,
-      status: 'draft',
-      createdAt: new Date().toISOString().split('T')[0],
-    };
-    setProposals([newProposal, ...proposals]);
-    setIsCreateModalOpen(false);
+  const fetchProposals = async () => {
+    try {
+      setLoading(true);
+      const res = await documentsApi.getAll();
+      const docs = res?.data?.data || res?.data || [];
+      console.log('[ProposalPage] Raw documents from API:', docs);
+      
+      const formatted = docs
+        .filter(d => d.type === 'proposal')
+        .map(d => ({
+          ...d,
+          id: d.id || d._id,
+          proposalNumber: d.documentId || d.id || d._id,
+          projectName: d.title || d.projectName,
+          items: d.items || [],
+          total: d.total || d.totalValue || 0,
+          customerName: d.customerName,
+          status: d.status?.toLowerCase() || 'draft',
+          createdAt: d.createdAt
+        }));
+      
+      console.log('[ProposalPage] Formatted proposals:', formatted);
+      setProposals(formatted);
+    } catch (error) {
+      console.error('Error fetching proposals:', error);
+      toast.error('Failed to load proposals');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProposals();
+  }, []);
+
+  const handleCreateProposal = async (data) => {
+    try {
+      const payload = {
+        ...data,
+        type: 'proposal',
+        title: data.projectName,
+        status: 'draft'
+      };
+      await documentsApi.create(payload);
+      toast.success('Proposal created successfully');
+      fetchProposals();
+      setIsCreateModalOpen(false);
+    } catch (error) {
+      console.error('Error creating proposal:', error);
+      toast.error('Failed to create proposal');
+    }
   };
 
   const handleConvertFromEstimate = (estimate) => {
@@ -462,17 +509,33 @@ const ProposalPage = () => {
     setIsEditMode(true);
   };
 
-  const handleUpdateProposal = (id, data) => {
-    setProposals(proposals.map(p =>
-      p.id === id ? { ...p, ...data } : p
-    ));
-    setSelectedProposal(null);
-    setIsEditMode(false);
+  const handleUpdateProposal = async (id, data) => {
+    try {
+      const payload = {
+        ...data,
+        title: data.projectName
+      };
+      await documentsApi.update(id, payload);
+      toast.success('Proposal updated successfully');
+      fetchProposals();
+      setSelectedProposal(null);
+      setIsEditMode(false);
+    } catch (error) {
+      console.error('Error updating proposal:', error);
+      toast.error('Failed to update proposal');
+    }
   };
 
-  const handleDeleteProposal = (id) => {
+  const handleDeleteProposal = async (id) => {
     if (window.confirm('Are you sure you want to delete this proposal?')) {
-      setProposals(proposals.filter(p => p.id !== id));
+      try {
+        await documentsApi.delete(id);
+        toast.success('Proposal deleted');
+        fetchProposals();
+      } catch (error) {
+        console.error('Error deleting proposal:', error);
+        toast.error('Failed to delete proposal');
+      }
     }
   };
 
@@ -523,6 +586,66 @@ const ProposalPage = () => {
   useEffect(() => {
     console.log('[ProposalPage] viewMode changed to:', viewMode);
   }, [viewMode]);
+
+  const handleMarkAsCompleted = async (doc) => {
+    if (!window.confirm(`Mark ${doc.proposalNumber} as completed?`)) return;
+    try {
+      await documentsApi.update(doc.id, { status: 'accepted' });
+      toast.success('Proposal marked as completed');
+      fetchProposals();
+    } catch (error) {
+      toast.error('Failed to update status');
+    }
+  };
+
+  const handleApproveAndCreateProject = async (doc) => {
+    if (!window.confirm(`Approve ${doc.proposalNumber} and create project?`)) return;
+    setIsProcessing(true);
+    try {
+      const projectData = {
+        projectId: `PRJ-${Date.now()}`,
+        customerName: doc.customerName,
+        email: doc.customerEmail,
+        mobileNumber: doc.customerPhone,
+        site: doc.projectLocation || 'TBD',
+        systemSize: doc.systemCapacity || 0,
+        status: 'Survey',
+        pm: 'Unassigned',
+        startDate: new Date().toISOString(),
+        progress: 0,
+        value: doc.total,
+        notes: doc.projectName,
+        items: doc.items?.map(item => ({
+          itemId: `item-${Math.random().toString(36).substr(2, 9)}`,
+          category: 'Miscellaneous',
+          itemName: item.name,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          totalPrice: item.total
+        })) || []
+      };
+      await api.post('/projects', projectData);
+      await documentsApi.update(doc.id, { status: 'accepted' });
+      toast.success('Project created successfully!');
+      fetchProposals();
+    } catch (error) {
+      console.error('Error creating project:', error);
+      toast.error('Failed to create project');
+    } finally {
+      setIsProcessing(false);
+      setActionMenuOpen(null);
+    }
+  };
+
+  const handleSendEmailAction = async (doc) => {
+    if (!window.confirm(`Send email to ${doc.customerEmail}?`)) return;
+    try {
+      handleSendProposal(doc.id);
+      toast.success('Email trigger initiated');
+    } catch (error) {
+      toast.error('Failed to send email');
+    }
+  };
 
   // ── Table Columns ─────────────────────────────────────────────────────────
   const tableColumns = [
@@ -575,17 +698,76 @@ const ProposalPage = () => {
       header: 'Date',
       render: v => <span className="text-xs text-[var(--text-muted)]">{new Date(v).toLocaleDateString('en-IN')}</span>,
     },
+    {
+      key: 'actions',
+      header: 'Actions',
+      render: (v, doc) => (
+        <div className="relative">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setActionMenuOpen(actionMenuOpen === doc.id ? null : doc.id);
+            }}
+            className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+          >
+            <MoreVertical size={16} />
+          </button>
+          
+          {actionMenuOpen === doc.id && (
+            <div className="absolute right-0 mt-1 w-48 bg-[var(--bg-elevated)] border border-[var(--border-base)] rounded-lg shadow-lg z-50 py-1">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleApproveAndCreateProject(doc);
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-[var(--bg-hover)] transition-colors"
+              >
+                <CheckCircle size={14} className="text-emerald-500" />
+                <span>Approve & Create Project</span>
+              </button>
+              
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleSendEmailAction(doc);
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-[var(--bg-hover)] transition-colors"
+              >
+                <Mail size={14} className="text-blue-500" />
+                <span>Send Email</span>
+              </button>
+              
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleMarkAsCompleted(doc);
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-[var(--bg-hover)] transition-colors"
+              >
+                <FileCheck size={14} className="text-purple-500" />
+                <span>Mark as Completed</span>
+              </button>
+              
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteProposal(doc.id);
+                  setActionMenuOpen(null);
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-red-400/10 text-red-400 transition-colors"
+              >
+                <Trash2 size={14} />
+                <span>Delete</span>
+              </button>
+            </div>
+          )}
+        </div>
+      ),
+    },
   ];
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Document Header with Company Branding */}
-      <DocumentHeader
-        company={COMPANY_DATA}
-        documentType="Proposal Management"
-        documentNumber="Dashboard"
-      />
-
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="glass-card p-4 border-l-4 border-blue-500">
@@ -764,6 +946,7 @@ const ProposalPage = () => {
                   <th className="text-left py-2 px-3 text-xs font-medium text-[var(--text-muted)]">Project</th>
                   <th className="text-right py-2 px-3 text-xs font-medium text-[var(--text-muted)]">Total</th>
                   <th className="text-left py-2 px-3 text-xs font-medium text-[var(--text-muted)]">Status</th>
+                  <th className="text-right py-2 px-3 text-xs font-medium text-[var(--text-muted)]">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -788,6 +971,68 @@ const ProposalPage = () => {
                         {PROPOSAL_STATUS[proposal.status]?.label || proposal.status}
                       </span>
                     </td>
+                    <td className="py-2 px-3 text-right">
+                      <div className="relative inline-block">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActionMenuOpen(actionMenuOpen === proposal.id ? null : proposal.id);
+                          }}
+                          className="p-1 rounded-lg hover:bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                        >
+                          <MoreVertical size={14} />
+                        </button>
+                        
+                        {actionMenuOpen === proposal.id && (
+                          <div className="absolute right-0 mt-1 w-48 bg-[var(--bg-elevated)] border border-[var(--border-base)] rounded-lg shadow-lg z-[100] py-1 text-left">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleApproveAndCreateProject(proposal);
+                              }}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-[var(--bg-hover)] transition-colors"
+                            >
+                              <CheckCircle size={14} className="text-emerald-500" />
+                              <span>Approve & Create Project</span>
+                            </button>
+                            
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSendEmailAction(proposal);
+                              }}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-[var(--bg-hover)] transition-colors"
+                            >
+                              <Mail size={14} className="text-blue-500" />
+                              <span>Send Email</span>
+                            </button>
+                            
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleMarkAsCompleted(proposal);
+                              }}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-[var(--bg-hover)] transition-colors"
+                            >
+                              <FileCheck size={14} className="text-purple-500" />
+                              <span>Mark as Completed</span>
+                            </button>
+                            
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteProposal(proposal.id);
+                                setActionMenuOpen(null);
+                              }}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-red-400/10 text-red-400 transition-colors"
+                            >
+                              <Trash2 size={14} />
+                              <span>Delete</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -808,7 +1053,11 @@ const ProposalPage = () => {
           projectTypeOptions={projectTypeOptions}
           installationTypeOptions={installationTypeOptions}
           onSubmit={isEditMode ? (data) => handleUpdateProposal(selectedProposal.id, data) : handleCreateProposal}
-          onCancel={() => { setIsCreateModalOpen(false); setSelectedProposal(null); setIsEditMode(false); }}
+          onCancel={() => { 
+            setIsCreateModalOpen(false); 
+            setSelectedProposal(null); 
+            setIsEditMode(false); 
+          }}
         />
       </Modal>
 
@@ -1752,7 +2001,7 @@ const ProposalDetail = ({ proposal, onEdit, onDelete, onDownload, onCustomizePDF
             </div>
             <div className="flex justify-between">
               <span className="text-[var(--text-muted)]">Installation:</span>
-              <span className="capitalize">{proposal.installationType.replace('_', ' ')}</span>
+              <span className="capitalize">{proposal.installationType?.replace('_', ' ') || 'N/A'}</span>
             </div>
           </div>
         </div>

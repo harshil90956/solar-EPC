@@ -9,6 +9,7 @@ import { toast } from '../components/ui/Toast';
 import { Search, RefreshCw, Plus, Wallet, X, User, Calendar, TrendingUp, DollarSign, CheckCircle, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { payrollApi, employeeApi } from '../services/hrmApi';
+import { usePermissions } from '../hooks/usePermissions';
 
 // ── Payroll Detail View Modal ──────────────────────────────────────────────
 const PayrollViewModal = ({ payroll, onClose }) => {
@@ -68,6 +69,18 @@ const PayrollViewModal = ({ payroll, onClose }) => {
 
 const PayrollPage = () => {
   const [mounted, setMounted] = useState(false);
+  
+  // Get permissions for payroll module
+  const { 
+    canView, 
+    canCreate, 
+    canEdit, 
+    canDelete, 
+    canExport, 
+    canGenerate,
+    columns 
+  } = usePermissions('payroll');
+  
   const [employees, setEmployees] = useState([]);
   const [payrolls, setPayrolls] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -241,8 +254,9 @@ const PayrollPage = () => {
     },
   ];
 
-  const columns = [
-    {
+  // Build columns dynamically based on permissions
+  const tableColumns = [
+    columns.employee && {
       key: 'employeeId',
       header: 'Employee',
       render: (val) => (
@@ -252,37 +266,37 @@ const PayrollPage = () => {
         </div>
       ),
     },
-    {
+    columns.month && {
       key: 'month',
       header: 'Month',
       render: (val) => new Date(2000, val - 1, 1).toLocaleString('default', { month: 'long' }),
     },
-    {
+    columns.year && {
       key: 'year',
       header: 'Year',
       render: (val) => val,
     },
-    {
+    columns.baseSalary && {
       key: 'baseSalary',
       header: 'Base Salary',
       render: (val) => `₹${val?.toLocaleString() || 0}`,
     },
-    {
+    columns.allowances && {
       key: 'allowances',
       header: 'Allowances',
       render: (val) => `₹${val?.toLocaleString() || 0}`,
     },
-    {
+    columns.deductions && {
       key: 'deductions',
       header: 'Deductions',
       render: (val) => `₹${val?.toLocaleString() || 0}`,
     },
-    {
+    columns.netSalary && {
       key: 'netSalary',
       header: 'Net Salary',
       render: (val) => <span className="font-bold text-emerald-600">₹{val?.toLocaleString() || 0}</span>,
     },
-    {
+    columns.status && {
       key: 'paymentStatus',
       header: 'Status',
       render: (val) => {
@@ -298,48 +312,52 @@ const PayrollPage = () => {
         );
       },
     },
-    {
+    columns.actions && (canEdit() || canDelete()) && {
       key: 'actions',
       header: 'Actions',
       render: (_, record) => (
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              setEditingPayroll(record);
-              setPayrollForm({
-                employeeId: record.employeeId?._id || record.employeeId,
-                month: record.month,
-                year: record.year,
-                baseSalary: record.baseSalary,
-                allowances: record.allowances,
-                deductions: record.deductions,
-                bonus: record.bonus,
-              });
-              setShowEditModal(true);
-            }}
-            className="p-1.5 rounded-lg hover:bg-blue-500/10 text-[var(--text-muted)] hover:text-blue-500 transition-colors"
-            title="Edit"
-          >
-            <RefreshCw size={14} />
-          </button>
-          <button
-            onClick={() => handleDeletePayroll(record._id)}
-            className="p-1.5 rounded-lg hover:bg-red-500/10 text-[var(--text-muted)] hover:text-red-500 transition-colors"
-            title="Delete"
-          >
-            <X size={14} />
-          </button>
+          {canEdit() && (
+            <button
+              onClick={() => {
+                setEditingPayroll(record);
+                setPayrollForm({
+                  employeeId: record.employeeId?._id || record.employeeId,
+                  month: record.month,
+                  year: record.year,
+                  baseSalary: record.baseSalary,
+                  allowances: record.allowances,
+                  deductions: record.deductions,
+                  bonus: record.bonus,
+                });
+                setShowEditModal(true);
+              }}
+              className="p-1.5 rounded-lg hover:bg-blue-500/10 text-[var(--text-muted)] hover:text-blue-500 transition-colors"
+              title="Edit"
+            >
+              <RefreshCw size={14} />
+            </button>
+          )}
+          {canDelete() && (
+            <button
+              onClick={() => handleDeletePayroll(record._id)}
+              className="p-1.5 rounded-lg hover:bg-red-500/10 text-[var(--text-muted)] hover:text-red-500 transition-colors"
+              title="Delete"
+            >
+              <X size={14} />
+            </button>
+          )}
         </div>
       ),
     },
-  ];
+  ].filter(Boolean);
 
   return (
     <div className="animate-fade-in space-y-5">
       <PageHeader
         title="Payroll Management"
         subtitle="Generate and manage employee payroll"
-        actions={[
+        actions={canCreate() || canGenerate() ? [
           {
             type: 'button',
             label: 'Generate Payroll',
@@ -358,7 +376,7 @@ const PayrollPage = () => {
               setShowPayrollModal(true);
             },
           },
-        ]}
+        ] : []}
       />
 
       {/* KPI Cards */}
@@ -405,7 +423,7 @@ const PayrollPage = () => {
 
       {/* Payroll Table */}
       <DataTable
-        columns={columns}
+        columns={tableColumns}
         data={filteredPayrolls}
         emptyText="No payroll records found."
         loading={loading}

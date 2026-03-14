@@ -223,10 +223,16 @@ export class LeadsController {
     try {
       const tenantId = req.tenant?.id;
       const user = req.user;
+      this.logger.log(`[getTracker] Request - id: ${id}, tenantId: ${tenantId}, user: ${user?.id}`);
+      
       const result = await this.leadsService.getTracker(id, tenantId, user);
-      return { success: true, data: result };
+      this.logger.log(`[getTracker] Service result: ${JSON.stringify(result)}`);
+      
+      const response = { success: true, data: result };
+      this.logger.log(`[getTracker] Sending response: ${JSON.stringify(response)}`);
+      return response;
     } catch (error: any) {
-      this.logger.error(`Get tracker for lead ${id} failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      this.logger.error(`[getTracker] Error for lead ${id}: ${error?.message || 'Unknown error'}`, error?.stack);
       throw error;
     }
   }
@@ -260,7 +266,9 @@ export class LeadsController {
     try {
       const tenantId = req.tenant?.id;
       const user = req.user;
+      this.logger.log(`[updateStage] Request: leadId=${id}, stage=${stage}, tenantId=${tenantId}`);
       const result = await this.leadsService.updateStage(id, stage, user?.id || 'System', tenantId, user);
+      this.logger.log(`[updateStage] Response: leadId=${id}, statusKey=${result.statusKey}`);
       return { success: true, data: result };
     } catch (error: any) {
       this.logger.error(`Update stage for lead ${id} failed: ${error?.message || 'Unknown error'}`, error?.stack);

@@ -13,39 +13,39 @@ export enum SurveyStatus {
 @Schema({ timestamps: true })
 export class Survey {
 
-  @Prop({ required: true, unique: true })
+  @Prop({ required: false })
   surveyId!: string;
 
   // Lead Reference
-  @Prop({ required: true })
-  leadId!: string;
+  @Prop({ required: false })
+  leadId?: string;
 
   // Client Information
-  @Prop({ required: true })
-  clientName!: string;
+  @Prop({ required: false })
+  clientName?: string;
 
-  @Prop({ required: true })
-  city!: string;
+  @Prop({ required: false })
+  city?: string;
 
   // Project Details
-  @Prop({ required: true })
-  projectCapacity!: string;
+  @Prop({ required: false })
+  projectCapacity?: string;
 
   // Roof & Structure Information
-  @Prop({ required: true })
-  roofType!: string;
+  @Prop({ required: false })
+  roofType?: string;
 
-  @Prop({ required: true })
-  structureType!: string;
+  @Prop({ required: false })
+  structureType?: string;
 
-  @Prop({ required: true })
-  structureHeight!: string;
+  @Prop({ required: false })
+  structureHeight?: string;
 
-  @Prop({ required: true })
-  moduleType!: string;
+  @Prop({ required: false })
+  moduleType?: string;
 
-  @Prop({ required: true })
-  solarConsultant!: string;
+  @Prop({ required: false })
+  solarConsultant?: string;
 
   @Prop({ type: Number, default: 1 })
   floors!: number;

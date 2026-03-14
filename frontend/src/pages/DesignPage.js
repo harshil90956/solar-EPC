@@ -158,42 +158,57 @@ const DESIGN_STAGES = [
 ];
 
 // ── Project Type Selector ─────────────────────────────────────────────────────
-const ProjectTypeSelector = ({ value, onChange }) => (
-  <div className="flex gap-1.5 flex-wrap">
-    {PROJECT_TYPE_LIST.map(pt => {
-      const Icon = PT_ICON[pt.id];
-      const active = value === pt.id;
-      return (
-        <button key={pt.id} onClick={() => onChange(pt.id)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold border transition-all ${active ? 'text-white border-transparent shadow-lg scale-[1.03]'
-            : 'text-[var(--text-muted)] bg-[var(--bg-elevated)] border-[var(--border-base)] hover:border-[var(--border-muted)]'
-            }`}
-          style={active ? { background: pt.color } : {}}
-        >
-          <Icon size={12} />
-          {pt.label}
-          <span className="text-[9px] px-1.5 py-0.5 rounded-full font-black"
-            style={active
-              ? { background: 'var(--tab-active-overlay)', color: '#fff' }
-              : { background: pt.bg, color: pt.color }}>
-            {pt.id === PROJECT_TYPES.RESIDENTIAL ? '≤10kW'
-              : pt.id === PROJECT_TYPES.COMMERCIAL ? '10–100kW' : '100kW+'}
-          </span>
-        </button>
-      );
-    })}
-  </div>
-);
+const ProjectTypeSelector = ({ value, onChange }) => {
+  const { projectTypeConfig } = useSettings();
+  
+  // Merge defaults with overrides from settings
+  const projectTypes = useMemo(() => {
+    return PROJECT_TYPE_LIST.map(pt => {
+      const override = projectTypeConfig[pt.id] || {};
+      return { ...pt, ...override };
+    });
+  }, [projectTypeConfig]);
+
+  return (
+    <div className="flex gap-1.5 flex-wrap">
+      {projectTypes.map(pt => {
+        const Icon = PT_ICON[pt.id] || Home;
+        const isActive = value === pt.id;
+        return (
+          <button
+            key={pt.id}
+            type="button"
+            onClick={() => onChange(pt.id)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-[11px] font-bold transition-all ${isActive 
+              ? "bg-[var(--accent)] text-black border-transparent shadow-lg shadow-[var(--accent)]/20" 
+              : "text-[var(--text-muted)] bg-[var(--bg-elevated)] border-[var(--border-base)] hover:border-[var(--accent)]/50"}`}
+          >
+            <Icon size={14} />
+            {pt.label}
+            {isActive && <CheckCircle size={12} className="ml-1" />}
+          </button>
+        );
+      })}
+    </div>
+  );
+};
 
 // ── Project Type Badge (inline small chip) ────────────────────────────────────
 const ProjectTypeBadge = ({ typeId }) => {
-  const def = PROJECT_TYPE_LIST.find(t => t.id === typeId);
+  const { projectTypeConfig } = useSettings();
+  const def = useMemo(() => {
+    const base = PROJECT_TYPE_LIST.find(t => t.id === typeId);
+    if (!base) return null;
+    const override = projectTypeConfig[typeId] || {};
+    return { ...base, ...override };
+  }, [typeId, projectTypeConfig]);
+
   if (!def) return null;
-  const Icon = PT_ICON[typeId];
+  const Icon = PT_ICON[typeId] || Sun;
   return (
     <span className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full border font-bold"
       style={{ color: def.color, background: def.bg, borderColor: def.border }}>
-      <Icon size={9} /> {def.shortLabel}
+      <Icon size={9} /> {def.shortLabel || def.label}
     </span>
   );
 };

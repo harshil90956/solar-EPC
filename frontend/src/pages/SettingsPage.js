@@ -12,7 +12,9 @@ import {
     MapPin, Truck, ShoppingCart, Headphones, FileCheck, LayoutDashboard,
     Pencil, FolderOpen, UserCog, Eye, EyeOff, Layers,
     Home, Building2, Factory, RefreshCw, SunMedium, List,
+    Workflow,
 } from 'lucide-react';
+import { AutomationBuilder } from '../components/automation';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
 import { MODULE_DEFS, ROLE_DEFS, ACTION_DEFS } from '../config/features.config';
@@ -195,7 +197,7 @@ function LeadStatusBuilder() {
                             {(provided) => (
                                 <div ref={provided.innerRef} {...provided.droppableProps} className="space-y-2">
                                     {statuses.map((s, index) => (
-                                        <Draggable key={s._id || s.id} draggableId={String(s._id || s.id)} index={index}>
+                                        <Draggable key={`status-${s._id || s.id || s.key || index}`} draggableId={String(s._id || s.id || s.key || index)} index={index}>
                                             {(drag) => (
                                                 <div ref={drag.innerRef} {...drag.draggableProps}
                                                     className={`flex items-center gap-3 px-3 py-2 rounded-xl border border-[var(--border-base)] bg-[var(--bg-elevated)]`}
@@ -2206,6 +2208,12 @@ const CommissioningTasksPanel = () => {
     );
 };
 
+// ─── PANEL J: AUTOMATION BUILDER ─────────────────────────────────────────────
+const AutomationPanel = () => {
+    const { user, tenantId } = useAuth();
+    return <AutomationBuilder tenantId={tenantId} user={user} />;
+};
+
 // ─── MAIN SETTINGS PAGE ───────────────────────────────────────────────────────
 const TABS = [
     { id: 'modules', label: 'Modules', icon: Flag, panel: ModulesPanel },
@@ -2214,6 +2222,7 @@ const TABS = [
     { id: 'users', label: 'User Perms', icon: UserCog, panel: UserPermissionsPanel },
     { id: 'viewas', label: 'View As', icon: Eye, panel: ViewAsPanel },
     { id: 'flags', label: 'Feature Flags', icon: Zap, panel: FeatureFlagsPanel },
+    { id: 'automation', label: 'Automation', icon: Workflow, panel: AutomationPanel },
     { id: 'workflows', label: 'Workflows', icon: GitBranch, panel: WorkflowPanel },
     { id: 'audit', label: 'Audit Log', icon: ScrollText, panel: AuditPanel },
     { id: 'ai', label: 'AI Insights', icon: Cpu, panel: AISuggestionsPanel },
