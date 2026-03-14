@@ -450,4 +450,27 @@ export class CommissioningController {
   async checkOverdue(@Request() req: any) {
     return this.commissioningService.checkOverdueCommissionings(this.getUserContext(req));
   }
+
+  /**
+   * Assign Commissioning to a user
+   * Updates assignedTo and tracks who made the assignment (assignedBy)
+   */
+  @Patch(':id/assign')
+  @RequirePermission('commissioning', 'edit')
+  async assignCommissioning(
+    @Param('id') id: string,
+    @Body() body: { assignedTo: string },
+    @Request() req: AuthenticatedRequest,
+  ) {
+    const result = await this.commissioningService.assignCommissioning(
+      id,
+      body.assignedTo,
+      this.getUserContext(req),
+    );
+    return {
+      success: true,
+      message: 'Commissioning assigned successfully',
+      data: result,
+    };
+  }
 }

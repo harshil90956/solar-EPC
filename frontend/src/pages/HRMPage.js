@@ -18,10 +18,9 @@ import DataTable from '../components/ui/DataTable';
 import { StatusBadge } from '../components/ui/Badge';
 import { employeeApi, attendanceApi, leaveApi, payrollApi, incrementApi, departmentApi } from '../services/hrmApi';
 import { api } from '../lib/apiClient';
+import { useQuery } from '@tanstack/react-query';
 import { useSettings } from '../context/SettingsContext';
-import { useAuth } from '../context/AuthContext';
-import useHRMPermission from '../hooks/useHRMPermission';
-import HRMPermissionsPage from './HRMPermissionsPage';
+import { usePermissions } from '../hooks/usePermissions';
 import { toast } from '../components/ui/Toast';
 import { CURRENCY } from '../config/app.config';
 import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
@@ -81,6 +80,14 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
 
   const [activeTab, setActiveTab] = useState('employees');
   const [loading, setLoading] = useState(false);
+
+  // Permission hooks for each module
+  const employeePermissions = usePermissions('employees');
+  const leavePermissions = usePermissions('leaves');
+  const attendancePermissions = usePermissions('attendance');
+  const payrollPermissions = usePermissions('payroll');
+  const incrementPermissions = usePermissions('increments');
+  const departmentPermissions = usePermissions('departments');
 
   // Employee State
   const [employees, setEmployees] = useState([]);
@@ -170,7 +177,15 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
     managerId: '',
   });
 
-  // ==================== FETCH DATA ====================
+  // Fetch HRM roles from backend (created in Permission Matrix)
+  const { data: hrmRoles = [] } = useQuery({
+    queryKey: ['hrm-roles'],
+    queryFn: async () => {
+      const response = await api.get('/hrm/permissions/roles');
+      return response.data || [];
+    },
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
   useEffect(() => {
     fetchEmployees();
     fetchProjectManagers();
@@ -690,7 +705,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
             </span>
           );
         }
-        const role = allRoles.find(r => (r._id || r.id) === val);
+        const role = hrmRoles.find(r => r._id === val);
         return (
           <span className="px-2 py-1 rounded-full text-xs font-medium bg-[var(--primary)]/10 text-[var(--primary)]">
             {role?.label || role?.name || val || 'No Role'}
@@ -1641,9 +1656,9 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
                 required
               >
                 <option value="">Select Role</option>
-                {Object.values(customRoles || {}).map((role) => (
-                  <option key={role._id || role.id} value={role._id || role.id}>
-                    {role.label || role.name}
+                {hrmRoles?.map((role) => (
+                  <option key={role._id} value={role._id}>
+                    {role.name}
                   </option>
                 ))}
               </Select>

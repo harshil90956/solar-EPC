@@ -20,6 +20,23 @@ export const NAV_CONFIG = [
         section: 'OVERVIEW',
         items: [
             { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, badge: null },
+            { id: 'admin', label: 'Admin', icon: Shield, badge: null, badgeVariant: 'red' },
+            {
+                id: 'hrm',
+                label: 'HRM',
+                icon: Briefcase,
+                badge: null,
+                badgeVariant: 'accent',
+                children: [
+                    { id: 'hrm-employees', label: 'Employees', icon: UserCircle },
+                    { id: 'hrm-leaves', label: 'Leaves', icon: Calendar },
+                    { id: 'hrm-attendance', label: 'Attendance', icon: Clock },
+                    { id: 'hrm-payroll', label: 'Payroll', icon: Wallet },
+                    { id: 'hrm-increments', label: 'Increments', icon: TrendingUp },
+                    { id: 'hrm-departments', label: 'Departments', icon: Building2 },
+                    { id: 'hrm-permissions', label: 'Permissions', icon: Shield },
+                ]
+            },
             { id: 'intelligence', label: 'AI Intelligence', icon: Brain, badge: null, badgeVariant: 'accent' },
         ],
     },

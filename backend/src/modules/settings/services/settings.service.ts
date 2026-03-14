@@ -7,6 +7,7 @@ import { WorkflowRule, WorkflowRuleDocument } from '../schemas/workflow-rule.sch
 import { AuditLog, AuditLogDocument } from '../schemas/audit-log.schema';
 import { CustomRole, CustomRoleDocument } from '../schemas/custom-role.schema';
 import { ProjectTypeConfig, ProjectTypeConfigDocument } from '../schemas/project-type-config.schema';
+import { CommissioningTaskConfig, CommissioningTaskConfigDocument } from '../schemas/commissioning-task.schema';
 
 @Injectable()
 export class SettingsService {
@@ -17,6 +18,7 @@ export class SettingsService {
     @InjectModel(AuditLog.name) private auditLogModel: Model<AuditLogDocument>,
     @InjectModel(CustomRole.name) private customRoleModel: Model<CustomRoleDocument>,
     @InjectModel(ProjectTypeConfig.name) private projectTypeConfigModel: Model<ProjectTypeConfigDocument>,
+    @InjectModel(CommissioningTaskConfig.name) private commissioningTaskConfigModel: Model<CommissioningTaskConfigDocument>,
   ) {}
 
   private toObjectId(tenantId: string | undefined): Types.ObjectId | undefined {
@@ -187,13 +189,14 @@ export class SettingsService {
 
   // ── Full Settings ───────────────────────────────────────────────────────
   async getFullSettings(tenantId?: string): Promise<any> {
-    const [flags, rbac, workflows, auditLogs, customRoles, projectTypeConfigs] = await Promise.all([
+    const [flags, rbac, workflows, auditLogs, customRoles, projectTypeConfigs, commissioningTaskConfig] = await Promise.all([
       this.getFeatureFlags(tenantId),
       this.getRBACConfigs(tenantId),
       this.getWorkflowRules(tenantId),
       this.getAuditLogs(tenantId),
       this.getCustomRoles(tenantId),
       this.getProjectTypeConfigs(tenantId),
+      this.commissioningTaskConfigModel.findOne(tenantId ? { tenantId: this.toObjectId(tenantId) } : {}).exec(),
     ]);
 
     return {
@@ -203,6 +206,7 @@ export class SettingsService {
       auditLogs,
       customRoles,
       projectTypeConfigs,
+      commissioningTasks: commissioningTaskConfig?.tasks || [],
     };
   }
 }

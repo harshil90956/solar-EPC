@@ -21,6 +21,7 @@ import { Input, FormField, Select, Textarea } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { toast } from '../components/ui/Toast';
 import { attendanceApi, employeeApi } from '../services/hrmApi';
+import { usePermissions } from '../hooks/usePermissions';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
@@ -156,6 +157,16 @@ const AttendanceViewModal = ({ record, onClose, onEdit }) => {
 // ==================== MAIN COMPONENT ====================
 const AttendancePageV3 = () => {
   const [mounted, setMounted] = useState(false);
+
+  // Get permissions for attendance module
+  const { 
+    canView, 
+    canCreate, 
+    canEdit, 
+    canDelete, 
+    canExport,
+    columns: permissionColumns 
+  } = usePermissions('attendance');
 
   // ==================== CORE STATE ====================
   const [loading, setLoading] = useState(false);
@@ -524,7 +535,7 @@ const AttendancePageV3 = () => {
   }, [filteredRecords, currentPage, itemsPerPage]);
 
   // ==================== TABLE COLUMNS ====================
-  const columns = [
+  const tableColumns = [
     {
       key: 'select',
       header: (
@@ -932,7 +943,7 @@ const AttendancePageV3 = () => {
           {/* ==================== DATA TABLE ==================== */}
           <div className="bg-white border border-[var(--border-base)]">
             <DataTable
-              columns={columns}
+              columns={tableColumns}
               data={paginatedRecords}
               loading={loading}
               emptyMessage="No attendance records found"

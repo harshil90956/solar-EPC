@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, HttpCode, HttpStatus, UseGuards, ForbiddenException } from '@nestjs/common';
 import { PayrollService } from '../services/payroll.service';
-import { HrmPermissionService } from '../services/hrm-permission.service';
+import { PermissionService } from '../services/permission.service';
 import { GeneratePayrollDto, GetPayrollQueryDto, MarkAsPaidDto, UpdatePayrollDto } from '../dto/payroll.dto';
 import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
@@ -10,12 +10,34 @@ import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
 export class PayrollController {
   constructor(
     private readonly payrollService: PayrollService,
-    private readonly hrmPermissionService: HrmPermissionService,
+    private readonly permissionService: PermissionService,
   ) {}
+
+  private async checkPermission(req: any, permission: string) {
+    const user = req.user;
+    if (!user) throw new ForbiddenException('User not authenticated');
+    
+    // Super admin bypass
+    if (user.role === 'Super Admin' || user.role === 'Admin') return true;
+    
+    // Check user permissions from JWT
+    if (user.permissions && Array.isArray(user.permissions)) {
+      if (user.permissions.includes(permission)) return true;
+    }
+    
+    const roleId = user.roleId || user.role;
+    if (!roleId) throw new ForbiddenException('User has no role assigned');
+    
+    const hasPermission = await this.permissionService.hasPermission(roleId, permission);
+    if (!hasPermission) {
+      throw new ForbiddenException(`Permission denied: ${permission} required`);
+    }
+  }
 
   @Post('generate')
   @HttpCode(HttpStatus.CREATED)
   async generate(@Body() generateDto: GeneratePayrollDto, @Req() req: any) {
+    await this.checkPermission(req, 'payroll.generate');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const roleId = req.user?.roleId || req.user?.role;
     await this.hrmPermissionService.validateAction(roleId, 'payroll.manage', tenantId);
@@ -32,6 +54,7 @@ export class PayrollController {
     @Body('year') year: number,
     @Req() req: any,
   ) {
+    await this.checkPermission(req, 'payroll.generate');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const roleId = req.user?.roleId || req.user?.role;
     await this.hrmPermissionService.validateAction(roleId, 'payroll.manage', tenantId);
@@ -42,6 +65,7 @@ export class PayrollController {
 
   @Get()
   async findAll(@Query() query: GetPayrollQueryDto, @Req() req: any) {
+    await this.checkPermission(req, 'payroll.view');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const roleId = req.user?.roleId || req.user?.role;
     
@@ -62,16 +86,19 @@ export class PayrollController {
 
   @Get(':id')
   async findOne(@Param('id') id: string, @Req() req: any) {
+    await this.checkPermission(req, 'payroll.view');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const roleId = req.user?.roleId || req.user?.role;
     
     const data = await this.payrollService.findOne(id, tenantId, req.user);
-    
-    // Check if user owns this payroll or has payroll access
-    if (data.employeeId?.toString() !== req.user.sub) {
-      await this.hrmPermissionService.validateAction(roleId, 'payroll.view', tenantId);
-    }
-    
+    return { success: true, data };
+  }
+
+  @Get('employee/:employeeId')
+  async findByEmployee(@Param('employeeId') employeeId: string, @Req() req: any) {
+    await this.checkPermission(req, 'payroll.view');
+    const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
+    const data = await this.payrollService.findByEmployeeId(employeeId, tenantId, req.user);
     return { success: true, data };
   }
 
@@ -81,6 +108,7 @@ export class PayrollController {
     @Body() markDto: MarkAsPaidDto,
     @Req() req: any,
   ) {
+    await this.checkPermission(req, 'payroll.edit');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const roleId = req.user?.roleId || req.user?.role;
     await this.hrmPermissionService.validateAction(roleId, 'payroll.approve', tenantId);
@@ -91,6 +119,7 @@ export class PayrollController {
 
   @Get(':id/breakdown')
   async getSalaryBreakdown(@Param('id') id: string, @Req() req: any) {
+    await this.checkPermission(req, 'payroll.view');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const roleId = req.user?.roleId || req.user?.role;
     
@@ -106,6 +135,7 @@ export class PayrollController {
 
   @Get('salary-slip/:payrollId')
   async generateSalarySlip(@Param('payrollId') payrollId: string, @Req() req: any) {
+    await this.checkPermission(req, 'payroll.view');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const data = await this.payrollService.getSalaryBreakdown(payrollId, tenantId, req.user);
     
@@ -124,6 +154,7 @@ export class PayrollController {
     @Body() updateDto: UpdatePayrollDto,
     @Req() req: any,
   ) {
+    await this.checkPermission(req, 'payroll.edit');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const roleId = req.user?.roleId || req.user?.role;
     await this.hrmPermissionService.validateAction(roleId, 'payroll.manage', tenantId);
@@ -135,6 +166,7 @@ export class PayrollController {
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   async delete(@Param('id') id: string, @Req() req: any) {
+    await this.checkPermission(req, 'payroll.delete');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const roleId = req.user?.roleId || req.user?.role;
     await this.hrmPermissionService.validateAction(roleId, 'payroll.manage', tenantId);
