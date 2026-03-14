@@ -63,6 +63,7 @@
     "@types/node": "^20.11.30",
     "@types/passport-jwt": "^4.0.1",
     "@types/pdfkit": "^0.17.5",
+    "@types/puppeteer": "^5.4.7",
     "@types/uuid": "^10.0.0",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
