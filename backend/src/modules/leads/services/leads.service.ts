@@ -259,7 +259,7 @@ export class LeadsService {
     if (!normalizedStatusKey) return;
     
     // Allow common lead status keys without DB validation
-    const commonStatusKeys = ['new', 'contacted', 'qualified', 'proposal', 'negotiation', 'won', 'lost', 'estimate'];
+    const commonStatusKeys = ['new', 'contacted', 'qualified', 'proposal', 'negotiation', 'won', 'lost', 'estimate', 'survey', 'site_survey'];
     if (commonStatusKeys.includes(normalizedStatusKey)) {
       return;
     }
@@ -741,6 +741,8 @@ export class LeadsService {
 
     const lead = await this.leadModel.findOne(filter).lean().exec();
     
+    Logger.log(`[findOne] Found lead ${id}: statusKey=${lead?.statusKey}, status=${lead?.status}`, 'LeadsService');
+    
     if (!lead) {
       throw new NotFoundException('Lead not found');
     }
@@ -804,6 +806,8 @@ export class LeadsService {
       dtoAny.statusKey = dtoAny.statusKey.trim().toLowerCase();
     }
     
+    Logger.log(`[update] Lead ${id}: incoming statusKey=${dtoAny.statusKey}, existing=${existingLead.statusKey}`);
+    
     // Auto-sync: If stage/statusKey is set to "customer", also update status field
     if (dtoAny.statusKey && dtoAny.statusKey.toLowerCase() === 'customer') {
       updateData.status = 'customer';
@@ -822,6 +826,7 @@ export class LeadsService {
 
     // Handle stage change activity
     if (updateData.statusKey && updateData.statusKey !== existingLead.statusKey) {
+      Logger.log(`[update] Lead ${id}: stage changing from ${existingLead.statusKey} to ${updateData.statusKey}`);
       const now = new Date();
       const activity = {
         type: 'stage_change',
@@ -833,34 +838,33 @@ export class LeadsService {
       
       // Push new activity to existing array
       updateData.$push = { activities: activity };
-
-      // Auto-create site survey when stage changes to 'site_survey' or 'survey'
-      if (updateData.statusKey === 'site_survey' || updateData.statusKey === 'survey') {
-        try {
-          await this.siteSurveysService.createFromLead({
-            leadId: existingLead._id.toString(),
-            clientName: existingLead.name,
-            city: existingLead.city || 'Unknown',
-            projectCapacity: existingLead.kw ? `${existingLead.kw} kW` : 'To be determined',
-            engineer: existingLead.assignedTo?.toString() || 'Unassigned',
-          }, tenantId, user);
-          Logger.log(`Auto-created site survey for lead ${existingLead.leadId}`, 'LeadsService');
-        } catch (error: any) {
-          Logger.error(`Failed to auto-create site survey for lead ${existingLead.leadId}: ${error.message}`, 'LeadsService');
-        }
-      }
     }
 
-    Object.assign(existingLead, updateLeadDto);
-    existingLead.lastContact = new Date();
-    // Only recalculate score if not manually provided
-    if (updateLeadDto.score === undefined) {
-      existingLead.score = this.calculateScore(existingLead);
-    }
-    existingLead.slaBreached = this.checkSlaBreached(existingLead);
-    existingLead.activeAutomation = this.applyAutomation(existingLead);
+    // Calculate auto-generated fields
+    const autoFields = {
+      lastContact: new Date(),
+      score: updateLeadDto.score === undefined ? this.calculateScore({ ...existingLead.toObject(), ...updateData }) : updateLeadDto.score,
+      slaBreached: this.checkSlaBreached({ ...existingLead.toObject(), ...updateData }),
+      activeAutomation: this.applyAutomation({ ...existingLead.toObject(), ...updateData }),
+    };
 
-    return existingLead.save();
+    // Use findOneAndUpdate to properly persist changes
+    const updateQuery = {
+      ...updateData,
+      ...autoFields,
+    };
+
+    const updatedLead = await this.leadModel.findOneAndUpdate(
+      filter,
+      updateQuery,
+      { new: true, runValidators: true }
+    ).exec();
+
+    if (!updatedLead) {
+      throw new NotFoundException('Lead not found after update');
+    }
+
+    return updatedLead;
   }
 
   private formatTimestamp(date: Date): string {
@@ -945,18 +949,74 @@ export class LeadsService {
   }
 
   async getTracker(id: string, tenantId?: string, user?: UserWithVisibility): Promise<any> {
+    console.log(`[getTracker] Called with id: ${id}, tenantId: ${tenantId}`);
+    
     const lead = await this.findOne(id, tenantId, user);
-    return {
+    console.log(`[getTracker] Found lead: ${lead?.leadId}, statusKey: ${lead?.statusKey}`);
+    
+    // Get all available lead statuses for stages
+    const tid = tenantId && Types.ObjectId.isValid(tenantId) ? new Types.ObjectId(tenantId) : undefined;
+    const statusQuery: any = { entity: 'lead', isActive: true };
+    if (tid) {
+      statusQuery.tenantId = tid;
+    }
+    const statuses = await this.leadStatusModel
+      .find(statusQuery)
+      .sort({ order: 1 })
+      .lean()
+      .exec();
+    
+    console.log(`[getTracker] Found ${statuses.length} statuses`);
+    
+    // Build stages array with current status
+    const currentStatusKey = (lead.statusKey || 'new').toString().toLowerCase();
+    console.log(`[getTracker] Current status key: ${currentStatusKey}`);
+    
+    const defaultStages = [
+      { key: 'new', label: 'New', color: '#3b82f6', order: 1 },
+      { key: 'contacted', label: 'Contacted', color: '#6366f1', order: 2 },
+      { key: 'qualified', label: 'Qualified', color: '#8b5cf6', order: 3 },
+      { key: 'proposal', label: 'Proposal', color: '#ec4899', order: 4 },
+      { key: 'negotiation', label: 'Negotiation', color: '#f59e0b', order: 5 },
+      { key: 'won', label: 'Won', color: '#10b981', order: 6 },
+      { key: 'lost', label: 'Lost', color: '#ef4444', order: 7 },
+    ];
+    
+    const stages = (statuses.length > 0 ? statuses : defaultStages).map((s: any) => ({
+      stage: s.key,
+      label: s.label,
+      color: s.color,
+      isCurrent: s.key.toLowerCase() === currentStatusKey,
+      completed: s.order < (statuses.find((st: any) => st.key?.toLowerCase() === currentStatusKey)?.order || 999),
+    }));
+    
+    console.log(`[getTracker] Built ${stages.length} stages`);
+    
+    // Calculate progress percentage
+    const currentIndex = stages.findIndex((s: any) => s.isCurrent);
+    const totalStages = stages.length;
+    const progress = totalStages > 0 ? Math.round(((currentIndex + 1) / totalStages) * 100) : 0;
+    
+    const result = {
       leadId: lead.leadId,
       status: lead.statusKey,
       lastContact: lead.lastContact,
       score: lead.score,
       slaBreached: lead.slaBreached,
+      stages,
+      progress,
     };
+    
+    console.log(`[getTracker] Returning result with ${result.stages.length} stages, progress: ${result.progress}`);
+    
+    return result;
   }
 
   async updateStage(id: string, stage: string, userId: string, tenantId?: string, user?: UserWithVisibility): Promise<Lead> {
-    return this.update(id, { statusKey: stage } as any, tenantId, user);
+    Logger.log(`[updateStage] Called for lead ${id} with stage: ${stage}`);
+    const result = await this.update(id, { statusKey: stage } as any, tenantId, user);
+    Logger.log(`[updateStage] Result for lead ${id}: statusKey=${result.statusKey}`);
+    return result;
   }
 
   async bulkArchive(ids: string[], tenantId?: string, user?: UserWithVisibility): Promise<{ modified: number }> {
@@ -1043,13 +1103,49 @@ export class LeadsService {
   async getDashboardFunnel(tenantId?: string, user?: UserWithVisibility): Promise<any> {
     const filter = this.buildCompleteFilter(tenantId, user, { isDeleted: false });
     
-    const stages = await this.leadStatusModel.find({ entity: 'lead' }).sort({ order: 1 }).lean();
-    const counts = await Promise.all(stages.map(async (s) => ({
-      stage: s.label,
+    // Get lead statuses with tenant filtering
+    const statusQuery: any = { entity: 'lead', isActive: true };
+    const tid = tenantId && Types.ObjectId.isValid(tenantId) ? new Types.ObjectId(tenantId) : undefined;
+    
+    if (tid) {
+      statusQuery.tenantId = tid;
+    }
+    
+    const statuses = await this.leadStatusModel.find(statusQuery).sort({ order: 1 }).lean();
+    
+    // Count leads for each status key
+    const counts = await Promise.all(statuses.map(async (s) => ({
+      key: s.key,
+      label: s.label,
+      order: s.order || 0,
       count: await this.leadModel.countDocuments({ ...filter, statusKey: s.key })
     })));
 
-    return { stages: counts };
+    // Group by label and sum counts (deduplicate same label with different keys)
+    const labelMap = new Map<string, { label: string; count: number; order: number }>();
+    
+    for (const item of counts) {
+      if (!item.label) continue; // Skip entries without label
+      
+      const existing = labelMap.get(item.label);
+      if (existing) {
+        // Sum counts for same label
+        existing.count += item.count;
+      } else {
+        labelMap.set(item.label, {
+          label: item.label,
+          count: item.count,
+          order: item.order
+        });
+      }
+    }
+
+    // Convert to array and sort by order
+    const uniqueStages = Array.from(labelMap.values())
+      .sort((a, b) => a.order - b.order)
+      .map(s => ({ stage: s.label, count: s.count }));
+
+    return { stages: uniqueStages };
   }
 
   async getDashboardSources(
@@ -1309,18 +1405,29 @@ export class LeadsService {
       .lean()
       .exec();
 
-    if (statuses.length === 0 && !tid) {
+    // If no statuses found in DB, return defaults with proper labels
+    if (statuses.length === 0) {
       return [
-        { key: 'new', label: 'New', color: '#3b82f6' },
-        { key: 'contacted', label: 'Contacted', color: '#6366f1' },
-        { key: 'qualified', label: 'Qualified', color: '#8b5cf6' },
-        { key: 'proposal', label: 'Proposal', color: '#ec4899' },
-        { key: 'negotiation', label: 'Negotiation', color: '#f59e0b' },
-        { key: 'won', label: 'Won', color: '#10b981' },
-        { key: 'lost', label: 'Lost', color: '#ef4444' },
+        { key: 'new', label: 'New', color: '#3b82f6', order: 1 },
+        { key: 'contacted', label: 'Contacted', color: '#6366f1', order: 2 },
+        { key: 'qualified', label: 'Qualified', color: '#8b5cf6', order: 3 },
+        { key: 'proposal', label: 'Proposal', color: '#ec4899', order: 4 },
+        { key: 'negotiation', label: 'Negotiation', color: '#f59e0b', order: 5 },
+        { key: 'survey', label: 'Site Survey', color: '#06b6d4', order: 6 },
+        { key: 'won', label: 'Won', color: '#10b981', order: 7 },
+        { key: 'lost', label: 'Lost', color: '#ef4444', order: 8 },
       ];
     }
-    return statuses;
+
+    // Map DB statuses to ensure proper label field
+    return statuses.map(s => ({
+      key: s.key,
+      label: s.label || s.key, // Use label from DB, fallback to key
+      color: s.color || '#64748b',
+      order: s.order || 0,
+      type: s.type,
+      isActive: s.isActive,
+    }));
   }
 
   async recalculateAllScores(tenantId?: string, user?: UserWithVisibility): Promise<{ processed: number }> {
