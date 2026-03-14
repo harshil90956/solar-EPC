@@ -195,14 +195,14 @@ export class SettingsService {
 
   // ── Full Settings ───────────────────────────────────────────────────────
   async getFullSettings(tenantId: string): Promise<any> {
-    const [flags, rbac, workflows, auditLogs, customRoles, projectTypeConfigs] = await Promise.all([
+    const [flags, rbac, workflows, auditLogs, customRoles, projectTypeConfigs, commissioningTaskConfig] = await Promise.all([
       this.getFeatureFlags(tenantId),
       this.getRBACConfigs(tenantId),
       this.getWorkflowRules(tenantId),
       this.getAuditLogs(tenantId),
       this.getCustomRoles(tenantId),
       this.getProjectTypeConfigs(tenantId),
-      this.commissioningTaskConfigModel.findOne(tenantId ? { tenantId: this.toObjectId(tenantId) } : {}).exec(),
+      this.commissioningTaskConfigModel.findOne({ tenantId: this.toObjectId(tenantId) }).exec(),
     ]);
 
     return {
