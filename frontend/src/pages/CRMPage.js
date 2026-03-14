@@ -730,7 +730,7 @@ const SalesTeamReport = () => {
   );
 };
 
-const CRMPage = () => {
+const CRMPage = ({ onNavigate }) => {
   const [view, setView] = useState('dashboard');
   const [activeLeads, setActiveLeads] = useState([]);
   const [statusOptions, setStatusOptions] = useState([]);
@@ -3473,6 +3473,7 @@ const CRMPage = () => {
                 leadId={trackerLeadId}
                 statusOptions={statusOptions}
                 onStageChange={fetchLeads}
+                onNavigate={onNavigate}
               />
             </div>
           </div>

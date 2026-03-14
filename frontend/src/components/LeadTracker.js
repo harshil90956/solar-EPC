@@ -3,7 +3,7 @@ import { leadsApi } from '../services/leadsApi';
 import { Button } from './ui/Button';
 import { CheckCircle2, Circle, Clock, ChevronRight } from 'lucide-react';
 
-const LeadTracker = ({ leadId, statusOptions, currentStage, onStageChange }) => {
+const LeadTracker = ({ leadId, statusOptions, currentStage, onStageChange, onNavigate }) => {
   const [tracker, setTracker] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -63,10 +63,25 @@ const LeadTracker = ({ leadId, statusOptions, currentStage, onStageChange }) => 
   };
 
   const handleStageChange = async (newStage) => {
-    if (newStage === currentStage) return;
+    console.log('[LeadTracker] handleStageChange called with:', newStage);
+    console.log('[LeadTracker] onNavigate:', onNavigate);
+    console.log('[LeadTracker] currentStage:', currentStage);
+    
+    // Special handling for survey stage - redirect to survey page (even if current)
+    if ((newStage === 'survey' || newStage === 'site-survey' || newStage === 'site_survey') && onNavigate) {
+      console.log('[LeadTracker] Navigating to survey page');
+      onNavigate('survey');
+      return;
+    }
+    
+    if (newStage === currentStage) {
+      console.log('[LeadTracker] Same as current stage, returning');
+      return;
+    }
     
     try {
       setLoading(true);
+      console.log('[LeadTracker] Updating stage to:', newStage);
       await leadsApi.updateStage(leadId, newStage);
       await fetchTracker();
       if (onStageChange) onStageChange();
@@ -175,7 +190,7 @@ const LeadTracker = ({ leadId, statusOptions, currentStage, onStageChange }) => 
                 ${isCurrent ? 'bg-[var(--primary)]/10 border border-[var(--primary)]/20' : 
                   isCompleted ? 'bg-emerald-50/50' : 'bg-transparent hover:bg-[var(--bg-hovered)]'}
               `}
-              onClick={() => !isCompleted && handleStageChange(stage.stage)}
+              onClick={() => handleStageChange(stage.stage)}
             >
               {/* Stage Icon */}
               <div className="shrink-0">
