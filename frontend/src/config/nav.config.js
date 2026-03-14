@@ -29,7 +29,6 @@ export const NAV_CONFIG = [
             { id: 'crm', label: 'CRM & Sales', icon: Users, badge: hotLeads || null },
             { id: 'survey', label: 'Survey', icon: MapPin, badge: null },
             { id: 'design', label: 'Design & BOQ', icon: Pencil, badge: null },
-            { id: 'quotation', label: 'Quotation Builder', icon: FileText },
             { id: 'documents', label: 'Documentation', icon: Files, badge: null },
         ],
     },

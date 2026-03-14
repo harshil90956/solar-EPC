@@ -1119,13 +1119,14 @@ const InstallationPage = () => {
       hasEditPermission: can('installation','edit')
     });
     
-    // Allow task update if: has edit permission OR is assigned user OR is employee/technician
+    // Allow task update if: has edit permission OR is assigned user OR has ASSIGNED dataScope OR is employee/technician
     const isAssignedUser = selected.technicianId === user?.id || 
                            selected.technicianId === user?._id ||
                            selected.assignedTo === user?.id ||
                            selected.assignedTo === user?._id;
+    const hasAssignedScope = user?.dataScope === 'ASSIGNED' || user?._doc?.dataScope === 'ASSIGNED';
     const isEmployeeRole = user?.role?.toLowerCase() === 'employee' || user?.role?.toLowerCase() === 'technician';
-    const canUpdate = can('installation','edit') || isAssignedUser || isEmployeeRole;
+    const canUpdate = can('installation','edit') || isAssignedUser || hasAssignedScope || isEmployeeRole;
     
     console.log('[DEBUG] Permission check:', { isAssignedUser, canUpdate });
     
@@ -1174,10 +1175,10 @@ const InstallationPage = () => {
       } else if (shouldRevertStatus) {
         // If project was completed and task unchecked, revert status to In Progress
         await apiClient.patch(`/installations/${selected._id || selected.id}/status`, { status: 'In Progress' });
-        setSelected({ ...resp.data, status: 'In Progress' });
+        setSelected({ ...resp.data, status: 'In Progress', tasks: updatedTasks });
         toast.success('Task unchecked — Installation reverted to In Progress');
       } else {
-        setSelected(resp.data);
+        setSelected({ ...resp.data, tasks: updatedTasks });
       }
       
       refetch();

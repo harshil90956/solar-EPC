@@ -5,7 +5,7 @@ import {
   User, Building2, MapPin, Sun, Zap,
   Edit, CheckCircle, XCircle, Clock,
   Calculator, LayoutGrid, List, Kanban,
-  ChevronLeft, Save, Printer, Check, ArrowRight
+  ChevronLeft, Save, Printer, Check, ArrowRight, MoreVertical, Mail, FileCheck
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
@@ -17,6 +17,10 @@ import { EquipmentLibrary } from '../components/estimates/EquipmentLibrary';
 import { CompanyHeader, DocumentHeader } from '../components/documents/CompanyHeader';
 import { downloadEstimatePDF, downloadProposalPDF } from '../lib/pdfGenerator';
 import { settingsApi } from '../services/settingsApi';
+import { toast } from '../components/ui/Toast';
+import api from '../lib/apiClient';
+
+import { documentsApi } from '../services/documentsApi';
 
 const fmt = CURRENCY.format;
 
@@ -28,16 +32,19 @@ const ESTIMATE_STATUS = {
   rejected: { label: 'Rejected', color: '#ef4444', bg: 'rgba(239,68,68,0.12)', icon: XCircle },
 };
 
-const DEFAULT_PROJECT_TYPES = [
+const projectTypeOptions = [
   { value: 'residential', label: 'Residential', icon: User },
   { value: 'commercial', label: 'Commercial', icon: Building2 },
   { value: 'industrial', label: 'Industrial', icon: Zap },
 ];
 
-const DEFAULT_INSTALLATION_TYPES = [
+const installationTypeOptions = [
   { value: 'rooftop', label: 'Rooftop' },
   { value: 'ground_mounted', label: 'Ground Mounted' },
 ];
+
+const DEFAULT_PROJECT_TYPES = projectTypeOptions;
+const DEFAULT_INSTALLATION_TYPES = installationTypeOptions;
 
 // ── Generate Estimate Number ───────────────────────────────────────────────────
 const generateEstimateNumber = (existingEstimates = []) => {
@@ -185,20 +192,57 @@ const MOCK_ESTIMATES = [
     status: 'draft',
     notes: 'Awaiting site survey completion',
     terms: '30% advance, 40% on material delivery, 30% on commissioning',
-    createdAt: '2026-03-01',
-    version: 1,
-  },
+    createdAt: '2026-03-01'
+  }
 ];
 
 // ── Main Estimate Page Component ──────────────────────────────────────────────
 const EstimatePage = () => {
-  const [estimates, setEstimates] = useState(MOCK_ESTIMATES);
+  const [estimates, setEstimates] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'grid' | 'kanban'
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedEstimate, setSelectedEstimate] = useState(null);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [actionMenuOpen, setActionMenuOpen] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const fetchEstimates = async () => {
+    try {
+      setLoading(true);
+      const res = await documentsApi.getAll();
+      const docs = res?.data?.data || res?.data || [];
+      console.log('[EstimatePage] Raw documents from API:', docs);
+      
+      const formatted = docs
+        .filter(d => d.type === 'estimate')
+        .map(d => ({
+          ...d,
+          id: d.id || d._id,
+          estimateNumber: d.documentId || d.id || d._id,
+          projectName: d.title || d.projectName,
+          items: d.items || [],
+          total: d.total || d.totalValue || 0,
+          customerName: d.customerName,
+          status: d.status?.toLowerCase() || 'draft',
+          createdAt: d.createdAt
+        }));
+      
+      console.log('[EstimatePage] Formatted estimates:', formatted);
+      setEstimates(formatted);
+    } catch (error) {
+      console.error('Error fetching estimates:', error);
+      toast.error('Failed to load estimates');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchEstimates();
+  }, []);
 
   // ── Filter Estimates ────────────────────────────────────────────────────────
   const filteredEstimates = useMemo(() => {
@@ -207,10 +251,10 @@ const EstimatePage = () => {
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(e =>
-        e.estimateNumber.toLowerCase().includes(query) ||
-        e.customerName.toLowerCase().includes(query) ||
-        e.projectName.toLowerCase().includes(query) ||
-        e.projectLocation.toLowerCase().includes(query)
+        (e.estimateNumber && e.estimateNumber.toLowerCase().includes(query)) ||
+        (e.customerName && e.customerName.toLowerCase().includes(query)) ||
+        (e.projectName && e.projectName.toLowerCase().includes(query)) ||
+        (e.projectLocation && e.projectLocation.toLowerCase().includes(query))
       );
     }
 
@@ -224,7 +268,7 @@ const EstimatePage = () => {
   // ── Stats Calculations ───────────────────────────────────────────────────────
   const stats = useMemo(() => {
     const total = estimates.length;
-    const totalValue = estimates.reduce((a, e) => a + e.total, 0);
+    const totalValue = estimates.reduce((a, e) => a + (e.total || 0), 0);
     const accepted = estimates.filter(e => e.status === 'accepted').length;
     const pending = estimates.filter(e => e.status === 'sent' || e.status === 'draft').length;
 
@@ -232,30 +276,51 @@ const EstimatePage = () => {
   }, [estimates]);
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
-  const handleCreateEstimate = (data) => {
-    const newEstimate = {
-      id: `EST-${String(estimates.length + 1).padStart(3, '0')}`,
-      estimateNumber: generateEstimateNumber(estimates),
-      ...data,
-      status: 'draft',
-      version: 1,
-      createdAt: new Date().toISOString().split('T')[0],
-    };
-    setEstimates([newEstimate, ...estimates]);
-    setIsCreateModalOpen(false);
+  const handleCreateEstimate = async (data) => {
+    try {
+      const payload = {
+        ...data,
+        type: 'estimate',
+        title: data.projectName,
+        status: 'draft'
+      };
+      await documentsApi.create(payload);
+      toast.success('Estimate created successfully');
+      fetchEstimates();
+      setIsCreateModalOpen(false);
+    } catch (error) {
+      console.error('Error creating estimate:', error);
+      toast.error('Failed to create estimate');
+    }
   };
 
-  const handleUpdateEstimate = (id, data) => {
-    setEstimates(estimates.map(e =>
-      e.id === id ? { ...e, ...data, version: e.version + 1 } : e
-    ));
-    setSelectedEstimate(null);
-    setIsEditMode(false);
+  const handleUpdateEstimate = async (id, data) => {
+    try {
+      const payload = {
+        ...data,
+        title: data.projectName
+      };
+      await documentsApi.update(id, payload);
+      toast.success('Estimate updated successfully');
+      fetchEstimates();
+      setSelectedEstimate(null);
+      setIsEditMode(false);
+    } catch (error) {
+      console.error('Error updating estimate:', error);
+      toast.error('Failed to update estimate');
+    }
   };
 
-  const handleDeleteEstimate = (id) => {
+  const handleDeleteEstimate = async (id) => {
     if (window.confirm('Are you sure you want to delete this estimate?')) {
-      setEstimates(estimates.filter(e => e.id !== id));
+      try {
+        await documentsApi.delete(id);
+        toast.success('Estimate deleted');
+        fetchEstimates();
+      } catch (error) {
+        console.error('Error deleting estimate:', error);
+        toast.error('Failed to delete estimate');
+      }
     }
   };
 
@@ -327,6 +392,66 @@ const EstimatePage = () => {
     console.log('[EstimatePage] viewMode changed to:', viewMode);
   }, [viewMode]);
 
+  const handleMarkAsCompleted = async (doc) => {
+    if (!window.confirm(`Mark ${doc.estimateNumber} as completed?`)) return;
+    try {
+      await documentsApi.update(doc.id, { status: 'accepted' });
+      toast.success('Estimate marked as completed');
+      fetchEstimates();
+    } catch (error) {
+      toast.error('Failed to update status');
+    }
+  };
+
+  const handleApproveAndCreateProject = async (doc) => {
+    if (!window.confirm(`Approve ${doc.estimateNumber} and create project?`)) return;
+    setIsProcessing(true);
+    try {
+      const projectData = {
+        projectId: `PRJ-${Date.now()}`,
+        customerName: doc.customerName,
+        email: doc.customerEmail,
+        mobileNumber: doc.customerPhone,
+        site: doc.projectLocation || 'TBD',
+        systemSize: doc.systemCapacity || 0,
+        status: 'Survey',
+        pm: 'Unassigned',
+        startDate: new Date().toISOString(),
+        progress: 0,
+        value: doc.total,
+        notes: doc.projectName,
+        items: doc.items?.map(item => ({
+          itemId: `item-${Math.random().toString(36).substr(2, 9)}`,
+          category: item.category || 'Miscellaneous',
+          itemName: item.name,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          totalPrice: item.total
+        })) || []
+      };
+      await api.post('/projects', projectData);
+      await documentsApi.update(doc.id, { status: 'accepted' });
+      toast.success('Project created successfully!');
+      fetchEstimates();
+    } catch (error) {
+      console.error('Error creating project:', error);
+      toast.error('Failed to create project');
+    } finally {
+      setIsProcessing(false);
+      setActionMenuOpen(null);
+    }
+  };
+
+  const handleSendEmailAndComplete = async (doc) => {
+    if (!window.confirm(`Send email to ${doc.customerEmail} and mark as sent?`)) return;
+    try {
+      handleSendEstimate(doc.id);
+      toast.success('Email trigger initiated');
+    } catch (error) {
+      toast.error('Failed to send email');
+    }
+  };
+
   // ── Table Columns ───────────────────────────────────────────────────────────
   const tableColumns = [
     {
@@ -378,15 +503,76 @@ const EstimatePage = () => {
       header: 'Date',
       render: v => <span className="text-xs text-[var(--text-muted)]">{new Date(v).toLocaleDateString('en-IN')}</span>,
     },
+    {
+      key: 'actions',
+      header: 'Actions',
+      render: (v, doc) => (
+        <div className="relative">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setActionMenuOpen(actionMenuOpen === doc.id ? null : doc.id);
+            }}
+            className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+          >
+            <MoreVertical size={16} />
+          </button>
+          
+          {actionMenuOpen === doc.id && (
+            <div className="absolute right-0 mt-1 w-48 bg-[var(--bg-elevated)] border border-[var(--border-base)] rounded-lg shadow-lg z-50 py-1">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleApproveAndCreateProject(doc);
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-[var(--bg-hover)] transition-colors"
+              >
+                <CheckCircle size={14} className="text-emerald-500" />
+                <span>Approve & Create Project</span>
+              </button>
+              
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleSendEmailAndComplete(doc);
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-[var(--bg-hover)] transition-colors"
+              >
+                <Mail size={14} className="text-blue-500" />
+                <span>Send Email</span>
+              </button>
+              
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleMarkAsCompleted(doc);
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-[var(--bg-hover)] transition-colors"
+              >
+                <FileCheck size={14} className="text-purple-500" />
+                <span>Mark as Completed</span>
+              </button>
+              
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteEstimate(doc.id);
+                  setActionMenuOpen(null);
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-red-400/10 text-red-400 transition-colors"
+              >
+                <Trash2 size={14} />
+                <span>Delete</span>
+              </button>
+            </div>
+          )}
+        </div>
+      ),
+    },
   ];
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Company Branding Header */}
-      <div className="glass-card p-4">
-        <CompanyHeader size="default" />
-      </div>
-
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="glass-card p-4">
@@ -535,6 +721,7 @@ const EstimatePage = () => {
                   <th className="text-left py-2 px-3 text-xs font-medium text-[var(--text-muted)]">Project</th>
                   <th className="text-right py-2 px-3 text-xs font-medium text-[var(--text-muted)]">Total</th>
                   <th className="text-left py-2 px-3 text-xs font-medium text-[var(--text-muted)]">Status</th>
+                  <th className="text-right py-2 px-3 text-xs font-medium text-[var(--text-muted)]">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -558,6 +745,68 @@ const EstimatePage = () => {
                       >
                         {ESTIMATE_STATUS[estimate.status]?.label || estimate.status}
                       </span>
+                    </td>
+                    <td className="py-2 px-3 text-right">
+                      <div className="relative inline-block">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActionMenuOpen(actionMenuOpen === estimate.id ? null : estimate.id);
+                          }}
+                          className="p-1 rounded-lg hover:bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                        >
+                          <MoreVertical size={14} />
+                        </button>
+                        
+                        {actionMenuOpen === estimate.id && (
+                          <div className="absolute right-0 mt-1 w-48 bg-[var(--bg-elevated)] border border-[var(--border-base)] rounded-lg shadow-lg z-[100] py-1 text-left">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleApproveAndCreateProject(estimate);
+                              }}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-[var(--bg-hover)] transition-colors"
+                            >
+                              <CheckCircle size={14} className="text-emerald-500" />
+                              <span>Approve & Create Project</span>
+                            </button>
+                            
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSendEmailAndComplete(estimate);
+                              }}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-[var(--bg-hover)] transition-colors"
+                            >
+                              <Mail size={14} className="text-blue-500" />
+                              <span>Send Email</span>
+                            </button>
+                            
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleMarkAsCompleted(estimate);
+                              }}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-[var(--bg-hover)] transition-colors"
+                            >
+                              <FileCheck size={14} className="text-purple-500" />
+                              <span>Mark as Completed</span>
+                            </button>
+                            
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteEstimate(estimate.id);
+                                setActionMenuOpen(null);
+                              }}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-red-400/10 text-red-400 transition-colors"
+                            >
+                              <Trash2 size={14} />
+                              <span>Delete</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -830,9 +1079,35 @@ const CreateEstimateForm = ({ initialData, estimates, onSubmit, onCancel }) => {
     }));
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onSubmit(formData);
+  const handleSubmit = async (e) => {
+    if (e && typeof e.preventDefault === 'function') {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    console.log('[CreateEstimateForm] handleSubmit triggered');
+    
+    // Validate required fields before proceeding
+    if (!formData.customerName || !formData.customerPhone || !formData.projectName || !formData.systemCapacity) {
+      toast.error('Please fill in all required fields');
+      console.log('[CreateEstimateForm] Validation failed: missing required fields');
+      return;
+    }
+
+    console.log('[CreateEstimateForm] Submitting form data:', formData);
+    
+    if (typeof onSubmit === 'function') {
+      try {
+        // We do NOT close the modal here. The parent's handleCreateEstimate will do it.
+        await onSubmit(formData);
+        console.log('[CreateEstimateForm] onSubmit call completed');
+      } catch (error) {
+        console.error('[CreateEstimateForm] onSubmit error:', error);
+        toast.error('Failed to save estimate');
+      }
+    } else {
+      console.error('[CreateEstimateForm] onSubmit prop is missing or not a function');
+    }
   };
 
   const sectionTabs = [
@@ -999,20 +1274,6 @@ const CreateEstimateForm = ({ initialData, estimates, onSubmit, onCancel }) => {
                     value={formData.systemCapacity}
                     onChange={(e) => setFormData({ ...formData, systemCapacity: parseFloat(e.target.value) || 0 })}
                     placeholder="e.g., 5"
-                  />
-                </FormField>
-                <FormField label="Project Type">
-                  <Select
-                    value={formData.projectType}
-                    onChange={(v) => setFormData({ ...formData, projectType: v })}
-                    options={projectTypeOptions.map(t => ({ value: t.value, label: t.label }))}
-                  />
-                </FormField>
-                <FormField label="Installation Type">
-                  <Select
-                    value={formData.installationType}
-                    onChange={(v) => setFormData({ ...formData, installationType: v })}
-                    options={installationTypeOptions}
                   />
                 </FormField>
                 <FormField label="Project Description" className="md:col-span-2">
@@ -1329,15 +1590,25 @@ const CreateEstimateForm = ({ initialData, estimates, onSubmit, onCancel }) => {
           {activeSection !== 'summary' ? (
             <Button
               type="button"
-              onClick={() => {
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 const currentIndex = sectionTabs.findIndex(s => s.key === activeSection);
-                setActiveSection(sectionTabs[currentIndex + 1].key);
+                if (currentIndex < sectionTabs.length - 1) {
+                  setActiveSection(sectionTabs[currentIndex + 1].key);
+                }
               }}
             >
               Next
             </Button>
           ) : (
-            <Button type="submit">
+            <Button 
+              type="button"
+              onClick={(e) => {
+                console.log('[CreateEstimateForm] Create button clicked');
+                handleSubmit(e);
+              }}
+            >
               {initialData ? 'Update Estimate' : 'Create Estimate'}
             </Button>
           )}
@@ -1510,11 +1781,12 @@ const EstimateDetail = ({ estimate, onEdit, onDelete, onDownload, onDownloadProp
       <div className="flex items-center gap-2 pt-4 border-t border-[var(--border-base)]">
         <button
           onClick={onSend}
-          disabled={estimate.status !== 'draft'}
-          className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-[var(--primary)] text-white text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex-1 flex items-center justify-center gap-2 px-4 h-[42px] rounded-lg bg-[var(--primary)] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
         >
-          <Send size={16} />
-          Send Estimate
+          <div className="flex items-center justify-center gap-2">
+            <Send size={16} strokeWidth={2.5} className="flex-shrink-0" />
+            <span className="leading-none" style={{ position: 'relative', top: '1px' }}>Send Estimate</span>
+          </div>
         </button>
         <button
           onClick={onDownloadProposal}

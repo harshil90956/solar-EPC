@@ -12,7 +12,9 @@ import {
     MapPin, Truck, ShoppingCart, Headphones, FileCheck, LayoutDashboard,
     Pencil, FolderOpen, UserCog, Eye, EyeOff, Layers,
     Home, Building2, Factory, RefreshCw, SunMedium, List,
+    Workflow,
 } from 'lucide-react';
+import { AutomationBuilder } from '../components/automation';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
 import { MODULE_DEFS, ROLE_DEFS, ACTION_DEFS } from '../config/features.config';
@@ -2206,6 +2208,12 @@ const CommissioningTasksPanel = () => {
     );
 };
 
+// ─── PANEL J: AUTOMATION BUILDER ─────────────────────────────────────────────
+const AutomationPanel = () => {
+    const { user, tenantId } = useAuth();
+    return <AutomationBuilder tenantId={tenantId} user={user} />;
+};
+
 // ─── MAIN SETTINGS PAGE ───────────────────────────────────────────────────────
 const TABS = [
     { id: 'modules', label: 'Modules', icon: Flag, panel: ModulesPanel },
@@ -2214,6 +2222,7 @@ const TABS = [
     { id: 'users', label: 'User Perms', icon: UserCog, panel: UserPermissionsPanel },
     { id: 'viewas', label: 'View As', icon: Eye, panel: ViewAsPanel },
     { id: 'flags', label: 'Feature Flags', icon: Zap, panel: FeatureFlagsPanel },
+    { id: 'automation', label: 'Automation', icon: Workflow, panel: AutomationPanel },
     { id: 'workflows', label: 'Workflows', icon: GitBranch, panel: WorkflowPanel },
     { id: 'audit', label: 'Audit Log', icon: ScrollText, panel: AuditPanel },
     { id: 'ai', label: 'AI Insights', icon: Cpu, panel: AISuggestionsPanel },
