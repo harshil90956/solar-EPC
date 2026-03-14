@@ -70,7 +70,7 @@ const PAGE_MAP = {
   'service-dashboard': { component: ServiceDashboardPage, title: 'Service & AMC Dashboard' },
   compliance: { component: CompliancePage, title: 'Compliance' },
   settings: { component: SettingsPage, title: 'Settings' },
-  'hrm-permissions': { component: HRMPermissionsPage, title: 'HRM Permissions' },
+  'hrm-permissions': { component: HrmPermissionsPage, title: 'HRM Permissions' },
   intelligence: { component: IntelligenceDashboardPage, title: 'AI Intelligence' },
 };
 
