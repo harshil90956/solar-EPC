@@ -1174,9 +1174,53 @@ const CRMPage = () => {
     setShowTrackerDrawer(true);
   };
 
-  const handleEditLead = (lead) => {
-    editingLeadOriginalRef.current = lead;
-    setEditingLead(lead);
+  const handleEditLead = async (lead) => {
+    try {
+      // Fetch fresh lead data to ensure we have latest status
+      const freshLead = await leadsApi.getById(lead._id || lead.id);
+      console.log('[EDIT] Raw API response:', freshLead);
+      
+      const leadData = freshLead?.data?.data || freshLead?.data || freshLead;
+      console.log('[EDIT] Extracted lead data:', leadData);
+      console.log('[EDIT] statusKey from API:', leadData?.statusKey);
+      console.log('[EDIT] status from API:', leadData?.status);
+      console.log('[EDIT] statusKey from table:', lead?.statusKey);
+      
+      // Use statusKey from API, or fallback to table data, or status field, or default to 'new'
+      // Handle null/undefined properly - API might return statusKey: null
+      const apiStatusKey = leadData?.statusKey;
+      const tableStatusKey = lead?.statusKey;
+      const apiStatus = leadData?.status;
+      const tableStatus = lead?.status;
+      
+      const finalStatusKey = apiStatusKey != null ? apiStatusKey : 
+                            (tableStatusKey != null ? tableStatusKey : 
+                             (apiStatus != null ? apiStatus : 
+                              (tableStatus != null ? tableStatus : 'new')));
+      console.log('[EDIT] Final statusKey:', finalStatusKey);
+      
+      // Merge fresh data with preserved statusKey
+      const normalizedLeadData = {
+        ...leadData,
+        statusKey: finalStatusKey,
+        status: finalStatusKey
+      };
+      
+      if (leadData) {
+        editingLeadOriginalRef.current = normalizedLeadData;
+        setEditingLead(normalizedLeadData);
+      } else {
+        // Fallback to passed lead if API fails
+        editingLeadOriginalRef.current = lead;
+        setEditingLead(lead);
+      }
+    } catch (err) {
+      console.error('[EDIT] Failed to fetch fresh lead data:', err);
+      // Fallback to passed lead
+      editingLeadOriginalRef.current = lead;
+      setEditingLead(lead);
+    }
+    // Open modal AFTER setting editingLead state
     setShowEditModal(true);
   };
 
@@ -1307,34 +1351,27 @@ const CRMPage = () => {
     }
   };
 
-  // Handle Flip action - Move lead to survey stage and create survey
+  // Handle Flip action - Move lead to survey stage (use existing stage from Lead Status Builder)
   const handleFlipToSurvey = async (lead) => {
-    if (!window.confirm(`Flip lead "${lead.name}" to Site Survey Scheduled? This will create a pending survey.`)) return;
     try {
       setActionLoading(true);
 
-      // Update lead stage to 'survey'
-      await leadsApi.updateStage(lead._id || lead.id, 'survey');
-
-      // Create a pending survey for this lead
-      const surveyData = {
-        customerName: lead.name,
-        engineer: lead.assignedTo || 'Unassigned',
-        site: lead.company || lead.city || 'TBD',
-        scheduledDate: lead.nextFollowUp || new Date().toISOString().split('T')[0],
-        estimatedKw: parseInt(lead.kw?.replace('kW', '')) || 0,
-        status: 'pending',
-        sourceLeadId: lead._id || lead.id,
-        notes: `Flipped from CRM. Source: ${lead.source}, City: ${lead.city}, Phone: ${lead.phone}`
-      };
-
-      await surveysApi.create(surveyData);
+      // Update lead stage to 'survey' (this uses the existing 'survey' status from Lead Status Builder)
+      console.log('[FLIP] Calling updateStage for lead:', lead._id, 'with stage: survey');
+      const updateResult = await leadsApi.updateStage(lead._id || lead.id, 'survey');
+      console.log('[FLIP] updateStage response:', updateResult);
 
       logUpdate({ ...lead, stage: 'survey' });
-      fetchLeads(); // Refresh list
-      toast.success(`Lead "${lead.name}" flipped to Site Survey Scheduled`);
+      
+      // Wait and fetch fresh data
+      console.log('[FLIP] Fetching leads after flip...');
+      await fetchLeads();
+      console.log('[FLIP] Leads refreshed, activeLeads:', activeLeads);
+      
+      toast.success(`Lead "${lead.name}" flipped to Site Survey`);
     } catch (err) {
-      console.error('Failed to flip lead:', err);
+      console.error('[FLIP] Failed to flip lead:', err);
+      console.error('[FLIP] Error response:', err?.response?.data);
       toast.error('Failed to flip lead: ' + (err.message || 'Unknown error'));
     } finally {
       setActionLoading(false);
@@ -1724,7 +1761,6 @@ const CRMPage = () => {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  // State for new activity input
   const [newActivityNote, setNewActivityNote] = useState('');
   const [activityLeadId, setActivityLeadId] = useState(null);
   const handleCallLead = (lead) => {
@@ -2171,21 +2207,18 @@ const CRMPage = () => {
   return (
     <div className="animate-fade-in space-y-5">
       {/* ── Header ── */}
-      <div className="flex items-center justify-between">
-        <PageHeader
-          title="CRM Module"
-          subtitle="Rulebook Compliant Lead Management"
-          tabs={[
-            ...(crmFeatures.analytics ? [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }] : []),
-            { id: 'leads', label: 'Leads', icon: List },
-            ...(crmFeatures.kanban ? [{ id: 'kanban', label: 'Kanban', icon: LayoutDashboard }] : []),
-            { id: 'customers', label: 'Customers', icon: Users },
-          ]}
-          activeTab={view}
-          onTabChange={setView}
-        />
-
-      </div>
+      <PageHeader
+        title="CRM Module"
+        subtitle="Rulebook Compliant Lead Management"
+        tabs={[
+          ...(crmFeatures.analytics ? [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }] : []),
+          { id: 'leads', label: 'Leads', icon: List },
+          ...(crmFeatures.kanban ? [{ id: 'kanban', label: 'Kanban', icon: LayoutDashboard }] : []),
+          { id: 'customers', label: 'Customers', icon: Users },
+        ]}
+        activeTab={view}
+        onTabChange={setView}
+      />
 
       {/* ── Date Filters ── */}
       {view === 'dashboard' && crmFeatures.analytics && (
@@ -2439,12 +2472,25 @@ const CRMPage = () => {
 
           <div className="overflow-x-auto pb-3">
             <div className="flex gap-4 min-w-max">
-              {(statusOptions || []).map((stage) => {
-                // Filter leads that match this stage's key - handle both statusKey and status fields
-                // Use case-insensitive comparison to handle status value mismatches
+              {(statusOptions || []).map((stage, stageIndex) => {
+                // Filter leads that match this stage's key
+                // Also match survey-related keys to the same column
+                const stageKeyLower = stage.key.toLowerCase();
+                const isSurveyStage = stageKeyLower === 'survey' || stageKeyLower === 'site-survey' || stageKeyLower === 'site_survey' || stageKeyLower.includes('survey');
+                
                 const stageLeads = enhancedLeads.filter(lead => {
                   const leadStatus = normalizeStageKey(lead);
-                  return leadStatus === stage.key.toLowerCase();
+                  
+                  // Direct match
+                  if (leadStatus === stageKeyLower) return true;
+                  
+                  // Survey-related keys should match each other
+                  if (isSurveyStage) {
+                    const isLeadSurvey = leadStatus === 'survey' || leadStatus === 'site-survey' || leadStatus === 'site_survey' || leadStatus.includes('survey');
+                    if (isLeadSurvey) return true;
+                  }
+                  
+                  return false;
                 });
                 const totalValue = stageLeads.reduce((sum, lead) => sum + (lead.value || 0), 0);
                 const stageLeadIds = stageLeads.map(l => getLeadId(l));
@@ -2491,9 +2537,9 @@ const CRMPage = () => {
                         })
                       );
 
-                      const apiStage = String(targetStageKey).toUpperCase();
+                      // Send lowercase stage key to match backend normalization
                       leadsApi
-                        .update(leadId, { stage: apiStage })
+                        .update(leadId, { statusKey: targetStageKey.toLowerCase() })
                         .then(() => {
                           logUpdate({ id: leadId, statusKey: targetStageKey });
                           dragRef.current = null;
@@ -2990,7 +3036,6 @@ const CRMPage = () => {
               { label: 'Lead Tracker', icon: Target, onClick: handleViewTracker },
               ...(can('crm', 'edit') ? [{ label: 'Edit', icon: Edit2, onClick: handleEditLead }] : []),
               ...(can('crm', 'assign') ? [{ label: 'Assign Lead', icon: UserCheck, onClick: (lead) => handleOpenAssignModal([lead._id || lead.id]) }] : []),
-              { label: 'Flip to Survey', icon: Zap, onClick: handleFlipToSurvey },
               { label: 'Score', icon: Brain, onClick: handleRecalculateScore },
               ...(can('crm', 'delete') ? [{ label: 'Delete', icon: Trash2, onClick: handleDeleteLead, danger: true }] : []),
               { label: 'Activity Log', icon: Activity, onClick: handleViewActivity },
@@ -3270,7 +3315,7 @@ const CRMPage = () => {
             <div className="grid grid-cols-2 gap-3">
               <FormField label="Stage">
                 <Select
-                  value={editingLead.statusKey || editingLead.status || editingLead.stage || 'new'}
+                  value={editingLead?.statusKey || editingLead?.status || 'new'}
                   onChange={(e) => setEditingLead({ ...editingLead, statusKey: e.target.value, status: e.target.value })}
                 >
                   {(statusOptions || []).map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
@@ -3424,6 +3469,7 @@ const CRMPage = () => {
             {/* Lead Tracker Content */}
             <div className="flex-1 overflow-y-auto p-4">
               <LeadTracker
+                key={trackerLeadId}
                 leadId={trackerLeadId}
                 statusOptions={statusOptions}
                 onStageChange={fetchLeads}
