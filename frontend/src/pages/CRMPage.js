@@ -2497,7 +2497,7 @@ const CRMPage = ({ onNavigate }) => {
 
                 return (
                   <div key={stage.key}
-                    className={`flex flex-col w-64 rounded-[14px] border border-[#F1F5F9] bg-[#F8FAFC] p-2.5 transition-colors h-[530px]`}
+                    className={`flex flex-col w-64 rounded-[14px] border border-[#F1F5F9] bg-[#F8FAFC] p-2.5 transition-colors h-[700px]`}
                     onDragOver={e => { e.preventDefault(); }}
                     onDragEnter={() => {
                       if (!dragRef.current) return;
@@ -2566,7 +2566,7 @@ const CRMPage = ({ onNavigate }) => {
                       </div>
                     </div>
                     <div
-                      className="flex flex-col gap-2.5 h-[430px] overflow-y-auto"
+                      className="flex flex-col gap-2.5 flex-1 min-h-0 overflow-y-auto"
                       onDragOver={(e) => {
                         e.preventDefault();
                         if (!dragRef.current) return;
