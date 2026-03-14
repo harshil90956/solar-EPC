@@ -36,7 +36,7 @@ import AttendancePage from './pages/AttendancePage';
 import AttendancePageV3 from './pages/AttendancePageV3';
 import IntelligenceDashboardPage from './pages/IntelligenceDashboardPage';
 import RemindersPage from './pages/RemindersPage';
-import HRMPermissionsPage from './pages/HRMPermissionsPage';
+import HrmPermissionsPage from './pages/HrmPermissionsPage';
 import NotificationSystem from './components/NotificationSystem';
 
 // ── Page Map ──────────────────────────────────────────────────────────────────
@@ -68,7 +68,7 @@ const PAGE_MAP = {
   'service-dashboard': { component: ServiceDashboardPage, title: 'Service & AMC Dashboard' },
   compliance: { component: CompliancePage, title: 'Compliance' },
   settings: { component: SettingsPage, title: 'Settings' },
-  'hrm-permissions': { component: HRMPermissionsPage, title: 'HRM Permissions' },
+  'hrm-permissions': { component: HrmPermissionsPage, title: 'HRM Permissions' },
   intelligence: { component: IntelligenceDashboardPage, title: 'AI Intelligence' },
 };
 
