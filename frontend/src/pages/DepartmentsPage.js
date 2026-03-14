@@ -9,6 +9,7 @@ import { toast } from '../components/ui/Toast';
 import { Search, RefreshCw, Plus, Building, X, Users, User, Calendar, Shield } from 'lucide-react';
 import { format } from 'date-fns';
 import { departmentApi, employeeApi } from '../services/hrmApi';
+import { usePermissions } from '../hooks/usePermissions';
 
 // ── Department Detail View Modal ──────────────────────────────────────────
 const DepartmentViewModal = ({ department, employees, onClose, onEdit }) => {
@@ -112,6 +113,17 @@ const DepartmentsPage = () => {
     code: '',
     description: '',
   });
+
+  // Get permissions for departments module
+  const { 
+    canView, 
+    canCreate, 
+    canEdit, 
+    canDelete, 
+    canExport, 
+    canAssign,
+    columns 
+  } = usePermissions('departments');
 
   // Functions defined before useEffect
   const fetchEmployees = async () => {
@@ -281,8 +293,9 @@ const DepartmentsPage = () => {
     },
   ];
 
-  const columns = [
-    {
+  // Build columns dynamically based on permissions
+  const tableColumns = [
+    columns.departmentName && {
       key: 'name',
       header: 'Department Name',
       render: (val) => (
@@ -291,7 +304,7 @@ const DepartmentsPage = () => {
         </div>
       ),
     },
-    {
+    columns.code && {
       key: 'code',
       header: 'Code',
       render: (val) => (
@@ -300,7 +313,7 @@ const DepartmentsPage = () => {
         </span>
       ),
     },
-    {
+    columns.employees && {
       key: 'employeeCount',
       header: 'Employees',
       render: (_, row) => {
@@ -308,7 +321,7 @@ const DepartmentsPage = () => {
         return <span className="font-medium">{count}</span>;
       },
     },
-    {
+    columns.description && {
       key: 'description',
       header: 'Description',
       render: (val) => (
@@ -317,7 +330,7 @@ const DepartmentsPage = () => {
         </div>
       ),
     },
-    {
+    columns.status && {
       key: 'isActive',
       header: 'Status',
       render: (val) => (
@@ -327,50 +340,54 @@ const DepartmentsPage = () => {
         </span>
       ),
     },
-    {
+    columns.created && {
       key: 'createdAt',
       header: 'Created',
       render: (val) => format(new Date(val), 'dd MMM yyyy'),
     },
-    {
+    columns.actions && (canEdit() || canDelete()) && {
       key: 'actions',
       header: 'Actions',
       render: (_, row) => (
         <div className="flex gap-1">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setEditingDepartment(row);
-              setDepartmentForm({
-                name: row.name,
-                code: row.code || '',
-                description: row.description || '',
-              });
-              setShowDepartmentModal(true);
-            }}
-          >
-            Edit
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => handleDeleteDepartment(row._id)}
-            className="text-red-600 border-red-600/30 hover:bg-red-600/10"
-          >
-            Delete
-          </Button>
+          {canEdit() && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setEditingDepartment(row);
+                setDepartmentForm({
+                  name: row.name,
+                  code: row.code || '',
+                  description: row.description || '',
+                });
+                setShowDepartmentModal(true);
+              }}
+            >
+              Edit
+            </Button>
+          )}
+          {canDelete() && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleDeleteDepartment(row._id)}
+              className="text-red-600 border-red-600/30 hover:bg-red-600/10"
+            >
+              Delete
+            </Button>
+          )}
         </div>
       ),
     },
-  ];
+  ].filter(Boolean);
 
   return (
     <div className="animate-fade-in space-y-5">
       <PageHeader
         title="Departments"
         subtitle="Manage organizational departments and teams"
-        actions={[
+        actions={canCreate() ? [
           {
             type: 'button',
             label: 'Add Department',
@@ -386,7 +403,7 @@ const DepartmentsPage = () => {
               setShowDepartmentModal(true);
             },
           },
-        ]}
+        ] : []}
       />
 
       {/* KPI Cards */}
@@ -424,7 +441,7 @@ const DepartmentsPage = () => {
 
       {/* Departments Table */}
       <DataTable
-        columns={columns}
+        columns={tableColumns}
         data={filteredDepartments}
         emptyText={
           kpiFilter === 'active' ? 'No active departments found.' :
@@ -439,11 +456,11 @@ const DepartmentsPage = () => {
               department={dept} 
               employees={employees} 
               onClose={() => setViewDepartment(null)} 
-              onEdit={(d) => { 
+              onEdit={canEdit() ? (d) => { 
                 setEditingDepartment(d);
                 setDepartmentForm({ name: d.name, code: d.code || '', description: d.description || '' }); 
                 setShowDepartmentModal(true); 
-              }} 
+              } : null} 
               inline 
             />
           </div>

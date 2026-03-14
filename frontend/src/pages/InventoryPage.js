@@ -14,7 +14,7 @@ import { Progress } from '../components/ui/Progress';
 import DataTable from '../components/ui/DataTable';
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
 import apiClient, { api } from '../lib/apiClient';
-import { usePermissions, useModulePermissions } from '../hooks/usePermissions';
+import { usePermissions } from '../hooks/usePermissions';
 import CompactCalendarFilter from '../components/ui/CompactCalendarFilter';
 
 const fmt = CURRENCY.format;
@@ -261,7 +261,13 @@ const InvKanbanBoard = ({ items, onCardClick, onDrop }) => {
 
 /* ── Main Page ── */
 const InventoryPage = () => {
-  const { canView, canCreate, canEdit, canDelete, canExport, canAssign } = useModulePermissions('inventory');
+  const perm = usePermissions('inventory');
+  const canView = perm.canView();
+  const canCreate = perm.canCreate();
+  const canEdit = perm.canEdit();
+  const canDelete = perm.canDelete();
+  const canExport = perm.canExport();
+  const canAssign = perm.canAssign();
   const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'inventory', 'warehouse', 'items', 'category', 'unit'
   const [view, setView] = useState('kanban');
   const [search, setSearch] = useState('');

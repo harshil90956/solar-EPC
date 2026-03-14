@@ -43,6 +43,9 @@ export class Attendance {
   @Prop({ enum: AttendanceType, default: AttendanceType.OFFICE })
   type!: AttendanceType;
 
+  @Prop({ type: String, default: '' })
+  workMode?: string;
+
   @Prop({ default: '' })
   notes!: string;
 

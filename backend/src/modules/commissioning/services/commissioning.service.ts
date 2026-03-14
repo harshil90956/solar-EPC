@@ -148,10 +148,14 @@ export class CommissioningService {
       
       // Only apply filter if we have a valid userId
       if (userIdObj) {
-        // User should see Commissionings where they are assigned OR where they are the technician
+        // User should see Commissionings where:
+        // 1. They are assigned (assignedTo)
+        // 2. They are the technician (technicianId)
+        // 3. They created the record (createdBy) - CREATOR ACCESS
         query.$or = [
           { assignedTo: userIdObj },
-          { technicianId: userIdObj }
+          { technicianId: userIdObj },
+          { createdBy: userIdObj }
         ];
       }
     }
@@ -240,18 +244,24 @@ export class CommissioningService {
       // Use raw document values since populate may return null for missing refs
       const rawAssignedTo = rawDoc?.assignedTo;
       const rawTechnicianId = rawDoc?.technicianId;
+      const rawCreatedBy = rawDoc?.createdBy;
       
       // Extract IDs from raw document
       const assignedId = rawAssignedTo?._id?.toString() || rawAssignedTo?.toString();
       const techId = rawTechnicianId?._id?.toString() || rawTechnicianId?.toString();
+      const creatorId = rawCreatedBy?._id?.toString() || rawCreatedBy?.toString();
       
-      // User can access if they are assigned OR if they are the technician
+      // User can access if:
+      // 1. They are assigned (assignedTo)
+      // 2. They are the technician (technicianId)
+      // 3. They created the record (createdBy) - CREATOR ACCESS
       const isAssigned = assignedId === userId;
       const isTechnician = techId === userId;
+      const isCreator = creatorId === userId;
       
-      console.log('[DATA_SCOPE_CHECK]', { userId, assignedId, techId, isAssigned, isTechnician, rawAssignedTo, rawTechnicianId });
+      console.log('[DATA_SCOPE_CHECK]', { userId, assignedId, techId, creatorId, isAssigned, isTechnician, isCreator });
       
-      if (!isAssigned && !isTechnician) {
+      if (!isAssigned && !isTechnician && !isCreator) {
         throw new ForbiddenException('You do not have access to this Commissioning');
       }
     }
@@ -322,6 +332,8 @@ export class CommissioningService {
       assignedTo: createDto.assignedTo ? this.toObjectId(createDto.assignedTo) : userId,
       // If projectId is a valid mongo ID, convert it, otherwise keep as string (formatted PXXXX)
       projectId: createDto.projectId ? (Types.ObjectId.isValid(createDto.projectId) ? this.toObjectId(createDto.projectId) : createDto.projectId) : undefined,
+      // projectIdString is required by schema - use provided value or convert from projectId
+      projectIdString: createDto.projectIdString || (createDto.projectId ? String(createDto.projectId) : ''),
       dispatchId: createDto.dispatchId ? (Types.ObjectId.isValid(createDto.dispatchId) ? this.toObjectId(createDto.dispatchId) : createDto.dispatchId) : undefined,
       technicianId: this.toObjectId(createDto.technicianId),
       supervisorId: createDto.supervisorId ? this.toObjectId(createDto.supervisorId) : undefined,
@@ -888,6 +900,56 @@ export class CommissioningService {
   }
 
   /**
+   * Assign Commissioning to a user
+   * Updates assignedTo and tracks who made the assignment (assignedBy)
+   */
+  async assignCommissioning(
+    id: string,
+    assignedTo: string,
+    userContext: UserContext,
+  ): Promise<Commissioning> {
+    const tenantId = this.toObjectId(userContext.tenantId);
+    const assignedById = this.toObjectId(userContext.userId || userContext.id || '');
+    const assignedToId = this.toObjectId(assignedTo);
+
+    if (!assignedToId) {
+      throw new BadRequestException('Invalid assignedTo user ID');
+    }
+
+    // Verify the Commissioning exists and user has access
+    await this.getCommissioningById(id, userContext);
+
+    // Build query with tenant filter
+    const updateQuery: any = { _id: this.toObjectId(id), isDeleted: false };
+    if (tenantId) updateQuery.tenantId = tenantId;
+
+    // Update both assignedTo and assignedBy
+    const updated = await this.CommissioningModel.findOneAndUpdate(
+      updateQuery,
+      {
+        $set: {
+          assignedTo: assignedToId,
+          assignedBy: assignedById,
+          updatedAt: new Date(),
+        },
+      },
+      { new: true },
+    ).populate('assignedTo', 'firstName lastName email');
+
+    if (!updated) {
+      throw new NotFoundException(`Commissioning with ID ${id} not found`);
+    }
+
+    // Log assignment event
+    await this.logEvent(id, 'assigned', assignedById || undefined, {
+      assignedTo: assignedToId.toString(),
+      assignedBy: assignedById?.toString(),
+    });
+
+    return updated;
+  }
+
+  /**
    * Get Commissioning statistics for dashboard
    */
   async getStatistics(userContext: UserContext): Promise<{
@@ -905,8 +967,22 @@ export class CommissioningService {
       query.tenantId = tenantId;
     }
     
+    // Apply visibility filtering for ASSIGNED dataScope
     if (userContext.dataScope === 'ASSIGNED') {
-      query.assignedTo = userContext.userId;
+      const rawUserId = userContext.userId || userContext.id;
+      const userIdObj = this.toObjectId(rawUserId);
+      
+      if (userIdObj) {
+        // User should see statistics for Commissionings where:
+        // 1. They are assigned (assignedTo)
+        // 2. They are the technician (technicianId)
+        // 3. They created the record (createdBy) - CREATOR ACCESS
+        query.$or = [
+          { assignedTo: userIdObj },
+          { technicianId: userIdObj },
+          { createdBy: userIdObj }
+        ];
+      }
     }
 
     const [
@@ -964,6 +1040,25 @@ export class CommissioningService {
     const tenantId = this.toObjectId(userContext.tenantId);
     const query: any = { isDeleted: false };
     if (tenantId) query.tenantId = tenantId;
+    
+    // Apply visibility filtering for ASSIGNED dataScope
+    if (userContext.dataScope === 'ASSIGNED') {
+      const rawUserId = userContext.userId || userContext.id;
+      const userIdObj = this.toObjectId(rawUserId);
+      
+      if (userIdObj) {
+        // User should see calendar events for Commissionings where:
+        // 1. They are assigned (assignedTo)
+        // 2. They are the technician (technicianId)
+        // 3. They created the record (createdBy) - CREATOR ACCESS
+        query.$or = [
+          { assignedTo: userIdObj },
+          { technicianId: userIdObj },
+          { createdBy: userIdObj }
+        ];
+      }
+    }
+    
     if (filters.technicianId) query.technicianId = this.toObjectId(filters.technicianId);
     if (filters.projectId) query.projectId = this.toObjectId(filters.projectId);
     if (filters.status) query.status = filters.status;
@@ -1030,7 +1125,7 @@ export class CommissioningService {
   }
 
   /**
-   * Check if user is assigned as technician for this Commissioning
+   * Check if user has access to this Commissioning (as technician, assigned user, or creator)
    */
   async isAssignedTechnician(id: string, userId: string): Promise<boolean> {
     const Commissioning = await this.CommissioningModel.findById(id).exec();
@@ -1038,7 +1133,12 @@ export class CommissioningService {
     
     const techId = Commissioning.technicianId?.toString();
     const assignedId = Commissioning.assignedTo?.toString();
+    const creatorId = Commissioning.createdBy?.toString();
     
-    return techId === userId || assignedId === userId;
+    // User has access if they are:
+    // 1. The technician
+    // 2. The assigned user
+    // 3. The creator of the record
+    return techId === userId || assignedId === userId || creatorId === userId;
   }
 }

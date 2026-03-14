@@ -10,6 +10,7 @@ import { toast } from '../components/ui/Toast';
 import { Calendar, Plus, Search, RefreshCw, Check, X, Trash2, Edit, Clock, CheckCircle, XCircle, User, FileText, Tag } from 'lucide-react';
 import { format } from 'date-fns';
 import { leaveApi, employeeApi } from '../services/hrmApi';
+import { usePermissions } from '../hooks/usePermissions';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -138,6 +139,17 @@ const LeaveKpiModal = ({ title, leaves, onClose, onViewLeave }) => (
 
 const LeavesPage = () => {
   const { user } = useAuth();
+  
+  // Get permissions for leaves module
+  const { 
+    canView, 
+    canCreate, 
+    canEdit, 
+    canDelete, 
+    canApprove,
+    columns 
+  } = usePermissions('leaves');
+  
   const [mounted, setMounted] = useState(false);
   const [employees, setEmployees] = useState([]);
   const [leaves, setLeaves] = useState([]);
@@ -324,8 +336,9 @@ const LeavesPage = () => {
     },
   ];
 
-  const columns = [
-    {
+  // Build columns dynamically based on permissions
+  const tableColumns = [
+    columns.employee && {
       key: 'employeeId',
       header: 'Employee',
       render: (val) => (
@@ -335,7 +348,7 @@ const LeavesPage = () => {
         </div>
       ),
     },
-    {
+    columns.leaveType && {
       key: 'leaveType',
       header: 'Leave Type',
       render: (val) => (
@@ -344,17 +357,17 @@ const LeavesPage = () => {
         </span>
       ),
     },
-    {
+    columns.startDate && {
       key: 'startDate',
       header: 'Start Date',
       render: (val) => format(new Date(val), 'dd MMM yyyy'),
     },
-    {
+    columns.endDate && {
       key: 'endDate',
       header: 'End Date',
       render: (val) => format(new Date(val), 'dd MMM yyyy'),
     },
-    {
+    columns.days && {
       key: 'days',
       header: 'Days',
       render: (_, row) => {
@@ -364,7 +377,7 @@ const LeavesPage = () => {
         return <span className="font-medium">{days}</span>;
       },
     },
-    {
+    columns.status && {
       key: 'status',
       header: 'Status',
       render: (val) => {
@@ -380,12 +393,12 @@ const LeavesPage = () => {
         );
       },
     },
-    {
+    columns.actions && (canEdit() || canDelete() || canApprove()) && {
       key: 'actions',
       header: 'Actions',
-      render: (_, row) => {
-        return (
-          <div className="flex items-center gap-1">
+      render: (_, row) => (
+        <div className="flex items-center gap-1">
+          {canEdit() && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -404,6 +417,8 @@ const LeavesPage = () => {
             >
               <Edit size={16} />
             </button>
+          )}
+          {canDelete() && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -414,35 +429,35 @@ const LeavesPage = () => {
             >
               <Trash2 size={16} />
             </button>
-            {row.status === 'pending' && (
-              <>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleApproveLeave(row._id);
-                  }}
-                  className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
-                  title="Approve"
-                >
-                  <Check size={16} />
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleRejectLeave(row._id);
-                  }}
-                  className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
-                  title="Reject"
-                >
-                  <X size={16} />
-                </button>
-              </>
-            )}
-          </div>
-        );
-      },
+          )}
+          {row.status === 'pending' && canApprove() && (
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleApproveLeave(row._id);
+                }}
+                className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
+                title="Approve"
+              >
+                <Check size={16} />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRejectLeave(row._id);
+                }}
+                className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                title="Reject"
+              >
+                <X size={16} />
+              </button>
+            </>
+          )}
+        </div>
+      ),
     },
-  ];
+  ].filter(Boolean);
 
   return (
     <div className="animate-fade-in space-y-5">
@@ -460,22 +475,24 @@ const LeavesPage = () => {
           >
             <Calendar size={16} className="mr-1.5" /> View Calendar
           </Button>
-          <Button
-            variant="primary"
-            onClick={() => {
-              setEditingLeave(null);
-              setLeaveForm({
-                employeeId: '',
-                leaveType: 'paid',
-                startDate: '',
-                endDate: '',
-                reason: '',
-              });
-              setShowLeaveModal(true);
-            }}
-          >
-            <Plus size={16} className="mr-1.5" /> Apply Leave
-          </Button>
+          {canCreate() && (
+            <Button
+              variant="primary"
+              onClick={() => {
+                setEditingLeave(null);
+                setLeaveForm({
+                  employeeId: '',
+                  leaveType: 'paid',
+                  startDate: '',
+                  endDate: '',
+                  reason: '',
+                });
+                setShowLeaveModal(true);
+              }}
+            >
+              <Plus size={16} className="mr-1.5" /> Apply Leave
+            </Button>
+          )}
         </div>
       </div>
 
@@ -860,24 +877,27 @@ const LeavesPage = () => {
           <option value="approved">Approved</option>
           <option value="rejected">Rejected</option>
         </Select>
-        <p className="text-sm text-[var(--text-muted)]">
-          {filteredLeaves.length} of {leaves.length} records
-        </p>
         <Button variant="outline" onClick={fetchLeaves} className="ml-auto">
-          <RefreshCw size={14} /> Refresh
+          <RefreshCw size={16} className="mr-1.5" /> Refresh
         </Button>
       </div>
 
-      {/* Leaves Table */}
+      {/* Data Table */}
       <DataTable
-        columns={columns}
+        columns={tableColumns}
         data={filteredLeaves}
-        emptyText={kpiFilter ? `No ${kpiFilter.replace('_', ' ')} leaves found.` : "No leave records found."}
+        emptyText={kpiFilter ? `No ${kpiFilter} leaves found.` : "No leaves found."}
         loading={loading}
         expandedRowKey={viewLeave?._id}
         renderExpanded={(leave) => (
-          <div className="p-4 border-t border-[var(--border-muted)] bg-gradient-to-b from-white to-[var(--bg-elevated)]">
-            <LeaveViewModal leave={leave} onClose={() => setViewLeave(null)} onApprove={handleApproveLeave} onReject={handleRejectLeave} inline />
+          <div className="p-4 border-t border-[var(--border-muted)]">
+            <LeaveViewModal 
+              leave={leave} 
+              onClose={() => setViewLeave(null)} 
+              onApprove={canApprove() ? handleApproveLeave : null}
+              onReject={canApprove() ? handleRejectLeave : null}
+              inline 
+            />
           </div>
         )}
       />

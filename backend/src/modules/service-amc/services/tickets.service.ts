@@ -236,11 +236,9 @@ export class TicketsService {
 
 
 
-    // Send email notification to customer if email is available
+    // Email sending disabled for ticket creation - only schedule visits should send emails
 
-
-
-    await this.sendTicketCreatedEmail(saved, tenantId);
+    // await this.sendTicketCreatedEmail(saved, tenantId);
 
 
 
@@ -808,29 +806,21 @@ Solar EPC Team
 
 
 
-    // Format dates for frontend
-
-
+    // Format dates for frontend and extract assigned user name
 
     const formattedData = data.map((ticket: any) => ({
 
-
-
       ...ticket,
-
-
 
       id: ticket.ticketId,
 
-
+      assignedTo: ticket.assignedTo?.email 
+        ? ticket.assignedTo.email.split('@')[0].replace(/\./g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
+        : (ticket.assignedTo?.toString() || ''),
 
       created: ticket.created ? new Date(ticket.created).toISOString().split('T')[0] : '',
 
-
-
       resolved: ticket.resolved ? new Date(ticket.resolved).toISOString().split('T')[0] : null,
-
-
 
     }));
 

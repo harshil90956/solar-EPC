@@ -13,9 +13,31 @@ export class DepartmentController {
     private readonly hrmPermissionService: HrmPermissionService,
   ) {}
 
+  private async checkPermission(req: any, permission: string) {
+    const user = req.user;
+    if (!user) throw new ForbiddenException('User not authenticated');
+    
+    // Super admin bypass
+    if (user.role === 'Super Admin' || user.role === 'Admin') return true;
+    
+    // Check user permissions from JWT
+    if (user.permissions && Array.isArray(user.permissions)) {
+      if (user.permissions.includes(permission)) return true;
+    }
+    
+    const roleId = user.roleId || user.role;
+    if (!roleId) throw new ForbiddenException('User has no role assigned');
+    
+    const hasPermission = await this.hrmPermissionService.checkPermission(roleId, permission);
+    if (!hasPermission) {
+      throw new ForbiddenException(`Permission denied: ${permission} required`);
+    }
+  }
+
   @Post()
   @HttpCode(HttpStatus.CREATED)
   async create(@Body() createDto: CreateDepartmentDto, @Req() req: any) {
+    await this.checkPermission(req, 'departments.create');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'] || req.query.tenantId;
     const roleId = req.user?.roleId || req.user?.role;
     await this.hrmPermissionService.validateAction(roleId, 'departments.manage', tenantId);
@@ -26,6 +48,7 @@ export class DepartmentController {
 
   @Get()
   async findAll(@Req() req: any) {
+    await this.checkPermission(req, 'departments.view');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'] || req.query.tenantId;
     const roleId = req.user?.roleId || req.user?.role;
     await this.hrmPermissionService.validateAction(roleId, 'departments.view', tenantId);
@@ -36,6 +59,7 @@ export class DepartmentController {
 
   @Get(':id')
   async findOne(@Param('id') id: string, @Req() req: any) {
+    await this.checkPermission(req, 'departments.view');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'] || req.query.tenantId;
     const roleId = req.user?.roleId || req.user?.role;
     await this.hrmPermissionService.validateAction(roleId, 'departments.view', tenantId);
@@ -46,6 +70,7 @@ export class DepartmentController {
 
   @Patch(':id')
   async update(@Param('id') id: string, @Body() updateDto: UpdateDepartmentDto, @Req() req: any) {
+    await this.checkPermission(req, 'departments.edit');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'] || req.query.tenantId;
     const roleId = req.user?.roleId || req.user?.role;
     await this.hrmPermissionService.validateAction(roleId, 'departments.manage', tenantId);
@@ -57,6 +82,7 @@ export class DepartmentController {
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   async delete(@Param('id') id: string, @Req() req: any) {
+    await this.checkPermission(req, 'departments.delete');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'] || req.query.tenantId;
     const roleId = req.user?.roleId || req.user?.role;
     await this.hrmPermissionService.validateAction(roleId, 'departments.manage', tenantId);

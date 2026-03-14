@@ -192,7 +192,19 @@ export function canAccessRecord(
     tenantId?: Types.ObjectId | string | null;
   }
 ): boolean {
-  // NOTE: All users must follow strict visibility rules - no role bypasses
+  // Users with dataScope ALL (Admins) can access all records in their tenant
+  const roleLower = (user?.role || '').toLowerCase();
+  const isAdminLike = user?.isSuperAdmin 
+    || roleLower === 'admin'
+    || roleLower === 'superadmin'
+    || roleLower === 'super-admin'
+    || roleLower === 'super_admin';
+  
+  if (user?.dataScope === 'ALL' || isAdminLike) {
+    return true;
+  }
+
+  // For ASSIGNED users - strict visibility
   // Everyone can only access records they created OR records assigned to them
 
   const userId = user._id?.toString() || user.id;
@@ -204,7 +216,5 @@ export function canAccessRecord(
   const recordAssignedTo = record.assignedTo?.toString();
   const recordCreatedBy = record.createdBy?.toString();
 
-  // Strict visibility for ALL users - no role bypasses
-  // Everyone can only access records they created OR records assigned to them
   return recordAssignedTo === userId || recordCreatedBy === userId;
 }

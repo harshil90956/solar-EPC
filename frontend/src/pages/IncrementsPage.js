@@ -9,6 +9,7 @@ import { toast } from '../components/ui/Toast';
 import { Search, RefreshCw, Plus, TrendingUp, X, ArrowUp, Calendar, User } from 'lucide-react';
 import { format } from 'date-fns';
 import { incrementApi, employeeApi } from '../services/hrmApi';
+import { usePermissions } from '../hooks/usePermissions';
 
 // ── Increment Detail View Modal ───────────────────────────────────────────
 const IncrementViewModal = ({ increment, onClose }) => {
@@ -70,6 +71,16 @@ const IncrementViewModal = ({ increment, onClose }) => {
 
 const IncrementsPage = () => {
   const [mounted, setMounted] = useState(false);
+  
+  // Get permissions for increments module
+  const { 
+    canView, 
+    canCreate, 
+    canEdit, 
+    canDelete, 
+    columns 
+  } = usePermissions('increments');
+  
   const [employees, setEmployees] = useState([]);
   const [increments, setIncrements] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -233,8 +244,9 @@ const IncrementsPage = () => {
     },
   ];
 
-  const columns = [
-    {
+  // Build columns dynamically based on permissions
+  const tableColumns = [
+    columns.employee && {
       key: 'employeeId',
       header: 'Employee',
       render: (val) => (
@@ -244,22 +256,22 @@ const IncrementsPage = () => {
         </div>
       ),
     },
-    {
+    columns.previousSalary && {
       key: 'previousSalary',
       header: 'Previous Salary',
       render: (val) => `₹${val?.toLocaleString() || 0}`,
     },
-    {
+    columns.increasePercent && {
       key: 'incrementPercentage',
       header: 'Increase %',
       render: (val) => <span className="font-bold text-emerald-600">{val}%</span>,
     },
-    {
+    columns.newSalary && {
       key: 'newSalary',
       header: 'New Salary',
       render: (val) => <span className="font-bold text-blue-600">₹{val?.toLocaleString() || 0}</span>,
     },
-    {
+    columns.increaseAmount && {
       key: 'incrementAmount',
       header: 'Increase Amount',
       render: (_, row) => {
@@ -267,12 +279,12 @@ const IncrementsPage = () => {
         return <span className="font-medium text-emerald-600">₹{amount.toLocaleString()}</span>;
       },
     },
-    {
+    columns.effectiveFrom && {
       key: 'effectiveFrom',
       header: 'Effective From',
       render: (val) => format(new Date(val), 'dd MMM yyyy'),
     },
-    {
+    columns.reason && {
       key: 'reason',
       header: 'Reason',
       render: (val) => (
@@ -281,47 +293,51 @@ const IncrementsPage = () => {
         </div>
       ),
     },
-    {
+    columns.actions && (canEdit() || canDelete()) && {
       key: 'actions',
       header: 'Actions',
       render: (_, record) => (
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              setEditingIncrement(record);
-              setIncrementForm({
-                employeeId: record.employeeId?._id || record.employeeId,
-                previousSalary: record.previousSalary,
-                incrementPercentage: record.incrementPercentage,
-                newSalary: record.newSalary,
-                effectiveFrom: record.effectiveFrom ? format(new Date(record.effectiveFrom), 'yyyy-MM-dd') : '',
-                reason: record.reason || '',
-              });
-              setShowEditModal(true);
-            }}
-            className="p-1.5 rounded-lg hover:bg-blue-500/10 text-[var(--text-muted)] hover:text-blue-500 transition-colors"
-            title="Edit"
-          >
-            <RefreshCw size={14} />
-          </button>
-          <button
-            onClick={() => handleDeleteIncrement(record._id)}
-            className="p-1.5 rounded-lg hover:bg-red-500/10 text-[var(--text-muted)] hover:text-red-500 transition-colors"
-            title="Delete"
-          >
-            <X size={14} />
-          </button>
+          {canEdit() && (
+            <button
+              onClick={() => {
+                setEditingIncrement(record);
+                setIncrementForm({
+                  employeeId: record.employeeId?._id || record.employeeId,
+                  previousSalary: record.previousSalary,
+                  incrementPercentage: record.incrementPercentage,
+                  newSalary: record.newSalary,
+                  effectiveFrom: record.effectiveFrom ? format(new Date(record.effectiveFrom), 'yyyy-MM-dd') : '',
+                  reason: record.reason || '',
+                });
+                setShowEditModal(true);
+              }}
+              className="p-1.5 rounded-lg hover:bg-blue-500/10 text-[var(--text-muted)] hover:text-blue-500 transition-colors"
+              title="Edit"
+            >
+              <RefreshCw size={14} />
+            </button>
+          )}
+          {canDelete() && (
+            <button
+              onClick={() => handleDeleteIncrement(record._id)}
+              className="p-1.5 rounded-lg hover:bg-red-500/10 text-[var(--text-muted)] hover:text-red-500 transition-colors"
+              title="Delete"
+            >
+              <X size={14} />
+            </button>
+          )}
         </div>
       ),
     },
-  ];
+  ].filter(Boolean);
 
   return (
     <div className="animate-fade-in space-y-5">
       <PageHeader
         title="Salary Increments"
         subtitle="Manage employee salary increments and promotions"
-        actions={[
+        actions={canCreate() ? [
           {
             type: 'button',
             label: 'Add Increment',
@@ -339,7 +355,7 @@ const IncrementsPage = () => {
               setShowIncrementModal(true);
             },
           },
-        ]}
+        ] : []}
       />
 
       {/* KPI Cards */}
@@ -376,7 +392,7 @@ const IncrementsPage = () => {
 
       {/* Increments Table */}
       <DataTable
-        columns={columns}
+        columns={tableColumns}
         data={filteredIncrements}
         emptyText="No increment records found."
         loading={loading}

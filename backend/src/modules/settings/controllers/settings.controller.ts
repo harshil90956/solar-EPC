@@ -22,7 +22,9 @@ import { WorkflowEngineService } from '../services/workflow-engine.service';
 import { AuditService } from '../services/audit.service';
 import { ProjectTypeService } from '../services/project-type.service';
 import { InstallationTaskService } from '../services/installation-task.service';
+import { CommissioningTaskService } from '../services/commissioning-task.service';
 import { UpdateInstallationTasksConfigDto } from '../dto/installation-task.dto';
+import { UpdateCommissioningTasksConfigDto } from '../dto/commissioning-task.dto';
 import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
 import { 
@@ -77,6 +79,7 @@ export class SettingsController {
     private readonly auditService: AuditService,
     private readonly projectTypeService: ProjectTypeService,
     private readonly installationTaskService: InstallationTaskService,
+    private readonly commissioningTaskService: CommissioningTaskService,
   ) {}
 
   @Get('type-options')
@@ -1156,6 +1159,25 @@ export class SettingsController {
     const tenantId = req.tenant?.id;
     const userId = req.user?.id;
     const doc = await this.installationTaskService.updateConfig(tenantId, body.tasks, userId);
+    return { data: doc.tasks };
+  }
+
+  // ── Commissioning Task Checklist Builder ────────────────────────────────
+  @Get('commissioning/tasks')
+  async getCommissioningTasks(@Request() req: any) {
+    const tenantId = req.tenant?.id;
+    const cfg = await this.commissioningTaskService.getConfig(tenantId);
+    return { data: cfg.tasks };
+  }
+
+  @Put('commissioning/tasks')
+  async updateCommissioningTasks(
+    @Body() body: UpdateCommissioningTasksConfigDto,
+    @Request() req: any,
+  ) {
+    const tenantId = req.tenant?.id;
+    const userId = req.user?.id;
+    const doc = await this.commissioningTaskService.updateConfig(tenantId, body.tasks, userId);
     return { data: doc.tasks };
   }
 

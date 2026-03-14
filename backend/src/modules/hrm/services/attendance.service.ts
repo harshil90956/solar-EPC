@@ -194,7 +194,7 @@ export class AttendanceService {
 
     return this.attendanceModel
       .find(query)
-      .populate('employeeId', 'firstName lastName employeeId')
+      .populate('employeeId', 'firstName lastName employeeId department')
       .sort({ date: -1 })
       .exec();
   }

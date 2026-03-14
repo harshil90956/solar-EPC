@@ -1,17 +1,38 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Req, Headers, Query, HttpCode, HttpStatus, UnauthorizedException, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Req, Headers, Query, HttpCode, HttpStatus, UnauthorizedException, UseGuards, ForbiddenException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EmployeeService } from '../services/employee.service';
 import { HrmPermissionService } from '../services/hrm-permission.service';
+import { PermissionService } from '../services/permission.service';
 import { CreateEmployeeDto, UpdateEmployeeDto } from '../dto/employee.dto';
 import { EmployeeDocument } from '../schemas/employee.schema';
+import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
+import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
 
 @Controller('hrm/employees')
+@UseGuards(JwtAuthGuard, TenantGuard)
 export class EmployeeController {
   constructor(
     private readonly employeeService: EmployeeService,
     private readonly hrmPermissionService: HrmPermissionService,
+    private readonly permissionService: PermissionService,
     private readonly configService: ConfigService,
   ) {}
+
+  private async checkPermission(req: any, permission: string) {
+    const user = req.user;
+    if (!user) throw new ForbiddenException('User not authenticated');
+    
+    // Super admin bypass
+    if (user.role === 'Super Admin' || user.role === 'Admin') return true;
+    
+    const roleId = user.roleId || user.role;
+    if (!roleId) throw new ForbiddenException('User has no role assigned');
+    
+    const hasPermission = await this.hrmPermissionService.checkPermission(roleId, permission);
+    if (!hasPermission) {
+      throw new ForbiddenException(`Permission denied: ${permission} required`);
+    }
+  }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
@@ -43,6 +64,9 @@ export class EmployeeController {
     // The incoming tenantId may be a placeholder like 'default' if frontend didn't send x-tenant-id.
     const effectiveTenantId = employee?.tenantId ? String(employee.tenantId) : tenantId;
 
+    // Get employee permissions
+    const rolePermissions = await this.permissionService.getRolePermissions(employee.roleId?.toString() || '');
+
     // Generate JWT token using same secret as JwtStrategy
     const jwtSecret = this.configService.getOrThrow<string>('JWT_SECRET');
     const dataScope = (employee as any)?.dataScope || 'ASSIGNED';
@@ -54,6 +78,7 @@ export class EmployeeController {
         roleId: employee.roleId,
         tenantId: effectiveTenantId,
         dataScope,
+        permissions: rolePermissions,
       },
       jwtSecret,
       { expiresIn: '24h' }
@@ -70,6 +95,7 @@ export class EmployeeController {
         roleId: employee.roleId,
         dataScope,
         tenantId: effectiveTenantId,
+        permissions: rolePermissions,
         token
       }
     };
@@ -78,9 +104,10 @@ export class EmployeeController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   async create(@Body() createEmployeeDto: CreateEmployeeDto, @Req() req: any) {
+    await this.checkPermission(req, 'employees.create');
     const tenantId = req.tenant?.id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.query?.tenantId || 'default';
     const roleId = req.user?.roleId || req.user?.role;
-    await this.hrmPermissionService.validateAction(roleId, 'employees.manage', tenantId);
+    await this.permissionService.validateAction(roleId, 'employees.manage', tenantId);
     
     const data = await this.employeeService.create(createEmployeeDto, tenantId);
     return { success: true, data };
@@ -88,9 +115,10 @@ export class EmployeeController {
 
   @Get()
   async findAll(@Req() req: any) {
+    await this.checkPermission(req, 'employees.view');
     const tenantId = req.tenant?.id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.query?.tenantId || 'default';
     const roleId = req.user?.roleId || req.user?.role;
-    await this.hrmPermissionService.validateAction(roleId, 'employees.view', tenantId);
+    await this.permissionService.validateAction(roleId, 'employees.view', tenantId);
 
     const data = await this.employeeService.findAll(tenantId);
     return { success: true, data };
@@ -98,12 +126,13 @@ export class EmployeeController {
 
   @Get(':id')
   async findOne(@Param('id') id: string, @Req() req: any) {
+    await this.checkPermission(req, 'employees.view');
     const tenantId = req.tenant?.id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.query?.tenantId || 'default';
     const roleId = req.user?.roleId || req.user?.role;
     
     // Allow self-viewing personal profile
     if (req.user?.sub !== id) {
-      await this.hrmPermissionService.validateAction(roleId, 'employees.view', tenantId);
+      await this.permissionService.validateAction(roleId, 'employees.view', tenantId);
     }
 
     const data = await this.employeeService.findOne(id, tenantId);
@@ -116,9 +145,10 @@ export class EmployeeController {
     @Body() updateEmployeeDto: UpdateEmployeeDto,
     @Req() req: any,
   ) {
+    await this.checkPermission(req, 'employees.edit');
     const tenantId = req.tenant?.id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.query?.tenantId || 'default';
     const roleId = req.user?.roleId || req.user?.role;
-    await this.hrmPermissionService.validateAction(roleId, 'employees.manage', tenantId);
+    await this.permissionService.validateAction(roleId, 'employees.manage', tenantId);
 
     const data = await this.employeeService.update(id, updateEmployeeDto, tenantId);
     return { success: true, data };
@@ -126,9 +156,10 @@ export class EmployeeController {
 
   @Delete(':id')
   async remove(@Param('id') id: string, @Req() req: any) {
+    await this.checkPermission(req, 'employees.delete');
     const tenantId = req.tenant?.id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.query?.tenantId || 'default';
     const roleId = req.user?.roleId || req.user?.role;
-    await this.hrmPermissionService.validateAction(roleId, 'employees.delete', tenantId);
+    await this.permissionService.validateAction(roleId, 'employees.delete', tenantId);
 
     const data = await this.employeeService.remove(id, tenantId);
     return { success: true, data };
@@ -136,9 +167,10 @@ export class EmployeeController {
 
   @Get('by-department/:department')
   async findByDepartment(@Param('department') department: string, @Req() req: any) {
+    await this.checkPermission(req, 'employees.view');
     const tenantId = req.tenant?.id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.query?.tenantId || 'default';
     const roleId = req.user?.roleId || req.user?.role;
-    await this.hrmPermissionService.validateAction(roleId, 'employees.view', tenantId);
+    await this.permissionService.validateAction(roleId, 'employees.view', tenantId);
 
     const data = await this.employeeService.findByDepartment(department, tenantId);
     return { success: true, data };
@@ -146,9 +178,10 @@ export class EmployeeController {
 
   @Get('by-role/:roleId')
   async findByRole(@Param('roleId') roleId: string, @Req() req: any) {
+    await this.checkPermission(req, 'employees.view');
     const tenantId = req.tenant?.id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.query?.tenantId || 'default';
     const roleIdUser = req.user?.roleId || req.user?.role;
-    await this.hrmPermissionService.validateAction(roleIdUser, 'employees.view', tenantId);
+    await this.permissionService.validateAction(roleIdUser, 'employees.view', tenantId);
 
     const data = await this.employeeService.findByRole(roleId, tenantId);
     return { success: true, data };
