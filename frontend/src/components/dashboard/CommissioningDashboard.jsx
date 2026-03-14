@@ -79,14 +79,14 @@ const KPICard = ({ title, value, subtitle, icon: Icon, trend, trendValue, color 
 };
 
 // Chart Card Component
-const ChartCard = ({ title, subtitle, children, action }) => (
+const ChartCard = ({ title, subtitle, children, headerRight }) => (
   <div className="rounded-xl shadow-sm p-5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-base)' }}>
     <div className="flex items-center justify-between mb-4">
       <div>
         <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>{title}</h3>
         {subtitle && <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{subtitle}</p>}
       </div>
-      {action && <div>{action}</div>}
+      {headerRight && <div>{headerRight}</div>}
     </div>
     {children}
   </div>
@@ -483,6 +483,28 @@ const CommissioningDashboard = ({ data, systems, onProjectClick }) => {
 
   return (
     <div className="space-y-6">
+      {/* Global Date Filter Bar */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-gray-600">Filter by Date:</span>
+          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+            {['Last 7 Days', 'Last 30 Days', 'Last 90 Days', 'All Time', 'Custom Range'].map((filter) => (
+              <button 
+                key={filter} 
+                className={`px-3 py-1.5 text-xs rounded-md font-medium transition-all ${
+                  filter === 'All Time' 
+                    ? 'bg-orange-500 text-white' 
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                }`}
+              >
+                {filter}
+              </button>
+            ))}
+          </div>
+        </div>
+        <span className="text-sm text-gray-500">Showing {kpiData.total} of {kpiData.total} Commissionings</span>
+      </div>
+
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <KPICard
@@ -546,6 +568,13 @@ const CommissioningDashboard = ({ data, systems, onProjectClick }) => {
         <ChartCard
           title="Commissioning Trends"
           subtitle="Monthly commissioning over last 6 months"
+          headerRight={
+            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+              {['All', 'Today', 'Week', 'Month', 'Quarter', 'Year'].map((filter) => (
+                <button key={filter} className="px-2 py-1 text-xs rounded-md font-medium text-gray-600 hover:text-gray-900 transition-all">{filter}</button>
+              ))}
+            </div>
+          }
         >
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
@@ -577,6 +606,13 @@ const CommissioningDashboard = ({ data, systems, onProjectClick }) => {
         <ChartCard
           title="Status Distribution"
           subtitle="Current project status breakdown"
+          headerRight={
+            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+              {['All', 'Today', 'Week', 'Month', 'Quarter', 'Year'].map((filter) => (
+                <button key={filter} className="px-2 py-1 text-xs rounded-md font-medium text-gray-600 hover:text-gray-900 transition-all">{filter}</button>
+              ))}
+            </div>
+          }
         >
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
@@ -617,6 +653,13 @@ const CommissioningDashboard = ({ data, systems, onProjectClick }) => {
         <ChartCard
           title="Performance Ratio Distribution"
           subtitle="Projects by PR performance ranges"
+          headerRight={
+            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+              {['All', 'Today', 'Week', 'Month', 'Quarter', 'Year'].map((filter) => (
+                <button key={filter} className="px-2 py-1 text-xs rounded-md font-medium text-gray-600 hover:text-gray-900 transition-all">{filter}</button>
+              ))}
+            </div>
+          }
         >
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
@@ -641,6 +684,13 @@ const CommissioningDashboard = ({ data, systems, onProjectClick }) => {
         <ChartCard
           title="Installed Capacity by Site"
           subtitle="Top sites by total kW installed"
+          headerRight={
+            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+              {['All', 'Today', 'Week', 'Month', 'Quarter', 'Year'].map((filter) => (
+                <button key={filter} className="px-2 py-1 text-xs rounded-md font-medium text-gray-600 hover:text-gray-900 transition-all">{filter}</button>
+              ))}
+            </div>
+          }
         >
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
