@@ -1,7 +1,15 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart, PieChart, Pie, Cell } from 'recharts';
-import { Users, TrendingUp, DollarSign, Download, RefreshCw, Award, ArrowUpRight, ArrowDownRight, CheckCircle2, Sparkles, Funnel, PieChart as PieChartIcon, AlertCircle, Layers, Zap, Target, UserCheck, TrendingDown, Activity } from 'lucide-react';
+import { 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
+  Area, AreaChart, PieChart, Pie, Cell, Legend
+} from 'recharts';
+import { 
+  Users, TrendingUp, DollarSign, Download, RefreshCw, Award, 
+  ArrowUpRight, ArrowDownRight, CheckCircle2, Sparkles, Funnel, 
+  PieChart as PieChartIcon, AlertCircle, Zap, Clock, Calendar as CalendarIcon,
+  ChevronLeft, ChevronRight, X
+} from 'lucide-react';
 import { Button } from '../ui/Button';
 import { leadsApi } from '../../services/leadsApi';
 
@@ -14,7 +22,7 @@ const fmt = (val) => {
 };
 
 const formatNumber = (num) => {
-  if (!num) return '0';
+  if (!num || num === 0) return '0';
   return num.toLocaleString();
 };
 
@@ -35,454 +43,609 @@ const STAGE_COLORS = {
   customer: { color: '#10B981', gradient: 'from-green-500 to-green-600' }
 };
 
+// Live Indicator Component
+const LiveIndicator = ({ isLive }) => (
+  <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-full">
+    <span className={`w-2 h-2 rounded-full ${isLive ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'}`} />
+    <span className="text-xs font-semibold text-emerald-700">{isLive ? 'Live Data' : 'Offline'}</span>
+  </div>
+);
+
+// Loading skeleton for cards
 const SkeletonCard = () => (
-  <div className="glass-card p-5 animate-pulse rounded-2xl">
+  <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 animate-pulse">
     <div className="flex items-start justify-between">
-      <div className="w-12 h-12 rounded-xl bg-[var(--bg-elevated)]" />
-      <div className="w-14 h-5 rounded bg-[var(--bg-elevated)]" />
+      <div className="w-12 h-12 rounded-lg bg-gray-200" />
+      <div className="w-16 h-5 rounded bg-gray-200" />
     </div>
     <div className="mt-4 space-y-2">
-      <div className="w-24 h-3 rounded bg-[var(--bg-elevated)]" />
-      <div className="w-20 h-7 rounded bg-[var(--bg-elevated)]" />
+      <div className="w-24 h-3 rounded bg-gray-200" />
+      <div className="w-20 h-7 rounded bg-gray-200" />
     </div>
   </div>
 );
 
+// Loading skeleton for charts
 const SkeletonChart = () => (
-  <div className="glass-card p-6 animate-pulse rounded-2xl">
-    <div className="w-40 h-5 rounded bg-[var(--bg-elevated)] mb-5" />
-    <div className="h-56 bg-[var(--bg-elevated)] rounded-xl" />
+  <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 animate-pulse">
+    <div className="w-40 h-5 rounded bg-gray-200 mb-6" />
+    <div className="h-64 bg-gray-200 rounded-lg" />
   </div>
 );
 
-const KPICard = ({ title, value, change, trend, icon: Icon, color, loading, subtitle, sparkline, onClick }) => {
+// KPI Card Component with live data indicator
+const KPICard = ({ title, value, change, trend, icon: Icon, color, loading, subtitle }) => {
   if (loading) return <SkeletonCard />;
   
   const TrendIcon = trend === 'up' ? ArrowUpRight : ArrowDownRight;
   const trendColor = trend === 'up' ? 'text-emerald-500' : 'text-red-500';
-  const trendBg = trend === 'up' ? 'bg-emerald-500/10' : 'bg-red-500/10';
-  const changeText = change ? `${Math.abs(change)}%` : null;
+  const trendBg = trend === 'up' ? 'bg-emerald-50' : 'bg-red-50';
   
   return (
-    <div
-      className="relative overflow-hidden rounded-2xl p-5 cursor-pointer group transition-all duration-300 hover:scale-[1.02] hover:shadow-xl active:scale-[0.98]"
-      style={{ 
-        background: `linear-gradient(135deg, ${color}08, ${color}04)`,
-        border: `1px solid ${color}20`
-      }}
-      onClick={onClick}
-      role="button"
-      tabIndex={0}
-    >
-      {/* Background glow effect */}
-      <div 
-        className="absolute -top-10 -right-10 w-32 h-32 rounded-full opacity-20 blur-3xl transition-opacity group-hover:opacity-40"
-        style={{ background: color }}
-      />
-      
-      {/* Shine effect on hover */}
-      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-      
-      <div className="relative flex items-start justify-between gap-3">
-        <div 
-          className="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300"
-          style={{ background: `linear-gradient(135deg, ${color}, ${color}dd)` }}
-        >
-          <Icon size={22} className="text-white" />
+    <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-all">
+      <div className="flex items-start justify-between">
+        <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${color}15` }}>
+          <Icon size={24} style={{ color }} />
         </div>
-        <div className="flex flex-col items-end gap-1">
-          {changeText && (
-            <div className={`flex items-center gap-1 px-2 py-1 rounded-full ${trendBg}`}>
-              <TrendIcon size={12} className={trendColor} />
-              <span className={`text-[10px] font-bold ${trendColor}`}>{changeText}</span>
-            </div>
-          )}
-          <div className="w-24 h-10 mt-1">
-            {Array.isArray(sparkline) && sparkline.length > 1 ? (
-              <AreaChart width={96} height={40} data={sparkline}>
-                <defs>
-                  <linearGradient id={`kpi-${title}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={color} stopOpacity={0.3} />
-                    <stop offset="100%" stopColor={color} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <Area type="monotone" dataKey="v" stroke={color} fill={`url(#kpi-${title})`} strokeWidth={2} dot={false} />
-              </AreaChart>
-            ) : null}
-          </div>
-        </div>
-      </div>
-      <div className="relative mt-4">
-        <p className="text-[11px] text-[var(--text-muted)] uppercase tracking-wider font-medium">{title}</p>
-        <p className="text-2xl font-black text-[var(--text-primary)] leading-tight mt-1">{value}</p>
-        {subtitle && <p className="text-[10px] text-[var(--text-muted)] mt-1">{subtitle}</p>}
-      </div>
-    </div>
-  );
-};
-
-const SolarPipeline = ({ data, loading }) => {
-  if (loading) return <SkeletonChart />;
-  
-  // Default stages if no data
-  const defaultStages = [
-    { stage: 'new', count: 0, value: 0 },
-    { stage: 'contacted', count: 0, value: 0 },
-    { stage: 'qualified', count: 0, value: 0 },
-    { stage: 'proposal', count: 0, value: 0 },
-    { stage: 'negotiation', count: 0, value: 0 },
-    { stage: 'won', count: 0, value: 0 },
-    { stage: 'lost', count: 0, value: 0 }
-  ];
-  
-  // Merge with actual data
-  const mergedData = defaultStages.map(defaultStage => {
-    const actualStage = data?.find(d => d.stage?.toLowerCase() === defaultStage.stage);
-    return actualStage || defaultStage;
-  }).filter(d => d.count > 0 || data?.length === 0); // Show all if no data, else show only with counts
-
-  const displayData = (data && data.length > 0) ? mergedData.filter(d => d.count > 0) : defaultStages;
-  const maxCount = Math.max(...displayData.map(d => d.count || 0), 1);
-  const totalValue = displayData.reduce((sum, d) => sum + (d.value || 0), 0);
-  const totalLeads = displayData.reduce((sum, d) => sum + (d.count || 0), 0);
-
-  return (
-    <div className="glass-card p-6 rounded-2xl">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg">
-            <Layers size={20} className="text-white" />
-          </div>
-          <div>
-            <h3 className="text-sm font-bold text-[var(--text-primary)]">Solar Pipeline</h3>
-            <p className="text-[10px] text-[var(--text-muted)]">{totalLeads} leads · {fmt(totalValue)}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {totalLeads > 0 && (
-            <span className="px-2 py-1 rounded-full text-[10px] font-medium bg-blue-500/10 text-blue-500">
-              {displayData.length} stages active
-            </span>
-          )}
-        </div>
-      </div>
-
-      {totalLeads === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <div className="w-16 h-16 rounded-full bg-[var(--bg-elevated)] flex items-center justify-center mb-3">
-            <Funnel size={24} className="text-[var(--text-muted)]" />
-          </div>
-          <p className="text-sm text-[var(--text-muted)]">No leads in pipeline yet</p>
-          <p className="text-[10px] text-[var(--text-faint)] mt-1">Add leads to see pipeline breakdown</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {displayData.map((stage, index) => {
-            const percentage = ((stage.count || 0) / maxCount) * 100;
-            const stageKey = stage.stage?.toLowerCase() || 'new';
-            const colors = STAGE_COLORS[stageKey] || { color: '#6B7280' };
-            
-            return (
-              <div key={`pipeline-${index}`} className="group">
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: colors.color }} />
-                    <span className="text-xs font-semibold text-[var(--text-primary)] truncate">{titleCase(stage.stage)}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-[var(--text-muted)] font-medium">{fmt(stage.value || 0)}</span>
-                    <span className="text-xs font-bold text-[var(--text-primary)] w-6 text-right">{formatNumber(stage.count)}</span>
-                  </div>
-                </div>
-                <div className="w-full bg-[var(--bg-elevated)] rounded-full h-6 overflow-hidden">
-                  <div 
-                    className="h-full rounded-full transition-all duration-700 flex items-center justify-end pr-2 relative overflow-hidden"
-                    style={{ 
-                      width: `${Math.max(percentage, percentage > 0 ? 4 : 0)}%`,
-                      background: `linear-gradient(90deg, ${colors.color}, ${colors.color}dd)`
-                    }}
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-                    {percentage > 15 && (
-                      <span className="text-[10px] font-bold text-white relative z-10">{percentage.toFixed(0)}%</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-};
-
-const LeadConversionChart = ({ data, loading }) => {
-  if (loading) return <SkeletonChart />;
-  
-  const defaultData = [
-    { name: 'Won', value: 0, color: '#22C55E', icon: CheckCircle2 },
-    { name: 'In Progress', value: 0, color: '#3B82F6', icon: Layers },
-    { name: 'Lost', value: 0, color: '#EF4444', icon: TrendingDown },
-    { name: 'New', value: 0, color: '#6B7280', icon: Users }
-  ];
-
-  if (data && data.length > 0) {
-    data.forEach(stage => {
-      const stageName = stage.stage?.toLowerCase() || '';
-      const count = stage.count || 0;
-      if (stageName === 'won' || stageName === 'customer') defaultData[0].value += count;
-      else if (stageName === 'lost') defaultData[2].value += count;
-      else if (stageName === 'new') defaultData[3].value += count;
-      else defaultData[1].value += count;
-    });
-  }
-
-  const total = defaultData.reduce((sum, d) => sum + d.value, 0);
-  const wonRate = total > 0 ? ((defaultData[0].value / total) * 100).toFixed(1) : 0;
-  const hasData = total > 0;
-
-  return (
-    <div className="glass-card p-6 rounded-2xl">
-      <div className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg">
-            <PieChartIcon size={20} className="text-white" />
-          </div>
-          <div>
-            <h3 className="text-sm font-bold text-[var(--text-primary)]">Lead Conversion</h3>
-            <p className="text-[10px] text-[var(--text-muted)]">{hasData ? `${total} total leads` : 'No leads yet'}</p>
-          </div>
-        </div>
-        {hasData && (
-          <div className="text-right">
-            <span className="text-2xl font-black text-emerald-500">{wonRate}%</span>
-            <p className="text-[9px] text-[var(--text-muted)]">Win Rate</p>
+        {change !== undefined && (
+          <div className={`flex items-center gap-1 px-2 py-1 rounded-full ${trendBg}`}>
+            <TrendIcon size={14} className={trendColor} />
+            <span className={`text-xs font-semibold ${trendColor}`}>{Math.abs(change)}%</span>
           </div>
         )}
       </div>
-
-      {!hasData ? (
-        <div className="flex flex-col items-center justify-center py-10 text-center">
-          <div className="w-16 h-16 rounded-full bg-[var(--bg-elevated)] flex items-center justify-center mb-3">
-            <PieChartIcon size={24} className="text-[var(--text-muted)]" />
-          </div>
-          <p className="text-sm text-[var(--text-muted)]">No conversion data available</p>
-          <p className="text-[10px] text-[var(--text-faint)] mt-1">Add leads to track conversion</p>
-        </div>
-      ) : (
-        <div className="flex items-center gap-6">
-          <div className="relative w-36 h-36">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie 
-                  data={defaultData.filter(d => d.value > 0)} 
-                  cx="50%" 
-                  cy="50%" 
-                  innerRadius={45} 
-                  outerRadius={65} 
-                  paddingAngle={3} 
-                  dataKey="value"
-                  stroke="none"
-                  animationDuration={800}
-                >
-                  {defaultData.filter(d => d.value > 0).map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
-            {/* Center content */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-xl font-black text-[var(--text-primary)]">{defaultData[0].value}</span>
-              <span className="text-[9px] text-[var(--text-muted)]">Won</span>
-            </div>
-          </div>
-
-          <div className="flex-1 space-y-2">
-            {defaultData.map((item, index) => {
-              const percentage = total > 0 ? ((item.value / total) * 100).toFixed(0) : 0;
-              const Icon = item.icon;
-              return (
-                <div key={index} className="flex items-center justify-between p-2 rounded-lg hover:bg-[var(--bg-elevated)]/50 transition-colors">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${item.color}15` }}>
-                      <Icon size={14} style={{ color: item.color }} />
-                    </div>
-                    <span className="text-xs text-[var(--text-muted)]">{item.name}</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-16 h-1.5 bg-[var(--bg-elevated)] rounded-full overflow-hidden">
-                      <div 
-                        className="h-full rounded-full transition-all duration-500"
-                        style={{ width: `${percentage}%`, backgroundColor: item.color }}
-                      />
-                    </div>
-                    <span className="text-xs font-bold text-[var(--text-primary)] w-8 text-right">{item.value}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      <div className="mt-4">
+        <p className="text-sm text-gray-500 font-medium">{title}</p>
+        <p className="text-2xl font-bold text-gray-900 mt-1">{value}</p>
+        {subtitle && <p className="text-xs text-gray-400 mt-1">{subtitle}</p>}
+      </div>
     </div>
   );
 };
 
-const MonthlyTrendChart = ({ data, loading }) => {
+// Chart Date Filter Component (for individual charts)
+const ChartDateFilter = ({ dateRange, onDateRangeChange, size = 'sm' }) => {
+  const filters = [
+    { key: 'all', label: 'All' },
+    { key: 'today', label: 'Today' },
+    { key: 'week', label: 'Week' },
+    { key: 'month', label: 'Month' },
+    { key: 'quarter', label: 'Quarter' },
+    { key: 'year', label: 'Year' },
+  ];
+
+  const baseClasses = size === 'sm' 
+    ? 'px-2 py-1 text-xs' 
+    : 'px-3 py-1.5 text-sm';
+
+  return (
+    <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+      {filters.map((filter) => (
+        <button
+          key={filter.key}
+          onClick={() => onDateRangeChange(filter.key)}
+          className={`${baseClasses} rounded-md font-medium transition-all ${
+            dateRange === filter.key
+              ? 'bg-white text-blue-600 shadow-sm'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          {filter.label}
+        </button>
+      ))}
+    </div>
+  );
+};
+
+// Filter leads by date range
+const filterLeadsByDateRange = (leads, dateRange) => {
+  if (!leads || !Array.isArray(leads) || dateRange === 'all') return leads;
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  const getStartDate = () => {
+    switch (dateRange) {
+      case 'today':
+        return today;
+      case 'week':
+        const weekStart = new Date(today);
+        weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+        return weekStart;
+      case 'month':
+        return new Date(now.getFullYear(), now.getMonth(), 1);
+      case 'quarter':
+        const quarter = Math.floor(now.getMonth() / 3);
+        return new Date(now.getFullYear(), quarter * 3, 1);
+      case 'year':
+        return new Date(now.getFullYear(), 0, 1);
+      default:
+        return null;
+    }
+  };
+
+  const startDate = getStartDate();
+  if (!startDate) return leads;
+
+  return leads.filter(lead => {
+    const leadDate = new Date(lead.createdAt || lead.created_at || lead.date || lead.created);
+    return leadDate >= startDate;
+  });
+};
+
+// Sales Funnel 2D Bar Chart with Individual Date Filter
+const FunnelChart = ({ data, loading, leads = [] }) => {
+  const [dateRange, setDateRange] = useState('all');
+
+  const filteredData = useMemo(() => {
+    if (!data || !Array.isArray(data)) return data;
+    if (dateRange === 'all' || !leads.length) return data;
+    
+    // Filter leads by date range
+    const filteredLeads = filterLeadsByDateRange(leads, dateRange);
+    
+    // Recalculate funnel stages based on filtered leads
+    const stageCounts = {};
+    filteredLeads.forEach(lead => {
+      const stage = lead.statusKey || lead.status || 'new';
+      stageCounts[stage] = (stageCounts[stage] || 0) + 1;
+    });
+    
+    // Map to funnel format
+    return data.map(stage => ({
+      ...stage,
+      count: stageCounts[stage.stage] || 0
+    })).filter(s => s.count > 0);
+  }, [data, leads, dateRange]);
+
   if (loading) return <SkeletonChart />;
   
-  const hasData = data && data.length > 0 && data.some(d => (d.created || 0) > 0 || (d.won || 0) > 0);
-  
-  if (!hasData) {
+  if (!filteredData || filteredData.length === 0) {
     return (
-      <div className="glass-card p-6 rounded-2xl">
-        <div className="flex items-center gap-3 mb-5">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-lg">
-            <TrendingUp size={20} className="text-white" />
-          </div>
-          <div>
-            <h3 className="text-sm font-bold text-[var(--text-primary)]">Monthly Trend</h3>
-            <p className="text-[10px] text-[var(--text-muted)]">Last 12 months</p>
-          </div>
+      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">Sales Funnel</h3>
+          <ChartDateFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
         </div>
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <div className="w-16 h-16 rounded-full bg-[var(--bg-elevated)] flex items-center justify-center mb-3">
-            <TrendingUp size={24} className="text-[var(--text-muted)]" />
-          </div>
-          <p className="text-sm text-[var(--text-muted)]">No trend data available</p>
-          <p className="text-[10px] text-[var(--text-faint)] mt-1">Add leads over time to see trends</p>
+        <div className="h-64 flex items-center justify-center">
+          <p className="text-gray-400">No funnel data available</p>
         </div>
       </div>
     );
   }
 
-  const chartData = data.map(item => ({ month: item.month || '', created: item.created || 0, won: item.won || 0, value: item.value || 0 }));
-  const totalCreated = chartData.reduce((sum, d) => sum + d.created, 0);
-  const totalWon = chartData.reduce((sum, d) => sum + d.won, 0);
+  const chartData = filteredData.map((stage, index) => ({
+    name: titleCase(stage.stage),
+    leads: stage.count || 0,
+    value: stage.value || 0,
+    fill: ['#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#22c55e', '#ef4444'][index % 7]
+  }));
+
+  const totalLeads = chartData.reduce((sum, d) => sum + d.leads, 0);
+  const totalValue = chartData.reduce((sum, d) => sum + d.value, 0);
 
   return (
-    <div className="glass-card p-6 rounded-2xl">
-      <div className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-lg">
-            <TrendingUp size={20} className="text-white" />
-          </div>
-          <div>
-            <h3 className="text-sm font-bold text-[var(--text-primary)]">Monthly Trend</h3>
-            <p className="text-[10px] text-[var(--text-muted)]">{totalCreated} new · {totalWon} won</p>
-          </div>
+    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900">Sales Funnel</h3>
+          <p className="text-sm text-gray-500 mt-1">{totalLeads} leads · {fmt(totalValue)}</p>
         </div>
-        <div className="flex items-center gap-3 text-[10px]">
-          <div className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-            <span className="text-[var(--text-muted)]">New</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-            <span className="text-[var(--text-muted)]">Won</span>
-          </div>
-        </div>
+        <ChartDateFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
       </div>
-      <ResponsiveContainer width="100%" height={200}>
-        <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-          <defs>
-            <linearGradient id="trendNew" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3}/><stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/></linearGradient>
-            <linearGradient id="trendWon" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#22C55E" stopOpacity={0.3}/><stop offset="95%" stopColor="#22C55E" stopOpacity={0}/></linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
-          <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} stroke="var(--border-subtle)" axisLine={false} tickLine={false} />
-          <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} stroke="var(--border-subtle)" axisLine={false} tickLine={false} />
-          <Tooltip contentStyle={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-base)', borderRadius: '12px', fontSize: '12px' }} />
-          <Area type="monotone" dataKey="created" stroke="#3B82F6" fill="url(#trendNew)" strokeWidth={2} name="New Leads" animationDuration={1000} />
-          <Area type="monotone" dataKey="won" stroke="#22C55E" fill="url(#trendWon)" strokeWidth={2} name="Won" animationDuration={1000} />
-        </AreaChart>
-      </ResponsiveContainer>
+      
+      <div className="h-64">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 30, left: 80, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e7eb" />
+            <XAxis type="number" tick={{ fontSize: 12, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+            <YAxis 
+              type="category" 
+              dataKey="name" 
+              tick={{ fontSize: 12, fill: '#374151' }} 
+              axisLine={false} 
+              tickLine={false}
+              width={70}
+            />
+            <Tooltip 
+              cursor={{ fill: '#f3f4f6' }}
+              content={({ active, payload }) => {
+                if (active && payload && payload.length) {
+                  const data = payload[0].payload;
+                  return (
+                    <div className="bg-white p-3 rounded-lg shadow-lg border border-gray-100">
+                      <p className="font-semibold text-gray-900">{data.name}</p>
+                      <p className="text-sm text-gray-600">Leads: {data.leads}</p>
+                      <p className="text-sm text-gray-600">Value: {fmt(data.value)}</p>
+                    </div>
+                  );
+                }
+                return null;
+              }}
+            />
+            <Bar dataKey="leads" radius={[0, 4, 4, 0]} barSize={28}>
+              {chartData.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={entry.fill} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Stage summary */}
+      <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t border-gray-100">
+        {chartData.slice(0, 3).map((stage, idx) => (
+          <div key={idx} className="text-center">
+            <p className="text-xs text-gray-500">{stage.name}</p>
+            <p className="text-lg font-bold" style={{ color: stage.fill }}>{stage.leads}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
 
-const TopPerformers = ({ data, loading }) => {
+// Lead Sources 2D Chart with Individual Date Filter
+const SourceChart = ({ data, loading, leads = [] }) => {
+  const [dateRange, setDateRange] = useState('all');
+
+  const filteredData = useMemo(() => {
+    if (!leads || !Array.isArray(leads)) return data;
+    if (dateRange === 'all') return data;
+    
+    // Filter leads by date range and recalculate source counts
+    const filteredLeads = filterLeadsByDateRange(leads, dateRange);
+    
+    // Group by source
+    const sourceCounts = {};
+    filteredLeads.forEach(lead => {
+      const source = lead.source || 'Unknown';
+      sourceCounts[source] = (sourceCounts[source] || 0) + 1;
+    });
+    
+    return Object.entries(sourceCounts).map(([source, count]) => ({
+      source,
+      leads: count
+    }));
+  }, [data, leads, dateRange]);
+
+  if (loading) return <SkeletonChart />;
+  
+  if (!filteredData || filteredData.length === 0) {
+    return (
+      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">Lead Sources</h3>
+          <ChartDateFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
+        </div>
+        <div className="h-64 flex items-center justify-center">
+          <p className="text-gray-400">No source data available</p>
+        </div>
+      </div>
+    );
+  }
+
+  const colors = ['#3b82f6', '#22c55e', '#f59e0b', '#8b5cf6', '#ef4444', '#14b8a6', '#64748b'];
+  
+  const chartData = filteredData.map((item, index) => ({
+    name: titleCase(item.source || 'Unknown'),
+    leads: item.leads || item.count || 0,
+    fill: colors[index % colors.length]
+  }));
+
+  const total = chartData.reduce((sum, d) => sum + d.leads, 0);
+
+  return (
+    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900">Lead Sources</h3>
+          <p className="text-sm text-gray-500 mt-1">{total} total leads</p>
+        </div>
+        <ChartDateFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
+      </div>
+
+      <div className="flex items-center gap-6">
+        <div className="w-40 h-40">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie 
+                data={chartData} 
+                cx="50%" 
+                cy="50%" 
+                innerRadius={45} 
+                outerRadius={70} 
+                paddingAngle={2}
+                dataKey="leads"
+              >
+                {chartData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.fill} />
+                ))}
+              </Pie>
+              <Tooltip 
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    const data = payload[0];
+                    const pct = total > 0 ? Math.round((data.value / total) * 100) : 0;
+                    return (
+                      <div className="bg-white p-2 rounded-lg shadow-lg border border-gray-100">
+                        <p className="font-semibold text-sm">{data.name}</p>
+                        <p className="text-xs text-gray-600">{data.value} leads ({pct}%)</p>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="flex-1 space-y-2">
+          {chartData.map((source, index) => {
+            const pct = total > 0 ? Math.round((source.leads / total) * 100) : 0;
+            return (
+              <div key={index} className="flex items-center gap-3">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: source.fill }} />
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-700">{source.name}</span>
+                    <span className="text-sm font-semibold text-gray-900">{source.leads}</span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-1.5 mt-1">
+                    <div 
+                      className="h-full rounded-full" 
+                      style={{ width: `${pct}%`, backgroundColor: source.fill }}
+                    />
+                  </div>
+                </div>
+                <span className="text-xs text-gray-500 w-8">{pct}%</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Monthly Trend 2D Area Chart with Individual Date Filter
+const TrendChart = ({ data, loading }) => {
+  const [dateRange, setDateRange] = useState('all');
+
+  const filteredData = useMemo(() => {
+    if (!data || !Array.isArray(data)) return data;
+    if (dateRange === 'all') return data;
+    
+    // Filter data based on date range
+    const now = new Date();
+    let monthsToShow = 12; // default all
+    
+    switch (dateRange) {
+      case 'today':
+        monthsToShow = 1;
+        break;
+      case 'week':
+        monthsToShow = 1;
+        break;
+      case 'month':
+        monthsToShow = 1;
+        break;
+      case 'quarter':
+        monthsToShow = 3;
+        break;
+      case 'year':
+        monthsToShow = 12;
+        break;
+      default:
+        monthsToShow = 12;
+    }
+    
+    // Return last N months based on filter
+    return data.slice(-monthsToShow);
+  }, [data, dateRange]);
+
+  if (loading) return <SkeletonChart />;
+  
+  if (!filteredData || filteredData.length === 0) {
+    return (
+      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">Monthly Trend</h3>
+          <ChartDateFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
+        </div>
+        <div className="h-64 flex items-center justify-center">
+          <p className="text-gray-400">No trend data available</p>
+        </div>
+      </div>
+    );
+  }
+
+  const chartData = filteredData.map(item => ({
+    month: item.month || '',
+    created: item.created || 0,
+    won: item.won || 0,
+  }));
+
+  const totalCreated = chartData.reduce((sum, d) => sum + d.created, 0);
+  const totalWon = chartData.reduce((sum, d) => sum + d.won, 0);
+
+  return (
+    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900">Monthly Trend</h3>
+          <p className="text-sm text-gray-500 mt-1">{totalCreated} new · {totalWon} won</p>
+        </div>
+        <ChartDateFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
+      </div>
+
+      <div className="h-64">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+            <defs>
+              <linearGradient id="colorCreated" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+              </linearGradient>
+              <linearGradient id="colorWon" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3}/>
+                <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+            <XAxis 
+              dataKey="month" 
+              tick={{ fontSize: 11, fill: '#6b7280' }} 
+              axisLine={false} 
+              tickLine={false}
+            />
+            <YAxis 
+              tick={{ fontSize: 11, fill: '#6b7280' }} 
+              axisLine={false} 
+              tickLine={false}
+            />
+            <Tooltip 
+              contentStyle={{ 
+                backgroundColor: 'white', 
+                border: '1px solid #e5e7eb', 
+                borderRadius: '8px',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+              }}
+            />
+            <Legend iconType="circle" wrapperStyle={{ paddingTop: '10px' }} />
+            <Area 
+              type="monotone" 
+              dataKey="created" 
+              stroke="#3b82f6" 
+              fillOpacity={1} 
+              fill="url(#colorCreated)" 
+              strokeWidth={2}
+              name="New Leads"
+            />
+            <Area 
+              type="monotone" 
+              dataKey="won" 
+              stroke="#22c55e" 
+              fillOpacity={1} 
+              fill="url(#colorWon)" 
+              strokeWidth={2}
+              name="Won"
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+};
+
+// Top Performers Component with Individual Date Filter
+const AgentLeaderboard = ({ data, loading, leads = [] }) => {
+  const [dateRange, setDateRange] = useState('all');
+
   const agents = useMemo(() => {
-    const list = Array.isArray(data) ? data : [];
-    const normalized = list.map((a) => {
-      const leadsHandled = Number(a?.leadsHandled ?? a?.leadsAssigned ?? a?.leads ?? 0);
-      const converted = Number(a?.converted ?? a?.leadsConverted ?? a?.won ?? 0);
-      const conversionRate = Number(a?.conversionRate ?? (leadsHandled > 0 ? (converted / leadsHandled) * 100 : 0));
-      return { id: a?.id ?? a?._id ?? a?.userId ?? a?.email ?? a?.name, name: a?.name ?? a?.fullName ?? a?.email ?? '', leadsHandled, converted, conversionRate };
-    }).filter((a) => {
-      const name = String(a?.name || '').trim().toLowerCase();
-      const isPlaceholderName = name === '' || name === 'unknown' || name === 'no data';
-      const hasStats = (a.leadsHandled || 0) > 0 || (a.converted || 0) > 0;
-      return hasStats && !isPlaceholderName;
-    }).sort((a, b) => (b.conversionRate || 0) - (a.conversionRate || 0));
-    return normalized.slice(0, 5);
-  }, [data]);
+    if (!leads || !Array.isArray(leads) || leads.length === 0) {
+      const list = Array.isArray(data) ? data : [];
+      return list
+        .map((a) => ({
+          id: a?.id ?? a?._id ?? a?.userId ?? a?.email ?? a?.name,
+          name: a?.name ?? a?.fullName ?? a?.email ?? 'Unknown',
+          leads: Number(a?.leadsHandled ?? a?.leadsAssigned ?? a?.leads ?? 0),
+          converted: Number(a?.converted ?? a?.leadsConverted ?? a?.won ?? 0),
+          rate: Number(a?.conversionRate ?? 0)
+        }))
+        .filter(a => a.leads > 0)
+        .sort((a, b) => b.rate - a.rate)
+        .slice(0, 5);
+    }
+    
+    // Filter leads by date range
+    const filteredLeads = filterLeadsByDateRange(leads, dateRange);
+    
+    // Group by assignedTo/agent and calculate metrics
+    const agentStats = {};
+    filteredLeads.forEach(lead => {
+      const agentId = lead.assignedTo?._id || lead.assignedTo || lead.createdBy?._id || lead.createdBy || 'unassigned';
+      const agentName = lead.assignedTo?.name || lead.assignedTo?.firstName || lead.createdBy?.name || lead.createdBy?.firstName || 'Unknown';
+      
+      if (!agentStats[agentId]) {
+        agentStats[agentId] = {
+          id: agentId,
+          name: agentName,
+          leads: 0,
+          converted: 0
+        };
+      }
+      
+      agentStats[agentId].leads++;
+      
+      const status = (lead.statusKey || lead.status || '').toLowerCase();
+      if (status === 'won' || status === 'customer' || status === 'converted') {
+        agentStats[agentId].converted++;
+      }
+    });
+    
+    // Calculate conversion rates and sort
+    return Object.values(agentStats)
+      .map(agent => ({
+        ...agent,
+        rate: agent.leads > 0 ? Math.round((agent.converted / agent.leads) * 100) : 0
+      }))
+      .filter(a => a.leads > 0)
+      .sort((a, b) => b.rate - a.rate)
+      .slice(0, 5);
+  }, [data, leads, dateRange]);
 
   if (loading) return <SkeletonChart />;
 
-  const hasAgents = agents && agents.length > 0;
-
   return (
-    <div className="glass-card p-6 rounded-2xl">
-      <div className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-lg">
-            <Award size={20} className="text-white" />
-          </div>
-          <div>
-            <h3 className="text-sm font-bold text-[var(--text-primary)]">Top Performers</h3>
-            <p className="text-[10px] text-[var(--text-muted)]">{hasAgents ? `${agents.length} agents` : 'No data'}</p>
-          </div>
+    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900">Top Performers</h3>
+          <p className="text-sm text-gray-500 mt-1">By conversion rate</p>
         </div>
-        {hasAgents && (
-          <div className="text-right">
-            <span className="text-lg font-bold text-amber-500">#{agents.length}</span>
-            <p className="text-[9px] text-[var(--text-muted)]">Ranked</p>
-          </div>
-        )}
+        <ChartDateFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
       </div>
 
-      {!hasAgents ? (
-        <div className="flex flex-col items-center justify-center py-10 text-center">
-          <div className="w-16 h-16 rounded-full bg-[var(--bg-elevated)] flex items-center justify-center mb-3">
-            <UserCheck size={24} className="text-[var(--text-muted)]" />
-          </div>
-          <p className="text-sm text-[var(--text-muted)]">No performers yet</p>
-          <p className="text-[10px] text-[var(--text-faint)] mt-1">Assign leads to agents to see rankings</p>
+      {agents.length === 0 ? (
+        <div className="h-64 flex items-center justify-center">
+          <p className="text-gray-400">No performer data available</p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {agents.map((agent, index) => {
-            const initial = String(agent.name || '?').trim().slice(0, 1).toUpperCase();
-            const rate = Number.isFinite(agent.conversionRate) ? agent.conversionRate : 0;
             const rankColors = [
-              'bg-gradient-to-br from-amber-400 to-amber-500 text-white shadow-lg shadow-amber-500/30',
-              'bg-gradient-to-br from-slate-300 to-slate-400 text-white shadow-lg shadow-slate-400/30',
-              'bg-gradient-to-br from-orange-400 to-orange-500 text-white shadow-lg shadow-orange-500/30'
+              'bg-amber-100 text-amber-700',
+              'bg-gray-100 text-gray-700', 
+              'bg-orange-100 text-orange-700'
             ];
-            const rankClass = index < 3 ? rankColors[index] : 'bg-[var(--bg-elevated)] text-[var(--text-muted)]';
-            
+            const rankClass = index < 3 ? rankColors[index] : 'bg-gray-50 text-gray-500';
+            const initial = agent.name.charAt(0).toUpperCase();
+
             return (
-              <div key={`${agent.id || 'agent'}-${index}`} className="flex items-center gap-3 p-3 rounded-xl bg-[var(--bg-elevated)]/30 hover:bg-[var(--bg-elevated)]/60 transition-all duration-300 group">
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold ${rankClass}`}>
+              <div key={agent.id || index} className="flex items-center gap-4">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${rankClass}`}>
                   {index + 1}
                 </div>
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 text-white flex items-center justify-center text-sm font-bold shadow-md">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold">
                   {initial}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-[var(--text-primary)] truncate">{agent.name || 'Unknown'}</p>
-                  <p className="text-[9px] text-[var(--text-muted)]">{formatNumber(agent.converted)} converted · {formatNumber(agent.leadsHandled)} total</p>
-                  <div className="mt-1.5 h-1.5 w-full bg-[var(--bg-base)] rounded-full overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-500" style={{ width: `${Math.max(0, Math.min(100, rate))}%` }} />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-gray-900">{agent.name}</p>
+                  <div className="flex items-center gap-3 mt-1">
+                    <div className="flex-1 bg-gray-100 rounded-full h-2">
+                      <div 
+                        className="h-full bg-blue-500 rounded-full"
+                        style={{ width: `${Math.min(agent.rate, 100)}%` }}
+                      />
+                    </div>
+                    <span className="text-xs text-gray-500">{agent.rate.toFixed(0)}%</span>
                   </div>
                 </div>
                 <div className="text-right">
-                  <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${rate >= 50 ? 'bg-emerald-500/10 text-emerald-500' : rate >= 30 ? 'bg-blue-500/10 text-blue-500' : 'bg-amber-500/10 text-amber-500'}`}>
-                    {rate.toFixed(0)}%
-                  </span>
+                  <p className="text-sm font-bold text-gray-900">{agent.converted}</p>
+                  <p className="text-xs text-gray-500">won</p>
                 </div>
               </div>
             );
@@ -493,18 +656,237 @@ const TopPerformers = ({ data, loading }) => {
   );
 };
 
-const QuickStats = ({ kpis, loading }) => {
-  if (loading) return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-      {[...Array(4)].map((_, i) => (
-        <div key={i} className="flex items-center gap-3 p-4 rounded-xl bg-[var(--bg-elevated)]/50 border border-[var(--border-subtle)] animate-pulse">
-          <div className="w-10 h-10 rounded-lg bg-[var(--bg-elevated)]" />
-          <div className="flex-1">
-            <div className="w-16 h-2 rounded bg-[var(--bg-elevated)] mb-1" />
-            <div className="w-12 h-4 rounded bg-[var(--bg-elevated)]" />
+// Calendar Component - Similar to Attendance Calendar
+const LeadCalendar = ({ leads, loading }) => {
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(null);
+
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'];
+
+  const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
+  const getFirstDayOfMonth = (year, month) => new Date(year, month, 1).getDay();
+
+  const year = currentMonth.getFullYear();
+  const month = currentMonth.getMonth();
+  const daysInMonth = getDaysInMonth(year, month);
+  const firstDay = getFirstDayOfMonth(year, month);
+
+  // Group leads by date
+  const leadsByDate = useMemo(() => {
+    if (!leads || !Array.isArray(leads)) return {};
+    const grouped = {};
+    leads.forEach(lead => {
+      const date = lead.createdAt || lead.created_at || lead.date;
+      if (date) {
+        const dateObj = new Date(date);
+        const dateKey = `${dateObj.getFullYear()}-${dateObj.getMonth()}-${dateObj.getDate()}`;
+        if (!grouped[dateKey]) grouped[dateKey] = [];
+        grouped[dateKey].push(lead);
+      }
+    });
+    return grouped;
+  }, [leads]);
+
+  const getLeadsForDate = (day) => {
+    const dateKey = `${year}-${month}-${day}`;
+    return leadsByDate[dateKey] || [];
+  };
+
+  const prevMonth = () => setCurrentMonth(new Date(year, month - 1, 1));
+  const nextMonth = () => setCurrentMonth(new Date(year, month + 1, 1));
+
+  // Count total leads for this month
+  const totalLeadsThisMonth = useMemo(() => {
+    return Object.values(leadsByDate).flat().filter(lead => {
+      const date = new Date(lead.createdAt || lead.created_at || lead.date);
+      return date.getMonth() === month && date.getFullYear() === year;
+    }).length;
+  }, [leadsByDate, month, year]);
+
+  if (loading) {
+    return (
+      <div className="p-4">
+        <div className="flex items-center justify-between mb-4">
+          <div className="w-32 h-6 bg-gray-200 rounded animate-pulse" />
+          <div className="flex gap-2">
+            <div className="w-20 h-8 bg-gray-200 rounded animate-pulse" />
+            <div className="w-20 h-8 bg-gray-200 rounded animate-pulse" />
+            <div className="w-24 h-6 bg-gray-200 rounded animate-pulse" />
           </div>
         </div>
-      ))}
+        <div className="grid grid-cols-7 gap-2">
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, i) => (
+            <div key={i} className="h-10 bg-gray-100 rounded animate-pulse" />
+          ))}
+          {Array(35).fill(0).map((_, i) => (
+            <div key={i} className="h-20 bg-gray-100 rounded animate-pulse" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const days = [];
+  // Empty cells for days before the first day of month
+  for (let i = 0; i < firstDay; i++) {
+    days.push(<div key={`empty-${i}`} className="h-20 bg-gray-50 rounded-lg" />);
+  }
+
+  // Days of the month
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateLeads = getLeadsForDate(day);
+    const hasLeads = dateLeads.length > 0;
+    const isSelected = selectedDate === day;
+    const isToday = new Date().toDateString() === new Date(year, month, day).toDateString();
+
+    days.push(
+      <div
+        key={day}
+        className={`h-20 p-2 rounded-lg border-2 cursor-pointer transition-all overflow-hidden ${
+          isSelected ? 'border-blue-500 bg-blue-50' : 
+          isToday ? 'border-orange-400 bg-orange-50' :
+          hasLeads ? 'border-amber-300 bg-amber-50 hover:border-amber-400' : 
+          'border-gray-200 bg-white hover:border-gray-300'
+        }`}
+        onClick={() => setSelectedDate(isSelected ? null : day)}
+      >
+        <div className="flex items-center justify-between mb-1">
+          <span className={`text-sm font-bold ${
+            isToday ? 'text-orange-600' : 
+            hasLeads ? 'text-amber-700' : 'text-gray-700'
+          }`}>
+            {day}
+          </span>
+          {hasLeads && (
+            <span className="text-xs font-semibold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded">
+              {dateLeads.length}
+            </span>
+          )}
+        </div>
+        
+        {/* Show lead names */}
+        <div className="space-y-0.5">
+          {dateLeads.slice(0, 2).map((lead, idx) => (
+            <div key={idx} className="text-xs truncate text-gray-600 bg-white/80 px-1 py-0.5 rounded">
+              {lead.name || lead.customerName || 'Lead'}
+            </div>
+          ))}
+          {dateLeads.length > 2 && (
+            <div className="text-xs text-gray-500 px-1">
+              +{dateLeads.length - 2} more
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const selectedDateLeads = selectedDate ? getLeadsForDate(selectedDate) : [];
+
+  return (
+    <div className="p-4">
+      {/* Header with month/year selector */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <select 
+            value={month}
+            onChange={(e) => setCurrentMonth(new Date(year, parseInt(e.target.value), 1))}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {monthNames.map((m, i) => (
+              <option key={i} value={i}>{m}</option>
+            ))}
+          </select>
+          <select
+            value={year}
+            onChange={(e) => setCurrentMonth(new Date(parseInt(e.target.value), month, 1))}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {[2024, 2025, 2026, 2027].map((y) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+          <span className="text-sm text-gray-500">
+            {totalLeadsThisMonth} records this month
+          </span>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <h3 className="text-lg font-bold text-orange-500">
+            {monthNames[month]} {year}
+          </h3>
+          <div className="flex gap-1 ml-4">
+            <button
+              onClick={prevMonth}
+              className="p-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <button
+              onClick={nextMonth}
+              className="p-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors"
+            >
+              <ChevronRight size={18} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Day headers */}
+      <div className="grid grid-cols-7 gap-2 mb-2">
+        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+          <div key={day} className="h-10 flex items-center justify-center text-sm font-bold text-gray-600 bg-gray-100 rounded-lg">
+            {day}
+          </div>
+        ))}
+      </div>
+
+      {/* Calendar grid */}
+      <div className="grid grid-cols-7 gap-2">
+        {days}
+      </div>
+
+      {/* Selected date leads detail */}
+      {selectedDate && selectedDateLeads.length > 0 && (
+        <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+          <h4 className="text-sm font-bold text-gray-900 mb-3">
+            Leads on {monthNames[month]} {selectedDate}, {year} ({selectedDateLeads.length})
+          </h4>
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {selectedDateLeads.map((lead, idx) => (
+              <div key={idx} className="flex items-center justify-between p-3 bg-white rounded-lg shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-bold">
+                    {(lead.name || lead.customerName || 'U').charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">
+                      {lead.name || lead.customerName || 'Unknown Lead'}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {lead.statusKey || lead.status || 'new'} • {lead.phone || lead.mobile || 'No phone'}
+                    </p>
+                  </div>
+                </div>
+                <span className="text-sm font-bold text-gray-900">
+                  {fmt(lead.value || 0)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+const SmartInsights = ({ insights, loading }) => {
+  if (loading) return (
+    <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 animate-pulse">
+      <div className="w-32 h-4 rounded bg-gray-200 mb-3" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[...Array(4)].map((_, i) => <div key={i} className="h-12 rounded bg-gray-200" />)}
+      </div>
     </div>
   );
   
@@ -544,11 +926,25 @@ const QuickStats = ({ kpis, loading }) => {
   ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-      {stats.map((stat, index) => (
-        <div key={index} className="flex items-center gap-3 p-4 rounded-xl bg-[var(--bg-elevated)]/50 border border-[var(--border-subtle)] hover:border-[var(--border-base)] hover:bg-[var(--bg-elevated)] transition-all duration-300 group">
-          <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300`}>
-            <stat.icon size={18} className="text-white" />
+    <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+      <div className="flex items-center gap-2 mb-4">
+        <Sparkles size={18} className="text-amber-500" />
+        <h3 className="text-base font-semibold text-gray-900">Smart Insights</h3>
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {displayInsights.map((insight, i) => (
+          <div key={i} className={`p-3 rounded-lg ${
+            insight.type === 'positive' ? 'bg-emerald-50 border border-emerald-100' : 
+            insight.type === 'negative' ? 'bg-red-50 border border-red-100' : 
+            'bg-blue-50 border border-blue-100'
+          }`}>
+            <p className={`text-xs font-medium ${
+              insight.type === 'positive' ? 'text-emerald-700' : 
+              insight.type === 'negative' ? 'text-red-700' : 
+              'text-blue-700'
+            }`}>
+              {insight.message}
+            </p>
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">{stat.label}</p>
@@ -560,8 +956,54 @@ const QuickStats = ({ kpis, loading }) => {
   );
 };
 
-const LeadAnalyticsDashboard = ({ onAddLead, onNavigate }) => {
-  const queryOpts = { refetchInterval: 30000, staleTime: 30000 };
+// Empty State
+const EmptyState = ({ onAddLead }) => (
+  <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-100 text-center">
+    <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+      <Users size={40} className="text-gray-400" />
+    </div>
+    <h3 className="text-xl font-semibold text-gray-900 mb-2">No Leads Available</h3>
+    <p className="text-gray-500 mb-6 max-w-md mx-auto">
+      Import or add leads to see analytics. Once you have leads, this dashboard will show your sales funnel, pipeline value, and conversion metrics.
+    </p>
+    {onAddLead && (
+      <Button variant="outline" onClick={onAddLead}>
+        <Zap size={16} className="mr-2" /> Add Lead
+      </Button>
+    )}
+  </div>
+);
+
+// Error State
+const ErrorState = ({ onRetry }) => (
+  <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-100 text-center">
+    <div className="w-20 h-20 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
+      <AlertCircle size={40} className="text-red-500" />
+    </div>
+    <h3 className="text-xl font-semibold text-gray-900 mb-2">Failed to Load Data</h3>
+    <p className="text-gray-500 mb-6">
+      There was an error loading the dashboard data. Please try again.
+    </p>
+    {onRetry && (
+      <Button variant="outline" onClick={onRetry}>
+        <RefreshCw size={16} className="mr-2" /> Retry
+      </Button>
+    )}
+  </div>
+);
+
+// Main Dashboard Component with Live Data, Calendar and Individual Chart Filters
+const LeadAnalyticsDashboard = ({ onAddLead }) => {
+  const [isLive, setIsLive] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [showCalendar, setShowCalendar] = useState(false);
+  
+  const queryOpts = { 
+    refetchInterval: 30000, // Refresh every 30 seconds for live data
+    staleTime: 30000 
+  };
+
+  // Fetch all dashboard data
   const { data: kpisRaw, isLoading: kpisLoading, error: kpisError, refetch: refetchKpis } = useQuery({
     queryKey: ['leads-dashboard', 'kpis'],
     queryFn: async () => { const response = await leadsApi.getDashboardKpis(); return response?.data || response; },
@@ -578,131 +1020,170 @@ const LeadAnalyticsDashboard = ({ onAddLead, onNavigate }) => {
     ...queryOpts,
   });
   const { data: performersRaw, isLoading: performersLoading } = useQuery({
-    queryKey: ['leads-dashboard', 'top-performers'],
-    queryFn: async () => { const response = await leadsApi.getDashboardTopPerformers(); return response?.data || response; },
+    queryKey: ['leads-dashboard', 'performers'],
+    queryFn: async () => {
+      const response = await leadsApi.getDashboardTopPerformers();
+      return response?.data || response;
+    },
     ...queryOpts,
   });
-  const kpis = kpisRaw;
-  const funnel = funnelRaw;
-  const monthly = monthlyRaw;
-  const performers = performersRaw;
-  const isLoading = kpisLoading || funnelLoading || monthlyLoading || performersLoading;
-  const hasError = kpisError;
-  const hasNoLeads = !kpis || !kpis.totalLeads || kpis.totalLeads === 0;
-  const handleRefresh = () => { refetchKpis(); };
-  const monthlySpark = useMemo(() => {
-    const m = monthly?.months || [];
-    return (Array.isArray(m) ? m : []).map((x) => ({ v: Number(x.created || 0) }));
-  }, [monthly]);
-  const wonSpark = useMemo(() => {
-    const m = monthly?.months || [];
-    return (Array.isArray(m) ? m : []).map((x) => ({ v: Number(x.won || 0) }));
-  }, [monthly]);
-  if (hasError && !kpis) {
-    return (
-      <div className="space-y-6 p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-black text-[var(--text-primary)]">CRM Dashboard</h1>
-            <p className="text-sm text-[var(--text-muted)]">Lead analytics & performance</p>
-          </div>
-        </div>
-        <div className="glass-card p-8 flex flex-col items-center justify-center text-center rounded-2xl">
-          <div className="w-16 h-16 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-4">
-            <AlertCircle size={28} className="text-red-500" />
-          </div>
-          <h3 className="text-lg font-bold text-[var(--text-primary)] mb-2">Failed to Load Data</h3>
-          <Button variant="outline" onClick={handleRefresh}><RefreshCw size={14} className="mr-2" /> Retry</Button>
-        </div>
-      </div>
-    );
-  }
+
+  // Fetch leads for calendar and filtering
+  const { data: leadsRaw, isLoading: leadsLoading } = useQuery({
+    queryKey: ['leads-dashboard', 'all-leads'],
+    queryFn: async () => {
+      const response = await leadsApi.getAll({ limit: 1000 });
+      return response?.data || response || [];
+    },
+    ...queryOpts,
+  });
+
+  // Update last updated time when data refreshes
+  useEffect(() => {
+    if (kpisRaw) {
+      setLastUpdated(new Date());
+      setIsLive(true);
+    }
+  }, [kpisRaw]);
+
+  const kpis = kpisRaw || {};
+  const funnel = funnelRaw || {};
+  const sources = sourcesRaw || {};
+  const monthly = monthlyRaw || {};
+  const performers = performersRaw || {};
+  const leads = leadsRaw || [];
+
+  const isLoading = kpisLoading || funnelLoading || sourcesLoading || monthlyLoading || performersLoading;
+  const hasNoLeads = !kpis.totalLeads || kpis.totalLeads === 0;
+
+  const handleRefresh = () => {
+    refetchKpis();
+    setLastUpdated(new Date());
+  };
+
+  // Prepare KPI data
+  const kpiData = [
+    {
+      title: 'Total Leads',
+      value: formatNumber(kpis.totalLeads || 0),
+      change: kpis.deltas?.totalLeadsPct,
+      trend: (kpis.deltas?.totalLeadsPct || 0) >= 0 ? 'up' : 'down',
+      icon: Users,
+      color: '#3b82f6',
+      subtitle: 'All time leads'
+    },
+    {
+      title: 'New Today',
+      value: formatNumber(kpis.newLeads || 0),
+      change: undefined,
+      trend: 'up',
+      icon: Sparkles,
+      color: '#8b5cf6',
+      subtitle: "Today's new leads"
+    },
+    {
+      title: 'Converted',
+      value: formatNumber(kpis.convertedLeads || 0),
+      change: kpis.deltas?.convertedLeadsPct,
+      trend: (kpis.deltas?.convertedLeadsPct || 0) >= 0 ? 'up' : 'down',
+      icon: CheckCircle2,
+      color: '#22c55e',
+      subtitle: `${kpis.conversionRate || 0}% conversion rate`
+    },
+    {
+      title: 'Pipeline Value',
+      value: fmt(kpis.pipelineValue || 0),
+      change: undefined,
+      trend: 'up',
+      icon: DollarSign,
+      color: '#f59e0b',
+      subtitle: 'Total pipeline value'
+    }
+  ];
+
   if (hasNoLeads && !isLoading) {
     return (
-      <div className="space-y-6 p-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div className="p-6 space-y-6">
+        <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-black text-[var(--text-primary)]">CRM Dashboard</h1>
-            <p className="text-sm text-[var(--text-muted)]">Lead analytics & performance</p>
+            <h1 className="text-2xl font-bold text-gray-900">Lead Dashboard</h1>
+            <p className="text-sm text-gray-500 mt-1">Real-time sales analytics</p>
           </div>
+          <LiveIndicator isLive={isLive} />
         </div>
-        <div className="glass-card p-8 flex flex-col items-center justify-center text-center rounded-2xl">
-          <div className="w-20 h-20 rounded-full bg-[var(--bg-elevated)] border border-[var(--border-base)] flex items-center justify-center mb-4">
-            <Users size={32} className="text-[var(--text-muted)]" />
-          </div>
-          <h3 className="text-lg font-bold text-[var(--text-primary)] mb-2">No Leads Available</h3>
-          <p className="text-sm text-[var(--text-muted)] mb-6 max-w-md">Import or add leads to see analytics. Once you have leads, this dashboard will show your sales funnel, pipeline value, and conversion metrics.</p>
-          <Button variant="outline" onClick={onAddLead}><Zap size={14} className="mr-2" /> Add Lead</Button>
-        </div>
+
+        <EmptyState onAddLead={onAddLead} />
       </div>
     );
   }
-  const kpiData = kpis ? [
-    { title: 'Total Leads', value: formatNumber(kpis.totalLeads), change: kpis.deltas?.totalLeadsPct, trend: (kpis.deltas?.totalLeadsPct || 0) >= 0 ? 'up' : 'down', icon: Users, color: '#3B82F6', subtitle: 'All time leads', sparkline: monthlySpark, onClick: () => {} },
-    { title: 'New Leads', value: formatNumber(kpis.newLeads), change: undefined, trend: 'up', icon: Sparkles, color: '#8B5CF6', subtitle: 'Today', sparkline: monthlySpark, onClick: () => {} },
-    { title: 'Converted', value: formatNumber(kpis.convertedLeads), change: kpis.deltas?.convertedLeadsPct, trend: (kpis.deltas?.convertedLeadsPct || 0) >= 0 ? 'up' : 'down', icon: CheckCircle2, color: '#22C55E', subtitle: `${kpis.conversionRate || 0}% conversion`, sparkline: wonSpark, onClick: () => {} },
-    { title: 'Lost Leads', value: formatNumber(kpis.lostLeads), change: undefined, trend: 'down', icon: TrendingDown, color: '#EF4444', subtitle: 'Status: Lost', sparkline: monthlySpark, onClick: () => {} },
-  ] : [];
 
   return (
-    <div className="space-y-5 p-6 animate-in fade-in duration-500">
-      {/* Header Section */}
+    <div className="p-6 space-y-6">
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-black text-[var(--text-primary)] tracking-tight">CRM Dashboard</h1>
-          <p className="text-sm text-[var(--text-muted)]">Lead analytics & performance metrics</p>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Lead Dashboard</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Last updated: {lastUpdated.toLocaleTimeString()}
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="px-3 py-1.5 bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 rounded-full text-xs font-semibold flex items-center gap-2 shadow-sm">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            Live Data
-          </span>
-          <Button variant="outline" size="sm" onClick={handleRefresh} className="rounded-xl hover:bg-[var(--bg-elevated)] transition-colors">
-            <RefreshCw size={14} className="mr-2" /> Refresh
+        <div className="flex items-center gap-3">
+          <LiveIndicator isLive={isLive} />
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setShowCalendar(true)}
+          >
+            <CalendarIcon size={14} className="mr-2" />
+            Calendar View
           </Button>
-          <Button variant="outline" size="sm" className="rounded-xl hover:bg-[var(--bg-elevated)] transition-colors">
-            <Download size={14} className="mr-2" /> Export
+          <Button variant="outline" size="sm" onClick={handleRefresh}>
+            <RefreshCw size={14} className="mr-2" />
+            Refresh
+          </Button>
+          <Button variant="outline" size="sm">
+            <Download size={14} className="mr-2" />
+            Export
           </Button>
         </div>
       </div>
 
-      {/* KPI Cards Grid */}
+      {/* Calendar Modal */}
+      <Modal
+        open={showCalendar}
+        onClose={() => setShowCalendar(false)}
+        title="Lead Calendar"
+        size="xl"
+      >
+        <LeadCalendar 
+          leads={leads} 
+          loading={leadsLoading}
+        />
+      </Modal>
+
+      {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {isLoading ? 
-          [...Array(4)].map((_, i) => <SkeletonCard key={i} />) : 
-          kpiData.map((kpi, idx) => (
-            <div key={kpi.title} className="animate-in slide-in-from-bottom-2 duration-500" style={{ animationDelay: `${idx * 100}ms` }}>
-              <KPICard {...kpi} loading={false} />
-            </div>
-          ))
+        {isLoading 
+          ? Array(4).fill(0).map((_, i) => <SkeletonCard key={i} />)
+          : kpiData.map((kpi, index) => (
+              <KPICard key={index} {...kpi} loading={false} />
+            ))
         }
       </div>
 
-      {/* Quick Stats */}
-      {!isLoading && (
-        <div className="animate-in slide-in-from-bottom-2 duration-500" style={{ animationDelay: '400ms' }}>
-          <QuickStats kpis={kpis} loading={kpisLoading} />
-        </div>
-      )}
+      {/* Smart Insights */}
+      <SmartInsights insights={[]} loading={isLoading} />
 
-      {/* Main Charts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="animate-in slide-in-from-left-4 duration-500" style={{ animationDelay: '500ms' }}>
-          <SolarPipeline data={funnel?.stages} loading={funnelLoading} />
-        </div>
-        <div className="animate-in slide-in-from-right-4 duration-500" style={{ animationDelay: '600ms' }}>
-          <LeadConversionChart data={funnel?.stages} loading={funnelLoading} />
-        </div>
+      {/* Charts Row 1 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <FunnelChart data={funnel.stages} loading={funnelLoading} leads={leads} />
+        <SourceChart data={sources.sources} loading={sourcesLoading} leads={leads} />
       </div>
 
-      {/* Bottom Charts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="animate-in slide-in-from-left-4 duration-500" style={{ animationDelay: '700ms' }}>
-          <MonthlyTrendChart data={monthly?.months} loading={monthlyLoading} />
-        </div>
-        <div className="animate-in slide-in-from-right-4 duration-500" style={{ animationDelay: '800ms' }}>
-          <TopPerformers data={performers?.performers} loading={performersLoading} />
-        </div>
+      {/* Charts Row 2 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <TrendChart data={monthly.months} loading={monthlyLoading} />
+        <AgentLeaderboard data={performers.performers} loading={performersLoading} leads={leads} />
       </div>
     </div>
   );

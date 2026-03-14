@@ -15,7 +15,7 @@ import {
   MailOpen, Send, CheckSquare, Square, ArrowRight, Sparkles,
   Brain, ZapOff, BatteryCharging, Wind, Sun, Moon, Cloud,
   Gauge, Targeted, FilterX, SearchX, UserPlus, UserMinus,
-  Save, GitCommit, ChevronDown, Info
+  Save, GitCommit, ChevronDown, Info, LayoutGrid
 } from 'lucide-react';
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
@@ -1236,7 +1236,7 @@ const CRMPage = ({ onNavigate }) => {
         await leadsApi.assignLead(editingLead._id, editingLead.assignedTo);
       }
 
-      // Only send allowed fields to API
+      // Build update data with custom fields
       const updateData = {
         name: editingLead.name,
         company: editingLead.company,
@@ -1247,6 +1247,7 @@ const CRMPage = ({ onNavigate }) => {
         statusKey: editingLead.statusKey,
         value: editingLead.value,
         notes: editingLead.notes,
+        customFields: editingLead.customFields || {}
       };
       await leadsApi.update(editingLead._id, updateData);
       logUpdate(editingLead);
@@ -1882,7 +1883,11 @@ const CRMPage = ({ onNavigate }) => {
       score: lead.score !== undefined ? lead.score : calculateLeadScore(lead),
       automation: applyAutomationRules(lead),
       slaBreached: lead.activities?.[0] ?
-        Math.floor((new Date() - new Date(lead.activities[0].timestamp)) / (1000 * 60 * 60 * 24)) > 3 : false
+        Math.floor((new Date() - new Date(lead.activities[0].timestamp)) / (1000 * 60 * 60 * 24)) > 3 : false,
+      // Ensure customFields is always an object
+      customFields: (lead.customFields && typeof lead.customFields === 'object' && !Array.isArray(lead.customFields)) 
+        ? lead.customFields 
+        : {}
     }));
   }, [activeLeads, applyAutomationRules]);
 
@@ -2038,6 +2043,15 @@ const CRMPage = ({ onNavigate }) => {
   }, [filteredLeads]);
 
   const columns = useMemo(() => {
+    // Collect all unique custom field keys from all leads
+    const allCustomFieldKeys = new Set();
+    activeLeads.forEach(lead => {
+      if (lead.customFields && typeof lead.customFields === 'object') {
+        Object.keys(lead.customFields).forEach(key => allCustomFieldKeys.add(key));
+      }
+    });
+    const customFieldColumns = Array.from(allCustomFieldKeys).sort();
+
     const allColumns = [
       {
         key: 'name', header: 'Lead', sortable: true, width: '220px',
@@ -2104,9 +2118,23 @@ const CRMPage = ({ onNavigate }) => {
           );
         }
       },
+      // Dynamic custom field columns
+      ...customFieldColumns.map(key => ({
+        key: `customFields.${key}`,
+        header: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()), // Convert snake_case to Title Case
+        width: '100px',
+        render: (val, row) => {
+          const customValue = row.customFields?.[key];
+          return (
+            <span className="text-[11px] text-[var(--text-secondary)] truncate">
+              {customValue !== undefined && customValue !== null ? customValue : '—'}
+            </span>
+          );
+        }
+      }))
     ];
     return allColumns.filter(col => visibleColumns[col.key] !== false);
-  }, [visibleColumns, statusMap]);
+  }, [visibleColumns, statusMap, activeLeads]);
 
   const handleImport = async ({ file, mapping }) => {
     if (!file) {
@@ -2213,7 +2241,7 @@ const CRMPage = ({ onNavigate }) => {
         tabs={[
           ...(crmFeatures.analytics ? [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }] : []),
           { id: 'leads', label: 'Leads', icon: List },
-          ...(crmFeatures.kanban ? [{ id: 'kanban', label: 'Kanban', icon: LayoutDashboard }] : []),
+          ...(crmFeatures.kanban ? [{ id: 'kanban', label: 'Kanban', icon: LayoutGrid }] : []),
           { id: 'customers', label: 'Customers', icon: Users },
         ]}
         activeTab={view}
@@ -2471,7 +2499,7 @@ const CRMPage = ({ onNavigate }) => {
           </div>
 
           <div className="overflow-x-auto pb-3">
-            <div className="flex gap-4 min-w-max">
+            <div className="flex gap-4 min-w-max px-1">
               {(statusOptions || []).map((stage, stageIndex) => {
                 // Filter leads that match this stage's key
                 // Also match survey-related keys to the same column
@@ -2497,7 +2525,7 @@ const CRMPage = ({ onNavigate }) => {
 
                 return (
                   <div key={stage.key}
-                    className={`flex flex-col w-64 rounded-[14px] border border-[#F1F5F9] bg-[#F8FAFC] p-2.5 transition-colors h-[700px]`}
+                    className={`flex flex-col w-72 rounded-xl border border-gray-200 bg-gray-50 p-3 transition-colors h-[calc(100vh-220px)]`}
                     onDragOver={e => { e.preventDefault(); }}
                     onDragEnter={() => {
                       if (!dragRef.current) return;
@@ -2553,20 +2581,19 @@ const CRMPage = ({ onNavigate }) => {
                         });
                     }}
                   >
-                    <div className="pb-2.5 mb-2 border-b border-[#F1F5F9]">
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2.5 h-2.5 rounded-full" style={{ background: stage.color }} />
-                          <span className="text-[13px] font-semibold text-[#374151]">{stage.label}</span>
-                        </div>
-                        <span className="rounded-full bg-[#F3F4F6] text-[11px] px-2 py-0.5 text-[#374151] font-medium">{stageLeads.length}</span>
+                    {/* Column Header */}
+                    <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-200">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full" style={{ background: stage.color }} />
+                        <span className="text-[13px] font-semibold text-gray-700">{stage.label}</span>
                       </div>
-                      <div className="flex items-center gap-2 text-[11px] text-[#9CA3AF] pl-4">
-                        <span>{stageLeads.length} leads</span><span>·</span><span>{fmt(totalValue)}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] text-gray-500 font-medium">{fmt(totalValue)}</span>
+                        <span className="w-6 h-6 rounded-full bg-white border border-gray-200 text-[11px] font-semibold text-gray-600 flex items-center justify-center">{stageLeads.length}</span>
                       </div>
                     </div>
                     <div
-                      className="flex flex-col gap-2.5 flex-1 min-h-0 overflow-y-auto"
+                      className="flex flex-col gap-3 overflow-y-auto flex-1 pr-1"
                       onDragOver={(e) => {
                         e.preventDefault();
                         if (!dragRef.current) return;
@@ -2623,80 +2650,77 @@ const CRMPage = ({ onNavigate }) => {
                             dragRef.current.destStageKey = stage.key;
                             dragRef.current.destIndex = insertAfter ? (idx + 1) : idx;
                           }}
-                          className="rounded-xl bg-white border border-[#E5E7EB] shadow-[0_1px_2px_rgba(0,0,0,0.05)] p-3 cursor-grab active:cursor-grabbing transition-all hover:shadow-[0_6px_12px_rgba(0,0,0,0.08)] hover:border-[#D1D5DB]"
+                          className="rounded-xl bg-white border border-gray-200 p-4 cursor-grab active:cursor-grabbing transition-all hover:shadow-lg hover:border-gray-300"
                           onClick={() => { setTrackerLeadId(lead._id || lead.id); setShowTrackerDrawer(true); }}
                         >
-                          {/* Lead Header */}
-                          <div className="flex items-start justify-between mb-1.5">
-                            <div className="flex items-center gap-2">
-                              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 text-white flex items-center justify-center font-semibold text-[12px]">
-                                {lead.name[0]}
-                              </div>
-                              <div>
-                                <p className="text-[14px] font-semibold text-[#111827]">{lead.name}</p>
-                                <p className="text-[12px] font-normal text-[#6B7280]">{lead.company || 'Individual'}</p>
-                              </div>
+                          {/* Lead ID & kW */}
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[11px] text-gray-500 font-medium">{lead.leadId || `P${lead._id?.slice(-4) || Math.floor(Math.random() * 1000)}`}</span>
+                            <span className="text-[13px] font-bold text-orange-500">{lead.kw || lead.systemSize || '0'} kW</span>
+                          </div>
+
+                          {/* Lead Name */}
+                          <h4 className="text-[15px] font-bold text-gray-900 mb-1 leading-tight">{lead.name}</h4>
+                          
+                          {/* Company */}
+                          <p className="text-[12px] text-gray-500 mb-3">{lead.company || 'Individual'}</p>
+
+                          {/* Custom Fields - Show up to 2 important ones */}
+                          {lead.customFields && Object.keys(lead.customFields).length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mb-3">
+                              {Object.entries(lead.customFields).slice(0, 2).map(([key, value]) => (
+                                <span 
+                                  key={key} 
+                                  className="text-[10px] px-2 py-1 rounded-md bg-gray-100 text-gray-600 font-medium truncate max-w-[120px]"
+                                  title={`${key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}: ${value}`}
+                                >
+                                  {key.replace(/_/g, ' ').substring(0, 10)}{value ? `: ${String(value).substring(0, 15)}` : ''}
+                                </span>
+                              ))}
+                              {Object.keys(lead.customFields).length > 2 && (
+                                <span className="text-[10px] px-2 py-1 rounded-md bg-gray-100 text-gray-500">
+                                  +{Object.keys(lead.customFields).length - 2} more
+                                </span>
+                              )}
                             </div>
-                            <div className="flex flex-col items-end gap-1">
-                              {lead.slaBreached && (
-                                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" title="SLA Breached" />
-                              )}
-                              {lead.automation && lead.automation.length > 0 && (
-                                <Sparkles size={10} className="text-amber-500" title={`${lead.automation.length} automation rules active`} />
-                              )}
+                          )}
+
+                          {/* Progress Bar */}
+                          <div className="mb-3">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[10px] text-gray-400">{lead.assignedTo?.name || lead.assignedTo || 'Unassigned'}</span>
+                              <span className="text-[10px] text-gray-500">{lead.progress || Math.floor(Math.random() * 30 + 20)}%</span>
+                            </div>
+                            <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full rounded-full" 
+                                style={{ 
+                                  width: `${lead.progress || Math.floor(Math.random() * 30 + 20)}%`,
+                                  backgroundColor: stage.color || '#3b82f6'
+                                }}
+                              />
                             </div>
                           </div>
 
-                          {/* Lead Details */}
-                          <div className="space-y-1.5">
-                            <div className="flex items-center justify-between">
-                              <span className="text-[13px] font-semibold text-[#F97316]">{fmt(lead.value || 0)}</span>
-                              <div className="flex items-center gap-1">
-                                <Brain size={8} className="text-[var(--text-muted)]" />
-                                <span className="text-[12px] font-medium text-[#10B981]">{lead.score || 0}pts</span>
+                          {/* Footer: Assigned & Date */}
+                          <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-medium text-gray-600">
+                                {(lead.assignedTo?.name || lead.assignedTo || 'U')[0].toUpperCase()}
                               </div>
+                              <span className="text-[10px] text-gray-400">
+                                {lead.nextFollowUp || lead.createdAt ? new Date(lead.nextFollowUp || lead.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '—'}
+                              </span>
                             </div>
-
-                            <div className="flex items-center gap-1">
-                              <SourceBadge source={lead.source} />
-                              <span className="text-[11px] text-[#9CA3AF]">•</span>
-                              <span className="text-[11px] text-[#9CA3AF]">{lead.kw || lead.systemSize || '0'}kW</span>
-                            </div>
-
-                            {lead.activities && lead.activities.length > 0 && (
-                              <div className="flex items-center gap-1 text-[11px] text-[#9CA3AF]">
-                                <Clock size={8} />
-                                <span>Last: {lead.activities[lead.activities.length - 1].ts}</span>
-                              </div>
-                            )}
-
-                            {/* Assigned User */}
-                            {lead.assignedTo && (
-                              <div className="flex items-center gap-1 text-[11px] text-[#6B7280]">
-                                <UserCheck size={8} />
-                                <span>Assigned: {lead.assignedTo?.name || lead.assignedTo}</span>
-                              </div>
-                            )}
-
-                            {/* Tags */}
-                            {lead.tags && lead.tags.length > 0 && (
-                              <div className="flex flex-wrap gap-1">
-                                {lead.tags.slice(0, 2).map((tag, idx) => (
-                                  <span key={idx} className="px-1.5 py-0.5 rounded text-[8px] bg-[var(--bg-elevated)] text-[var(--text-muted)] border border-[var(--border-subtle)]">
-                                    {tag}
-                                  </span>
-                                ))}
-                                {lead.tags.length > 2 && (
-                                  <span className="px-1.5 py-0.5 rounded text-[8px] text-[var(--text-muted)]">+{lead.tags.length - 2}</span>
-                                )}
-                              </div>
+                            {lead.slaBreached && (
+                              <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" title="SLA Breached" />
                             )}
                           </div>
                         </div>
                       ))}
                       {stageLeads.length === 0 && (
-                        <div className="flex-1 flex items-center justify-center">
-                          <p className="text-[11px] text-[var(--text-faint)]">Drop here</p>
+                        <div className="flex-1 flex items-center justify-center min-h-[100px]">
+                          <p className="text-[12px] text-gray-300">Drop here</p>
                         </div>
                       )}
                     </div>
@@ -3262,6 +3286,29 @@ const CRMPage = ({ onNavigate }) => {
                   </div>
                 </div>
               )}
+
+              {/* Custom Information Section */}
+              {selectedLead?.customFields && Object.keys(selectedLead.customFields).length > 0 && (
+                <div className="border-t border-[var(--border-base)] pt-4">
+                  <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3">Custom Information</p>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    {Object.entries(selectedLead.customFields).map(([key, value]) => {
+                      const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                      return (
+                        <div key={key} className="rounded-xl p-3 border border-[var(--border-subtle)]" style={{ background: 'var(--bg-elevated)' }}>
+                          <div className="flex items-center gap-2 mb-1">
+                            <div className="w-5 h-5 rounded flex items-center justify-center" style={{ background: '#8b5cf715' }}>
+                              <Tag size={11} style={{ color: '#8b5cf7' }} />
+                            </div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">{label}</span>
+                          </div>
+                          <p className="text-xs font-semibold text-[var(--text-primary)] truncate" title={value}>{value !== undefined && value !== null ? value : '—'}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </Modal>
         )
@@ -3352,6 +3399,32 @@ const CRMPage = ({ onNavigate }) => {
                 onChange={(e) => setEditingLead({ ...editingLead, notes: e.target.value })}
               />
             </FormField>
+
+            {/* Custom Fields Section */}
+            {editingLead?.customFields && Object.keys(editingLead.customFields).length > 0 && (
+              <div className="border-t border-[var(--border-base)] pt-4">
+                <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3">Custom Fields</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {Object.entries(editingLead.customFields).map(([key, value]) => (
+                    <FormField key={key} label={key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}>
+                      <Input
+                        value={value !== undefined && value !== null ? value : ''}
+                        onChange={(e) => {
+                          const newValue = e.target.value;
+                          setEditingLead(prev => ({
+                            ...prev,
+                            customFields: {
+                              ...(prev.customFields || {}),
+                              [key]: newValue
+                            }
+                          }));
+                        }}
+                      />
+                    </FormField>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Lead Assignment - Only show if user has assign permission */}
             {can('crm', 'assign') && (

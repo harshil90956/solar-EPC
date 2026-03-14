@@ -49,7 +49,29 @@ const SurveyEngineerDashboard = () => {
     ];
 
     return (
-        <div className="space-y-6 p-6">
+        <div className="space-y-5 p-5">
+            {/* Global Date Filter Bar */}
+            <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <span className="text-sm font-medium text-gray-600">Filter by Date:</span>
+                    <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                        {['Last 7 Days', 'Last 30 Days', 'Last 90 Days', 'All Time', 'Custom Range'].map((filter) => (
+                            <button 
+                                key={filter} 
+                                className={`px-3 py-1.5 text-xs rounded-md font-medium transition-all ${
+                                    filter === 'All Time' 
+                                        ? 'bg-orange-500 text-white' 
+                                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                                }`}
+                            >
+                                {filter}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+                <span className="text-sm text-gray-500">Showing All Data</span>
+            </div>
+
             <SectionHeader
                 title="Survey Engineer Dashboard"
                 subtitle="Site feasibility · Shadow analysis · Field reports"
@@ -68,7 +90,17 @@ const SurveyEngineerDashboard = () => {
 
             {/* Charts row 1 */}
             <Grid2>
-                <ChartCard title="Performance Radar" subtitle="Multi-dimensional quality score">
+                <ChartCard 
+                    title="Performance Radar" 
+                    subtitle="Multi-dimensional quality score"
+                    headerRight={
+                        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                            {['All', 'Today', 'Week', 'Month', 'Quarter', 'Year'].map((filter) => (
+                                <button key={filter} className="px-2 py-1 text-xs rounded-md font-medium text-gray-600 hover:text-gray-900 transition-all">{filter}</button>
+                            ))}
+                        </div>
+                    }
+                >
                     <ResponsiveContainer width="100%" height={260}>
                         <RadarChart data={radarData} margin={{ top: 8, right: 24, left: 24, bottom: 8 }}>
                             <PolarGrid stroke="var(--chart-grid)" />
@@ -80,7 +112,17 @@ const SurveyEngineerDashboard = () => {
                     </ResponsiveContainer>
                 </ChartCard>
 
-                <ChartCard title="Survey Status" subtitle="Current queue breakdown">
+                <ChartCard 
+                    title="Survey Status" 
+                    subtitle="Current queue breakdown"
+                    headerRight={
+                        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                            {['All', 'Today', 'Week', 'Month', 'Quarter', 'Year'].map((filter) => (
+                                <button key={filter} className="px-2 py-1 text-xs rounded-md font-medium text-gray-600 hover:text-gray-900 transition-all">{filter}</button>
+                            ))}
+                        </div>
+                    }
+                >
                     <ResponsiveContainer width="100%" height={260}>
                         <PieChart>
                             <Pie data={surveyStatusPie} cx="50%" cy="50%" outerRadius={90} innerRadius={50}
@@ -106,7 +148,17 @@ const SurveyEngineerDashboard = () => {
 
             {/* Shadow analysis + Site metrics */}
             <Grid3>
-                <ChartCard title="Shadow Analysis Results" subtitle="Site shading categories">
+                <ChartCard 
+                    title="Shadow Analysis Results" 
+                    subtitle="Site shading categories"
+                    headerRight={
+                        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                            {['All', 'Today', 'Week', 'Month', 'Quarter', 'Year'].map((filter) => (
+                                <button key={filter} className="px-2 py-1 text-xs rounded-md font-medium text-gray-600 hover:text-gray-900 transition-all">{filter}</button>
+                            ))}
+                        </div>
+                    }
+                >
                     <ResponsiveContainer width="100%" height={200}>
                         <BarChart data={shadingData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
@@ -124,7 +176,17 @@ const SurveyEngineerDashboard = () => {
                     </div>
                 </ChartCard>
 
-                <ChartCard title="Feasibility Scores" subtitle="Recent site assessments">
+                <ChartCard 
+                    title="Feasibility Scores" 
+                    subtitle="Recent site assessments"
+                    headerRight={
+                        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                            {['All', 'Today', 'Week', 'Month', 'Quarter', 'Year'].map((filter) => (
+                                <button key={filter} className="px-2 py-1 text-xs rounded-md font-medium text-gray-600 hover:text-gray-900 transition-all">{filter}</button>
+                            ))}
+                        </div>
+                    }
+                >
                     <div className="space-y-3 mt-1">
                         {feasibilityReports.map((r, i) => (
                             <div key={i} className="flex items-center gap-3">

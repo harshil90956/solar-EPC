@@ -394,6 +394,21 @@ export class LeadsService {
       throw new BadRequestException('Tenant context is required for creating leads');
     }
 
+    // Check for duplicate email within tenant
+    if (createLeadDto.email && tid) {
+      const existingLead = await this.leadModel.findOne({
+        tenantId: tid,
+        email: createLeadDto.email.toLowerCase(),
+        isDeleted: { $ne: true }
+      }).lean().exec();
+      
+      if (existingLead) {
+        throw new BadRequestException(
+          `A lead with email "${createLeadDto.email}" already exists. Please use a different email or update the existing lead.`
+        );
+      }
+    }
+
     await this.assertValidStatusKey(createLeadDto.statusKey, tenantId);
     
     const activities = [{
@@ -2100,21 +2115,42 @@ export class LeadsService {
     const filter: any = this.buildCompleteFilter(tenantId, user, base);
     const leads = await this.leadModel.find(filter).lean().exec();
 
-    // Generate CSV
-    const headers = ['Name', 'Company', 'Email', 'Phone', 'Stage', 'Source', 'Value', 'Score', 'City', 'Assigned To', 'Created At'];
-    const rows = leads.map(lead => [
-      lead.name || '',
-      lead.company || '',
-      lead.email || '',
-      lead.phone || '',
-      lead.statusKey || 'new',
-      lead.source || '',
-      lead.value || 0,
-      lead.score || 0,
-      lead.city || '',
-      lead.assignedTo?.toString() || '',
-      lead.created ? new Date(lead.created).toISOString() : ''
-    ]);
+    // Collect all unique custom field keys across all leads
+    const allCustomFieldKeys = new Set<string>();
+    leads.forEach(lead => {
+      if (lead.customFields && typeof lead.customFields === 'object') {
+        Object.keys(lead.customFields).forEach(key => allCustomFieldKeys.add(key));
+      }
+    });
+    const customFieldColumns = Array.from(allCustomFieldKeys).sort();
+
+    // Generate CSV headers with custom fields
+    const baseHeaders = ['Name', 'Company', 'Email', 'Phone', 'Stage', 'Source', 'Value', 'Score', 'City', 'Assigned To', 'Created At'];
+    const headers = [...baseHeaders, ...customFieldColumns];
+
+    const rows = leads.map(lead => {
+      const baseRow = [
+        lead.name || '',
+        lead.company || '',
+        lead.email || '',
+        lead.phone || '',
+        lead.statusKey || 'new',
+        lead.source || '',
+        lead.value || 0,
+        lead.score || 0,
+        lead.city || '',
+        lead.assignedTo?.toString() || '',
+        lead.created ? new Date(lead.created).toISOString() : ''
+      ];
+
+      // Add custom field values
+      const customFieldValues = customFieldColumns.map(key => {
+        const value = lead.customFields?.[key];
+        return value !== undefined && value !== null ? value : '';
+      });
+
+      return [...baseRow, ...customFieldValues];
+    });
 
     const csvContent = [
       headers.join(','),

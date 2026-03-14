@@ -106,6 +106,28 @@ const FinanceDashboard = () => {
 
     return (
         <div className="space-y-6 p-6">
+            {/* Global Date Filter Bar */}
+            <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <span className="text-sm font-medium text-gray-600">Filter by Date:</span>
+                    <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                        {['Last 7 Days', 'Last 30 Days', 'Last 90 Days', 'All Time', 'Custom Range'].map((filter) => (
+                            <button 
+                                key={filter} 
+                                className={`px-3 py-1.5 text-xs rounded-md font-medium transition-all ${
+                                    filter === 'All Time' 
+                                        ? 'bg-orange-500 text-white' 
+                                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                                }`}
+                            >
+                                {filter}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+                <span className="text-sm text-gray-500">Showing All Data</span>
+            </div>
+
             <SectionHeader
                 title="Finance Dashboard"
                 subtitle="Cash flow · Invoicing · Payables · Compliance"
@@ -132,7 +154,17 @@ const FinanceDashboard = () => {
 
             {/* Cash flow chart + Invoice pie */}
             <Grid2>
-                <ChartCard title="Cash Flow Analysis" subtitle="Monthly inflow vs outflow vs net (INR)">
+                <ChartCard 
+                    title="Cash Flow Analysis" 
+                    subtitle="Monthly inflow vs outflow vs net (INR)"
+                    headerRight={
+                        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                            {['All', 'Today', 'Week', 'Month', 'Quarter', 'Year'].map((filter) => (
+                                <button key={filter} className="px-2 py-1 text-xs rounded-md font-medium text-gray-600 hover:text-gray-900 transition-all">{filter}</button>
+                            ))}
+                        </div>
+                    }
+                >
                     <ResponsiveContainer width="100%" height={260}>
                         <AreaChart data={cashFlowData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                             <defs>
@@ -161,7 +193,17 @@ const FinanceDashboard = () => {
                     </ResponsiveContainer>
                 </ChartCard>
 
-                <ChartCard title="Invoice Status" subtitle="Billing portfolio breakdown">
+                <ChartCard 
+                    title="Invoice Status" 
+                    subtitle="Billing portfolio breakdown"
+                    headerRight={
+                        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                            {['All', 'Today', 'Week', 'Month', 'Quarter', 'Year'].map((filter) => (
+                                <button key={filter} className="px-2 py-1 text-xs rounded-md font-medium text-gray-600 hover:text-gray-900 transition-all">{filter}</button>
+                            ))}
+                        </div>
+                    }
+                >
                     <ResponsiveContainer width="100%" height={210}>
                         <PieChart>
                             <Pie data={invoiceStatusPie} cx="50%" cy="50%" outerRadius={85} innerRadius={48}
@@ -187,7 +229,17 @@ const FinanceDashboard = () => {
 
             {/* AR + AP + Compliance */}
             <Grid3>
-                <ChartCard title="Accounts Receivable" subtitle="Outstanding collections">
+                <ChartCard 
+                    title="Accounts Receivable" 
+                    subtitle="Outstanding collections"
+                    headerRight={
+                        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                            {['All', 'Today', 'Week', 'Month', 'Quarter', 'Year'].map((filter) => (
+                                <button key={filter} className="px-2 py-1 text-xs rounded-md font-medium text-gray-600 hover:text-gray-900 transition-all">{filter}</button>
+                            ))}
+                        </div>
+                    }
+                >
                     <ResponsiveContainer width="100%" height={180}>
                         <BarChart data={arData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
@@ -205,7 +257,17 @@ const FinanceDashboard = () => {
                     </div>
                 </ChartCard>
 
-                <ChartCard title="Accounts Payable" subtitle="Vendor payment obligations">
+                <ChartCard 
+                    title="Accounts Payable" 
+                    subtitle="Vendor payment obligations"
+                    headerRight={
+                        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                            {['All', 'Today', 'Week', 'Month', 'Quarter', 'Year'].map((filter) => (
+                                <button key={filter} className="px-2 py-1 text-xs rounded-md font-medium text-gray-600 hover:text-gray-900 transition-all">{filter}</button>
+                            ))}
+                        </div>
+                    }
+                >
                     <div className="space-y-3 mt-1">
                         {apData.map((a) => (
                             <div key={a.name} className="flex items-center justify-between p-3 rounded-xl border border-[var(--border-base)]">
@@ -225,7 +287,17 @@ const FinanceDashboard = () => {
                     />
                 </ChartCard>
 
-                <ChartCard title="Compliance Status" subtitle="GST · TDS · Audit filings">
+                <ChartCard 
+                    title="Compliance Status" 
+                    subtitle="GST · TDS · Audit filings"
+                    headerRight={
+                        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                            {['All', 'Today', 'Week', 'Month', 'Quarter', 'Year'].map((filter) => (
+                                <button key={filter} className="px-2 py-1 text-xs rounded-md font-medium text-gray-600 hover:text-gray-900 transition-all">{filter}</button>
+                            ))}
+                        </div>
+                    }
+                >
                     <div className="space-y-3 mt-1">
                         {[
                             { label: 'GST Returns Filed', v: compliance?.gstReturns?.filed || 0, total: (compliance?.gstReturns?.filed || 0) + (compliance?.gstReturns?.pending || 0), pending: compliance?.gstReturns?.pending || 0, color: '#10b981' },
@@ -257,7 +329,17 @@ const FinanceDashboard = () => {
 
             {/* Profit & Loss Trend Analysis */}
             <Grid2>
-                <ChartCard title="Profit & Margin Trends" subtitle="Monthly gross vs net profit with margin %">
+                <ChartCard 
+                    title="Profit & Margin Trends" 
+                    subtitle="Monthly gross vs net profit with margin %"
+                    headerRight={
+                        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                            {['All', 'Today', 'Week', 'Month', 'Quarter', 'Year'].map((filter) => (
+                                <button key={filter} className="px-2 py-1 text-xs rounded-md font-medium text-gray-600 hover:text-gray-900 transition-all">{filter}</button>
+                            ))}
+                        </div>
+                    }
+                >
                     <ResponsiveContainer width="100%" height={280}>
                         <ComposedChart data={profitTrendData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                             <defs>
@@ -283,7 +365,17 @@ const FinanceDashboard = () => {
                     </ResponsiveContainer>
                 </ChartCard>
 
-                <ChartCard title="Budget vs Actual Analysis" subtitle="Department-wise variance tracking">
+                <ChartCard 
+                    title="Budget vs Actual Analysis" 
+                    subtitle="Department-wise variance tracking"
+                    headerRight={
+                        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                            {['All', 'Today', 'Week', 'Month', 'Quarter', 'Year'].map((filter) => (
+                                <button key={filter} className="px-2 py-1 text-xs rounded-md font-medium text-gray-600 hover:text-gray-900 transition-all">{filter}</button>
+                            ))}
+                        </div>
+                    }
+                >
                     <ResponsiveContainer width="100%" height={280}>
                         <ComposedChart data={budgetVarianceData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
