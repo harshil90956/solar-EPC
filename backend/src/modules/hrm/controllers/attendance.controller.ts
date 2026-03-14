@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, Req, Headers, HttpCode, HttpStatus, UseGuards, ForbiddenException } from '@nestjs/common';
 import { AttendanceService } from '../services/attendance.service';
-import { PermissionService } from '../services/permission.service';
+import { HrmPermissionService } from '../services/hrm-permission.service';
 import { CheckInDto, CheckOutDto, GetAttendanceQueryDto } from '../dto/attendance.dto';
 import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
@@ -10,7 +10,7 @@ import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
 export class AttendanceController {
   constructor(
     private readonly attendanceService: AttendanceService,
-    private readonly permissionService: PermissionService,
+    private readonly hrmPermissionService: HrmPermissionService,
   ) {}
 
   private async checkPermission(req: any, permission: string) {
@@ -28,7 +28,7 @@ export class AttendanceController {
     const roleId = user.roleId || user.role;
     if (!roleId) throw new ForbiddenException('User has no role assigned');
     
-    const hasPermission = await this.permissionService.hasPermission(roleId, permission);
+    const hasPermission = await this.hrmPermissionService.checkPermission(roleId, permission);
     if (!hasPermission) {
       throw new ForbiddenException(`Permission denied: ${permission} required`);
     }

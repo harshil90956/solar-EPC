@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, HttpCode, HttpStatus, UseGuards, ForbiddenException } from '@nestjs/common';
 import { PayrollService } from '../services/payroll.service';
-import { PermissionService } from '../services/permission.service';
+import { HrmPermissionService } from '../services/hrm-permission.service';
 import { GeneratePayrollDto, GetPayrollQueryDto, MarkAsPaidDto, UpdatePayrollDto } from '../dto/payroll.dto';
 import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
@@ -10,7 +10,7 @@ import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
 export class PayrollController {
   constructor(
     private readonly payrollService: PayrollService,
-    private readonly permissionService: PermissionService,
+    private readonly hrmPermissionService: HrmPermissionService,
   ) {}
 
   private async checkPermission(req: any, permission: string) {
@@ -28,7 +28,7 @@ export class PayrollController {
     const roleId = user.roleId || user.role;
     if (!roleId) throw new ForbiddenException('User has no role assigned');
     
-    const hasPermission = await this.permissionService.hasPermission(roleId, permission);
+    const hasPermission = await this.hrmPermissionService.checkPermission(roleId, permission);
     if (!hasPermission) {
       throw new ForbiddenException(`Permission denied: ${permission} required`);
     }

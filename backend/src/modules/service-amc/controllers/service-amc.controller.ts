@@ -386,6 +386,8 @@ export class ServiceAmcController {
 
   @HttpCode(HttpStatus.OK)
 
+  @UseGuards(JwtAuthGuard, TenantGuard, PermissionGuard)
+
   async removeDuplicateContracts() {
 
     try {

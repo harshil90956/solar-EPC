@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Req, Headers, Query, HttpCode, HttpStatus, UnauthorizedException, UseGuards, ForbiddenException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EmployeeService } from '../services/employee.service';
+import { HrmPermissionService } from '../services/hrm-permission.service';
 import { PermissionService } from '../services/permission.service';
 import { CreateEmployeeDto, UpdateEmployeeDto } from '../dto/employee.dto';
 import { EmployeeDocument } from '../schemas/employee.schema';
@@ -12,6 +13,7 @@ import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
 export class EmployeeController {
   constructor(
     private readonly employeeService: EmployeeService,
+    private readonly hrmPermissionService: HrmPermissionService,
     private readonly permissionService: PermissionService,
     private readonly configService: ConfigService,
   ) {}
@@ -26,7 +28,7 @@ export class EmployeeController {
     const roleId = user.roleId || user.role;
     if (!roleId) throw new ForbiddenException('User has no role assigned');
     
-    const hasPermission = await this.permissionService.hasPermission(roleId, permission);
+    const hasPermission = await this.hrmPermissionService.checkPermission(roleId, permission);
     if (!hasPermission) {
       throw new ForbiddenException(`Permission denied: ${permission} required`);
     }
