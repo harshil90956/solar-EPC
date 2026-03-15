@@ -969,10 +969,13 @@ const InstallationDashboard = ({ logs }) => {
 
 // ── Main Page ──────────────────────────────────────────────────────────────────
 const InstallationPage = () => {
-  const { can, user, role } = usePermissions();
+  const { can, user, role } = usePermissions('installation');
   const { logCreate, logUpdate, logStatusChange } = useAuditLog('installation');
   const { installationTasks } = useSettings();
   const isTechnician = user?.role?.toLowerCase() === 'technician' || user?.role?.toLowerCase() === 'employee' || user?.dataScope === 'ASSIGNED';
+  
+  // Stricter check for hiding edit UI
+  const isTechnicianUser = user?.role?.toLowerCase() === 'technician' || user?.role?.toLowerCase() === 'employee';
   console.log('[DEBUG] User role:', user?.role, 'dataScope:', user?.dataScope, 'isTechnician:', isTechnician);
   const [view, setView] = useState(isTechnician ? 'table' : 'dashboard'); // Default to dashboard for non-technicians
   const [showAdd, setShowAdd] = useState(false);
@@ -1046,7 +1049,7 @@ const InstallationPage = () => {
                            log.assignedTo === user?.id ||
                            log.assignedTo === user?._id;
     const isEmployeeRole = user?.role?.toLowerCase() === 'employee' || user?.role?.toLowerCase() === 'technician';
-    const canUpdate = can('installation','edit') || isAssignedUser || isEmployeeRole;
+    const canUpdate = can('edit') || isAssignedUser || isEmployeeRole;
     
     if (!canUpdate) return toast.error('Permission denied');
     // enforce completion rule
@@ -1116,7 +1119,7 @@ const InstallationPage = () => {
       user_id: user?._id,
       selectedTechId: selected.technicianId,
       selectedAssignedTo: selected.assignedTo,
-      hasEditPermission: can('installation','edit')
+      hasEditPermission: can('edit')
     });
     
     // Allow task update if: has edit permission OR is assigned user OR has ASSIGNED dataScope OR is employee/technician
@@ -1126,7 +1129,7 @@ const InstallationPage = () => {
                            selected.assignedTo === user?._id;
     const hasAssignedScope = user?.dataScope === 'ASSIGNED' || user?._doc?.dataScope === 'ASSIGNED';
     const isEmployeeRole = user?.role?.toLowerCase() === 'employee' || user?.role?.toLowerCase() === 'technician';
-    const canUpdate = can('installation','edit') || isAssignedUser || hasAssignedScope || isEmployeeRole;
+    const canUpdate = can('edit') || isAssignedUser || hasAssignedScope || isEmployeeRole;
     
     console.log('[DEBUG] Permission check:', { isAssignedUser, canUpdate });
     
@@ -1277,27 +1280,21 @@ const InstallationPage = () => {
       // Delete photo from backend
       const response = await apiClient.delete(`/installations/${selected._id || selected.id}/photos/${encodeURIComponent(photo.key)}`);
       
-      // Update local state - remove photo
-      setSelected(prev => ({
-        ...prev,
-        photos: (prev.photos || []).filter(p => p.key !== photo.key)
-      }));
-      
-      // If task was unchecked, update tasks state
-      if (response.data?.taskUnchecked && response.data?.taskName) {
-        const taskName = response.data.taskName;
-        setSelected(prev => ({
-          ...prev,
-          tasks: (prev.tasks || []).map(t => 
-            t.name === taskName ? { ...t, done: false } : t
-          )
-        }));
-        toast.success(`Task "${taskName}" unchecked due to photo deletion`);
+      // Update local state with the full updated installation from backend
+      if (response.data) {
+        const updatedInst = response.data;
+        setSelected(updatedInst);
+        
+        // Find if any task was unchecked
+        const taskName = photo.taskName || photo.category;
+        if (taskName) {
+          toast.success(`Photo deleted and "${taskName}" unchecked`);
+        } else {
+          toast.success('Photo deleted successfully');
+        }
       }
       
-      toast.success('Photo deleted successfully');
-      // Don't refetch - we've already updated local state
-      // refetch(); 
+      refetch(); // Ensure list/kanban views also sync
     } catch (error) {
       console.error('Photo delete error:', error);
       toast.error('Failed to delete photo');
@@ -1385,7 +1382,7 @@ const InstallationPage = () => {
     return employees.filter(e => e.department === selectedDept);
   }, [employees, selectedDept]);
   const createInstallation = async () => {
-    if (!can('installation','create')) return toast.error('Permission denied');
+    if (!can('create')) return toast.error('Permission denied');
     try {
       // Find the selected pending installation to get its real IDs
       const selectedPending = pendingInstallations.find(i => (i._id || i.id) === newForm.installationId);
@@ -1436,7 +1433,7 @@ const InstallationPage = () => {
         activeTab={view} 
         onTabChange={setView} 
         actions={[
-          can('installation','create') && { type: 'button', label: 'Assign', icon: Plus, variant: 'primary', onClick: () => setShowAdd(true) },
+          can('create') && { type: 'button', label: 'Assign', icon: Plus, variant: 'primary', onClick: () => setShowAdd(true) },
           view !== 'dashboard' && { type: 'button', label: showCardsInViews ? 'Hide Cards' : 'Show Cards', icon: Layers, variant: 'ghost', onClick: () => setShowCardsInViews(!showCardsInViews) }
         ].filter(Boolean)} 
       />
@@ -1493,7 +1490,7 @@ const InstallationPage = () => {
       )}
       
       {view === 'kanban' && (
-        <InstallKanbanBoard items={logs} onCardClick={setSelected} onDrop={handleMove} canEdit={can('installation', 'edit')} />
+        <InstallKanbanBoard items={logs} onCardClick={setSelected} onDrop={handleMove} canEdit={can('edit')} />
       )}
 
       {view === 'table' && (
@@ -1515,7 +1512,7 @@ const InstallationPage = () => {
           emptyText="No installation logs found."
           onRowClick={(row) => setSelected(row)}
           bulkActions={[
-            ...(can('installation','export') || can('installation','view') ? [{
+            ...(can('export') || can('view') ? [{
               label: 'Export',
               icon: Download,
               onClick: (ids) => {
@@ -1537,7 +1534,7 @@ const InstallationPage = () => {
                 toast.success(`Exported ${rows.length} installations`);
               }
             }] : []),
-            ...(can('installation','assign') || can('installation','edit') ? [{
+            ...(can('assign') || can('edit') ? [{
               label: 'Assign',
               icon: UserPlus,
               onClick: (ids) => {
@@ -1570,8 +1567,8 @@ const InstallationPage = () => {
           ]}
           rowActions={[
             { label: 'View', icon: Eye, onClick: (row) => setSelected(row) },
-            ...(can('installation','edit') ? [{ label: 'Edit', icon: Edit, onClick: (row) => { setEditForm(row); setShowEdit(true); } }] : []),
-            ...(can('installation','assign') || can('installation','edit') ? [{
+            ...(can('edit') ? [{ label: 'Edit', icon: Edit, onClick: (row) => { setEditForm(row); setShowEdit(true); } }] : []),
+            ...(can('assign') || can('edit') ? [{
               label: 'Unassign',
               icon: UserMinus,
               show: (row) => !!(row.technicianId || (row.technicianName && row.technicianName !== 'Not Assigned')),
@@ -1590,7 +1587,7 @@ const InstallationPage = () => {
                 } catch(err) { toast.error(err.message || 'Unassign failed'); }
               }
             }] : []),
-            ...(can('installation','delete') ? [{ label: 'Delete', icon: Trash2, danger: true, onClick: async (row) => {
+            ...(can('delete') ? [{ label: 'Delete', icon: Trash2, danger: true, onClick: async (row) => {
               if (!window.confirm('Delete this installation?')) return;
               try {
                 await apiClient.delete(`/installations/${row._id || row.id}`);
@@ -1838,9 +1835,7 @@ const InstallationPage = () => {
       {selected && (
         <Modal open={!!selected} onClose={()=>setSelected(null)} title={`Installation — ${selected.installationId || selected.id}`} footer={
           <div className="flex gap-2 justify-end">
-            <CanEdit module="installation">
-              <Button variant="primary" onClick={()=>{setEditForm(selected); setShowEdit(true);}}><Edit size={14} /> Edit</Button>
-            </CanEdit>
+            {/* Edit button REMOVED to verify build propagation */}
             <Button variant="ghost" onClick={()=>setSelected(null)}>Close</Button>
           </div>
         }>
@@ -1864,7 +1859,7 @@ const InstallationPage = () => {
                                          selected.assignedTo === user?._id;
                   const hasAssignedScope = user?.dataScope === 'ASSIGNED' || user?._doc?.dataScope === 'ASSIGNED';
                   const isEmployeeRole = user?.role?.toLowerCase() === 'employee' || user?.role?.toLowerCase() === 'technician';
-                  const canUpdateTask = can('installation','edit') || isAssignedUser || hasAssignedScope || isEmployeeRole;
+                  const canUpdateTask = can('edit') || isAssignedUser || hasAssignedScope || isEmployeeRole;
                   
                   // DEBUG - log everything
                   if (i === 0) {
@@ -1978,21 +1973,13 @@ const InstallationPage = () => {
                   const techId = selected.technicianId?.$oid || selected.technicianId;
                   const assignedId = selected.assignedTo?.$oid || selected.assignedTo;
                   
-                  // DEBUG
-                  console.log('[DEBUG COMPLETE] IDs:', {
-                    userId,
-                    techId,
-                    assignedId,
-                    rawTechId: selected.technicianId,
-                    rawAssignedTo: selected.assignedTo,
-                    typeOfUserId: typeof userId,
-                    typeOfTechId: typeof techId
-                  });
-                  
                   const isAssignedUser = userId === techId || userId === assignedId;
                   const hasAssignedScope = user?.dataScope === 'ASSIGNED' || user?._doc?.dataScope === 'ASSIGNED';
                   const isEmployeeRole = user?.role?.toLowerCase() === 'employee' || user?.role?.toLowerCase() === 'technician';
-                  const canComplete = can('installation','edit') || isAssignedUser || hasAssignedScope || isEmployeeRole;
+                  const canComplete = can('edit') || isAssignedUser || hasAssignedScope || isEmployeeRole;
+                  
+                  // For technicians/employees, always show the button (not 'Permission Denied')
+                  const isTechOrEmployee = user?.role?.toLowerCase() === 'technician' || user?.role?.toLowerCase() === 'employee';
                   
                   return (
                     <button
@@ -2011,7 +1998,13 @@ const InstallationPage = () => {
                           : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                       }`}
                     >
-                      {isCompleted && allTasksDone ? 'Marked as Completed ✓' : !canComplete ? 'Permission Denied' : allTasksDone ? 'Complete Project' : 'Complete All Tasks First'}
+                      {isCompleted && allTasksDone 
+                        ? 'Marked as Completed ✓' 
+                        : !canComplete && !isTechOrEmployee 
+                          ? 'Permission Denied' 
+                          : allTasksDone 
+                            ? 'Complete Project' 
+                            : 'Complete All Tasks First'}
                     </button>
                   );
                 })()}
