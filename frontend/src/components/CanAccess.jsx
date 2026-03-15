@@ -28,11 +28,11 @@ const CanAccess = ({
     disabled: disabledMode = false,
     children,
 }) => {
-    const { can, featureOn, moduleOn } = usePermissions();
+    const { can, featureOn, moduleOn } = usePermissions(module);
 
     if (!moduleOn(module)) return fallback;
     if (feature && !featureOn(module, feature)) return fallback;
-    if (action && !can(module, action)) {
+    if (action && !can(action)) {
         if (disabledMode) {
             return (
                 <span

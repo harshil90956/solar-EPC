@@ -85,6 +85,21 @@ export const usePermissions = (module) => {
       ]);
     }
     
+    // Employee role gets installation permissions by default
+    if (userRole === 'Employee') {
+      const basePermissions = [
+        'installation.view',
+        'installation.edit',
+        'installation.create',
+        'commissioning.view',
+        'commissioning.edit',
+        'logistics.view',
+        'logistics.edit',
+      ];
+      const apiPermissions = roleData?.permissions || [];
+      return [...new Set([...basePermissions, ...userPermissions, ...apiPermissions])];
+    }
+    
     const apiPermissions = roleData?.permissions || [];
     // Merge API permissions with JWT permissions (API takes priority)
     const combined = [...new Set([...userPermissions, ...apiPermissions])];
@@ -114,6 +129,19 @@ export const usePermissions = (module) => {
     // Admin/Super Admin have all permissions
     if (userRole === 'Admin' || userRole === 'Super Admin') {
       return true;
+    }
+
+    // Employee role has installation/commissioning/logistics permissions
+    if (userRole === 'Employee') {
+      const employeePermissions = [
+        'installation.view', 'installation.edit', 'installation.create',
+        'commissioning.view', 'commissioning.edit',
+        'logistics.view', 'logistics.edit',
+      ];
+      const permissionKey = `${module}.${action}`;
+      if (employeePermissions.includes(permissionKey)) {
+        return true;
+      }
     }
 
     // Check if user has the specific permission
