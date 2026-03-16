@@ -179,22 +179,23 @@ const LeadTracker = ({ leadId, statusOptions, currentStage, onStageChange, onNav
       {/* Stage List */}
       <div className="space-y-2">
         {stages.map((stage, index) => {
-          const isCompleted = stage.completed;
+          const currentStageIndex = stages.findIndex(s => s.isCurrent);
+          const isAboveCurrent = index < currentStageIndex;
           const isCurrent = stage.isCurrent;
-          const isUpcoming = !isCompleted && !isCurrent;
+          const isBelowCurrent = index > currentStageIndex;
 
           return (
             <div
               key={stage.stage}
               className={`flex items-center gap-3 p-2 rounded-lg transition-all cursor-pointer
                 ${isCurrent ? 'bg-[var(--primary)]/10 border border-[var(--primary)]/20' : 
-                  isCompleted ? 'bg-emerald-50/50' : 'bg-transparent hover:bg-[var(--bg-hovered)]'}
+                  isAboveCurrent ? 'bg-emerald-50/50' : 'bg-transparent hover:bg-[var(--bg-hovered)]'}
               `}
               onClick={() => handleStageChange(stage.stage)}
             >
               {/* Stage Icon */}
               <div className="shrink-0">
-                {isCompleted ? (
+                {isAboveCurrent ? (
                   <div 
                     className="w-6 h-6 rounded-full flex items-center justify-center"
                     style={{ backgroundColor: stage.color || '#22c55e' }}
@@ -222,7 +223,7 @@ const LeadTracker = ({ leadId, statusOptions, currentStage, onStageChange, onNav
               <div className="flex-1 min-w-0">
                 <p className={`text-sm font-medium truncate
                   ${isCurrent ? 'text-[var(--primary)]' : 
-                    isCompleted ? 'text-emerald-600 line-through' : 'text-[var(--text-muted)]'}
+                    isAboveCurrent ? 'text-gray-500 line-through decoration-gray-600' : 'text-[var(--text-primary)]'}
                 `}>
                   {stage.label}
                 </p>

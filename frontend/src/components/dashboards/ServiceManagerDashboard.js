@@ -57,7 +57,29 @@ const ServiceManagerDashboard = () => {
     ];
 
     return (
-        <div className="space-y-6 p-6">
+        <div className="space-y-5 p-5">
+            {/* Global Date Filter Bar */}
+            <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <span className="text-sm font-medium text-gray-600">Filter by Date:</span>
+                    <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                        {['Last 7 Days', 'Last 30 Days', 'Last 90 Days', 'All Time', 'Custom Range'].map((filter) => (
+                            <button 
+                                key={filter} 
+                                className={`px-3 py-1.5 text-xs rounded-md font-medium transition-all ${
+                                    filter === 'All Time' 
+                                        ? 'bg-orange-500 text-white' 
+                                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                                }`}
+                            >
+                                {filter}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+                <span className="text-sm text-gray-500">Showing All Data</span>
+            </div>
+
             <SectionHeader
                 title="Service Manager Dashboard"
                 subtitle="AMC contracts · Service tickets · Team performance · Commissioning"
@@ -76,7 +98,17 @@ const ServiceManagerDashboard = () => {
 
             {/* Monthly tickets + Ticket pie */}
             <Grid2>
-                <ChartCard title="Monthly Ticket Trend" subtitle="Open vs resolved vs in-progress">
+                <ChartCard 
+                    title="Monthly Ticket Trend" 
+                    subtitle="Open vs resolved vs in-progress"
+                    headerRight={
+                        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                            {['All', 'Today', 'Week', 'Month', 'Quarter', 'Year'].map((filter) => (
+                                <button key={filter} className="px-2 py-1 text-xs rounded-md font-medium text-gray-600 hover:text-gray-900 transition-all">{filter}</button>
+                            ))}
+                        </div>
+                    }
+                >
                     <ResponsiveContainer width="100%" height={260}>
                         <AreaChart data={monthlyTickets} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                             <defs>
@@ -101,7 +133,17 @@ const ServiceManagerDashboard = () => {
                     </ResponsiveContainer>
                 </ChartCard>
 
-                <ChartCard title="Ticket Status Distribution" subtitle="Current service queue">
+                <ChartCard 
+                    title="Ticket Status Distribution" 
+                    subtitle="Current service queue"
+                    headerRight={
+                        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                            {['All', 'Today', 'Week', 'Month', 'Quarter', 'Year'].map((filter) => (
+                                <button key={filter} className="px-2 py-1 text-xs rounded-md font-medium text-gray-600 hover:text-gray-900 transition-all">{filter}</button>
+                            ))}
+                        </div>
+                    }
+                >
                     <ResponsiveContainer width="100%" height={210}>
                         <PieChart>
                             <Pie data={ticketPie} cx="50%" cy="50%" outerRadius={85} innerRadius={48}
@@ -127,7 +169,17 @@ const ServiceManagerDashboard = () => {
 
             {/* AMC + Performance + Commissioning */}
             <Grid3>
-                <ChartCard title="AMC Contract Status" subtitle={`Total value: ${fmtCurrency(amcContracts.totalValue || 0)}`}>
+                <ChartCard 
+                    title="AMC Contract Status" 
+                    subtitle={`Total value: ${fmtCurrency(amcContracts.totalValue || 0)}`}
+                    headerRight={
+                        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                            {['All', 'Today', 'Week', 'Month', 'Quarter', 'Year'].map((filter) => (
+                                <button key={filter} className="px-2 py-1 text-xs rounded-md font-medium text-gray-600 hover:text-gray-900 transition-all">{filter}</button>
+                            ))}
+                        </div>
+                    }
+                >
                     <ResponsiveContainer width="100%" height={180}>
                         <BarChart data={amcData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />

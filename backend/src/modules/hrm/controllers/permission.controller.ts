@@ -57,6 +57,12 @@ export class PermissionController {
     return this.permissionService.getRolePermissions(id);
   }
 
+  // Get role by name (for frontend lookups by role name like "Employee")
+  @Get('role/:name')
+  async getRoleByName(@Param('name') name: string): Promise<Role | null> {
+    return this.permissionService.findRoleByName(name);
+  }
+
   // ==================== COLUMN PERMISSION ENDPOINTS ====================
 
   @Get('modules/columns')

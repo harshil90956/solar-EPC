@@ -1688,7 +1688,7 @@ const EstimateDetail = ({ estimate, onEdit, onDelete, onDownload, onDownloadProp
           </div>
           <div>
             <span className="text-[var(--text-muted)]">Installation:</span>
-            <span className="ml-2 font-medium capitalize">{estimate.installationType.replace('_', ' ')}</span>
+            <span className="ml-2 font-medium capitalize">{estimate.installationType?.replace('_', ' ') || 'Standard'}</span>
           </div>
           <div>
             <span className="text-[var(--text-muted)]">Created:</span>

@@ -9,6 +9,7 @@ import { Tenant, TenantSchema } from '../../core/tenant/schemas/tenant.schema';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { CustomRole, CustomRoleSchema } from '../../modules/settings/schemas/custom-role.schema';
 import { UserOverride, UserOverrideSchema } from '../../modules/settings/schemas/user-override.schema';
+import { Employee, EmployeeSchema } from '../../modules/hrm/schemas/employee.schema';
 import { CommonModule } from '../../common/common.module';
 
 @Module({
@@ -16,6 +17,7 @@ import { CommonModule } from '../../common/common.module';
     CommonModule, // Import for PermissionCacheService
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
+      { name: Employee.name, schema: EmployeeSchema },
       { name: Tenant.name, schema: TenantSchema },
       { name: CustomRole.name, schema: CustomRoleSchema },
       { name: UserOverride.name, schema: UserOverrideSchema },
