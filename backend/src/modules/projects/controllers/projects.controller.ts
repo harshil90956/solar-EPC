@@ -10,6 +10,7 @@ import {
   Headers,
   Request,
   UseGuards,
+  SetMetadata,
 } from '@nestjs/common';
 import { ProjectsService } from '../services/projects.service';
 import { CreateProjectDto, UpdateProjectDto, UpdateProjectStatusDto } from '../dto/project.dto';
@@ -121,6 +122,17 @@ export class ProjectsController {
     const tenantId = headerTenantId || queryTenantId || 'solarcorp';
     const user = req?.user;
     return this.projectsService.updateStatus(tenantId, projectId, updateStatusDto, user);
+  }
+
+  @Post('fix-inventory/inv3552')
+  @SetMetadata('isPublic', true)
+  async fixInventoryINV3552(
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
+  ) {
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
+    await this.projectsService.forceFixINV3552(tenantId);
+    return { success: true, message: 'INV3552 inventory fixed' };
   }
 
   @Patch(':projectId/restore')
