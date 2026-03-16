@@ -12,12 +12,15 @@ export enum PermissionModule {
 
 export enum PermissionAction {
   VIEW = 'view',
+  VIEW_OWN = 'view_own',
+  VIEW_ALL = 'view_all',
   CREATE = 'create',
   EDIT = 'edit',
   DELETE = 'delete',
   EXPORT = 'export',
   ASSIGN = 'assign',
   APPROVE = 'approve',
+  REJECT = 'reject',
   // Special actions
   CHECK_IN = 'checkin',
   CHECK_OUT = 'checkout',
@@ -26,6 +29,12 @@ export enum PermissionAction {
   APPROVE_LEAVE = 'approve',
   REJECT_LEAVE = 'reject',
   GENERATE_PAYROLL = 'generate',
+}
+
+export enum DataScope {
+  OWN = 'own',
+  DEPARTMENT = 'department',
+  ALL = 'all',
 }
 
 @Schema({ timestamps: true })

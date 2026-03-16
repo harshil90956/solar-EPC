@@ -14,6 +14,7 @@ import { Department, DepartmentSchema } from './schemas/department.schema';
 import { Permission, PermissionSchema } from './schemas/permission.schema';
 import { Role, RoleSchema } from './schemas/role.schema';
 import { RoleColumnPermission, RoleColumnPermissionSchema } from './schemas/role-column-permission.schema';
+import { RoleModulePermission, RoleModulePermissionSchema } from './schemas/role-module-permission.schema';
 import { HrmPermission, HrmPermissionSchema } from './schemas/hrm-permission.schema';
 import { User, UserSchema } from '../../core/auth/schemas/user.schema';
 
@@ -49,6 +50,7 @@ import { PermissionController } from './controllers/permission.controller';
       { name: Permission.name, schema: PermissionSchema },
       { name: Role.name, schema: RoleSchema },
       { name: RoleColumnPermission.name, schema: RoleColumnPermissionSchema },
+      { name: RoleModulePermission.name, schema: RoleModulePermissionSchema },
       { name: HrmPermission.name, schema: HrmPermissionSchema },
       { name: User.name, schema: UserSchema },
     ]),

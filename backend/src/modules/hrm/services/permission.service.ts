@@ -1,9 +1,10 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Permission, PermissionModule, PermissionAction } from '../schemas/permission.schema';
+import { Permission, PermissionModule, PermissionAction, DataScope } from '../schemas/permission.schema';
 import { Role } from '../schemas/role.schema';
 import { RoleColumnPermission } from '../schemas/role-column-permission.schema';
+import { RoleModulePermission } from '../schemas/role-module-permission.schema';
 
 export const DEFAULT_PERMISSIONS = [
   // Employees
@@ -108,6 +109,7 @@ export class PermissionService implements OnModuleInit {
     @InjectModel(Permission.name) private permissionModel: Model<Permission>,
     @InjectModel(Role.name) private roleModel: Model<Role>,
     @InjectModel(RoleColumnPermission.name) private roleColumnPermissionModel: Model<RoleColumnPermission>,
+    @InjectModel(RoleModulePermission.name) private roleModulePermissionModel: Model<RoleModulePermission>,
   ) {}
 
   async onModuleInit() {
@@ -358,5 +360,180 @@ export class PermissionService implements OnModuleInit {
 
   getAllModulesWithColumns(): Record<string, string[]> {
     return { ...PermissionService.MODULE_COLUMNS };
+  }
+
+  // ==================== DATA SCOPE METHODS ====================
+
+  async getRoleModulePermission(roleId: string, module: string, tenantId?: string): Promise<RoleModulePermission | null> {
+    const query: any = { roleId, module };
+    if (tenantId) {
+      query.tenantId = new Types.ObjectId(tenantId);
+    }
+    return this.roleModulePermissionModel.findOne(query).exec();
+  }
+
+  async getAllRoleModulePermissions(roleId: string, tenantId?: string): Promise<RoleModulePermission[]> {
+    const query: any = { roleId };
+    if (tenantId) {
+      query.tenantId = new Types.ObjectId(tenantId);
+    }
+    return this.roleModulePermissionModel.find(query).exec();
+  }
+
+  async setRoleModulePermission(
+    roleId: string,
+    module: string,
+    actions: any,
+    dataScope: DataScope,
+    tenantId?: string,
+  ): Promise<RoleModulePermission> {
+    const query: any = { roleId, module };
+    if (tenantId) {
+      query.tenantId = new Types.ObjectId(tenantId);
+    }
+
+    const update = {
+      roleId,
+      module,
+      actions,
+      dataScope,
+      tenantId: tenantId ? new Types.ObjectId(tenantId) : undefined,
+      updatedAt: new Date(),
+    };
+
+    return this.roleModulePermissionModel.findOneAndUpdate(
+      query,
+      update,
+      { upsert: true, new: true },
+    ).exec();
+  }
+
+  async getDataScope(roleId: string, module: string, tenantId?: string): Promise<DataScope> {
+    // Admin/Super Admin always have ALL scope
+    const role = await this.findRoleByIdOrName(roleId);
+    if (role?.name === 'Admin' || role?.name === 'Super Admin') {
+      return DataScope.ALL;
+    }
+
+    const perm = await this.getRoleModulePermission(roleId, module, tenantId);
+    return perm?.dataScope || DataScope.OWN;
+  }
+
+  async checkModuleAction(
+    roleId: string,
+    module: string,
+    action: string,
+    tenantId?: string,
+  ): Promise<boolean> {
+    // Admin/Super Admin always have permission
+    const role = await this.findRoleByIdOrName(roleId);
+    if (role?.name === 'Admin' || role?.name === 'Super Admin') {
+      return true;
+    }
+
+    const perm = await this.getRoleModulePermission(roleId, module, tenantId);
+    if (!perm) return false;
+
+    return (perm.actions as Record<string, boolean>)[action] === true;
+  }
+
+  async seedDefaultModulePermissions(tenantId?: string): Promise<void> {
+    const roles = await this.roleModel.find().exec();
+    const modules = ['employees', 'leaves', 'attendance', 'payroll', 'increments', 'departments'];
+
+    for (const role of roles) {
+      for (const module of modules) {
+        const query: any = { roleId: role._id.toString(), module };
+        if (tenantId) {
+          query.tenantId = new Types.ObjectId(tenantId);
+        }
+
+        const existing = await this.roleModulePermissionModel.findOne(query).exec();
+        if (!existing) {
+          // Set default permissions based on role
+          let actions: any = {
+            view: false,
+            create: false,
+            edit: false,
+            delete: false,
+            export: false,
+            assign: false,
+            approve: false,
+            reject: false,
+            checkin: false,
+            checkout: false,
+            apply: false,
+            generate: false,
+          };
+          let dataScope = DataScope.OWN;
+
+          if (role.name === 'Admin' || role.name === 'Super Admin') {
+            actions = {
+              view: true, create: true, edit: true, delete: true,
+              export: true, assign: true, approve: true, reject: true,
+              checkin: true, checkout: true, apply: true, generate: true,
+            };
+            dataScope = DataScope.ALL;
+          } else if (role.name === 'HR Manager') {
+            actions.view = true;
+            if (module === 'employees') {
+              actions.create = true; actions.edit = true; actions.export = true; actions.assign = true;
+              dataScope = DataScope.ALL;
+            } else if (module === 'leaves') {
+              actions.apply = true; actions.approve = true; actions.reject = true; actions.delete = true;
+              dataScope = DataScope.ALL;
+            } else if (module === 'attendance') {
+              actions.checkin = true; actions.checkout = true; actions.edit = true; actions.delete = true;
+              dataScope = DataScope.ALL;
+            } else if (module === 'payroll') {
+              actions.view = true; actions.generate = true; actions.edit = true; actions.delete = true;
+              dataScope = DataScope.ALL;
+            } else if (module === 'increments') {
+              actions.view = true; actions.create = true; actions.edit = true; actions.delete = true;
+              dataScope = DataScope.ALL;
+            } else if (module === 'departments') {
+              actions.view = true; actions.create = true; actions.edit = true; actions.delete = true; actions.assign = true;
+              dataScope = DataScope.ALL;
+            }
+          } else if (role.name === 'Employee') {
+            if (module === 'employees') {
+              actions.view = true; // Employee can view own employee record
+            } else if (module === 'leaves') {
+              actions.view = true; actions.apply = true;
+            } else if (module === 'attendance') {
+              actions.checkin = true; actions.checkout = true; actions.view = true;
+            } else if (module === 'payroll') {
+              actions.view = true;
+            }
+            dataScope = DataScope.OWN;
+          }
+
+          await this.roleModulePermissionModel.create({
+            roleId: role._id.toString(),
+            module,
+            actions,
+            dataScope,
+            tenantId: tenantId ? new Types.ObjectId(tenantId) : undefined,
+          });
+        }
+      }
+    }
+  }
+
+  // Helper to build query filter based on data scope
+  buildDataScopeQuery(
+    userId: string,
+    departmentId?: string,
+    dataScope: DataScope = DataScope.OWN,
+  ): any {
+    switch (dataScope) {
+      case DataScope.OWN:
+        return { employeeId: userId };
+      case DataScope.DEPARTMENT:
+        return departmentId ? { departmentId } : { employeeId: userId };
+      case DataScope.ALL:
+      default:
+        return {};
+    }
   }
 }

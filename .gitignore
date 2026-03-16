@@ -1,0 +1,15 @@
+# Dependencies
+node_modules
+
+# Package files
+package.json
+package-lock.json
+yarn.lock
+
+# Environment files
+.env
+.env.*
+
+# Misc
+.DS_Store
+

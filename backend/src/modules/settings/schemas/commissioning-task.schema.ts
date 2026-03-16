@@ -18,5 +18,6 @@ export class CommissioningTaskConfig extends Document {
 }
 
 export const CommissioningTaskConfigSchema = SchemaFactory.createForClass(CommissioningTaskConfig);
+CommissioningTaskConfigSchema.index({ tenantId: 1 }, { sparse: true });
 
 export type CommissioningTaskConfigDocument = CommissioningTaskConfig & Document;
