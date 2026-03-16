@@ -1,8 +1,8 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Req, Headers, Query, HttpCode, HttpStatus, UnauthorizedException, UseGuards, ForbiddenException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EmployeeService } from '../services/employee.service';
-import { HrmPermissionService } from '../services/hrm-permission.service';
 import { PermissionService } from '../services/permission.service';
+import { DataScope } from '../schemas/permission.schema';
 import { CreateEmployeeDto, UpdateEmployeeDto } from '../dto/employee.dto';
 import { EmployeeDocument } from '../schemas/employee.schema';
 import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
@@ -13,24 +13,42 @@ import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
 export class EmployeeController {
   constructor(
     private readonly employeeService: EmployeeService,
-    private readonly hrmPermissionService: HrmPermissionService,
     private readonly permissionService: PermissionService,
     private readonly configService: ConfigService,
   ) {}
 
-  private async checkPermission(req: any, permission: string) {
+  private async checkPermission(req: any, module: string, action: string) {
     const user = req.user;
     if (!user) throw new ForbiddenException('User not authenticated');
-    
-    // Super admin bypass
-    if (user.role === 'Super Admin' || user.role === 'Admin') return true;
-    
+
     const roleId = user.roleId || user.role;
     if (!roleId) throw new ForbiddenException('User has no role assigned');
-    
-    const hasPermission = await this.hrmPermissionService.checkPermission(roleId, permission);
+
+    const tenantId = req.tenant?.id || req.user?.tenantId;
+    const hasPermission = await this.permissionService.checkModuleAction(roleId, module, action, tenantId);
     if (!hasPermission) {
-      throw new ForbiddenException(`Permission denied: ${permission} required`);
+      throw new ForbiddenException(`Permission denied: ${module}.${action} required`);
+    }
+  }
+
+  private async getDataScopeFilter(req: any, module: string): Promise<any> {
+    const user = req.user;
+    const roleId = user?.roleId || user?.role;
+    const tenantId = req.tenant?.id;
+
+    if (!roleId) return { employeeId: user?.sub };
+
+    const dataScope = await this.permissionService.getDataScope(roleId, module, tenantId);
+    const userDepartment = user?.department;
+
+    switch (dataScope) {
+      case DataScope.OWN:
+        return { employeeId: user?.sub };
+      case DataScope.DEPARTMENT:
+        return userDepartment ? { department: userDepartment } : { employeeId: user?.sub };
+      case DataScope.ALL:
+      default:
+        return {};
     }
   }
 
@@ -64,28 +82,33 @@ export class EmployeeController {
     // The incoming tenantId may be a placeholder like 'default' if frontend didn't send x-tenant-id.
     const effectiveTenantId = employee?.tenantId ? String(employee.tenantId) : tenantId;
 
-    // Get employee permissions
-    const rolePermissions = await this.hrmPermissionService.getPermissions(employee.roleId?.toString() || '');
+    // Get role permissions from unified system
+    const roleId = employee.roleId?.toString() || '';
+    const permissions = await this.permissionService.getRolePermissions(roleId);
+    const modulePermissions = await this.permissionService.getAllRoleModulePermissions(roleId, effectiveTenantId);
 
     // Generate JWT token using same secret as JwtStrategy
     const jwtSecret = this.configService.getOrThrow<string>('JWT_SECRET');
-    const dataScope = (employee as any)?.dataScope || 'ASSIGNED';
     const token = require('jsonwebtoken').sign(
-      { 
+      {
         sub: employee._id,
         email: employee.email,
         role: 'Employee',
         roleId: employee.roleId,
         tenantId: effectiveTenantId,
-        dataScope,
-        permissions: rolePermissions,
+        department: employee.department,
+        permissions,
+        modulePermissions: modulePermissions.reduce((acc: Record<string, any>, mp) => {
+          acc[mp.module] = { actions: mp.actions, dataScope: mp.dataScope };
+          return acc;
+        }, {}),
       },
       jwtSecret,
       { expiresIn: '24h' }
     );
 
-    return { 
-      success: true, 
+    return {
+      success: true,
       data: {
         id: employee._id,
         employeeId: employee.employeeId,
@@ -93,9 +116,9 @@ export class EmployeeController {
         lastName: employee.lastName,
         email: employee.email,
         roleId: employee.roleId,
-        dataScope,
+        department: employee.department,
         tenantId: effectiveTenantId,
-        permissions: rolePermissions,
+        permissions,
         token
       }
     };
@@ -104,55 +127,87 @@ export class EmployeeController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   async create(@Body() createEmployeeDto: CreateEmployeeDto, @Req() req: any) {
-    await this.checkPermission(req, 'employees.create');
+    await this.checkPermission(req, 'employees', 'create');
     const tenantId = req.tenant?.id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.query?.tenantId || 'default';
-    const roleId = req.user?.roleId || req.user?.role;
-    await this.hrmPermissionService.validateAction(roleId, 'employees.manage', tenantId);
-    
+
     const data = await this.employeeService.create(createEmployeeDto, tenantId);
     return { success: true, data };
   }
 
   @Get()
   async findAll(@Req() req: any) {
-    await this.checkPermission(req, 'employees.view');
+    await this.checkPermission(req, 'employees', 'view');
     const tenantId = req.tenant?.id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.query?.tenantId || 'default';
-    const roleId = req.user?.roleId || req.user?.role;
-    await this.hrmPermissionService.validateAction(roleId, 'employees.view', tenantId);
 
-    const data = await this.employeeService.findAll(tenantId);
-    return { success: true, data };
+    // Get data scope filter
+    const scopeFilter = await this.getDataScopeFilter(req, 'employees');
+
+    // Fetch all employees for the tenant
+    const allData = await this.employeeService.findAll(tenantId);
+
+    // Apply data scope filtering
+    let filteredData = allData;
+    if (scopeFilter.employeeId) {
+      filteredData = allData.filter((e: any) =>
+        e._id?.toString() === scopeFilter.employeeId ||
+        e.employeeId === scopeFilter.employeeId
+      );
+    } else if (scopeFilter.department) {
+      filteredData = allData.filter((e: any) => e.department === scopeFilter.department);
+    }
+
+    return { success: true, data: filteredData };
   }
 
   @Get('stats')
   async getStats(@Req() req: any) {
-    await this.checkPermission(req, 'employees.view');
+    await this.checkPermission(req, 'employees', 'view');
     const tenantId = req.tenant?.id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.query?.tenantId || 'default';
-    
-    // Return basic stats - counts by status
-    const data = await this.employeeService.findAll(tenantId);
+
+    // Get data scope filter
+    const scopeFilter = await this.getDataScopeFilter(req, 'employees');
+
+    // Fetch all employees
+    const allData = await this.employeeService.findAll(tenantId);
+
+    // Apply data scope filtering
+    let filteredData = allData;
+    if (scopeFilter.employeeId) {
+      filteredData = allData.filter((e: any) =>
+        e._id?.toString() === scopeFilter.employeeId
+      );
+    } else if (scopeFilter.department) {
+      filteredData = allData.filter((e: any) => e.department === scopeFilter.department);
+    }
+
     const stats = {
-      total: data.length,
-      active: data.filter((e: any) => e.status === 'active').length,
-      inactive: data.filter((e: any) => e.status === 'inactive').length,
-      suspended: data.filter((e: any) => e.status === 'suspended').length,
-      terminated: data.filter((e: any) => e.status === 'terminated').length,
+      total: filteredData.length,
+      active: filteredData.filter((e: any) => e.status === 'active').length,
+      inactive: filteredData.filter((e: any) => e.status === 'inactive').length,
+      suspended: filteredData.filter((e: any) => e.status === 'suspended').length,
+      terminated: filteredData.filter((e: any) => e.status === 'terminated').length,
     };
     return { success: true, data: stats };
   }
 
   @Get(':id')
   async findOne(@Param('id') id: string, @Req() req: any) {
-    await this.checkPermission(req, 'employees.view');
+    await this.checkPermission(req, 'employees', 'view');
     const tenantId = req.tenant?.id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.query?.tenantId || 'default';
-    const roleId = req.user?.roleId || req.user?.role;
-    
-    // Allow self-viewing personal profile
-    if (req.user?.sub !== id) {
-      await this.hrmPermissionService.validateAction(roleId, 'employees.view', tenantId);
-    }
 
     const data = await this.employeeService.findOne(id, tenantId);
+
+    // Check if user can access this specific employee based on data scope
+    const scopeFilter = await this.getDataScopeFilter(req, 'employees');
+
+    if (scopeFilter.employeeId && data._id?.toString() !== req.user?.sub && data.employeeId !== req.user?.sub) {
+      throw new ForbiddenException('You can only view your own employee record');
+    }
+
+    if (scopeFilter.department && data.department !== scopeFilter.department) {
+      throw new ForbiddenException('You can only view employees in your department');
+    }
+
     return { success: true, data };
   }
 
@@ -162,10 +217,20 @@ export class EmployeeController {
     @Body() updateEmployeeDto: UpdateEmployeeDto,
     @Req() req: any,
   ) {
-    await this.checkPermission(req, 'employees.edit');
+    await this.checkPermission(req, 'employees', 'edit');
     const tenantId = req.tenant?.id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.query?.tenantId || 'default';
-    const roleId = req.user?.roleId || req.user?.role;
-    await this.hrmPermissionService.validateAction(roleId, 'employees.manage', tenantId);
+
+    // Check data scope - can only edit if has access to this employee
+    const scopeFilter = await this.getDataScopeFilter(req, 'employees');
+    const existingEmployee = await this.employeeService.findOne(id, tenantId);
+
+    if (scopeFilter.employeeId && existingEmployee._id?.toString() !== req.user?.sub) {
+      throw new ForbiddenException('You can only edit your own employee record');
+    }
+
+    if (scopeFilter.department && existingEmployee.department !== scopeFilter.department) {
+      throw new ForbiddenException('You can only edit employees in your department');
+    }
 
     const data = await this.employeeService.update(id, updateEmployeeDto, tenantId);
     return { success: true, data };
@@ -173,10 +238,20 @@ export class EmployeeController {
 
   @Delete(':id')
   async remove(@Param('id') id: string, @Req() req: any) {
-    await this.checkPermission(req, 'employees.delete');
+    await this.checkPermission(req, 'employees', 'delete');
     const tenantId = req.tenant?.id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.query?.tenantId || 'default';
-    const roleId = req.user?.roleId || req.user?.role;
-    await this.hrmPermissionService.validateAction(roleId, 'employees.delete', tenantId);
+
+    // Check data scope - can only delete if has access to this employee
+    const scopeFilter = await this.getDataScopeFilter(req, 'employees');
+    const existingEmployee = await this.employeeService.findOne(id, tenantId);
+
+    if (scopeFilter.employeeId && existingEmployee._id?.toString() !== req.user?.sub) {
+      throw new ForbiddenException('You can only delete your own employee record');
+    }
+
+    if (scopeFilter.department && existingEmployee.department !== scopeFilter.department) {
+      throw new ForbiddenException('You can only delete employees in your department');
+    }
 
     const data = await this.employeeService.remove(id, tenantId);
     return { success: true, data };
@@ -184,10 +259,15 @@ export class EmployeeController {
 
   @Get('by-department/:department')
   async findByDepartment(@Param('department') department: string, @Req() req: any) {
-    await this.checkPermission(req, 'employees.view');
+    await this.checkPermission(req, 'employees', 'view');
     const tenantId = req.tenant?.id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.query?.tenantId || 'default';
-    const roleId = req.user?.roleId || req.user?.role;
-    await this.hrmPermissionService.validateAction(roleId, 'employees.view', tenantId);
+
+    // Check data scope - can only view own department
+    const scopeFilter = await this.getDataScopeFilter(req, 'employees');
+
+    if (scopeFilter.department && scopeFilter.department !== department) {
+      throw new ForbiddenException('You can only view employees in your department');
+    }
 
     const data = await this.employeeService.findByDepartment(department, tenantId);
     return { success: true, data };
@@ -195,12 +275,21 @@ export class EmployeeController {
 
   @Get('by-role/:roleId')
   async findByRole(@Param('roleId') roleId: string, @Req() req: any) {
-    await this.checkPermission(req, 'employees.view');
+    await this.checkPermission(req, 'employees', 'view');
     const tenantId = req.tenant?.id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.query?.tenantId || 'default';
-    const roleIdUser = req.user?.roleId || req.user?.role;
-    await this.hrmPermissionService.validateAction(roleIdUser, 'employees.view', tenantId);
 
     const data = await this.employeeService.findByRole(roleId, tenantId);
-    return { success: true, data };
+
+    // Apply data scope filtering
+    const scopeFilter = await this.getDataScopeFilter(req, 'employees');
+    let filteredData = data;
+
+    if (scopeFilter.employeeId) {
+      filteredData = data.filter((e: any) => e._id?.toString() === scopeFilter.employeeId);
+    } else if (scopeFilter.department) {
+      filteredData = data.filter((e: any) => e.department === scopeFilter.department);
+    }
+
+    return { success: true, data: filteredData };
   }
 }

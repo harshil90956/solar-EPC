@@ -21,6 +21,8 @@ import { Input, FormField, Select, Textarea } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { toast } from '../components/ui/Toast';
 import { attendanceApi, employeeApi } from '../services/hrmApi';
+import { useAuth } from '../context/AuthContext';
+import { useDataScope } from '../hooks/useDataScope';
 import { usePermissions } from '../hooks/usePermissions';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -158,7 +160,7 @@ const AttendanceViewModal = ({ record, onClose, onEdit }) => {
 const AttendancePageV3 = () => {
   const [mounted, setMounted] = useState(false);
 
-  // Get permissions for attendance module
+  // Get permissions and user info
   const { 
     canView, 
     canCreate, 
@@ -167,6 +169,12 @@ const AttendancePageV3 = () => {
     canExport,
     columns: permissionColumns 
   } = usePermissions('attendance');
+  
+  const { user } = useAuth();
+  
+  // Check if data scope is OWN (only view own data)
+  const isOwnScope = user?.modulePermissions?.attendance?.dataScope === 'OWN';
+  const currentEmployee = user?.employee;
 
   // ==================== CORE STATE ====================
   const [loading, setLoading] = useState(false);
@@ -748,6 +756,10 @@ const AttendancePageV3 = () => {
             variant: 'primary',
             onClick: () => {
               resetForm();
+              // Auto-populate employeeId for OWN scope users
+              if (isOwnScope && currentEmployee?._id) {
+                setAttendanceForm(prev => ({ ...prev, employeeId: currentEmployee._id }));
+              }
               setShowCheckInModal(true);
             },
           },
@@ -1205,19 +1217,39 @@ const AttendancePageV3 = () => {
           }
         >
           <div className="space-y-3">
-            <FormField label="Select Employee">
-              <Select
-                value={attendanceForm.employeeId}
-                onChange={(e) => setAttendanceForm({ ...attendanceForm, employeeId: e.target.value })}
-              >
-                <option value="">Choose an employee</option>
-                {employees.map((emp) => (
-                  <option key={emp._id} value={emp._id}>
-                    {emp.firstName} {emp.lastName} ({emp.employeeId})
-                  </option>
-                ))}
-              </Select>
-            </FormField>
+            {/* Show employee dropdown for ALL/DEPARTMENT scope, show current user for OWN scope */}
+            {isOwnScope && currentEmployee ? (
+              <div className="p-3 bg-[var(--bg-elevated)] rounded-lg border border-[var(--border-base)]">
+                <p className="text-xs text-[var(--text-muted)] uppercase tracking-wide mb-2">Employee</p>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-[var(--primary)] text-white flex items-center justify-center text-sm font-medium">
+                    {currentEmployee.firstName?.[0]}{currentEmployee.lastName?.[0]}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-[var(--text-primary)]">
+                      {currentEmployee.firstName} {currentEmployee.lastName}
+                    </p>
+                    <p className="text-xs text-[var(--text-muted)]">
+                      {currentEmployee.employeeId} · {currentEmployee.role || 'Employee'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <FormField label="Select Employee">
+                <Select
+                  value={attendanceForm.employeeId}
+                  onChange={(e) => setAttendanceForm({ ...attendanceForm, employeeId: e.target.value })}
+                >
+                  <option value="">Choose an employee</option>
+                  {employees.map((emp) => (
+                    <option key={emp._id} value={emp._id}>
+                      {emp.firstName} {emp.lastName} ({emp.employeeId})
+                    </option>
+                  ))}
+                </Select>
+              </FormField>
+            )}
 
             <FormField label="Work Mode">
               <Select

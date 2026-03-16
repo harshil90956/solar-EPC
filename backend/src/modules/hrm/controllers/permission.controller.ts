@@ -1,11 +1,12 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { PermissionService } from '../services/permission.service';
 import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
+import { AdminGuard } from '../../../core/auth/guards/admin.guard';
 import { Permission } from '../schemas/permission.schema';
 import { Role } from '../schemas/role.schema';
 
 @Controller('hrm/permissions')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, AdminGuard)
 export class PermissionController {
   constructor(private readonly permissionService: PermissionService) {}
 
@@ -139,6 +140,102 @@ export class PermissionController {
     return {
       success: true,
       message: `Column permissions copied from ${sourceRoleId} to ${targetRoleId}`,
+    };
+  }
+
+  // ==================== MODULE PERMISSIONS WITH DATA SCOPE ====================
+
+  @Get('roles/:id/module-permissions')
+  async getRoleModulePermissions(@Param('id') roleId: string, @Query('tenantId') tenantId?: string): Promise<any> {
+    const permissions = await this.permissionService.getAllRoleModulePermissions(roleId, tenantId);
+    return {
+      roleId,
+      permissions: permissions.reduce((acc: Record<string, any>, perm) => {
+        acc[perm.module] = {
+          actions: perm.actions,
+          dataScope: perm.dataScope,
+        };
+        return acc;
+      }, {}),
+    };
+  }
+
+  @Get('roles/:id/module-permissions/:module')
+  async getRoleModulePermission(
+    @Param('id') roleId: string,
+    @Param('module') module: string,
+    @Query('tenantId') tenantId?: string,
+  ): Promise<any> {
+    const permission = await this.permissionService.getRoleModulePermission(roleId, module, tenantId);
+    if (!permission) {
+      return {
+        roleId,
+        module,
+        actions: {
+          view: false, create: false, edit: false, delete: false,
+          export: false, assign: false, approve: false, reject: false,
+          checkin: false, checkout: false, apply: false, generate: false,
+        },
+        dataScope: 'own',
+      };
+    }
+    return {
+      roleId,
+      module,
+      actions: permission.actions,
+      dataScope: permission.dataScope,
+    };
+  }
+
+  @Post('roles/:id/module-permissions/:module')
+  async setRoleModulePermission(
+    @Param('id') roleId: string,
+    @Param('module') module: string,
+    @Body() body: { actions: any; dataScope: string },
+    @Query('tenantId') tenantId?: string,
+  ): Promise<any> {
+    const permission = await this.permissionService.setRoleModulePermission(
+      roleId,
+      module,
+      body.actions,
+      body.dataScope as any,
+      tenantId,
+    );
+    return {
+      success: true,
+      data: permission,
+    };
+  }
+
+  @Post('roles/:id/module-permissions/bulk')
+  async setBulkRoleModulePermissions(
+    @Param('id') roleId: string,
+    @Body() body: { permissions: Record<string, { actions: any; dataScope: string }> },
+    @Query('tenantId') tenantId?: string,
+  ): Promise<any> {
+    const results = [];
+    for (const [module, config] of Object.entries(body.permissions)) {
+      const permission = await this.permissionService.setRoleModulePermission(
+        roleId,
+        module,
+        config.actions,
+        config.dataScope as any,
+        tenantId,
+      );
+      results.push(permission);
+    }
+    return {
+      success: true,
+      data: results,
+    };
+  }
+
+  @Post('seed-module-permissions')
+  async seedModulePermissions(@Query('tenantId') tenantId?: string): Promise<any> {
+    await this.permissionService.seedDefaultModulePermissions(tenantId);
+    return {
+      success: true,
+      message: 'Module permissions seeded successfully',
     };
   }
 }
