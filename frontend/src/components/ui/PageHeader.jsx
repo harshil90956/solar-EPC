@@ -14,13 +14,13 @@ export const PageHeader = ({
   return (
     <div className={cn('flex flex-col gap-4', className)}>
       <div className="flex flex-wrap items-center justify-between gap-4">
-        {/* Title Section */}
+        {/* Title Section - Left side */}
         <div>
           <h1 className="heading-page">{title}</h1>
           {subtitle && <p className="text-xs text-[var(--text-muted)] mt-0.5">{subtitle}</p>}
         </div>
 
-        {/* Right Section: Pre-tabs + Tabs + Actions */}
+        {/* Right Section: Tabs + Actions */}
         <div className="flex items-center gap-3 flex-wrap">
           {/* Pre-tabs content (e.g., view toggle buttons) */}
           {preTabsContent && (

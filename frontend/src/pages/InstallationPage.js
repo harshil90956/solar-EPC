@@ -234,7 +234,7 @@ const InstallKanbanBoard = ({ items, onCardClick, onDrop, canEdit }) => {
             const avgProgress = cards.length ? Math.round(cards.reduce((a, i) => a + calculateProgress(i.tasks), 0) / cards.length) : 0;
             return (
               <div key={stage.id}
-                className={`flex flex-col w-72 sm:w-60 rounded-xl border transition-colors ${dragOver === stage.id ? 'border-[var(--primary)]/50 bg-[var(--primary)]/5' : 'border-[var(--border-base)] bg-[var(--bg-surface)]'}`}
+                className={`flex flex-col w-72 sm:w-60 rounded-xl border transition-colors h-[530px] ${dragOver === stage.id ? 'border-[var(--primary)]/50 bg-[var(--primary)]/5' : 'border-[var(--border-base)] bg-[var(--bg-surface)]'}`}
                 onDragOver={e => { e.preventDefault(); setDragOver(stage.id); }}
                 onDragLeave={() => setDragOver(null)}
                 onDrop={() => handleDrop(stage.id)}>
@@ -262,7 +262,7 @@ const InstallKanbanBoard = ({ items, onCardClick, onDrop, canEdit }) => {
                       style={{ background: stage.bg, color: stage.color }}>{cards.length}</span>
                   </div>
                 </div>
-                <div className="flex flex-col gap-2 p-2 flex-1 min-h-[180px]">
+                <div className="flex flex-col gap-2 p-2 h-[430px] overflow-y-auto">
                   {cards.map(i => (
                     <InstallCard key={i.installationId || i.id} log={i}
                       onDragStart={() => { draggingId.current = i.installationId || i.id; }}
@@ -1119,13 +1119,14 @@ const InstallationPage = () => {
       hasEditPermission: can('installation','edit')
     });
     
-    // Allow task update if: has edit permission OR is assigned user OR is employee/technician
+    // Allow task update if: has edit permission OR is assigned user OR has ASSIGNED dataScope OR is employee/technician
     const isAssignedUser = selected.technicianId === user?.id || 
                            selected.technicianId === user?._id ||
                            selected.assignedTo === user?.id ||
                            selected.assignedTo === user?._id;
+    const hasAssignedScope = user?.dataScope === 'ASSIGNED' || user?._doc?.dataScope === 'ASSIGNED';
     const isEmployeeRole = user?.role?.toLowerCase() === 'employee' || user?.role?.toLowerCase() === 'technician';
-    const canUpdate = can('installation','edit') || isAssignedUser || isEmployeeRole;
+    const canUpdate = can('installation','edit') || isAssignedUser || hasAssignedScope || isEmployeeRole;
     
     console.log('[DEBUG] Permission check:', { isAssignedUser, canUpdate });
     
@@ -1174,10 +1175,10 @@ const InstallationPage = () => {
       } else if (shouldRevertStatus) {
         // If project was completed and task unchecked, revert status to In Progress
         await apiClient.patch(`/installations/${selected._id || selected.id}/status`, { status: 'In Progress' });
-        setSelected({ ...resp.data, status: 'In Progress' });
+        setSelected({ ...resp.data, status: 'In Progress', tasks: updatedTasks });
         toast.success('Task unchecked — Installation reverted to In Progress');
       } else {
-        setSelected(resp.data);
+        setSelected({ ...resp.data, tasks: updatedTasks });
       }
       
       refetch();

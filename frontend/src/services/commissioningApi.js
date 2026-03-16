@@ -14,4 +14,6 @@ export const commissioningApi = {
   create: (data) => apiClient.post('/commissionings', data),
   update: (id, data) => apiClient.patch(`/commissionings/${id}`, data),
   remove: (id) => apiClient.delete(`/commissionings/${id}`),
+  assign: (id, assignedTo) =>
+    apiClient.patch(`/commissionings/${id}/assign`, { assignedTo }),
 };

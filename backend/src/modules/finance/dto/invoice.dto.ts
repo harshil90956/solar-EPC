@@ -89,7 +89,7 @@ export class UpdateInvoiceDto {
   paid?: number;
 
   @IsOptional()
-  @IsEnum(['Draft', 'Pending', 'Partial', 'Paid', 'Overdue'])
+  @IsEnum(['Draft', 'Sent', 'Pending', 'Partial', 'Paid', 'Overdue'])
   status?: InvoiceStatus;
 
   @IsOptional()

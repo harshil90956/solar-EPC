@@ -184,6 +184,9 @@ export class Commissioning extends Document {
   assignedTo?: Types.ObjectId;
 
   @Prop({ type: Types.ObjectId, ref: 'User', required: false })
+  assignedBy?: Types.ObjectId;
+
+  @Prop({ type: Types.ObjectId, ref: 'User', required: false })
   createdBy?: Types.ObjectId;
 
   @Prop({ type: Types.ObjectId, ref: 'User', required: false })
@@ -197,6 +200,8 @@ CommissioningSchema.index({ tenantId: 1, status: 1 });
 CommissioningSchema.index({ tenantId: 1, projectId: 1 });
 CommissioningSchema.index({ tenantId: 1, technicianId: 1 });
 CommissioningSchema.index({ tenantId: 1, assignedTo: 1 });
+CommissioningSchema.index({ tenantId: 1, createdBy: 1 }); // For AGENT role visibility queries
+CommissioningSchema.index({ tenantId: 1, assignedTo: 1, createdBy: 1 }); // Compound index for visibility queries
 CommissioningSchema.index({ tenantId: 1, scheduledDate: -1 });
 CommissioningSchema.index({ tenantId: 1, createdAt: -1 });
 CommissioningSchema.index({ tenantId: 1, customerName: 'text', site: 'text' });

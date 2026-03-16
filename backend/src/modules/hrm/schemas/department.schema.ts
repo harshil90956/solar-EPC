@@ -21,6 +21,9 @@ export class Department {
   @Prop({ default: '' })
   description!: string;
 
+  @Prop({ default: true })
+  isActive!: boolean;
+
   @Prop({ default: 0 })
   employeeCount!: number;
 

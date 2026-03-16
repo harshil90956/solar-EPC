@@ -6,18 +6,18 @@ import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
 @Controller('hrm/permissions')
 @UseGuards(JwtAuthGuard, TenantGuard)
 export class HrmPermissionController {
-  constructor(private readonly hrmPermissionService: HrmPermissionService) {}
+  constructor(private readonly permissionService: HrmPermissionService) {}
 
   @Get()
   async getAllPermissions(@Request() req: any) {
     const tenantId = req.tenant?.id;
-    return this.hrmPermissionService.getAllPermissions(tenantId);
+    return this.permissionService.getAllPermissions(tenantId);
   }
 
   @Get('role/:roleId')
   async getByRole(@Param('roleId') roleId: string, @Request() req: any) {
     const tenantId = req.tenant?.id;
-    return this.hrmPermissionService.getPermissions(roleId, tenantId);
+    return this.permissionService.getPermissions(roleId, tenantId);
   }
 
   @Put('role/:roleId')
@@ -27,13 +27,14 @@ export class HrmPermissionController {
     @Request() req: any,
   ) {
     const tenantId = req.tenant?.id;
-    return this.hrmPermissionService.updatePermissions(roleId, permissions, tenantId);
+    await this.permissionService.validateAction(roleId, 'attendance.checkin_checkout', tenantId);
+    return this.permissionService.updatePermissions(roleId, permissions, tenantId);
   }
 
   @Post('seed')
   async seed(@Request() req: any) {
     const tenantId = req.tenant?.id;
-    await this.hrmPermissionService.seedDefaults(tenantId);
+    await this.permissionService.seedDefaults(tenantId);
     return { message: 'HRM permissions seeded successfully' };
   }
 }

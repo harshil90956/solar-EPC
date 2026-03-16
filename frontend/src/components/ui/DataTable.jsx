@@ -320,27 +320,6 @@ const DataTable = ({
 
             <div className="flex items-center gap-2 flex-wrap">
 
-                {!hideSearch && onSearch !== undefined && (
-
-                    <div className="relative min-w-[200px] flex-1 max-w-xs">
-
-                        <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" />
-
-                        <Input
-
-                            placeholder="Search…"
-
-                            value={search}
-
-                            onChange={e => onSearch(e.target.value)}
-
-                            className="pl-8 h-8 text-xs"
-
-                        />
-
-                    </div>
-
-                )}
 
 
 
@@ -359,6 +338,30 @@ const DataTable = ({
 
 
                 <div className="ml-auto flex items-center gap-2">
+
+                    {/* Search bar - LEFT of Columns button */}
+
+                    {!hideSearch && onSearch !== undefined && (
+
+                        <div className="relative w-48">
+
+                            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" />
+
+                            <Input
+
+                                placeholder="Search…"
+
+                                value={search}
+
+                                onChange={e => onSearch(e.target.value)}
+
+                                className="pl-8 h-8 text-xs w-48"
+
+                            />
+
+                        </div>
+
+                    )}
                     {toolbar}
 
 

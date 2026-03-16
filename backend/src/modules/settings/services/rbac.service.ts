@@ -64,12 +64,17 @@ export class RBACService {
     }
   }
 
-  private toObjectId(tenantId: string | undefined): Types.ObjectId | undefined {
-    if (!tenantId) return undefined;
-    // Check if tenantId is a valid 24-character hex string (MongoDB ObjectId format)
+  private toObjectId(tenantId: string | undefined): Types.ObjectId {
+    if (!tenantId) {
+      throw new Error('Tenant ID is required for multi-tenant operations');
+    }
     const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(tenantId);
-    if (!isValidObjectId) return undefined;
-    try { return new Types.ObjectId(tenantId); } catch { return undefined; }
+    if (!isValidObjectId) {
+      throw new Error(`Invalid tenant ID format: ${tenantId}`);
+    }
+    try { return new Types.ObjectId(tenantId); } catch { 
+      throw new Error(`Failed to convert tenant ID to ObjectId: ${tenantId}`);
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -94,9 +99,7 @@ export class RBACService {
     }
 
     const tid = this.toObjectId(tenantId);
-    const filter = tid 
-      ? { tenantId: tid, roleId, moduleId } 
-      : { roleId, moduleId };
+    const filter = { tenantId: tid, roleId, moduleId };
     
     const config = await this.rbacConfigModel.findOne(filter).exec();
 
@@ -128,7 +131,7 @@ export class RBACService {
     }
 
     const tid = this.toObjectId(tenantId);
-    const filter = tid ? { tenantId: tid, roleId } : { roleId };
+    const filter = { tenantId: tid, roleId };
     
     const configs = await this.rbacConfigModel.find(filter).exec();
     const result: Record<string, Record<string, boolean>> = {};
@@ -153,7 +156,7 @@ export class RBACService {
     }
 
     const tid = this.toObjectId(tenantId);
-    const filter = tid ? { tenantId: tid } : {};
+    const filter = { tenantId: tid };
     
     const configs = await this.rbacConfigModel.find(filter).exec();
     const result: Record<string, Record<string, Record<string, boolean>>> = {};
@@ -180,7 +183,7 @@ export class RBACService {
 
   async getRBACConfigs(tenantId: string | undefined): Promise<RBACConfig[]> {
     const tid = this.toObjectId(tenantId);
-    return this.rbacConfigModel.find(tid ? { tenantId: tid } : {}).exec();
+    return this.rbacConfigModel.find({ tenantId: tid }).exec();
   }
 
   async getRBACConfig(
@@ -189,9 +192,7 @@ export class RBACService {
     moduleId: string,
   ): Promise<RBACConfig | null> {
     const tid = this.toObjectId(tenantId);
-    const filter = tid 
-      ? { tenantId: tid, roleId, moduleId } 
-      : { roleId, moduleId };
+    const filter = { tenantId: tid, roleId, moduleId };
     return this.rbacConfigModel.findOne(filter).exec();
   }
 
@@ -204,9 +205,7 @@ export class RBACService {
     userId?: string,
   ): Promise<RBACConfig> {
     const tid = this.toObjectId(tenantId);
-    const filter = tid 
-      ? { tenantId: tid, roleId, moduleId } 
-      : { roleId, moduleId };
+    const filter = { tenantId: tid, roleId, moduleId };
 
     const update = {
       $set: {
@@ -237,9 +236,7 @@ export class RBACService {
     permissions: Record<string, boolean>,
   ): Promise<RBACConfig> {
     const tid = this.toObjectId(tenantId);
-    const filter = tid 
-      ? { tenantId: tid, roleId, moduleId } 
-      : { roleId, moduleId };
+    const filter = { tenantId: tid, roleId, moduleId };
 
     const permissionsMap = new Map(Object.entries(permissions));
 
@@ -265,9 +262,7 @@ export class RBACService {
     moduleId: string,
   ): Promise<RBACConfig | null> {
     const tid = this.toObjectId(tenantId);
-    const filter = tid 
-      ? { tenantId: tid, roleId, moduleId } 
-      : { roleId, moduleId };
+    const filter = { tenantId: tid, roleId, moduleId };
 
     const doc = await this.rbacConfigModel.findOneAndDelete(filter).exec();
 
@@ -322,9 +317,7 @@ export class RBACService {
 
     // Update all modules with the preset
     for (const moduleId of modules) {
-      const filter = tid 
-        ? { tenantId: tid, roleId, moduleId } 
-        : { roleId, moduleId };
+      const filter = { tenantId: tid, roleId, moduleId };
 
       const permissionsMap = new Map(Object.entries(permissions));
 

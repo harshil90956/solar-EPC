@@ -14,15 +14,8 @@ export class AdjustmentCategoryService {
     const query: any = { isDeleted: false };
     if (tenantId && Types.ObjectId.isValid(tenantId)) {
       query.tenantId = new Types.ObjectId(tenantId);
-    } else if (tenantId === '') {
-      // SuperAdmin case: possibly return all or restricted set. 
-      // For now, let's keep it restricted to global if applicable, 
-      // but usually AdjustmentCategories are tenant-specific.
-      // Returning empty array if no valid tenantId for now to match controller logic.
-      return [];
-    } else {
-      throw new BadRequestException('Invalid Tenant ID');
     }
+    // If tenantId is empty or invalid, don't filter by tenantId (return all non-deleted categories)
 
     const results = await this.categoryModel
       .find(query)
