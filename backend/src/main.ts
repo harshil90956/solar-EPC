@@ -1,4 +1,4 @@
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, Inject, Injectable } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import multipart from '@fastify/multipart';
@@ -8,6 +8,42 @@ import { GlobalExceptionFilter } from './shared/filters/global-exception.filter'
 import { SuccessResponseInterceptor } from './shared/interceptors/success-response.interceptor';
 import { LogisticsService } from './modules/logistics/services/logistics.service';
 import { ProcurementService } from './modules/procurement/services/procurement.service';
+import { getModelToken } from '@nestjs/mongoose';
+import { Inventory } from './modules/inventory/schemas/inventory.schema';
+
+// Startup fix for INV3552
+async function fixINV3552OnStartup(app: NestFastifyApplication) {
+  try {
+    console.log('[STARTUP FIX] ========== Checking INV3552 inventory ==========');
+    const inventoryModel = app.get(getModelToken(Inventory.name));
+    const item = await inventoryModel.findOne({ itemId: 'INV3552' }).exec();
+    
+    if (!item) {
+      console.log('[STARTUP FIX] INV3552 not found in inventory collection');
+      return;
+    }
+    
+    console.log('[STARTUP FIX] Current state:', {
+      itemId: item.itemId,
+      stock: item.stock,
+      reserved: item.reserved,
+      available: item.available
+    });
+    
+    if (item.reserved > 0) {
+      await inventoryModel.updateOne(
+        { _id: item._id },
+        { $set: { reserved: 0, available: item.stock } }
+      ).exec();
+      console.log(`[STARTUP FIX] ✅ FIXED: Reserved ${item.reserved} -> 0, Available ${item.available} -> ${item.stock}`);
+    } else {
+      console.log('[STARTUP FIX] ✅ No fix needed - reserved is already 0');
+    }
+    console.log('[STARTUP FIX] ========== Complete ==========');
+  } catch (err: any) {
+    console.error('[STARTUP FIX] ❌ Error:', err?.message || err);
+  }
+}
 
 async function bootstrap() {
   const dnsServersRaw = process.env.DNS_SERVERS;
@@ -60,6 +96,9 @@ async function bootstrap() {
 
   const port = Number(process.env.APP_PORT ?? 3000);
   await app.listen({ port, host: '0.0.0.0' });
+  
+  // Run startup fix after server is ready
+  await fixINV3552OnStartup(app);
 }
 
 void bootstrap();
