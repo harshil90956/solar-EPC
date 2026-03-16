@@ -76,7 +76,7 @@ const SkeletonChart = () => (
 );
 
 // KPI Card Component with live data indicator
-const KPICard = ({ title, value, change, trend, icon: Icon, color, loading, subtitle }) => {
+const KPICard = ({ title, value, change, trend, icon: Icon, color, loading, subtitle, onClick }) => {
   if (loading) return <SkeletonCard />;
   
   const TrendIcon = trend === 'up' ? ArrowUpRight : ArrowDownRight;
@@ -84,7 +84,10 @@ const KPICard = ({ title, value, change, trend, icon: Icon, color, loading, subt
   const trendBg = trend === 'up' ? 'bg-emerald-50' : 'bg-red-50';
   
   return (
-    <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-all">
+    <div 
+      onClick={onClick}
+      className={`bg-white rounded-xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-all ${onClick ? 'cursor-pointer hover:border-blue-300' : ''}`}
+    >
       <div className="flex items-start justify-between">
         <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${color}15` }}>
           <Icon size={24} style={{ color }} />
@@ -963,7 +966,7 @@ const SmartInsights = ({ insights, loading, kpis }) => {
 };
 
 // Main Dashboard Component with Live Data, Calendar and Individual Chart Filters
-const LeadAnalyticsDashboard = ({ onAddLead }) => {
+const LeadAnalyticsDashboard = ({ onAddLead, onFilter }) => {
   const [isLive, setIsLive] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [showCalendar, setShowCalendar] = useState(false);
@@ -1049,7 +1052,8 @@ const LeadAnalyticsDashboard = ({ onAddLead }) => {
       trend: (kpis.deltas?.totalLeadsPct || 0) >= 0 ? 'up' : 'down',
       icon: Users,
       color: '#3b82f6',
-      subtitle: 'All time leads'
+      subtitle: 'All time leads',
+      filterType: 'all'
     },
     {
       title: 'New Today',
@@ -1058,7 +1062,8 @@ const LeadAnalyticsDashboard = ({ onAddLead }) => {
       trend: 'up',
       icon: Sparkles,
       color: '#8b5cf6',
-      subtitle: "Today's new leads"
+      subtitle: "Today's new leads",
+      filterType: 'today'
     },
     {
       title: 'Converted',
@@ -1067,7 +1072,8 @@ const LeadAnalyticsDashboard = ({ onAddLead }) => {
       trend: (kpis.deltas?.convertedLeadsPct || 0) >= 0 ? 'up' : 'down',
       icon: CheckCircle2,
       color: '#22c55e',
-      subtitle: `${kpis.conversionRate || 0}% conversion rate`
+      subtitle: `${kpis.conversionRate || 0}% conversion rate`,
+      filterType: 'converted'
     },
     {
       title: 'Pipeline Value',
@@ -1076,7 +1082,8 @@ const LeadAnalyticsDashboard = ({ onAddLead }) => {
       trend: 'up',
       icon: DollarSign,
       color: '#f59e0b',
-      subtitle: 'Total pipeline value'
+      subtitle: 'Total pipeline value',
+      filterType: null
     }
   ];
 
@@ -1154,13 +1161,30 @@ const LeadAnalyticsDashboard = ({ onAddLead }) => {
             {isLoading 
               ? Array(4).fill(0).map((_, i) => <SkeletonCard key={i} />)
               : kpiData.map((kpi, index) => (
-                  <KPICard key={index} {...kpi} loading={false} />
+                  <KPICard 
+                    key={index} 
+                    {...kpi} 
+                    loading={false}
+                    onClick={() => onFilter?.(kpi.filterType)}
+                  />
                 ))
             }
           </div>
 
-          {/* Smart Insights */}
-          <SmartInsights insights={[]} loading={isLoading} kpis={kpis} />
+          {/* Smart Insights - only shown when data is available */}
+          {!isLoading && leads.length > 0 && (
+            <SmartInsights 
+              insights={[]} 
+              loading={isLoading} 
+              kpis={{
+                ...kpis,
+                avgDealSize: kpis?.avgDealSize || (leads.length > 0 
+                  ? leads.reduce((sum, l) => sum + (l.value || 0), 0) / leads.length 
+                  : 0),
+                activeAgents: kpis?.activeAgents || performers?.performers?.length || 0
+              }} 
+            />
+          )}
         </>
       )}
 

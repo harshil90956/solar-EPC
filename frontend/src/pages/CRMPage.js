@@ -852,6 +852,7 @@ const CRMPage = ({ onNavigate }) => {
   const dateRangeRef = useRef(null);
   // Date range preset options
   const dateRangeOptions = [
+    { id: 'all', label: 'All Time', days: null },
     { id: 'today', label: 'Today', days: 0 },
     { id: 'yesterday', label: 'Yesterday', days: 1 },
     { id: 'last7days', label: 'Last 7 Days', days: 7 },
@@ -968,6 +969,9 @@ const CRMPage = ({ onNavigate }) => {
     let startDate, endDate;
 
     switch (preset) {
+      case 'all':
+        // No date restriction - return all leads
+        return { startDate: null, endDate: null };
       case 'today':
         startDate = today;
         endDate = new Date(today);
@@ -1012,12 +1016,8 @@ const CRMPage = ({ onNavigate }) => {
         }
         break;
       default:
-        // Default to last 7 days
-        endDate = new Date(today);
-        endDate.setHours(23, 59, 59, 999);
-        startDate = new Date(today);
-        startDate.setDate(startDate.getDate() - 6);
-        startDate.setHours(0, 0, 0, 0);
+        // Default to all time (no date restriction)
+        return { startDate: null, endDate: null };
     }
 
     return { startDate, endDate };
@@ -2083,11 +2083,14 @@ const CRMPage = ({ onNavigate }) => {
       },
       {
         key: 'score', header: 'Score', sortable: true, width: '80px',
-        render: (val) => (
-          <span className={`text-[11px] font-bold ${val >= 75 ? 'text-emerald-500' :
-            val >= 50 ? 'text-amber-500' : 'text-red-500'
-            }`}>{val || 0}pts</span>
-        )
+        render: (val) => {
+          const clampedScore = Math.min(100, Math.max(0, val || 0));
+          return (
+            <span className={`text-[11px] font-bold ${clampedScore >= 75 ? 'text-emerald-500' :
+              clampedScore >= 50 ? 'text-amber-500' : 'text-red-500'
+              }`}>{clampedScore}pts</span>
+          );
+        }
       },
       {
         key: 'value', header: 'Value', sortable: true, width: '100px',
@@ -2328,7 +2331,44 @@ const CRMPage = ({ onNavigate }) => {
 
       {/* ── Advanced Dashboard ── */}
       {view === 'dashboard' && crmFeatures.analytics && (
-        <LeadAnalyticsDashboard onNavigate={(nextView) => setView(nextView)} />
+        <LeadAnalyticsDashboard 
+          onNavigate={(nextView) => setView(nextView)} 
+          onFilter={(filterType) => {
+            if (!filterType) return;
+            // Navigate to leads view
+            setView('leads');
+            // Reset pagination to first page
+            setPage(1);
+            // Apply appropriate filter based on KPI clicked
+            switch (filterType) {
+              case 'today':
+                // Clear all other filters first, then set date to today
+                setFilterStages([]);
+                setFilterSources([]);
+                setFilterScoreRanges([]);
+                setFilterValueRanges([]);
+                setDateRangeFilter({ type: 'today', startDate: null, endDate: null });
+                break;
+              case 'converted':
+                // Clear all other filters first, then set stage to converted
+                setFilterSources([]);
+                setFilterScoreRanges([]);
+                setFilterValueRanges([]);
+                setDateRangeFilter({ type: 'all', startDate: null, endDate: null });
+                setFilterStages(['won', 'customer', 'converted']);
+                break;
+              case 'all':
+              default:
+                // Clear all filters to show all leads
+                setFilterStages([]);
+                setFilterSources([]);
+                setFilterScoreRanges([]);
+                setFilterValueRanges([]);
+                setDateRangeFilter({ type: 'all', startDate: null, endDate: null });
+                break;
+            }
+          }}
+        />
       )}
 
       {/* ── Customers View ── */}
@@ -3424,17 +3464,6 @@ const CRMPage = ({ onNavigate }) => {
                   ))}
                 </div>
               </div>
-            )}
-
-            {/* Lead Assignment - Only show if user has assign permission */}
-            {can('crm', 'assign') && (
-              <FormField label="Assigned To">
-                <UserSelect
-                  value={editingLead.assignedTo || ''}
-                  onChange={(userId) => setEditingLead({ ...editingLead, assignedTo: userId })}
-                  placeholder="Select user to assign..."
-                />
-              </FormField>
             )}
           </div>
         </Modal>
