@@ -977,7 +977,7 @@ const InstallationPage = () => {
   // Stricter check for hiding edit UI
   const isTechnicianUser = user?.role?.toLowerCase() === 'technician' || user?.role?.toLowerCase() === 'employee';
   console.log('[DEBUG] User role:', user?.role, 'dataScope:', user?.dataScope, 'isTechnician:', isTechnician);
-  const [view, setView] = useState(isTechnician ? 'table' : 'dashboard'); // Default to dashboard for non-technicians
+  const [view, setView] = useState(isTechnician ? 'table' : 'kanban'); // Default to kanban for non-technicians
   const [showAdd, setShowAdd] = useState(false);
   const [selected, setSelected] = useState(null);
   const [search, setSearch] = useState('');
@@ -1277,8 +1277,8 @@ const InstallationPage = () => {
     if (!window.confirm('Delete this photo? This will also uncheck the associated task.')) return;
     
     try {
-      // Delete photo from backend
-      const response = await apiClient.delete(`/installations/${selected._id || selected.id}/photos/${encodeURIComponent(photo.key)}`);
+      // Delete photo from backend using query parameter to avoid 404 with encoded slashes
+      const response = await apiClient.delete(`/installations/${selected._id || selected.id}/photos?photoKey=${encodeURIComponent(photo.key)}`);
       
       // Update local state with the full updated installation from backend
       if (response.data) {

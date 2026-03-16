@@ -699,6 +699,37 @@ export class InstallationService {
       }
     }
 
+    // Find tasks being unchecked (done: true -> false) and delete their associated photos
+    const beingUnchecked = tasksDto.tasks.filter(t => {
+      const prevTask = installation.tasks.find(pt => pt.name === t.name);
+      return !t.done && prevTask?.done;
+    });
+
+    let photosToKeep = installation.photos || [];
+    const deletedPhotoKeys: string[] = [];
+
+    if (beingUnchecked.length > 0 && installation.photos) {
+      for (const task of beingUnchecked) {
+        // Find photos associated with this task (by caption or taskName)
+        const photosForTask = installation.photos.filter(p => {
+          const caption = (p as any).caption || '';
+          const taskName = (p as any).taskName || '';
+          return caption.includes(task.name) || taskName === task.name;
+        });
+
+        for (const photo of photosForTask) {
+          deletedPhotoKeys.push(photo.key);
+        }
+      }
+
+      // Remove photos associated with unchecked tasks
+      photosToKeep = installation.photos.filter(p => !deletedPhotoKeys.includes(p.key));
+
+      if (deletedPhotoKeys.length > 0) {
+        console.log('DEBUG - Deleted photos for unchecked tasks:', deletedPhotoKeys);
+      }
+    }
+
     // Add completed metadata to tasks
     const tasks = tasksDto.tasks.map(task => ({
       ...task,
@@ -722,6 +753,7 @@ export class InstallationService {
           status: newStatus,
           updatedBy: userId,
           updatedAt: new Date(),
+          photos: photosToKeep,
         },
       },
       { new: true },
@@ -734,6 +766,11 @@ export class InstallationService {
       if (!prev?.done && curr.done) {
         await this.logEvent(id, 'task_completed', userId || undefined, { taskName: curr.name });
       }
+    }
+
+    // log photo deletions for unchecked tasks
+    for (const key of deletedPhotoKeys) {
+      await this.logEvent(id, 'photo_deleted', userId || undefined, { key, reason: 'task_unchecked' });
     }
 
     if (!updated) {
