@@ -236,19 +236,6 @@ export class PermissionService implements OnModuleInit {
     return role.permissions.some((p: any) => p.key === permissionKey);
   }
 
-  // Alias for hasPermission - used by controllers
-  async checkPermission(roleId: string, permissionKey: string, _tenantId?: string): Promise<boolean> {
-    return this.hasPermission(roleId, permissionKey);
-  }
-
-  // Validate action throws ForbiddenException if permission is not granted
-  async validateAction(roleId: string, permissionKey: string, _tenantId?: string): Promise<void> {
-    const hasPerm = await this.hasPermission(roleId, permissionKey);
-    if (!hasPerm) {
-      throw new Error(`Permission denied: ${permissionKey} required`);
-    }
-  }
-
   // ==================== COLUMN PERMISSION METHODS ====================
 
   async seedDefaultColumnPermissions(): Promise<void> {
