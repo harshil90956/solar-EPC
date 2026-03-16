@@ -169,7 +169,7 @@ const EmployeesPage = () => {
       console.log('[DEBUG] Fetching employees...');
       const response = await employeeApi.getAll();
       console.log('[DEBUG] Employee API response:', response);
-      const data = response.data?.data || response.data || [];
+      const data = response?.data || response || [];
       console.log('[DEBUG] Extracted employee data:', data);
       setEmployees(data);
 
@@ -196,7 +196,7 @@ const EmployeesPage = () => {
   const fetchDepartments = async () => {
     try {
       const response = await departmentApi.getAll();
-      const data = response.data?.data || response.data || [];
+      const data = response?.data || response || [];
       setDepartments(data);
     } catch (error) {
       console.error('Failed to fetch departments');
@@ -204,15 +204,53 @@ const EmployeesPage = () => {
   };
 
   const handleSubmit = async () => {
-    // Strip fields not in backend DTO
-    const { salary, emergencyContact, emergencyPhone, ...validData } = formData;
-    console.log('[DEBUG] Submitting employee data:', validData);
+    // Validate required fields
+    if (!formData.firstName?.trim()) {
+      toast.error('First name is required');
+      return;
+    }
+    if (!formData.lastName?.trim()) {
+      toast.error('Last name is required');
+      return;
+    }
+    if (!formData.employeeId?.trim()) {
+      toast.error('Employee ID is required');
+      return;
+    }
+    if (!formData.email?.trim()) {
+      toast.error('Email is required');
+      return;
+    }
+    if (!formData.phone?.trim()) {
+      toast.error('Phone is required');
+      return;
+    }
+    if (!editingEmployee && !formData.password) {
+      toast.error('Password is required for new employees');
+      return;
+    }
+    if (!formData.joiningDate) {
+      toast.error('Join date is required');
+      return;
+    }
+
+    // Prepare data - convert salary to number
+    const submitData = {
+      ...formData,
+      salary: formData.salary ? Number(formData.salary) : undefined,
+    };
+
+    console.log('[DEBUG] Submitting employee data:', submitData);
+    console.log('[DEBUG] Form data roleId:', formData.roleId); // Add debug log for roleId
+    console.log('[DEBUG] Custom roles:', customRoles); // Add debug log for customRoles
     try {
       if (editingEmployee) {
-        await employeeApi.update(editingEmployee._id, validData);
+        // Remove password when updating
+        const { password, ...updateData } = submitData;
+        await employeeApi.update(editingEmployee._id, updateData);
         toast.success('Employee updated successfully');
       } else {
-        await employeeApi.create(validData);
+        await employeeApi.create(submitData);
         toast.success('Employee created successfully');
       }
       setShowModal(false);

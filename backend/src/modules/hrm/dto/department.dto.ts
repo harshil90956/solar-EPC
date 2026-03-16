@@ -26,4 +26,7 @@ export class UpdateDepartmentDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @IsOptional()
+  isActive?: boolean;
 }

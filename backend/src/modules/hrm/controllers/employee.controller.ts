@@ -107,7 +107,7 @@ export class EmployeeController {
     await this.checkPermission(req, 'employees.create');
     const tenantId = req.tenant?.id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.query?.tenantId || 'default';
     const roleId = req.user?.roleId || req.user?.role;
-    await this.hrmPermissionService.validateAction(roleId, 'employees.manage', tenantId);
+    await this.permissionService.validateAction(roleId, 'employees.manage', tenantId);
     
     const data = await this.employeeService.create(createEmployeeDto, tenantId);
     return { success: true, data };
@@ -118,10 +118,27 @@ export class EmployeeController {
     await this.checkPermission(req, 'employees.view');
     const tenantId = req.tenant?.id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.query?.tenantId || 'default';
     const roleId = req.user?.roleId || req.user?.role;
-    await this.hrmPermissionService.validateAction(roleId, 'employees.view', tenantId);
+    await this.permissionService.validateAction(roleId, 'employees.view', tenantId);
 
     const data = await this.employeeService.findAll(tenantId);
     return { success: true, data };
+  }
+
+  @Get('stats')
+  async getStats(@Req() req: any) {
+    await this.checkPermission(req, 'employees.view');
+    const tenantId = req.tenant?.id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.query?.tenantId || 'default';
+    
+    // Return basic stats - counts by status
+    const data = await this.employeeService.findAll(tenantId);
+    const stats = {
+      total: data.length,
+      active: data.filter((e: any) => e.status === 'active').length,
+      inactive: data.filter((e: any) => e.status === 'inactive').length,
+      suspended: data.filter((e: any) => e.status === 'suspended').length,
+      terminated: data.filter((e: any) => e.status === 'terminated').length,
+    };
+    return { success: true, data: stats };
   }
 
   @Get(':id')
@@ -132,7 +149,7 @@ export class EmployeeController {
     
     // Allow self-viewing personal profile
     if (req.user?.sub !== id) {
-      await this.hrmPermissionService.validateAction(roleId, 'employees.view', tenantId);
+      await this.permissionService.validateAction(roleId, 'employees.view', tenantId);
     }
 
     const data = await this.employeeService.findOne(id, tenantId);
@@ -148,7 +165,7 @@ export class EmployeeController {
     await this.checkPermission(req, 'employees.edit');
     const tenantId = req.tenant?.id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.query?.tenantId || 'default';
     const roleId = req.user?.roleId || req.user?.role;
-    await this.hrmPermissionService.validateAction(roleId, 'employees.manage', tenantId);
+    await this.permissionService.validateAction(roleId, 'employees.manage', tenantId);
 
     const data = await this.employeeService.update(id, updateEmployeeDto, tenantId);
     return { success: true, data };
@@ -159,7 +176,7 @@ export class EmployeeController {
     await this.checkPermission(req, 'employees.delete');
     const tenantId = req.tenant?.id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.query?.tenantId || 'default';
     const roleId = req.user?.roleId || req.user?.role;
-    await this.hrmPermissionService.validateAction(roleId, 'employees.delete', tenantId);
+    await this.permissionService.validateAction(roleId, 'employees.delete', tenantId);
 
     const data = await this.employeeService.remove(id, tenantId);
     return { success: true, data };
@@ -170,7 +187,7 @@ export class EmployeeController {
     await this.checkPermission(req, 'employees.view');
     const tenantId = req.tenant?.id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.query?.tenantId || 'default';
     const roleId = req.user?.roleId || req.user?.role;
-    await this.hrmPermissionService.validateAction(roleId, 'employees.view', tenantId);
+    await this.permissionService.validateAction(roleId, 'employees.view', tenantId);
 
     const data = await this.employeeService.findByDepartment(department, tenantId);
     return { success: true, data };
@@ -181,7 +198,7 @@ export class EmployeeController {
     await this.checkPermission(req, 'employees.view');
     const tenantId = req.tenant?.id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.query?.tenantId || 'default';
     const roleIdUser = req.user?.roleId || req.user?.role;
-    await this.hrmPermissionService.validateAction(roleIdUser, 'employees.view', tenantId);
+    await this.permissionService.validateAction(roleIdUser, 'employees.view', tenantId);
 
     const data = await this.employeeService.findByRole(roleId, tenantId);
     return { success: true, data };

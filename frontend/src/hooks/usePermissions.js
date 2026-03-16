@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../lib/apiClient';
 import { useAuth } from '../context/AuthContext';
+import { useSettings } from '../context/SettingsContext';
 
 // Module column definitions (must match backend)
 const MODULE_COLUMNS = {
@@ -34,6 +35,7 @@ const MODULE_TO_BACKEND = {
  */
 export const usePermissions = (module) => {
   const { user } = useAuth();
+  const { isModuleEnabled, isFeatureEnabled } = useSettings();
   const [isLoading, setIsLoading] = useState(true);
 
   // Get user's role and permissions from auth context
@@ -83,6 +85,21 @@ export const usePermissions = (module) => {
       ]);
     }
     
+    // Employee role gets installation permissions by default
+    if (userRole === 'Employee') {
+      const basePermissions = [
+        'installation.view',
+        'installation.edit',
+        'installation.create',
+        'commissioning.view',
+        'commissioning.edit',
+        'logistics.view',
+        'logistics.edit',
+      ];
+      const apiPermissions = roleData?.permissions || [];
+      return [...new Set([...basePermissions, ...userPermissions, ...apiPermissions])];
+    }
+    
     const apiPermissions = roleData?.permissions || [];
     // Merge API permissions with JWT permissions (API takes priority)
     const combined = [...new Set([...userPermissions, ...apiPermissions])];
@@ -112,6 +129,19 @@ export const usePermissions = (module) => {
     // Admin/Super Admin have all permissions
     if (userRole === 'Admin' || userRole === 'Super Admin') {
       return true;
+    }
+
+    // Employee role has installation/commissioning/logistics permissions
+    if (userRole === 'Employee') {
+      const employeePermissions = [
+        'installation.view', 'installation.edit', 'installation.create',
+        'commissioning.view', 'commissioning.edit',
+        'logistics.view', 'logistics.edit',
+      ];
+      const permissionKey = `${module}.${action}`;
+      if (employeePermissions.includes(permissionKey)) {
+        return true;
+      }
     }
 
     // Check if user has the specific permission
@@ -191,6 +221,10 @@ export const usePermissions = (module) => {
     setIsLoading(roleLoading);
   }, [roleLoading]);
 
+  // Module/feature enabled checks from SettingsContext
+  const moduleOn = useCallback((mod) => isModuleEnabled(mod), [isModuleEnabled]);
+  const featureOn = useCallback((mod, featureName) => isFeatureEnabled(mod, featureName), [isFeatureEnabled]);
+
   return {
     // Permission checks
     can,
@@ -204,6 +238,9 @@ export const usePermissions = (module) => {
     canGenerate,
     // Feature flags
     feature,
+    // Module/Feature enabled checks
+    moduleOn,
+    featureOn,
     // Column visibility
     columns,
     isColumnVisible,

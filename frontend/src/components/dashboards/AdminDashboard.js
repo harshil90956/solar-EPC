@@ -1,7 +1,7 @@
 // AdminDashboard.js — Admin Control Center (Fully Aligned with Module Design Standards)
 // Matches design patterns from CRM, Project, Survey, Installation, and Service modules
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
     AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
     ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
@@ -20,6 +20,7 @@ import {
     ChartCard, DashTooltip,
     fmtCurrency, fmtPct, CHART_COLORS, chartAxisStyle, ROLE_COLORS
 } from './DashboardShell';
+import { DateFilter, filterByDateRange } from '../dashboard/DateFilter';
 
 // ── Admin Approval Workflow Stages ─────────────────────────────────────────
 const ADMIN_KANBAN_STAGES = [
@@ -690,10 +691,47 @@ const AdminDashboard = ({ onNavigate }) => {
             {/* ── Dashboard View ── */}
             {view === 'dashboard' && (
                 <div className="space-y-6">
+                    {/* Global Date Filter Bar */}
+                    <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <span className="text-sm font-medium text-gray-600">Filter by Date:</span>
+                            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                                {['Last 7 Days', 'Last 30 Days', 'Last 90 Days', 'All Time', 'Custom Range'].map((filter) => (
+                                    <button 
+                                        key={filter} 
+                                        className={`px-3 py-1.5 text-xs rounded-md font-medium transition-all ${
+                                            filter === 'All Time' 
+                                                ? 'bg-orange-500 text-white' 
+                                                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                                        }`}
+                                    >
+                                        {filter}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <span className="text-sm text-gray-500">Showing All Data</span>
+                    </div>
+
                     {/* Charts Grid */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         {/* Revenue Analytics */}
-                        <ChartCard title="Revenue Analytics" subtitle="Monthly performance trends">
+                        <ChartCard 
+                            title="Revenue Analytics" 
+                            subtitle="Monthly performance trends"
+                            headerRight={
+                                <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                                    {['All', 'Today', 'Week', 'Month', 'Quarter', 'Year'].map((filter) => (
+                                        <button
+                                            key={filter}
+                                            className="px-2 py-1 text-xs rounded-md font-medium text-gray-600 hover:text-gray-900 transition-all"
+                                        >
+                                            {filter}
+                                        </button>
+                                    ))}
+                                </div>
+                            }
+                        >
                             <ResponsiveContainer width="100%" height={280}>
                                 <ComposedChart data={REVENUE_TREND_DATA}>
                                     <defs>
@@ -712,7 +750,22 @@ const AdminDashboard = ({ onNavigate }) => {
                         </ChartCard>
 
                         {/* Project Portfolio */}
-                        <ChartCard title="Project Portfolio" subtitle="Current project distribution">
+                        <ChartCard 
+                            title="Project Portfolio" 
+                            subtitle="Current project distribution"
+                            headerRight={
+                                <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                                    {['All', 'Today', 'Week', 'Month', 'Quarter', 'Year'].map((filter) => (
+                                        <button
+                                            key={filter}
+                                            className="px-2 py-1 text-xs rounded-md font-medium text-gray-600 hover:text-gray-900 transition-all"
+                                        >
+                                            {filter}
+                                        </button>
+                                    ))}
+                                </div>
+                            }
+                        >
                             <div className="flex items-center gap-6">
                                 <ResponsiveContainer width={180} height={180}>
                                     <PieChart>
@@ -749,7 +802,22 @@ const AdminDashboard = ({ onNavigate }) => {
                     </div>
 
                     {/* Department Performance */}
-                    <ChartCard title="Department Performance" subtitle="Efficiency and achievement metrics">
+                    <ChartCard 
+                        title="Department Performance" 
+                        subtitle="Efficiency and achievement metrics"
+                        headerRight={
+                            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                                {['All', 'Today', 'Week', 'Month', 'Quarter', 'Year'].map((filter) => (
+                                    <button
+                                        key={filter}
+                                        className="px-2 py-1 text-xs rounded-md font-medium text-gray-600 hover:text-gray-900 transition-all"
+                                    >
+                                        {filter}
+                                    </button>
+                                ))}
+                            </div>
+                        }
+                    >
                         <ResponsiveContainer width="100%" height={200}>
                             <BarChart data={DEPARTMENT_PERFORMANCE}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />

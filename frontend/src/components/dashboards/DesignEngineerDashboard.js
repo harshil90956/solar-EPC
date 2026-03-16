@@ -58,7 +58,29 @@ const DesignEngineerDashboard = () => {
     ];
 
     return (
-        <div className="space-y-6 p-6">
+        <div className="space-y-5 p-5">
+            {/* Global Date Filter Bar */}
+            <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <span className="text-sm font-medium text-gray-600">Filter by Date:</span>
+                    <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                        {['Last 7 Days', 'Last 30 Days', 'Last 90 Days', 'All Time', 'Custom Range'].map((filter) => (
+                            <button 
+                                key={filter} 
+                                className={`px-3 py-1.5 text-xs rounded-md font-medium transition-all ${
+                                    filter === 'All Time' 
+                                        ? 'bg-orange-500 text-white' 
+                                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                                }`}
+                            >
+                                {filter}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+                <span className="text-sm text-gray-500">Showing All Data</span>
+            </div>
+
             <SectionHeader
                 title="Design Engineer Dashboard"
                 subtitle="System design · BOQ generation · CAD approval workflow"
@@ -77,7 +99,17 @@ const DesignEngineerDashboard = () => {
 
             {/* Design status + Performance */}
             <Grid2>
-                <ChartCard title="Design Status Breakdown" subtitle="Current design portfolio">
+                <ChartCard 
+                    title="Design Status Breakdown" 
+                    subtitle="Current design portfolio"
+                    headerRight={
+                        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                            {['All', 'Today', 'Week', 'Month', 'Quarter', 'Year'].map((filter) => (
+                                <button key={filter} className="px-2 py-1 text-xs rounded-md font-medium text-gray-600 hover:text-gray-900 transition-all">{filter}</button>
+                            ))}
+                        </div>
+                    }
+                >
                     <ResponsiveContainer width="100%" height={250}>
                         <PieChart>
                             <Pie data={designStatusPie} cx="50%" cy="50%" outerRadius={90} innerRadius={50}

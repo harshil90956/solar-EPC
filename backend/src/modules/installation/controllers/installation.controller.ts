@@ -386,18 +386,21 @@ export class InstallationController {
    * Delete photo from installation
    * Removes photo reference and unchecks associated task if photoRequired
    */
-  @Delete(':id/photos/:photoKey')
+  @Delete(':id/photos')
   @HttpCode(HttpStatus.OK)
   @RequirePermission('installation', 'edit')
   async deletePhoto(
     @Param('id') id: string,
-    @Param('photoKey') photoKey: string,
+    @Query('photoKey') photoKey: string,
     @Request() req: any,
   ) {
+    if (!photoKey) {
+      throw new BadRequestException('photoKey query parameter is required');
+    }
     const userContext = this.getUserContext(req);
     
-    // Decode photoKey from URL-safe format
-    const decodedKey = decodeURIComponent(photoKey);
+    // photoKey from query is automatically decoded by NestJS/Express
+    const decodedKey = photoKey;
     
     // Get installation to find task name from photo
     const installation = await this.installationService.getInstallationById(id, userContext);

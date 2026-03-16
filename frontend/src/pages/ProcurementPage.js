@@ -82,7 +82,7 @@ const POKanbanBoard = ({ pos, onStageChange, onCardClick }) => {
           const total = cards.reduce((a, p) => a + p.totalAmount, 0);
           return (
             <div key={stage.id}
-              className={`flex flex-col w-60 rounded-xl border transition-colors ${dragOver === stage.id ? 'border-[var(--primary)]/50 bg-[var(--primary)]/5' : 'border-[var(--border-base)] bg-[var(--bg-surface)]'}`}
+              className={`flex flex-col w-60 rounded-xl border transition-colors h-[530px] ${dragOver === stage.id ? 'border-[var(--primary)]/50 bg-[var(--primary)]/5' : 'border-[var(--border-base)] bg-[var(--bg-surface)]'}`}
               onDragOver={e => { e.preventDefault(); setDragOver(stage.id); }}
               onDragLeave={() => setDragOver(null)}
               onDrop={() => { if (draggingId.current) onStageChange(draggingId.current, stage.id); draggingId.current = null; setDragOver(null); }}>
@@ -97,7 +97,7 @@ const POKanbanBoard = ({ pos, onStageChange, onCardClick }) => {
                     style={{ background: stage.bg, color: stage.color }}>{cards.length}</span>
                 </div>
               </div>
-              <div className="flex flex-col gap-2 p-2 flex-1 min-h-[160px]">
+              <div className="flex flex-col gap-2 p-2 h-[430px] overflow-y-auto">
                 {cards.map(po => (
                   <POCard key={po.id} po={po}
                     onDragStart={() => { draggingId.current = po.id; }}

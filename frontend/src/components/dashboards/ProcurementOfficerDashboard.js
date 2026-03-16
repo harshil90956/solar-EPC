@@ -36,7 +36,29 @@ const ProcurementOfficerDashboard = () => {
     ];
 
     return (
-        <div className="space-y-6 p-6">
+        <div className="space-y-5 p-5">
+            {/* Global Date Filter Bar */}
+            <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <span className="text-sm font-medium text-gray-600">Filter by Date:</span>
+                    <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                        {['Last 7 Days', 'Last 30 Days', 'Last 90 Days', 'All Time', 'Custom Range'].map((filter) => (
+                            <button 
+                                key={filter} 
+                                className={`px-3 py-1.5 text-xs rounded-md font-medium transition-all ${
+                                    filter === 'All Time' 
+                                        ? 'bg-orange-500 text-white' 
+                                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                                }`}
+                            >
+                                {filter}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+                <span className="text-sm text-gray-500">Showing All Data</span>
+            </div>
+
             <SectionHeader
                 title="Procurement Officer Dashboard"
                 subtitle="Purchase orders · Vendor management · Cost optimization"
@@ -55,7 +77,17 @@ const ProcurementOfficerDashboard = () => {
 
             {/* Cost analysis + PO status */}
             <Grid2>
-                <ChartCard title="Monthly Cost Analysis" subtitle="Budget vs actual spend (INR)">
+                <ChartCard 
+                    title="Monthly Cost Analysis" 
+                    subtitle="Budget vs actual spend (INR)"
+                    headerRight={
+                        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                            {['All', 'Today', 'Week', 'Month', 'Quarter', 'Year'].map((filter) => (
+                                <button key={filter} className="px-2 py-1 text-xs rounded-md font-medium text-gray-600 hover:text-gray-900 transition-all">{filter}</button>
+                            ))}
+                        </div>
+                    }
+                >
                     <ResponsiveContainer width="100%" height={260}>
                         <AreaChart data={monthlyData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                             <defs>
@@ -79,7 +111,17 @@ const ProcurementOfficerDashboard = () => {
                     </ResponsiveContainer>
                 </ChartCard>
 
-                <ChartCard title="PO Status Distribution" subtitle="Purchase order pipeline">
+                <ChartCard 
+                    title="PO Status Distribution" 
+                    subtitle="Purchase order pipeline"
+                    headerRight={
+                        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                            {['All', 'Today', 'Week', 'Month', 'Quarter', 'Year'].map((filter) => (
+                                <button key={filter} className="px-2 py-1 text-xs rounded-md font-medium text-gray-600 hover:text-gray-900 transition-all">{filter}</button>
+                            ))}
+                        </div>
+                    }
+                >
                     <ResponsiveContainer width="100%" height={210}>
                         <PieChart>
                             <Pie data={poStatusPie} cx="50%" cy="50%" outerRadius={85} innerRadius={48}
@@ -105,7 +147,17 @@ const ProcurementOfficerDashboard = () => {
 
             {/* Vendors + Category budget + Logistics */}
             <Grid3>
-                <ChartCard title="Top Vendors" subtitle="Performance ratings">
+                <ChartCard 
+                    title="Top Vendors" 
+                    subtitle="Performance ratings"
+                    headerRight={
+                        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                            {['All', 'Today', 'Week', 'Month', 'Quarter', 'Year'].map((filter) => (
+                                <button key={filter} className="px-2 py-1 text-xs rounded-md font-medium text-gray-600 hover:text-gray-900 transition-all">{filter}</button>
+                            ))}
+                        </div>
+                    }
+                >
                     <div className="space-y-2 mt-1">
                         {topVendors.map((v, i) => (
                             <div key={i} className="flex items-center gap-3 p-3 rounded-xl border border-[var(--border-base)] hover:border-[var(--border-active)] transition-all">
@@ -126,7 +178,17 @@ const ProcurementOfficerDashboard = () => {
                     </div>
                 </ChartCard>
 
-                <ChartCard title="Category Budget vs Actual" subtitle="Cost variance by category">
+                <ChartCard 
+                    title="Category Budget vs Actual" 
+                    subtitle="Cost variance by category"
+                    headerRight={
+                        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                            {['All', 'Today', 'Week', 'Month', 'Quarter', 'Year'].map((filter) => (
+                                <button key={filter} className="px-2 py-1 text-xs rounded-md font-medium text-gray-600 hover:text-gray-900 transition-all">{filter}</button>
+                            ))}
+                        </div>
+                    }
+                >
                     <ResponsiveContainer width="100%" height={220}>
                         <BarChart data={costData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
@@ -140,7 +202,17 @@ const ProcurementOfficerDashboard = () => {
                     </ResponsiveContainer>
                 </ChartCard>
 
-                <ChartCard title="Logistics Status" subtitle="Delivery performance">
+                <ChartCard 
+                    title="Logistics Status" 
+                    subtitle="Delivery performance"
+                    headerRight={
+                        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                            {['All', 'Today', 'Week', 'Month', 'Quarter', 'Year'].map((filter) => (
+                                <button key={filter} className="px-2 py-1 text-xs rounded-md font-medium text-gray-600 hover:text-gray-900 transition-all">{filter}</button>
+                            ))}
+                        </div>
+                    }
+                >
                     <div className="space-y-3 mt-1">
                         {[
                             { label: 'Delivered', value: logistics.delivered || 0, color: '#10b981' },

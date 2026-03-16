@@ -105,7 +105,7 @@ const InvCard = ({ item, onDragStart, onClick }) => {
       className="glass-card p-3 cursor-grab active:cursor-grabbing hover:border-[var(--primary)]/40 transition-all">
       <div className="flex items-start justify-between mb-1">
         <span className="text-[10px] font-mono text-[var(--accent-light)]">{item.itemId}</span>
-        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: stage?.bg, color: stage?.color }}>{item.category}</span>
+        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium truncate max-w-[100px]" style={{ background: stage?.bg, color: stage?.color }} title={item.name}>{item.name || item.description || 'Unnamed'}</span>
       </div>
       <p className="text-xs font-semibold text-[var(--text-primary)] mb-0.5 leading-tight">{item.name}</p>
       <div className="flex items-center gap-1.5 mb-2">
@@ -624,16 +624,16 @@ const InventoryPage = () => {
         // Create new item in destination warehouse
         const createdItem = await api.post('/items', newItemData, { headers: { 'x-tenant-id': TENANT_ID } });
 
-        // Stock out from source warehouse
-        await api.post(`/items/${item._id || item.itemId}/stock-out`, {
-          quantity: qty,
-          remarks: `Transferred to ${transferToWarehouse} (new item created): ${transferRemarks || 'Stock transfer'}`,
+        // Reduce stock from source warehouse directly (don't use stock-out which affects reserved)
+        await api.patch(`/items/${item._id}`, {
+          stock: (item.stock || 0) - qty,
         }, { headers: { 'x-tenant-id': TENANT_ID } });
       }
 
       // Refresh inventory
       const data = await api.get('/items', { headers: { 'x-tenant-id': TENANT_ID } });
       const itemsArray = Array.isArray(data) ? data : (data.data || []);
+      // NO FILTER - show all items including 0 stock (Out of Stock items)
       const inventoryData = itemsArray.map(item => ({
         ...item,
         _id: item._id || item.id, // Ensure _id is preserved
@@ -713,7 +713,7 @@ const InventoryPage = () => {
           itemsArray = data.items;
         }
 
-        // Map items to inventory format (description -> name, add reserved/available)
+        // Map items to inventory format - NO FILTER, show all items including 0 stock
         const inventoryData = itemsArray.map(item => {
           const id = item._id || item.id;
           if (!id) {
@@ -853,21 +853,32 @@ const InventoryPage = () => {
           ...item,
           _originalWarehouses: [{ warehouse: item.warehouse, stock: item.stock, reserved: item.reserved, available: item.available }],
         };
+        // If first warehouse has 0 stock, show "0 warehouses" or the warehouse name if it has stock
+        const warehousesWithStock = acc[key]._originalWarehouses.filter(wh => (wh.stock || 0) > 0);
+        acc[key].warehouse = warehousesWithStock.length === 0 ? '—' : 
+                            warehousesWithStock.length === 1 ? warehousesWithStock[0].warehouse : 
+                            `${warehousesWithStock.length} warehouses`;
       } else {
         // Aggregate stock across warehouses
         acc[key].stock += (item.stock || 0);
         acc[key].reserved += (item.reserved || 0);
         acc[key].available = (acc[key].stock || 0) - (acc[key].reserved || 0);
         acc[key]._originalWarehouses.push({ warehouse: item.warehouse, stock: item.stock, reserved: item.reserved, available: item.available });
-        // Use the first warehouse as primary for display
-        acc[key].warehouse = `${acc[key]._originalWarehouses.length} warehouses`;
+        // Count only warehouses with stock > 0 for display
+        const warehousesWithStock = acc[key]._originalWarehouses.filter(wh => (wh.stock || 0) > 0);
+        acc[key].warehouse = warehousesWithStock.length === 1 ? warehousesWithStock[0].warehouse : `${warehousesWithStock.length} warehouses`;
       }
       return acc;
     }, {});
     return Object.values(grouped);
   }, [filtered]);
 
-  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
+  // NO FILTER for table view - show all items including 0 stock (Out of Stock items)
+  const filteredWithStock = useMemo(() => {
+    return filtered;
+  }, [filtered]);
+
+  const paginated = filteredWithStock.slice((page - 1) * pageSize, page * pageSize);
 
   const chartData = inventory.slice(0, 10).map(i => ({
     name: (i.name || i.description || 'Unknown').length > 14 ? (i.name || i.description || 'Unknown').slice(0, 14) + '…' : (i.name || i.description || 'Unknown'),
@@ -913,42 +924,81 @@ const InventoryPage = () => {
   };
 
   const handleStockIn = async () => {
-    if (!stockInForm.itemId || !stockInForm.quantity) return;
+    if (!stockInForm.itemId || !stockInForm.quantity || !stockInForm.warehouse || !stockInForm.receivedDate) return;
 
     setSubmitting(true);
     try {
-      // Find item by itemId to get _id
-      const item = inventory.find(i => i.itemId === stockInForm.itemId || i._id === stockInForm.itemId);
-      if (!item || !item._id) {
-        alert('Item not found');
-        setSubmitting(false);
-        return;
+      // Check if item already exists in the SELECTED warehouse
+      const existingItemInWarehouse = inventory.find(i => 
+        i.itemId === stockInForm.itemId && i.warehouse === stockInForm.warehouse
+      );
+
+      if (existingItemInWarehouse && existingItemInWarehouse._id) {
+        // UPDATE EXISTING ITEM in same warehouse - add stock
+        const newStock = (existingItemInWarehouse.stock || 0) + parseInt(stockInForm.quantity);
+        
+        const response = await api.patch(`/items/${existingItemInWarehouse._id}`, {
+          stock: newStock,
+          poReference: stockInForm.poReference,
+          receivedDate: stockInForm.receivedDate,
+          remarks: stockInForm.remarks,
+          status: newStock > 0 ? 'In Stock' : 'Out of Stock'
+        }, { headers: { 'x-tenant-id': TENANT_ID } });
+
+        const updatedItemData = response.data || response;
+        
+        // Update inventory state - replace the existing item
+        setInventory(prev => prev.map(i => 
+          i._id === existingItemInWarehouse._id 
+            ? {
+                ...i,
+                ...updatedItemData,
+                stock: newStock,
+                available: newStock - (i.reserved || 0),
+                lastUpdated: new Date().toISOString().split('T')[0]
+              }
+            : i
+        ));
+
+        alert(`Stock updated successfully! Added ${stockInForm.quantity} units to existing item in ${stockInForm.warehouse}.`);
+      } else {
+        // CREATE NEW ITEM - different warehouse or new item
+        const baseItem = inventory.find(i => i.itemId === stockInForm.itemId);
+        
+        const newItemData = {
+          itemId: stockInForm.itemId,
+          description: baseItem?.name || baseItem?.description || 'Unnamed Item',
+          category: baseItem?.category || '',
+          unit: baseItem?.unit || 'pcs',
+          stock: parseInt(stockInForm.quantity),
+          reserved: 0,
+          minStock: baseItem?.minStock || 0,
+          rate: baseItem?.rate || 0,
+          warehouse: stockInForm.warehouse,
+          poReference: stockInForm.poReference,
+          receivedDate: stockInForm.receivedDate,
+          remarks: stockInForm.remarks,
+          status: 'In Stock'
+        };
+
+        const response = await api.post('/items', newItemData, { headers: { 'x-tenant-id': TENANT_ID } });
+        const createdItem = response.data || response;
+        
+        const newItem = {
+          ...createdItem,
+          _id: createdItem._id || createdItem.id,
+          name: createdItem.description || createdItem.name || 'Unnamed Item',
+          reserved: 0,
+          available: parseInt(stockInForm.quantity),
+          lastUpdated: new Date().toISOString().split('T')[0]
+        };
+
+        setInventory(prev => [...prev, newItem]);
+        alert(`Stock added successfully! Created new entry in ${stockInForm.warehouse}.`);
       }
-
-      const response = await api.post(`/items/${item._id}/stock-in`, {
-        quantity: parseInt(stockInForm.quantity),
-        poReference: stockInForm.poReference,
-        receivedDate: stockInForm.receivedDate,
-        remarks: stockInForm.remarks,
-        warehouse: stockInForm.warehouse,
-      }, { headers: { 'x-tenant-id': TENANT_ID } });
-
-      // Reload all inventory to reflect any new warehouse records created
-      const allItems = await api.get('/items');
-      let itemsArray = Array.isArray(allItems) ? allItems : (allItems.data || []);
-      const inventoryData = itemsArray.map(i => ({
-        ...i,
-        _id: i._id || i.id,
-        name: i.description || i.name || 'Unnamed Item',
-        reserved: i.reserved || 0,
-        available: (i.stock || 0) - (i.reserved || 0),
-        lastUpdated: i.updatedAt || new Date().toISOString().split('T')[0],
-      }));
-      setInventory(inventoryData);
 
       setStockIn(false);
       setStockInForm({ itemId: '', quantity: '', poId: '', poReference: '', receivedDate: '', remarks: '', warehouse: '' });
-      alert('Stock added successfully!');
     } catch (err) {
       alert(err.message || 'Failed to add stock. Please try again.');
     } finally {
@@ -1344,7 +1394,7 @@ const InventoryPage = () => {
 
   return (
     <div className="animate-fade-in space-y-5">
-      <div className="page-header flex-col sm:flex-row gap-3">
+      <div className="page-header flex-col sm:flex-row sm:justify-between gap-3">
         <div>
           <h1 className="heading-page text-lg sm:text-xl">Inventory Management</h1>
           <p className="text-xs text-[var(--text-muted)] mt-0.5">Stock levels · reservations · low-stock alerts · warehouses</p>
@@ -1973,24 +2023,6 @@ const InventoryPage = () => {
             </div>
           )}
 
-          {dynamicStats.lowStockItems > 0 && (
-            <div className="ai-banner border-amber-500/20 bg-amber-500/5">
-              <AlertTriangle size={14} className="text-amber-400 mt-0.5 shrink-0" />
-              <p className="text-xs text-[var(--text-secondary)]">
-                <span className="text-amber-400 font-semibold">Low Stock Alert:</span>{' '}
-                {inventory.filter(i => i.status === 'Low Stock' || ((i.stock || 0) - (i.reserved || 0)) <= (i.minStock || 0) && ((i.stock || 0) - (i.reserved || 0)) > 0).map(i => i.name || i.description).slice(0, 3).join(', ')}{inventory.filter(i => i.status === 'Low Stock' || ((i.stock || 0) - (i.reserved || 0)) <= (i.minStock || 0) && ((i.stock || 0) - (i.reserved || 0)) > 0).length > 3 ? '...' : ''} — reorder immediately to avoid project delays.
-              </p>
-            </div>
-          )}
-
-          <div className="ai-banner">
-            <Zap size={14} className="text-[var(--accent-light)] mt-0.5 shrink-0" />
-            <p className="text-xs text-[var(--text-secondary)]">
-              <span className="text-[var(--accent-light)] font-semibold">AI Insight:</span>{' '}
-              Based on current project pipeline, you need 500 additional panels by Mar 10. PO002 covers 5 inverters — approve immediately. 10kW inverter stock is critically low at 2 units.
-            </p>
-          </div>
-
           {view === 'table' ? (
             <>
               <div className="flex flex-wrap gap-2 items-center justify-between">
@@ -2037,7 +2069,7 @@ const InventoryPage = () => {
                     onChange={e => { setSearch(e.target.value); setPage(1); }} className="h-8 text-xs w-52" />
                 </div>
               </div>
-              <DataTable columns={COLUMNS} data={paginated} total={filtered.length}
+              <DataTable columns={COLUMNS} data={paginated} total={filteredWithStock.length}
                 page={page} pageSize={pageSize} onPageChange={setPage}
                 onPageSizeChange={s => { setPageSize(s); setPage(1); }}
                 search={search} onSearch={v => { setSearch(v); setPage(1); }}
@@ -3292,7 +3324,7 @@ const InventoryPage = () => {
       <Modal open={showStockIn} onClose={() => setStockIn(false)} title="Stock In — Receive Materials"
         footer={<div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={() => setStockIn(false)}>Cancel</Button>
-          <Button onClick={handleStockIn} disabled={submitting || !stockInForm.poId || !stockInForm.itemId || !stockInForm.quantity}>
+          <Button onClick={handleStockIn} disabled={submitting || !stockInForm.poId || !stockInForm.itemId || !stockInForm.quantity || !stockInForm.warehouse || !stockInForm.receivedDate}>
             {submitting ? 'Processing...' : <><ArrowUp size={13} /> Confirm Receipt</>}
           </Button>
         </div>}>
@@ -3323,7 +3355,9 @@ const InventoryPage = () => {
               }}
             >
               <option value="">Select PO</option>
-              {purchaseOrders.map(po => (
+              {purchaseOrders
+                .filter(po => po.status === 'Delivered')
+                .map(po => (
                 <option key={po._id || po.id} value={po.id || po._id}>
                   {po.id} — {po.vendorName} | ₹{(po.totalAmount || 0).toLocaleString('en-IN')} | {po.status}
                 </option>
@@ -3349,15 +3383,15 @@ const InventoryPage = () => {
             </div>
           </FormField>
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="Quantity Received"><Input type="number" placeholder="100" value={stockInForm.quantity} onChange={e => setStockInForm(f => ({ ...f, quantity: e.target.value }))} /></FormField>
-            <FormField label="Warehouse">
+            <FormField label="Quantity Received" required><Input type="number" placeholder="100" value={stockInForm.quantity} onChange={e => setStockInForm(f => ({ ...f, quantity: e.target.value }))} /></FormField>
+            <FormField label="Warehouse" required>
               <Select value={stockInForm.warehouse} onChange={e => setStockInForm(f => ({ ...f, warehouse: e.target.value }))}>
                 <option value="">Select Warehouse</option>
                 {warehouses.map(w => <option key={w}>{w}</option>)}
               </Select>
             </FormField>
           </div>
-          <FormField label="Received Date"><Input type="date" value={stockInForm.receivedDate} onChange={e => setStockInForm(f => ({ ...f, receivedDate: e.target.value }))} /></FormField>
+          <FormField label="Received Date" required><Input type="date" value={stockInForm.receivedDate} onChange={e => setStockInForm(f => ({ ...f, receivedDate: e.target.value }))} /></FormField>
           <FormField label="Remarks"><Input placeholder="Any notes about the delivery…" value={stockInForm.remarks} onChange={e => setStockInForm(f => ({ ...f, remarks: e.target.value }))} /></FormField>
         </div>
       </Modal>
@@ -3463,12 +3497,14 @@ const InventoryPage = () => {
             ))}
           </div>
 
-          {/* Warehouse Breakdown Section */}
-          {selected._originalWarehouses && selected._originalWarehouses.length > 0 && (
+          {/* Warehouse Breakdown Section - Only show warehouses with stock > 0 */}
+          {selected._originalWarehouses && selected._originalWarehouses.filter(wh => (wh.stock || 0) > 0).length > 0 && (
             <div className="border-t border-[var(--border-base)] pt-3 mb-4">
               <h4 className="text-xs font-semibold text-[var(--text-primary)] mb-2">Warehouse Distribution</h4>
               <div className="grid grid-cols-1 gap-2">
-                {selected._originalWarehouses.map((wh) => (
+                {selected._originalWarehouses
+                  .filter(wh => (wh.stock || 0) > 0)
+                  .map((wh) => (
                   <div key={wh.warehouse} className="glass-card p-2 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Warehouse size={14} className="text-[var(--accent-light)]" />

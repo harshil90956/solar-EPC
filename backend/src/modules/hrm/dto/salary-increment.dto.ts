@@ -13,8 +13,15 @@ export class CreateIncrementDto {
 
   @IsNumber()
   @Min(0)
+  @IsOptional()
   @Type(() => Number)
-  incrementPercentage!: number;
+  incrementAmount?: number;
+
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  @Type(() => Number)
+  incrementPercentage?: number;
 
   @IsNumber()
   @Min(0)

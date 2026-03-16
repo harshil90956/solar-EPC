@@ -4,7 +4,7 @@ import {
     Package, ShoppingCart, Truck, Wrench, CheckCircle, DollarSign,
     Headphones, FileCheck, Settings, Brain, Bell, Shield,
     Briefcase, UserCircle, Calendar, Clock, Wallet, TrendingUp, List,
-    Building2, ArrowUpRight, Files, Sun, Hammer
+    Building2, ArrowUpRight, Files, Sun, Hammer, Home
 } from 'lucide-react';
 import { INVENTORY, TICKETS, LEADS, PROJECTS, QUOTATIONS } from '../data/mockData';
 
@@ -20,7 +20,7 @@ export const NAV_CONFIG = [
         section: 'OVERVIEW',
         items: [
             { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, badge: null },
-            { id: 'admin', label: 'Admin', icon: Shield, badge: null, badgeVariant: 'red' },
+            { id: 'crm', label: 'CRM & Sales', icon: Users, badge: hotLeads || null },
             {
                 id: 'hrm',
                 label: 'HRM',
@@ -46,7 +46,6 @@ export const NAV_CONFIG = [
             { id: 'crm', label: 'CRM & Sales', icon: Users, badge: hotLeads || null },
             { id: 'survey', label: 'Survey', icon: MapPin, badge: null },
             { id: 'design', label: 'Design & BOQ', icon: Pencil, badge: null },
-            { id: 'quotation', label: 'Quotation Builder', icon: FileText },
             { id: 'documents', label: 'Documentation', icon: Files, badge: null },
         ],
     },

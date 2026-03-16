@@ -687,10 +687,46 @@ export class InstallationService {
 
     const installation = await this.getInstallationById(id, userContext); // Verify access and get current data
 
-    // validate photo requirement: if any task is being marked done and requires photo, ensure we have at least one photo on the installation
-    if (tasksDto.tasks.some(t => t.done && t.photoRequired)) {
+    // validate photo requirement: only if a task is being marked as done (t.done is true)
+    const beingMarkedDone = tasksDto.tasks.filter((t, idx) => {
+      const prevTask = installation.tasks.find(pt => pt.name === t.name);
+      return t.done && (!prevTask || !prevTask.done);
+    });
+
+    if (beingMarkedDone.some(t => t.photoRequired)) {
       if (!installation.photos || installation.photos.length === 0) {
         throw new BadRequestException('Cannot complete photo‑required task without uploading photo');
+      }
+    }
+
+    // Find tasks being unchecked (done: true -> false) and delete their associated photos
+    const beingUnchecked = tasksDto.tasks.filter(t => {
+      const prevTask = installation.tasks.find(pt => pt.name === t.name);
+      return !t.done && prevTask?.done;
+    });
+
+    let photosToKeep = installation.photos || [];
+    const deletedPhotoKeys: string[] = [];
+
+    if (beingUnchecked.length > 0 && installation.photos) {
+      for (const task of beingUnchecked) {
+        // Find photos associated with this task (by caption or taskName)
+        const photosForTask = installation.photos.filter(p => {
+          const caption = (p as any).caption || '';
+          const taskName = (p as any).taskName || '';
+          return caption.includes(task.name) || taskName === task.name;
+        });
+
+        for (const photo of photosForTask) {
+          deletedPhotoKeys.push(photo.key);
+        }
+      }
+
+      // Remove photos associated with unchecked tasks
+      photosToKeep = installation.photos.filter(p => !deletedPhotoKeys.includes(p.key));
+
+      if (deletedPhotoKeys.length > 0) {
+        console.log('DEBUG - Deleted photos for unchecked tasks:', deletedPhotoKeys);
       }
     }
 
@@ -717,6 +753,7 @@ export class InstallationService {
           status: newStatus,
           updatedBy: userId,
           updatedAt: new Date(),
+          photos: photosToKeep,
         },
       },
       { new: true },
@@ -729,6 +766,11 @@ export class InstallationService {
       if (!prev?.done && curr.done) {
         await this.logEvent(id, 'task_completed', userId || undefined, { taskName: curr.name });
       }
+    }
+
+    // log photo deletions for unchecked tasks
+    for (const key of deletedPhotoKeys) {
+      await this.logEvent(id, 'photo_deleted', userId || undefined, { key, reason: 'task_unchecked' });
     }
 
     if (!updated) {
@@ -814,16 +856,37 @@ export class InstallationService {
   ): Promise<Installation> {
     const userId = this.toObjectId(userContext.userId || userContext.id || '');
 
-    await this.getInstallationById(id, userContext); // Verify access
+    const installation = await this.getInstallationById(id, userContext); // Verify access
+
+    // Find the photo to get its task name
+    const photo = installation.photos?.find(p => p.key === photoKey);
+    const taskName = (photo as any)?.taskName || photo?.caption?.replace('Photo for task: ', '');
+
+    const updateData: any = {
+      updatedBy: userId,
+      updatedAt: new Date(),
+    };
+
+    // If photo is associated with a task, uncheck that task
+    let updatedTasks = installation.tasks;
+    if (taskName && installation.tasks) {
+      updatedTasks = installation.tasks.map(t => 
+        t.name === taskName ? { ...t, done: false } : t
+      );
+      updateData.tasks = updatedTasks;
+      updateData.progress = this.calculateProgress(updatedTasks);
+      
+      // If it was completed, move back to In Progress since a task is now undone
+      if (installation.status === 'Completed') {
+        updateData.status = 'In Progress';
+      }
+    }
 
     const updated = await this.installationModel.findOneAndUpdate(
       { _id: this.toObjectId(id), isDeleted: false },
       {
         $pull: { photos: { key: photoKey } },
-        $set: {
-          updatedBy: userId,
-          updatedAt: new Date(),
-        },
+        $set: updateData,
       },
       { new: true },
     );
@@ -831,6 +894,9 @@ export class InstallationService {
     if (!updated) {
       throw new NotFoundException(`Installation with ID ${id} not found`);
     }
+
+    // log event
+    await this.logEvent(id, 'photo_deleted', userId || undefined, { key: photoKey, taskName });
 
     return updated;
   }

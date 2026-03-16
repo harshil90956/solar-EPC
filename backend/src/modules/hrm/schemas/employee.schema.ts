@@ -52,6 +52,15 @@ export class Employee {
   @Prop({ enum: EmployeeStatus, default: EmployeeStatus.ACTIVE })
   status!: EmployeeStatus;
 
+  @Prop({ type: Number, default: 0 })
+  salary!: number;
+
+  @Prop({ default: '' })
+  emergencyContact!: string;
+
+  @Prop({ default: '' })
+  emergencyPhone!: string;
+
   @Prop({ ...BaseSchemaDefinition.tenantId })
   tenantId!: Types.ObjectId;
 

@@ -82,6 +82,8 @@ const QuotationBuilderPage = () => {
           api.get('/lookups/units')
         ]);
         
+        console.log('Raw leads response:', leadsRes);
+        
         // Extract data from standard API response structure { success: true, data: [...] }
         const extractData = (res) => {
           if (Array.isArray(res)) return res;
@@ -91,8 +93,30 @@ const QuotationBuilderPage = () => {
           return [];
         };
 
-        setInventoryItems(extractData(itemsRes));
-        setCustomers(extractData(leadsRes));
+        const itemsData = extractData(itemsRes);
+        const leadsData = extractData(leadsRes);
+        
+        console.log('Extracted leads:', leadsData);
+        console.log('Leads count:', leadsData.length);
+        
+        if (leadsData.length === 0) {
+          console.warn('No leads found - checking if customers endpoint exists...');
+          // Try customers endpoint as fallback
+          try {
+            const customersRes = await api.get('/leads/customers');
+            console.log('Customers response:', customersRes);
+            const customersData = extractData(customersRes);
+            console.log('Extracted customers:', customersData);
+            setCustomers(customersData);
+          } catch (err) {
+            console.log('Customers endpoint failed:', err);
+            setCustomers([]);
+          }
+        } else {
+          setCustomers(leadsData);
+        }
+        
+        setInventoryItems(itemsData);
         setCategories(extractData(catRes));
         setUnits(extractData(unitRes));
       } catch (err) {
@@ -234,6 +258,12 @@ const QuotationBuilderPage = () => {
       return;
     }
 
+    // Validation for customerId (must be a valid MongoDB ObjectId)
+    if (!quotation.customerId || !/^[0-9a-fA-F]{24}$/.test(quotation.customerId)) {
+      toast.error('Invalid customer selection. Please re-select a lead/customer.');
+      return;
+    }
+
     setSaving(true);
     try {
       const payload = { ...quotation, status };
@@ -241,7 +271,9 @@ const QuotationBuilderPage = () => {
       toast.success(`Quotation ${status === 'Draft' ? 'saved as draft' : 'created'}!`);
     } catch (err) {
       console.error('Save error:', err);
-      toast.error('Failed to save quotation');
+      // Detailed error message from backend
+      const errorMsg = err.response?.data?.message || err.message || 'Failed to save quotation';
+      toast.error(errorMsg);
     } finally {
       setSaving(false);
     }
@@ -312,10 +344,18 @@ const QuotationBuilderPage = () => {
                   onChange={(e) => setSelectedCustomerId(e.target.value)}
                 >
                   <option value="">-- Select --</option>
+                  {customers.length === 0 && (
+                    <option value="" disabled>No customers/leads found</option>
+                  )}
                   {customers.map(c => (
-                    <option key={c._id || c.id} value={c._id || c.id}>{c.name} ({c.phone})</option>
+                    <option key={c._id || c.id || c.leadId} value={c._id || c.id || c.leadId}>
+                      {c.name || c.customerName || 'Unnamed'} {c.phone ? `(${c.phone})` : c.email ? `(${c.email})` : ''}
+                    </option>
                   ))}
                 </select>
+                {customers.length === 0 && !loading && (
+                  <p className="text-xs text-orange-500 mt-1">No leads found. Please add leads in CRM first.</p>
+                )}
               </FormField>
               <FormField label="Customer Name">
                 <Input 
@@ -351,7 +391,7 @@ const QuotationBuilderPage = () => {
               <Zap size={20} />
               <h2 className="font-bold text-lg">Project Information</h2>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <FormField label="Project Name">
                 <Input 
                   placeholder="e.g., 10kW Solar Rooftop Installation"
@@ -364,6 +404,17 @@ const QuotationBuilderPage = () => {
                   placeholder="e.g., Surat, Gujarat"
                   value={quotation.customerAddress}
                   onChange={(e) => setQuotation(prev => ({ ...prev, customerAddress: e.target.value }))}
+                />
+              </FormField>
+              <FormField label="System Size (kW)">
+                <Input 
+                  type="number"
+                  placeholder="e.g., 10"
+                  value={quotation.systemConfig.systemSize}
+                  onChange={(e) => setQuotation(prev => ({ 
+                    ...prev, 
+                    systemConfig: { ...prev.systemConfig, systemSize: parseFloat(e.target.value) || 0 } 
+                  }))}
                 />
               </FormField>
             </div>

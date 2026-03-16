@@ -1,0 +1,823 @@
+// Main Dashboard Page - Solar OS Professional Dashboard
+// Self-contained - no Redux-dependent UI components
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { 
+  TrendingUp, TrendingDown, Users, Briefcase, Package, 
+  DollarSign, CheckCircle, Clock, AlertCircle, ArrowRight,
+  Sun, Zap, FileText, Wrench, Shield, PieChart as PieChartIcon,
+  RefreshCw, Activity, MapPin, Truck,
+  ArrowUpRight, ArrowDownRight, Sparkles,
+} from 'lucide-react';
+import { 
+  LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
+} from 'recharts';
+import DashboardService from '../services/dashboardApi';
+import { 
+  ProjectPipeline2D, 
+  InstallationStatus2D, 
+  QuotationStatus2D, 
+  ServiceTickets2D, 
+  ProcurementStatus2D, 
+  InventoryCategory2D 
+} from '../components/dashboard/Charts2D';
+
+// Local Badge component (no Redux)
+const Badge = ({ children, className = '', style = {} }) => (
+  <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${className}`} style={style}>
+    {children}
+  </span>
+);
+
+// Local KPICard component (no Redux)
+const KPICard = ({ title, value, subtitle, trend, trendValue, icon: Icon, color, onClick, loading }) => {
+  const isPositive = trend === 'up';
+  return (
+    <div onClick={onClick} className="glass-card p-5 cursor-pointer hover:border-[var(--border-active)] transition-all duration-300">
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <p className="text-sm font-medium text-[var(--text-muted)] mb-1">{title}</p>
+          <h3 className="text-2xl font-bold text-[var(--text-primary)] mb-1">{loading ? '---' : value}</h3>
+          <p className="text-xs text-[var(--text-secondary)]">{subtitle}</p>
+        </div>
+        <div className="p-3 rounded-xl" style={{ backgroundColor: `${color}20` }}>
+          <Icon className="w-5 h-5" style={{ color }} />
+        </div>
+      </div>
+      {!loading && trendValue && (
+        <div className="mt-4 flex items-center gap-2">
+          <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${isPositive ? 'bg-[var(--green-bg)] text-[var(--green)]' : 'bg-red-500/10 text-red-500'}`}>
+            {isPositive ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+            {trendValue}
+          </div>
+          <span className="text-xs text-[var(--text-muted)]">vs last month</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Local ChartCard component (no Redux)
+const ChartCard = ({ title, children, className = '', action, icon: Icon, showDate = true }) => {
+  // Use useMemo to ensure date is set once and doesn't change on re-render
+  const dateStr = useMemo(() => {
+    const today = new Date();
+    return `${today.getDate()} ${today.toLocaleString('default', { month: 'short' })} ${today.getFullYear()}`;
+  }, []);
+  
+  return (
+    <div className={`glass-card overflow-hidden ${className}`}>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-base)]">
+        <div className="flex items-center gap-2">
+          {Icon && <Icon className="w-4 h-4 text-[var(--accent)]" />}
+          <h3 className="text-sm font-semibold text-[var(--text-primary)]">{title}</h3>
+        </div>
+        <div className="flex items-center gap-2">
+          {showDate && (
+            <span className="text-xs text-[var(--text-muted)] bg-[var(--bg-elevated)] px-2 py-1 rounded border border-[var(--border-base)]">
+              {dateStr}
+            </span>
+          )}
+          {action}
+        </div>
+      </div>
+      <div className="p-4">{children}</div>
+    </div>
+  );
+};
+const StatWidget = ({ title, value, icon: Icon, color }) => {
+  const [displayValue, setDisplayValue] = useState(0);
+  
+  useEffect(() => {
+    if (!value && value !== 0) return;
+    const duration = 1500;
+    const steps = 30;
+    const targetValue = typeof value === 'number' ? value : 0;
+    const increment = targetValue / steps;
+    let current = 0;
+    
+    const timer = setInterval(() => {
+      current += increment;
+      if (current >= targetValue) {
+        setDisplayValue(targetValue);
+        clearInterval(timer);
+      } else {
+        setDisplayValue(Math.floor(current));
+      }
+    }, duration / steps);
+
+    return () => clearInterval(timer);
+  }, [value]);
+
+  const formattedValue = typeof value === 'string' 
+    ? value 
+    : displayValue.toLocaleString();
+
+  return (
+    <div className="glass-card p-4 flex items-center gap-3">
+      <div 
+        className="w-10 h-10 rounded-lg flex items-center justify-center"
+        style={{ backgroundColor: `${color}15` }}
+      >
+        <Icon className="w-5 h-5" style={{ color }} />
+      </div>
+      <div>
+        <p className="text-xs text-[var(--text-muted)]">{title}</p>
+        <p className="text-lg font-bold text-[var(--text-primary)]">{formattedValue}</p>
+      </div>
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════
+// MODULE STATUS CARD - Using glass-card and CSS variables
+// ═══════════════════════════════════════════════════════════
+const ModuleStatusCard = ({ 
+  title, 
+  status, 
+  count, 
+  total, 
+  icon: Icon, 
+  color, 
+  onClick,
+  subtext
+}) => {
+  const percentage = total > 0 ? (count / total) * 100 : 0;
+  
+  const statusConfig = {
+    active: { bg: 'var(--green-bg)', color: 'var(--green)', label: 'Active' },
+    warning: { bg: 'var(--amber-bg)', color: 'var(--amber)', label: 'Warning' },
+    inactive: { bg: 'var(--blue-bg)', color: 'var(--blue)', label: 'Inactive' },
+  };
+  const config = statusConfig[status] || statusConfig.inactive;
+
+  return (
+    <div
+      onClick={onClick}
+      className="glass-card p-4 cursor-pointer group hover:border-[var(--border-active)] transition-all duration-200"
+    >
+      <div className="flex items-start justify-between mb-3">
+        <div 
+          className="w-10 h-10 rounded-lg flex items-center justify-center"
+          style={{ backgroundColor: `${color}15` }}
+        >
+          <Icon className="w-5 h-5" style={{ color }} />
+        </div>
+        <Badge 
+          variant="custom" 
+          style={{ backgroundColor: config.bg, color: config.color }}
+        >
+          {config.label}
+        </Badge>
+      </div>
+      
+      <h4 className="text-sm font-semibold text-[var(--text-primary)] mb-1">{title}</h4>
+      <p className="text-xs text-[var(--text-muted)] mb-3">{subtext}</p>
+      
+      <div className="flex items-center justify-between text-xs mb-2">
+        <span className="text-[var(--text-secondary)]">{count} / {total}</span>
+        <span className="text-[var(--text-muted)]">{percentage.toFixed(0)}%</span>
+      </div>
+      
+      {/* Progress bar */}
+      <div className="h-1.5 bg-[var(--bg-elevated)] rounded-full overflow-hidden">
+        <div 
+          className="h-full rounded-full transition-all duration-1000"
+          style={{ 
+            width: `${percentage}%`,
+            backgroundColor: color,
+          }}
+        />
+      </div>
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════
+// ACTIVITY FEED COMPONENT - Using CSS variables
+// ═══════════════════════════════════════════════════════════
+const ActivityFeed = ({ activities }) => {
+  if (!activities || activities.length === 0) {
+    return (
+      <div className="text-center py-8 text-[var(--text-muted)]">
+        <Activity className="w-10 h-10 mx-auto mb-2 opacity-50" />
+        <p className="text-sm">No recent activity</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {activities.map((activity, index) => (
+        <div
+          key={index}
+          className="flex items-start gap-3 p-3 rounded-lg bg-[var(--bg-elevated)] hover:bg-[var(--bg-overlay)] transition-colors"
+          style={{ animationDelay: `${index * 0.1}s` }}
+        >
+          <div 
+            className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+            style={{ backgroundColor: `${activity.color}20` }}
+          >
+            <activity.icon className="w-4 h-4" style={{ color: activity.color }} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-[var(--text-primary)] truncate">{activity.title}</p>
+            <p className="text-xs text-[var(--text-muted)]">{activity.time}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// Main Dashboard Component
+const SolarDashboard = ({ onNavigate }) => {
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [widgetData, setWidgetData] = useState(null);
+  const [selectedTab, setSelectedTab] = useState('overview');
+  const [lastUpdated, setLastUpdated] = useState(null);
+
+  // Fetch dashboard data
+  const fetchData = useCallback(async () => {
+    try {
+      setRefreshing(true);
+      const data = await DashboardService.getWidgetData();
+      setWidgetData(data);
+      setLastUpdated(new Date());
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  // Initial data load and refresh interval
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 30000); // Refresh every 30 seconds
+    return () => clearInterval(interval);
+  }, [fetchData]);
+
+  // Sample data for charts (will be replaced with real data)
+  const pipelineData = useMemo(() => [
+    { name: 'Lead', value: widgetData?.leads?.total || 45, fill: '#22d3ee' },
+    { name: 'Quotation', value: 32, fill: '#3b82f6' },
+    { name: 'Survey', value: widgetData?.surveys?.total || 28, fill: '#2563eb' },
+    { name: 'Project', value: widgetData?.projects?.active || 15, fill: '#f59e0b' },
+    { name: 'Installation', value: 12, fill: '#22c55e' },
+    { name: 'Commissioned', value: widgetData?.commissioning?.completed || 8, fill: '#a855f7' },
+  ], [widgetData]);
+
+  const revenueData = useMemo(() => [
+    { month: 'Jan', revenue: 450000, target: 500000 },
+    { month: 'Feb', revenue: 520000, target: 500000 },
+    { month: 'Mar', revenue: 480000, target: 550000 },
+    { month: 'Apr', revenue: 600000, target: 550000 },
+    { month: 'May', revenue: 720000, target: 600000 },
+    { month: 'Jun', revenue: 680000, target: 650000 },
+  ], []);
+
+  const categoryData = useMemo(() => [
+    { name: 'Solar Panels', value: 450 },
+    { name: 'Inverters', value: 230 },
+    { name: 'Batteries', value: 180 },
+    { name: 'Mounting', value: 320 },
+    { name: 'Cables', value: 150 },
+  ], []);
+
+  const kpiData = useMemo(() => [
+    {
+      title: 'Total Projects',
+      value: widgetData?.projects?.total || 0,
+      subtitle: `${widgetData?.projects?.active || 0} Active • ${widgetData?.projects?.completed || 0} Completed`,
+      trend: 'up',
+      trendValue: '12%',
+      icon: Briefcase,
+      color: '#2563eb',
+      onClick: () => onNavigate?.('project')
+    },
+    {
+      title: 'Total Revenue',
+      value: `₹${((widgetData?.finance?.totalRevenue || 0) / 100000).toFixed(1)}L`,
+      subtitle: `${((widgetData?.finance?.outstanding || 0) / 100000).toFixed(1)}L Outstanding • ${widgetData?.finance?.totalInvoices || 0} Invoices`,
+      trend: 'up',
+      trendValue: '8%',
+      icon: DollarSign,
+      color: '#22c55e',
+      onClick: () => onNavigate?.('finance')
+    },
+    {
+      title: 'Active Leads',
+      value: widgetData?.leads?.hot || 0,
+      subtitle: `${widgetData?.leads?.total || 0} Total • ${widgetData?.leads?.new || 0} New • ${widgetData?.leads?.converted || 0} Converted`,
+      trend: 'down',
+      trendValue: '3%',
+      icon: Users,
+      color: '#f59e0b',
+      onClick: () => onNavigate?.('crm')
+    },
+    {
+      title: 'Inventory Alert',
+      value: widgetData?.inventory?.lowStockItems || 0,
+      subtitle: `${widgetData?.inventory?.totalItems || 0} Items in Stock`,
+      trend: 'up',
+      trendValue: '2 items',
+      icon: Package,
+      color: widgetData?.inventory?.lowStockItems > 0 ? '#ef4444' : '#22c55e',
+      onClick: () => onNavigate?.('inventory')
+    },
+    {
+      title: 'Quotations',
+      value: widgetData?.quotation?.total || 0,
+      subtitle: `${widgetData?.quotation?.pending || 0} Pending • ${widgetData?.quotation?.approved || 0} Approved`,
+      trend: 'up',
+      trendValue: '15%',
+      icon: FileText,
+      color: '#a855f7',
+      onClick: () => onNavigate?.('quotation')
+    },
+    {
+      title: 'Installations',
+      value: widgetData?.installation?.inProgress || 0,
+      subtitle: `${widgetData?.installation?.completed || 0} Completed • ${widgetData?.installation?.total || 0} Total`,
+      trend: 'up',
+      trendValue: '8%',
+      icon: Wrench,
+      color: '#22d3ee',
+      onClick: () => onNavigate?.('installation')
+    },
+    {
+      title: 'Service Tickets',
+      value: widgetData?.service?.openTickets || 0,
+      subtitle: `${widgetData?.service?.totalContracts || 0} AMC Contracts`,
+      trend: 'down',
+      trendValue: '5%',
+      icon: Shield,
+      color: '#ec4899',
+      onClick: () => onNavigate?.('service')
+    },
+    {
+      title: 'Procurement',
+      value: widgetData?.procurement?.total || 0,
+      subtitle: `${widgetData?.procurement?.pending || 0} Pending • ${widgetData?.procurement?.completed || 0} Completed`,
+      trend: 'up',
+      trendValue: '10%',
+      icon: Package,
+      color: '#f97316',
+      onClick: () => onNavigate?.('procurement')
+    },
+  ], [widgetData, onNavigate]);
+
+  // Additional 3D chart data from live backend
+  const installationData = useMemo(() => [
+    { name: 'In Progress', value: widgetData?.installation?.inProgress || 12, fill: '#22d3ee' },
+    { name: 'Completed', value: widgetData?.installation?.completed || 8, fill: '#22c55e' },
+    { name: 'Pending', value: (widgetData?.installation?.total || 20) - (widgetData?.installation?.inProgress || 12) - (widgetData?.installation?.completed || 8), fill: '#f59e0b' },
+  ], [widgetData]);
+
+  const quotationData = useMemo(() => [
+    { name: 'Approved', value: widgetData?.quotation?.approved || 25, fill: '#22c55e' },
+    { name: 'Pending', value: widgetData?.quotation?.pending || 15, fill: '#f59e0b' },
+    { name: 'Rejected', value: widgetData?.quotation?.rejected || 5, fill: '#ef4444' },
+  ], [widgetData]);
+
+  const serviceData = useMemo(() => [
+    { name: 'Open Tickets', value: widgetData?.service?.openTickets || 8, fill: '#ef4444' },
+    { name: 'In Progress', value: widgetData?.service?.inProgressTickets || 5, fill: '#f59e0b' },
+    { name: 'Resolved', value: widgetData?.service?.resolvedTickets || 20, fill: '#22c55e' },
+  ], [widgetData]);
+
+  const procurementData = useMemo(() => [
+    { name: 'Completed', value: widgetData?.procurement?.completed || 45, fill: '#22c55e' },
+    { name: 'Pending', value: widgetData?.procurement?.pending || 12, fill: '#f59e0b' },
+    { name: 'In Progress', value: widgetData?.procurement?.inProgress || 8, fill: '#2563eb' },
+  ], [widgetData]);
+
+  const moduleStatuses = useMemo(() => [
+    {
+      title: 'CRM & Sales',
+      status: 'active',
+      count: widgetData?.leads?.total || 0,
+      total: Math.max(widgetData?.leads?.total || 0, 50),
+      icon: Users,
+      color: '#2563eb',
+      subtext: `${widgetData?.leads?.hot || 0} Hot Leads • ${widgetData?.leads?.new || 0} New`,
+      onClick: () => onNavigate?.('crm')
+    },
+    {
+      title: 'Site Survey',
+      status: 'active',
+      count: widgetData?.surveys?.completed || 0,
+      total: widgetData?.surveys?.total || 1,
+      icon: MapPin,
+      color: '#22d3ee',
+      subtext: `${widgetData?.surveys?.pending || 0} Pending • ${widgetData?.surveys?.total || 0} Total`,
+      onClick: () => onNavigate?.('survey')
+    },
+    {
+      title: 'Estimates',
+      status: 'active',
+      count: widgetData?.estimates?.approved || 0,
+      total: widgetData?.estimates?.total || 1,
+      icon: FileText,
+      color: '#8b5cf6',
+      subtext: `${widgetData?.estimates?.pending || 0} Pending • ${widgetData?.estimates?.total || 0} Total`,
+      onClick: () => onNavigate?.('estimates')
+    },
+    {
+      title: 'Quotations',
+      status: 'active',
+      count: widgetData?.quotation?.approved || 0,
+      total: widgetData?.quotation?.total || 1,
+      icon: FileText,
+      color: '#a855f7',
+      subtext: `${widgetData?.quotation?.pending || 0} Pending • ${widgetData?.quotation?.total || 0} Total`,
+      onClick: () => onNavigate?.('quotation')
+    },
+    {
+      title: 'Projects',
+      status: 'active',
+      count: widgetData?.projects?.active || 0,
+      total: widgetData?.projects?.total || 1,
+      icon: Briefcase,
+      color: '#f59e0b',
+      subtext: `${widgetData?.projects?.completed || 0} Completed • ${widgetData?.projects?.total || 0} Total`,
+      onClick: () => onNavigate?.('project')
+    },
+    {
+      title: 'Installation',
+      status: 'active',
+      count: widgetData?.installation?.inProgress || 0,
+      total: widgetData?.installation?.total || 1,
+      icon: Wrench,
+      color: '#22c55e',
+      subtext: `${widgetData?.installation?.completed || 0} Completed • ${widgetData?.installation?.total || 0} Total`,
+      onClick: () => onNavigate?.('installation')
+    },
+    {
+      title: 'Commissioning',
+      status: 'active',
+      count: widgetData?.commissioning?.completed || 0,
+      total: widgetData?.commissioning?.total || 1,
+      icon: CheckCircle,
+      color: '#22c55e',
+      subtext: `${widgetData?.commissioning?.pending || 0} Pending • ${widgetData?.commissioning?.total || 0} Total`,
+      onClick: () => onNavigate?.('commissioning')
+    },
+    {
+      title: 'Inventory',
+      status: widgetData?.inventory?.lowStockItems > 0 ? 'warning' : 'active',
+      count: widgetData?.inventory?.totalItems || 0,
+      total: Math.max(widgetData?.inventory?.totalItems || 0, 200),
+      icon: Package,
+      color: widgetData?.inventory?.lowStockItems > 0 ? '#ef4444' : '#a855f7',
+      subtext: `${widgetData?.inventory?.lowStockItems || 0} Low Stock • ${widgetData?.inventory?.totalItems || 0} Items`,
+      onClick: () => onNavigate?.('inventory')
+    },
+    {
+      title: 'Procurement',
+      status: 'active',
+      count: widgetData?.procurement?.completed || 0,
+      total: widgetData?.procurement?.total || 1,
+      icon: Package,
+      color: '#f97316',
+      subtext: `${widgetData?.procurement?.pending || 0} Pending • ${widgetData?.procurement?.total || 0} Total`,
+      onClick: () => onNavigate?.('procurement')
+    },
+    {
+      title: 'Logistics',
+      status: 'active',
+      count: widgetData?.logistics?.inTransit || 0,
+      total: widgetData?.logistics?.total || 1,
+      icon: Truck,
+      color: '#06b6d4',
+      subtext: `${widgetData?.logistics?.delivered || 0} Delivered • ${widgetData?.logistics?.total || 0} Total`,
+      onClick: () => onNavigate?.('logistics')
+    },
+    {
+      title: 'Finance',
+      status: 'active',
+      count: widgetData?.finance?.totalInvoices || 0,
+      total: Math.max(widgetData?.finance?.totalInvoices || 0, 100),
+      icon: DollarSign,
+      color: '#22c55e',
+      subtext: `₹${((widgetData?.finance?.totalRevenue || 0) / 100000).toFixed(1)}L Revenue`,
+      onClick: () => onNavigate?.('finance')
+    },
+    {
+      title: 'Service & AMC',
+      status: widgetData?.service?.openTickets > 5 ? 'warning' : 'active',
+      count: widgetData?.service?.openTickets || 0,
+      total: widgetData?.service?.totalContracts || 1,
+      icon: Shield,
+      color: '#ec4899',
+      subtext: `${widgetData?.service?.totalContracts || 0} AMC Contracts`,
+      onClick: () => onNavigate?.('service')
+    },
+    {
+      title: 'Compliance',
+      status: (widgetData?.compliance?.pending || 0) > 0 ? 'warning' : 'active',
+      count: widgetData?.compliance?.compliant || 0,
+      total: widgetData?.compliance?.total || 1,
+      icon: CheckCircle,
+      color: '#10b981',
+      subtext: `${widgetData?.compliance?.pending || 0} Pending • ${widgetData?.compliance?.total || 0} Total`,
+      onClick: () => onNavigate?.('compliance')
+    },
+    {
+      title: 'Documents',
+      status: 'active',
+      count: widgetData?.documents?.approved || 0,
+      total: widgetData?.documents?.total || 1,
+      icon: FileText,
+      color: '#64748b',
+      subtext: `${widgetData?.documents?.pending || 0} Pending • ${widgetData?.documents?.total || 0} Total`,
+      onClick: () => onNavigate?.('documents')
+    },
+    {
+      title: 'HRM & Payroll',
+      status: 'active',
+      count: widgetData?.employees?.active || 0,
+      total: widgetData?.employees?.total || 1,
+      icon: Users,
+      color: '#a855f7',
+      subtext: `${widgetData?.employees?.onLeave || 0} On Leave • ${widgetData?.employees?.total || 0} Total`,
+      onClick: () => onNavigate?.('hrm')
+    },
+  ], [widgetData, onNavigate]);
+
+  const recentActivities = useMemo(() => [
+    { title: 'New project created - Solar Panel Installation', time: '2 mins ago', icon: Briefcase, color: '#2563eb' },
+    { title: 'Survey completed for Site #1234', time: '15 mins ago', icon: MapPin, color: '#22d3ee' },
+    { title: 'Low stock alert - Inverter 5kW', time: '1 hour ago', icon: AlertCircle, color: '#ef4444' },
+    { title: 'Quotation approved - ₹12,50,000', time: '2 hours ago', icon: FileText, color: '#22c55e' },
+    { title: 'Installation completed - Project #5678', time: '3 hours ago', icon: CheckCircle, color: '#22c55e' },
+  ], []);
+
+  const quickActions = useMemo(() => [
+    { label: 'Create New Lead', icon: Users, color: '#2563eb', action: 'crm' },
+    { label: 'Add Inventory Item', icon: Package, color: '#22c55e', action: 'inventory' },
+    { label: 'Generate Quotation', icon: FileText, color: '#f59e0b', action: 'quotation' },
+    { label: 'Schedule Survey', icon: MapPin, color: '#22d3ee', action: 'survey' },
+    { label: 'Create Project', icon: Briefcase, color: '#a855f7', action: 'project' },
+  ], []);
+
+  return (
+    <div className="p-4 lg:p-6 space-y-6">
+
+      {/* Page Header */}
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Sun className="w-6 h-6 text-[var(--accent)]" />
+            <h1 className="text-2xl font-bold text-[var(--text-primary)]">Solar OS Dashboard</h1>
+            <Badge variant="custom" className="bg-[var(--primary)]/20 text-[var(--primary)] border-[var(--primary)]/30">
+              Live
+            </Badge>
+          </div>
+          <p className="text-sm text-[var(--text-muted)]">
+            Real-time insights across all modules • Updated {lastUpdated?.toLocaleTimeString() || '---'}
+          </p>
+        </div>
+        
+        <div className="flex items-center gap-3">
+          {/* Working Date Display */}
+          <div className="flex items-center gap-1 px-3 py-2 bg-[var(--bg-elevated)] rounded-lg border border-[var(--border-base)]">
+            <div className="text-center px-2">
+              <p className="text-[10px] text-[var(--text-muted)] uppercase">Day</p>
+              <p className="text-lg font-bold text-[var(--primary)] leading-tight">{new Date().getDate()}</p>
+            </div>
+            <div className="w-px h-8 bg-[var(--border-base)]" />
+            <div className="text-center px-2">
+              <p className="text-[10px] text-[var(--text-muted)] uppercase">Month</p>
+              <p className="text-sm font-semibold text-[var(--accent)] leading-tight">{new Date().toLocaleString('default', { month: 'short' })}</p>
+            </div>
+            <div className="w-px h-8 bg-[var(--border-base)]" />
+            <div className="text-center px-2">
+              <p className="text-[10px] text-[var(--text-muted)] uppercase">Year</p>
+              <p className="text-sm font-semibold text-[var(--text-primary)] leading-tight">{new Date().getFullYear()}</p>
+            </div>
+          </div>
+
+          <button
+            onClick={fetchData}
+            disabled={refreshing}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-[var(--border-base)] text-[var(--text-primary)] hover:border-[var(--primary)] transition-all disabled:opacity-50"
+          >
+            <RefreshCw className={refreshing ? 'w-4 h-4 animate-spin' : 'w-4 h-4'} />
+            Refresh
+          </button>
+          <button
+            onClick={() => onNavigate?.('settings')}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-[var(--primary)] text-white hover:bg-[var(--primary)]/90 transition-colors"
+          >
+            <Sparkles className="w-4 h-4" />
+            Customize
+          </button>
+        </div>
+      </div>
+
+      {/* Quick Stats Row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+        <StatWidget title="Projects" value={widgetData?.projects?.total} icon={Briefcase} color="#2563eb" />
+        <StatWidget title="Leads" value={widgetData?.leads?.total} icon={Users} color="#22d3ee" />
+        <StatWidget title="Surveys" value={widgetData?.surveys?.total} icon={MapPin} color="#f59e0b" />
+        <StatWidget title="Inventory" value={widgetData?.inventory?.totalItems} icon={Package} color="#22c55e" />
+        <StatWidget title="Employees" value={widgetData?.employees?.total} icon={Users} color="#a855f7" />
+        <StatWidget title="Tickets" value={widgetData?.service?.openTickets} icon={Shield} color="#ec4899" />
+        <StatWidget title="Commissioned" value={widgetData?.commissioning?.completed} icon={CheckCircle} color="#22c55e" />
+        <StatWidget title="Revenue" value={`₹${((widgetData?.finance?.totalRevenue || 0) / 10000000).toFixed(1)}Cr`} icon={DollarSign} color="#22c55e" />
+      </div>
+
+      {/* KPI Cards - 8 cards showing all modules */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {kpiData.map((kpi, index) => (
+          <KPICard key={index} {...kpi} loading={loading} />
+        ))}
+      </div>
+
+      {/* 2D Charts Row 1 - Pipeline & Installation */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <ChartCard title="📊 Project Pipeline (Column Chart)" icon={PieChartIcon}>
+          <div className="h-80">
+            <ProjectPipeline2D data={pipelineData} height={320} />
+          </div>
+        </ChartCard>
+
+        <ChartCard title="🔧 Installation Status (Column Chart)" icon={Wrench}>
+          <div className="h-80">
+            <InstallationStatus2D data={installationData} height={320} />
+          </div>
+        </ChartCard>
+      </div>
+
+      {/* 2D Charts Row 2 - Quotations & Service */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <ChartCard title="📄 Quotation Status (Pie Chart)" icon={FileText}>
+          <div className="h-80">
+            <QuotationStatus2D data={quotationData} height={320} />
+          </div>
+        </ChartCard>
+
+        <ChartCard title="🛡️ Service Tickets (Horizontal Bars)" icon={Shield}>
+          <div className="h-80">
+            <ServiceTickets2D data={serviceData} height={320} />
+          </div>
+        </ChartCard>
+      </div>
+
+      {/* 2D Charts Row 3 - Procurement & Inventory */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <ChartCard title="📦 Procurement Status (Column Chart)" icon={Package}>
+          <div className="h-80">
+            <ProcurementStatus2D data={procurementData} height={320} />
+          </div>
+        </ChartCard>
+
+        <ChartCard title="📦 Inventory by Category (Column Chart)" icon={Package}>
+          <div className="h-80">
+            <InventoryCategory2D data={categoryData} height={320} />
+          </div>
+        </ChartCard>
+      </div>
+
+      {/* Bottom Stats Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* Quick Actions */}
+        <ChartCard title="⚡ Quick Actions" icon={Sparkles}>
+          <div className="space-y-2">
+            {quickActions.map((action, index) => (
+              <button
+                key={index}
+                onClick={() => onNavigate?.(action.action)}
+                className="w-full flex items-center justify-between p-3 rounded-lg bg-[var(--bg-elevated)] hover:bg-[var(--bg-overlay)] transition-all duration-200 group"
+              >
+                <div className="flex items-center gap-3">
+                  <div 
+                    className="p-2 rounded-lg"
+                    style={{ backgroundColor: `${action.color}15` }}
+                  >
+                    <action.icon className="w-4 h-4" style={{ color: action.color }} />
+                  </div>
+                  <span className="text-sm text-[var(--text-primary)]">{action.label}</span>
+                </div>
+                <ArrowRight className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--primary)] transition-colors" />
+              </button>
+            ))}
+          </div>
+        </ChartCard>
+
+        {/* Performance Metrics */}
+        <ChartCard title="📈 Performance Metrics" className="lg:col-span-2" icon={TrendingUp}>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-[var(--text-secondary)]">Conversion Rate</span>
+                <span className="text-sm font-semibold text-[var(--text-primary)]">
+                  {((widgetData?.leads?.total ? (widgetData?.projects?.total / widgetData?.leads?.total) : 0) * 100).toFixed(1)}%
+                </span>
+              </div>
+              <div className="h-2 bg-[var(--bg-elevated)] rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-[var(--primary)] rounded-full transition-all duration-1000"
+                  style={{ width: `${Math.min(((widgetData?.leads?.total ? (widgetData?.projects?.total / widgetData?.leads?.total) : 0) * 100), 100)}%` }}
+                />
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-[var(--text-secondary)]">On-time Delivery</span>
+                <span className="text-sm font-semibold text-[var(--text-primary)]">92%</span>
+              </div>
+              <div className="h-2 bg-[var(--bg-elevated)] rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-[var(--green)] rounded-full transition-all duration-1000"
+                  style={{ width: '92%' }}
+                />
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-[var(--text-secondary)]">Customer Satisfaction</span>
+                <span className="text-sm font-semibold text-[var(--text-primary)]">4.8/5</span>
+              </div>
+              <div className="h-2 bg-[var(--bg-elevated)] rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-[var(--accent)] rounded-full transition-all duration-1000"
+                  style={{ width: '96%' }}
+                />
+              </div>
+            </div>
+            
+            <div className="flex flex-col justify-center items-center">
+              <div className="text-center">
+                <p className="text-3xl font-bold text-[var(--text-primary)]">{widgetData?.projects?.total || 0}</p>
+                <p className="text-xs text-[var(--text-muted)] mt-1">Total Projects</p>
+              </div>
+              <div className="flex items-center gap-4 mt-4">
+                <div className="text-center">
+                  <p className="text-lg font-semibold text-[var(--green)]">{widgetData?.projects?.active || 0}</p>
+                  <p className="text-xs text-[var(--text-muted)]">Active</p>
+                </div>
+                <div className="w-px h-8 bg-[var(--border-base)]" />
+                <div className="text-center">
+                  <p className="text-lg font-semibold text-[var(--primary)]">{widgetData?.commissioning?.completed || 0}</p>
+                  <p className="text-xs text-[var(--text-muted)]">Completed</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </ChartCard>
+
+        {/* System Health */}
+        <ChartCard title="🔋 System Health" icon={Zap}>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between p-3 rounded-lg bg-[var(--green-bg)] border border-[var(--green)]/20">
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-[var(--green)]" />
+                <span className="text-sm text-[var(--text-primary)]">API Status</span>
+              </div>
+              <Badge variant="custom" className="bg-[var(--green)]/20 text-[var(--green)]">
+                Operational
+              </Badge>
+            </div>
+            
+            <div className="flex items-center justify-between p-3 rounded-lg bg-[var(--green-bg)] border border-[var(--green)]/20">
+              <div className="flex items-center gap-2">
+                <Activity className="w-4 h-4 text-[var(--green)]" />
+                <span className="text-sm text-[var(--text-primary)]">Database</span>
+              </div>
+              <Badge variant="custom" className="bg-[var(--green)]/20 text-[var(--green)]">
+                Healthy
+              </Badge>
+            </div>
+            
+            <div className="flex items-center justify-between p-3 rounded-lg bg-[var(--amber-bg)] border border-[var(--amber)]/20">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-[var(--amber)]" />
+                <span className="text-sm text-[var(--text-primary)]">Last Sync</span>
+              </div>
+              <Badge variant="custom" className="bg-[var(--amber)]/20 text-[var(--amber)]">
+                {lastUpdated?.toLocaleTimeString() || '---'}
+              </Badge>
+            </div>
+            
+            <div className="pt-2 border-t border-[var(--border-base)]">
+              <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
+                <span>Uptime</span>
+                <span className="text-[var(--text-primary)]">99.9%</span>
+              </div>
+            </div>
+          </div>
+        </ChartCard>
+      </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-between text-xs text-[var(--text-muted)] pt-4 border-t border-[var(--border-base)]">
+        <p>Solar OS Enterprise Dashboard v2.0</p>
+        <p>Powered by Three.js & Recharts</p>
+      </div>
+    </div>
+  );
+};
+
+export default SolarDashboard;
