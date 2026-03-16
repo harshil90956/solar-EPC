@@ -669,6 +669,69 @@ export class InstallationService {
         this.logger.error('failed to create commissioning for installation', err);
         // do not block the status update if commissioning creation fails
       }
+
+      // AUTO-UPDATE: Update project status to 'Commissioned' when installation is completed
+      try {
+        console.log(`[INSTALLATION] ========== AUTO-UPDATING PROJECT STATUS ==========`);
+        
+        // Get project ID from installation (handle both ObjectId and populated object)
+        let projectId: string | null = null;
+        if (updated.projectId) {
+          if (typeof updated.projectId === 'string') {
+            projectId = updated.projectId;
+          } else if ((updated.projectId as any).projectId) {
+            // Populated object with projectId field
+            projectId = (updated.projectId as any).projectId;
+          } else if ((updated.projectId as any).toString) {
+            // ObjectId
+            projectId = (updated.projectId as any).toString();
+          }
+        }
+
+        if (projectId) {
+          console.log(`[INSTALLATION] Updating project ${projectId} status to 'Commissioned'`);
+          
+          const projectUpdate = await this.projectModel.findOneAndUpdate(
+            { projectId: projectId },
+            { 
+              $set: { 
+                status: 'Commissioned',
+                progress: 100,
+                updatedAt: new Date(),
+              } 
+            },
+            { new: true }
+          ).exec();
+          
+          if (projectUpdate) {
+            console.log(`[INSTALLATION] Project ${projectId} status updated to 'Commissioned' successfully`);
+          } else {
+            // Try finding by _id if projectId didn't work
+            const projectById = await this.projectModel.findByIdAndUpdate(
+              updated.projectId,
+              { 
+                $set: { 
+                  status: 'Commissioned',
+                  progress: 100,
+                  updatedAt: new Date(),
+                } 
+              },
+              { new: true }
+            ).exec();
+            
+            if (projectById) {
+              console.log(`[INSTALLATION] Project (by _id) status updated to 'Commissioned' successfully`);
+            } else {
+              console.log(`[INSTALLATION] Project ${projectId} not found for status update`);
+            }
+          }
+        } else {
+          console.log(`[INSTALLATION] No projectId found on installation, skipping project status update`);
+        }
+      } catch (projectError: any) {
+        console.error(`[INSTALLATION] Failed to update project status:`, projectError.message);
+        // Don't fail the installation update if project update fails
+      }
     }
 
     return updated;

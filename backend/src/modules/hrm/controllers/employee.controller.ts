@@ -65,7 +65,7 @@ export class EmployeeController {
     const effectiveTenantId = employee?.tenantId ? String(employee.tenantId) : tenantId;
 
     // Get employee permissions
-    const rolePermissions = await this.hrmPermissionService.getPermissions(employee.roleId?.toString() || '');
+    const rolePermissions = await this.hrmPermissionService.getPermissions(employee.roleId?.toString() || '', effectiveTenantId);
 
     // Generate JWT token using same secret as JwtStrategy
     const jwtSecret = this.configService.getOrThrow<string>('JWT_SECRET');
