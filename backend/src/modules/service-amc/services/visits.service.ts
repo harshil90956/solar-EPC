@@ -405,38 +405,27 @@ Solar EPC Team
 
 
   async getStats(tenantId?: string): Promise<any> {
-
+    console.log('DEBUG - Visits getStats called, tenantId:', tenantId);
     const filter: any = { isDeleted: { $ne: true } };
 
     if (tenantId) {
-
       if (Types.ObjectId.isValid(tenantId) && tenantId.length === 24) {
-
         filter.tenantId = new Types.ObjectId(tenantId);
-
       } else {
-
         filter.tenantId = tenantId;
-
       }
-
     }
 
     const [totalVisits, scheduled, completed, cancelled] = await Promise.all([
-
       this.visitModel.countDocuments(filter),
-
       this.visitModel.countDocuments({ ...filter, status: 'Scheduled' }),
-
       this.visitModel.countDocuments({ ...filter, status: 'Completed' }),
-
       this.visitModel.countDocuments({ ...filter, status: 'Cancelled' }),
-
     ]);
 
-    return { totalVisits, scheduled, completed, cancelled };
-
+    const result = { totalVisits, scheduled, completed, cancelled };
+    console.log('DEBUG - Visits getStats result:', result);
+    return result;
   }
 
 }
-

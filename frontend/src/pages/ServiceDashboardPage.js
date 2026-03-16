@@ -112,24 +112,31 @@ const ServiceDashboardPage = ({ onNavigate }) => {
     setLoadingEngineers(true);
 
     try {
-      // Fetch all data in parallel
+      // Fetch stats for counts (independent of pagination)
+      const [tStats, aStats, vStats] = await Promise.all([
+        getTicketStats(),
+        getAmcContractStats(),
+        getVisitStats()
+      ]);
+
+      // Set stats immediately for cards display
+      console.log('DEBUG - Setting stats:', { tStats, aStats, vStats });
+      setTicketStats(tStats || { openTickets: 0, inProgress: 0, resolved: 0 });
+      setAmcStats(aStats || { activeContracts: 0, totalContracts: 0 });
+      setVisitStats(vStats || { totalVisits: 0, scheduled: 0, completed: 0, cancelled: 0 });
+
+      // Fetch detailed data for recent activity lists
       const [
         ticketsRes,
         amcRes,
         visitsRes,
-        tStats,
-        aStats,
-        vStats,
         engineersRes,
         customersRes,
         aiRes
       ] = await Promise.all([
         getTickets({ limit: 1000 }),
         getAmcContracts({ limit: 1000 }),
-        getVisits(),
-        getTicketStats(),
-        getAmcContractStats(),
-        getVisitStats(),
+        getVisits({ limit: 1000 }),
         getEngineers(),
         getCustomers(),
         getAiInsight()
@@ -146,7 +153,7 @@ const ServiceDashboardPage = ({ onNavigate }) => {
       }
       setTickets(ticketsData);
 
-      // Process AMC contracts with project filtering
+      // Process AMC contracts
       let contractsData = [];
       if (Array.isArray(amcRes)) {
         contractsData = amcRes;
@@ -155,15 +162,7 @@ const ServiceDashboardPage = ({ onNavigate }) => {
       } else if (amcRes?.data?.data && Array.isArray(amcRes.data.data)) {
         contractsData = amcRes.data.data;
       }
-
-      // Filter out specific customers
-      const filteredContracts = contractsData.filter(c => {
-        if (['rutvik', 'prakash agraval', 'prakashagrawal', 'prakash agarwal'].includes(c.customer?.toLowerCase())) {
-          return false;
-        }
-        return true;
-      });
-      setAmcContracts(filteredContracts);
+      setAmcContracts(contractsData);
 
       // Process visits
       let visitsData = [];
@@ -175,11 +174,6 @@ const ServiceDashboardPage = ({ onNavigate }) => {
         visitsData = visitsRes.data.data;
       }
       setVisits(visitsData);
-
-      // Set stats
-      setTicketStats(tStats || { openTickets: 0, inProgress: 0, resolved: 0 });
-      setAmcStats(aStats || { activeContracts: 0 });
-      setVisitStats(vStats || { totalVisits: 0, scheduled: 0, completed: 0, cancelled: 0 });
 
       // Process engineers
       let engineersData = [];
@@ -228,36 +222,44 @@ const ServiceDashboardPage = ({ onNavigate }) => {
   // Calculate dynamic stats
   const dynamicTicketStats = useMemo(() => {
     const ticketsArray = Array.isArray(tickets) ? tickets : [];
+    // Use API stats when available, fallback to calculated from array
     return {
-      openTickets: ticketsArray.filter(t => t.status === 'Open').length,
-      scheduled: ticketsArray.filter(t => t.status === 'Scheduled').length,
-      inProgress: ticketsArray.filter(t => t.status === 'In Progress').length,
-      resolved: ticketsArray.filter(t => t.status === 'Resolved').length,
-      closed: ticketsArray.filter(t => t.status === 'Closed').length,
-      total: ticketsArray.length,
+      openTickets: ticketStats?.openTickets ?? ticketsArray.filter(t => t.status === 'Open').length,
+      scheduled: ticketStats?.scheduled ?? ticketsArray.filter(t => t.status === 'Scheduled').length,
+      inProgress: ticketStats?.inProgress ?? ticketsArray.filter(t => t.status === 'In Progress').length,
+      resolved: ticketStats?.resolved ?? ticketsArray.filter(t => t.status === 'Resolved').length,
+      closed: ticketStats?.closed ?? ticketsArray.filter(t => t.status === 'Closed').length,
+      total: ticketStats?.total ?? ticketsArray.length,
     };
-  }, [tickets]);
+  }, [tickets, ticketStats]);
 
   const dynamicAmcStats = useMemo(() => {
-    const contractsArray = Array.isArray(amcContracts) ? amcContracts : [];
+    // Prioritize API stats, fallback to calculated from array
+    const totalContracts = amcStats?.totalContracts ?? amcContracts.length;
+    const activeContracts = amcStats?.activeContracts ?? amcContracts.filter(c => c.status === 'Active').length;
+    console.log('DEBUG - AMC Stats final:', { totalContracts, activeContracts, amcStats, contractsLength: amcContracts.length });
     return {
-      total: contractsArray.length,
-      active: contractsArray.filter(c => c.status === 'Active').length,
-      expiring: contractsArray.filter(c => c.status === 'Expiring').length,
-      expired: contractsArray.filter(c => c.status === 'Expired').length,
-      totalValue: contractsArray.reduce((sum, c) => sum + (c.amount || 0), 0),
+      total: totalContracts,
+      active: activeContracts,
+      expiring: amcStats?.expiringContracts ?? amcContracts.filter(c => c.status === 'Expiring').length,
+      expired: amcStats?.expiredContracts ?? amcContracts.filter(c => c.status === 'Expired').length,
+      totalValue: amcStats?.totalValue ?? amcContracts.reduce((sum, c) => sum + (c.amount || 0), 0),
     };
-  }, [amcContracts]);
+  }, [amcContracts, amcStats]);
 
   const dynamicVisitStats = useMemo(() => {
-    const visitsArray = Array.isArray(visits) ? visits : [];
+    // Prioritize API stats, fallback to calculated from array
+    const totalVisits = visitStats?.totalVisits ?? visits.length;
+    const scheduledVisits = visitStats?.scheduled ?? visits.filter(v => v.status === 'Scheduled').length;
+    const completedVisits = visitStats?.completed ?? visits.filter(v => v.status === 'Completed').length;
+    console.log('DEBUG - Visit Stats final:', { totalVisits, scheduledVisits, completedVisits, visitStats, visitsLength: visits.length });
     return {
-      total: visitsArray.length,
-      scheduled: visitsArray.filter(v => v.status === 'Scheduled').length,
-      completed: visitsArray.filter(v => v.status === 'Completed').length,
-      cancelled: visitsArray.filter(v => v.status === 'Cancelled').length,
+      total: totalVisits,
+      scheduled: scheduledVisits,
+      completed: completedVisits,
+      cancelled: visitStats?.cancelled ?? visits.filter(v => v.status === 'Cancelled').length,
     };
-  }, [visits]);
+  }, [visits, visitStats]);
 
   // AI insight text
   const aiInsightText = aiInsight?.insight ||
@@ -385,9 +387,9 @@ const ServiceDashboardPage = ({ onNavigate }) => {
         />
         <KPICard
           label="AMC Contracts"
-          value={dynamicAmcStats.active}
+          value={dynamicAmcStats.total}
           icon={Shield}
-          sub={`${dynamicAmcStats.total} total contracts`}
+          sub={`${dynamicAmcStats.active} active contracts`}
           variant="purple"
         />
         <KPICard

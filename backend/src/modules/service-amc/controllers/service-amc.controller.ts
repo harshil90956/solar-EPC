@@ -274,9 +274,13 @@ export class ServiceAmcController {
 
   @UseGuards(JwtAuthGuard, TenantGuard, PermissionGuard)
 
-  getContractStats() {
+  getContractStats(@Request() req: any) {
 
-    return this.amcContractsService.getStats();
+    const tenantId = req.tenant?.id;
+
+    console.log('DEBUG - contracts/stats endpoint, tenantId:', tenantId);
+
+    return this.amcContractsService.getStats(tenantId);
 
   }
 
@@ -462,9 +466,13 @@ export class ServiceAmcController {
 
   @UseGuards(JwtAuthGuard, TenantGuard, PermissionGuard)
 
-  getVisitStats() {
+  getVisitStats(@Request() req: any) {
 
-    return this.visitsService.getStats();
+    const tenantId = req.tenant?.id;
+
+    console.log('DEBUG - visits/stats endpoint, tenantId:', tenantId);
+
+    return this.visitsService.getStats(tenantId);
 
   }
 
