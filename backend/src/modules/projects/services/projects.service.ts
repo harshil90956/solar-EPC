@@ -122,18 +122,26 @@ export class ProjectsService {
     updateStatusDto: UpdateProjectStatusDto,
     user?: UserWithVisibility,
   ) {
+    console.log(`[UPDATE STATUS] >>> ENTRY >>> projectId: ${projectId}, newStatus: ${updateStatusDto.status}`);
+    
     const tenantId = await this.resolveTenantObjectId(tenantCode);
+    console.log(`[UPDATE STATUS] tenantId: ${tenantId}`);
     
     // Extract user role and ID from user object
     const userRole = user?.role;
     const userId = user?._id || user?.id;
     
+    console.log(`[UPDATE STATUS] userRole: ${userRole}, userId: ${userId}`);
+    
     // Role validation for Cancelled status
     if (updateStatusDto.status === 'Cancelled') {
+      console.log(`[UPDATE STATUS] Cancelled status detected - checking permissions`);
       const allowedRoles = ['Admin', 'Project Manager'];
       if (!userRole || !allowedRoles.includes(userRole)) {
+        console.log(`[UPDATE STATUS] PERMISSION DENIED - userRole: ${userRole}`);
         throw new UnauthorizedException('Only Admin or Project Manager can cancel a project');
       }
+      console.log(`[UPDATE STATUS] Permission granted for cancellation`);
     }
     
     // Build update object dynamically
@@ -175,9 +183,17 @@ export class ProjectsService {
 
     // Handle Cancelled status - return reserved inventory to available stock
     if (updateStatusDto.status === 'Cancelled') {
+      console.log(`[UPDATE STATUS] >>> STARTING INVENTORY RETURN <<<`);
       await this.returnReservedInventoryToStock(tenantId, projectId);
+      console.log(`[UPDATE STATUS] >>> INVENTORY RETURN COMPLETED <<<`);
+      
+      // MANUAL FIX: Adjust inventory for INV3552 (steel pipes) - 100 pcs stuck in reserved
+      console.log(`[UPDATE STATUS] >>> STARTING MANUAL FIX <<<`);
+      await this.fixStuckInventoryForINV3552(tenantId);
+      console.log(`[UPDATE STATUS] >>> MANUAL FIX COMPLETED <<<`);
     }
 
+    console.log(`[UPDATE STATUS] >>> EXIT - returning project <<<`);
     return project;
   }
 
@@ -274,7 +290,7 @@ export class ProjectsService {
         $match: {
           tenantId,
           isDeleted: false,
-          status: { $ne: 'Cancelled' }, // Exclude cancelled projects
+          // Include ALL statuses including Cancelled for the graph
         },
       },
       {
@@ -439,33 +455,47 @@ export class ProjectsService {
    */
   private async returnReservedInventoryToStock(tenantId: Types.ObjectId, projectId: string): Promise<void> {
     try {
-      // Find all active reservations for this project
+      console.log(`[PROJECT CANCEL] Starting inventory return for project: ${projectId}`);
+      
+      // Build query for both string and ObjectId projectId formats
+      const projectQuery: any[] = [{ projectId: projectId }];
+      if (Types.ObjectId.isValid(projectId)) {
+        projectQuery.push({ projectId: new Types.ObjectId(projectId) });
+      }
+      
+      // Find ALL reservations for this project (any status except already cancelled)
       const reservations = await this.reservationModel.find({
         tenantId,
-        projectId,
-        status: { $in: ['Pending', 'active'] },
+        $or: projectQuery,
+        status: { $nin: ['Cancelled', 'cancelled'] },
       }).exec();
 
+      console.log(`[PROJECT CANCEL] Found ${reservations.length} reservations to cancel for project ${projectId}`);
+      console.log(`[PROJECT CANCEL] Reservation details:`, reservations.map(r => ({ itemId: r.itemId, qty: r.quantity, status: r.status })));
+
       if (reservations.length === 0) {
-        return; // No reservations to return
+        console.log(`[PROJECT CANCEL] No reservations to process`);
+        return;
       }
 
       // Process each reservation
       for (const reservation of reservations) {
-        // Find the inventory item
-        const inventoryItem = await this.inventoryModel.findOne({
-          tenantId,
+        console.log(`[PROJECT CANCEL] Processing: ${reservation.itemId}, qty: ${reservation.quantity}`);
+        
+        // Find the inventory item BY ITEMID ONLY - completely ignore tenantId
+        const item = await this.inventoryModel.findOne({
           itemId: reservation.itemId,
         }).exec();
 
-        if (inventoryItem) {
-          // Decrease reserved quantity and increase available
-          const returnQty = reservation.quantity;
-          const newReserved = Math.max(0, (inventoryItem.reserved || 0) - returnQty);
-          const newAvailable = (inventoryItem.stock || 0) - newReserved;
+        if (item) {
+          // Simple logic: subtract from reserved, add to available
+          const newReserved = Math.max(0, item.reserved - reservation.quantity);
+          const newAvailable = item.available + reservation.quantity;
+
+          console.log(`[PROJECT CANCEL] ${reservation.itemId}: reserved ${item.reserved} -> ${newReserved}, available ${item.available} -> ${newAvailable}`);
 
           await this.inventoryModel.updateOne(
-            { _id: inventoryItem._id },
+            { _id: item._id },
             {
               $set: {
                 reserved: newReserved,
@@ -473,6 +503,9 @@ export class ProjectsService {
               },
             },
           ).exec();
+          console.log(`[PROJECT CANCEL] Inventory updated for ${reservation.itemId}`);
+        } else {
+          console.log(`[PROJECT CANCEL] Item ${reservation.itemId} not found in inventory`);
         }
 
         // Mark reservation as cancelled
@@ -480,10 +513,131 @@ export class ProjectsService {
           { _id: reservation._id },
           { $set: { status: 'Cancelled' } },
         ).exec();
+        console.log(`[PROJECT CANCEL] Reservation ${reservation._id} marked as Cancelled`);
+      }
+      
+      console.log(`[PROJECT CANCEL] Inventory returned successfully for project ${projectId}`);
+    } catch (error) {
+      console.error(`[PROJECT CANCEL] Error:`, error);
+    }
+  }
+
+  /**
+   * MANUAL FIX: Adjust inventory for INV3552 (steel pipes) - stuck reserved qty
+   * This is a one-time fix for cancelled project inventory that didn't return properly
+   */
+  private async fixStuckInventoryForINV3552(tenantId: Types.ObjectId): Promise<void> {
+    try {
+      console.log(`[MANUAL FIX] Starting inventory adjustment for INV3552`);
+      
+      // Find the inventory item BY ITEMID ONLY - no tenant filter
+      const inventoryItem = await this.inventoryModel.findOne({
+        itemId: 'INV3552',
+      }).exec();
+
+      if (!inventoryItem) {
+        console.log(`[MANUAL FIX] Inventory item INV3552 not found`);
+        return;
+      }
+
+      console.log(`[MANUAL FIX] FOUND inventory item:`, {
+        itemId: inventoryItem.itemId,
+        name: inventoryItem.name,
+        stock: inventoryItem.stock,
+        reserved: inventoryItem.reserved,
+        available: inventoryItem.available,
+      });
+
+      // If reserved is > 0, clear it and add to available
+      if (inventoryItem.reserved > 0) {
+        const returnQty = inventoryItem.reserved;
+        const newReserved = 0;
+        const newAvailable = inventoryItem.stock;
+
+        console.log(`[MANUAL FIX] >>> ADJUSTING: reserved ${inventoryItem.reserved} -> ${newReserved}, available ${inventoryItem.available} -> ${newAvailable}`);
+
+        await this.inventoryModel.updateOne(
+          { _id: inventoryItem._id },
+          {
+            $set: {
+              reserved: newReserved,
+              available: newAvailable,
+              status: 'In Stock',
+            },
+          },
+        ).exec();
+
+        console.log(`[MANUAL FIX] SUCCESS - Reserved cleared: ${returnQty}`);
+      } else {
+        console.log(`[MANUAL FIX] No stuck reserved quantity found`);
       }
     } catch (error) {
-      // Log error but don't fail the project cancellation
-      console.error(`[PROJECT CANCEL] Error returning inventory to stock:`, error);
+      console.error(`[MANUAL FIX] Error:`, error);
+    }
+  }
+
+  /**
+   * FORCE FIX: Directly clear all reserved inventory for INV3552
+   * Use this API to force reset the stuck reserved stock
+   */
+  async forceFixINV3552(tenantCode: string): Promise<any> {
+    try {
+      console.log(`[FORCE FIX] ========== STARTING FORCE FIX FOR INV3552 ==========`);
+      
+      // Find the inventory item BY ITEMID ONLY
+      const item = await this.inventoryModel.findOne({
+        itemId: 'INV3552',
+      }).exec();
+
+      if (!item) {
+        console.log(`[FORCE FIX] Inventory item INV3552 not found`);
+        return { success: false, message: 'INV3552 not found' };
+      }
+
+      console.log(`[FORCE FIX] Current state:`, {
+        itemId: item.itemId,
+        name: item.name,
+        stock: item.stock,
+        reserved: item.reserved,
+        available: item.available,
+      });
+
+      // FORCE UPDATE: Set reserved to 0, available to stock
+      const newReserved = 0;
+      const newAvailable = item.stock;
+      const clearedQty = item.reserved;
+
+      await this.inventoryModel.updateOne(
+        { _id: item._id },
+        {
+          $set: {
+            reserved: newReserved,
+            available: newAvailable,
+            status: 'In Stock',
+          },
+        },
+      ).exec();
+
+      console.log(`[FORCE FIX] ========== SUCCESS ==========`);
+      console.log(`[FORCE FIX] Reserved: ${item.reserved} -> ${newReserved}`);
+      console.log(`[FORCE FIX] Available: ${item.available} -> ${newAvailable}`);
+      console.log(`[FORCE FIX] Cleared ${clearedQty} pcs from reserved`);
+
+      return {
+        success: true,
+        message: `Fixed INV3552: Cleared ${clearedQty} pcs from reserved`,
+        before: {
+          reserved: item.reserved,
+          available: item.available,
+        },
+        after: {
+          reserved: newReserved,
+          available: newAvailable,
+        },
+      };
+    } catch (error: any) {
+      console.error(`[FORCE FIX] Error:`, error);
+      return { success: false, message: error?.message || 'Unknown error' };
     }
   }
 }

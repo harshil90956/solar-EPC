@@ -238,6 +238,25 @@ export class PermissionService implements OnModuleInit {
     return role.permissions.some((p: any) => p.key === permissionKey);
   }
 
+  // Alias for hasPermission - used by controllers
+  async checkPermission(roleId: string, permissionKey: string, tenantId?: string): Promise<boolean> {
+    // Admin/Super Admin always have permission
+    const role = await this.findRoleByIdOrName(roleId);
+    if (role?.name === 'Admin' || role?.name === 'Super Admin') {
+      return true;
+    }
+    if (!role) return false;
+    return role.permissions.some((p: any) => p.key === permissionKey);
+  }
+
+  // Validate action throws ForbiddenException if permission is not granted
+  async validateAction(roleId: string, permissionKey: string, tenantId?: string): Promise<void> {
+    const hasPerm = await this.checkPermission(roleId, permissionKey, tenantId);
+    if (!hasPerm) {
+      throw new Error(`Permission denied: ${permissionKey} required`);
+    }
+  }
+
   // ==================== COLUMN PERMISSION METHODS ====================
 
   async seedDefaultColumnPermissions(): Promise<void> {
@@ -316,25 +335,6 @@ export class PermissionService implements OnModuleInit {
   async isColumnVisible(roleId: string, module: string, columnName: string): Promise<boolean> {
     const perm = await this.roleColumnPermissionModel.findOne({ roleId, module, columnName }).exec();
     return perm?.isVisible ?? true; // Default to visible if not set
-  }
-
-  // ==================== HELPER METHODS FOR CONTROLLERS ====================
-
-  async checkPermission(roleId: string, permissionKey: string, tenantId?: string): Promise<boolean> {
-    // Admin/Super Admin always have permission
-    const role = await this.findRoleByIdOrName(roleId);
-    if (role?.name === 'Admin' || role?.name === 'Super Admin') {
-      return true;
-    }
-    if (!role) return false;
-    return role.permissions.some((p: any) => p.key === permissionKey);
-  }
-
-  async validateAction(roleId: string, permissionKey: string, tenantId?: string): Promise<void> {
-    const hasPerm = await this.checkPermission(roleId, permissionKey, tenantId);
-    if (!hasPerm) {
-      throw new Error(`Permission denied: ${permissionKey} required`);
-    }
   }
 
   async copyColumnPermissions(sourceRoleId: string, targetRoleId: string): Promise<void> {

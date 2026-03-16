@@ -86,6 +86,11 @@ export const autoGenerateAmcContracts = async () => {
   return response;
 };
 
+export const removeDuplicateContracts = async () => {
+  const response = await api.post(`${BASE_PATH}/contracts/remove-duplicates`);
+  return response;
+};
+
 // ============ AMC VISITS ============
 
 export const getVisits = async (params = {}) => {
@@ -144,6 +149,8 @@ export default {
   updateAmcContract,
   deleteAmcContract,
   getAmcContractStats,
+  autoGenerateAmcContracts,
+  removeDuplicateContracts,
   // AMC Visits
   getVisits,
   getVisit,
