@@ -194,6 +194,7 @@ export class AmcContractsService {
   }
 
   async getStats(tenantId?: string): Promise<any> {
+    console.log('DEBUG - AMC getStats called, tenantId:', tenantId);
     const filter: any = { isDeleted: { $ne: true } };
 
     if (tenantId) {
@@ -226,7 +227,7 @@ export class AmcContractsService {
       ]),
     ]);
 
-    return {
+    const result = {
       totalContracts,
       activeContracts,
       expiredContracts,
@@ -234,13 +235,15 @@ export class AmcContractsService {
       totalValue: totalValue[0]?.total || 0,
       statusDistribution: statusCounts.reduce((acc: any, curr: any) => ({ ...acc, [curr._id]: curr.count }), {}),
     };
+    console.log('DEBUG - AMC getStats result:', result);
+    return result;
   }
 
   /**
-   * Get unique customer names from all projects
+   * Get unique customer names from commissioned projects (progress = 100% and status = Commissioned)
    */
   async getCustomersFromProjects(tenantId?: string): Promise<string[]> {
-    const filter: any = { isDeleted: { $ne: true } };
+    const filter: any = { progress: 100, status: 'Commissioned', isDeleted: false };
 
     if (tenantId) {
       if (Types.ObjectId.isValid(tenantId) && tenantId.length === 24) {
@@ -250,7 +253,7 @@ export class AmcContractsService {
       }
     }
 
-    // Get all unique customer names from projects
+    // Get unique customer names from commissioned projects only
     const customers = await this.projectModel
       .distinct('customerName', filter)
       .exec();
