@@ -105,7 +105,7 @@ const InvCard = ({ item, onDragStart, onClick }) => {
       className="glass-card p-3 cursor-grab active:cursor-grabbing hover:border-[var(--primary)]/40 transition-all">
       <div className="flex items-start justify-between mb-1">
         <span className="text-[10px] font-mono text-[var(--accent-light)]">{item.itemId}</span>
-        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: stage?.bg, color: stage?.color }}>{item.category}</span>
+        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium truncate max-w-[100px]" style={{ background: stage?.bg, color: stage?.color }} title={item.name}>{item.name || item.description || 'Unnamed'}</span>
       </div>
       <p className="text-xs font-semibold text-[var(--text-primary)] mb-0.5 leading-tight">{item.name}</p>
       <div className="flex items-center gap-1.5 mb-2">
@@ -633,6 +633,7 @@ const InventoryPage = () => {
       // Refresh inventory
       const data = await api.get('/items', { headers: { 'x-tenant-id': TENANT_ID } });
       const itemsArray = Array.isArray(data) ? data : (data.data || []);
+      // NO FILTER - show all items including 0 stock (Out of Stock items)
       const inventoryData = itemsArray.map(item => ({
         ...item,
         _id: item._id || item.id, // Ensure _id is preserved
@@ -712,24 +713,21 @@ const InventoryPage = () => {
           itemsArray = data.items;
         }
 
-        // Map items to inventory format (description -> name, add reserved/available)
-        // Filter out items with 0 stock to avoid duplicate entries after stock-in
-        const inventoryData = itemsArray
-          .filter(item => (item.stock || 0) > 0) // Only keep items with stock > 0
-          .map(item => {
-            const id = item._id || item.id;
-            if (!id) {
-              console.warn('Item _id is missing:', item.itemId || item.name || 'Unknown');
-            }
-            return {
-              ...item,
-              _id: id,
-              name: item.description || item.name || 'Unnamed Item',
-              reserved: item.reserved || 0,
-              available: (item.stock || 0) - (item.reserved || 0),
-              lastUpdated: item.updatedAt || new Date().toISOString().split('T')[0]
-            };
-          });
+        // Map items to inventory format - NO FILTER, show all items including 0 stock
+        const inventoryData = itemsArray.map(item => {
+          const id = item._id || item.id;
+          if (!id) {
+            console.warn('Item _id is missing:', item.itemId || item.name || 'Unknown');
+          }
+          return {
+            ...item,
+            _id: id,
+            name: item.description || item.name || 'Unnamed Item',
+            reserved: item.reserved || 0,
+            available: (item.stock || 0) - (item.reserved || 0),
+            lastUpdated: item.updatedAt || new Date().toISOString().split('T')[0]
+          };
+        });
 
         setInventory(inventoryData);
         setError(null);
@@ -875,9 +873,9 @@ const InventoryPage = () => {
     return Object.values(grouped);
   }, [filtered]);
 
-  // Filter for table view - only show items with stock > 0 (hide empty Out of Stock entries)
+  // NO FILTER for table view - show all items including 0 stock (Out of Stock items)
   const filteredWithStock = useMemo(() => {
-    return filtered.filter(item => (item.stock || 0) > 0);
+    return filtered;
   }, [filtered]);
 
   const paginated = filteredWithStock.slice((page - 1) * pageSize, page * pageSize);
@@ -926,45 +924,81 @@ const InventoryPage = () => {
   };
 
   const handleStockIn = async () => {
-    if (!stockInForm.itemId || !stockInForm.quantity) return;
+    if (!stockInForm.itemId || !stockInForm.quantity || !stockInForm.warehouse || !stockInForm.receivedDate) return;
 
     setSubmitting(true);
     try {
-      // Find item by itemId to get _id
-      const item = inventory.find(i => i.itemId === stockInForm.itemId || i._id === stockInForm.itemId);
-      if (!item || !item._id) {
-        alert('Item not found');
-        setSubmitting(false);
-        return;
+      // Check if item already exists in the SELECTED warehouse
+      const existingItemInWarehouse = inventory.find(i => 
+        i.itemId === stockInForm.itemId && i.warehouse === stockInForm.warehouse
+      );
+
+      if (existingItemInWarehouse && existingItemInWarehouse._id) {
+        // UPDATE EXISTING ITEM in same warehouse - add stock
+        const newStock = (existingItemInWarehouse.stock || 0) + parseInt(stockInForm.quantity);
+        
+        const response = await api.patch(`/items/${existingItemInWarehouse._id}`, {
+          stock: newStock,
+          poReference: stockInForm.poReference,
+          receivedDate: stockInForm.receivedDate,
+          remarks: stockInForm.remarks,
+          status: newStock > 0 ? 'In Stock' : 'Out of Stock'
+        }, { headers: { 'x-tenant-id': TENANT_ID } });
+
+        const updatedItemData = response.data || response;
+        
+        // Update inventory state - replace the existing item
+        setInventory(prev => prev.map(i => 
+          i._id === existingItemInWarehouse._id 
+            ? {
+                ...i,
+                ...updatedItemData,
+                stock: newStock,
+                available: newStock - (i.reserved || 0),
+                lastUpdated: new Date().toISOString().split('T')[0]
+              }
+            : i
+        ));
+
+        alert(`Stock updated successfully! Added ${stockInForm.quantity} units to existing item in ${stockInForm.warehouse}.`);
+      } else {
+        // CREATE NEW ITEM - different warehouse or new item
+        const baseItem = inventory.find(i => i.itemId === stockInForm.itemId);
+        
+        const newItemData = {
+          itemId: stockInForm.itemId,
+          description: baseItem?.name || baseItem?.description || 'Unnamed Item',
+          category: baseItem?.category || '',
+          unit: baseItem?.unit || 'pcs',
+          stock: parseInt(stockInForm.quantity),
+          reserved: 0,
+          minStock: baseItem?.minStock || 0,
+          rate: baseItem?.rate || 0,
+          warehouse: stockInForm.warehouse,
+          poReference: stockInForm.poReference,
+          receivedDate: stockInForm.receivedDate,
+          remarks: stockInForm.remarks,
+          status: 'In Stock'
+        };
+
+        const response = await api.post('/items', newItemData, { headers: { 'x-tenant-id': TENANT_ID } });
+        const createdItem = response.data || response;
+        
+        const newItem = {
+          ...createdItem,
+          _id: createdItem._id || createdItem.id,
+          name: createdItem.description || createdItem.name || 'Unnamed Item',
+          reserved: 0,
+          available: parseInt(stockInForm.quantity),
+          lastUpdated: new Date().toISOString().split('T')[0]
+        };
+
+        setInventory(prev => [...prev, newItem]);
+        alert(`Stock added successfully! Created new entry in ${stockInForm.warehouse}.`);
       }
-
-      const response = await api.post(`/items/${item._id}/stock-in`, {
-        quantity: parseInt(stockInForm.quantity),
-        poReference: stockInForm.poReference,
-        receivedDate: stockInForm.receivedDate,
-        remarks: stockInForm.remarks,
-        warehouse: stockInForm.warehouse,
-      }, { headers: { 'x-tenant-id': TENANT_ID } });
-
-      // Reload all inventory to reflect any new warehouse records created
-      const allItems = await api.get('/items');
-      let itemsArray = Array.isArray(allItems) ? allItems : (allItems.data || []);
-      // Filter out 0-stock items to avoid duplicate entries
-      const inventoryData = itemsArray
-        .filter(i => (i.stock || 0) > 0)
-        .map(i => ({
-          ...i,
-          _id: i._id || i.id,
-          name: i.description || i.name || 'Unnamed Item',
-          reserved: i.reserved || 0,
-          available: (i.stock || 0) - (i.reserved || 0),
-          lastUpdated: i.updatedAt || new Date().toISOString().split('T')[0],
-        }));
-      setInventory(inventoryData);
 
       setStockIn(false);
       setStockInForm({ itemId: '', quantity: '', poId: '', poReference: '', receivedDate: '', remarks: '', warehouse: '' });
-      alert('Stock added successfully!');
     } catch (err) {
       alert(err.message || 'Failed to add stock. Please try again.');
     } finally {
@@ -1360,7 +1394,7 @@ const InventoryPage = () => {
 
   return (
     <div className="animate-fade-in space-y-5">
-      <div className="page-header flex-col sm:flex-row gap-3">
+      <div className="page-header flex-col sm:flex-row sm:justify-between gap-3">
         <div>
           <h1 className="heading-page text-lg sm:text-xl">Inventory Management</h1>
           <p className="text-xs text-[var(--text-muted)] mt-0.5">Stock levels · reservations · low-stock alerts · warehouses</p>
@@ -3290,7 +3324,7 @@ const InventoryPage = () => {
       <Modal open={showStockIn} onClose={() => setStockIn(false)} title="Stock In — Receive Materials"
         footer={<div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={() => setStockIn(false)}>Cancel</Button>
-          <Button onClick={handleStockIn} disabled={submitting || !stockInForm.poId || !stockInForm.itemId || !stockInForm.quantity}>
+          <Button onClick={handleStockIn} disabled={submitting || !stockInForm.poId || !stockInForm.itemId || !stockInForm.quantity || !stockInForm.warehouse || !stockInForm.receivedDate}>
             {submitting ? 'Processing...' : <><ArrowUp size={13} /> Confirm Receipt</>}
           </Button>
         </div>}>
@@ -3349,15 +3383,15 @@ const InventoryPage = () => {
             </div>
           </FormField>
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="Quantity Received"><Input type="number" placeholder="100" value={stockInForm.quantity} onChange={e => setStockInForm(f => ({ ...f, quantity: e.target.value }))} /></FormField>
-            <FormField label="Warehouse">
+            <FormField label="Quantity Received" required><Input type="number" placeholder="100" value={stockInForm.quantity} onChange={e => setStockInForm(f => ({ ...f, quantity: e.target.value }))} /></FormField>
+            <FormField label="Warehouse" required>
               <Select value={stockInForm.warehouse} onChange={e => setStockInForm(f => ({ ...f, warehouse: e.target.value }))}>
                 <option value="">Select Warehouse</option>
                 {warehouses.map(w => <option key={w}>{w}</option>)}
               </Select>
             </FormField>
           </div>
-          <FormField label="Received Date"><Input type="date" value={stockInForm.receivedDate} onChange={e => setStockInForm(f => ({ ...f, receivedDate: e.target.value }))} /></FormField>
+          <FormField label="Received Date" required><Input type="date" value={stockInForm.receivedDate} onChange={e => setStockInForm(f => ({ ...f, receivedDate: e.target.value }))} /></FormField>
           <FormField label="Remarks"><Input placeholder="Any notes about the delivery…" value={stockInForm.remarks} onChange={e => setStockInForm(f => ({ ...f, remarks: e.target.value }))} /></FormField>
         </div>
       </Modal>
