@@ -87,7 +87,7 @@ export class LeaveController {
     await this.checkPermission(req, 'leaves.approve');
     const tenantId = req.tenant?.id || 'default';
     const roleId = req.user?.roleId || req.user?.role;
-    await this.hrmPermissionService.validateAction(roleId, 'leaves.approve', tenantId);
+    await this.permissionService.validateAction(roleId, 'leaves.approve', tenantId);
 
     const data = await this.leaveService.approve(id, approveDto, tenantId);
     return { success: true, data };
@@ -102,7 +102,7 @@ export class LeaveController {
     await this.checkPermission(req, 'leaves.reject');
     const tenantId = req.tenant?.id || 'default';
     const roleId = req.user?.roleId || req.user?.role;
-    await this.hrmPermissionService.validateAction(roleId, 'leaves.approve', tenantId);
+    await this.permissionService.validateAction(roleId, 'leaves.approve', tenantId);
 
     const data = await this.leaveService.reject(id, updateDto, tenantId);
     return { success: true, data };
