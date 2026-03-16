@@ -4,6 +4,7 @@ import { Model, Types } from 'mongoose';
 import { Dispatch } from '../schemas/dispatch.schema';
 import { Vendor } from '../schemas/vendor.schema';
 import { PurchaseOrder } from '../../procurement/schemas/purchase-order.schema';
+import { Project } from '../../projects/schemas/project.schema';
 import { InventoryService } from '../../inventory/services/inventory.service';
 import { InstallationService } from '../../installation/services/installation.service';
 import { ProcurementService } from '../../procurement/services/procurement.service';
@@ -31,6 +32,8 @@ export class LogisticsService {
     @InjectModel('LogisticsVendor') private vendorModel: Model<Vendor>,
 
     @InjectModel(PurchaseOrder.name) private purchaseOrderModel: Model<PurchaseOrder>,
+
+    @InjectModel(Project.name) private projectModel: Model<Project>,
 
     private readonly inventoryService: InventoryService,
 
@@ -317,6 +320,32 @@ export class LogisticsService {
         console.error(`[LOGISTICS] Error:`, installError.message);
         console.error(`[LOGISTICS] Stack:`, installError.stack);
 
+      }
+
+      // AUTO-UPDATE: Update project status to 'Installation' after delivery
+      try {
+        console.log(`[LOGISTICS] ========== AUTO-UPDATING PROJECT STATUS ==========`);
+        console.log(`[LOGISTICS] Updating project ${dispatch.projectId} status to 'Installation'`);
+        
+        const projectUpdate = await this.projectModel.findOneAndUpdate(
+          { projectId: dispatch.projectId },
+          { 
+            $set: { 
+              status: 'Installation',
+              updatedAt: new Date(),
+            } 
+          },
+          { new: true }
+        ).exec();
+        
+        if (projectUpdate) {
+          console.log(`[LOGISTICS] Project ${dispatch.projectId} status updated to 'Installation' successfully`);
+        } else {
+          console.log(`[LOGISTICS] Project ${dispatch.projectId} not found for status update`);
+        }
+      } catch (projectError: any) {
+        console.error(`[LOGISTICS] Failed to update project status:`, projectError.message);
+        // Don't fail the dispatch update if project update fails
       }
 
     }

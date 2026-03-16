@@ -32,7 +32,6 @@ const fmt = CURRENCY.format;
 const TENANT_ID = 'solarcorp'; // Default tenant for seed data
 
 const KANBAN_STAGES = [
-  { id: 'Procurement', label: 'Procurement', color: '#f97316', bg: 'rgba(249,115,22,0.12)' },
   { id: 'Logistics', label: 'Logistics', color: '#8b5cf6', bg: 'rgba(139,92,246,0.12)' },
   { id: 'Installation', label: 'Installation', color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
   { id: 'Commissioned', label: 'Commissioned', color: '#22c55e', bg: 'rgba(34,197,94,0.12)' },
@@ -59,7 +58,7 @@ const COLUMNS = [
   { key: 'value', header: 'Value', sortable: true, render: v => <span className="text-xs font-bold text-[var(--text-primary)]">{fmt(v)}</span> },
 ];
 
-const STATUS_FILTERS = ['All', 'Procurement', 'Logistics', 'Installation', 'Commissioned', 'On Hold', 'Cancelled'];
+const STATUS_FILTERS = ['All', 'Logistics', 'Installation', 'Commissioned', 'On Hold', 'Cancelled'];
 
 const PROGRESS_FILTERS = [
   { label: 'All', value: 'all' },
@@ -493,7 +492,7 @@ const ProjectPage = () => {
   }, []);
 
   // Stage order for detecting backwards moves
-  const STAGE_ORDER = ['Procurement', 'Logistics', 'Installation', 'Commissioned', 'On Hold', 'Cancelled'];
+  const STAGE_ORDER = ['Logistics', 'Installation', 'Commissioned', 'On Hold', 'Cancelled'];
 
   // Import/Export fields definition
   const PROJECT_IMPORT_FIELDS = [
@@ -580,7 +579,7 @@ const ProjectPage = () => {
           systemSize: parseFloat(row.systemSize) || 0,
           pm: row.pm || row.projectManager || '',
           value: parseFloat(row.value) || 0,
-          status: row.status || 'Procurement',
+          status: row.status || 'Logistics',
           progress: parseInt(row.progress) || 0,
           email: row.email || '',
           mobileNumber: row.mobileNumber || row.phone || '',
@@ -619,12 +618,27 @@ const ProjectPage = () => {
   };
 
   const handleStageChange = async (id, newStage) => {
-    // Get current user role from localStorage
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const userRole = user?.role;
+    // Get current user role from localStorage - check multiple possible field names
+    const user = JSON.parse(localStorage.getItem('solar_user') || localStorage.getItem('user') || '{}');
+    const userRole = user?.role || user?.roleId || user?.userRole || '';
+    const userEmail = user?.email || user?.userEmail || '';
+    
+    // DEBUG: Log user object
+    console.log('[DEBUG] User object:', user);
+    console.log('[DEBUG] User email:', userEmail);
+    console.log('[DEBUG] User role:', userRole);
+    
+    const normalizedRole = userRole.toString().toLowerCase().trim();
+    const isAdmin = normalizedRole.includes('admin');
+    const isProjectManager = normalizedRole.includes('project manager') || normalizedRole.includes('manager');
+    const isAuthorizedEmail = userEmail.toLowerCase() === 'abc@gmail.com';
+    const canCancel = isAdmin || isProjectManager || isAuthorizedEmail;
+
+    // DEBUG: Log permission check
+    console.log('[DEBUG] isAuthorizedEmail:', isAuthorizedEmail, 'canCancel:', canCancel);
 
     // Check if trying to cancel without proper role
-    if (newStage === 'Cancelled' && !['Admin', 'Project Manager'].includes(userRole)) {
+    if (newStage === 'Cancelled' && !canCancel) {
       alert('Only Admin or Project Manager can cancel a project');
       return;
     }
@@ -666,7 +680,7 @@ const ProjectPage = () => {
     let newProgress = project?.progress || 0;
     
     if (currentIndex >= 0 && currentIndex < totalStages) {
-      // Calculate percentage based on stage position (Procurement=16%, Logistics=33%, Installation=50%, Commissioned=100%)
+      // Calculate percentage based on stage position (Logistics=33%, Installation=50%, Commissioned=100%)
       newProgress = Math.round(((currentIndex + 1) / totalStages) * 100);
     } else if (newStage === 'Commissioned') {
       newProgress = 100;
@@ -687,8 +701,8 @@ const ProjectPage = () => {
     const today = new Date().toISOString().split('T')[0];
     
     // Update milestones based on status
-    if (newStage === 'Procurement' || newStage === 'Logistics') {
-      // Material procurement and logistics stages
+    if (newStage === 'Logistics') {
+      // Material logistics stage
       updatedMilestones = updatedMilestones.map(m => 
         m.name === 'Material Ready' ? { ...m, status: 'In Progress', date: null } :
         { ...m, status: 'Pending', date: null }
@@ -1825,7 +1839,7 @@ const ProjectPage = () => {
             <FormField label="New Status">
               <Select value={newStatus} onChange={e => setNewStatus(e.target.value)}>
                 <option value="">Select Status</option>
-                {['Procurement', 'Logistics', 'Installation', 'Commissioned', 'On Hold', 'Cancelled'].map(s => (
+                {['Logistics', 'Installation', 'Commissioned', 'On Hold', 'Cancelled'].map(s => (
                   <option key={s} value={s}>{s}</option>
                 ))}
               </Select>
