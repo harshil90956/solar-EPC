@@ -40,7 +40,7 @@ export class PayrollController {
     await this.checkPermission(req, 'payroll.generate');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const roleId = req.user?.roleId || req.user?.role;
-    await this.permissionService.validateAction(roleId, 'payroll.manage', tenantId);
+    await this.hrmPermissionService.validateAction(roleId, 'payroll.manage', tenantId);
     
     const data = await this.payrollService.generate(generateDto, tenantId, req.user);
     return { success: true, data };
@@ -57,7 +57,7 @@ export class PayrollController {
     await this.checkPermission(req, 'payroll.generate');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const roleId = req.user?.roleId || req.user?.role;
-    await this.permissionService.validateAction(roleId, 'payroll.manage', tenantId);
+    await this.hrmPermissionService.validateAction(roleId, 'payroll.manage', tenantId);
     
     const data = await this.payrollService.generateBulk(employeeIds, month, year, tenantId, req.user);
     return { success: true, data };
@@ -70,7 +70,7 @@ export class PayrollController {
     const roleId = req.user?.roleId || req.user?.role;
     
     // Non-admin/HR users can only see their own payroll if they don't have full access
-    const hasFullAccess = await this.permissionService.checkPermission(roleId, 'payroll.view', tenantId);
+    const hasFullAccess = await this.hrmPermissionService.checkPermission(roleId, 'payroll.view', tenantId);
     
     const targetEmployeeId = hasFullAccess ? query.employeeId : req.user.sub;
 
@@ -111,7 +111,7 @@ export class PayrollController {
     await this.checkPermission(req, 'payroll.edit');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const roleId = req.user?.roleId || req.user?.role;
-    await this.permissionService.validateAction(roleId, 'payroll.approve', tenantId);
+    await this.hrmPermissionService.validateAction(roleId, 'payroll.approve', tenantId);
     
     const data = await this.payrollService.markAsPaid(id, markDto, tenantId, req.user);
     return { success: true, data };
@@ -127,7 +127,7 @@ export class PayrollController {
     
     // Check ownership or access
     if (data.employeeId?.toString() !== req.user.sub) {
-      await this.permissionService.validateAction(roleId, 'payroll.view', tenantId);
+      await this.hrmPermissionService.validateAction(roleId, 'payroll.view', tenantId);
     }
     
     return { success: true, data };
@@ -142,7 +142,7 @@ export class PayrollController {
     // Check ownership or access
     if (data.employeeId?.toString() !== req.user.sub) {
       const roleId = req.user?.roleId || req.user?.role;
-      await this.permissionService.validateAction(roleId, 'payroll.view', tenantId);
+      await this.hrmPermissionService.validateAction(roleId, 'payroll.view', tenantId);
     }
     
     return { success: true, data };
@@ -157,7 +157,7 @@ export class PayrollController {
     await this.checkPermission(req, 'payroll.edit');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const roleId = req.user?.roleId || req.user?.role;
-    await this.permissionService.validateAction(roleId, 'payroll.manage', tenantId);
+    await this.hrmPermissionService.validateAction(roleId, 'payroll.manage', tenantId);
     
     const data = await this.payrollService.update(id, updateDto, tenantId, req.user);
     return { success: true, data };
@@ -169,7 +169,7 @@ export class PayrollController {
     await this.checkPermission(req, 'payroll.delete');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const roleId = req.user?.roleId || req.user?.role;
-    await this.permissionService.validateAction(roleId, 'payroll.manage', tenantId);
+    await this.hrmPermissionService.validateAction(roleId, 'payroll.manage', tenantId);
     
     await this.payrollService.delete(id, tenantId, req.user);
     return { success: true, message: 'Payroll record deleted successfully' };

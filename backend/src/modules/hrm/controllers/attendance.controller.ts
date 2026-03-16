@@ -40,7 +40,7 @@ export class AttendanceController {
     await this.checkPermission(req, 'attendance.checkin');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const roleId = req.user?.roleId || req.user?.role;
-    await this.permissionService.validateAction(roleId, 'attendance.checkin_checkout', tenantId);
+    await this.hrmPermissionService.validateAction(roleId, 'attendance.checkin_checkout', tenantId);
     
     const data = await this.attendanceService.checkIn(checkInDto, tenantId, req.user);
     return { success: true, data };
@@ -52,7 +52,7 @@ export class AttendanceController {
     await this.checkPermission(req, 'attendance.checkout');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const roleId = req.user?.roleId || req.user?.role;
-    await this.permissionService.validateAction(roleId, 'attendance.checkin_checkout', tenantId);
+    await this.hrmPermissionService.validateAction(roleId, 'attendance.checkin_checkout', tenantId);
     
     const data = await this.attendanceService.checkOut(checkOutDto, tenantId, req.user);
     return { success: true, data };
@@ -65,7 +65,7 @@ export class AttendanceController {
     const roleId = req.user?.roleId || req.user?.role;
     
     // Check if user has permission to view all attendance
-    const canViewAll = await this.permissionService.checkPermission(roleId, 'attendance.view_all', tenantId);
+    const canViewAll = await this.hrmPermissionService.checkPermission(roleId, 'attendance.view_all', tenantId);
     
     if (canViewAll) {
       const data = await this.attendanceService.findAll(
@@ -79,7 +79,7 @@ export class AttendanceController {
     }
     
     // Fallback: Check if allowed to see personal attendance
-    const canViewSelf = await this.permissionService.checkPermission(roleId, 'attendance.view_self', tenantId);
+    const canViewSelf = await this.hrmPermissionService.checkPermission(roleId, 'attendance.view_self', tenantId);
     if (!canViewSelf) {
       throw new ForbiddenException('Access denied for attendance records');
     }
@@ -126,7 +126,7 @@ export class AttendanceController {
     await this.checkPermission(req, 'attendance.edit');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const roleId = req.user?.roleId || req.user?.role;
-    await this.permissionService.validateAction(roleId, 'attendance.manage', tenantId);
+    await this.hrmPermissionService.validateAction(roleId, 'attendance.manage', tenantId);
 
     const data = await this.attendanceService.update(id, updateData, tenantId, req.user);
     return { success: true, data };
@@ -138,7 +138,7 @@ export class AttendanceController {
     await this.checkPermission(req, 'attendance.delete');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const roleId = req.user?.roleId || req.user?.role;
-    await this.permissionService.validateAction(roleId, 'attendance.manage', tenantId);
+    await this.hrmPermissionService.validateAction(roleId, 'attendance.manage', tenantId);
 
     await this.attendanceService.delete(id, tenantId, req.user);
     return { success: true, message: 'Attendance record deleted' };

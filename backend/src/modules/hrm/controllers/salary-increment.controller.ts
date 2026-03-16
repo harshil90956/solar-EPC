@@ -40,7 +40,7 @@ export class SalaryIncrementController {
     await this.checkPermission(req, 'increments.create');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const roleId = req.user?.roleId || req.user?.role;
-    await this.permissionService.validateAction(roleId, 'increments.manage', tenantId);
+    await this.hrmPermissionService.validateAction(roleId, 'increments.manage', tenantId);
     
     const data = await this.incrementService.create(createDto, tenantId, req.user);
     return { success: true, data };
@@ -53,7 +53,7 @@ export class SalaryIncrementController {
     const roleId = req.user?.roleId || req.user?.role;
     
     // Check if user can view all increments or just their own
-    const hasFullAccess = await this.permissionService.checkPermission(roleId, 'increments.view', tenantId);
+    const hasFullAccess = await this.hrmPermissionService.checkPermission(roleId, 'increments.view', tenantId);
     const targetEmployeeId = hasFullAccess ? query.employeeId : req.user.sub;
 
     const data = await this.incrementService.findAll(targetEmployeeId, tenantId, req.user);
@@ -70,7 +70,7 @@ export class SalaryIncrementController {
     
     // Check ownership or full access
     if (data.employeeId?.toString() !== req.user.sub) {
-      await this.permissionService.validateAction(roleId, 'increments.view', tenantId);
+      await this.hrmPermissionService.validateAction(roleId, 'increments.view', tenantId);
     }
     
     return { success: true, data };
@@ -83,7 +83,7 @@ export class SalaryIncrementController {
     const roleId = req.user?.roleId || req.user?.role;
     
     if (employeeId !== req.user.sub) {
-      await this.permissionService.validateAction(roleId, 'increments.view', tenantId);
+      await this.hrmPermissionService.validateAction(roleId, 'increments.view', tenantId);
     }
     
     const data = await this.incrementService.findByEmployeeId(employeeId, tenantId, req.user);
@@ -97,7 +97,7 @@ export class SalaryIncrementController {
     const roleId = req.user?.roleId || req.user?.role;
     
     if (employeeId !== req.user.sub) {
-      await this.permissionService.validateAction(roleId, 'increments.view', tenantId);
+      await this.hrmPermissionService.validateAction(roleId, 'increments.view', tenantId);
     }
     
     const data = await this.incrementService.getIncrementHistory(employeeId, tenantId, req.user);
@@ -111,7 +111,7 @@ export class SalaryIncrementController {
     const roleId = req.user?.roleId || req.user?.role;
     
     if (employeeId !== req.user.sub) {
-      await this.permissionService.validateAction(roleId, 'increments.view', tenantId);
+      await this.hrmPermissionService.validateAction(roleId, 'increments.view', tenantId);
     }
     
     const data = await this.incrementService.getLatestSalary(employeeId, tenantId, req.user);
@@ -127,7 +127,7 @@ export class SalaryIncrementController {
     await this.checkPermission(req, 'increments.edit');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const roleId = req.user?.roleId || req.user?.role;
-    await this.permissionService.validateAction(roleId, 'increments.manage', tenantId);
+    await this.hrmPermissionService.validateAction(roleId, 'increments.manage', tenantId);
     
     const data = await this.incrementService.update(id, updateDto, tenantId, req.user);
     return { success: true, data };
@@ -139,7 +139,7 @@ export class SalaryIncrementController {
     await this.checkPermission(req, 'increments.delete');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const roleId = req.user?.roleId || req.user?.role;
-    await this.permissionService.validateAction(roleId, 'increments.manage', tenantId);
+    await this.hrmPermissionService.validateAction(roleId, 'increments.manage', tenantId);
     
     await this.incrementService.delete(id, tenantId, req.user);
     return { success: true, message: 'Salary increment deleted successfully' };
