@@ -173,6 +173,11 @@ export class ProjectsService {
       throw new NotFoundException(`Project ${projectId} not found`);
     }
 
+    // Handle Cancelled status - return reserved inventory to available stock
+    if (updateStatusDto.status === 'Cancelled') {
+      await this.returnReservedInventoryToStock(tenantId, projectId);
+    }
+
     return project;
   }
 
@@ -427,5 +432,58 @@ export class ProjectsService {
     }
     // If it's not a valid ObjectId, try to find by documentId/projectId
     return null as any;
+  }
+
+  /**
+   * Return reserved inventory to available stock when project is cancelled
+   */
+  private async returnReservedInventoryToStock(tenantId: Types.ObjectId, projectId: string): Promise<void> {
+    try {
+      // Find all active reservations for this project
+      const reservations = await this.reservationModel.find({
+        tenantId,
+        projectId,
+        status: { $in: ['Pending', 'active'] },
+      }).exec();
+
+      if (reservations.length === 0) {
+        return; // No reservations to return
+      }
+
+      // Process each reservation
+      for (const reservation of reservations) {
+        // Find the inventory item
+        const inventoryItem = await this.inventoryModel.findOne({
+          tenantId,
+          itemId: reservation.itemId,
+        }).exec();
+
+        if (inventoryItem) {
+          // Decrease reserved quantity and increase available
+          const returnQty = reservation.quantity;
+          const newReserved = Math.max(0, (inventoryItem.reserved || 0) - returnQty);
+          const newAvailable = (inventoryItem.stock || 0) - newReserved;
+
+          await this.inventoryModel.updateOne(
+            { _id: inventoryItem._id },
+            {
+              $set: {
+                reserved: newReserved,
+                available: newAvailable,
+              },
+            },
+          ).exec();
+        }
+
+        // Mark reservation as cancelled
+        await this.reservationModel.updateOne(
+          { _id: reservation._id },
+          { $set: { status: 'Cancelled' } },
+        ).exec();
+      }
+    } catch (error) {
+      // Log error but don't fail the project cancellation
+      console.error(`[PROJECT CANCEL] Error returning inventory to stock:`, error);
+    }
   }
 }
