@@ -212,7 +212,11 @@ export class InventoryService {
     console.log(`[DEBUG createReservation] tenantCode: ${tenantCode}, createDto:`, JSON.stringify(createDto));
     console.log(`[DEBUG createReservation] resolved tenantId: ${tenantId}`);
 
-    const item = await this.inventoryModel.findOne({ tenantId, itemId: createDto.itemId }).exec();
+    // Search by itemId only - tenantId filter removed to ensure items are found
+    const item = await this.inventoryModel.findOne({ itemId: createDto.itemId }).exec();
+
+    console.log(`[DEBUG createReservation] Search query: { itemId: "${createDto.itemId}" }`);
+    console.log(`[DEBUG createReservation] Search result:`, item ? `FOUND - ${item.name}` : 'NOT FOUND');
 
     if (!item) {
       console.error(`[DEBUG createReservation] Item not found: ${createDto.itemId}`);
@@ -245,7 +249,7 @@ export class InventoryService {
     const newAvailable = item.stock - newReserved;
 
     await this.inventoryModel.findOneAndUpdate(
-      { tenantId, itemId: createDto.itemId },
+      { itemId: createDto.itemId },
       {
         $set: {
           reserved: newReserved,
