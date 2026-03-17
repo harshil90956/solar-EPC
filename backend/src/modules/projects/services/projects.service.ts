@@ -112,6 +112,12 @@ export class ProjectsService {
     user?: UserWithVisibility,
   ) {
     const tenantId = await this.resolveTenantObjectId(tenantCode);
+
+    // Normalize status (frontend may send different casing like CANCELLED)
+    const incomingStatus = updateStatusDto?.status;
+    if (incomingStatus && String(incomingStatus).toLowerCase() === 'cancelled') {
+      (updateStatusDto as any).status = 'Cancelled';
+    }
     
     // Extract user role and ID from user object
     const userRole = user?.role;
@@ -125,33 +131,22 @@ export class ProjectsService {
       }
     }
     
-    // Build update object dynamically
-    const updateData: any = {
-      status: updateStatusDto.status,
-    };
-    
+    // Cancelled needs to be ATOMIC + IDEMPOTENT because it has financial stock impact
+    if (updateStatusDto.status === 'Cancelled') {
+      return this.cancelProjectAndRestoreInventory(tenantId, projectId, updateStatusDto, userId);
+    }
+
+    // Non-cancel updates (no inventory impact)
+    const updateData: any = { status: updateStatusDto.status };
+
     if (updateStatusDto.progress !== undefined) {
       updateData.progress = updateStatusDto.progress;
     }
-    
+
     if (updateStatusDto.milestones !== undefined) {
       updateData.milestones = updateStatusDto.milestones;
     }
-    
-    // Handle Cancelled status timestamp and user
-    if (updateStatusDto.status === 'Cancelled') {
-      updateData.cancelledAt = new Date();
-      // Set cancelledBy if provided in DTO or from user
-      if (updateStatusDto.cancelledBy) {
-        updateData.cancelledBy = updateStatusDto.cancelledBy;
-      } else if (userId) {
-        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
-          ? new Types.ObjectId(userId)
-          : userId;
-        updateData.cancelledBy = objectId;
-      }
-    }
-    
+
     const project = await this.projectModel.findOneAndUpdate(
       { tenantId, projectId },
       { $set: updateData },
@@ -162,15 +157,175 @@ export class ProjectsService {
       throw new NotFoundException(`Project ${projectId} not found`);
     }
 
-    // Handle Cancelled status - return reserved inventory to available stock
-    if (updateStatusDto.status === 'Cancelled') {
-      await this.returnReservedInventoryToStock(tenantId, projectId);
-      
-      // MANUAL FIX: Adjust inventory for INV3552 (steel pipes) - 100 pcs stuck in reserved
-      await this.fixStuckInventoryForINV3552(tenantId);
+    return project;
+  }
+
+  private async cancelProjectAndRestoreInventory(
+    tenantId: Types.ObjectId,
+    projectId: string,
+    updateStatusDto: UpdateProjectStatusDto,
+    userId?: any,
+  ) {
+    const session = await this.projectModel.db.startSession();
+
+    try {
+      await session.withTransaction(async () => {
+        const project = await this.projectModel.findOne({ tenantId, projectId, isDeleted: false }).session(session);
+        if (!project) {
+          throw new NotFoundException(`Project ${projectId} not found`);
+        }
+
+        const updateData: any = { status: 'Cancelled', cancelledAt: new Date() };
+
+        if (updateStatusDto.progress !== undefined) {
+          updateData.progress = updateStatusDto.progress;
+        }
+
+        if (updateStatusDto.milestones !== undefined) {
+          updateData.milestones = updateStatusDto.milestones;
+        }
+
+        if (updateStatusDto.cancelledBy) {
+          updateData.cancelledBy = updateStatusDto.cancelledBy;
+        } else if (userId) {
+          const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
+            ? new Types.ObjectId(userId)
+            : userId;
+          updateData.cancelledBy = objectId;
+        }
+
+        // Idempotency guard: if inventory already restored, we only update status metadata
+        const needsRestore = project.inventoryRestored !== true;
+
+        await this.projectModel.updateOne(
+          { _id: project._id },
+          { $set: updateData },
+          { session },
+        );
+
+        if (!needsRestore) {
+          return;
+        }
+
+        const projectQuery: any[] = [{ projectId: projectId }];
+        if (Types.ObjectId.isValid(projectId)) {
+          projectQuery.push({ projectId: new Types.ObjectId(projectId) });
+        }
+
+        const tenantIdStr = tenantId.toString();
+        const reservations = await this.reservationModel.find({
+          $and: [
+            {
+              $or: [
+                { tenantId },
+                { tenantId: tenantIdStr as any },
+              ],
+            },
+            {
+              $or: projectQuery,
+            },
+          ],
+          status: { $nin: ['Cancelled', 'cancelled'] },
+        } as any).session(session);
+
+        let missingInventoryCount = 0;
+
+        for (const reservation of reservations) {
+          const qty = Number(reservation.quantity || 0);
+          if (!qty || qty <= 0) {
+            await this.reservationModel.updateOne(
+              { _id: reservation._id },
+              { $set: { status: 'Cancelled' } },
+              { session },
+            );
+            continue;
+          }
+
+          // Inventory is stored in Item collection (not Inventory collection)
+          // Item schema: itemId, stock, reserved, tenantId (as string)
+          const item = await this.itemModel.findOne({
+            itemId: reservation.itemId,
+            isDeleted: false,
+            $or: [
+              { tenantId: tenantIdStr },
+              { tenantId: tenantId.toString() },
+            ],
+          } as any).session(session);
+
+          if (!item) {
+            console.warn('PROJECT CANCEL INVENTORY RESTORE - item not found in items collection', {
+              projectId,
+              itemId: reservation.itemId,
+              quantity: qty,
+              tenantId: tenantIdStr,
+            });
+
+            // Do NOT mark reservation cancelled if we couldn't restore inventory.
+            missingInventoryCount += 1;
+            continue;
+          }
+
+          const before = {
+            reserved: item.reserved || 0,
+            stock: item.stock || 0,
+            available: (item.stock || 0) - (item.reserved || 0),
+          };
+
+          // Calculate new values (clamp reserved >= 0, available <= stock)
+          const newReserved = Math.max(0, (item.reserved || 0) - qty);
+          // available is derived: stock - reserved
+
+          await this.itemModel.updateOne(
+            { _id: item._id },
+            {
+              $set: {
+                reserved: newReserved,
+              },
+            },
+            { session },
+          );
+
+          const afterItem = await this.itemModel.findById(item._id).session(session);
+          const after = {
+            reserved: afterItem?.reserved || 0,
+            stock: afterItem?.stock || 0,
+            available: (afterItem?.stock || 0) - (afterItem?.reserved || 0),
+          };
+
+          console.log('PROJECT CANCEL INVENTORY RESTORE', {
+            projectId,
+            itemId: reservation.itemId,
+            quantity: qty,
+            before,
+            after,
+          });
+
+          await this.reservationModel.updateOne(
+            { _id: reservation._id },
+            { $set: { status: 'Cancelled' } },
+            { session },
+          );
+        }
+
+        // Only mark inventory restored if every reservation could be applied.
+        // If some inventory records were missing, keep it false so you can retry.
+        if (missingInventoryCount === 0) {
+          await this.projectModel.updateOne(
+            { _id: project._id },
+            { $set: { inventoryRestored: true, inventoryRestoredAt: new Date() } },
+            { session },
+          );
+        }
+      });
+    } finally {
+      await session.endSession();
     }
 
-    return project;
+    const updated = await this.projectModel.findOne({ tenantId, projectId, isDeleted: false }).exec();
+    if (!updated) {
+      throw new NotFoundException(`Project ${projectId} not found`);
+    }
+    return updated;
   }
 
   async remove(tenantCode: string, projectId: string) {
