@@ -42,6 +42,7 @@ export const usePermissions = (module) => {
   const userRole = user?.role || 'Employee';
   const userRoleId = user?.roleId || user?._id;
   const userPermissions = Array.isArray(user?.permissions) ? user.permissions : [];
+  const isAdminLike = userRole === 'Admin' || userRole === 'Super Admin' || user?.isSuperAdmin;
 
   // Fetch role permissions from API for ALL users with a roleId
   const { data: roleData, isLoading: roleLoading, error: roleError } = useQuery({
@@ -58,12 +59,11 @@ export const usePermissions = (module) => {
           columns: columnsRes.data?.columns || {},
         };
       } catch (error) {
-        console.error('Failed to fetch role permissions:', error);
         // Return empty permissions on error - will fallback to JWT permissions
         return { permissions: [], columns: {} };
       }
     },
-    enabled: !!userRoleId,
+    enabled: Boolean(userRoleId && isAdminLike),
     staleTime: 2 * 60 * 1000, // Cache for 2 minutes
     cacheTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
     refetchOnWindowFocus: false,

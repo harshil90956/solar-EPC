@@ -2,23 +2,24 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import { BaseSchemaDefinition } from '../../../shared/database/base.schema';
 
-export type SurveyDocument = Survey & Document;
+export type SiteSurveyDocument = SiteSurvey & Document;
 
 export enum SurveyStatus {
   PENDING = 'pending',
   ACTIVE = 'active',
-  COMPLETE = 'complete'
+  COMPLETE = 'complete',
+  CANCELLED = 'cancelled'
 }
 
-@Schema({ timestamps: true })
-export class Survey {
+@Schema({ timestamps: true, collection: 'site_surveys' })
+export class SiteSurvey {
 
   @Prop({ required: false })
   surveyId!: string;
 
   // Lead Reference
-  @Prop({ required: false })
-  leadId?: string;
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Lead', index: true, required: false })
+  leadId?: Types.ObjectId;
 
   // Client Information
   @Prop({ required: false })
@@ -135,6 +136,9 @@ export class Survey {
   @Prop({ ...BaseSchemaDefinition.tenantId })
   tenantId!: Types.ObjectId;
 
+  @Prop({ ...BaseSchemaDefinition.isDeleted })
+  isDeleted!: boolean;
+
   // Assignment & Ownership fields
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', index: true })
   createdBy?: Types.ObjectId;
@@ -153,16 +157,20 @@ export class Survey {
   updatedAt!: Date;
 }
 
-export const SurveySchema = SchemaFactory.createForClass(Survey);
+export const SiteSurveySchema = SchemaFactory.createForClass(SiteSurvey);
 
 // Add indexes for common queries
-SurveySchema.index({ status: 1 });
-SurveySchema.index({ leadId: 1 });
-SurveySchema.index({ tenantId: 1 });
-SurveySchema.index({ tenantId: 1, status: 1 });
-SurveySchema.index({ tenantId: 1, createdBy: 1 }); // For creator-based visibility
-SurveySchema.index({ tenantId: 1, assignedTo: 1 }); // For assignment-based visibility
-SurveySchema.index({ tenantId: 1, assignedBy: 1 }); // For tracking who assigned
-SurveySchema.index({ tenantId: 1, createdBy: 1, assignedTo: 1 }); // Compound for visibility queries
-SurveySchema.index({ clientName: 'text', city: 'text' });
-SurveySchema.index({ createdAt: -1 });
+SiteSurveySchema.index({ status: 1 });
+SiteSurveySchema.index({ leadId: 1 });
+SiteSurveySchema.index({ tenantId: 1 });
+SiteSurveySchema.index({ tenantId: 1, status: 1 });
+SiteSurveySchema.index(
+  { tenantId: 1, leadId: 1 },
+  { unique: true, sparse: true, partialFilterExpression: { isDeleted: { $ne: true } } }
+);
+SiteSurveySchema.index({ tenantId: 1, createdBy: 1 }); // For creator-based visibility
+SiteSurveySchema.index({ tenantId: 1, assignedTo: 1 }); // For assignment-based visibility
+SiteSurveySchema.index({ tenantId: 1, assignedBy: 1 }); // For tracking who assigned
+SiteSurveySchema.index({ tenantId: 1, createdBy: 1, assignedTo: 1 }); // Compound for visibility queries
+SiteSurveySchema.index({ clientName: 'text', city: 'text' });
+SiteSurveySchema.index({ createdAt: -1 });

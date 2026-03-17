@@ -157,11 +157,12 @@ export class LeadStatusController {
   async deleteStatus(
     @Param('id') id: string,
     @Request() req: any,
+    @Query('force') force?: string,
   ): Promise<{ success: boolean; message: string }> {
     const tenantId = this.requireTenantId(req);
     
     try {
-      const result = await this.leadStatusService.deleteStatus(tenantId, id);
+      const result = await this.leadStatusService.deleteStatus(tenantId, id, force === 'true');
       return result;
     } catch (error: any) {
       if (error instanceof NotFoundException) {

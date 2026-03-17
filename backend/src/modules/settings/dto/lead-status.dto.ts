@@ -1,5 +1,5 @@
 import { IsString, IsNumber, IsBoolean, IsEnum, IsOptional, IsNotEmpty } from 'class-validator';
-import { StatusType } from '../schemas/lead-status.schema';
+import { LeadStatusModuleConnection, StatusType } from '../schemas/lead-status.schema';
 
 export class CreateLeadStatusDto {
   @IsString()
@@ -25,6 +25,10 @@ export class CreateLeadStatusDto {
   @IsBoolean()
   @IsOptional()
   isSystem?: boolean = false;
+
+  @IsEnum(LeadStatusModuleConnection)
+  @IsOptional()
+  moduleConnection?: LeadStatusModuleConnection | null;
 }
 
 export class UpdateLeadStatusDto {
@@ -47,6 +51,10 @@ export class UpdateLeadStatusDto {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+
+  @IsEnum(LeadStatusModuleConnection)
+  @IsOptional()
+  moduleConnection?: LeadStatusModuleConnection | null;
 }
 
 export class ReorderLeadStatusesDto {
@@ -66,6 +74,7 @@ export class LeadStatusResponseDto {
   type!: StatusType;
   isActive!: boolean;
   isSystem!: boolean;
+  moduleConnection!: LeadStatusModuleConnection | null;
   createdAt!: Date;
   updatedAt!: Date;
 }
