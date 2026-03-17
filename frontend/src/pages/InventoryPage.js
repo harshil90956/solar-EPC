@@ -16,6 +16,7 @@ import { CURRENCY, APP_CONFIG } from '../config/app.config';
 import apiClient, { api } from '../lib/apiClient';
 import { usePermissions } from '../hooks/usePermissions';
 import CompactCalendarFilter from '../components/ui/CompactCalendarFilter';
+import StockMovements from '../components/inventory/StockMovements';
 
 const fmt = CURRENCY.format;
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
@@ -148,7 +149,7 @@ const InvCard = ({ item, onDragStart, onClick }) => {
 };
 
 /* ── Kanban Board ── */
-const InvKanbanBoard = ({ items, onCardClick, onDrop }) => {
+const InvKanbanBoard = ({ items, onCardClick, onDrop, inventoryStats }) => {
   const draggingId = useRef(null);
   const draggingStageId = useRef(null);
   const [dragOver, setDragOver] = useState(null);
@@ -200,6 +201,12 @@ const InvKanbanBoard = ({ items, onCardClick, onDrop }) => {
     draggingId.current = null; setDragOver(null);
   };
 
+  // Get dynamic count from API stats or fallback to client-side calculation
+  const getColumnCount = (stageId, cardsLength) => {
+    // Always use client-side count for kanban columns to match displayed cards
+    return cardsLength;
+  };
+
   return (
     <div className="overflow-x-auto pb-3 -mx-2 px-2">
       <div className="flex gap-3 min-w-max">
@@ -209,6 +216,7 @@ const InvKanbanBoard = ({ items, onCardClick, onDrop }) => {
           .map(stage => {
             const cards = items.filter(i => getStockStatus(i) === stage.id);
             const totalVal = cards.reduce((a, i) => a + ((i.stock || 0) - (i.reserved || 0)) * i.rate, 0);
+            const count = getColumnCount(stage.id, cards.length);
             return (
               <div key={stage.id}
                 className={`flex flex-col w-72 sm:w-60 rounded-xl border transition-colors ${dragOver === stage.id ? 'border-[var(--primary)]/50 bg-[var(--primary)]/5' : 'border-[var(--border-base)] bg-[var(--bg-surface)]'}`}
@@ -236,7 +244,7 @@ const InvKanbanBoard = ({ items, onCardClick, onDrop }) => {
                   <div className="flex items-center gap-1.5">
                     {totalVal > 0 && <span className="text-[10px] text-[var(--text-muted)] hidden sm:inline">₹{(totalVal / 100000).toFixed(1)}L</span>}
                     <span className="min-w-[20px] h-5 rounded-full text-[10px] font-bold flex items-center justify-center"
-                      style={{ background: stage.bg, color: stage.color }}>{cards.length}</span>
+                      style={{ background: stage.bg, color: stage.color }}>{count}</span>
                   </div>
                 </div>
                 <div className="flex flex-col gap-2 p-2 flex-1 min-h-[180px]">
@@ -1438,6 +1446,12 @@ const InventoryPage = () => {
               Warehouse
             </button>
             <button
+              onClick={() => setActiveTab('stock-movements')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${activeTab === 'stock-movements' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+            >
+              Stock Movements
+            </button>
+            <button
               onClick={() => setActiveTab('items')}
               className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${activeTab === 'items' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
             >
@@ -1933,10 +1947,16 @@ const InventoryPage = () => {
       {/* INVENTORY TAB CONTENT */}
       {activeTab === 'inventory' && (
         <>
-          {/* Inventory Controls Row */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              {/* Left side can have other controls if needed */}
+          {/* Inventory Controls Row - Combined */}
+          <div className="flex flex-wrap items-center gap-2 justify-between">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-[var(--text-muted)]">Category:</span>
+              {CATEGORY_FILTERS.map(c => (
+                <button key={c} onClick={() => { setCatFilter(c); setPage(1); }}
+                  className={`filter-chip ${catFilter === c ? 'filter-chip-active' : ''}`}>{c}</button>
+              ))}
+              <Input placeholder="Search inventory…" value={search}
+                onChange={e => { setSearch(e.target.value); setPage(1); }} className="h-8 text-xs w-44 ml-2" />
             </div>
             <div className="flex items-center gap-2">
               <div className="view-toggle-pill">
@@ -2025,15 +2045,16 @@ const InventoryPage = () => {
 
           {view === 'table' ? (
             <>
-              <div className="flex flex-wrap gap-2 items-center justify-between">
-                <div className="flex flex-wrap gap-2 items-center">
-                  <span className="text-xs text-[var(--text-muted)] mr-1">Category:</span>
-                  {CATEGORY_FILTERS.map(c => (
-                    <button key={c} onClick={() => { setCatFilter(c); setPage(1); }}
-                      className={`filter-chip ${catFilter === c ? 'filter-chip-active' : ''}`}>{c}</button>
-                  ))}
-                </div>
-                <div className="flex items-center gap-2">
+              <DataTable columns={COLUMNS} data={paginated} total={filteredWithStock.length}
+                page={page} pageSize={pageSize} onPageChange={setPage}
+                onPageSizeChange={s => { setPageSize(s); setPage(1); }}
+                search={search} onSearch={v => { setSearch(v); setPage(1); }}
+                rowActions={ROW_ACTIONS} emptyText="No inventory items found."
+                onRowClick={setSelected}
+                selectedRows={selectedInventoryItems}
+                onSelectRows={setSelectedInventoryItems}
+                rowKey="_id"
+                toolbar={
                   <Button variant="outline" size="sm" onClick={() => exportToCSV(
                     filtered.map(item => ({
                       itemId: item.itemId,
@@ -2065,19 +2086,7 @@ const InventoryPage = () => {
                   )}>
                     <Download size={14} /> Export
                   </Button>
-                  <Input placeholder="Search inventory…" value={search}
-                    onChange={e => { setSearch(e.target.value); setPage(1); }} className="h-8 text-xs w-52" />
-                </div>
-              </div>
-              <DataTable columns={COLUMNS} data={paginated} total={filteredWithStock.length}
-                page={page} pageSize={pageSize} onPageChange={setPage}
-                onPageSizeChange={s => { setPageSize(s); setPage(1); }}
-                search={search} onSearch={v => { setSearch(v); setPage(1); }}
-                rowActions={ROW_ACTIONS} emptyText="No inventory items found."
-                onRowClick={setSelected}
-                selectedRows={selectedInventoryItems}
-                onSelectRows={setSelectedInventoryItems}
-                rowKey="_id"
+                }
                 bulkActions={[
                   {
                     label: 'Export Selected',
@@ -2162,16 +2171,6 @@ const InventoryPage = () => {
             </>
           ) : (
             <>
-              <div className="flex flex-wrap gap-2 items-center">
-                <span className="text-xs text-[var(--text-muted)] mr-1">Category:</span>
-                {CATEGORY_FILTERS.map(c => (
-                  <button key={c} onClick={() => setCatFilter(c)}
-                    className={`filter-chip ${catFilter === c ? 'filter-chip-active' : ''}`}>{c}</button>
-                ))}
-                <div className="ml-auto">
-                  <Input placeholder="Search inventory…" value={search} onChange={e => setSearch(e.target.value)} className="h-8 text-xs w-52" />
-                </div>
-              </div>
               {loading ? (
                 <div className="glass-card p-8 text-center">
                   <div className="animate-pulse text-[var(--text-muted)]">Loading inventory...</div>
@@ -2182,7 +2181,7 @@ const InventoryPage = () => {
                   <p className="text-xs mt-2 text-[var(--text-muted)]">Make sure the backend server is running on port 3000</p>
                 </div>
               ) : (
-                <InvKanbanBoard items={consolidatedItems} onCardClick={setSelected} onDrop={handleKanbanDrop} />
+                <InvKanbanBoard items={consolidatedItems} onCardClick={setSelected} onDrop={handleKanbanDrop} inventoryStats={inventoryStats} />
               )}
             </>
           )}
@@ -2432,6 +2431,13 @@ const InventoryPage = () => {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* STOCK MOVEMENTS TAB CONTENT */}
+      {activeTab === 'stock-movements' && (
+        <div className="space-y-4">
+          <StockMovements />
         </div>
       )}
 

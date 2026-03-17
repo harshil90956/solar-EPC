@@ -5,6 +5,7 @@ import { Inventory } from '../schemas/inventory.schema';
 import { InventoryReservation } from '../schemas/inventory-reservation.schema';
 import { Tenant, TenantSchema } from '../../../core/tenant/schemas/tenant.schema';
 import { CreateInventoryDto, UpdateInventoryDto, StockInDto, StockOutDto, CreateReservationDto, UpdateReservationDto } from '../dto/inventory.dto';
+import { StockMovementService } from './stock-movement.service';
 
 interface UserWithVisibility {
   id?: string;
@@ -25,6 +26,8 @@ export class InventoryService {
     @InjectModel(InventoryReservation.name) private readonly reservationModel: Model<InventoryReservation>,
 
     @InjectModel(Tenant.name) private readonly tenantModel: Model<Tenant>,
+
+    private readonly stockMovementService: StockMovementService,
 
   ) {}
 
@@ -261,6 +264,21 @@ export class InventoryService {
 
     const savedReservation = await reservation.save();
     console.log(`[DEBUG createReservation] Saved reservation:`, JSON.stringify(savedReservation));
+
+    // Log stock movement for RESERVE
+    try {
+      await this.stockMovementService.logMovement(tenantCode, {
+        itemId: item._id.toString(),
+        type: 'RESERVE',
+        quantity: createDto.quantity,
+        reference: createDto.projectId,
+        referenceType: 'PROJECT',
+        note: `Reserved ${createDto.quantity} units for project ${createDto.projectId}`,
+        warehouseName: item.warehouse,
+      });
+    } catch (err) {
+      console.error('[STOCK MOVEMENT] Failed to log RESERVE:', err);
+    }
 
     return savedReservation;
   }
@@ -503,6 +521,21 @@ export class InventoryService {
 
         ).exec();
 
+        // Log stock movement for RELEASE
+        try {
+          await this.stockMovementService.logMovement(tenantCode, {
+            itemId: item._id.toString(),
+            type: 'RELEASE',
+            quantity: reservation.quantity,
+            reference: String(reservation.projectId),
+            referenceType: 'PROJECT',
+            note: `Released ${reservation.quantity} units from cancelled reservation ${reservation._id}`,
+            warehouseName: item.warehouse,
+          });
+        } catch (err) {
+          console.error('[STOCK MOVEMENT] Failed to log RELEASE:', err);
+        }
+
       }
 
     }
@@ -624,7 +657,20 @@ export class InventoryService {
 
     ).exec();
 
-
+    // Log stock movement for PURCHASE
+    try {
+      await this.stockMovementService.logMovement(tenantCode, {
+        itemId: item._id.toString(),
+        type: 'PURCHASE',
+        quantity: stockInDto.quantity,
+        reference: stockInDto.poReference,
+        referenceType: 'PO',
+        note: stockInDto.remarks || `Stock in: ${stockInDto.quantity} units`,
+        warehouseName: item.warehouse,
+      });
+    } catch (err) {
+      console.error('[STOCK MOVEMENT] Failed to log PURCHASE:', err);
+    }
 
     return updatedItem;
 
@@ -682,7 +728,20 @@ export class InventoryService {
 
     ).exec();
 
-
+    // Log stock movement for CONSUME (or DISPATCH if there's a project reference)
+    try {
+      await this.stockMovementService.logMovement(tenantCode, {
+        itemId: item._id.toString(),
+        type: stockOutDto.projectId ? 'DISPATCH' : 'CONSUME',
+        quantity: stockOutDto.quantity,
+        reference: stockOutDto.projectId,
+        referenceType: stockOutDto.projectId ? 'PROJECT' : 'CONSUMPTION',
+        note: stockOutDto.remarks || `Stock out: ${stockOutDto.quantity} units`,
+        warehouseName: item.warehouse,
+      });
+    } catch (err) {
+      console.error('[STOCK MOVEMENT] Failed to log CONSUME/DISPATCH:', err);
+    }
 
     return updatedItem;
 
