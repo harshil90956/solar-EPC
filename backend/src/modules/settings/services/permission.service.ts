@@ -56,8 +56,6 @@ export class PermissionService {
          roleLower === 'admin' 
       || roleLower === 'superadmin' 
       || roleLower === 'super-admin'
-      || roleLower === 'manager'
-      || roleLower === 'supervisor'
     );
 
     // ─────────────────────────────────────────────────────────────────────
@@ -79,6 +77,16 @@ export class PermissionService {
         permitted: false,
         source: 'feature_flag',
         reason: `Action ${actionId} is disabled by feature flag for module ${moduleId}`,
+      };
+    }
+
+    // Settings module must be strictly admin-only.
+    // Never auto-grant this module to non-admin roles.
+    if (moduleId === 'settings' && !isAdminLike) {
+      return {
+        permitted: false,
+        source: 'default',
+        reason: 'Settings module is restricted to Admin users',
       };
     }
 

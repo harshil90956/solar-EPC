@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { PermissionService } from '../services/permission.service';
 import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../../../core/auth/guards/admin.guard';
@@ -6,11 +6,12 @@ import { Permission } from '../schemas/permission.schema';
 import { Role } from '../schemas/role.schema';
 
 @Controller('hrm/permissions')
-@UseGuards(JwtAuthGuard, AdminGuard)
+@UseGuards(JwtAuthGuard)
 export class PermissionController {
   constructor(private readonly permissionService: PermissionService) {}
 
   @Get()
+  @UseGuards(AdminGuard)
   async getAllPermissions(): Promise<Permission[]> {
     return this.permissionService.findAllPermissions();
   }
@@ -26,6 +27,7 @@ export class PermissionController {
   }
 
   @Post('roles')
+  @UseGuards(AdminGuard)
   async createRole(
     @Body('name') name: string,
     @Body('description') description: string,
@@ -35,6 +37,7 @@ export class PermissionController {
   }
 
   @Patch('roles/:id')
+  @UseGuards(AdminGuard)
   async updateRole(
     @Param('id') id: string,
     @Body() updates: Partial<Role>,
@@ -44,6 +47,7 @@ export class PermissionController {
   }
 
   @Delete('roles/:id')
+  @UseGuards(AdminGuard)
   async deleteRole(@Param('id') id: string): Promise<{ success: boolean; message?: string }> {
     try {
       const result = await this.permissionService.deleteRole(id);
@@ -146,8 +150,9 @@ export class PermissionController {
   // ==================== MODULE PERMISSIONS WITH DATA SCOPE ====================
 
   @Get('roles/:id/module-permissions')
-  async getRoleModulePermissions(@Param('id') roleId: string, @Query('tenantId') tenantId?: string): Promise<any> {
-    const permissions = await this.permissionService.getAllRoleModulePermissions(roleId, tenantId);
+  async getRoleModulePermissions(@Param('id') roleId: string, @Request() req: any, @Query('tenantId') tenantId?: string): Promise<any> {
+    const tid = tenantId || req?.tenant?.id;
+    const permissions = await this.permissionService.getAllRoleModulePermissions(roleId, tid);
     return {
       roleId,
       permissions: permissions.reduce((acc: Record<string, any>, perm) => {
@@ -164,9 +169,11 @@ export class PermissionController {
   async getRoleModulePermission(
     @Param('id') roleId: string,
     @Param('module') module: string,
+    @Request() req: any,
     @Query('tenantId') tenantId?: string,
   ): Promise<any> {
-    const permission = await this.permissionService.getRoleModulePermission(roleId, module, tenantId);
+    const tid = tenantId || req?.tenant?.id;
+    const permission = await this.permissionService.getRoleModulePermission(roleId, module, tid);
     if (!permission) {
       return {
         roleId,
@@ -192,14 +199,16 @@ export class PermissionController {
     @Param('id') roleId: string,
     @Param('module') module: string,
     @Body() body: { actions: any; dataScope: string },
+    @Request() req: any,
     @Query('tenantId') tenantId?: string,
   ): Promise<any> {
+    const tid = tenantId || req?.tenant?.id;
     const permission = await this.permissionService.setRoleModulePermission(
       roleId,
       module,
       body.actions,
       body.dataScope as any,
-      tenantId,
+      tid,
     );
     return {
       success: true,
@@ -211,8 +220,10 @@ export class PermissionController {
   async setBulkRoleModulePermissions(
     @Param('id') roleId: string,
     @Body() body: { permissions: Record<string, { actions: any; dataScope: string }> },
+    @Request() req: any,
     @Query('tenantId') tenantId?: string,
   ): Promise<any> {
+    const tid = tenantId || req?.tenant?.id;
     const results = [];
     for (const [module, config] of Object.entries(body.permissions)) {
       const permission = await this.permissionService.setRoleModulePermission(
@@ -220,7 +231,7 @@ export class PermissionController {
         module,
         config.actions,
         config.dataScope as any,
-        tenantId,
+        tid,
       );
       results.push(permission);
     }

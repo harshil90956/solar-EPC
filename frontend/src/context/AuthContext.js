@@ -20,11 +20,63 @@ export const AuthProvider = ({ children }) => {
   // Extract tenantId from user object
   const tenantId = user?.tenantId || localStorage.getItem('tenantId');
 
+  const buildBaseModulePermissions = useCallback((role) => {
+    const rp = getRolePermissions(role);
+    const modules = Array.isArray(rp?.modules) ? rp.modules : [];
+    const perms = {};
+    modules.forEach((m) => {
+      perms[m] = {
+        view: true,
+        create: !!rp?.canCreate,
+        edit: !!rp?.canEdit,
+        delete: !!rp?.canDelete,
+        export: !!rp?.canExport,
+        approve: !!rp?.canApprove,
+        assign: false,
+      };
+    });
+    return perms;
+  }, []);
+
+  const normalizeHrmPermissions = useCallback((raw) => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+    const out = {};
+    Object.entries(raw).forEach(([module, config]) => {
+      if (!module) return;
+      const actionsRaw = config?.actions;
+      const actions = Array.isArray(actionsRaw)
+        ? actionsRaw
+        : (actionsRaw && typeof actionsRaw === 'object')
+          ? Object.entries(actionsRaw).filter(([, v]) => v === true).map(([k]) => k)
+          : [];
+      const actionMap = {};
+      actions.forEach((a) => { actionMap[a] = true; });
+      const dataScope = config?.dataScope;
+      out[module] = {
+        ...actionMap,
+        ...(dataScope ? { dataScope } : {}),
+      };
+    });
+    return out;
+  }, []);
+
+  const mergeStringPermissionsIntoMap = useCallback((permsMap, rawList) => {
+    const out = { ...(permsMap || {}) };
+    const list = Array.isArray(rawList) ? rawList : [];
+    list.forEach((p) => {
+      if (typeof p !== 'string') return;
+      const norm = p.includes(':') ? p.replace(':', '.') : p;
+      const [module, action] = norm.split('.');
+      if (!module || !action) return;
+      out[module] = { ...(out[module] || {}), [action]: true };
+    });
+    return out;
+  }, []);
+
   const login = useCallback(async (email, password) => {
     setLoading(true);
     setError('');
     try {
-      console.log('Attempting login...', { email });
       let res;
       let isEmployee = false;
       
@@ -33,25 +85,23 @@ export const AuthProvider = ({ children }) => {
         res = await api.post('/auth/login', { email, password });
       } catch (authErr) {
         // If main auth fails, try employee login
-        console.log('Main auth failed, trying employee login...');
         const empRes = await api.post('/hrm/employees/login', { email, password });
         res = empRes;
         isEmployee = true;
       }
       
-      console.log('Login API response:', res);
       const { success, data } = res || {};
       
       if (isEmployee) {
         // Employee login response structure
         const { token, id, employeeId, firstName, lastName, roleId, dataScope } = data || {};
         if (!token) {
-          console.error('Invalid employee response:', res);
           throw new Error('Invalid response from server');
         }
         // Decode JWT to extract tenantId
         let tenantId = null;
         let extractedRoleId = null;
+        let jwtPermissions = [];
         try {
           const payload = JSON.parse(atob(token.split('.')[1]));
           tenantId = payload.tenantId || null;
@@ -59,19 +109,30 @@ export const AuthProvider = ({ children }) => {
           if (payload.roleId) {
             extractedRoleId = payload.roleId;
           }
-          console.log('[AUTH] Employee JWT payload:', payload);
-        } catch (e) {
-          console.warn('[AUTH] Failed to decode JWT payload:', e);
-        }
-        // For employees, fetch HRM permissions
-        let hrmPermissions = [];
-        if (isEmployee && extractedRoleId) {
-          try {
-            hrmPermissions = await fetchHrmPermissions(extractedRoleId);
-            console.log('[AUTH] Fetched HRM permissions for employee:', hrmPermissions);
-          } catch (e) {
-            console.warn('[AUTH] Failed to fetch HRM permissions:', e);
+          if (Array.isArray(payload.permissions)) {
+            jwtPermissions = payload.permissions;
           }
+        } catch (e) {}
+
+        let hrmPermsByModule = {};
+        let hrmModulePermissions = {};
+        if (extractedRoleId) {
+          try {
+            const rawPerms = await fetchHrmPermissions(extractedRoleId);
+            hrmPermsByModule = normalizeHrmPermissions(rawPerms);
+            Object.entries(rawPerms || {}).forEach(([module, config]) => {
+              const actionsRaw = config?.actions;
+              const actions = Array.isArray(actionsRaw)
+                ? actionsRaw
+                : (actionsRaw && typeof actionsRaw === 'object')
+                  ? Object.entries(actionsRaw).filter(([, v]) => v === true).map(([k]) => k)
+                  : [];
+              hrmModulePermissions[module] = {
+                actions,
+                dataScope: config?.dataScope,
+              };
+            });
+          } catch (e) {}
         }
 
         const authedUser = { 
@@ -85,7 +146,8 @@ export const AuthProvider = ({ children }) => {
           dataScope,
           tenantId,
           isEmployee: true,
-          permissions: hrmPermissions, // Use HRM permissions array
+          permissions: mergeStringPermissionsIntoMap(hrmPermsByModule, jwtPermissions),
+          modulePermissions: hrmModulePermissions,
           token 
         };
         localStorage.setItem(TOKEN_KEY, token);
@@ -94,6 +156,16 @@ export const AuthProvider = ({ children }) => {
           localStorage.setItem('tenantId', tenantId);
         }
         setUser(authedUser);
+
+        // ─── FINAL LOG: ONLY ESSENTIAL INFO ───
+        console.log('🚀 [AUTH_SUCCESS]', {
+          role: authedUser.role,
+          department: authedUser.department || 'N/A',
+          tenantId: authedUser.tenantId,
+          permissions: authedUser.permissions,
+          sidebarModules: (window.NAV_CONFIG || []).map(s => s.items.map(i => i.id)).flat()
+        });
+
         setError('');
         return true;
       }
@@ -101,29 +173,43 @@ export const AuthProvider = ({ children }) => {
       // Regular user login
       const { accessToken, user: userData } = data || {};
       if (!accessToken) {
-        console.error('Invalid response structure:', res);
         throw new Error('Invalid response from server');
       }
-      const permissions = getRolePermissions(userData.role);
-      // Normalize role: capitalize first letter (admin -> Admin)
+      const basePermsByModule = buildBaseModulePermissions(userData.role);
+      // Normalize role
       const normalizedRole = userData.role ? userData.role.charAt(0).toUpperCase() + userData.role.slice(1).toLowerCase() : userData.role;
-      // Decode JWT to extract dataScope and tenantId
+      // Decode JWT
       let dataScope = userData.dataScope;
       let extractedTenantId = userData.tenantId;
+      let jwtPermissions = [];
       try {
         const payload = JSON.parse(atob(accessToken.split('.')[1]));
         dataScope = payload.dataScope || userData.dataScope || null;
         extractedTenantId = payload.tenantId || userData.tenantId || null;
+        if (Array.isArray(payload.permissions)) {
+          jwtPermissions = payload.permissions;
+        }
       } catch (e) { /* ignore */ }
-      // Fetch HRM permissions for regular users too
-      let hrmPermissions = [];
+
+      let hrmPermsByModule = {};
+      let hrmModulePermissions = {};
       if (userData.roleId || normalizedRole === 'Employee') {
         try {
-          hrmPermissions = await fetchHrmPermissions(userData.roleId);
-          console.log('[AUTH] Fetched HRM permissions for user:', hrmPermissions);
-        } catch (e) {
-          console.warn('[AUTH] Failed to fetch HRM permissions for user:', e);
-        }
+          const rawPerms = await fetchHrmPermissions(userData.roleId);
+          hrmPermsByModule = normalizeHrmPermissions(rawPerms);
+          Object.entries(rawPerms || {}).forEach(([module, config]) => {
+            const actionsRaw = config?.actions;
+            const actions = Array.isArray(actionsRaw)
+              ? actionsRaw
+              : (actionsRaw && typeof actionsRaw === 'object')
+                ? Object.entries(actionsRaw).filter(([, v]) => v === true).map(([k]) => k)
+                : [];
+            hrmModulePermissions[module] = {
+              actions,
+              dataScope: config?.dataScope,
+            };
+          });
+        } catch (e) {}
       }
 
       const authedUser = { 
@@ -131,9 +217,10 @@ export const AuthProvider = ({ children }) => {
         role: normalizedRole, 
         dataScope, 
         tenantId: extractedTenantId, 
-        permissions: hrmPermissions.length > 0 ? hrmPermissions : permissions, 
+        permissions: mergeStringPermissionsIntoMap({ ...basePermsByModule, ...hrmPermsByModule }, jwtPermissions),
+        modulePermissions: hrmModulePermissions,
         token: accessToken,
-        roleId: userData.roleId || null, // Include custom role ID if present
+        roleId: userData.roleId || null,
       };
       localStorage.setItem(TOKEN_KEY, accessToken);
       localStorage.setItem(USER_KEY, JSON.stringify(authedUser));
@@ -141,11 +228,19 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('tenantId', extractedTenantId);
       }
       setUser(authedUser);
-      console.log('[AUTH] User saved with tenantId:', extractedTenantId, 'dataScope:', dataScope, 'roleId:', userData.roleId);
+
+      // ─── FINAL LOG: ONLY ESSENTIAL INFO ───
+      console.log('🚀 [AUTH_SUCCESS]', {
+        role: authedUser.role,
+        department: authedUser.department || 'N/A',
+        tenantId: authedUser.tenantId,
+        permissions: authedUser.permissions,
+        sidebarModules: (window.NAV_CONFIG || []).map(s => s.items.map(i => i.id)).flat()
+      });
+
       setError('');
       return true;
     } catch (err) {
-      console.error('Login error:', err);
       const msg = err?.message || err?.response?.data?.message || 'Login failed';
       setError(msg);
       return false;
@@ -164,24 +259,43 @@ export const AuthProvider = ({ children }) => {
 
   // Fetch HRM permissions for the user
   const fetchHrmPermissions = useCallback(async (roleId) => {
-    if (!roleId) return [];
+    if (!roleId) return null;
     try {
-      const response = await api.get(`/hrm/permissions/roles/${roleId}/permissions`);
-      return response.data || [];
+      // Use module-permissions endpoint which returns object format
+      const response = await api.get(`/hrm/permissions/roles/${roleId}/module-permissions`);
+      // Backend returns: { permissions: { employees: { actions, dataScope }, leaves: { actions, dataScope } } }
+      const data = response.data?.permissions;
+      if (data && typeof data === 'object') {
+        const permsObj = {};
+        Object.entries(data).forEach(([module, config]) => {
+          if (!module || !config) return;
+          const actionsRaw = config.actions;
+          const actions = Array.isArray(actionsRaw)
+            ? actionsRaw
+            : (actionsRaw && typeof actionsRaw === 'object')
+              ? Object.entries(actionsRaw).filter(([, v]) => v === true).map(([k]) => k)
+              : [];
+          permsObj[module] = {
+            actions,
+            dataScope: config.dataScope,
+          };
+        });
+        return permsObj;
+      }
+      return null;
     } catch (error) {
       console.error('Failed to fetch HRM permissions:', error);
-      return [];
+      return null;
     }
   }, []);
 
   const can = useCallback((action) => {
     if (!user?.permissions) return false;
-    // Handle array permissions (HRM style)
-    if (Array.isArray(user.permissions)) {
-      return user.permissions.includes(action);
+    if (typeof action === 'string' && action.includes('.')) {
+      const [module, act] = action.split('.');
+      return user.permissions?.[module]?.[act] === true;
     }
-    // Handle object permissions (legacy style)
-    return user.permissions[action] ?? false;
+    return false;
   }, [user]);
 
   return (

@@ -148,17 +148,8 @@ export class PermissionCacheService {
     // Ensure we handle 'default' tenantId correctly
     const tid = tenantId === 'default' ? undefined : this.toObjectId(tenantId);
     
-    // Check if this is an admin-like role (Base system roles only)
-    // Custom roles (starting with custom_) must NEVER hit this auto-grant fallback.
-    const roleLower = baseRoleId.toLowerCase();
-    const isCustomRole = roleLower.startsWith('custom_');
-    const isAdminLike = !isCustomRole && (
-         roleLower === 'admin' 
-      || roleLower === 'superadmin' 
-      || roleLower === 'super-admin'
-      || roleLower === 'manager'
-      || roleLower === 'supervisor'
-    );
+    // Strict mode: no implicit bypass based on role names.
+    // All permissions must come from feature flags / overrides / custom role / base RBAC.
     
     // Get all feature flags to know available modules
     const featureFlags = await this.featureFlagModel.find(
@@ -218,7 +209,7 @@ export class PermissionCacheService {
     }
     
     // Check if any RBAC config exists for this role
-    const hasRbacConfig = baseRbacPerms.size > 0;
+    // (No implicit allow if missing.)
 
     // Build final matrix using hierarchy
     for (const flag of featureFlags) {
@@ -263,18 +254,12 @@ export class PermissionCacheService {
                 if (rbacPerm !== undefined) {
                   permitted = rbacPerm;
                 } else {
-                  // 5. Admin fallback - grant full permissions if no RBAC config
-                  permitted = isAdminLike && hasRbacConfig === false;
+                  // Strict final fallback: deny
+                  permitted = false;
                 }
               }
             }
           }
-        }
-        
-        // Final fallback: if action is 'view', allow if user has ANY permitted action in the module
-        if (!permitted && action === 'view') {
-           const hasAnyAction = Array.from(modulePerms.values()).some(v => v === true);
-           if (hasAnyAction) permitted = true;
         }
         
         modulePerms.set(action, permitted);

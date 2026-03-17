@@ -46,19 +46,33 @@ const COLUMNS = [
   { key: 'systemSize', header: 'Size', sortable: true, render: v => <span className="text-xs font-bold text-[var(--solar)]">{v} kW</span> },
   { key: 'pm', header: 'PM', render: v => <span className="text-xs text-[var(--text-secondary)]">{v}</span> },
   {
-    key: 'progress', header: 'Progress', sortable: true, render: v => (
-      <div className="flex items-center gap-2 min-w-[90px]">
-        <Progress value={v} className="h-1.5 flex-1" />
-        <span className="text-xs text-[var(--text-muted)] w-8 text-right">{v}%</span>
-      </div>
-    )
+    key: 'progress', header: 'Progress', sortable: true, render: (v, row) => {
+      // Calculate progress based on stage
+      const getStageProgress = (status) => {
+        switch (status) {
+          case 'Logistics': return 0;
+          case 'Installation': return 50;
+          case 'Commissioned': return 100;
+          case 'On Hold': return row?.progress || 0;
+          case 'Cancelled': return 0;
+          default: return row?.progress || 0;
+        }
+      };
+      const displayProgress = getStageProgress(row?.status);
+      return (
+        <div className="flex items-center gap-2 min-w-[90px]">
+          <Progress value={displayProgress} className="h-1.5 flex-1" />
+          <span className="text-xs text-[var(--text-muted)] w-8 text-right">{displayProgress}%</span>
+        </div>
+      );
+    }
   },
   { key: 'status', header: 'Status', render: v => <StatusBadge domain="project" value={v} /> },
   { key: 'estEndDate', header: 'Est. End', render: v => <span className="text-xs text-[var(--text-muted)]">{v ?? '—'}</span> },
   { key: 'value', header: 'Value', sortable: true, render: v => <span className="text-xs font-bold text-[var(--text-primary)]">{fmt(v)}</span> },
 ];
 
-const STATUS_FILTERS = ['All', 'Logistics', 'Installation', 'Commissioned', 'On Hold', 'Cancelled'];
+const STATUS_FILTERS = ['All', 'Logistics', 'Installation', 'Commissioned'];
 
 const PROGRESS_FILTERS = [
   { label: 'All', value: 'all' },
@@ -69,28 +83,44 @@ const PROGRESS_FILTERS = [
 ];
 
 /* ── Kanban Card ── */
-const ProjectCard = ({ project, onDragStart, onClick }) => (
-  <div draggable onDragStart={onDragStart} onClick={onClick}
-    className="glass-card p-3 cursor-grab active:cursor-grabbing hover:border-[var(--primary)]/40 transition-all">
-    <div className="flex items-center justify-between mb-1.5">
-      <span className="text-[10px] font-mono text-[var(--accent-light)]">{project.id}</span>
-      <span className="text-[10px] font-bold text-[var(--solar)]">{project.systemSize} kW</span>
-    </div>
-    <p className="text-xs font-semibold text-[var(--text-primary)] mb-0.5 leading-tight">{project.customerName}</p>
-    <p className="text-[10px] text-[var(--text-muted)] mb-2 truncate">{project.site}</p>
-    <Progress value={project.progress} className="h-1 mb-2" />
-    <div className="flex items-center justify-between text-[10px] text-[var(--text-muted)]">
-      <span className="flex items-center gap-1"><User size={9} />{project.pm}</span>
-      <span>{project.progress}%</span>
-    </div>
-    {project.estEndDate && (
-      <div className="flex items-center gap-1 mt-1.5 text-[10px] text-[var(--text-faint)]">
-        <Clock size={9} />{project.estEndDate}
+const ProjectCard = ({ project, onDragStart, onClick }) => {
+  // Calculate progress based on stage
+  const getStageProgress = (status) => {
+    switch (status) {
+      case 'Logistics': return 0;
+      case 'Installation': return 50;
+      case 'Commissioned': return 100;
+      case 'On Hold': return project.progress || 0;
+      case 'Cancelled': return 0;
+      default: return project.progress || 0;
+    }
+  };
+  
+  const displayProgress = getStageProgress(project.status);
+  
+  return (
+    <div draggable onDragStart={onDragStart} onClick={onClick}
+      className="glass-card p-3 cursor-grab active:cursor-grabbing hover:border-[var(--primary)]/40 transition-all">
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-[10px] font-mono text-[var(--accent-light)]">{project.id}</span>
+        <span className="text-[10px] font-bold text-[var(--solar)]">{project.systemSize} kW</span>
       </div>
-    )}
-    <div className="mt-1.5 text-[10px] font-bold text-[var(--text-secondary)]">{fmt(project.value)}</div>
-  </div>
-);
+      <p className="text-xs font-semibold text-[var(--text-primary)] mb-0.5 leading-tight">{project.customerName}</p>
+      <p className="text-[10px] text-[var(--text-muted)] mb-2 truncate">{project.site}</p>
+      <Progress value={displayProgress} className="h-1 mb-2" />
+      <div className="flex items-center justify-between text-[10px] text-[var(--text-muted)]">
+        <span className="flex items-center gap-1"><User size={9} />{project.pm}</span>
+        <span>{displayProgress}%</span>
+      </div>
+      {project.estEndDate && (
+        <div className="flex items-center gap-1 mt-1.5 text-[10px] text-[var(--text-faint)]">
+          <Clock size={9} />{project.estEndDate}
+        </div>
+      )}
+      <div className="mt-1.5 text-[10px] font-bold text-[var(--text-secondary)]">{fmt(project.value)}</div>
+    </div>
+  );
+};
 
 /* ── Kanban Board ── */
 const KanbanBoard = ({ projects, onStageChange, onCardClick }) => {

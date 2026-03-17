@@ -101,7 +101,9 @@ const PAGE_MAP = {
 
   'hrm-departments': { component: DepartmentsPage, title: 'Departments' },
 
-  'hrm-role-permissions': { component: HRMPage, title: 'Role Permissions' },
+  'hrm-role-permissions': { component: HRMPage, title: 'Role Permissions', props: { activeTab: 'hrm-role-permissions' } },
+
+  'hrm-attendance-policy': { component: HRMPage, title: 'Attendance Policy', props: { activeTab: 'hrm-attendance-policy' } },
 
   quotation: { component: QuotationBuilderPage, title: 'Quotation Builder' },
 
@@ -137,7 +139,7 @@ const PAGE_MAP = {
 
   compliance: { component: CompliancePage, title: 'Compliance' },
   settings: { component: SettingsPage, title: 'Settings' },
-  'hrm-permissions': { component: HrmPermissionsPage, title: 'HRM Permissions' },
+  'hrm-permissions': { component: HRMPermissionsPage, title: 'HRM Permissions' },
   intelligence: { component: IntelligenceDashboardPage, title: 'AI Intelligence' },
 
   documents: { component: DocumentPage, title: 'Documents' },

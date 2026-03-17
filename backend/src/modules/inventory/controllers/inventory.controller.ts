@@ -33,14 +33,11 @@ export class InventoryController {
     @Request() req?: any,
   ) {
     const tenantId = headerTenantId || queryTenantId || 'solarcorp';
-    // Extract user with dataScope from JWT (same pattern as Finance controller)
-    const user = req?.user ? {
+    const user = req.user ? {
       id: String(req.user.id || req.user._id),
       _id: String(req.user.id || req.user._id),
       dataScope: (req.user.dataScope as 'ALL' | 'ASSIGNED') || 'ALL',
     } : undefined;
-    console.log(`[INVENTORY CTRL] req.user:`, JSON.stringify(req?.user));
-    console.log(`[INVENTORY CTRL] Extracted user.dataScope:`, user?.dataScope);
     return this.inventoryService.findAll(tenantId, user, category, search);
   }
 
@@ -51,12 +48,11 @@ export class InventoryController {
     @Request() req?: any,
   ) {
     const tenantId = headerTenantId || queryTenantId || 'solarcorp';
-    const user = req?.user ? {
+    const user = req.user ? {
       id: String(req.user.id || req.user._id),
       _id: String(req.user.id || req.user._id),
       dataScope: (req.user.dataScope as 'ALL' | 'ASSIGNED') || 'ALL',
     } : undefined;
-    console.log(`[INVENTORY CATEGORIES] user.dataScope:`, user?.dataScope);
     return this.inventoryService.getCategories(tenantId, user);
   }
 
@@ -67,12 +63,11 @@ export class InventoryController {
     @Request() req?: any,
   ) {
     const tenantId = headerTenantId || queryTenantId || 'solarcorp';
-    const user = req?.user ? {
+    const user = req.user ? {
       id: String(req.user.id || req.user._id),
       _id: String(req.user.id || req.user._id),
       dataScope: (req.user.dataScope as 'ALL' | 'ASSIGNED') || 'ALL',
     } : undefined;
-    console.log(`[INVENTORY UNITS] user.dataScope:`, user?.dataScope);
     return this.inventoryService.getUnits(tenantId, user);
   }
 
@@ -83,12 +78,11 @@ export class InventoryController {
     @Request() req?: any,
   ) {
     const tenantId = headerTenantId || queryTenantId || 'solarcorp';
-    const user = req?.user ? {
+    const user = req.user ? {
       id: String(req.user.id || req.user._id),
       _id: String(req.user.id || req.user._id),
       dataScope: (req.user.dataScope as 'ALL' | 'ASSIGNED') || 'ALL',
     } : undefined;
-    console.log(`[INVENTORY STATS] user.dataScope:`, user?.dataScope);
     return this.inventoryService.getStats(tenantId, user);
   }
 
@@ -99,12 +93,11 @@ export class InventoryController {
     @Request() req?: any,
   ) {
     const tenantId = headerTenantId || queryTenantId || 'solarcorp';
-    const user = req?.user ? {
+    const user = req.user ? {
       id: String(req.user.id || req.user._id),
       _id: String(req.user.id || req.user._id),
       dataScope: (req.user.dataScope as 'ALL' | 'ASSIGNED') || 'ALL',
     } : undefined;
-    console.log(`[INVENTORY CATEGORY] user.dataScope:`, user?.dataScope);
     return this.inventoryService.getItemsByCategory(tenantId, user);
   }
 

@@ -1030,10 +1030,6 @@ const ProcurementPage = () => {
         toast.error('Please select a vendor');
         return;
       }
-      if (!newPO.relatedProjectId) {
-        toast.error('Please select a project');
-        return;
-      }
       if (!newPO.expectedDate) {
         toast.error('Please select an expected delivery date');
         return;
@@ -1483,7 +1479,7 @@ const ProcurementPage = () => {
               <Input type="date" value={newPO.expectedDate} onChange={e => setNewPO({ ...newPO, expectedDate: e.target.value })} />
             </FormField>
           </div>
-          <FormField label="Related Project *">
+          <FormField label="Related Project">
             <div className="relative" ref={projectDropdownRef}>
               {/* Selected Project Display / Search Input */}
               <div
@@ -1694,7 +1690,7 @@ const ProcurementPage = () => {
                 </FormField>
               </div>
               <div className="w-full">
-                <FormField label="Related Project *">
+                <FormField label="Related Project">
                   <div className="relative" ref={projectDropdownRef}>
                     {/* Selected Project Display */}
                     <div

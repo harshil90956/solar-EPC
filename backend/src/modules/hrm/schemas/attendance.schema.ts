@@ -52,6 +52,12 @@ export class Attendance {
   @Prop({ type: Boolean, default: false })
   isEarlyExit!: boolean;
 
+  @Prop({ type: Number, default: 0 })
+  overtimeMinutes!: number;
+
+  @Prop({ type: Number, default: 0 })
+  breakTime!: number;
+
   @Prop({ ...BaseSchemaDefinition.tenantId })
   tenantId!: Types.ObjectId;
 
