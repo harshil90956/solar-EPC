@@ -2,7 +2,15 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 
 
 
+
+
+
+
 import { InjectModel } from '@nestjs/mongoose';
+
+
+
+
 
 
 
@@ -10,7 +18,15 @@ import { Model, Types, Document } from 'mongoose';
 
 
 
+
+
+
+
 import { Ticket, TicketDocument } from '../schemas/ticket.schema';
+
+
+
+
 
 
 
@@ -18,7 +34,15 @@ import { User, UserDocument } from '../../../core/auth/schemas/user.schema';
 
 
 
+
+
+
+
 import { CreateTicketDto, UpdateTicketDto, QueryTicketDto } from '../dto/ticket.dto';
+
+
+
+
 
 
 
@@ -26,11 +50,23 @@ import { UserWithVisibility } from '../../../common/utils/visibility-filter';
 
 
 
+
+
+
+
 import { EmailService } from '../../email/email.service';
 
 
 
+
+
+
+
 import { Project } from '../../../modules/projects/schemas/project.schema';
+
+
+
+
 
 
 
@@ -42,7 +78,19 @@ type ProjectDocument = Project & Document;
 
 
 
+
+
+
+
+
+
+
+
 @Injectable()
+
+
+
+
 
 
 
@@ -50,7 +98,15 @@ export class TicketsService {
 
 
 
+
+
+
+
   constructor(
+
+
+
+
 
 
 
@@ -58,7 +114,15 @@ export class TicketsService {
 
 
 
+
+
+
+
     @InjectModel(User.name) private userModel: Model<UserDocument>,
+
+
+
+
 
 
 
@@ -66,7 +130,15 @@ export class TicketsService {
 
 
 
+
+
+
+
     private readonly emailService: EmailService,
+
+
+
+
 
 
 
@@ -78,11 +150,27 @@ export class TicketsService {
 
 
 
+
+
+
+
+
+
+
+
   async create(createTicketDto: CreateTicketDto, tenantId?: string, user?: UserWithVisibility): Promise<Ticket> {
 
 
 
+
+
+
+
     const now = new Date();
+
+
+
+
 
 
 
@@ -94,7 +182,19 @@ export class TicketsService {
 
 
 
+
+
+
+
+
+
+
+
     const ticketData: any = {
+
+
+
+
 
 
 
@@ -102,7 +202,15 @@ export class TicketsService {
 
 
 
+
+
+
+
       ticketId,
+
+
+
+
 
 
 
@@ -110,7 +218,15 @@ export class TicketsService {
 
 
 
+
+
+
+
       resolved: null,
+
+
+
+
 
 
 
@@ -122,7 +238,19 @@ export class TicketsService {
 
 
 
+
+
+
+
+
+
+
+
     // Convert createdBy to ObjectId if provided
+
+
+
+
 
 
 
@@ -130,7 +258,15 @@ export class TicketsService {
 
 
 
+
+
+
+
     if (userId) {
+
+
+
+
 
 
 
@@ -138,7 +274,15 @@ export class TicketsService {
 
 
 
+
+
+
+
         ? new Types.ObjectId(userId)
+
+
+
+
 
 
 
@@ -146,7 +290,19 @@ export class TicketsService {
 
 
 
+
+
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -156,23 +312,49 @@ export class TicketsService {
 
     // Convert assignedTo to ObjectId if provided - REMOVE if invalid
 
+
+
     if (createTicketDto.assignedTo) {
+
+
 
       if (Types.ObjectId.isValid(createTicketDto.assignedTo)) {
 
+
+
         ticketData.assignedTo = new Types.ObjectId(createTicketDto.assignedTo);
+
+
 
       } else {
 
+
+
         // Remove invalid assignedTo value to prevent validation error
+
+
 
         delete ticketData.assignedTo;
 
+
+
         console.log('Removing invalid assignedTo value:', createTicketDto.assignedTo);
+
+
 
       }
 
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -184,7 +366,15 @@ export class TicketsService {
 
 
 
+
+
+
+
       if (Types.ObjectId.isValid(tenantId) && tenantId.length === 24) {
+
+
+
+
 
 
 
@@ -192,7 +382,15 @@ export class TicketsService {
 
 
 
+
+
+
+
       } else {
+
+
+
+
 
 
 
@@ -200,11 +398,27 @@ export class TicketsService {
 
 
 
+
+
+
+
       }
 
 
 
+
+
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -216,7 +430,15 @@ export class TicketsService {
 
 
 
+
+
+
+
     const createdTicket = new this.ticketModel(ticketData);
+
+
+
+
 
 
 
@@ -224,7 +446,15 @@ export class TicketsService {
 
 
 
+
+
+
+
     const saved = await createdTicket.save();
+
+
+
+
 
 
 
@@ -232,13 +462,27 @@ export class TicketsService {
 
 
 
+
+
+
+
     console.log('Ticket saved to MongoDB:', saved);
+
+
+
+
 
 
 
     // Email sending disabled for ticket creation - only schedule visits should send emails
 
+
+
     // await this.sendTicketCreatedEmail(saved, tenantId);
+
+
+
+
 
 
 
@@ -246,7 +490,15 @@ export class TicketsService {
 
 
 
+
+
+
+
   }
+
+
+
+
 
 
 
@@ -254,7 +506,15 @@ export class TicketsService {
 
 
 
+
+
+
+
     try {
+
+
+
+
 
 
 
@@ -262,7 +522,15 @@ export class TicketsService {
 
 
 
+
+
+
+
       const filter: any = {
+
+
+
+
 
 
 
@@ -270,7 +538,15 @@ export class TicketsService {
 
 
 
+
+
+
+
         isDeleted: { $ne: true }
+
+
+
+
 
 
 
@@ -278,7 +554,15 @@ export class TicketsService {
 
 
 
+
+
+
+
       if (tenantId) {
+
+
+
+
 
 
 
@@ -286,7 +570,15 @@ export class TicketsService {
 
 
 
+
+
+
+
           filter.tenantId = new Types.ObjectId(tenantId);
+
+
+
+
 
 
 
@@ -294,7 +586,15 @@ export class TicketsService {
 
 
 
+
+
+
+
           filter.tenantId = tenantId;
+
+
+
+
 
 
 
@@ -302,7 +602,15 @@ export class TicketsService {
 
 
 
+
+
+
+
       }
+
+
+
+
 
 
 
@@ -310,7 +618,15 @@ export class TicketsService {
 
 
 
+
+
+
+
       const customerEmail = project?.email;
+
+
+
+
 
 
 
@@ -318,7 +634,15 @@ export class TicketsService {
 
 
 
+
+
+
+
         console.log('No customer email found for ticket:', ticket.ticketId);
+
+
+
+
 
 
 
@@ -326,7 +650,15 @@ export class TicketsService {
 
 
 
+
+
+
+
       }
+
+
+
+
 
 
 
@@ -334,7 +666,15 @@ export class TicketsService {
 
 
 
+
+
+
+
       const text = `
+
+
+
+
 
 
 
@@ -342,7 +682,15 @@ Dear ${ticket.customerName},
 
 
 
+
+
+
+
 Your service ticket has been created successfully.
+
+
+
+
 
 
 
@@ -350,7 +698,15 @@ Ticket Details:
 
 
 
+
+
+
+
 - Ticket ID: ${ticket.ticketId}
+
+
+
+
 
 
 
@@ -358,7 +714,15 @@ Ticket Details:
 
 
 
+
+
+
+
 - Priority: ${ticket.priority || 'Low'}
+
+
+
+
 
 
 
@@ -366,7 +730,15 @@ Ticket Details:
 
 
 
+
+
+
+
 - Assigned To: ${ticket.assignedTo || 'Unassigned'}
+
+
+
+
 
 
 
@@ -374,7 +746,15 @@ Ticket Details:
 
 
 
+
+
+
+
 We will process your request and get back to you shortly.
+
+
+
+
 
 
 
@@ -382,7 +762,15 @@ Best regards,
 
 
 
+
+
+
+
 Solar EPC Team
+
+
+
+
 
 
 
@@ -390,7 +778,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       const html = `
+
+
+
+
 
 
 
@@ -398,7 +794,15 @@ Solar EPC Team
 
 
 
+
+
+
+
   <h2 style="color: #f97316;">Service Ticket Created</h2>
+
+
+
+
 
 
 
@@ -406,7 +810,15 @@ Solar EPC Team
 
 
 
+
+
+
+
   <p>Your service ticket has been created successfully.</p>
+
+
+
+
 
 
 
@@ -414,7 +826,15 @@ Solar EPC Team
 
 
 
+
+
+
+
     <h3 style="margin-top: 0; color: #374151;">Ticket Details</h3>
+
+
+
+
 
 
 
@@ -422,7 +842,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       <tr><td style="padding: 8px 0; color: #6b7280;">Ticket ID:</td><td style="padding: 8px 0; font-weight: bold;">${ticket.ticketId}</td></tr>
+
+
+
+
 
 
 
@@ -430,7 +858,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       <tr><td style="padding: 8px 0; color: #6b7280;">Priority:</td><td style="padding: 8px 0; font-weight: bold;">${ticket.priority || 'Low'}</td></tr>
+
+
+
+
 
 
 
@@ -438,7 +874,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       <tr><td style="padding: 8px 0; color: #6b7280;">Assigned To:</td><td style="padding: 8px 0; font-weight: bold;">${ticket.assignedTo || 'Unassigned'}</td></tr>
+
+
+
+
 
 
 
@@ -446,7 +890,15 @@ Solar EPC Team
 
 
 
+
+
+
+
     ${ticket.description ? `<p style="margin-top: 15px;"><strong>Description:</strong> ${ticket.description}</p>` : ''}
+
+
+
+
 
 
 
@@ -454,7 +906,15 @@ Solar EPC Team
 
 
 
+
+
+
+
   <p style="background: #fef3c7; padding: 10px; border-radius: 5px; border-left: 4px solid #f59e0b;">
+
+
+
+
 
 
 
@@ -462,7 +922,15 @@ Solar EPC Team
 
 
 
+
+
+
+
   </p>
+
+
+
+
 
 
 
@@ -470,7 +938,15 @@ Solar EPC Team
 
 
 
+
+
+
+
     Best regards,<br>
+
+
+
+
 
 
 
@@ -478,7 +954,15 @@ Solar EPC Team
 
 
 
+
+
+
+
   </p>
+
+
+
+
 
 
 
@@ -486,7 +970,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       `;
+
+
+
+
 
 
 
@@ -494,7 +986,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       if (result.success) {
+
+
+
+
 
 
 
@@ -502,7 +1002,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       } else {
+
+
+
+
 
 
 
@@ -510,7 +1018,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       }
+
+
+
+
 
 
 
@@ -518,7 +1034,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       console.error('Error sending ticket created email:', error);
+
+
+
+
 
 
 
@@ -526,7 +1050,19 @@ Solar EPC Team
 
 
 
+
+
+
+
   }
+
+
+
+
+
+
+
+
 
 
 
@@ -538,7 +1074,15 @@ Solar EPC Team
 
 
 
+
+
+
+
     const {
+
+
+
+
 
 
 
@@ -546,7 +1090,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       limit = 25,
+
+
+
+
 
 
 
@@ -554,7 +1106,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       sortOrder = 'desc',
+
+
+
+
 
 
 
@@ -562,7 +1122,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       status,
+
+
+
+
 
 
 
@@ -570,7 +1138,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       customerId,
+
+
+
+
 
 
 
@@ -578,7 +1154,19 @@ Solar EPC Team
 
 
 
+
+
+
+
     } = query;
+
+
+
+
+
+
+
+
 
 
 
@@ -594,7 +1182,19 @@ Solar EPC Team
 
 
 
+
+
+
+
+
+
+
+
     if (tenantId) {
+
+
+
+
 
 
 
@@ -602,7 +1202,15 @@ Solar EPC Team
 
 
 
+
+
+
+
         filter.tenantId = new Types.ObjectId(tenantId);
+
+
+
+
 
 
 
@@ -610,7 +1218,15 @@ Solar EPC Team
 
 
 
+
+
+
+
         filter.tenantId = tenantId;
+
+
+
+
 
 
 
@@ -618,7 +1234,19 @@ Solar EPC Team
 
 
 
+
+
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -630,7 +1258,15 @@ Solar EPC Team
 
 
 
+
+
+
+
     if (user?.dataScope === 'ASSIGNED') {
+
+
+
+
 
 
 
@@ -638,7 +1274,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       if (userId) {
+
+
+
+
 
 
 
@@ -646,7 +1290,15 @@ Solar EPC Team
 
 
 
+
+
+
+
           ? new Types.ObjectId(userId)
+
+
+
+
 
 
 
@@ -654,7 +1306,15 @@ Solar EPC Team
 
 
 
+
+
+
+
         // STRICT: Only show tickets explicitly assigned to this user
+
+
+
+
 
 
 
@@ -662,7 +1322,15 @@ Solar EPC Team
 
 
 
+
+
+
+
         console.log(`[TICKETS VISIBILITY] Applied STRICT assignedTo filter:`, objectId);
+
+
+
+
 
 
 
@@ -670,7 +1338,19 @@ Solar EPC Team
 
 
 
+
+
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -682,7 +1362,15 @@ Solar EPC Team
 
 
 
+
+
+
+
     if (priority) filter.priority = priority;
+
+
+
+
 
 
 
@@ -690,7 +1378,15 @@ Solar EPC Team
 
 
 
+
+
+
+
     // Note: assignedTo query param is IGNORED for ASSIGNED scope users
+
+
+
+
 
 
 
@@ -702,7 +1398,19 @@ Solar EPC Team
 
 
 
+
+
+
+
+
+
+
+
     if (search) {
+
+
+
+
 
 
 
@@ -710,7 +1418,15 @@ Solar EPC Team
 
 
 
+
+
+
+
         { ticketId: { $regex: search, $options: 'i' } },
+
+
+
+
 
 
 
@@ -718,7 +1434,15 @@ Solar EPC Team
 
 
 
+
+
+
+
         { type: { $regex: search, $options: 'i' } },
+
+
+
+
 
 
 
@@ -726,7 +1450,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       ];
+
+
+
+
 
 
 
@@ -738,7 +1470,19 @@ Solar EPC Team
 
 
 
+
+
+
+
+
+
+
+
     const sort: any = {};
+
+
+
+
 
 
 
@@ -746,7 +1490,19 @@ Solar EPC Team
 
 
 
+
+
+
+
     sort[sortField] = sortOrder === 'asc' ? 1 : -1;
+
+
+
+
+
+
+
+
 
 
 
@@ -762,7 +1518,19 @@ Solar EPC Team
 
 
 
+
+
+
+
+
+
+
+
     const [data, total] = await Promise.all([
+
+
+
+
 
 
 
@@ -770,7 +1538,15 @@ Solar EPC Team
 
 
 
+
+
+
+
         .find(filter)
+
+
+
+
 
 
 
@@ -778,7 +1554,15 @@ Solar EPC Team
 
 
 
+
+
+
+
         .skip(skip)
+
+
+
+
 
 
 
@@ -786,7 +1570,15 @@ Solar EPC Team
 
 
 
+
+
+
+
         .lean()
+
+
+
+
 
 
 
@@ -794,7 +1586,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       this.ticketModel.countDocuments(filter),
+
+
+
+
 
 
 
@@ -806,23 +1606,55 @@ Solar EPC Team
 
 
 
+
+
+
+
+
+
+
+
     // Format dates for frontend and extract assigned user name
+
+
 
     const formattedData = data.map((ticket: any) => ({
 
+
+
       ...ticket,
+
+
 
       id: ticket.ticketId,
 
+
+
       assignedTo: ticket.assignedTo?.email 
+
         ? ticket.assignedTo.email.split('@')[0].replace(/\./g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
+
         : (ticket.assignedTo?.toString() || ''),
+
+
 
       created: ticket.created ? new Date(ticket.created).toISOString().split('T')[0] : '',
 
+
+
       resolved: ticket.resolved ? new Date(ticket.resolved).toISOString().split('T')[0] : null,
 
+
+
     }));
+
+
+
+
+
+
+
+
 
 
 
@@ -834,7 +1666,19 @@ Solar EPC Team
 
 
 
+
+
+
+
   }
+
+
+
+
+
+
+
+
 
 
 
@@ -846,7 +1690,15 @@ Solar EPC Team
 
 
 
+
+
+
+
     const filter: any = {
+
+
+
+
 
 
 
@@ -854,7 +1706,15 @@ Solar EPC Team
 
 
 
+
+
+
+
         { _id: Types.ObjectId.isValid(id) ? new Types.ObjectId(id) : undefined },
+
+
+
+
 
 
 
@@ -862,11 +1722,23 @@ Solar EPC Team
 
 
 
+
+
+
+
       ].filter(Boolean),
 
 
 
+
+
+
+
       isDeleted: { $ne: true }
+
+
+
+
 
 
 
@@ -878,7 +1750,19 @@ Solar EPC Team
 
 
 
+
+
+
+
+
+
+
+
     if (tenantId) {
+
+
+
+
 
 
 
@@ -886,7 +1770,15 @@ Solar EPC Team
 
 
 
+
+
+
+
         filter.tenantId = new Types.ObjectId(tenantId);
+
+
+
+
 
 
 
@@ -894,7 +1786,15 @@ Solar EPC Team
 
 
 
+
+
+
+
         filter.tenantId = tenantId;
+
+
+
+
 
 
 
@@ -902,7 +1802,19 @@ Solar EPC Team
 
 
 
+
+
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -918,7 +1830,19 @@ Solar EPC Team
 
 
 
+
+
+
+
+
+
+
+
     if (!ticket) {
+
+
+
+
 
 
 
@@ -926,7 +1850,19 @@ Solar EPC Team
 
 
 
+
+
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -938,7 +1874,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       ...ticket,
+
+
+
+
 
 
 
@@ -946,7 +1890,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       created: ticket.created ? new Date(ticket.created).toISOString().split('T')[0] : '',
+
+
+
+
 
 
 
@@ -954,11 +1906,27 @@ Solar EPC Team
 
 
 
+
+
+
+
     } as unknown as Ticket;
 
 
 
+
+
+
+
   }
+
+
+
+
+
+
+
+
 
 
 
@@ -970,7 +1938,15 @@ Solar EPC Team
 
 
 
+
+
+
+
     try {
+
+
+
+
 
 
 
@@ -978,7 +1954,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       
+
+
+
+
 
 
 
@@ -986,7 +1970,15 @@ Solar EPC Team
 
 
 
+
+
+
+
         $or: [
+
+
+
+
 
 
 
@@ -994,7 +1986,15 @@ Solar EPC Team
 
 
 
+
+
+
+
           { ticketId: id }
+
+
+
+
 
 
 
@@ -1002,7 +2002,15 @@ Solar EPC Team
 
 
 
+
+
+
+
         isDeleted: { $ne: true }
+
+
+
+
 
 
 
@@ -1014,7 +2022,19 @@ Solar EPC Team
 
 
 
+
+
+
+
+
+
+
+
       if (tenantId) {
+
+
+
+
 
 
 
@@ -1022,7 +2042,15 @@ Solar EPC Team
 
 
 
+
+
+
+
           filter.tenantId = new Types.ObjectId(tenantId);
+
+
+
+
 
 
 
@@ -1030,7 +2058,15 @@ Solar EPC Team
 
 
 
+
+
+
+
           filter.tenantId = tenantId;
+
+
+
+
 
 
 
@@ -1038,7 +2074,19 @@ Solar EPC Team
 
 
 
+
+
+
+
       }
+
+
+
+
+
+
+
+
 
 
 
@@ -1050,59 +2098,119 @@ Solar EPC Team
 
 
 
+
+
+
+
       // Use raw collection to bypass Mongoose validation on find
+
+
 
       const collection = this.ticketModel.collection;
 
+
+
       let rawTicket = await collection.findOne(filter);
+
+
 
       
 
+
+
       if (!rawTicket && tenantId) {
+
+
 
         const fallbackFilter: any = {
 
+
+
           $or: [
+
+
 
             { _id: Types.ObjectId.isValid(id) ? new Types.ObjectId(id) : undefined },
 
+
+
             { ticketId: id }
+
+
 
           ].filter(Boolean),
 
+
+
           isDeleted: { $ne: true },
+
+
 
           tenantId: { $exists: false }
 
+
+
         };
+
+
 
         console.log('Trying fallback filter:', fallbackFilter);
 
+
+
         const fallbackTicket = await collection.findOne(fallbackFilter);
+
+
 
         if (fallbackTicket) {
 
+
+
           console.log('Found ticket without tenantId, will update it with tenantId');
+
+
 
           rawTicket = fallbackTicket;
 
+
+
           // Add tenantId to update
+
+
 
           updateTicketDto = { ...updateTicketDto, tenantId: new Types.ObjectId(tenantId) } as any;
 
+
+
         }
 
+
+
       }
+
+
+
+
 
 
 
       if (!rawTicket) {
 
+
+
         console.log('Ticket not found for id:', id);
+
+
 
         throw new NotFoundException('Ticket not found');
 
+
+
       }
+
+
+
+
 
 
 
@@ -1110,57 +2218,115 @@ Solar EPC Team
 
 
 
+
+
+
+
       // Clean invalid ObjectId fields from raw data
+
+
 
       const objectIdFields = ['assignedTo', 'createdBy'];
 
+
+
       const cleanedUpdate: any = { ...updateTicketDto };
+
+
 
       for (const field of objectIdFields) {
 
+
+
         const value = rawTicket[field];
+
+
 
         if (value && typeof value === 'string' && !Types.ObjectId.isValid(value)) {
 
+
+
           console.log(`Removing invalid ${field} value:`, value);
+
+
 
           cleanedUpdate[field] = null; // Set to null to remove from document
 
+
+
         }
 
+
+
       }
+
+
+
+
 
 
 
       // Filter out undefined values
 
+
+
       const updates: any = {};
+
+
 
       Object.entries(cleanedUpdate).forEach(([key, value]) => {
 
+
+
         if (value !== undefined && key !== 'resolved' && key !== '_id' && key !== 'ticketId') {
+
+
 
           updates[key] = value;
 
+
+
         }
+
+
 
       });
 
 
 
+
+
+
+
       // Handle resolved date based on status
+
+
 
       if (updateTicketDto.status === 'Resolved') {
 
+
+
         updates.resolved = new Date();
+
+
 
       } else if (updateTicketDto.status && updateTicketDto.status !== 'Resolved') {
 
+
+
         // Clear resolved date when moving away from Resolved (to Open, In Progress, Scheduled, or Closed)
+
+
 
         updates.resolved = null;
 
+
+
       }
+
+
+
+
 
 
 
@@ -1168,19 +2334,39 @@ Solar EPC Team
 
 
 
+
+
+
+
       // Use findOneAndUpdate with raw collection
+
+
 
       const updateFilter: any = { _id: rawTicket._id };
 
+
+
       const result = await collection.findOneAndUpdate(
+
+
 
         updateFilter,
 
+
+
         { $set: updates },
+
+
 
         { returnDocument: 'after' }
 
+
+
       );
+
+
+
+
 
 
 
@@ -1188,17 +2374,35 @@ Solar EPC Team
 
 
 
+
+
+
+
       return {
+
+
 
         ...result,
 
+
+
         id: result?.ticketId,
+
+
 
         created: result?.created ? new Date(result.created).toISOString().split('T')[0] : '',
 
+
+
         resolved: result?.resolved ? new Date(result.resolved).toISOString().split('T')[0] : null,
 
+
+
       } as unknown as Ticket;
+
+
+
+
 
 
 
@@ -1206,7 +2410,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       console.error('Service.update error:', error.message);
+
+
+
+
 
 
 
@@ -1214,7 +2426,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       throw error;
+
+
+
+
 
 
 
@@ -1222,7 +2442,19 @@ Solar EPC Team
 
 
 
+
+
+
+
   }
+
+
+
+
+
+
+
+
 
 
 
@@ -1234,7 +2466,15 @@ Solar EPC Team
 
 
 
+
+
+
+
     const filter: any = {
+
+
+
+
 
 
 
@@ -1242,7 +2482,15 @@ Solar EPC Team
 
 
 
+
+
+
+
         { _id: Types.ObjectId.isValid(id) ? new Types.ObjectId(id) : undefined },
+
+
+
+
 
 
 
@@ -1250,7 +2498,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       ].filter(Boolean),
+
+
+
+
 
 
 
@@ -1262,7 +2518,19 @@ Solar EPC Team
 
 
 
+
+
+
+
+
+
+
+
     if (tenantId) {
+
+
+
+
 
 
 
@@ -1270,7 +2538,15 @@ Solar EPC Team
 
 
 
+
+
+
+
         filter.tenantId = new Types.ObjectId(tenantId);
+
+
+
+
 
 
 
@@ -1278,7 +2554,15 @@ Solar EPC Team
 
 
 
+
+
+
+
         filter.tenantId = tenantId;
+
+
+
+
 
 
 
@@ -1286,7 +2570,19 @@ Solar EPC Team
 
 
 
+
+
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -1298,7 +2594,19 @@ Solar EPC Team
 
 
 
+
+
+
+
     const result = await this.ticketModel.deleteOne(filter).exec();
+
+
+
+
+
+
+
+
 
 
 
@@ -1310,11 +2618,23 @@ Solar EPC Team
 
 
 
+
+
+
+
       throw new NotFoundException('Ticket not found');
 
 
 
+
+
+
+
     }
+
+
+
+
 
 
 
@@ -1326,7 +2646,19 @@ Solar EPC Team
 
 
 
+
+
+
+
+
+
+
+
   async getStats(tenantId?: string, user?: UserWithVisibility): Promise<any> {
+
+
+
+
 
 
 
@@ -1338,7 +2670,19 @@ Solar EPC Team
 
 
 
+
+
+
+
+
+
+
+
     if (tenantId) {
+
+
+
+
 
 
 
@@ -1346,7 +2690,15 @@ Solar EPC Team
 
 
 
+
+
+
+
         filter.tenantId = new Types.ObjectId(tenantId);
+
+
+
+
 
 
 
@@ -1354,7 +2706,15 @@ Solar EPC Team
 
 
 
+
+
+
+
         filter.tenantId = tenantId;
+
+
+
+
 
 
 
@@ -1362,7 +2722,19 @@ Solar EPC Team
 
 
 
+
+
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -1374,7 +2746,15 @@ Solar EPC Team
 
 
 
+
+
+
+
     if (user?.dataScope === 'ASSIGNED') {
+
+
+
+
 
 
 
@@ -1382,7 +2762,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       if (userId) {
+
+
+
+
 
 
 
@@ -1390,7 +2778,15 @@ Solar EPC Team
 
 
 
+
+
+
+
           ? new Types.ObjectId(userId)
+
+
+
+
 
 
 
@@ -1398,7 +2794,15 @@ Solar EPC Team
 
 
 
+
+
+
+
         // STRICT: Only show tickets explicitly assigned to this user
+
+
+
+
 
 
 
@@ -1406,7 +2810,15 @@ Solar EPC Team
 
 
 
+
+
+
+
         console.log(`[TICKETS STATS VISIBILITY] Applied assignedTo filter:`, objectId);
+
+
+
+
 
 
 
@@ -1414,7 +2826,19 @@ Solar EPC Team
 
 
 
+
+
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -1430,7 +2854,19 @@ Solar EPC Team
 
 
 
+
+
+
+
+
+
+
+
     const [
+
+
+
+
 
 
 
@@ -1438,7 +2874,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       openTickets,
+
+
+
+
 
 
 
@@ -1446,7 +2890,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       resolved,
+
+
+
+
 
 
 
@@ -1454,7 +2906,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       closed,
+
+
+
+
 
 
 
@@ -1462,7 +2922,15 @@ Solar EPC Team
 
 
 
+
+
+
+
     ] = await Promise.all([
+
+
+
+
 
 
 
@@ -1470,7 +2938,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       this.ticketModel.countDocuments({ ...filter, status: 'Open' }),
+
+
+
+
 
 
 
@@ -1478,7 +2954,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       this.ticketModel.countDocuments({ ...filter, status: 'Resolved' }),
+
+
+
+
 
 
 
@@ -1486,7 +2970,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       this.ticketModel.countDocuments({ ...filter, status: 'Closed' }),
+
+
+
+
 
 
 
@@ -1494,7 +2986,15 @@ Solar EPC Team
 
 
 
+
+
+
+
         { $match: filter },
+
+
+
+
 
 
 
@@ -1502,7 +3002,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       ]),
+
+
+
+
 
 
 
@@ -1514,7 +3022,19 @@ Solar EPC Team
 
 
 
+
+
+
+
+
+
+
+
     return {
+
+
+
+
 
 
 
@@ -1522,7 +3042,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       openTickets,
+
+
+
+
 
 
 
@@ -1530,7 +3058,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       resolved,
+
+
+
+
 
 
 
@@ -1538,7 +3074,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       closed,
+
+
+
+
 
 
 
@@ -1546,11 +3090,27 @@ Solar EPC Team
 
 
 
+
+
+
+
     };
 
 
 
+
+
+
+
   }
+
+
+
+
+
+
+
+
 
 
 
@@ -1562,7 +3122,15 @@ Solar EPC Team
 
 
 
+
+
+
+
     const filter: any = {
+
+
+
+
 
 
 
@@ -1570,7 +3138,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       $or: [
+
+
+
+
 
 
 
@@ -1578,11 +3154,23 @@ Solar EPC Team
 
 
 
+
+
+
+
         { role: 'Service Manager' },
 
 
 
+
+
+
+
       ],
+
+
+
+
 
 
 
@@ -1594,7 +3182,19 @@ Solar EPC Team
 
 
 
+
+
+
+
+
+
+
+
     if (tenantId) {
+
+
+
+
 
 
 
@@ -1602,7 +3202,15 @@ Solar EPC Team
 
 
 
+
+
+
+
         filter.tenantId = new Types.ObjectId(tenantId);
+
+
+
+
 
 
 
@@ -1610,11 +3218,23 @@ Solar EPC Team
 
 
 
+
+
+
+
         filter.tenantId = tenantId;
 
 
 
+
+
+
+
       }
+
+
+
+
 
 
 
@@ -1626,7 +3246,19 @@ Solar EPC Team
 
 
 
+
+
+
+
+
+
+
+
     const users = await this.userModel
+
+
+
+
 
 
 
@@ -1634,11 +3266,23 @@ Solar EPC Team
 
 
 
+
+
+
+
       .select('_id email role')
 
 
 
+
+
+
+
       .lean()
+
+
+
+
 
 
 
@@ -1650,7 +3294,19 @@ Solar EPC Team
 
 
 
+
+
+
+
+
+
+
+
     return users.map((user: any) => ({
+
+
+
+
 
 
 
@@ -1658,7 +3314,15 @@ Solar EPC Team
 
 
 
+
+
+
+
       name: user.email.split('@')[0].replace(/\./g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
+
+
+
+
 
 
 
@@ -1666,7 +3330,15 @@ Solar EPC Team
 
 
 
+
+
+
+
     }));
+
+
+
+
 
 
 
@@ -1674,7 +3346,15 @@ Solar EPC Team
 
 
 
+
+
+
+
 }
+
+
+
+
 
 
 

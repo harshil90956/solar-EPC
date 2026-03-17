@@ -6,7 +6,7 @@ import { cn } from '../../lib/utils';
  * Generic Modal — controlled by `open` or `isOpen` prop
  * Sizes: sm (400px) | md (560px) | lg (720px) | xl (900px) | full
  */
-export const Modal = ({ open, isOpen, onClose, title, description, size = 'md', children, footer }) => {
+export const Modal = ({ open, isOpen, onClose, title, description, size = 'md', zIndex = 100, children, footer }) => {
   // Support both 'open' and 'isOpen' for backward compatibility
   const modalOpen = open ?? isOpen ?? false;
   const overlayRef = useRef(null);
@@ -29,7 +29,8 @@ export const Modal = ({ open, isOpen, onClose, title, description, size = 'md', 
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in perspective-1000"
+      style={{ zIndex }}
+      className="fixed inset-0 flex items-end sm:items-center justify-center sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in perspective-1000"
       onClick={(e) => { if (e.target === overlayRef.current) onClose?.(); }}
     >
       <div className={cn(
