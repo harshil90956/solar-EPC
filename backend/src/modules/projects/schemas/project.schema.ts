@@ -103,6 +103,12 @@ export class Project extends Document {
   @Prop({ required: false })
   cancelledAt?: Date;
 
+  @Prop({ type: Boolean, default: false })
+  inventoryRestored?: boolean;
+
+  @Prop({ required: false })
+  inventoryRestoredAt?: Date;
+
   @Prop({ type: Types.ObjectId, ref: 'User', index: true, required: false })
   assignedTo?: Types.ObjectId;
 
