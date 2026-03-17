@@ -3,7 +3,7 @@
  * Provides role-based access control with column-level permissions
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/apiClient';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
@@ -63,10 +63,17 @@ export const usePermissions = (module) => {
         return { permissions: [], columns: {} };
       }
     },
+<<<<<<< Updated upstream
     enabled: Boolean(userRoleId && isAdminLike),
     staleTime: 2 * 60 * 1000, // Cache for 2 minutes
     cacheTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
     refetchOnWindowFocus: false,
+=======
+    enabled: !!userRoleId,
+    staleTime: 10 * 1000, // Cache for 10 seconds only
+    cacheTime: 30 * 1000, // Keep in cache for 30 seconds
+    refetchOnWindowFocus: true, // Refresh when user returns to tab
+>>>>>>> Stashed changes
   });
 
   // Combine JWT permissions with API permissions (API takes precedence)
