@@ -76,6 +76,7 @@ import IntelligenceDashboardPage from './pages/IntelligenceDashboardPage';
 
 import RemindersPage from './pages/RemindersPage';
 import HrmPermissionsPage from './pages/HrmPermissionsPage';
+import ProfilePage from './pages/ProfilePage';
 import NotificationSystem from './components/NotificationSystem';
 
 
@@ -140,6 +141,8 @@ const PAGE_MAP = {
   intelligence: { component: IntelligenceDashboardPage, title: 'AI Intelligence' },
 
   documents: { component: DocumentPage, title: 'Documents' },
+
+  profile: { component: ProfilePage, title: 'My Profile' },
 
 };
 

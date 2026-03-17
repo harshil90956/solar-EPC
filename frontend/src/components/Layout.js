@@ -494,7 +494,18 @@ const Layout = ({ currentPage, onNavigate, children }) => {
                 : 'bg-[var(--bg-elevated)] border-[var(--border-base)] hover:border-[var(--border-muted)]'
             )}
           >
-            <Avatar size="xs">{user?.avatar}</Avatar>
+            {user?.profileImage ? (
+              <img
+                src={user.profileImage}
+                alt="Profile"
+                className="w-5 h-5 rounded-lg object-cover"
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+            ) : (
+              <div className="w-5 h-5 rounded-lg bg-[var(--primary)] flex items-center justify-center text-white text-[10px] font-bold">
+                {user?.name?.[0]?.toUpperCase() || 'U'}
+              </div>
+            )}
             <span className={cn('hidden sm:block text-xs font-medium', topbarHasCustomColor ? 'text-white/90' : 'text-[var(--text-secondary)]')}>{user?.name?.split(' ')[0]}</span>
             <ChevronDown size={11} className={cn('hidden sm:block', topbarHasCustomColor ? 'text-white/50' : 'text-[var(--text-faint)]')} />
           </button>
@@ -508,7 +519,10 @@ const Layout = ({ currentPage, onNavigate, children }) => {
                   <p className="text-[10px] text-[var(--text-faint)] mt-0.5">{user?.email}</p>
                   <Badge variant="blue" className="mt-2 text-[9px]">{user?.role}</Badge>
                 </div>
-                <button className="flex items-center gap-2.5 w-full px-4 py-2.5 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors">
+                <button
+                  onClick={() => { onNavigate('profile'); setUserMenuOpen(false); }}
+                  className="flex items-center gap-2.5 w-full px-4 py-2.5 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+                >
                   <User size={12} /> My Profile
                 </button>
                 <button
