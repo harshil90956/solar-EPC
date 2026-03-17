@@ -112,6 +112,29 @@ export class PermissionService implements OnModuleInit {
     @InjectModel(RoleModulePermission.name) private roleModulePermissionModel: Model<RoleModulePermission>,
   ) {}
 
+  private normalizeActionKey(action: string): string {
+    const raw = String(action || '').trim();
+    if (!raw) return raw;
+    const lower = raw.replace(/\s+/g, '_').toLowerCase();
+    if (lower === 'check_in' || lower === 'checkin') return 'checkin';
+    if (lower === 'check_out' || lower === 'checkout') return 'checkout';
+    if (lower === 'checkin_checkout') return 'checkin_checkout';
+    return lower;
+  }
+
+  private normalizeActionsObject(actions: any): Record<string, boolean> {
+    const out: Record<string, boolean> = {};
+    if (!actions || typeof actions !== 'object') return out;
+    for (const [k, v] of Object.entries(actions)) {
+      out[this.normalizeActionKey(k)] = v === true;
+    }
+    if (out.checkin_checkout === true) {
+      out.checkin = true;
+      out.checkout = true;
+    }
+    return out;
+  }
+
   async onModuleInit() {
     await this.seedPermissions();
     await this.seedRoles();
@@ -369,7 +392,15 @@ export class PermissionService implements OnModuleInit {
     if (tenantId) {
       query.tenantId = new Types.ObjectId(tenantId);
     }
-    return this.roleModulePermissionModel.findOne(query).exec();
+    const found = await this.roleModulePermissionModel.findOne(query).exec();
+    if (found) return found;
+
+    // Backward compatibility: older records may not have tenantId set.
+    // If tenantId-scoped lookup misses, try tenant-agnostic.
+    if (tenantId) {
+      return this.roleModulePermissionModel.findOne({ roleId, module }).exec();
+    }
+    return null;
   }
 
   async getAllRoleModulePermissions(roleId: string, tenantId?: string): Promise<RoleModulePermission[]> {
@@ -395,7 +426,7 @@ export class PermissionService implements OnModuleInit {
     const update = {
       roleId,
       module,
-      actions,
+      actions: this.normalizeActionsObject(actions),
       dataScope,
       tenantId: tenantId ? new Types.ObjectId(tenantId) : undefined,
       updatedAt: new Date(),
@@ -434,7 +465,11 @@ export class PermissionService implements OnModuleInit {
     const perm = await this.getRoleModulePermission(roleId, module, tenantId);
     if (!perm) return false;
 
-    return (perm.actions as Record<string, boolean>)[action] === true;
+    const normalizedAction = this.normalizeActionKey(action);
+    if (normalizedAction === 'checkin_checkout') {
+      return (perm.actions as Record<string, boolean>).checkin === true || (perm.actions as Record<string, boolean>).checkout === true;
+    }
+    return (perm.actions as Record<string, boolean>)[normalizedAction] === true;
   }
 
   async seedDefaultModulePermissions(tenantId?: string): Promise<void> {

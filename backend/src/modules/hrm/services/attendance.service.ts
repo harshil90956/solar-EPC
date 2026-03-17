@@ -6,12 +6,14 @@ import { Employee, EmployeeSchema } from '../schemas/employee.schema';
 import { CheckInDto, CheckOutDto } from '../dto/attendance.dto';
 import { Tenant, TenantDocument } from '../../../core/tenant/schemas/tenant.schema';
 import { UserWithVisibility } from '../../../common/utils/visibility-filter';
+import { AttendancePolicyService } from './attendance-policy.service';
 
 @Injectable()
 export class AttendanceService {
   constructor(
     @InjectModel(Attendance.name) private readonly attendanceModel: Model<AttendanceDocument>,
     @InjectModel(Tenant.name) private readonly tenantModel: Model<TenantDocument>,
+    private readonly policyService: AttendancePolicyService,
   ) {}
 
   private async resolveTenantObjectId(tenantId: string): Promise<Types.ObjectId> {
@@ -39,8 +41,6 @@ export class AttendanceService {
     }
     const employeeTenantId = (employee as any).tenantId;
 
-    console.log(`[DEBUG] Check-In for Employee: ${checkInDto.employeeId}, Tenant: ${employeeTenantId}, Date (Local): ${today.toLocaleDateString()}, Date (ISO): ${today.toISOString()}`);
-
     const query: any = {
       employeeId: new Types.ObjectId(checkInDto.employeeId),
       date: {
@@ -60,12 +60,39 @@ export class AttendanceService {
       throw new BadRequestException('Already checked in for today');
     }
 
-    // Calculate status based on check-in time (Late if after 9:30 AM)
+    // Calculate status based on attendance policy
     const now = new Date();
-    const lateThreshold = new Date();
-    lateThreshold.setHours(9, 30, 0, 0);
-    
-    const status = now > lateThreshold ? AttendanceStatus.LATE : AttendanceStatus.PRESENT;
+    let status = AttendanceStatus.PRESENT;
+    let isLate = false;
+    let lateMinutes = 0;
+
+    try {
+      const policy = await this.policyService.getOrCreateDefaultPolicy(employeeTenantId.toString());
+      if (policy && policy.isActive) {
+        const checkInTime = this.policyService.getCheckInDateTime(policy, today);
+        const graceEnd = new Date(checkInTime.getTime() + policy.gracePeriodMinutes * 60 * 1000);
+
+        if (now > graceEnd) {
+          isLate = true;
+          lateMinutes = Math.ceil((now.getTime() - checkInTime.getTime()) / (60 * 1000));
+          
+          if (lateMinutes >= policy.halfDayAfterMinutes) {
+            status = AttendanceStatus.HALF_DAY;
+          } else if (lateMinutes >= policy.lateMarkAfterMinutes) {
+            status = AttendanceStatus.LATE;
+          }
+        }
+      }
+    } catch (error) {
+      console.log('[AttendancePolicy] Could not apply policy, using default logic');
+      // Fallback to default 9:30 AM threshold
+      const lateThreshold = new Date();
+      lateThreshold.setHours(9, 30, 0, 0);
+      if (now > lateThreshold) {
+        status = AttendanceStatus.LATE;
+        isLate = true;
+      }
+    }
 
     if (existingAttendance) {
       // Update existing record
@@ -103,8 +130,6 @@ export class AttendanceService {
     }
     const employeeTenantId = (employee as any).tenantId;
 
-    console.log(`[DEBUG] Check-Out for Employee: ${checkOutDto.employeeId}, Tenant: ${employeeTenantId}, Date (Local): ${today.toLocaleDateString()}, Date (ISO): ${today.toISOString()}`);
-
     const query: any = {
       employeeId: new Types.ObjectId(checkOutDto.employeeId),
       date: {
@@ -134,20 +159,71 @@ export class AttendanceService {
     const checkOut = new Date();
     attendance.checkOut = checkOut;
     
-    // Calculate total hours
+    // Calculate total hours with break time deduction
     const checkIn = new Date(attendance.checkIn);
-    const diffMs = checkOut.getTime() - checkIn.getTime();
-    attendance.totalHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
     
-    // Auto mark as Half Day if working hours are less than 4 hours
-    if (attendance.totalHours < 4) {
-      attendance.status = AttendanceStatus.HALF_DAY;
+    // Apply attendance policy for status and early exit determination
+    try {
+      const policy = await this.policyService.getOrCreateDefaultPolicy(employeeTenantId.toString());
+      if (policy && policy.isActive) {
+        // Calculate effective working hours (total - break time)
+        const { totalHours, breakMinutes, effectiveHours } = this.policyService.calculateEffectiveWorkingHours(
+          policy,
+          checkIn,
+          checkOut,
+        );
+        
+        attendance.totalHours = effectiveHours;
+        attendance.breakTime = breakMinutes;
+        
+        const scheduledCheckOut = this.policyService.getCheckOutDateTime(policy, today);
+        const earlyLeaveThreshold = new Date(scheduledCheckOut.getTime() - policy.earlyLeaveBeforeMinutes * 60 * 1000);
+        
+        // Check for early exit
+        attendance.isEarlyExit = checkOut < earlyLeaveThreshold;
+        
+        // Calculate overtime
+        const overtimeStart = new Date(scheduledCheckOut.getTime() + policy.overtimeThresholdMinutes * 60 * 1000);
+        if (checkOut > overtimeStart) {
+          attendance.overtimeMinutes = Math.ceil((checkOut.getTime() - scheduledCheckOut.getTime()) / (60 * 1000));
+        }
+        
+        // Auto mark as Half Day if working hours are less than half day threshold (in hours)
+        const minHoursForFullDay = (policy.halfDayAfterMinutes / 60);
+        
+        // Also check if already marked as half day from check-in
+        if (attendance.status !== AttendanceStatus.HALF_DAY && effectiveHours < minHoursForFullDay) {
+          attendance.status = AttendanceStatus.HALF_DAY;
+        }
+      } else {
+        // Fallback to default logic without break time
+        const diffMs = checkOut.getTime() - checkIn.getTime();
+        attendance.totalHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
+        attendance.breakTime = 0;
+        
+        if (attendance.totalHours < 4) {
+          attendance.status = AttendanceStatus.HALF_DAY;
+        }
+        
+        const earlyExitThreshold = new Date();
+        earlyExitThreshold.setHours(18, 0, 0, 0);
+        attendance.isEarlyExit = checkOut < earlyExitThreshold;
+      }
+    } catch (error) {
+      console.log('[AttendancePolicy] Could not apply policy on checkout, using default logic');
+      // Fallback to default logic without break time
+      const diffMs = checkOut.getTime() - checkIn.getTime();
+      attendance.totalHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
+      attendance.breakTime = 0;
+      
+      if (attendance.totalHours < 4) {
+        attendance.status = AttendanceStatus.HALF_DAY;
+      }
+      
+      const earlyExitThreshold = new Date();
+      earlyExitThreshold.setHours(18, 0, 0, 0);
+      attendance.isEarlyExit = checkOut < earlyExitThreshold;
     }
-    
-    // Check for Early Exit (before 6:00 PM)
-    const earlyExitThreshold = new Date();
-    earlyExitThreshold.setHours(18, 0, 0, 0);
-    attendance.isEarlyExit = checkOut < earlyExitThreshold;
     
     if (checkOutDto.notes) {
       attendance.notes = checkOutDto.notes;

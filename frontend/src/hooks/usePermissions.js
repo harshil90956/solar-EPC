@@ -189,6 +189,21 @@ export const usePermissions = (module) => {
     return can('generate');
   }, [can]);
 
+  // Check if user can manage (generic management permission)
+  const canManage = useCallback(() => {
+    return can('manage');
+  }, [can]);
+
+  // Check if user can check-in/out (for attendance)
+  const canCheckin = useCallback(() => {
+    return can('checkin') || can('checkout') || can('checkin_checkout');
+  }, [can]);
+
+  // Check if user can view all records (for attendance)
+  const canViewAll = useCallback(() => {
+    return can('view_all') || can('viewAll');
+  }, [can]);
+
   // Feature flags support - checks if a feature is enabled (e.g., 'kanban_view', 'analytics_view')
   const feature = useCallback((featureName) => {
     if (userRole === 'Admin' || userRole === 'Super Admin') {
@@ -236,6 +251,9 @@ export const usePermissions = (module) => {
     canApprove,
     canAssign,
     canGenerate,
+    canManage,
+    canCheckin,
+    canViewAll,
     // Feature flags
     feature,
     // Module/Feature enabled checks

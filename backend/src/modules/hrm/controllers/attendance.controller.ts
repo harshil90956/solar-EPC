@@ -18,10 +18,31 @@ export class AttendanceController {
     const user = req.user;
     if (!user) throw new ForbiddenException('User not authenticated');
 
+    const tenantId = req.tenant?.id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.query?.tenantId;
+    console.log('[PERMISSION BACKEND]', { roleId: user?.roleId || user?.role, module, action, tenantId });
+
+    // Fast-path: honor permissions already present on JWT/user payload
+    // Supports:
+    // 1. permissions array: ["employees.view", "employees:view"]
+    // 2. modulePermissions object: { employees: { actions: ["view"], ... } }
+    const userPerms: string[] = Array.isArray(user?.permissions) ? user.permissions : [];
+    const modulePerms = user?.modulePermissions?.[module];
+    
+    const keyColon = `${module}:${action}`;
+    const keyDot = `${module}.${action}`;
+    
+    if (userPerms.includes(keyColon) || userPerms.includes(keyDot)) {
+      return;
+    }
+
+    if (modulePerms?.actions?.includes(action)) {
+      return;
+    }
+
     const roleId = user.roleId || user.role;
     if (!roleId) throw new ForbiddenException('User has no role assigned');
 
-    const hasPermission = await this.permissionService.checkModuleAction(roleId, module, action);
+    const hasPermission = await this.permissionService.checkModuleAction(roleId, module, action, tenantId);
     if (!hasPermission) {
       throw new ForbiddenException(`Permission denied: ${module}.${action} required`);
     }

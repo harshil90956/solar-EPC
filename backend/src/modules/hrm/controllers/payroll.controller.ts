@@ -16,15 +16,20 @@ export class PayrollController {
   private async checkPermission(req: any, permission: string) {
     const user = req.user;
     if (!user) throw new ForbiddenException('User not authenticated');
-    
-    // Super admin bypass
-    if (user.role === 'Super Admin' || user.role === 'Admin') return true;
-    
-    // Check user permissions from JWT
-    if (user.permissions && Array.isArray(user.permissions)) {
-      if (user.permissions.includes(permission)) return true;
+
+    // Fast-path: honor permissions already present on JWT/user payload
+    const userPerms: string[] = Array.isArray(user?.permissions) ? user.permissions : [];
+    const [module, action] = permission.split('.');
+    const modulePerms = user?.modulePermissions?.[module];
+
+    if (userPerms.includes(permission) || userPerms.includes(permission.replace('.', ':'))) {
+      return;
     }
-    
+
+    if (modulePerms?.actions?.includes(action)) {
+      return;
+    }
+
     const roleId = user.roleId || user.role;
     if (!roleId) throw new ForbiddenException('User has no role assigned');
     

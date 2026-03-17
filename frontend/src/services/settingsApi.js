@@ -20,6 +20,15 @@ export const settingsApi = {
     }
   },
 
+  async getMyPermissions() {
+    try {
+      return await apiClient.get('/settings/my-permissions');
+    } catch (error) {
+      console.warn('Failed to load my permissions:', error.message);
+      return { data: { permissions: {} } };
+    }
+  },
+
   // ── Feature Flags ─────────────────────────────────────────────────────────
   async getFeatureFlags() {
     try {

@@ -10,7 +10,8 @@ import {
   RefreshCw, CheckCircle, XCircle, AlertCircle, Users,
   MapPin, Wifi, Building, Home, TrendingUp, ChevronLeft,
   ChevronRight, Plus, Edit, Trash2, X, Check, User, Building2,
-  Timer, AlertTriangle, Navigation, QrCode, Camera
+  Timer, AlertTriangle, Navigation, QrCode, Camera,
+  Settings
 } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays, addDays, isSameDay } from 'date-fns';
 import { PageHeader } from '../components/ui/PageHeader';
@@ -173,7 +174,8 @@ const AttendancePageV3 = () => {
   const { user } = useAuth();
   
   // Check if data scope is OWN (only view own data)
-  const isOwnScope = user?.modulePermissions?.attendance?.dataScope === 'OWN';
+  const attendanceDataScope = user?.modulePermissions?.attendance?.dataScope;
+  const isOwnScope = String(attendanceDataScope || '').toLowerCase() === 'own';
   const currentEmployee = user?.employee;
 
   // ==================== CORE STATE ====================
@@ -742,6 +744,16 @@ const AttendancePageV3 = () => {
         title="Advanced Attendance Management"
         subtitle="Real-time tracking · GPS location · Face recognition · Bulk operations"
         actions={[
+          {
+            type: 'button',
+            label: 'Policy Settings',
+            icon: Settings,
+            variant: 'outline',
+            onClick: () => {
+              // Navigate to HRM page with attendance policy tab
+              window.location.href = '/hrm?tab=attendance-policy';
+            },
+          },
           {
             type: 'button',
             label: 'View Calendar',

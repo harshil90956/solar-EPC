@@ -35,85 +35,60 @@ export class EmployeeService {
   }
 
   async create(createEmployeeDto: CreateEmployeeDto, tenantId?: string): Promise<Employee> {
-    console.log('[DEBUG] EmployeeService.create called with:', createEmployeeDto, 'tenantId:', tenantId);
-    
     const tid = await this.resolveTenantObjectId(tenantId || '');
     if (!tid) {
-      throw new BadRequestException('Tenant context is missing or invalid');
+      throw new BadRequestException('Invalid tenant context');
     }
-    
-    // Build query for duplicate check
+
     const duplicateQuery: any = { 
       employeeId: createEmployeeDto.employeeId,
-      tenantId: tid,
+      tenantId: tid 
     };
     
     // Check if employeeId already exists for this tenant
-    console.log('[DEBUG] Checking duplicate employeeId:', duplicateQuery);
     const existingEmployee = await this.employeeModel.findOne(duplicateQuery);
 
     if (existingEmployee) {
-      console.log('[DEBUG] Employee with ID already exists:', createEmployeeDto.employeeId);
       throw new BadRequestException(`Employee with ID ${createEmployeeDto.employeeId} already exists`);
     }
 
-    // Build email query for duplicate check
-    const emailLower = (createEmployeeDto.email || '').toLowerCase();
     const emailQuery: any = { 
-      email: emailLower,
-      tenantId: tid,
+      email: (createEmployeeDto.email || '').toLowerCase(),
+      tenantId: tid 
     };
     
     // Check if email already exists for this tenant
-    console.log('[DEBUG] Checking duplicate email:', emailQuery);
     const existingEmail = await this.employeeModel.findOne(emailQuery);
 
     if (existingEmail) {
-      console.log('[DEBUG] Employee with email already exists:', createEmployeeDto.email);
       throw new BadRequestException(`Employee with email ${createEmployeeDto.email} already exists`);
     }
 
-    const employeeData: any = { 
+    const employeeData = {
       ...createEmployeeDto,
       tenantId: tid,
+      email: (createEmployeeDto.email || '').toLowerCase(),
     };
-
-    // Convert joiningDate from string to Date if needed
-    if (employeeData.joiningDate && typeof employeeData.joiningDate === 'string') {
-      employeeData.joiningDate = new Date(employeeData.joiningDate);
-    }
-
-    // Convert salary from string to Number if needed
-    if (employeeData.salary && typeof employeeData.salary === 'string') {
-      employeeData.salary = Number(employeeData.salary);
-    }
 
     // Hash password before saving
     if (employeeData.password) {
-      console.log('[DEBUG] Hashing password...');
       employeeData.password = await bcrypt.hash(employeeData.password, 10);
-    } else {
-      console.log('[DEBUG] No password provided!');
     }
 
-    console.log('[DEBUG] Creating employee with data:', employeeData);
     const employee = new this.employeeModel(employeeData);
     const savedEmployee = await employee.save();
-    console.log('[DEBUG] Employee saved successfully:', savedEmployee);
     return savedEmployee;
   }
 
   async findAll(tenantId?: string): Promise<Employee[]> {
-    console.log('[DEBUG] EmployeeService.findAll called with tenantId:', tenantId);
     const tid = await this.resolveTenantObjectId(tenantId || '');
     const query: any = tid ? { tenantId: tid } : {};
-    console.log('[DEBUG] Employee findAll query:', query);
     const employees = await this.employeeModel
       .find(query)
       .populate('roleId', 'roleId label color')
       .sort({ createdAt: -1 })
+      .lean()
       .exec();
-    console.log('[DEBUG] Employee findAll result count:', employees.length);
     return employees;
   }
 
@@ -218,107 +193,86 @@ export class EmployeeService {
   }
 
   async validateLogin(email: string, password: string, tenantId?: string): Promise<Employee | null> {
-    console.log('[DEBUG] validateLogin called with email:', email, 'tenantId:', tenantId);
-    
     const tid = await this.resolveTenantObjectId(tenantId || '');
     
-    // Build query to find employee by email
-    const emailLower = (email || '').toLowerCase();
-    const query: any = { 
-      email: emailLower,
-    };
+    const userEmail = (email || '').toLowerCase();
+    const query: any = { email: userEmail };
     if (tid) {
       query.tenantId = tid;
     }
     
-    console.log('[DEBUG] Login query:', JSON.stringify(query));
-    
     let employee = await this.employeeModel
       .findOne(query)
-      .populate('roleId', 'roleId label color permissions')
+      .populate('roleId')
       .exec();
 
     if (!employee) {
       // If employee not found, check users collection and auto-create
-      console.log('[DEBUG] Checking users collection for fallback...');
       const userEmailLower = (email || '').toLowerCase();
       const userQuery: any = { 
         email: userEmailLower,
+        status: 'active'
       };
       if (tid) {
         userQuery.tenantId = tid;
       }
       
       const user = await this.userModel.findOne(userQuery).exec();
-      console.log('[DEBUG] User found in users collection:', user ? 'YES' : 'NO');
       
       if (user && user.passwordHash) {
         // Verify password with user's passwordHash
         const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
-        console.log('[DEBUG] User password valid:', isPasswordValid);
         
         if (!isPasswordValid) {
           return null;
         }
         
         // Auto-create employee from user data
-        console.log('[DEBUG] Auto-creating employee from user data...');
         const employeeId = this.generateEmployeeId();
         const derivedFirstName = (user.firstName || user.name?.split(' ')[0] || email.split('@')[0] || 'User').trim();
         const derivedLastName = (user.lastName || user.name?.split(' ').slice(1).join(' ') || 'User').trim();
-        const derivedPhone = (user.phone || '0000000000').trim();
+        
         const newEmployeeData = {
           employeeId,
-          firstName: derivedFirstName || 'User',
-          lastName: derivedLastName || 'User',
-          email: (user.email || '').toLowerCase(),
-          password: user.passwordHash, // Already hashed
-          phone: derivedPhone || '0000000000',
-          address: user.address || '',
-          joiningDate: new Date(),
-          department: user.department || 'General',
-          designation: user.role || 'Staff',
+          firstName: derivedFirstName,
+          lastName: derivedLastName,
+          email: userEmailLower,
+          password: user.passwordHash, // Keep the same hash
+          roleId: user.roleId,
+          tenantId: user.tenantId,
+          department: user.department || 'Other',
+          designation: user.designation || 'Staff',
           status: 'active',
-          roleId: user.roleId || user.role,
-          tenantId: user.tenantId, // Use user's tenantId
+          joiningDate: new Date()
         };
         
         const newEmployee = new this.employeeModel(newEmployeeData);
         employee = await newEmployee.save();
-        console.log('[DEBUG] Employee auto-created:', employee._id);
       } else {
         // If no specific tenant matches, try searching across all tenants
         if (tid === null) {
-          console.log('[DEBUG] Searching for employee across all tenants...');
           const searchEmailLower = (email || '').toLowerCase();
           employee = await this.employeeModel
             .findOne({ email: searchEmailLower })
-            .populate('roleId', 'roleId label color permissions')
+            .populate('roleId')
             .exec();
-          
-          if (!employee) return null;
-        } else {
-          return null;
         }
       }
     }
     
+    if (!employee) return null;
+    
     if (!employee.password) {
-      console.log('[DEBUG] Employee has no password');
       return null;
     }
 
-    // If employee was auto-created from user, password is already verified above
     // Otherwise verify employee's own password
     if (!employee.password.startsWith('$2')) {
       // Not a bcrypt hash, might be plaintext or already verified
-      console.log('[DEBUG] Password not bcrypt hash, assuming pre-verified');
       return employee;
     }
 
-    console.log('[DEBUG] Comparing passwords...');
     const isPasswordValid = await bcrypt.compare(password, employee.password);
-    console.log('[DEBUG] Password valid:', isPasswordValid);
     
     if (!isPasswordValid) {
       return null;

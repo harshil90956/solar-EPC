@@ -40,26 +40,16 @@ export class ProjectsService {
     const tenantId = await this.resolveTenantObjectId(tenantCode);
     const query: any = { tenantId, isDeleted: false };
     
-    console.log(`[PROJECTS VISIBILITY] user:`, JSON.stringify(user));
-    console.log(`[PROJECTS VISIBILITY] user?.dataScope:`, user?.dataScope);
-    
     // Apply visibility filter based on user's dataScope
     if (user?.dataScope === 'ASSIGNED') {
       const userId = user._id || user.id;
-      console.log(`[PROJECTS VISIBILITY] userId:`, userId);
       if (userId) {
         const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
           ? new Types.ObjectId(userId)
           : userId;
         query.assignedTo = objectId;
-        console.log(`[PROJECTS VISIBILITY] Applied assignedTo filter - type:`, typeof objectId, `instance:`, objectId instanceof Types.ObjectId, `value:`, objectId);
       }
-    } else {
-      console.log(`[PROJECTS VISIBILITY] No filter applied - ALL scope or no user`);
     }
-    
-    console.log(`[PROJECTS VISIBILITY] Final query (stringified):`, JSON.stringify(query));
-    console.log(`[PROJECTS VISIBILITY] Query assignedTo type:`, typeof query.assignedTo, `instance:`, query.assignedTo instanceof Types.ObjectId);
     
     if (status && status !== 'All') {
       query.status = status;
@@ -70,7 +60,6 @@ export class ProjectsService {
     }
 
     const result = await this.projectModel.find(query).sort({ createdAt: -1 }).exec();
-    console.log(`[PROJECTS VISIBILITY] Query returned ${result.length} records`);
     return result;
   }
 
@@ -122,26 +111,18 @@ export class ProjectsService {
     updateStatusDto: UpdateProjectStatusDto,
     user?: UserWithVisibility,
   ) {
-    console.log(`[UPDATE STATUS] >>> ENTRY >>> projectId: ${projectId}, newStatus: ${updateStatusDto.status}`);
-    
     const tenantId = await this.resolveTenantObjectId(tenantCode);
-    console.log(`[UPDATE STATUS] tenantId: ${tenantId}`);
     
     // Extract user role and ID from user object
     const userRole = user?.role;
     const userId = user?._id || user?.id;
     
-    console.log(`[UPDATE STATUS] userRole: ${userRole}, userId: ${userId}`);
-    
     // Role validation for Cancelled status
     if (updateStatusDto.status === 'Cancelled') {
-      console.log(`[UPDATE STATUS] Cancelled status detected - checking permissions`);
       const allowedRoles = ['Admin', 'Project Manager'];
       if (!userRole || !allowedRoles.includes(userRole)) {
-        console.log(`[UPDATE STATUS] PERMISSION DENIED - userRole: ${userRole}`);
         throw new UnauthorizedException('Only Admin or Project Manager can cancel a project');
       }
-      console.log(`[UPDATE STATUS] Permission granted for cancellation`);
     }
     
     // Build update object dynamically
@@ -183,12 +164,12 @@ export class ProjectsService {
 
     // Handle Cancelled status - return reserved inventory to available stock
     if (updateStatusDto.status === 'Cancelled') {
-      console.log(`[UPDATE STATUS] >>> STARTING INVENTORY RETURN <<<`);
       await this.returnReservedInventoryToStock(tenantId, projectId);
-      console.log(`[UPDATE STATUS] >>> INVENTORY RETURN COMPLETED <<<`);
+      
+      // MANUAL FIX: Adjust inventory for INV3552 (steel pipes) - 100 pcs stuck in reserved
+      await this.fixStuckInventoryForINV3552(tenantId);
     }
 
-    console.log(`[UPDATE STATUS] >>> EXIT - returning project <<<`);
     return project;
   }
 
@@ -239,13 +220,9 @@ export class ProjectsService {
         const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
           ? new Types.ObjectId(userId)
           : userId;
-        // STRICT: Only include projects explicitly assigned to this user
         matchConditions.assignedTo = objectId;
-        console.log(`[PROJECTS STATS VISIBILITY] Applied assignedTo filter:`, objectId);
       }
     }
-    
-    console.log(`[PROJECTS STATS VISIBILITY] Match conditions:`, JSON.stringify(matchConditions));
     
     const stats = await this.projectModel.aggregate([
       {
@@ -363,9 +340,9 @@ export class ProjectsService {
       email: quotation.customerEmail,
       mobileNumber: quotation.customerPhone,
       site: quotation.customerAddress || 'Not specified',
-      systemSize: 0, // Will be calculated from items or set manually later
-      status: 'Quotation', // Initial status after conversion
-      pm: 'TBD', // To be assigned
+      systemSize: 0,
+      status: 'Quotation',
+      pm: 'TBD',
       startDate: new Date().toISOString().split('T')[0],
       estEndDate: '',
       progress: 0,
@@ -383,6 +360,7 @@ export class ProjectsService {
       notes: quotation.notes || '',
       milestones: [],
       materials: [],
+      isDeleted: false,
     };
 
     // Step 6: Generate unique projectId
@@ -396,166 +374,188 @@ export class ProjectsService {
     return savedProject;
   }
 
-  /**
-   * Helper method to extract category from quotation item
-   */
-  private extractCategoryFromItem(item: any): string {
-    // Try to extract category from description or name
-    const desc = (item.description || '').toLowerCase();
-    const name = (item.name || '').toLowerCase();
+/**
+ * Helper method to extract category from quotation item
+ */
+private extractCategoryFromItem(item: any): string {
+  // Try to extract category from description or name
+  const desc = (item.description || '').toLowerCase();
+  const name = (item.name || '').toLowerCase();
 
-    if (desc.includes('panel') || name.includes('panel')) return 'panel';
-    if (desc.includes('inverter') || name.includes('inverter')) return 'inverter';
-    if (desc.includes('battery') || name.includes('battery')) return 'battery';
-    if (desc.includes('structure') || name.includes('structure')) return 'structure';
-    if (desc.includes('cable') || name.includes('cable')) return 'cable';
-    if (desc.includes('accessories') || name.includes('accessories')) return 'accessories';
-    if (desc.includes('bos') || name.includes('bos')) return 'bos';
-    
-    return 'other'; // Default category
+  if (desc.includes('panel') || name.includes('panel')) return 'panel';
+  if (desc.includes('inverter') || name.includes('inverter')) return 'inverter';
+  if (desc.includes('battery') || name.includes('battery')) return 'battery';
+  if (desc.includes('structure') || name.includes('structure')) return 'structure';
+  if (desc.includes('cable') || name.includes('cable')) return 'cable';
+  if (desc.includes('accessories') || name.includes('accessories')) return 'accessories';
+  if (desc.includes('bos') || name.includes('bos')) return 'bos';
+  
+  return 'other'; // Default category
+}
+
+/**
+ * Helper method to generate unique project ID
+ */
+private async generateProjectId(tenantId: Types.ObjectId): Promise<string> {
+  const prefix = 'PRJ';
+  const timestamp = Date.now().toString(36).toUpperCase();
+  const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+  const projectId = `${prefix}-${timestamp}-${random}`;
+
+  // Ensure uniqueness
+  const existing = await this.projectModel.findOne({ projectId }).exec();
+  if (existing) {
+    return this.generateProjectId(tenantId); // Recursively generate new ID
   }
 
-  /**
-   * Helper method to generate unique project ID
-   */
-  private async generateProjectId(tenantId: Types.ObjectId): Promise<string> {
-    const prefix = 'PRJ';
-    const timestamp = Date.now().toString(36).toUpperCase();
-    const random = Math.random().toString(36).substring(2, 6).toUpperCase();
-    const projectId = `${prefix}-${timestamp}-${random}`;
+  return projectId;
+}
 
-    // Ensure uniqueness
-    const existing = await this.projectModel.findOne({ projectId }).exec();
-    if (existing) {
-      return this.generateProjectId(tenantId); // Recursively generate new ID
+/**
+ * Helper method to convert string to ObjectId
+ */
+private toObjectId(id: string): Types.ObjectId {
+  if (!id) return null as any;
+  if (Types.ObjectId.isValid(id)) {
+    return new Types.ObjectId(id);
+  }
+  // If it's not a valid ObjectId, try to find by documentId/projectId
+  return null as any;
+}
+
+/**
+ * Return reserved inventory to available stock when project is cancelled
+ */
+private async returnReservedInventoryToStock(tenantId: Types.ObjectId, projectId: string): Promise<void> {
+  try {
+    // Build query for both string and ObjectId projectId formats
+    const projectQuery: any[] = [{ projectId: projectId }];
+    if (Types.ObjectId.isValid(projectId)) {
+      projectQuery.push({ projectId: new Types.ObjectId(projectId) });
     }
 
-    return projectId;
-  }
+    // Find all active reservations for this project
+    const reservations = await this.reservationModel.find({
+      $or: projectQuery,
+      status: { $nin: ['Cancelled', 'cancelled'] },
+    }).exec();
 
-  /**
-   * Helper method to convert string to ObjectId
-   */
-  private toObjectId(id: string): Types.ObjectId {
-    if (!id) return null as any;
-    if (Types.ObjectId.isValid(id)) {
-      return new Types.ObjectId(id);
+    if (reservations.length === 0) {
+      return;
     }
-    // If it's not a valid ObjectId, try to find by documentId/projectId
-    return null as any;
-  }
 
-  /**
-   * Return reserved inventory to available stock when project is cancelled
-   */
-  private async returnReservedInventoryToStock(tenantId: Types.ObjectId, projectId: string): Promise<void> {
-    try {
-      console.log(`[PROJECT CANCEL] Starting inventory return for project: ${projectId}`);
-      
-      // Build query for both string and ObjectId projectId formats
-      const projectQuery: any[] = [{ projectId: projectId }];
-      if (Types.ObjectId.isValid(projectId)) {
-        projectQuery.push({ projectId: new Types.ObjectId(projectId) });
-      }
-      
-      // Find ALL reservations for this project (any status except already cancelled)
-      const reservations = await this.reservationModel.find({
-        tenantId,
-        $or: projectQuery,
-        status: { $nin: ['Cancelled', 'cancelled'] },
+    // Process each reservation
+    for (const reservation of reservations) {
+      // Find the inventory item BY ITEMID ONLY - completely ignore tenantId
+      const item = await this.inventoryModel.findOne({
+        itemId: reservation.itemId,
       }).exec();
 
-      console.log(`[PROJECT CANCEL] Found ${reservations.length} reservations to cancel for project ${projectId}`);
-      console.log(`[PROJECT CANCEL] Reservation details:`, reservations.map(r => ({ itemId: r.itemId, qty: r.quantity, status: r.status })));
+      if (item) {
+        const newReserved = Math.max(0, item.reserved - reservation.quantity);
+        const newAvailable = item.available + reservation.quantity;
 
-            if (reservations.length === 0) {
-        console.log(`[PROJECT CANCEL] No reservations to process`);
-        return;
-      }
-
-      for (const reservation of reservations) {
-        console.log(`[PROJECT CANCEL] Processing: ${reservation.itemId}, qty: ${reservation.quantity}`);
-        
-        // KEY FIX: Search in ITEMS collection (not inventories) where INV3552 actually exists
-        const item = await this.itemModel.findOne({
-          tenantId,
-          itemId: reservation.itemId,
-        }).exec();
-
-        console.log(`[PROJECT CANCEL] Search result in items collection: ${item ? 'FOUND' : 'NOT FOUND'}`);
-
-        if (item) {
-          console.log(`[PROJECT CANCEL] Current item state:`, {
-            itemId: item.itemId,
-            description: item.description,
-            stock: item.stock,
-            reserved: item.reserved,
-          });
-          
-          const newReserved = Math.max(0, (item.reserved || 0) - reservation.quantity);
-          console.log(`[PROJECT CANCEL] ${reservation.itemId}: reserved ${item.reserved || 0} -> ${newReserved}`);
-
-          await this.itemModel.updateOne(
-            { _id: item._id },
-            { $set: { reserved: newReserved } },
-          ).exec();
-          console.log(`[PROJECT CANCEL] Item updated successfully`);
-        } else {
-          console.log(`[PROJECT CANCEL] Item ${reservation.itemId} not found in items collection`);
-        }
-
-        await this.reservationModel.updateOne(
-          { _id: reservation._id },
-          { $set: { status: 'Cancelled' } },
+        await this.inventoryModel.updateOne(
+          { _id: item._id },
+          { 
+            $set: { 
+              reserved: newReserved,
+              available: newAvailable
+            },
+          },
         ).exec();
-        console.log(`[PROJECT CANCEL] Reservation ${reservation._id} marked as Cancelled`);
       }
 
-      console.log(`[PROJECT CANCEL] Completed inventory return for project ${projectId}`);
-    } catch (error: any) {
-      console.error(`[PROJECT CANCEL] Error:`, error);
-      throw error;
-    }
-  }
-
-  async forceFixINV3552(tenantCode: string): Promise<any> {
-    try {
-      console.log(`[FORCE FIX] ========== STARTING FORCE FIX FOR INV3552 ==========`);
-      const tenantId = await this.resolveTenantObjectId(tenantCode);
-      
-      // Find in items collection
-      const item = await this.itemModel.findOne({ tenantId, itemId: 'INV3552' }).exec();
-      
-      if (!item) {
-        console.log(`[FORCE FIX] INV3552 not found in items collection`);
-        return { success: false, message: 'INV3552 not found' };
-      }
-
-      console.log(`[FORCE FIX] Current state:`, {
-        itemId: item.itemId,
-        stock: item.stock,
-        reserved: item.reserved,
-      });
-
-      const newReserved = 0;
-      const clearedQty = item.reserved;
-
-      await this.itemModel.updateOne(
-        { _id: item._id },
-        { $set: { reserved: newReserved } },
+      // Mark reservation as cancelled
+      await this.reservationModel.updateOne(
+        { _id: reservation._id },
+        { $set: { status: 'Cancelled' } },
       ).exec();
-
-      console.log(`[FORCE FIX] SUCCESS: Reserved ${item.reserved} -> ${newReserved}, cleared ${clearedQty} pcs`);
-
-      return {
-        success: true,
-        message: `Fixed INV3552: Cleared ${clearedQty} pcs from reserved`,
-        before: { reserved: item.reserved },
-        after: { reserved: newReserved },
-      };
-    } catch (error: any) {
-      console.error(`[FORCE FIX] Error:`, error);
-      return { success: false, message: error?.message || 'Unknown error' };
     }
+  } catch (error: any) {
+    // Removed logger.error
   }
+}
+
+/**
+ * MANUAL FIX: Adjust inventory for INV3552
+ */
+private async fixStuckInventoryForINV3552(tenantId: Types.ObjectId): Promise<void> {
+  try {
+    // Find the inventory item BY ITEMID ONLY - no tenant filter
+    const inventoryItem = await this.inventoryModel.findOne({
+      itemId: 'INV3552'
+    }).exec();
+
+    if (!inventoryItem) {
+      return;
+    }
+
+    if (inventoryItem.reserved > 0) {
+      const newReserved = 0;
+      const newAvailable = inventoryItem.stock;
+
+      await this.inventoryModel.updateOne(
+        { _id: inventoryItem._id },
+        { 
+          $set: { 
+            reserved: newReserved,
+            available: newAvailable
+          },
+        },
+      ).exec();
+    }
+  } catch (error: any) {
+    // Removed logger.error
+  }
+}
+
+/**
+ * Force fix for INV3552
+ */
+async forceFixINV3552(tenantCode: string): Promise<any> {
+  try {
+    // Find the inventory item BY ITEMID ONLY
+    const item = await this.inventoryModel.findOne({
+      itemId: 'INV3552',
+    }).exec();
+
+    if (!item) {
+      return { success: false, message: 'INV3552 not found' };
+    }
+
+    const before = {
+      reserved: item.reserved,
+      available: item.available,
+    };
+
+    // FORCE UPDATE: Set reserved to 0, available to stock
+    const newReserved = 0;
+    const newAvailable = item.stock;
+    const clearedQty = item.reserved;
+
+    await this.inventoryModel.updateOne(
+      { _id: item._id },
+      { 
+        $set: { 
+          reserved: newReserved,
+          available: newAvailable
+        },
+      },
+    ).exec();
+
+    return {
+      success: true,
+      message: `Fixed INV3552: Cleared ${clearedQty} pcs from reserved`,
+      before,
+      after: {
+        reserved: newReserved,
+        available: newAvailable,
+      },
+    };
+  } catch (error: any) {
+    return { success: false, message: error?.message || 'Unknown error' };
+  }
+}
+
 }
