@@ -75,8 +75,12 @@ import AttendancePageV3 from './pages/AttendancePageV3';
 import IntelligenceDashboardPage from './pages/IntelligenceDashboardPage';
 
 import RemindersPage from './pages/RemindersPage';
+<<<<<<< HEAD
 import HrmPermissionsPage from './pages/HrmPermissionsPage';
 import ProfilePage from './pages/ProfilePage';
+=======
+import HRMPermissionsPage from './pages/HRMPermissionsPage';
+>>>>>>> 95adcde843ca9ce63b316f469791b73d0170bc2e
 import NotificationSystem from './components/NotificationSystem';
 
 
