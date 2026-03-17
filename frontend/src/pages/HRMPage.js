@@ -23,7 +23,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
-import HrmPermissionsPage from './HrmPermissionsPage';
+import HRMPermissionsPage from './HRMPermissionsPage';
 import AttendancePolicySettings from './AttendancePolicySettings';
 import { toast } from '../components/ui/Toast';
 import { CURRENCY } from '../config/app.config';
@@ -60,7 +60,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
 
   // Use initialTab prop if provided, otherwise default to 'employees'
   const [activeTab, setActiveTab] = useState(initialTab || 'employees');
-  
+
   // Sync with initialTab prop when it changes (for navigation from parent)
   useEffect(() => {
     if (initialTab && initialTab !== activeTab) {
@@ -101,8 +101,8 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
   const canViewDepartments = departmentPermissions.canView();
   const canManageDepartments = departmentPermissions.canEdit() || departmentPermissions.canCreate();
 
-  const canViewHrDashboard = user?.permissions?.dashboard?.view === true || 
-    user?.role?.toLowerCase() === 'admin' || 
+  const canViewHrDashboard = user?.permissions?.dashboard?.view === true ||
+    user?.role?.toLowerCase() === 'admin' ||
     user?.role?.toLowerCase() === 'superadmin';
 
   const isAdmin = user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'superadmin' || user?.isSuperAdmin;
@@ -780,7 +780,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
             </span>
           );
         }
-        
+
         // Check custom roles first
         const customRole = Array.isArray(customRoles) ? customRoles.find(r => r.id === val || r._id === val) : null;
         if (customRole) {
@@ -790,7 +790,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
             </span>
           );
         }
-        
+
         // Check HRM roles
         const hrmRole = Array.isArray(hrmRoles) ? hrmRoles.find(r => r._id === val || r.id === val) : null;
         if (hrmRole) {
@@ -800,7 +800,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
             </span>
           );
         }
-        
+
         // Check all roles from settings
         const allRole = Array.isArray(allRoles) ? allRoles.find(r => r.id === val || r._id === val) : null;
         if (allRole) {
@@ -810,7 +810,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
             </span>
           );
         }
-        
+
         // Fallback: show the ID or 'No Role'
         return (
           <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
@@ -1271,7 +1271,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
                 Role Permissions
               </button>
             )}
-            
+
             {/* Attendance Policy Link for Admins */}
             {(user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'superadmin') && (
               <button
@@ -1307,7 +1307,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
           {/* ── Role Permissions Tab ── */}
           {(activeTab === 'role-permissions' || activeTab === 'hrm-role-permissions') && (
             <div className="animate-fade-in">
-              <HrmPermissionsPage />
+              <HRMPermissionsPage />
             </div>
           )}
 
@@ -1481,8 +1481,8 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
                       }
 
                       return (
-                        <div 
-                          key={emp._id} 
+                        <div
+                          key={emp._id}
                           className={`flex items-center justify-between p-3 bg-[var(--bg-elevated)] rounded-lg border-l-4 ${statusColor} cursor-pointer hover:bg-[var(--bg-hover)] transition-colors`}
                           onClick={() => {
                             setSelectedEmployee(emp);
@@ -1890,7 +1890,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
             <div className="relative bg-gradient-to-br from-[var(--primary)] to-[var(--accent)] rounded-2xl p-6 text-white overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2"></div>
               <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/2"></div>
-              
+
               <div className="relative flex items-center gap-4">
                 <div className="w-20 h-20 rounded-full bg-white/20 backdrop-blur-sm border-2 border-white/30 flex items-center justify-center text-3xl font-bold">
                   {selectedEmployee.profilePhoto ? (
