@@ -6,11 +6,12 @@ import { Permission } from '../schemas/permission.schema';
 import { Role } from '../schemas/role.schema';
 
 @Controller('hrm/permissions')
-@UseGuards(JwtAuthGuard, AdminGuard)
+@UseGuards(JwtAuthGuard)
 export class PermissionController {
   constructor(private readonly permissionService: PermissionService) {}
 
   @Get()
+  @UseGuards(AdminGuard)
   async getAllPermissions(): Promise<Permission[]> {
     return this.permissionService.findAllPermissions();
   }
@@ -26,6 +27,7 @@ export class PermissionController {
   }
 
   @Post('roles')
+  @UseGuards(AdminGuard)
   async createRole(
     @Body('name') name: string,
     @Body('description') description: string,
@@ -35,6 +37,7 @@ export class PermissionController {
   }
 
   @Patch('roles/:id')
+  @UseGuards(AdminGuard)
   async updateRole(
     @Param('id') id: string,
     @Body() updates: Partial<Role>,
@@ -44,6 +47,7 @@ export class PermissionController {
   }
 
   @Delete('roles/:id')
+  @UseGuards(AdminGuard)
   async deleteRole(@Param('id') id: string): Promise<{ success: boolean; message?: string }> {
     try {
       const result = await this.permissionService.deleteRole(id);
