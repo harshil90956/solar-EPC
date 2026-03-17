@@ -407,17 +407,25 @@ const EmployeesPage = () => {
       key: 'roleId',
       header: 'Role',
       render: (val) => {
-        const role = Object.values(customRoles || {}).find(r => (r._id || r.id) === val);
-        return <span className="text-sm">{role?.label || role?.name || val || '-'}</span>;
+        // customRoles is an object/dictionary: { roleId: { id, label, ... } }
+        const role = customRoles?.[val];
+        if (role) {
+          return <span className="text-sm">{role.label || role.name || val}</span>;
+        }
+        // Fallback: try array search if customRoles is array
+        const roleFromArray = Array.isArray(customRoles) 
+          ? customRoles.find(r => (r._id || r.id) === val)
+          : null;
+        return <span className="text-sm">{roleFromArray?.label || roleFromArray?.name || val || '-'}</span>;
       },
     },
     columns.joinDate && {
-      key: 'joinDate',
+      key: 'joiningDate',
       header: 'Join Date',
       render: (val) => (
         <div className="flex items-center gap-2">
           <Calendar size={14} className="text-[var(--text-muted)]" />
-          <span className="text-sm">{val ? new Date(val).toLocaleDateString() : '-'}</span>
+          <span className="text-sm">{val ? new Date(val).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}</span>
         </div>
       ),
     },
