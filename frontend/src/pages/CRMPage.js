@@ -925,7 +925,17 @@ const CRMPage = ({ onNavigate }) => {
   const statusMap = useMemo(() => {
     const map = {};
     (statusOptions || []).forEach(s => {
-      map[s.key] = { label: s.label, color: s.color };
+      let label = s.label;
+      let key = s.key;
+
+      // Transform status labels
+      if (key === 'normal' || label === 'Normal') {
+        label = 'Pending';
+      } else if (key === 'failure' || label === 'Failure') {
+        label = 'Dead';
+      }
+
+      map[key] = { label, color: s.color };
     });
     return map;
   }, [statusOptions]);
