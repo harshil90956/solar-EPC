@@ -26,6 +26,7 @@ import { ItemsModule } from './modules/items/items.module';
 import { EstimatesModule } from './modules/estimates/estimates.module';
 import { SuperadminModule } from './modules/superadmin';
 import { AutomationModule } from './modules/automation/automation.module';
+import { CustomersModule } from './modules/customers/customers.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -46,6 +47,7 @@ import { AppController } from './app.controller';
     ServiceAmcModule,
     DocumentModule,
     SurveyModule,
+    CustomersModule,
     DesignModule,
     ItemsModule,
     EstimatesModule,

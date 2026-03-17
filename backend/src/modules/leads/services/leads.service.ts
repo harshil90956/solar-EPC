@@ -5,13 +5,13 @@ import * as fs from 'fs';
 import * as xlsx from 'xlsx';
 import { Lead, LeadDocument } from '../schemas/lead.schema';
 import { CreateLeadDto, UpdateLeadDto, QueryLeadDto, AddActivityDto } from '../dto/lead.dto';
-import { LeadStatus, LeadStatusDocument } from '../../settings/schemas/lead-status.schema';
+import { LeadStatus, LeadStatusDocument, LeadStatusModuleConnection } from '../../settings/schemas/lead-status.schema';
 import { buildVisibilityFilter, applyVisibilityFilter, buildCompleteFilter, canAccessRecord, UserWithVisibility } from '../../../common/utils/visibility-filter';
 import { User, UserDocument } from '../../../core/auth/schemas/user.schema';
 import { Tenant, TenantDocument } from '../../../core/tenant/schemas/tenant.schema';
 import { Project, ProjectDocument } from '../../projects/schemas/project.schema';
-
 import { SiteSurveysService } from '../../survey/services/site-surveys.service';
+import { CustomersService } from '../../customers/services/customers.service';
 
 @Injectable()
 export class LeadsService {
@@ -23,6 +23,7 @@ export class LeadsService {
     @InjectModel(Project.name) private readonly projectModel: Model<ProjectDocument>,
     @Inject(forwardRef(() => SiteSurveysService))
     private readonly siteSurveysService: SiteSurveysService,
+    private readonly customersService: CustomersService,
   ) {}
 
   private readonly dashboardCache = new Map<string, { ts: number; data: any }>();
@@ -259,7 +260,7 @@ export class LeadsService {
     if (!normalizedStatusKey) return;
     
     // Allow common lead status keys without DB validation
-    const commonStatusKeys = ['new', 'contacted', 'qualified', 'proposal', 'negotiation', 'won', 'lost', 'estimate', 'survey', 'site_survey'];
+    const commonStatusKeys = ['new', 'contacted', 'qualified', 'proposal', 'negotiation', 'won', 'lost', 'estimate', 'survey', 'sitesurvey', 'site_survey'];
     if (commonStatusKeys.includes(normalizedStatusKey)) {
       return;
     }
@@ -645,7 +646,41 @@ export class LeadsService {
       this.leadModel.countDocuments(filter),
     ]);
 
-    return { data, total };
+    const assignedToIds = Array.from(
+      new Set(
+        (Array.isArray(data) ? data : [])
+          .map((l: any) => (l?.assignedTo ? String(l.assignedTo) : ''))
+          .filter((x: string) => Boolean(x) && Types.ObjectId.isValid(x)),
+      ),
+    ).map((id) => new Types.ObjectId(id));
+
+    const usersById = new Map<string, any>();
+    if (assignedToIds.length > 0) {
+      const users = await this.userModel
+        .find({ _id: { $in: assignedToIds } })
+        .select('firstName lastName name email')
+        .lean()
+        .exec();
+
+      for (const u of users) {
+        usersById.set(String((u as any)?._id), u);
+      }
+    }
+
+    const enriched = (Array.isArray(data) ? data : []).map((lead: any) => {
+      const assignedId = lead?.assignedTo ? String(lead.assignedTo) : undefined;
+      const u = assignedId ? usersById.get(assignedId) : undefined;
+      const displayName = u
+        ? String((u as any).name || `${(u as any).firstName || ''} ${(u as any).lastName || ''}`.trim()).trim()
+        : '';
+
+      return {
+        ...lead,
+        assignedToName: displayName || undefined,
+      };
+    });
+
+    return { data: enriched as any, total };
   }
 
   // ============================================
@@ -803,6 +838,9 @@ export class LeadsService {
       throw new NotFoundException('Lead not found');
     }
 
+    const previousStatusKey = existingLead.statusKey;
+    const previousAssignedTo = existingLead.assignedTo ? existingLead.assignedTo.toString() : undefined;
+
     // Build update data - exclude undefined values
     const updateData: any = {};
     const allowedFields = [
@@ -877,6 +915,74 @@ export class LeadsService {
 
     if (!updatedLead) {
       throw new NotFoundException('Lead not found after update');
+    }
+
+    const nextAssignedTo = updatedLead.assignedTo ? updatedLead.assignedTo.toString() : undefined;
+    const assignedChanged = updateData.assignedTo !== undefined && nextAssignedTo !== previousAssignedTo;
+
+    // Dynamic module automation based on LeadStatus.moduleConnection
+    const nextStatusKey = updatedLead.statusKey;
+    const stageChanged = updateData.statusKey !== undefined && nextStatusKey !== previousStatusKey;
+    if (stageChanged || assignedChanged) {
+      try {
+        const [prevConfig, nextConfig] = await Promise.all([
+          previousStatusKey ? this.leadStatusModel.findOne({ tenantId: updatedLead.tenantId, entity: 'lead', key: previousStatusKey, isActive: true }).lean() : null,
+          nextStatusKey ? this.leadStatusModel.findOne({ tenantId: updatedLead.tenantId, entity: 'lead', key: nextStatusKey, isActive: true }).lean() : null,
+        ]);
+
+        const prevConn = (prevConfig as any)?.moduleConnection as LeadStatusModuleConnection | null | undefined;
+        const nextConn = (nextConfig as any)?.moduleConnection as LeadStatusModuleConnection | null | undefined;
+
+        // Backward-compatible fallback for existing tenants (pre-config)
+        const fallbackIsSurvey = (key?: string) => key === 'sitesurvey' || key === 'survey';
+
+        const shouldCreateSurvey = nextConn === LeadStatusModuleConnection.SURVEY || (!nextConn && fallbackIsSurvey(nextStatusKey));
+        const shouldDeactivateSurvey = (prevConn === LeadStatusModuleConnection.SURVEY || (!prevConn && fallbackIsSurvey(previousStatusKey))) && !shouldCreateSurvey;
+
+        if (shouldCreateSurvey) {
+          await this.siteSurveysService.createFromLead(
+            {
+              leadId: updatedLead._id.toString(),
+              clientName: updatedLead.name,
+              city: updatedLead.city,
+              projectCapacity: updatedLead.kw ? `${updatedLead.kw} kW` : undefined,
+              engineer: updatedLead.assignedTo ? updatedLead.assignedTo.toString() : undefined,
+              assignedTo: updatedLead.assignedTo ? updatedLead.assignedTo.toString() : undefined,
+            },
+            tenantId,
+            user
+          );
+        } else if (shouldDeactivateSurvey) {
+          await this.siteSurveysService.deactivateByLeadId(updatedLead._id.toString(), tenantId, user);
+        }
+
+        // If the lead remains in a survey-connected stage and assignment changed, sync survey assignment
+        if (assignedChanged && shouldCreateSurvey) {
+          await this.siteSurveysService.updateAssignmentByLeadId(
+            updatedLead._id.toString(),
+            updatedLead.assignedTo ? updatedLead.assignedTo.toString() : undefined,
+            tenantId,
+            user
+          );
+        }
+
+        if (nextConn === LeadStatusModuleConnection.CUSTOMER) {
+          await this.customersService.create(
+            {
+              leadId: updatedLead._id.toString(),
+              name: updatedLead.name,
+              email: updatedLead.email,
+              phone: updatedLead.phone,
+            },
+            tenantId,
+            user
+          );
+        }
+      } catch (error: any) {
+        Logger.error(
+          `[Lead Module Automation] Failed for lead=${updatedLead._id} from ${previousStatusKey} to ${nextStatusKey}: ${error?.message || error}`
+        );
+      }
     }
 
     return updatedLead;
@@ -1029,7 +1135,16 @@ export class LeadsService {
 
   async updateStage(id: string, stage: string, userId: string, tenantId?: string, user?: UserWithVisibility): Promise<Lead> {
     Logger.log(`[updateStage] Called for lead ${id} with stage: ${stage}`);
-    const result = await this.update(id, { statusKey: stage } as any, tenantId, user);
+
+    const normalizedIncomingStage = (stage || '').toString().trim().toLowerCase();
+    const normalizedStage =
+      normalizedIncomingStage === 'survey'
+      || normalizedIncomingStage === 'site survey'
+      || normalizedIncomingStage === 'site_survey'
+        ? 'sitesurvey'
+        : normalizedIncomingStage;
+
+    const result = await this.update(id, { statusKey: normalizedStage } as any, tenantId, user);
     Logger.log(`[updateStage] Result for lead ${id}: statusKey=${result.statusKey}`);
     return result;
   }
@@ -1050,6 +1165,51 @@ export class LeadsService {
     );
 
     return { modified: result.modifiedCount };
+  }
+
+  async reassignStatusKey(
+    fromStatusKey: string,
+    toStatusKey: string,
+    tenantId?: string,
+    user?: UserWithVisibility
+  ): Promise<{ matched: number; modified: number; targetStatusKey: string }> {
+    const fromKey = String(fromStatusKey || '').trim().toLowerCase();
+    const toKey = String(toStatusKey || '').trim().toLowerCase();
+
+    if (!fromKey || !toKey) {
+      throw new BadRequestException('fromStatusKey and toStatusKey are required');
+    }
+    if (fromKey === toKey) {
+      throw new BadRequestException('fromStatusKey and toStatusKey must be different');
+    }
+
+    // validate target status exists (tenant-scoped)
+    await this.assertValidStatusKey(toKey, tenantId);
+
+    const tid = tenantId && Types.ObjectId.isValid(tenantId) ? new Types.ObjectId(tenantId) : undefined;
+    if (!tid && !(user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin')) {
+      throw new BadRequestException('Tenant context is required');
+    }
+
+    // Find all leads in this tenant currently using fromKey (tenant-authoritative)
+    const leads = await this.leadModel
+      .find({ tenantId: tid, isDeleted: { $ne: true }, statusKey: fromKey })
+      .select('_id')
+      .lean()
+      .exec();
+
+    let modified = 0;
+    for (const l of leads) {
+      try {
+        await this.update((l as any)._id.toString(), { statusKey: toKey } as any, tenantId, user);
+        modified += 1;
+      } catch (e) {
+        // best-effort; continue so partial progress still helps unblock delete
+        continue;
+      }
+    }
+
+    return { matched: leads.length, modified, targetStatusKey: toKey };
   }
 
   async bulkDelete(ids: string[], tenantId?: string, user?: UserWithVisibility): Promise<{ modified: number }> {
@@ -1945,16 +2105,18 @@ export class LeadsService {
 
     // STEP 2: Validate assignedTo user ID
     Logger.log(`[ASSIGN LEAD] Validating assignedTo: ${assignedTo}`, 'LeadsService');
-    
-    // Support both MongoDB ObjectId (24 chars) and custom string IDs
-    let assignedToId: Types.ObjectId | string;
+
+    // We always persist assignedTo as an ObjectId (User/Employee _id) to keep visibility filtering correct.
+    // The incoming assignedTo may be:
+    // - a Mongo ObjectId string
+    // - an employeeId/custom id string
+    let assignedToLookup: Types.ObjectId | string;
     if (Types.ObjectId.isValid(assignedTo)) {
-      assignedToId = new Types.ObjectId(assignedTo);
-      Logger.log(`[ASSIGN LEAD] Using ObjectId format: ${assignedToId}`, 'LeadsService');
+      assignedToLookup = new Types.ObjectId(assignedTo);
+      Logger.log(`[ASSIGN LEAD] Using ObjectId lookup: ${assignedToLookup}`, 'LeadsService');
     } else {
-      // Allow string IDs for flexibility (e.g., "U001", "EMP001", etc.)
-      Logger.log(`[ASSIGN LEAD] Using string ID format: ${assignedTo}`, 'LeadsService');
-      assignedToId = assignedTo;
+      assignedToLookup = assignedTo;
+      Logger.log(`[ASSIGN LEAD] Using string lookup: ${assignedToLookup}`, 'LeadsService');
     }
 
     // Get tenantId from authenticated user (never from frontend)
@@ -1981,17 +2143,18 @@ export class LeadsService {
     }
 
     // STEP 4: Verify target user belongs to same tenant
+    let targetUser: any;
     if (tid) {
       // Try to find user in User collection first
-      let targetUser;
+      targetUser = undefined;
       
-      if (typeof assignedToId === 'string') {
+      if (typeof assignedToLookup === 'string') {
         // If it's a string ID, try matching against employeeId or custom ID fields
         targetUser = await this.userModel
           .findOne({ 
             $or: [
-              { _id: assignedToId as any },
-              { id: assignedToId }
+              { _id: assignedToLookup as any },
+              { id: assignedToLookup }
             ],
             tenantId: tid 
           })
@@ -2003,7 +2166,7 @@ export class LeadsService {
           // Use mongoose connection to query Employee collection
           const EmployeeModel = (this.leadModel as any).db.model('Employee');
           const employee = await EmployeeModel
-            .findOne({ employeeId: assignedToId, tenantId: tid })
+            .findOne({ employeeId: assignedToLookup, tenantId: tid })
             .lean()
             .exec();
             
@@ -2022,7 +2185,7 @@ export class LeadsService {
         // It's an ObjectId - search in BOTH User and Employee collections
         // First try User collection
         targetUser = await this.userModel
-          .findOne({ _id: assignedToId, tenantId: tid })
+          .findOne({ _id: assignedToLookup, tenantId: tid })
           .lean()
           .exec();
         
@@ -2030,7 +2193,7 @@ export class LeadsService {
         if (!targetUser) {
           const EmployeeModel = (this.leadModel as any).db.model('Employee');
           const employee = await EmployeeModel
-            .findOne({ _id: assignedToId, tenantId: tid })
+            .findOne({ _id: assignedToLookup, tenantId: tid })
             .lean()
             .exec();
             
@@ -2056,9 +2219,17 @@ export class LeadsService {
       Logger.log(`[ASSIGN LEAD] Target user found: ${targetUser._id || targetUser.id}`, 'LeadsService');
     }
 
+    const assignedToId = targetUser?._id && Types.ObjectId.isValid(targetUser._id.toString())
+      ? new Types.ObjectId(targetUser._id.toString())
+      : (Types.ObjectId.isValid(assignedTo) ? new Types.ObjectId(assignedTo) : undefined);
+
+    if (!assignedToId) {
+      throw new BadRequestException('Invalid assignedTo user ID');
+    }
+
     // Check if already assigned to same user
     const currentAssignedTo = lead.assignedTo?.toString();
-    if (currentAssignedTo === assignedTo) {
+    if (currentAssignedTo === assignedToId.toString()) {
       throw new BadRequestException('Lead is already assigned to this user');
     }
 
@@ -2089,6 +2260,30 @@ export class LeadsService {
 
     if (!updatedLead) {
       throw new NotFoundException('Lead not found after assignment');
+    }
+
+    // If lead is in a survey-connected stage, sync SiteSurvey.assignedTo so ASSIGNED users can see it.
+    try {
+      const statusKey = (updatedLead as any)?.statusKey;
+      const tidStr = tid?.toString();
+      const config = statusKey
+        ? await this.leadStatusModel.findOne({ tenantId: updatedLead.tenantId, entity: 'lead', key: String(statusKey).toLowerCase(), isActive: true }).lean()
+        : null;
+
+      const conn = (config as any)?.moduleConnection as any;
+      const fallbackIsSurvey = (key?: string) => key === 'sitesurvey' || key === 'survey';
+      const isSurveyStage = conn === LeadStatusModuleConnection.SURVEY || (!conn && fallbackIsSurvey(String(statusKey || '').toLowerCase()));
+
+      if (isSurveyStage) {
+        await this.siteSurveysService.updateAssignmentByLeadId(
+          updatedLead._id.toString(),
+          assignedToId.toString(),
+          tidStr,
+          user,
+        );
+      }
+    } catch (e: any) {
+      Logger.warn(`[ASSIGN LEAD] Survey assignment sync failed: ${e?.message || e}`, 'LeadsService');
     }
 
     return updatedLead;

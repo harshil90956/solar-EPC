@@ -11,6 +11,11 @@ export enum StatusType {
   FAILURE = 'failure',
 }
 
+export enum LeadStatusModuleConnection {
+  SURVEY = 'survey',
+  CUSTOMER = 'customer',
+}
+
 @Schema({ timestamps: true, collection: 'lead_statuses' })
 export class LeadStatus {
   @Prop({ ...BaseSchemaDefinition.tenantId })
@@ -45,6 +50,9 @@ export class LeadStatus {
 
   @Prop({ type: Boolean, required: true, default: false })
   isSystem!: boolean;
+
+  @Prop({ type: String, enum: LeadStatusModuleConnection, default: null })
+  moduleConnection!: LeadStatusModuleConnection | null;
 }
 
 export const LeadStatusSchema = SchemaFactory.createForClass(LeadStatus);

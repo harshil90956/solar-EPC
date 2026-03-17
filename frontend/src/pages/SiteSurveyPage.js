@@ -60,7 +60,7 @@ const MODULE_TYPES = [
 ];
 
 // Table columns definition
-const COLUMNS = [
+const getColumns = ({ onStartSurvey, onFillForm }) => [
   {
     key: 'surveyId',
     header: 'Survey ID',
@@ -110,6 +110,43 @@ const COLUMNS = [
         {v ? format(new Date(v), 'dd MMM yyyy') : '—'}
       </span>
     ),
+  },
+  {
+    key: '__action',
+    header: '',
+    render: (_v, row) => {
+      if (row?.status === 'pending') {
+        return (
+          <div onClick={(e) => e.stopPropagation()} className="flex justify-end">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onStartSurvey(row)}
+              className="h-7 px-2 text-xs"
+            >
+              <Play size={14} className="mr-1" />
+              Start
+            </Button>
+          </div>
+        );
+      }
+      if (row?.status === 'active') {
+        return (
+          <div onClick={(e) => e.stopPropagation()} className="flex justify-end">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onFillForm(row)}
+              className="h-7 px-2 text-xs"
+            >
+              <FileText size={14} className="mr-1" />
+              Fill Form
+            </Button>
+          </div>
+        );
+      }
+      return null;
+    },
   },
 ];
 
@@ -890,8 +927,8 @@ const SurveyCard = ({ survey, onView, onStart, onComplete, onDelete }) => {
 };
 
 // ── Assign Survey Modal (Pending → Active) ───────────────────────────────────
-const PendingToActiveModal = ({ isOpen, onClose, survey, onSubmit }) => {
-  const [formData, setFormData] = useState({ engineer: '', surveyDate: format(new Date(), 'yyyy-MM-dd'), notes: '' });
+const PendingToActiveModal = ({ isOpen, onClose, survey, onSubmit, onAssign }) => {
+  const [formData, setFormData] = useState({ engineerId: '', engineerName: '', surveyDate: format(new Date(), 'yyyy-MM-dd'), notes: '' });
   const [employees, setEmployees] = useState([]);
   const [empLoading, setEmpLoading] = useState(false);
 
@@ -915,7 +952,13 @@ const PendingToActiveModal = ({ isOpen, onClose, survey, onSubmit }) => {
   }, [isOpen]);
 
   useEffect(() => {
-    if (survey) setFormData(prev => ({ ...prev, engineer: survey.engineer || '', surveyDate: format(new Date(), 'yyyy-MM-dd') }));
+    if (!survey) return;
+    setFormData(prev => ({
+      ...prev,
+      engineerId: '',
+      engineerName: survey.engineer || '',
+      surveyDate: format(new Date(), 'yyyy-MM-dd'),
+    }));
   }, [survey]);
 
   const set = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
@@ -928,18 +971,36 @@ const PendingToActiveModal = ({ isOpen, onClose, survey, onSubmit }) => {
     return acc;
   }, {});
 
-  const engineerLabel = employees.find(e =>
-    `${e.firstName} ${e.lastName}`.trim() === formData.engineer ||
-    e._id === formData.engineer
-  );
+  const engineerLabel = employees.find(e => e._id === formData.engineerId);
 
   return (
     <Modal open={isOpen} onClose={onClose} title="Assign Survey" size="md"
       footer={
         <div className="flex justify-end gap-3">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button onClick={() => onSubmit({ engineer: formData.engineer, solarConsultant: formData.engineer, scheduledDate: formData.surveyDate, notes: formData.notes, activeData: { assignedAt: new Date().toISOString(), scheduledDate: formData.surveyDate } })} disabled={!formData.engineer} className="bg-amber-500 hover:bg-amber-600">
-            <Play size={16} className="mr-2" /> Start Survey
+          <Button
+            onClick={async () => {
+              if (!formData.engineerId) {
+                toast.error('Please select an engineer');
+                return;
+              }
+              try {
+                await onSubmit({
+                  assignedTo: formData.engineerId,
+                  engineer: formData.engineerName,
+                  solarConsultant: formData.engineerName,
+                  scheduledDate: formData.surveyDate,
+                  notes: formData.notes,
+                  activeData: { assignedAt: new Date().toISOString(), scheduledDate: formData.surveyDate }
+                });
+              } catch (e) {
+                toast.error(e?.response?.data?.message || e?.message || 'Failed to start survey');
+              }
+            }}
+            disabled={!formData.engineerId}
+            className="bg-amber-500 hover:bg-amber-600"
+          >
+            <Play size={16} className="mr-2" /> Assign & Start
           </Button>
         </div>
       }
@@ -965,8 +1026,13 @@ const PendingToActiveModal = ({ isOpen, onClose, survey, onSubmit }) => {
               <HardHat size={14} className="inline mr-1" /> Assign Engineer *
             </label>
             <select
-              value={formData.engineer}
-              onChange={e => set('engineer', e.target.value)}
+              value={formData.engineerId}
+              onChange={e => {
+                const id = e.target.value;
+                const emp = employees.find(x => x._id === id);
+                const fullName = emp ? `${emp.firstName} ${emp.lastName}`.trim() : '';
+                setFormData(prev => ({ ...prev, engineerId: id, engineerName: fullName }));
+              }}
               disabled={empLoading}
               className="w-full border border-[var(--border-base)] bg-[var(--bg-elevated)] rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 text-[var(--text-primary)] disabled:opacity-50"
             >
@@ -978,7 +1044,7 @@ const PendingToActiveModal = ({ isOpen, onClose, survey, onSubmit }) => {
                   {emps.map(emp => {
                     const fullName = `${emp.firstName} ${emp.lastName}`.trim();
                     return (
-                      <option key={emp._id} value={fullName}>
+                      <option key={emp._id} value={emp._id}>
                         {fullName}{emp.designation ? ` (${emp.designation})` : ''}
                       </option>
                     );
@@ -1666,7 +1732,7 @@ const SiteSurveyPage = () => {
   const { user } = useAuth();
   const isAdmin = user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'superadmin';
 
-  const [view, setView] = useState('grid');
+  const [view, setView] = useState('table');
   const [activeTab, setActiveTab] = useState('all');
   const [surveys, setSurveys] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1718,6 +1784,22 @@ const SiteSurveyPage = () => {
 
   useEffect(() => { fetchSurveys(); }, [fetchSurveys]);
 
+  useEffect(() => {
+    const onLeadStageUpdated = () => {
+      fetchSurveys();
+    };
+
+    if (typeof window !== 'undefined' && window?.addEventListener) {
+      window.addEventListener('leadStageUpdated', onLeadStageUpdated);
+    }
+
+    return () => {
+      if (typeof window !== 'undefined' && window?.removeEventListener) {
+        window.removeEventListener('leadStageUpdated', onLeadStageUpdated);
+      }
+    };
+  }, [fetchSurveys]);
+
   const handleMoveToActive = async (formData) => {
     try {
       await siteSurveysApi.moveToActive(selectedSurvey._id || selectedSurvey.surveyId, formData);
@@ -1762,7 +1844,6 @@ const SiteSurveyPage = () => {
   const ROW_ACTIONS = [
     { label: 'View Details', icon: Eye,       onClick: row => openDetailsModal(row) },
     { label: 'Edit',         icon: Edit2,      onClick: row => openEditModal(row) },
-    { label: 'Assign',       icon: User,       onClick: row => openAssignModal(row) },
     { label: 'Start Survey', icon: Play,       onClick: row => openPendingModal(row), show: row => row.status === 'pending' },
     { label: 'Fill Form',    icon: FileText,   onClick: row => openCompleteModal(row), show: row => row.status === 'active' },
     { label: 'Delete',       icon: Trash2,     onClick: row => handleDelete(row), danger: true },
@@ -1974,7 +2055,10 @@ const SiteSurveyPage = () => {
         /* Table View - DataTable has built-in pagination */
         <div className="glass-card overflow-hidden">
           <DataTable
-            columns={COLUMNS}
+            columns={getColumns({
+              onStartSurvey: openPendingModal,
+              onFillForm: openCompleteModal,
+            })}
             data={paginatedSurveys}
             total={filteredSurveys.length}
             page={currentPage}
@@ -1995,6 +2079,7 @@ const SiteSurveyPage = () => {
         onClose={() => { setPendingModalOpen(false); setSelectedSurvey(null); }}
         survey={selectedSurvey}
         onSubmit={handleMoveToActive}
+        onAssign={handleAssignSurvey}
       />
       <ActiveToCompleteModal
         isOpen={completeModalOpen}

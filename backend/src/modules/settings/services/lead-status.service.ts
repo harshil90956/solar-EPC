@@ -66,6 +66,7 @@ export class LeadStatusService {
       type: dto.type || StatusType.NORMAL,
       isActive: true,
       isSystem: dto.isSystem || false,
+      moduleConnection: dto.moduleConnection ?? null,
     });
 
     const saved = await status.save();
@@ -134,9 +135,14 @@ export class LeadStatusService {
   ): Promise<LeadStatus> {
     const tid = this.toObjectId(tenantId);
 
+    const update: any = { ...dto };
+    if (update.moduleConnection === undefined) {
+      delete update.moduleConnection;
+    }
+
     const status = await this.leadStatusModel.findOneAndUpdate(
       { _id: new Types.ObjectId(statusId), tenantId: tid, entity: 'lead' },
-      { $set: dto },
+      { $set: update },
       { new: true },
     ).exec();
 
@@ -152,7 +158,11 @@ export class LeadStatusService {
   // Delete Status (Soft Delete with Usage Check)
   // ─────────────────────────────────────────────────────────────────────────
 
-  async deleteStatus(tenantId: string | undefined, statusId: string): Promise<{ success: boolean; message: string }> {
+  async deleteStatus(
+    tenantId: string | undefined,
+    statusId: string,
+    force = false,
+  ): Promise<{ success: boolean; message: string }> {
     const tid = this.toObjectId(tenantId);
 
     const status = await this.leadStatusModel
@@ -168,16 +178,18 @@ export class LeadStatusService {
       throw new BadRequestException(`Cannot delete system status '${status.key}'`);
     }
 
-    // Check if status is in use by any leads
-    const usageCount = await this.leadModel.countDocuments({
-      tenantId: tid,
-      statusKey: status.key,
-    }).exec();
+    if (!force) {
+      // Check if status is in use by any leads
+      const usageCount = await this.leadModel.countDocuments({
+        tenantId: tid,
+        statusKey: status.key,
+      }).exec();
 
-    if (usageCount > 0) {
-      throw new BadRequestException(
-        `Cannot delete status '${status.label}' - it is used by ${usageCount} lead(s). Please reassign those leads first.`
-      );
+      if (usageCount > 0) {
+        throw new BadRequestException(
+          `Cannot delete status '${status.label}' - it is used by ${usageCount} lead(s). Please reassign those leads first.`
+        );
+      }
     }
 
     // Soft delete - set isActive to false

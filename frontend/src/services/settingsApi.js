@@ -257,7 +257,7 @@ export const settingsApi = {
   async getLeadStatuses(activeOnly = false) {
     try {
       const params = activeOnly ? { active: 'true' } : {};
-      return await apiClient.get('/settings/lead-statuses', params);
+      return await apiClient.get('/settings/lead-statuses', { params });
     } catch (error) {
       return { data: [] };
     }
@@ -268,7 +268,7 @@ export const settingsApi = {
       return await apiClient.post('/settings/lead-statuses', payload);
     } catch (error) {
       console.warn('Failed to create lead status:', error.message);
-      return { success: false };
+      throw error;
     }
   },
 
@@ -277,16 +277,16 @@ export const settingsApi = {
       return await apiClient.patch(`/settings/lead-statuses/${id}`, payload);
     } catch (error) {
       console.warn('Failed to update lead status:', error.message);
-      return { success: false };
+      throw error;
     }
   },
 
-  async deleteLeadStatus(id) {
+  async deleteLeadStatus(id, params = {}) {
     try {
-      return await apiClient.delete(`/settings/lead-statuses/${id}`);
+      return await apiClient.delete(`/settings/lead-statuses/${id}`, { params });
     } catch (error) {
       console.warn('Failed to delete lead status:', error.message);
-      return { success: false };
+      throw error;
     }
   },
 
