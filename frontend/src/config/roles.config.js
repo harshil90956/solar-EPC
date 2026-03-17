@@ -34,7 +34,6 @@ export const MODULES = {
     COMPLIANCE: 'compliance',
     SETTINGS: 'settings',
     INTELLIGENCE: 'intelligence',
-    HRM: 'hrm',
 };
 
 const ALL_MODULES = Object.values(MODULES);

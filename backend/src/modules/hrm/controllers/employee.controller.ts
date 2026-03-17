@@ -21,6 +21,24 @@ export class EmployeeController {
     const user = req.user;
     if (!user) throw new ForbiddenException('User not authenticated');
 
+    // Fast-path: honor permissions already present on JWT/user payload
+    // Supports:
+    // 1. permissions array: ["employees.view", "employees:view"]
+    // 2. modulePermissions object: { employees: { actions: ["view"], ... } }
+    const userPerms: string[] = Array.isArray(user?.permissions) ? user.permissions : [];
+    const modulePerms = user?.modulePermissions?.[module];
+    
+    const keyColon = `${module}:${action}`;
+    const keyDot = `${module}.${action}`;
+    
+    if (userPerms.includes(keyColon) || userPerms.includes(keyDot)) {
+      return;
+    }
+
+    if (modulePerms?.actions?.includes(action)) {
+      return;
+    }
+
     const roleId = user.roleId || user.role;
     if (!roleId) throw new ForbiddenException('User has no role assigned');
 
@@ -68,12 +86,9 @@ export class EmployeeController {
     // This is useful if the frontend hasn't set the tenant context yet.
     const resolvedTenantId = tenantId || 'ANY_TENANT';
 
-    console.log('[DEBUG] Employee login - tenantId:', tenantId, 'email:', loginDto.email);
-    
     const employee = await this.employeeService.validateLogin(loginDto.email, loginDto.password, resolvedTenantId) as EmployeeDocument | null;
     
     if (!employee) {
-      console.log('[DEBUG] Login failed - employee not found or invalid password');
       throw new UnauthorizedException('Invalid email or password');
     }
 

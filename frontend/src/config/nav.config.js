@@ -34,7 +34,7 @@ export const NAV_CONFIG = [
                     { id: 'hrm-payroll', label: 'Payroll', icon: Wallet },
                     { id: 'hrm-increments', label: 'Increments', icon: TrendingUp },
                     { id: 'hrm-departments', label: 'Departments', icon: Building2 },
-                    { id: 'hrm-permissions', label: 'Permissions', icon: Shield },
+                    { id: 'hrm-permissions', label: 'Permissions', icon: Shield, adminOnly: true },
                 ]
             },
             { id: 'intelligence', label: 'AI Intelligence', icon: Brain, badge: null, badgeVariant: 'accent' },
@@ -43,7 +43,6 @@ export const NAV_CONFIG = [
     {
         section: 'PIPELINE',
         items: [
-            { id: 'crm', label: 'CRM & Sales', icon: Users, badge: hotLeads || null },
             { id: 'survey', label: 'Survey', icon: MapPin, badge: null },
             { id: 'design', label: 'Design & BOQ', icon: Pencil, badge: null },
             { id: 'documents', label: 'Documentation', icon: Files, badge: null },
@@ -82,22 +81,6 @@ export const NAV_CONFIG = [
         section: 'STAFF MANAGEMENT',
         items: [
             { id: 'admin', label: 'Admin', icon: Shield, badge: null, badgeVariant: 'red' },
-            {
-                id: 'hrm',
-                label: 'HRM',
-                icon: Briefcase,
-                badge: null,
-                badgeVariant: 'accent',
-                children: [
-                    { id: 'hrm-employees', label: 'Employees', icon: UserCircle },
-                    { id: 'hrm-leaves', label: 'Leaves', icon: Calendar },
-                    { id: 'hrm-attendance', label: 'Attendance', icon: Clock },
-                    { id: 'hrm-payroll', label: 'Payroll', icon: Wallet },
-                    { id: 'hrm-increments', label: 'Increments', icon: TrendingUp },
-                    { id: 'hrm-departments', label: 'Departments', icon: Building2 },
-                    { id: 'hrm-role-permissions', label: 'Role Permissions', icon: Shield, adminOnly: true },
-                ]
-            },
         ],
     },
     {

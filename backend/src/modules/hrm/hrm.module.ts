@@ -16,6 +16,7 @@ import { Role, RoleSchema } from './schemas/role.schema';
 import { RoleColumnPermission, RoleColumnPermissionSchema } from './schemas/role-column-permission.schema';
 import { RoleModulePermission, RoleModulePermissionSchema } from './schemas/role-module-permission.schema';
 import { HrmPermission, HrmPermissionSchema } from './schemas/hrm-permission.schema';
+import { CompanyAttendancePolicy, CompanyAttendancePolicySchema } from './schemas/company-attendance-policy.schema';
 import { User, UserSchema } from '../../core/auth/schemas/user.schema';
 
 // Services
@@ -27,6 +28,7 @@ import { SalaryIncrementService } from './services/salary-increment.service';
 import { DepartmentService } from './services/department.service';
 import { PermissionService } from './services/permission.service';
 import { HrmPermissionService } from './services/hrm-permission.service';
+import { AttendancePolicyService } from './services/attendance-policy.service';
 
 // Controllers
 import { EmployeeController } from './controllers/employee.controller';
@@ -36,6 +38,7 @@ import { PayrollController } from './controllers/payroll.controller';
 import { SalaryIncrementController } from './controllers/salary-increment.controller';
 import { DepartmentController } from './controllers/department.controller';
 import { PermissionController } from './controllers/permission.controller';
+import { AttendancePolicyController } from './controllers/attendance-policy.controller';
 
 @Module({
   imports: [
@@ -52,6 +55,7 @@ import { PermissionController } from './controllers/permission.controller';
       { name: RoleColumnPermission.name, schema: RoleColumnPermissionSchema },
       { name: RoleModulePermission.name, schema: RoleModulePermissionSchema },
       { name: HrmPermission.name, schema: HrmPermissionSchema },
+      { name: CompanyAttendancePolicy.name, schema: CompanyAttendancePolicySchema },
       { name: User.name, schema: UserSchema },
     ]),
   ],
@@ -63,6 +67,7 @@ import { PermissionController } from './controllers/permission.controller';
     SalaryIncrementController,
     DepartmentController,
     PermissionController,
+    AttendancePolicyController,
   ],
   providers: [
     EmployeeService,
@@ -73,6 +78,7 @@ import { PermissionController } from './controllers/permission.controller';
     DepartmentService,
     PermissionService,
     HrmPermissionService,
+    AttendancePolicyService,
   ],
   exports: [
     EmployeeService,
