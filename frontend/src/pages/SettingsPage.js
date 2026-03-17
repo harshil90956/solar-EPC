@@ -70,11 +70,7 @@ function LeadStatusBuilder() {
         key: '',
         label: '',
         color: '#64748b',
-        type: 'normal',
-        surveyStatus: '',
-        customerStatus: '',
-        surveyColor: '#0ea5e9',
-        customerColor: '#22c55e',
+        type: 'pending',
     });
 
     const load = async () => {
@@ -427,9 +423,9 @@ function LeadStatusBuilder() {
                                 className="w-full px-3 py-2 rounded-lg border border-[var(--border-base)] bg-[var(--bg-elevated)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]"
                             >
                                 <option value="start">start</option>
-                                <option value="normal">normal</option>
+                                <option value="pending">pending</option>
                                 <option value="success">success</option>
-                                <option value="failure">failure</option>
+                                <option value="dead">dead</option>
                             </select>
                         </div>
                     </div>
@@ -721,15 +717,15 @@ const RBACPanel = () => {
     }, [roleList, selectedRole]);
 
     const roleDef = roleList?.find(r => r.id === selectedRole);
-    
+
     // Debug: Log MODULE_DEFS
     console.log('[DEBUG] MODULE_DEFS:', MODULE_DEFS);
     console.log('[DEBUG] MODULE_DEFS length:', MODULE_DEFS?.length);
-    
+
     const filteredMods = MODULE_DEFS.filter(m =>
         !modFilter || m.label.toLowerCase().includes(modFilter.toLowerCase())
     );
-    
+
     console.log('[DEBUG] filteredMods:', filteredMods);
     console.log('[DEBUG] filteredMods length:', filteredMods?.length);
 
@@ -1432,10 +1428,10 @@ const RoleBuilderPanel = () => {
     const [labelDraft, setLabelDraft] = useState('');
 
     const selected = selectedId ? customRoles[selectedId] : null;
-    
+
     // DEBUG: Check dataScope value
     console.log('[DEBUG] selected role:', selected?.id, 'dataScope:', selected?.dataScope);
-    
+
     const filteredMods = MODULE_DEFS.filter(m => !modFilter || m.label.toLowerCase().includes(modFilter.toLowerCase()));
 
     const handleCreate = async () => {
@@ -1573,8 +1569,8 @@ const RoleBuilderPanel = () => {
                                     </button>
                                 </div>
                                 <p className="text-[9px] text-[var(--text-faint)] mt-2">
-                                    {selected.dataScope === 'ASSIGNED' 
-                                        ? 'Users with this role will only see records assigned to them.' 
+                                    {selected.dataScope === 'ASSIGNED'
+                                        ? 'Users with this role will only see records assigned to them.'
                                         : 'Users with this role will see all records in the system.'}
                                 </p>
                             </div>
@@ -2329,7 +2325,7 @@ const InstallationTasksPanel = () => {
     }, [installationTasks]);
     return (
         <div>
-            <SectionHeader icon={Wrench} title="Installation Tasks" subtitle="Define task checklist used when creating installations" badge={user?.role==='Admin'?'Admin Only':''} />
+            <SectionHeader icon={Wrench} title="Installation Tasks" subtitle="Define task checklist used when creating installations" badge={user?.role === 'Admin' ? 'Admin Only' : ''} />
             <div className="space-y-4">
                 {tasks.map((t, i) => (
                     <div key={i} className="flex items-center gap-2">
@@ -2337,13 +2333,13 @@ const InstallationTasksPanel = () => {
                         <label className="text-xs flex items-center gap-1">
                             <input type="checkbox" checked={!!t.photoRequired} onChange={() => togglePhoto(i)} /> Photo
                         </label>
-                        <button onClick={() => move(i, -1)} disabled={i===0} className="text-[var(--text-muted)]"><ChevronUp size={12} /></button>
-                        <button onClick={() => move(i, 1)} disabled={i===tasks.length-1} className="text-[var(--text-muted)]"><ChevronDown size={12} /></button>
+                        <button onClick={() => move(i, -1)} disabled={i === 0} className="text-[var(--text-muted)]"><ChevronUp size={12} /></button>
+                        <button onClick={() => move(i, 1)} disabled={i === tasks.length - 1} className="text-[var(--text-muted)]"><ChevronDown size={12} /></button>
                         <button onClick={() => remove(i)} className="text-red-500"><X size={12} /></button>
                     </div>
                 ))}
                 <div className="flex gap-2">
-                    <Input placeholder="New task name" value={newName} onChange={e=>setNewName(e.target.value)} className="flex-1 text-xs" />
+                    <Input placeholder="New task name" value={newName} onChange={e => setNewName(e.target.value)} className="flex-1 text-xs" />
                     <Button onClick={addTask}><Plus size={12} /></Button>
                 </div>
                 <div className="flex justify-end">
@@ -2392,7 +2388,7 @@ const CommissioningTasksPanel = () => {
     }, [commissioningTasks]);
     return (
         <div>
-            <SectionHeader icon={CheckCircle} title="Commissioning Tasks" subtitle="Define task checklist used when creating commissionings" badge={user?.role==='Admin'?'Admin Only':''} />
+            <SectionHeader icon={CheckCircle} title="Commissioning Tasks" subtitle="Define task checklist used when creating commissionings" badge={user?.role === 'Admin' ? 'Admin Only' : ''} />
             <div className="space-y-4">
                 {tasks.map((t, i) => (
                     <div key={i} className="flex items-center gap-2">
@@ -2400,13 +2396,13 @@ const CommissioningTasksPanel = () => {
                         <label className="text-xs flex items-center gap-1">
                             <input type="checkbox" checked={!!t.photoRequired} onChange={() => togglePhoto(i)} /> Photo
                         </label>
-                        <button onClick={() => move(i, -1)} disabled={i===0} className="text-[var(--text-muted)]"><ChevronUp size={12} /></button>
-                        <button onClick={() => move(i, 1)} disabled={i===tasks.length-1} className="text-[var(--text-muted)]"><ChevronDown size={12} /></button>
+                        <button onClick={() => move(i, -1)} disabled={i === 0} className="text-[var(--text-muted)]"><ChevronUp size={12} /></button>
+                        <button onClick={() => move(i, 1)} disabled={i === tasks.length - 1} className="text-[var(--text-muted)]"><ChevronDown size={12} /></button>
                         <button onClick={() => remove(i)} className="text-red-500"><X size={12} /></button>
                     </div>
                 ))}
                 <div className="flex gap-2">
-                    <Input placeholder="New task name" value={newName} onChange={e=>setNewName(e.target.value)} className="flex-1 text-xs" />
+                    <Input placeholder="New task name" value={newName} onChange={e => setNewName(e.target.value)} className="flex-1 text-xs" />
                     <Button onClick={addTask}><Plus size={12} /></Button>
                 </div>
                 <div className="flex justify-end">

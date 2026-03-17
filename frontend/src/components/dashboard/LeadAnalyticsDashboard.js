@@ -1,14 +1,15 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   Area, AreaChart, PieChart, Pie, Cell, Legend
 } from 'recharts';
-import { 
-  Users, DollarSign, Download, RefreshCw, 
-  ArrowUpRight, ArrowDownRight, CheckCircle2, Sparkles, 
+import {
+  Users, DollarSign, Download, RefreshCw,
+  ArrowUpRight, ArrowDownRight, CheckCircle2, Sparkles,
   AlertCircle, Zap, Calendar as CalendarIcon,
-  ChevronLeft, ChevronRight, Target, Activity, UserCheck
+  ChevronLeft, ChevronRight, Target, Activity, UserCheck,
+  Clock, XCircle
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Modal } from '../ui/Modal';
@@ -78,13 +79,13 @@ const SkeletonChart = () => (
 // KPI Card Component with live data indicator
 const KPICard = ({ title, value, change, trend, icon: Icon, color, loading, subtitle, onClick }) => {
   if (loading) return <SkeletonCard />;
-  
+
   const TrendIcon = trend === 'up' ? ArrowUpRight : ArrowDownRight;
   const trendColor = trend === 'up' ? 'text-emerald-500' : 'text-red-500';
   const trendBg = trend === 'up' ? 'bg-emerald-50' : 'bg-red-50';
-  
+
   return (
-    <div 
+    <div
       onClick={onClick}
       className={`bg-white rounded-xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-all ${onClick ? 'cursor-pointer hover:border-blue-300' : ''}`}
     >
@@ -119,8 +120,8 @@ const ChartDateFilter = ({ dateRange, onDateRangeChange, size = 'sm' }) => {
     { key: 'year', label: 'Year' },
   ];
 
-  const baseClasses = size === 'sm' 
-    ? 'px-2 py-1 text-xs' 
+  const baseClasses = size === 'sm'
+    ? 'px-2 py-1 text-xs'
     : 'px-3 py-1.5 text-sm';
 
   return (
@@ -129,11 +130,10 @@ const ChartDateFilter = ({ dateRange, onDateRangeChange, size = 'sm' }) => {
         <button
           key={filter.key}
           onClick={() => onDateRangeChange(filter.key)}
-          className={`${baseClasses} rounded-md font-medium transition-all ${
-            dateRange === filter.key
-              ? 'bg-white text-blue-600 shadow-sm'
-              : 'text-gray-600 hover:text-gray-900'
-          }`}
+          className={`${baseClasses} rounded-md font-medium transition-all ${dateRange === filter.key
+            ? 'bg-white text-blue-600 shadow-sm'
+            : 'text-gray-600 hover:text-gray-900'
+            }`}
         >
           {filter.label}
         </button>
@@ -222,14 +222,14 @@ const FunnelChart = ({ data, loading, leads = [] }) => {
   const filteredData = useMemo(() => {
     if (!data || !Array.isArray(data)) return data;
     if (dateRange === 'all' || !leads.length) return data;
-    
+
     const filteredLeads = filterLeadsByDateRange(leads, dateRange);
     const stageCounts = {};
     filteredLeads.forEach(lead => {
       const stage = lead.statusKey || lead.status || 'new';
       stageCounts[stage] = (stageCounts[stage] || 0) + 1;
     });
-    
+
     return data.map(stage => ({
       ...stage,
       count: stageCounts[stage.stage] || 0
@@ -237,7 +237,7 @@ const FunnelChart = ({ data, loading, leads = [] }) => {
   }, [data, leads, dateRange]);
 
   if (loading) return <SkeletonChart />;
-  
+
   if (!filteredData || filteredData.length === 0) {
     return (
       <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
@@ -271,21 +271,21 @@ const FunnelChart = ({ data, loading, leads = [] }) => {
         </div>
         <ChartDateFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
       </div>
-      
+
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 30, left: 80, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e7eb" />
             <XAxis type="number" tick={{ fontSize: 12, fill: '#6b7280' }} axisLine={false} tickLine={false} />
-            <YAxis 
-              type="category" 
-              dataKey="name" 
-              tick={{ fontSize: 12, fill: '#374151' }} 
-              axisLine={false} 
+            <YAxis
+              type="category"
+              dataKey="name"
+              tick={{ fontSize: 12, fill: '#374151' }}
+              axisLine={false}
               tickLine={false}
               width={70}
             />
-            <Tooltip 
+            <Tooltip
               cursor={{ fill: '#f3f4f6' }}
               content={({ active, payload }) => {
                 if (active && payload && payload.length) {
@@ -329,14 +329,14 @@ const SourceChart = ({ data, loading, leads = [] }) => {
   const filteredData = useMemo(() => {
     if (!leads || !Array.isArray(leads)) return data;
     if (dateRange === 'all') return data;
-    
+
     const filteredLeads = filterLeadsByDateRange(leads, dateRange);
     const sourceCounts = {};
     filteredLeads.forEach(lead => {
       const source = lead.source || 'Unknown';
       sourceCounts[source] = (sourceCounts[source] || 0) + 1;
     });
-    
+
     return Object.entries(sourceCounts).map(([source, count]) => ({
       source,
       leads: count
@@ -344,7 +344,7 @@ const SourceChart = ({ data, loading, leads = [] }) => {
   }, [data, leads, dateRange]);
 
   if (loading) return <SkeletonChart />;
-  
+
   if (!filteredData || filteredData.length === 0) {
     return (
       <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
@@ -360,7 +360,7 @@ const SourceChart = ({ data, loading, leads = [] }) => {
   }
 
   const colors = ['#3b82f6', '#22c55e', '#f59e0b', '#8b5cf6', '#ef4444', '#14b8a6', '#64748b'];
-  
+
   const chartData = filteredData.map((item, index) => ({
     name: titleCase(item.source || 'Unknown'),
     leads: item.leads || item.count || 0,
@@ -383,12 +383,12 @@ const SourceChart = ({ data, loading, leads = [] }) => {
         <div className="w-40 h-40">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie 
-                data={chartData} 
-                cx="50%" 
-                cy="50%" 
-                innerRadius={45} 
-                outerRadius={70} 
+              <Pie
+                data={chartData}
+                cx="50%"
+                cy="50%"
+                innerRadius={45}
+                outerRadius={70}
                 paddingAngle={2}
                 dataKey="leads"
               >
@@ -396,7 +396,7 @@ const SourceChart = ({ data, loading, leads = [] }) => {
                   <Cell key={`cell-${index}`} fill={entry.fill} />
                 ))}
               </Pie>
-              <Tooltip 
+              <Tooltip
                 content={({ active, payload }) => {
                   if (active && payload && payload.length) {
                     const data = payload[0];
@@ -427,8 +427,8 @@ const SourceChart = ({ data, loading, leads = [] }) => {
                     <span className="text-sm font-semibold text-gray-900">{source.leads}</span>
                   </div>
                   <div className="w-full bg-gray-100 rounded-full h-1.5 mt-1">
-                    <div 
-                      className="h-full rounded-full" 
+                    <div
+                      className="h-full rounded-full"
                       style={{ width: `${pct}%`, backgroundColor: source.fill }}
                     />
                   </div>
@@ -450,11 +450,11 @@ const TrendChart = ({ data, loading }) => {
   const filteredData = useMemo(() => {
     if (!data || !Array.isArray(data)) return data;
     if (dateRange === 'all') return data;
-    
+
     // eslint-disable-next-line no-unused-vars
     const now = new Date();
     let monthsToShow = 12;
-    
+
     switch (dateRange) {
       case 'today':
       case 'week':
@@ -470,12 +470,12 @@ const TrendChart = ({ data, loading }) => {
       default:
         monthsToShow = 12;
     }
-    
+
     return data.slice(-monthsToShow);
   }, [data, dateRange]);
 
   if (loading) return <SkeletonChart />;
-  
+
   if (!filteredData || filteredData.length === 0) {
     return (
       <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
@@ -514,50 +514,50 @@ const TrendChart = ({ data, loading }) => {
           <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id="colorCreated" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
               </linearGradient>
               <linearGradient id="colorWon" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3}/>
-                <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
+                <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-            <XAxis 
-              dataKey="month" 
-              tick={{ fontSize: 11, fill: '#6b7280' }} 
-              axisLine={false} 
+            <XAxis
+              dataKey="month"
+              tick={{ fontSize: 11, fill: '#6b7280' }}
+              axisLine={false}
               tickLine={false}
             />
-            <YAxis 
-              tick={{ fontSize: 11, fill: '#6b7280' }} 
-              axisLine={false} 
+            <YAxis
+              tick={{ fontSize: 11, fill: '#6b7280' }}
+              axisLine={false}
               tickLine={false}
             />
-            <Tooltip 
-              contentStyle={{ 
-                backgroundColor: 'white', 
-                border: '1px solid #e5e7eb', 
+            <Tooltip
+              contentStyle={{
+                backgroundColor: 'white',
+                border: '1px solid #e5e7eb',
                 borderRadius: '8px',
                 boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
               }}
             />
             <Legend iconType="circle" wrapperStyle={{ paddingTop: '10px' }} />
-            <Area 
-              type="monotone" 
-              dataKey="created" 
-              stroke="#3b82f6" 
-              fillOpacity={1} 
-              fill="url(#colorCreated)" 
+            <Area
+              type="monotone"
+              dataKey="created"
+              stroke="#3b82f6"
+              fillOpacity={1}
+              fill="url(#colorCreated)"
               strokeWidth={2}
               name="New Leads"
             />
-            <Area 
-              type="monotone" 
-              dataKey="won" 
-              stroke="#22c55e" 
-              fillOpacity={1} 
-              fill="url(#colorWon)" 
+            <Area
+              type="monotone"
+              dataKey="won"
+              stroke="#22c55e"
+              fillOpacity={1}
+              fill="url(#colorWon)"
               strokeWidth={2}
               name="Won"
             />
@@ -587,13 +587,13 @@ const AgentLeaderboard = ({ data, loading, leads = [] }) => {
         .sort((a, b) => b.rate - a.rate)
         .slice(0, 5);
     }
-    
+
     const filteredLeads = filterLeadsByDateRange(leads, dateRange);
     const agentStats = {};
     filteredLeads.forEach(lead => {
       const agentId = lead.assignedTo?._id || lead.assignedTo || lead.createdBy?._id || lead.createdBy || 'unassigned';
       const agentName = lead.assignedTo?.name || lead.assignedTo?.firstName || lead.createdBy?.name || lead.createdBy?.firstName || 'Unknown';
-      
+
       if (!agentStats[agentId]) {
         agentStats[agentId] = {
           id: agentId,
@@ -602,15 +602,15 @@ const AgentLeaderboard = ({ data, loading, leads = [] }) => {
           converted: 0
         };
       }
-      
+
       agentStats[agentId].leads++;
-      
+
       const status = (lead.statusKey || lead.status || '').toLowerCase();
       if (status === 'won' || status === 'customer' || status === 'converted') {
         agentStats[agentId].converted++;
       }
     });
-    
+
     return Object.values(agentStats)
       .map(agent => ({
         ...agent,
@@ -642,7 +642,7 @@ const AgentLeaderboard = ({ data, loading, leads = [] }) => {
           {agents.map((agent, index) => {
             const rankColors = [
               'bg-amber-100 text-amber-700',
-              'bg-gray-100 text-gray-700', 
+              'bg-gray-100 text-gray-700',
               'bg-orange-100 text-orange-700'
             ];
             const rankClass = index < 3 ? rankColors[index] : 'bg-gray-50 text-gray-500';
@@ -660,7 +660,7 @@ const AgentLeaderboard = ({ data, loading, leads = [] }) => {
                   <p className="text-sm font-semibold text-gray-900">{agent.name}</p>
                   <div className="flex items-center gap-3 mt-1">
                     <div className="flex-1 bg-gray-100 rounded-full h-2">
-                      <div 
+                      <div
                         className="h-full bg-blue-500 rounded-full"
                         style={{ width: `${Math.min(agent.rate, 100)}%` }}
                       />
@@ -764,19 +764,17 @@ const LeadCalendar = ({ leads, loading }) => {
     days.push(
       <div
         key={day}
-        className={`h-20 p-2 rounded-lg border-2 cursor-pointer transition-all overflow-hidden ${
-          isSelected ? 'border-blue-500 bg-blue-50' : 
+        className={`h-20 p-2 rounded-lg border-2 cursor-pointer transition-all overflow-hidden ${isSelected ? 'border-blue-500 bg-blue-50' :
           isToday ? 'border-orange-400 bg-orange-50' :
-          hasLeads ? 'border-amber-300 bg-amber-50 hover:border-amber-400' : 
-          'border-gray-200 bg-white hover:border-gray-300'
-        }`}
+            hasLeads ? 'border-amber-300 bg-amber-50 hover:border-amber-400' :
+              'border-gray-200 bg-white hover:border-gray-300'
+          }`}
         onClick={() => setSelectedDate(isSelected ? null : day)}
       >
         <div className="flex items-center justify-between mb-1">
-          <span className={`text-sm font-bold ${
-            isToday ? 'text-orange-600' : 
+          <span className={`text-sm font-bold ${isToday ? 'text-orange-600' :
             hasLeads ? 'text-amber-700' : 'text-gray-700'
-          }`}>
+            }`}>
             {day}
           </span>
           {hasLeads && (
@@ -785,7 +783,7 @@ const LeadCalendar = ({ leads, loading }) => {
             </span>
           )}
         </div>
-        
+
         <div className="space-y-0.5">
           {dateLeads.slice(0, 2).map((lead, idx) => (
             <div key={idx} className="text-xs truncate text-gray-600 bg-white/80 px-1 py-0.5 rounded">
@@ -808,7 +806,7 @@ const LeadCalendar = ({ leads, loading }) => {
     <div className="p-4">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <select 
+          <select
             value={month}
             onChange={(e) => setCurrentMonth(new Date(year, parseInt(e.target.value), 1))}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -830,7 +828,7 @@ const LeadCalendar = ({ leads, loading }) => {
             {totalLeadsThisMonth} records this month
           </span>
         </div>
-        
+
         <div className="flex items-center gap-2">
           <h3 className="text-lg font-bold text-orange-500">
             {monthNames[month]} {year}
@@ -898,7 +896,7 @@ const LeadCalendar = ({ leads, loading }) => {
 };
 
 // Smart Insights Component
-const SmartInsights = ({ insights, loading, kpis }) => {
+const SmartInsights = ({ insights, loading, finalKpis }) => {
   if (loading) {
     return (
       <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
@@ -906,8 +904,8 @@ const SmartInsights = ({ insights, loading, kpis }) => {
           <Sparkles size={18} className="text-amber-500" />
           <h3 className="text-base font-semibold text-gray-900">Smart Insights</h3>
         </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {Array(4).fill(0).map((_, i) => (
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          {Array(5).fill(0).map((_, i) => (
             <div key={i} className="h-20 bg-gray-100 rounded-lg animate-pulse" />
           ))}
         </div>
@@ -916,28 +914,34 @@ const SmartInsights = ({ insights, loading, kpis }) => {
   }
 
   const stats = [
-    { 
-      label: 'Pipeline Value', 
-      value: fmt(kpis?.pipelineValue || 0), 
-      icon: DollarSign, 
-      color: 'from-emerald-500 to-teal-600'
+    {
+      label: 'Pending Leads',
+      value: finalKpis?.pendingLeads || 0,
+      icon: Clock,
+      color: 'from-amber-500 to-orange-600'
     },
-    { 
-      label: 'Avg Deal Size', 
-      value: fmt(kpis?.avgDealSize || 0), 
-      icon: Target, 
+    {
+      label: 'Dead Leads',
+      value: finalKpis?.deadLeads || 0,
+      icon: XCircle,
+      color: 'from-red-500 to-rose-600'
+    },
+    {
+      label: 'Avg Deal Size',
+      value: fmt(finalKpis?.avgDealSize || 0),
+      icon: Target,
       color: 'from-blue-500 to-indigo-600'
     },
-    { 
-      label: 'Response Time', 
-      value: '< 2h', 
-      icon: Activity, 
+    {
+      label: 'Response Time',
+      value: '< 2h',
+      icon: Activity,
       color: 'from-violet-500 to-purple-600'
     },
-    { 
-      label: 'Active Agents', 
-      value: formatNumber(kpis?.activeAgents || 0), 
-      icon: UserCheck, 
+    {
+      label: 'Active Agents',
+      value: formatNumber(finalKpis?.activeAgents || 0),
+      icon: UserCheck,
       color: 'from-amber-500 to-orange-600'
     }
   ];
@@ -948,7 +952,7 @@ const SmartInsights = ({ insights, loading, kpis }) => {
         <Sparkles size={18} className="text-amber-500" />
         <h3 className="text-base font-semibold text-gray-900">Smart Insights</h3>
       </div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         {stats.map((stat, i) => (
           <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 border border-gray-100">
             <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${stat.color} flex items-center justify-center flex-shrink-0`}>
@@ -971,10 +975,10 @@ const LeadAnalyticsDashboard = ({ onAddLead, onFilter }) => {
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [showCalendar, setShowCalendar] = useState(false);
   const [showCards, setShowCards] = useState(true);
-  
-  const queryOpts = { 
+
+  const queryOpts = {
     refetchInterval: 30000, // Refresh every 30 seconds for live data
-    staleTime: 30000 
+    staleTime: 30000
   };
 
   // Fetch all dashboard data
@@ -1035,8 +1039,26 @@ const LeadAnalyticsDashboard = ({ onAddLead, onFilter }) => {
   const performers = performersRaw || {};
   const leads = leadsRaw || [];
 
+  // Calculate pending and dead leads from leads data
+  const pendingLeads = leads.filter(lead => {
+    const status = (lead.statusKey || lead.status || '').toLowerCase();
+    return status === 'pending' || status === 'normal';
+  }).length;
+
+  const deadLeads = leads.filter(lead => {
+    const status = (lead.statusKey || lead.status || '').toLowerCase();
+    return status === 'dead' || status === 'failure';
+  }).length;
+
+  // Override KPI values with calculated ones
+  const finalKpis = {
+    ...kpis,
+    pendingLeads,
+    deadLeads
+  };
+
   const isLoading = kpisLoading || funnelLoading || sourcesLoading || monthlyLoading || performersLoading;
-  const hasNoLeads = !kpis.totalLeads || kpis.totalLeads === 0;
+  const hasNoLeads = !finalKpis.totalLeads || finalKpis.totalLeads === 0;
 
   const handleRefresh = () => {
     refetchKpis();
@@ -1047,9 +1069,9 @@ const LeadAnalyticsDashboard = ({ onAddLead, onFilter }) => {
   const kpiData = [
     {
       title: 'Total Leads',
-      value: formatNumber(kpis.totalLeads || 0),
-      change: kpis.deltas?.totalLeadsPct,
-      trend: (kpis.deltas?.totalLeadsPct || 0) >= 0 ? 'up' : 'down',
+      value: formatNumber(finalKpis.totalLeads || 0),
+      change: finalKpis.deltas?.totalLeadsPct,
+      trend: (finalKpis.deltas?.totalLeadsPct || 0) >= 0 ? 'up' : 'down',
       icon: Users,
       color: '#3b82f6',
       subtitle: 'All time leads',
@@ -1057,7 +1079,7 @@ const LeadAnalyticsDashboard = ({ onAddLead, onFilter }) => {
     },
     {
       title: 'New Today',
-      value: formatNumber(kpis.newLeads || 0),
+      value: formatNumber(finalKpis.newLeads || 0),
       change: undefined,
       trend: 'up',
       icon: Sparkles,
@@ -1067,23 +1089,33 @@ const LeadAnalyticsDashboard = ({ onAddLead, onFilter }) => {
     },
     {
       title: 'Converted',
-      value: formatNumber(kpis.convertedLeads || 0),
-      change: kpis.deltas?.convertedLeadsPct,
-      trend: (kpis.deltas?.convertedLeadsPct || 0) >= 0 ? 'up' : 'down',
+      value: formatNumber(finalKpis.convertedLeads || 0),
+      change: finalKpis.deltas?.convertedLeadsPct,
+      trend: (finalKpis.deltas?.convertedLeadsPct || 0) >= 0 ? 'up' : 'down',
       icon: CheckCircle2,
       color: '#22c55e',
-      subtitle: `${kpis.conversionRate || 0}% conversion rate`,
+      subtitle: `${finalKpis.conversionRate || 0}% conversion rate`,
       filterType: 'converted'
     },
     {
-      title: 'Pipeline Value',
-      value: fmt(kpis.pipelineValue || 0),
+      title: 'Pending Leads',
+      value: finalKpis?.pendingLeads || 0,
       change: undefined,
-      trend: 'up',
-      icon: DollarSign,
+      trend: 'neutral',
+      icon: Clock,
       color: '#f59e0b',
-      subtitle: 'Total pipeline value',
-      filterType: null
+      subtitle: 'Awaiting response',
+      filterType: 'pending'
+    },
+    {
+      title: 'Dead Leads',
+      value: finalKpis?.deadLeads || 0,
+      change: undefined,
+      trend: 'down',
+      icon: XCircle,
+      color: '#ef4444',
+      subtitle: 'Lost opportunities',
+      filterType: 'dead'
     }
   ];
 
@@ -1114,17 +1146,17 @@ const LeadAnalyticsDashboard = ({ onAddLead, onFilter }) => {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             size="sm"
             onClick={() => setShowCards(!showCards)}
           >
             {showCards ? 'Hide Cards' : 'Show Cards'}
           </Button>
           <LiveIndicator isLive={isLive} />
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setShowCalendar(true)}
           >
             <CalendarIcon size={14} className="mr-2" />
@@ -1148,8 +1180,8 @@ const LeadAnalyticsDashboard = ({ onAddLead, onFilter }) => {
         title="Lead Calendar"
         size="xl"
       >
-        <LeadCalendar 
-          leads={leads} 
+        <LeadCalendar
+          leads={leads}
           loading={leadsLoading}
         />
       </Modal>
@@ -1157,32 +1189,32 @@ const LeadAnalyticsDashboard = ({ onAddLead, onFilter }) => {
       {showCards && (
         <>
           {/* KPI Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {isLoading 
-              ? Array(4).fill(0).map((_, i) => <SkeletonCard key={i} />)
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            {isLoading
+              ? Array(5).fill(0).map((_, i) => <SkeletonCard key={i} />)
               : kpiData.map((kpi, index) => (
-                  <KPICard 
-                    key={index} 
-                    {...kpi} 
-                    loading={false}
-                    onClick={() => onFilter?.(kpi.filterType)}
-                  />
-                ))
+                <KPICard
+                  key={index}
+                  {...kpi}
+                  loading={false}
+                  onClick={() => onFilter?.(kpi.filterType)}
+                />
+              ))
             }
           </div>
 
           {/* Smart Insights - only shown when data is available */}
           {!isLoading && leads.length > 0 && (
-            <SmartInsights 
-              insights={[]} 
-              loading={isLoading} 
-              kpis={{
-                ...kpis,
-                avgDealSize: kpis?.avgDealSize || (leads.length > 0 
-                  ? leads.reduce((sum, l) => sum + (l.value || 0), 0) / leads.length 
+            <SmartInsights
+              insights={[]}
+              loading={isLoading}
+              finalKpis={{
+                ...finalKpis,
+                avgDealSize: finalKpis?.avgDealSize || (leads.length > 0
+                  ? leads.reduce((sum, l) => sum + (l.value || 0), 0) / leads.length
                   : 0),
-                activeAgents: kpis?.activeAgents || performers?.performers?.length || 0
-              }} 
+                activeAgents: finalKpis?.activeAgents || performers?.performers?.length || 0
+              }}
             />
           )}
         </>
