@@ -1,0 +1,78 @@
+  private async returnReservedInventoryToStock(tenantId: Types.ObjectId, projectId: string): Promise<void> {
+    try {
+      console.log(`[PROJECT CANCEL] Starting inventory return for project: ${projectId}`);
+      
+      // Build query for both string and ObjectId projectId formats
+      const projectQuery: any[] = [{ projectId: projectId }];
+      if (Types.ObjectId.isValid(projectId)) {
+        projectQuery.push({ projectId: new Types.ObjectId(projectId) });
+      }
+      
+      // Find ALL reservations for this project (any status except already cancelled)
+      const reservations = await this.reservationModel.find({
+        tenantId,
+        $or: projectQuery,
+        status: { $nin: ['Cancelled', 'cancelled'] },
+      }).exec();
+
+      console.log(`[PROJECT CANCEL] Found ${reservations.length} reservations to cancel for project ${projectId}`);
+      console.log(`[PROJECT CANCEL] Reservation details:`, reservations.map(r => ({ itemId: r.itemId, qty: r.quantity, status: r.status })));
+
+      if (reservations.length === 0) {
+        console.log(`[PROJECT CANCEL] No reservations to process`);
+        return;
+      }
+
+      // Process each reservation
+      for (const reservation of reservations) {
+        console.log(`[PROJECT CANCEL] Processing: ${reservation.itemId}, qty: ${reservation.quantity}`);
+        
+        // Find the item in ITEMS collection (not inventories)
+        const item = await this.itemModel.findOne({
+          tenantId,
+          itemId: reservation.itemId,
+        }).exec();
+
+        console.log(`[PROJECT CANCEL] Search result in items collection: ${item ? 'FOUND' : 'NOT FOUND'}`);
+
+        if (item) {
+          // Validate current values
+          console.log(`[PROJECT CANCEL] Current item state:`, {
+            itemId: item.itemId,
+            name: item.name,
+            stock: item.stock,
+            reserved: item.reserved,
+          });
+          
+          // Update logic: subtract from reserved, stock unchanged
+          const newReserved = Math.max(0, (item.reserved || 0) - reservation.quantity);
+
+          console.log(`[PROJECT CANCEL] ${reservation.itemId}: reserved ${item.reserved || 0} -> ${newReserved}`);
+
+          await this.itemModel.updateOne(
+            { _id: item._id },
+            {
+              $set: {
+                reserved: newReserved,
+              },
+            },
+          ).exec();
+          console.log(`[PROJECT CANCEL] Item updated successfully`);
+        } else {
+          console.log(`[PROJECT CANCEL] Item ${reservation.itemId} not found in items collection`);
+        }
+
+        // Mark reservation as cancelled
+        await this.reservationModel.updateOne(
+          { _id: reservation._id },
+          { $set: { status: 'Cancelled' } },
+        ).exec();
+        console.log(`[PROJECT CANCEL] Reservation ${reservation._id} marked as Cancelled`);
+      }
+
+      console.log(`[PROJECT CANCEL] Completed inventory return for project ${projectId}`);
+    } catch (error: any) {
+      console.error(`[PROJECT CANCEL] Error in returnReservedInventoryToStock:`, error);
+      throw error;
+    }
+  }
