@@ -88,7 +88,7 @@ const COLUMNS = [
     }
   },
   { key: 'minStock', header: 'Min Stock', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
-  { key: 'rate', header: 'Unit Rate', sortable: true, render: v => <span className="text-xs text-[var(--text-muted)]">₹{v.toLocaleString('en-IN')}</span> },
+  { key: 'rate', header: 'Unit Rate', sortable: true, render: v => <span className="text-xs text-[var(--text-muted)]">₹{(v || 0).toLocaleString('en-IN')}</span> },
   { key: 'warehouse', header: 'Warehouse', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
   { key: '__status', header: 'Status', render: (_, row) => <StatusBadge domain="inventory" value={getStockStatus(row)} /> },
 ];
@@ -139,7 +139,7 @@ const InvCard = ({ item, onDragStart, onClick }) => {
         </div>
       )}
       <div className="mt-1.5 text-[10px] font-bold text-[var(--text-secondary)]">
-        ₹{(item.stock * item.rate).toLocaleString('en-IN')}
+        ₹{((item.stock || 0) * (item.rate || 0)).toLocaleString('en-IN')}
       </div>
       <div className="mt-1 text-[9px] text-[var(--text-faint)]">
         Min: {item.minStock || 0} {item.unit}
@@ -2679,7 +2679,7 @@ const InventoryPage = () => {
                           <span className="text-xs text-[var(--text-secondary)]">{item.unit}</span>
                         </td>
                         <td className="px-4 py-3">
-                          <span className="text-xs text-[var(--text-primary)]">₹{item.rate?.toLocaleString('en-IN')}</span>
+                          <span className="text-xs text-[var(--text-primary)]">₹{(item.rate || 0).toLocaleString('en-IN')}</span>
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
@@ -3490,8 +3490,8 @@ const InventoryPage = () => {
               ['Warehouse', selected.warehouse || '—'], ['Unit', selected.unit],
               ['Total Stock', `${selected.stock} ${selected.unit}`],
               ['Reserved', `${selected.reserved || 0} ${selected.unit}`], ['Available', `${(selected.stock || 0) - (selected.reserved || 0)} ${selected.unit}`],
-              ['Min Stock', `${selected.minStock} ${selected.unit}`], ['Unit Rate', `₹${selected.rate.toLocaleString('en-IN')}`],
-              ['Total Value', fmt(selected.stock * selected.rate)],
+              ['Min Stock', `${selected.minStock} ${selected.unit}`], ['Unit Rate', `₹${(selected.rate || 0).toLocaleString('en-IN')}`],
+              ['Total Value', fmt((selected.stock || 0) * (selected.rate || 0))],
               ...(selected.poReference ? [['PO Reference', selected.poReference]] : []),
               ['Status', <StatusBadge domain="inventory" value={getStockStatus(selected)} />],
               ['Last Updated', selected.lastUpdated],
