@@ -126,6 +126,7 @@ const StockMovements = () => {
           tenantId: TENANT_ID 
         }
       });
+      console.log('[StockMovements] Stats API response:', data);
       setStats(data || { byType: [], topItems: [] });
     } catch (err) {
       console.error('Failed to fetch stats:', err);
