@@ -63,17 +63,10 @@ export const usePermissions = (module) => {
         return { permissions: [], columns: {} };
       }
     },
-<<<<<<< Updated upstream
-    enabled: Boolean(userRoleId && isAdminLike),
-    staleTime: 2 * 60 * 1000, // Cache for 2 minutes
-    cacheTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
-    refetchOnWindowFocus: false,
-=======
     enabled: !!userRoleId,
     staleTime: 10 * 1000, // Cache for 10 seconds only
     cacheTime: 30 * 1000, // Keep in cache for 30 seconds
     refetchOnWindowFocus: true, // Refresh when user returns to tab
->>>>>>> Stashed changes
   });
 
   // Combine JWT permissions with API permissions (API takes precedence)
