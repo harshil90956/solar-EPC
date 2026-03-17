@@ -319,7 +319,9 @@ const InventoryPage = () => {
   const [editingItem, setEditingItem] = useState(null);
   const [editForm, setEditForm] = useState({ name: '', category: '', unit: '', minStock: '', rate: '', status: '' });
   const [showStockOut, setShowStockOut] = useState(false);
-  const [stockOutForm, setStockOutForm] = useState({ itemId: '', quantity: '', projectId: '', issuedDate: '', remarks: '' });
+  const [stockOutForm, setStockOutForm] = useState({ itemId: '', quantity: '', projectId: '', issuedDate: '', remarks: '', quotationId: '' });
+  const [approvedQuotations, setApprovedQuotations] = useState([]);
+  const [selectedQuotationItems, setSelectedQuotationItems] = useState([]);
   const [inventory, setInventory] = useState([]);
   
   // Dynamic month options based on inventory dates
@@ -797,7 +799,26 @@ const InventoryPage = () => {
 
     fetchProjects();
     fetchPurchaseOrders();
+    fetchApprovedQuotations();
   }, []);
+
+  // Fetch approved quotations for Stock Out
+  const fetchApprovedQuotations = async () => {
+    try {
+      const token = localStorage.getItem('solar_token') || localStorage.getItem('accessToken') || localStorage.getItem('token');
+      if (!token) return;
+      
+      const res = await api.get('/documents', { 
+        headers: { 'x-tenant-id': TENANT_ID },
+        params: { type: 'quotation', status: 'accepted' }
+      });
+      const quotations = Array.isArray(res) ? res : (res.data || []);
+      setApprovedQuotations(quotations.filter(q => q.status === 'accepted' || q.status === 'ACCEPTED'));
+    } catch (err) {
+      console.error('Failed to fetch approved quotations:', err);
+      setApprovedQuotations([]);
+    }
+  };
 
   // Filtered inventory for dashboard based on calendar filter
   const filteredInventoryForDashboard = useMemo(() => {
@@ -3460,12 +3481,96 @@ const InventoryPage = () => {
           </Button>
         </div>}>
         <div className="space-y-3 max-h-[60vh] sm:max-h-[70vh] overflow-y-auto">
-          <FormField label="Item">
-            <Select value={stockOutForm.itemId} onChange={e => setStockOutForm(f => ({ ...f, itemId: e.target.value }))}>
-              <option value="">Select Item</option>
-              {inventory.map(i => <option key={i._id} value={i.itemId}>{i.name || i.description} ({i.warehouse}) - Available: {(i.stock || 0) - (i.reserved || 0)}</option>)}
+          {/* Approved Quotation Selection */}
+          <FormField label="Approved Quotation">
+            <Select 
+              value={stockOutForm.quotationId} 
+              onChange={e => {
+                const quotationId = e.target.value;
+                const selectedQuotation = approvedQuotations.find(q => q._id === quotationId || q.documentId === quotationId);
+                setSelectedQuotationItems(selectedQuotation?.items || []);
+                setStockOutForm(f => ({ 
+                  ...f, 
+                  quotationId,
+                  itemId: '',
+                  projectId: selectedQuotation?.projectId || ''
+                }));
+              }}
+            >
+              <option value="">Select Approved Quotation</option>
+              {approvedQuotations.map(q => (
+                <option key={q._id} value={q._id}>
+                  {q.documentId || q.quotationId || q._id} - {q.customerName || 'Unknown'} ({(q.items || []).length} items)
+                </option>
+              ))}
             </Select>
           </FormField>
+
+          {/* Quotation Items List */}
+          {selectedQuotationItems.length > 0 && (
+            <div className="glass-card p-3 border border-[var(--border-base)]">
+              <h4 className="text-xs font-semibold text-[var(--text-primary)] mb-2">Quotation Items</h4>
+              <div className="space-y-2 max-h-40 overflow-y-auto">
+                {selectedQuotationItems.map((item, idx) => {
+                  const inventoryItem = inventory.find(i => 
+                    i.name?.toLowerCase() === item.name?.toLowerCase() || 
+                    i.description?.toLowerCase() === item.name?.toLowerCase()
+                  );
+                  const available = inventoryItem ? (inventoryItem.stock || 0) - (inventoryItem.reserved || 0) : 0;
+                  const isSelected = stockOutForm.itemId === (inventoryItem?.itemId || item.name);
+                  
+                  return (
+                    <div 
+                      key={idx} 
+                      onClick={() => setStockOutForm(f => ({ 
+                        ...f, 
+                        itemId: inventoryItem?.itemId || '',
+                        quantity: item.quantity || 1
+                      }))}
+                      className={`p-2 rounded-lg cursor-pointer transition-all border ${
+                        isSelected 
+                          ? 'bg-[var(--primary)]/10 border-[var(--primary)]' 
+                          : 'bg-[var(--bg-elevated)] border-[var(--border-base)] hover:border-[var(--primary)]/50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <input 
+                            type="radio" 
+                            checked={isSelected} 
+                            onChange={() => {}}
+                            className="accent-[var(--primary)]"
+                          />
+                          <span className="text-xs font-medium text-[var(--text-primary)]">{item.name}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xs text-[var(--text-muted)]">Qty: {item.quantity}</span>
+                          {inventoryItem && (
+                            <span className={`text-xs ml-2 ${available < item.quantity ? 'text-red-500' : 'text-green-500'}`}>
+                              (Avail: {available})
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Selected Item Display */}
+          {stockOutForm.itemId && (
+            <FormField label="Selected Item">
+              <div className="glass-card p-2 text-xs text-[var(--text-primary)]">
+                {(() => {
+                  const item = inventory.find(i => i.itemId === stockOutForm.itemId);
+                  return item ? `${item.name || item.description} (${item.warehouse})` : 'Item not found in inventory';
+                })()}
+              </div>
+            </FormField>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <FormField label="Quantity to Issue"><Input type="number" placeholder="50" value={stockOutForm.quantity} onChange={e => setStockOutForm(f => ({ ...f, quantity: e.target.value }))} /></FormField>
             <FormField label="Project">
