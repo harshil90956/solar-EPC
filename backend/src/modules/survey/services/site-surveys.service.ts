@@ -252,6 +252,59 @@ export class SiteSurveysService {
     return survey;
   }
 
+  private async resolveAssigneeForTenant(
+    assignedTo: string,
+    tid: Types.ObjectId,
+  ): Promise<{ assigneeId: Types.ObjectId; assigneeName?: string }> {
+    // Accept either a User _id, Employee _id, User.id, or Employee.employeeId
+    const UserModel = (this.surveyModel as any).db.model('User');
+    const EmployeeModel = (this.surveyModel as any).db.model('Employee');
+
+    // 1) ObjectId path
+    if (Types.ObjectId.isValid(assignedTo)) {
+      const objId = new Types.ObjectId(assignedTo);
+
+      const userDoc = await UserModel.findOne({ _id: objId, tenantId: tid })
+        .select('firstName lastName name')
+        .lean()
+        .exec();
+      if (userDoc) {
+        const built = String((userDoc as any).name || `${(userDoc as any).firstName || ''} ${(userDoc as any).lastName || ''}`.trim()).trim();
+        return { assigneeId: objId, assigneeName: built || undefined };
+      }
+
+      const empDoc = await EmployeeModel.findOne({ _id: objId, tenantId: tid })
+        .select('firstName lastName')
+        .lean()
+        .exec();
+      if (empDoc) {
+        const built = String(`${(empDoc as any).firstName || ''} ${(empDoc as any).lastName || ''}`.trim()).trim();
+        return { assigneeId: objId, assigneeName: built || undefined };
+      }
+    }
+
+    // 2) String id path (User.id / Employee.employeeId)
+    const userDoc = await UserModel.findOne({ id: assignedTo, tenantId: tid })
+      .select('_id firstName lastName name')
+      .lean()
+      .exec();
+    if (userDoc && (userDoc as any)._id) {
+      const built = String((userDoc as any).name || `${(userDoc as any).firstName || ''} ${(userDoc as any).lastName || ''}`.trim()).trim();
+      return { assigneeId: new Types.ObjectId((userDoc as any)._id.toString()), assigneeName: built || undefined };
+    }
+
+    const empDoc = await EmployeeModel.findOne({ employeeId: assignedTo, tenantId: tid })
+      .select('_id firstName lastName')
+      .lean()
+      .exec();
+    if (empDoc && (empDoc as any)._id) {
+      const built = String(`${(empDoc as any).firstName || ''} ${(empDoc as any).lastName || ''}`.trim()).trim();
+      return { assigneeId: new Types.ObjectId((empDoc as any)._id.toString()), assigneeName: built || undefined };
+    }
+
+    throw new BadRequestException('Invalid assignedTo user ID');
+  }
+
   // Find survey by lead ID
   async findByLeadId(leadId: string, tenantId?: string, user?: UserWithVisibility): Promise<SiteSurvey | null> {
     const leadObjId = this.toObjectId(leadId);
@@ -327,23 +380,10 @@ export class SiteSurveysService {
       throw new BadRequestException('Tenant context is required for updating surveys');
     }
 
-    const assignedToId = (moveDto as any)?.assignedTo && Types.ObjectId.isValid((moveDto as any).assignedTo)
-      ? new Types.ObjectId((moveDto as any).assignedTo)
-      : undefined;
-
-    let resolvedAssigneeName: string | undefined;
-    if (assignedToId && (!moveDto.engineer || !moveDto.solarConsultant)) {
-      try {
-        const UserModel = (this.surveyModel as any).db.model('User');
-        const u = await UserModel.findOne({ _id: assignedToId }).select('firstName lastName name').lean().exec();
-        const built = u
-          ? String((u as any).name || `${(u as any).firstName || ''} ${(u as any).lastName || ''}`.trim()).trim()
-          : '';
-        resolvedAssigneeName = built || undefined;
-      } catch (e) {
-        resolvedAssigneeName = undefined;
-      }
-    }
+    const rawAssignedTo = (moveDto as any)?.assignedTo;
+    const { assigneeId: assignedToId, assigneeName: resolvedAssigneeName } = rawAssignedTo
+      ? await this.resolveAssigneeForTenant(String(rawAssignedTo), tid)
+      : { assigneeId: undefined as any, assigneeName: undefined };
 
     // Tenant-authoritative update: ensure state transition works even if visibility filtering would hide the survey.
     const filter: any = {
@@ -547,15 +587,6 @@ export class SiteSurveysService {
       throw new BadRequestException('You do not have permission to assign this survey');
     }
 
-    // Validate the assignedTo user ID
-    const assignedToId = assignDto.assignedTo && Types.ObjectId.isValid(assignDto.assignedTo)
-      ? new Types.ObjectId(assignDto.assignedTo)
-      : undefined;
-
-    if (!assignedToId) {
-      throw new BadRequestException('Invalid assignedTo user ID');
-    }
-
     // Get current user ID for assignedBy
     const rawAssignedBy = (user?._id ? user._id.toString() : user?.id) || undefined;
     const assignedById = rawAssignedBy && Types.ObjectId.isValid(rawAssignedBy)
@@ -567,18 +598,7 @@ export class SiteSurveysService {
       throw new BadRequestException('Tenant context is required for assigning surveys');
     }
 
-    // Resolve assignee display name for UI fields
-    let assigneeName: string | undefined;
-    try {
-      const UserModel = (this.surveyModel as any).db.model('User');
-      const u = await UserModel.findOne({ _id: assignedToId }).select('firstName lastName name').lean().exec();
-      const built = u
-        ? String(u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim()).trim()
-        : '';
-      assigneeName = built || undefined;
-    } catch (e) {
-      assigneeName = undefined;
-    }
+    const { assigneeId: assignedToId, assigneeName } = await this.resolveAssigneeForTenant(String(assignDto.assignedTo), tid);
 
     const filter: any = {
       tenantId: tid,
