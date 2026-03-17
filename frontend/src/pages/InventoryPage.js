@@ -1503,7 +1503,7 @@ const InventoryPage = () => {
             <>
               {/* 5 Cards Row - One for each tab */}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-            {/* Inventory Card */}
+            {/* Inventory Card - Shows AVAILABLE stock (Total - Reserved) */}
             <div
               onClick={() => setActiveTab('inventory')}
               className="relative overflow-hidden bg-gradient-to-br from-blue-100 to-sky-200 border border-blue-200 rounded-2xl p-5 cursor-pointer hover:shadow-md transition-all"
@@ -1511,8 +1511,8 @@ const InventoryPage = () => {
               <div className="relative flex items-start justify-between">
                 <div>
                   <p className="text-xs font-bold text-blue-700 uppercase tracking-wider">Total Stock</p>
-                  <p className="text-3xl font-bold text-gray-800 mt-2">{filteredInventoryForDashboard.reduce((sum, i) => sum + (i.stock || 0), 0)}</p>
-                  <p className="text-xs text-gray-500 mt-1">Total quantity in inventory</p>
+                  <p className="text-3xl font-bold text-gray-800 mt-2">{filteredInventoryForDashboard.reduce((sum, i) => sum + ((i.stock || 0) - (i.reserved || 0)), 0)}</p>
+                  <p className="text-xs text-gray-500 mt-1">Available quantity in inventory</p>
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-blue-200 flex items-center justify-center">
                   <Package size={24} className="text-blue-700" />
@@ -1979,8 +1979,8 @@ const InventoryPage = () => {
                 <div className="relative flex items-start justify-between">
                   <div>
                     <p className="text-xs font-bold text-blue-700 uppercase tracking-wider">Total Stock</p>
-                    <p className="text-3xl font-bold text-gray-800 mt-2">{inventory.reduce((sum, i) => sum + (i.stock || 0), 0)}</p>
-                    <p className="text-xs text-gray-500 mt-1">Total quantity in inventory</p>
+                    <p className="text-3xl font-bold text-gray-800 mt-2">{inventory.reduce((sum, i) => sum + ((i.stock || 0) - (i.reserved || 0)), 0)}</p>
+                    <p className="text-xs text-gray-500 mt-1">Available quantity in inventory</p>
                   </div>
                   <div className="w-12 h-12 rounded-xl bg-blue-200 flex items-center justify-center">
                     <Package size={24} className="text-blue-700" />

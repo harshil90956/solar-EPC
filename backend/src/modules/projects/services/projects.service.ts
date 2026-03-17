@@ -9,6 +9,7 @@ import { InventoryReservation } from '../../inventory/schemas/inventory-reservat
 import { DocumentEntity } from '../../document/schemas/document.schema';
 import { CreateProjectDto, UpdateProjectDto, UpdateProjectStatusDto } from '../dto/project.dto';
 import { UserWithVisibility } from '../../../common/utils/visibility-filter';
+import { StockMovementService } from '../../inventory/services/stock-movement.service';
 
 @Injectable()
 export class ProjectsService {
@@ -19,6 +20,7 @@ export class ProjectsService {
     @InjectModel(Inventory.name) private readonly inventoryModel: Model<Inventory>,
     @InjectModel(InventoryReservation.name) private readonly reservationModel: Model<InventoryReservation>,
     @InjectModel(DocumentEntity.name) private readonly documentModel: Model<DocumentEntity>,
+    private readonly stockMovementService: StockMovementService,
   ) {}
 
   private async resolveTenantObjectId(tenantId: string): Promise<Types.ObjectId> {
@@ -133,7 +135,7 @@ export class ProjectsService {
     
     // Cancelled needs to be ATOMIC + IDEMPOTENT because it has financial stock impact
     if (updateStatusDto.status === 'Cancelled') {
-      return this.cancelProjectAndRestoreInventory(tenantId, projectId, updateStatusDto, userId);
+      return this.cancelProjectAndRestoreInventory(tenantCode, tenantId, projectId, updateStatusDto, userId);
     }
 
     // Non-cancel updates (no inventory impact)
@@ -161,6 +163,7 @@ export class ProjectsService {
   }
 
   private async cancelProjectAndRestoreInventory(
+    tenantCode: string,
     tenantId: Types.ObjectId,
     projectId: string,
     updateStatusDto: UpdateProjectStatusDto,
@@ -305,6 +308,21 @@ export class ProjectsService {
             { $set: { status: 'Cancelled' } },
             { session },
           );
+
+          // Log stock movement for RELEASE (Cancelled Project)
+          try {
+            await this.stockMovementService.logMovement(tenantCode, {
+              itemId: item._id.toString(),
+              type: 'RELEASE',
+              quantity: qty,
+              reference: projectId,
+              referenceType: 'PROJECT',
+              note: `Released ${qty} units from cancelled project ${projectId}`,
+              warehouseName: item.warehouse || 'Main Warehouse',
+            });
+          } catch (err) {
+            console.error('[STOCK MOVEMENT] Failed to log RELEASE for cancelled project:', err);
+          }
         }
 
         // Only mark inventory restored if every reservation could be applied.

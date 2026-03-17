@@ -262,7 +262,7 @@ const StockMovements = () => {
           {[
             { type: 'PURCHASE', label: 'Purchase', color: 'blue', icon: ArrowDown, gradient: 'from-blue-100 to-sky-200', border: 'border-blue-200', iconBg: 'bg-blue-200', text: 'text-blue-700' },
             { type: 'RESERVE', label: 'Reserve', color: 'indigo', icon: Lock, gradient: 'from-indigo-100 to-purple-200', border: 'border-indigo-200', iconBg: 'bg-indigo-200', text: 'text-indigo-700' },
-            { type: 'RELEASE', label: 'Release', color: 'cyan', icon: Unlock, gradient: 'from-cyan-100 to-teal-200', border: 'border-cyan-200', iconBg: 'bg-cyan-200', text: 'text-cyan-700' },
+            { type: 'RELEASE', label: 'Cancelled Project', color: 'cyan', icon: Unlock, gradient: 'from-cyan-100 to-teal-200', border: 'border-cyan-200', iconBg: 'bg-cyan-200', text: 'text-cyan-700' },
             { type: 'TRANSFER', label: 'Transfer', color: 'violet', icon: ArrowRightLeft, gradient: 'from-violet-100 to-purple-200', border: 'border-violet-200', iconBg: 'bg-violet-200', text: 'text-violet-700' },
           ].map(({ type, label, icon: Icon, gradient, border, iconBg, text }) => {
             const stat = stats.byType?.find(s => s._id === type);
