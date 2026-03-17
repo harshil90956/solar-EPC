@@ -76,7 +76,6 @@ import IntelligenceDashboardPage from './pages/IntelligenceDashboardPage';
 
 import RemindersPage from './pages/RemindersPage';
 import HRMPermissionsPage from './pages/HRMPermissionsPage';
-import ProfilePage from './pages/ProfilePage';
 import NotificationSystem from './components/NotificationSystem';
 
 
