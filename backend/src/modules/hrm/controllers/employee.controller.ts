@@ -160,15 +160,24 @@ export class EmployeeController {
     // Fetch all employees for the tenant
     const allData = await this.employeeService.findAll(tenantId);
 
+    // Normalize data for frontend (convert Dates to ISO strings)
+    const normalizedData = allData.map((e: any) => ({
+      ...e,
+      _id: e._id?.toString(),
+      joiningDate: e.joiningDate ? new Date(e.joiningDate).toISOString() : null,
+      createdAt: e.createdAt ? new Date(e.createdAt).toISOString() : null,
+      updatedAt: e.updatedAt ? new Date(e.updatedAt).toISOString() : null,
+    }));
+
     // Apply data scope filtering
-    let filteredData = allData;
+    let filteredData = normalizedData;
     if (scopeFilter.employeeId) {
-      filteredData = allData.filter((e: any) =>
-        e._id?.toString() === scopeFilter.employeeId ||
+      filteredData = normalizedData.filter((e: any) =>
+        e._id === scopeFilter.employeeId ||
         e.employeeId === scopeFilter.employeeId
       );
     } else if (scopeFilter.department) {
-      filteredData = allData.filter((e: any) => e.department === scopeFilter.department);
+      filteredData = normalizedData.filter((e: any) => e.department === scopeFilter.department);
     }
 
     return { success: true, data: filteredData };
@@ -185,14 +194,21 @@ export class EmployeeController {
     // Fetch all employees
     const allData = await this.employeeService.findAll(tenantId);
 
+    // Normalize data (convert Dates to strings)
+    const normalizedData = allData.map((e: any) => ({
+      ...e,
+      _id: e._id?.toString(),
+      joiningDate: e.joiningDate ? new Date(e.joiningDate).toISOString() : null,
+    }));
+
     // Apply data scope filtering
-    let filteredData = allData;
+    let filteredData = normalizedData;
     if (scopeFilter.employeeId) {
-      filteredData = allData.filter((e: any) =>
-        e._id?.toString() === scopeFilter.employeeId
+      filteredData = normalizedData.filter((e: any) =>
+        e._id === scopeFilter.employeeId
       );
     } else if (scopeFilter.department) {
-      filteredData = allData.filter((e: any) => e.department === scopeFilter.department);
+      filteredData = normalizedData.filter((e: any) => e.department === scopeFilter.department);
     }
 
     const stats = {
@@ -285,7 +301,17 @@ export class EmployeeController {
     }
 
     const data = await this.employeeService.findByDepartment(department, tenantId);
-    return { success: true, data };
+
+    // Normalize data for frontend
+    const normalizedData = data.map((e: any) => ({
+      ...e,
+      _id: e._id?.toString(),
+      joiningDate: e.joiningDate ? new Date(e.joiningDate).toISOString() : null,
+      createdAt: e.createdAt ? new Date(e.createdAt).toISOString() : null,
+      updatedAt: e.updatedAt ? new Date(e.updatedAt).toISOString() : null,
+    }));
+
+    return { success: true, data: normalizedData };
   }
 
   @Get('by-role/:roleId')
@@ -295,14 +321,23 @@ export class EmployeeController {
 
     const data = await this.employeeService.findByRole(roleId, tenantId);
 
+    // Normalize data for frontend
+    const normalizedData = data.map((e: any) => ({
+      ...e,
+      _id: e._id?.toString(),
+      joiningDate: e.joiningDate ? new Date(e.joiningDate).toISOString() : null,
+      createdAt: e.createdAt ? new Date(e.createdAt).toISOString() : null,
+      updatedAt: e.updatedAt ? new Date(e.updatedAt).toISOString() : null,
+    }));
+
     // Apply data scope filtering
     const scopeFilter = await this.getDataScopeFilter(req, 'employees');
-    let filteredData = data;
+    let filteredData = normalizedData;
 
     if (scopeFilter.employeeId) {
-      filteredData = data.filter((e: any) => e._id?.toString() === scopeFilter.employeeId);
+      filteredData = normalizedData.filter((e: any) => e._id === scopeFilter.employeeId);
     } else if (scopeFilter.department) {
-      filteredData = data.filter((e: any) => e.department === scopeFilter.department);
+      filteredData = normalizedData.filter((e: any) => e.department === scopeFilter.department);
     }
 
     return { success: true, data: filteredData };
