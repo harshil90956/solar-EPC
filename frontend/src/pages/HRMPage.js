@@ -60,7 +60,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
 
   // Use initialTab prop if provided, otherwise default to 'employees'
   const [activeTab, setActiveTab] = useState(initialTab || 'employees');
-  
+
   // Sync with initialTab prop when it changes (for navigation from parent)
   useEffect(() => {
     if (initialTab && initialTab !== activeTab) {
@@ -101,8 +101,8 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
   const canViewDepartments = departmentPermissions.canView();
   const canManageDepartments = departmentPermissions.canEdit() || departmentPermissions.canCreate();
 
-  const canViewHrDashboard = user?.permissions?.dashboard?.view === true || 
-    user?.role?.toLowerCase() === 'admin' || 
+  const canViewHrDashboard = user?.permissions?.dashboard?.view === true ||
+    user?.role?.toLowerCase() === 'admin' ||
     user?.role?.toLowerCase() === 'superadmin';
 
   const isAdmin = user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'superadmin' || user?.isSuperAdmin;
@@ -780,37 +780,42 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
             </span>
           );
         }
+
+        // Convert customRoles to array if it's an object (dictionary)
+        const customRolesArray = Array.isArray(customRoles) 
+          ? customRoles 
+          : Object.values(customRoles || {});
         
         // Check custom roles first
-        const customRole = Array.isArray(customRoles) ? customRoles.find(r => r.id === val || r._id === val) : null;
+        const customRole = customRolesArray.find(r => r.id === val || r._id === val || r.roleId === val);
         if (customRole) {
           return (
             <span className="px-2 py-1 rounded-full text-xs font-medium bg-[var(--primary)]/10 text-[var(--primary)]">
-              {customRole.name || customRole.label}
+              {customRole.name || customRole.label || customRole.roleId}
             </span>
           );
         }
-        
+
         // Check HRM roles
-        const hrmRole = Array.isArray(hrmRoles) ? hrmRoles.find(r => r._id === val || r.id === val) : null;
+        const hrmRole = Array.isArray(hrmRoles) ? hrmRoles.find(r => r._id === val || r.id === val || r.roleId === val) : null;
         if (hrmRole) {
           return (
             <span className="px-2 py-1 rounded-full text-xs font-medium bg-[var(--primary)]/10 text-[var(--primary)]">
-              {hrmRole.label || hrmRole.name}
+              {hrmRole.label || hrmRole.name || hrmRole.roleId}
             </span>
           );
         }
-        
+
         // Check all roles from settings
-        const allRole = Array.isArray(allRoles) ? allRoles.find(r => r.id === val || r._id === val) : null;
+        const allRole = Array.isArray(allRoles) ? allRoles.find(r => r.id === val || r._id === val || r.roleId === val) : null;
         if (allRole) {
           return (
             <span className="px-2 py-1 rounded-full text-xs font-medium bg-[var(--primary)]/10 text-[var(--primary)]">
-              {allRole.name || allRole.label}
+              {allRole.name || allRole.label || allRole.roleId}
             </span>
           );
         }
-        
+
         // Fallback: show the ID or 'No Role'
         return (
           <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
@@ -1271,7 +1276,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
                 Role Permissions
               </button>
             )}
-            
+
             {/* Attendance Policy Link for Admins */}
             {(user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'superadmin') && (
               <button
@@ -1481,8 +1486,8 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
                       }
 
                       return (
-                        <div 
-                          key={emp._id} 
+                        <div
+                          key={emp._id}
                           className={`flex items-center justify-between p-3 bg-[var(--bg-elevated)] rounded-lg border-l-4 ${statusColor} cursor-pointer hover:bg-[var(--bg-hover)] transition-colors`}
                           onClick={() => {
                             setSelectedEmployee(emp);
@@ -1890,7 +1895,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
             <div className="relative bg-gradient-to-br from-[var(--primary)] to-[var(--accent)] rounded-2xl p-6 text-white overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2"></div>
               <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/2"></div>
-              
+
               <div className="relative flex items-center gap-4">
                 <div className="w-20 h-20 rounded-full bg-white/20 backdrop-blur-sm border-2 border-white/30 flex items-center justify-center text-3xl font-bold">
                   {selectedEmployee.profilePhoto ? (

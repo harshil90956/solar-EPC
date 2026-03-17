@@ -60,7 +60,7 @@ const MODULE_TYPES = [
 ];
 
 // Table columns definition
-const COLUMNS = [
+const getColumns = ({ onStartSurvey, onFillForm }) => [
   {
     key: 'surveyId',
     header: 'Survey ID',
@@ -110,6 +110,43 @@ const COLUMNS = [
         {v ? format(new Date(v), 'dd MMM yyyy') : '—'}
       </span>
     ),
+  },
+  {
+    key: '__action',
+    header: '',
+    render: (_v, row) => {
+      if (row?.status === 'pending') {
+        return (
+          <div onClick={(e) => e.stopPropagation()} className="flex justify-end">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onStartSurvey(row)}
+              className="h-7 px-2 text-xs"
+            >
+              <Play size={14} className="mr-1" />
+              Start
+            </Button>
+          </div>
+        );
+      }
+      if (row?.status === 'active') {
+        return (
+          <div onClick={(e) => e.stopPropagation()} className="flex justify-end">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onFillForm(row)}
+              className="h-7 px-2 text-xs"
+            >
+              <FileText size={14} className="mr-1" />
+              Fill Form
+            </Button>
+          </div>
+        );
+      }
+      return null;
+    },
   },
 ];
 
@@ -792,7 +829,14 @@ const SurveyCard = ({ survey, onView, onStart, onComplete, onDelete }) => {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-xs font-mono text-[var(--primary)] font-semibold">{survey.surveyId}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-xs font-mono text-[var(--primary)] font-semibold">{survey.surveyId}</p>
+            {survey.isFromLead && (
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-purple-100 text-purple-700 border border-purple-200">
+                From Lead
+              </span>
+            )}
+          </div>
           <p className="text-sm font-bold text-[var(--text-primary)] line-clamp-1">{survey.clientName}</p>
         </div>
         <div
@@ -890,8 +934,8 @@ const SurveyCard = ({ survey, onView, onStart, onComplete, onDelete }) => {
 };
 
 // ── Assign Survey Modal (Pending → Active) ───────────────────────────────────
-const PendingToActiveModal = ({ isOpen, onClose, survey, onSubmit }) => {
-  const [formData, setFormData] = useState({ engineer: '', surveyDate: format(new Date(), 'yyyy-MM-dd'), notes: '' });
+const PendingToActiveModal = ({ isOpen, onClose, survey, onSubmit, onAssign }) => {
+  const [formData, setFormData] = useState({ engineerId: '', engineerName: '', surveyDate: format(new Date(), 'yyyy-MM-dd'), notes: '' });
   const [employees, setEmployees] = useState([]);
   const [empLoading, setEmpLoading] = useState(false);
 
@@ -915,7 +959,13 @@ const PendingToActiveModal = ({ isOpen, onClose, survey, onSubmit }) => {
   }, [isOpen]);
 
   useEffect(() => {
-    if (survey) setFormData(prev => ({ ...prev, engineer: survey.engineer || '', surveyDate: format(new Date(), 'yyyy-MM-dd') }));
+    if (!survey) return;
+    setFormData(prev => ({
+      ...prev,
+      engineerId: '',
+      engineerName: survey.engineer || '',
+      surveyDate: format(new Date(), 'yyyy-MM-dd'),
+    }));
   }, [survey]);
 
   const set = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
@@ -928,18 +978,36 @@ const PendingToActiveModal = ({ isOpen, onClose, survey, onSubmit }) => {
     return acc;
   }, {});
 
-  const engineerLabel = employees.find(e =>
-    `${e.firstName} ${e.lastName}`.trim() === formData.engineer ||
-    e._id === formData.engineer
-  );
+  const engineerLabel = employees.find(e => e._id === formData.engineerId);
 
   return (
     <Modal open={isOpen} onClose={onClose} title="Assign Survey" size="md"
       footer={
         <div className="flex justify-end gap-3">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button onClick={() => onSubmit({ engineer: formData.engineer, solarConsultant: formData.engineer, scheduledDate: formData.surveyDate, notes: formData.notes, activeData: { assignedAt: new Date().toISOString(), scheduledDate: formData.surveyDate } })} disabled={!formData.engineer} className="bg-amber-500 hover:bg-amber-600">
-            <Play size={16} className="mr-2" /> Start Survey
+          <Button
+            onClick={async () => {
+              if (!formData.engineerId) {
+                toast.error('Please select an engineer');
+                return;
+              }
+              try {
+                await onSubmit({
+                  assignedTo: formData.engineerId,
+                  engineer: formData.engineerName,
+                  solarConsultant: formData.engineerName,
+                  scheduledDate: formData.surveyDate,
+                  notes: formData.notes,
+                  activeData: { assignedAt: new Date().toISOString(), scheduledDate: formData.surveyDate }
+                });
+              } catch (e) {
+                toast.error(e?.response?.data?.message || e?.message || 'Failed to start survey');
+              }
+            }}
+            disabled={!formData.engineerId}
+            className="bg-amber-500 hover:bg-amber-600"
+          >
+            <Play size={16} className="mr-2" /> Assign & Start
           </Button>
         </div>
       }
@@ -965,8 +1033,13 @@ const PendingToActiveModal = ({ isOpen, onClose, survey, onSubmit }) => {
               <HardHat size={14} className="inline mr-1" /> Assign Engineer *
             </label>
             <select
-              value={formData.engineer}
-              onChange={e => set('engineer', e.target.value)}
+              value={formData.engineerId}
+              onChange={e => {
+                const id = e.target.value;
+                const emp = employees.find(x => x._id === id);
+                const fullName = emp ? `${emp.firstName} ${emp.lastName}`.trim() : '';
+                setFormData(prev => ({ ...prev, engineerId: id, engineerName: fullName }));
+              }}
               disabled={empLoading}
               className="w-full border border-[var(--border-base)] bg-[var(--bg-elevated)] rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 text-[var(--text-primary)] disabled:opacity-50"
             >
@@ -978,7 +1051,7 @@ const PendingToActiveModal = ({ isOpen, onClose, survey, onSubmit }) => {
                   {emps.map(emp => {
                     const fullName = `${emp.firstName} ${emp.lastName}`.trim();
                     return (
-                      <option key={emp._id} value={fullName}>
+                      <option key={emp._id} value={emp._id}>
                         {fullName}{emp.designation ? ` (${emp.designation})` : ''}
                       </option>
                     );
@@ -1666,7 +1739,7 @@ const SiteSurveyPage = () => {
   const { user } = useAuth();
   const isAdmin = user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'superadmin';
 
-  const [view, setView] = useState('grid');
+  const [view, setView] = useState('table');
   const [activeTab, setActiveTab] = useState('all');
   const [surveys, setSurveys] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1701,13 +1774,95 @@ const SiteSurveyPage = () => {
       if (activeTab !== 'all') {
         params.status = activeTab;
       }
+      
+      // Fetch regular surveys
       const response = await siteSurveysApi.getAll(params);
       const surveyData = response.data?.data || response.data || [];
-      setSurveys(surveyData);
+
+      const existingSurveyLeadIds = new Set(
+        (Array.isArray(surveyData) ? surveyData : [])
+          .map((s) => (s?.leadId?._id ? s.leadId._id : s?.leadId))
+          .filter(Boolean)
+          .map((v) => v.toString())
+      );
+      
+      // Also fetch leads with 'survey' stage from CRM
+      let leadsAsSurveys = [];
+      try {
+        console.log('[SiteSurvey] Fetching leads with statusKey=survey...');
+        let leadsResponse = await leadsApi.getAll({ 
+          statusKey: 'survey', 
+          limit: 100,
+          search: searchQuery 
+        });
+        console.log('[SiteSurvey] Leads API response:', leadsResponse);
+        
+        let leadsData = leadsResponse.data?.data || leadsResponse.data || [];
+        console.log('[SiteSurvey] Leads with statusKey filter:', leadsData.length);
+        
+        // If no leads returned, try fetching all and filter client-side
+        if (leadsData.length === 0) {
+          console.log('[SiteSurvey] No leads with statusKey filter, trying to fetch all leads...');
+          leadsResponse = await leadsApi.getAll({ limit: 200 });
+          const allLeads = leadsResponse.data?.data || leadsResponse.data || [];
+          console.log('[SiteSurvey] All leads count:', allLeads.length);
+          
+          // Filter leads with survey stage client-side
+          leadsData = allLeads.filter(lead => {
+            const status = (lead.statusKey || lead.status || lead.stage || '').toString().toLowerCase();
+            return status === 'survey';
+          });
+          console.log('[SiteSurvey] Filtered survey leads:', leadsData.length);
+        }
+
+        // If a real site-survey already exists for the lead, do not show LEAD-* placeholder
+        leadsData = leadsData.filter((lead) => {
+          const leadId = (lead?._id || lead?.id)?.toString();
+          if (!leadId) return false;
+          return !existingSurveyLeadIds.has(leadId);
+        });
+        
+        // Convert leads to survey format (placeholders are always pending)
+        const leadsAsSurveysAll = leadsData.map(lead => ({
+          _id: lead._id || lead.id,
+          surveyId: `LEAD-${lead._id || lead.id}`,
+          clientName: lead.name,
+          city: lead.city || 'Unknown',
+          projectCapacity: lead.value ? `${lead.value} kWp` : 'To be determined',
+          engineer: lead.assignedTo?.name || 'Unassigned',
+          roofType: null,
+          status: 'pending',
+          notes: lead.notes || '',
+          createdAt: lead.createdAt,
+          isFromLead: true,
+          leadData: lead
+        }));
+
+        // Only include placeholders in list for all/pending tabs
+        leadsAsSurveys = (activeTab === 'all' || activeTab === 'pending') ? leadsAsSurveysAll : [];
+        
+        console.log('[SiteSurvey] Converted leads to surveys:', leadsAsSurveys.length);
+      } catch (err) {
+        console.error('[SiteSurvey] Could not fetch leads:', err);
+      }
+      
+      // Combine both sources
+      const combinedSurveys = [...surveyData, ...leadsAsSurveys];
+      setSurveys(combinedSurveys);
 
       const statsResponse = await siteSurveysApi.getStats();
       const statsData = statsResponse.data || {};
-      setStats({ total: statsData.total || 0, pending: statsData.pending || 0, active: statsData.active || 0, complete: statsData.complete || 0 });
+      
+      // Update stats to include leads with survey stage
+      const totalSurveyLeads = (activeTab === 'all' || activeTab === 'pending')
+        ? leadsAsSurveys.length
+        : 0;
+      setStats({ 
+        total: (statsData.total || 0) + totalSurveyLeads, 
+        pending: (statsData.pending || 0) + totalSurveyLeads, 
+        active: statsData.active || 0, 
+        complete: statsData.complete || 0 
+      });
     } catch (error) {
       console.error('[SiteSurvey] Failed to fetch surveys:', error);
       toast.error('Failed to load surveys');
@@ -1717,6 +1872,22 @@ const SiteSurveyPage = () => {
   }, [activeTab, searchQuery]);
 
   useEffect(() => { fetchSurveys(); }, [fetchSurveys]);
+
+  useEffect(() => {
+    const onLeadStageUpdated = () => {
+      fetchSurveys();
+    };
+
+    if (typeof window !== 'undefined' && window?.addEventListener) {
+      window.addEventListener('leadStageUpdated', onLeadStageUpdated);
+    }
+
+    return () => {
+      if (typeof window !== 'undefined' && window?.removeEventListener) {
+        window.removeEventListener('leadStageUpdated', onLeadStageUpdated);
+      }
+    };
+  }, [fetchSurveys]);
 
   const handleMoveToActive = async (formData) => {
     try {
@@ -1735,11 +1906,21 @@ const SiteSurveyPage = () => {
   };
 
   const handleDelete = async (survey) => {
-    if (!window.confirm(`Delete survey for ${survey.clientName}?`)) return;
+    if (!window.confirm(`Delete ${survey.isFromLead ? 'lead' : 'survey'} for ${survey.clientName}?`)) return;
     try {
-      await siteSurveysApi.delete(survey._id || survey.surveyId);
-      toast.success('Survey deleted'); fetchSurveys();
-    } catch { toast.error('Failed to delete survey'); }
+      // If this is a lead from CRM (has isFromLead flag), delete via leadsApi
+      if (survey.isFromLead) {
+        await leadsApi.delete(survey._id || survey.surveyId.replace('LEAD-', ''));
+      } else {
+        // Regular survey - delete via siteSurveysApi
+        await siteSurveysApi.delete(survey._id || survey.surveyId);
+      }
+      toast.success(`${survey.isFromLead ? 'Lead' : 'Survey'} deleted`);
+      fetchSurveys();
+    } catch (err) {
+      console.error('Delete error:', err);
+      toast.error(err?.response?.data?.message || `Failed to delete ${survey.isFromLead ? 'lead' : 'survey'}`);
+    }
   };
 
   const openPendingModal  = (s) => { setSelectedSurvey(s); setPendingModalOpen(true);  };
@@ -1762,7 +1943,6 @@ const SiteSurveyPage = () => {
   const ROW_ACTIONS = [
     { label: 'View Details', icon: Eye,       onClick: row => openDetailsModal(row) },
     { label: 'Edit',         icon: Edit2,      onClick: row => openEditModal(row) },
-    { label: 'Assign',       icon: User,       onClick: row => openAssignModal(row) },
     { label: 'Start Survey', icon: Play,       onClick: row => openPendingModal(row), show: row => row.status === 'pending' },
     { label: 'Fill Form',    icon: FileText,   onClick: row => openCompleteModal(row), show: row => row.status === 'active' },
     { label: 'Delete',       icon: Trash2,     onClick: row => handleDelete(row), danger: true },
@@ -1974,7 +2154,10 @@ const SiteSurveyPage = () => {
         /* Table View - DataTable has built-in pagination */
         <div className="glass-card overflow-hidden">
           <DataTable
-            columns={COLUMNS}
+            columns={getColumns({
+              onStartSurvey: openPendingModal,
+              onFillForm: openCompleteModal,
+            })}
             data={paginatedSurveys}
             total={filteredSurveys.length}
             page={currentPage}
@@ -1995,6 +2178,7 @@ const SiteSurveyPage = () => {
         onClose={() => { setPendingModalOpen(false); setSelectedSurvey(null); }}
         survey={selectedSurvey}
         onSubmit={handleMoveToActive}
+        onAssign={handleAssignSurvey}
       />
       <ActiveToCompleteModal
         isOpen={completeModalOpen}

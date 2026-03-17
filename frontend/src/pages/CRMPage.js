@@ -900,7 +900,7 @@ const CRMPage = ({ onNavigate }) => {
   const { logCreate, logUpdate, logDelete } = useAuditLog('CRM');
   const crmPerms = usePermissions('crm');
   const can = crmPerms.can;
-  
+
   // DEBUG: Log permission checks
   useEffect(() => {
     console.log('[DEBUG] CRM Permissions:', {
@@ -925,7 +925,17 @@ const CRMPage = ({ onNavigate }) => {
   const statusMap = useMemo(() => {
     const map = {};
     (statusOptions || []).forEach(s => {
-      map[s.key] = { label: s.label, color: s.color };
+      let label = s.label;
+      let key = s.key;
+
+      // Transform status labels
+      if (key === 'normal' || label === 'Normal') {
+        label = 'Pending';
+      } else if (key === 'failure' || label === 'Failure') {
+        label = 'Dead';
+      }
+
+      map[key] = { label, color: s.color };
     });
     return map;
   }, [statusOptions]);
@@ -1105,23 +1115,23 @@ const CRMPage = ({ onNavigate }) => {
       };
 
       const result = await leadsApi.getCustomers(params);
-      
+
       console.log('[DEBUG] getCustomers API response:', result);
 
       const customersData = Array.isArray(result?.data) ? result.data : (result?.data?.data || result?.data || []);
-      
+
       console.log('[DEBUG] Raw customers data count:', customersData.length);
       console.log('[DEBUG] First customer sample:', customersData[0]);
-      
+
       // SAFETY FILTER: Only show leads with status="customer" (defense-in-depth)
       const verifiedCustomers = customersData.filter(l => {
         const status = (l.status || l.statusKey || l.stage || '').toString().toLowerCase();
-        console.log(`[DEBUG] Customer ${l.name} status:`, status, '| Fields:', {status: l.status, statusKey: l.statusKey, stage: l.stage});
+        console.log(`[DEBUG] Customer ${l.name} status:`, status, '| Fields:', { status: l.status, statusKey: l.statusKey, stage: l.stage });
         return status === 'customer';
       });
-      
+
       console.log('[DEBUG] Verified customers count:', verifiedCustomers.length);
-      
+
       const totalCount = verifiedCustomers.length;
       const currentPage = Number(result?.page || customersPage || 1);
       const totalPages = Math.max(1, Math.ceil(totalCount / customersPageSize));
@@ -1179,33 +1189,33 @@ const CRMPage = ({ onNavigate }) => {
       // Fetch fresh lead data to ensure we have latest status
       const freshLead = await leadsApi.getById(lead._id || lead.id);
       console.log('[EDIT] Raw API response:', freshLead);
-      
+
       const leadData = freshLead?.data?.data || freshLead?.data || freshLead;
       console.log('[EDIT] Extracted lead data:', leadData);
       console.log('[EDIT] statusKey from API:', leadData?.statusKey);
       console.log('[EDIT] status from API:', leadData?.status);
       console.log('[EDIT] statusKey from table:', lead?.statusKey);
-      
+
       // Use statusKey from API, or fallback to table data, or status field, or default to 'new'
       // Handle null/undefined properly - API might return statusKey: null
       const apiStatusKey = leadData?.statusKey;
       const tableStatusKey = lead?.statusKey;
       const apiStatus = leadData?.status;
       const tableStatus = lead?.status;
-      
-      const finalStatusKey = apiStatusKey != null ? apiStatusKey : 
-                            (tableStatusKey != null ? tableStatusKey : 
-                             (apiStatus != null ? apiStatus : 
-                              (tableStatus != null ? tableStatus : 'new')));
+
+      const finalStatusKey = apiStatusKey != null ? apiStatusKey :
+        (tableStatusKey != null ? tableStatusKey :
+          (apiStatus != null ? apiStatus :
+            (tableStatus != null ? tableStatus : 'new')));
       console.log('[EDIT] Final statusKey:', finalStatusKey);
-      
+
       // Merge fresh data with preserved statusKey
       const normalizedLeadData = {
         ...leadData,
         statusKey: finalStatusKey,
         status: finalStatusKey
       };
-      
+
       if (leadData) {
         editingLeadOriginalRef.current = normalizedLeadData;
         setEditingLead(normalizedLeadData);
@@ -1363,12 +1373,12 @@ const CRMPage = ({ onNavigate }) => {
       console.log('[FLIP] updateStage response:', updateResult);
 
       logUpdate({ ...lead, stage: 'survey' });
-      
+
       // Wait and fetch fresh data
       console.log('[FLIP] Fetching leads after flip...');
       await fetchLeads();
       console.log('[FLIP] Leads refreshed, activeLeads:', activeLeads);
-      
+
       toast.success(`Lead "${lead.name}" flipped to Site Survey`);
     } catch (err) {
       console.error('[FLIP] Failed to flip lead:', err);
@@ -1437,10 +1447,10 @@ const CRMPage = ({ onNavigate }) => {
     try {
       setActionLoading(true);
       toast.loading('Exporting leads...', { id: 'export' });
-      
+
       const result = await leadsApi.exportCSV(selectedIds);
       const { csv, filename } = result.data || result;
-      
+
       // Download CSV
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
@@ -1450,7 +1460,7 @@ const CRMPage = ({ onNavigate }) => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
+
       toast.success(`${selectedIds.length} leads exported successfully`, { id: 'export' });
     } catch (err) {
       console.error('Export failed:', err);
@@ -1489,14 +1499,14 @@ const CRMPage = ({ onNavigate }) => {
     // Load roles and employees when modal opens
     try {
       setRolesLoading(true);
-      
+
       console.log('[ASSIGN] Opening Assign Leads modal...');
-      
+
       // Fetch all roles
       const rolesResult = await leadsApi.getRoles();
       console.log('[ASSIGN] Roles API raw response:', rolesResult);
       console.log('[ASSIGN] Roles response.data:', rolesResult.data);
-      
+
       // apiClient interceptor returns response.data already.
       // Expected body: { success: true, data: [...] }
       const rolesBody = rolesResult?.data ?? rolesResult;
@@ -1515,11 +1525,11 @@ const CRMPage = ({ onNavigate }) => {
           return { ...r, _id: id, name };
         })
         .filter(Boolean);
-      
+
       console.log('[ASSIGN] Fetched roles:', rolesData);
       console.log('[ASSIGN] Roles count:', rolesData.length);
       setRoles(rolesData);
-      
+
       // Fetch all employees upfront
       const employeesResult = await leadsApi.getAllEmployees();
       const employeesBody = employeesResult?.data ?? employeesResult;
@@ -1527,11 +1537,11 @@ const CRMPage = ({ onNavigate }) => {
       const employeesData = employeesPayload?.data ?? employeesPayload ?? [];
       console.log('[ASSIGN] Fetched employees:', employeesData);
       setAllEmployees(Array.isArray(employeesData) ? employeesData : []);
-      
+
       if (rolesData.length === 0) {
         console.warn('[ASSIGN] No roles found in system');
       }
-      
+
     } catch (err) {
       console.error('Failed to fetch roles/employees:', err);
       setRoles([]);
@@ -1582,7 +1592,7 @@ const CRMPage = ({ onNavigate }) => {
 
   const handleRoleChange = async (roleId) => {
     console.log('[ASSIGN] Role selected:', roleId);
-    
+
     setSelectedRole(roleId);
     setSelectedAssignUser('');
     setFilteredUsers([]);
@@ -1592,7 +1602,7 @@ const CRMPage = ({ onNavigate }) => {
     // Filter employees by selected role ID
     try {
       setUsersLoading(true);
-      
+
       console.log('[ASSIGN] All employees:', allEmployees);
       console.log('[ASSIGN] Filtering employees for roleId:', roleId);
 
@@ -1601,7 +1611,7 @@ const CRMPage = ({ onNavigate }) => {
         ? roles.find((r) => String(r?._id || r?.id || '').toLowerCase() === selectedRoleLower)
         : null;
       const selectedRoleNameLower = String(selectedRoleObj?.name || selectedRoleObj?.label || '').toLowerCase();
-      
+
       // Build dropdown-ready list of employees whose role matches the selected role
       const filtered = allEmployees.reduce((acc, emp) => {
         const empRoleRaw = emp?.roleId;
@@ -1635,16 +1645,16 @@ const CRMPage = ({ onNavigate }) => {
         acc.push({ ...emp, _id: empId, name: empName });
         return acc;
       }, []);
-      
+
       console.log(`[ASSIGN] Filtered ${filtered.length} employees for role ID "${roleId}"`);
       console.log('[ASSIGN] Filtered employees:', filtered);
-      
+
       if (filtered.length === 0) {
         console.warn(`[ASSIGN] No employees found with roleId: ${roleId}`);
       }
-      
+
       setFilteredUsers(filtered);
-      
+
     } catch (err) {
       console.error('Failed to filter employees by role:', err);
       setFilteredUsers([]);
@@ -1722,6 +1732,8 @@ const CRMPage = ({ onNavigate }) => {
       // Combine first and last name into name field
       const leadData = {
         name: `${newLead.firstName} ${newLead.lastName}`.trim(),
+        firstName: newLead.firstName,
+        lastName: newLead.lastName,
         company: newLead.company,
         email: newLead.email,
         phone: newLead.phone,
@@ -1885,8 +1897,8 @@ const CRMPage = ({ onNavigate }) => {
       slaBreached: lead.activities?.[0] ?
         Math.floor((new Date() - new Date(lead.activities[0].timestamp)) / (1000 * 60 * 60 * 24)) > 3 : false,
       // Ensure customFields is always an object
-      customFields: (lead.customFields && typeof lead.customFields === 'object' && !Array.isArray(lead.customFields)) 
-        ? lead.customFields 
+      customFields: (lead.customFields && typeof lead.customFields === 'object' && !Array.isArray(lead.customFields))
+        ? lead.customFields
         : {}
     }));
   }, [activeLeads, applyAutomationRules]);
@@ -2121,6 +2133,36 @@ const CRMPage = ({ onNavigate }) => {
           );
         }
       },
+      {
+        key: 'createdAt',
+        header: 'Date',
+        sortable: true,
+        width: '100px',
+        render: (val) => {
+          if (!val) return <span className="text-[11px] text-[var(--text-muted)]">—</span>;
+          const date = new Date(val);
+          return (
+            <span className="text-[11px] text-[var(--text-secondary)]">
+              {format(date, 'dd/MM/yyyy')}
+            </span>
+          );
+        }
+      },
+      {
+        key: 'createdAt',
+        header: 'Time',
+        sortable: true,
+        width: '80px',
+        render: (val) => {
+          if (!val) return <span className="text-[11px] text-[var(--text-muted)]">—</span>;
+          const date = new Date(val);
+          return (
+            <span className="text-[11px] text-[var(--text-secondary)]">
+              {format(date, 'HH:mm')}
+            </span>
+          );
+        }
+      },
       // Dynamic custom field columns
       ...customFieldColumns.map(key => ({
         key: `customFields.${key}`,
@@ -2144,7 +2186,7 @@ const CRMPage = ({ onNavigate }) => {
       toast.error('Please select a file to import');
       return;
     }
-    
+
     try {
       setActionLoading(true);
       toast.info('Importing leads...');
@@ -2153,10 +2195,10 @@ const CRMPage = ({ onNavigate }) => {
       const result = await leadsApi.importLeads(file);
       const payload = result?.data?.data || result?.data || result;
       const { inserted, updated, failed, errors } = payload || {};
-      
+
       // Log import activity
       logCreate({ id: 'import', name: `Imported ${inserted || 0} leads from ${file.name}` });
-      
+
       // Show result
       if ((failed || 0) === 0) {
         toast.success(`${inserted || 0} leads imported, ${updated || 0} updated successfully`, { id: 'import' });
@@ -2331,8 +2373,8 @@ const CRMPage = ({ onNavigate }) => {
 
       {/* ── Advanced Dashboard ── */}
       {view === 'dashboard' && crmFeatures.analytics && (
-        <LeadAnalyticsDashboard 
-          onNavigate={(nextView) => setView(nextView)} 
+        <LeadAnalyticsDashboard
+          onNavigate={(nextView) => setView(nextView)}
           onFilter={(filterType) => {
             if (!filterType) return;
             // Navigate to leads view
@@ -2452,9 +2494,9 @@ const CRMPage = ({ onNavigate }) => {
                             // Handle populated assignedTo object
                             if (customer.assignedTo) {
                               if (typeof customer.assignedTo === 'object') {
-                                return customer.assignedTo.name || 
-                                  `${customer.assignedTo.firstName || ''} ${customer.assignedTo.lastName || ''}`.trim() || 
-                                  customer.assignedTo.email || 
+                                return customer.assignedTo.name ||
+                                  `${customer.assignedTo.firstName || ''} ${customer.assignedTo.lastName || ''}`.trim() ||
+                                  customer.assignedTo.email ||
                                   'Unassigned';
                               }
                               return customer.assignedTo;
@@ -2545,19 +2587,19 @@ const CRMPage = ({ onNavigate }) => {
                 // Also match survey-related keys to the same column
                 const stageKeyLower = stage.key.toLowerCase();
                 const isSurveyStage = stageKeyLower === 'survey' || stageKeyLower === 'site-survey' || stageKeyLower === 'site_survey' || stageKeyLower.includes('survey');
-                
+
                 const stageLeads = enhancedLeads.filter(lead => {
                   const leadStatus = normalizeStageKey(lead);
-                  
+
                   // Direct match
                   if (leadStatus === stageKeyLower) return true;
-                  
+
                   // Survey-related keys should match each other
                   if (isSurveyStage) {
                     const isLeadSurvey = leadStatus === 'survey' || leadStatus === 'site-survey' || leadStatus === 'site_survey' || leadStatus.includes('survey');
                     if (isLeadSurvey) return true;
                   }
-                  
+
                   return false;
                 });
                 const totalValue = stageLeads.reduce((sum, lead) => sum + (lead.value || 0), 0);
@@ -2701,7 +2743,7 @@ const CRMPage = ({ onNavigate }) => {
 
                           {/* Lead Name */}
                           <h4 className="text-[15px] font-bold text-gray-900 mb-1 leading-tight">{lead.name}</h4>
-                          
+
                           {/* Company */}
                           <p className="text-[12px] text-gray-500 mb-3">{lead.company || 'Individual'}</p>
 
@@ -2709,8 +2751,8 @@ const CRMPage = ({ onNavigate }) => {
                           {lead.customFields && Object.keys(lead.customFields).length > 0 && (
                             <div className="flex flex-wrap gap-1.5 mb-3">
                               {Object.entries(lead.customFields).slice(0, 2).map(([key, value]) => (
-                                <span 
-                                  key={key} 
+                                <span
+                                  key={key}
                                   className="text-[10px] px-2 py-1 rounded-md bg-gray-100 text-gray-600 font-medium truncate max-w-[120px]"
                                   title={`${key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}: ${value}`}
                                 >
@@ -2732,9 +2774,9 @@ const CRMPage = ({ onNavigate }) => {
                               <span className="text-[10px] text-gray-500">{lead.progress || Math.floor(Math.random() * 30 + 20)}%</span>
                             </div>
                             <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                              <div 
-                                className="h-full rounded-full" 
-                                style={{ 
+                              <div
+                                className="h-full rounded-full"
+                                style={{
                                   width: `${lead.progress || Math.floor(Math.random() * 30 + 20)}%`,
                                   backgroundColor: stage.color || '#3b82f6'
                                 }}
@@ -3267,10 +3309,8 @@ const CRMPage = ({ onNavigate }) => {
                   ['Phone', selectedLead.phone || '—', Phone, 'emerald'],
                   ['City', `${selectedLead.city || '—'}${selectedLead.state ? `, ${selectedLead.state}` : ''}`, MapPin, 'purple'],
                   ['Source', selectedLead.source || '—', BarChart2, 'amber'],
-                  ['Pipeline Value', fmt(selectedLead.value || 0), DollarSign, 'green'],
-                  ['System Size', `${selectedLead.kw || selectedLead.capacity || '0 kW'}`, Zap, 'yellow'],
-                  ['Roof Area', `${selectedLead.roofArea || '—'} m²`, Activity, 'cyan'],
-                  ['Monthly Bill', fmt(selectedLead.monthlyBill || 0), TrendingUp, 'pink'],
+                  ['Created Date', selectedLead.createdAt ? new Date(selectedLead.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—', Calendar, 'green'],
+                  ['Created Time', selectedLead.createdAt ? new Date(selectedLead.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false }) : '—', Clock, 'yellow'],
                 ].map(([label, val, Icon, colorKey]) => {
                   const colorMap = { blue: '#3b82f6', emerald: '#10b981', purple: '#a855f7', amber: '#f59e0b', green: '#22c55e', yellow: '#eab308', cyan: '#06b6d4', pink: '#ec4899' };
                   const c = colorMap[colorKey] || '#3b82f6';
@@ -3304,7 +3344,7 @@ const CRMPage = ({ onNavigate }) => {
                           })
                         ).values()
                       );
-                      
+
                       return uniqueActivities.slice(0, 4).map((act, idx) => (
                         <div key={act._id || act._uniqueKey || `activity-${idx}`} className="flex gap-2.5 text-xs">
                           <div className="w-6 h-6 rounded-full bg-[var(--bg-elevated)] border border-[var(--border-base)] flex items-center justify-center shrink-0 mt-0.5">
@@ -3640,61 +3680,61 @@ const CRMPage = ({ onNavigate }) => {
               <div className="flex gap-2 justify-end">
                 <Button variant="ghost" onClick={handleCloseAssignModal}>Cancel</Button>
                 <Button onClick={handleAssignLeads} disabled={assignLoading || !selectedAssignUser}>
-                {assignLoading ? 'Assigning...' : <><UserCheck size={13} /> Assign</>}
-              </Button>
+                  {assignLoading ? 'Assigning...' : <><UserCheck size={13} /> Assign</>}
+                </Button>
+              </div>
+            }
+          >
+            <div className="space-y-4">
+              <p className="text-sm text-[var(--text-muted)]">
+                Select a role and user to assign {assigningLeadIds.length === 1 ? 'this lead' : `these ${assigningLeadIds.length} leads`} to:
+              </p>
+
+              {/* Role Selection */}
+              <FormField label="Role">
+                <Select
+                  value={selectedRole}
+                  onChange={(e) => handleRoleChange(e.target.value)}
+                  disabled={rolesLoading}
+                >
+                  <option value="">{rolesLoading ? 'Loading roles...' : 'Select Role'}</option>
+                  {roles.length === 0 && !rolesLoading && (
+                    <option disabled>No roles available</option>
+                  )}
+                  {roles.map((role) => (
+                    <option key={role._id || role.id} value={role._id || role.id}>
+                      {role.name}
+                    </option>
+                  ))}
+                </Select>
+              </FormField>
+
+              {/* User Selection (filtered by role) */}
+              <FormField label="User">
+                <Select
+                  value={selectedAssignUser}
+                  onChange={(e) => setSelectedAssignUser(e.target.value)}
+                  disabled={!selectedRole || usersLoading}
+                >
+                  <option value="">
+                    {!selectedRole
+                      ? 'Select role first'
+                      : usersLoading
+                        ? 'Loading users...'
+                        : filteredUsers.length === 0
+                          ? 'No users available for this role'
+                          : 'Select User'
+                    }
+                  </option>
+                  {filteredUsers.map((user) => (
+                    <option key={user._id || user.id} value={user._id || user.id}>
+                      {user.name}
+                    </option>
+                  ))}
+                </Select>
+              </FormField>
             </div>
-          }
-        >
-          <div className="space-y-4">
-            <p className="text-sm text-[var(--text-muted)]">
-              Select a role and user to assign {assigningLeadIds.length === 1 ? 'this lead' : `these ${assigningLeadIds.length} leads`} to:
-            </p>
-
-            {/* Role Selection */}
-            <FormField label="Role">
-              <Select
-                value={selectedRole}
-                onChange={(e) => handleRoleChange(e.target.value)}
-                disabled={rolesLoading}
-              >
-                <option value="">{rolesLoading ? 'Loading roles...' : 'Select Role'}</option>
-                {roles.length === 0 && !rolesLoading && (
-                  <option disabled>No roles available</option>
-                )}
-                {roles.map((role) => (
-                  <option key={role._id || role.id} value={role._id || role.id}>
-                    {role.name}
-                  </option>
-                ))}
-              </Select>
-            </FormField>
-
-            {/* User Selection (filtered by role) */}
-            <FormField label="User">
-              <Select
-                value={selectedAssignUser}
-                onChange={(e) => setSelectedAssignUser(e.target.value)}
-                disabled={!selectedRole || usersLoading}
-              >
-                <option value="">
-                  {!selectedRole
-                    ? 'Select role first'
-                    : usersLoading
-                      ? 'Loading users...'
-                      : filteredUsers.length === 0
-                        ? 'No users available for this role'
-                        : 'Select User'
-                  }
-                </option>
-                {filteredUsers.map((user) => (
-                  <option key={user._id || user.id} value={user._id || user.id}>
-                    {user.name}
-                  </option>
-                ))}
-              </Select>
-            </FormField>
-          </div>
-        </Modal>
+          </Modal>
         </>
       )}
 

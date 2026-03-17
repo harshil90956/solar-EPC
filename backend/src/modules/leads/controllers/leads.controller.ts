@@ -393,6 +393,31 @@ export class LeadsController {
     }
   }
 
+  @Post('reassign-status')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermission('crm', 'edit')
+  async reassignStatus(
+    @Body() body: { fromStatusKey: string; toStatusKey: string },
+    @Request() req: any
+  ) {
+    try {
+      const tenantId = req.tenant?.id;
+      if (!body?.fromStatusKey || !body?.toStatusKey) {
+        throw new BadRequestException('fromStatusKey and toStatusKey are required');
+      }
+      const result = await this.leadsService.reassignStatusKey(
+        body.fromStatusKey,
+        body.toStatusKey,
+        tenantId,
+        req.user
+      );
+      return { success: true, data: result };
+    } catch (error: any) {
+      this.logger.error(`Reassign status failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
   // ============================================
   // DASHBOARD ANALYTICS ENDPOINTS
   // ============================================

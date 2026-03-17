@@ -143,6 +143,8 @@ const PAGE_MAP = {
 
   documents: { component: DocumentPage, title: 'Documents' },
 
+  profile: { component: ProfilePage, title: 'My Profile' },
+
 };
 
 

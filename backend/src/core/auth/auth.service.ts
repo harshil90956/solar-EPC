@@ -5,6 +5,7 @@ import * as bcrypt from 'bcryptjs';
 import { Model, Types } from 'mongoose';
 import { LoginDto } from './dto/login.dto';
 import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
+import { UpdateProfileDto } from './dto/profile.dto';
 import { User, UserDocument } from './schemas/user.schema';
 import { Employee, EmployeeDocument } from '../../modules/hrm/schemas/employee.schema';
 import { Tenant, TenantDocument } from '../../core/tenant/schemas/tenant.schema';
@@ -301,6 +302,123 @@ export class AuthService {
     }
 
     return { message: `User ${userId} deleted successfully` };
+  }
+
+  // Profile methods
+  async getProfile(userId: string) {
+    const user = await this.userModel.findOne({
+      _id: new Types.ObjectId(userId),
+      isActive: true,
+    }).lean();
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return {
+      id: String(user._id),
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      fullName: user.firstName || user.lastName
+        ? `${user.firstName || ''} ${user.lastName || ''}`.trim()
+        : undefined,
+      profileImage: user.profileImage,
+      phone: user.phone,
+      role: user.role,
+      tenantId: user.tenantId ? String(user.tenantId) : undefined,
+      isSuperAdmin: user.isSuperAdmin,
+    };
+  }
+
+  async updateProfile(userId: string, updateProfileDto: UpdateProfileDto) {
+    const user = await this.userModel.findOne({
+      _id: new Types.ObjectId(userId),
+      isActive: true,
+    }).lean();
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const updateData: any = {};
+
+    // Update profile fields
+    if (updateProfileDto.firstName !== undefined) updateData.firstName = updateProfileDto.firstName;
+    if (updateProfileDto.lastName !== undefined) updateData.lastName = updateProfileDto.lastName;
+    if (updateProfileDto.phone !== undefined) updateData.phone = updateProfileDto.phone;
+
+    // Update email if provided and different
+    if (updateProfileDto.email && updateProfileDto.email !== user.email) {
+      // Check if email already exists
+      const existingUser = await this.userModel.findOne({
+        email: updateProfileDto.email.toLowerCase(),
+        _id: { $ne: new Types.ObjectId(userId) },
+      }).lean();
+
+      if (existingUser) {
+        throw new BadRequestException('Email already in use');
+      }
+
+      updateData.email = updateProfileDto.email.toLowerCase();
+    }
+
+    // Update password if provided
+    if (updateProfileDto.newPassword) {
+      if (!updateProfileDto.currentPassword) {
+        throw new BadRequestException('Current password is required to change password');
+      }
+
+      // Verify current password
+      const passwordValid = await bcrypt.compare(updateProfileDto.currentPassword, user.passwordHash);
+      if (!passwordValid) {
+        throw new UnauthorizedException('Current password is incorrect');
+      }
+
+      updateData.passwordHash = await bcrypt.hash(updateProfileDto.newPassword, 10);
+    }
+
+    const updatedUser = await this.userModel.findOneAndUpdate(
+      { _id: new Types.ObjectId(userId) },
+      { $set: updateData },
+      { new: true },
+    ).lean();
+
+    if (!updatedUser) {
+      throw new NotFoundException('User not found');
+    }
+
+    return {
+      id: String(updatedUser._id),
+      email: updatedUser.email,
+      firstName: updatedUser.firstName,
+      lastName: updatedUser.lastName,
+      fullName: updatedUser.firstName || updatedUser.lastName
+        ? `${updatedUser.firstName || ''} ${updatedUser.lastName || ''}`.trim()
+        : undefined,
+      profileImage: updatedUser.profileImage,
+      phone: updatedUser.phone,
+      role: updatedUser.role,
+      tenantId: updatedUser.tenantId ? String(updatedUser.tenantId) : undefined,
+      isSuperAdmin: updatedUser.isSuperAdmin,
+    };
+  }
+
+  async updateProfileImage(userId: string, imageUrl: string | null) {
+    const user = await this.userModel.findOneAndUpdate(
+      { _id: new Types.ObjectId(userId) },
+      { $set: { profileImage: imageUrl } },
+      { new: true },
+    ).lean();
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return {
+      id: String(user._id),
+      profileImage: user.profileImage,
+    };
   }
 
   // Helper method to get employee role permissions
