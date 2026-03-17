@@ -24,7 +24,10 @@ import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
 import HRMPermissionsPage from './HRMPermissionsPage';
+<<<<<<< HEAD
 import AttendancePolicySettings from './AttendancePolicySettings';
+=======
+>>>>>>> 95adcde843ca9ce63b316f469791b73d0170bc2e
 import { toast } from '../components/ui/Toast';
 import { CURRENCY } from '../config/app.config';
 import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
@@ -1313,6 +1316,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
           {(activeTab === 'role-permissions' || activeTab === 'hrm-role-permissions') && (
             <div className="animate-fade-in">
               <HRMPermissionsPage />
+<<<<<<< HEAD
             </div>
           )}
 
@@ -1320,6 +1324,8 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
           {(activeTab === 'attendance-policy' || activeTab === 'hrm-attendance-policy') && (
             <div className="animate-fade-in">
               <AttendancePolicySettings />
+=======
+>>>>>>> 95adcde843ca9ce63b316f469791b73d0170bc2e
             </div>
           )}
 
