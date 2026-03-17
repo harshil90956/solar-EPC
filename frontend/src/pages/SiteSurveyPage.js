@@ -792,7 +792,14 @@ const SurveyCard = ({ survey, onView, onStart, onComplete, onDelete }) => {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-xs font-mono text-[var(--primary)] font-semibold">{survey.surveyId}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-xs font-mono text-[var(--primary)] font-semibold">{survey.surveyId}</p>
+            {survey.isFromLead && (
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-purple-100 text-purple-700 border border-purple-200">
+                From Lead
+              </span>
+            )}
+          </div>
           <p className="text-sm font-bold text-[var(--text-primary)] line-clamp-1">{survey.clientName}</p>
         </div>
         <div
@@ -1701,13 +1708,76 @@ const SiteSurveyPage = () => {
       if (activeTab !== 'all') {
         params.status = activeTab;
       }
+      
+      // Fetch regular surveys
       const response = await siteSurveysApi.getAll(params);
       const surveyData = response.data?.data || response.data || [];
-      setSurveys(surveyData);
+      
+      // Also fetch leads with 'survey' stage from CRM
+      let leadsAsSurveys = [];
+      try {
+        console.log('[SiteSurvey] Fetching leads with statusKey=survey...');
+        let leadsResponse = await leadsApi.getAll({ 
+          statusKey: 'survey', 
+          limit: 100,
+          search: searchQuery 
+        });
+        console.log('[SiteSurvey] Leads API response:', leadsResponse);
+        
+        let leadsData = leadsResponse.data?.data || leadsResponse.data || [];
+        console.log('[SiteSurvey] Leads with statusKey filter:', leadsData.length);
+        
+        // If no leads returned, try fetching all and filter client-side
+        if (leadsData.length === 0) {
+          console.log('[SiteSurvey] No leads with statusKey filter, trying to fetch all leads...');
+          leadsResponse = await leadsApi.getAll({ limit: 200 });
+          const allLeads = leadsResponse.data?.data || leadsResponse.data || [];
+          console.log('[SiteSurvey] All leads count:', allLeads.length);
+          
+          // Filter leads with survey stage client-side
+          leadsData = allLeads.filter(lead => {
+            const status = (lead.statusKey || lead.status || lead.stage || '').toString().toLowerCase();
+            return status === 'survey';
+          });
+          console.log('[SiteSurvey] Filtered survey leads:', leadsData.length);
+        }
+        
+        // Convert leads to survey format
+        leadsAsSurveys = leadsData.map(lead => ({
+          _id: lead._id || lead.id,
+          surveyId: `LEAD-${lead._id || lead.id}`,
+          clientName: lead.name,
+          city: lead.city || 'Unknown',
+          projectCapacity: lead.value ? `${lead.value} kWp` : 'To be determined',
+          engineer: lead.assignedTo?.name || 'Unassigned',
+          roofType: null,
+          status: 'pending',
+          notes: lead.notes || '',
+          createdAt: lead.createdAt,
+          isFromLead: true,
+          leadData: lead
+        }));
+        
+        console.log('[SiteSurvey] Converted leads to surveys:', leadsAsSurveys.length);
+      } catch (err) {
+        console.error('[SiteSurvey] Could not fetch leads:', err);
+      }
+      
+      // Combine both sources
+      const combinedSurveys = [...surveyData, ...leadsAsSurveys];
+      setSurveys(combinedSurveys);
 
       const statsResponse = await siteSurveysApi.getStats();
       const statsData = statsResponse.data || {};
-      setStats({ total: statsData.total || 0, pending: statsData.pending || 0, active: statsData.active || 0, complete: statsData.complete || 0 });
+      
+      // Update stats to include leads with survey stage
+      const totalSurveyLeads = leadsAsSurveys.length;
+      setStats({ 
+        total: (statsData.total || 0) + totalSurveyLeads, 
+        pending: (statsData.pending || 0) + totalSurveyLeads, 
+        active: statsData.active || 0, 
+        complete: statsData.complete || 0 
+      });
     } catch (error) {
       console.error('[SiteSurvey] Failed to fetch surveys:', error);
       toast.error('Failed to load surveys');
@@ -1735,11 +1805,21 @@ const SiteSurveyPage = () => {
   };
 
   const handleDelete = async (survey) => {
-    if (!window.confirm(`Delete survey for ${survey.clientName}?`)) return;
+    if (!window.confirm(`Delete ${survey.isFromLead ? 'lead' : 'survey'} for ${survey.clientName}?`)) return;
     try {
-      await siteSurveysApi.delete(survey._id || survey.surveyId);
-      toast.success('Survey deleted'); fetchSurveys();
-    } catch { toast.error('Failed to delete survey'); }
+      // If this is a lead from CRM (has isFromLead flag), delete via leadsApi
+      if (survey.isFromLead) {
+        await leadsApi.delete(survey._id || survey.surveyId.replace('LEAD-', ''));
+      } else {
+        // Regular survey - delete via siteSurveysApi
+        await siteSurveysApi.delete(survey._id || survey.surveyId);
+      }
+      toast.success(`${survey.isFromLead ? 'Lead' : 'Survey'} deleted`);
+      fetchSurveys();
+    } catch (err) {
+      console.error('Delete error:', err);
+      toast.error(err?.response?.data?.message || `Failed to delete ${survey.isFromLead ? 'lead' : 'survey'}`);
+    }
   };
 
   const openPendingModal  = (s) => { setSelectedSurvey(s); setPendingModalOpen(true);  };

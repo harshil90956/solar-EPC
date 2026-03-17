@@ -29,6 +29,19 @@ export class User {
 
   @Prop({ ...BaseSchemaDefinition.isDeleted })
   isDeleted!: boolean;
+
+  // Profile fields
+  @Prop({ type: String, required: false })
+  firstName?: string;
+
+  @Prop({ type: String, required: false })
+  lastName?: string;
+
+  @Prop({ type: String, required: false })
+  profileImage?: string;
+
+  @Prop({ type: String, required: false })
+  phone?: string;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
