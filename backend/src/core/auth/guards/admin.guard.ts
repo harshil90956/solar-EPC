@@ -17,13 +17,25 @@ export class AdminGuard implements CanActivate {
       throw new ForbiddenException('User not authenticated');
     }
 
-    // Check for Admin or Super Admin role
+    // Check for Admin or Super Admin role (check both role and roleId)
     const allowedRoles = ['Admin', 'Super Admin', 'SuperAdmin', 'admin', 'superadmin'];
     const userRole = user.role || user.roleName;
+    const userRoleId = user.roleId || userRole;
     
-    if (!userRole || !allowedRoles.some(role => 
+    // Check if role or roleId matches admin patterns
+    const isAdminByRole = userRole && allowedRoles.some(role => 
       userRole.toLowerCase() === role.toLowerCase()
-    )) {
+    );
+    
+    // Also check if roleId looks like an admin role
+    const isAdminByRoleId = userRoleId && allowedRoles.some(role =>
+      userRoleId.toLowerCase() === role.toLowerCase()
+    );
+    
+    // Check isSuperAdmin flag as well
+    const isSuperAdmin = user.isSuperAdmin === true;
+    
+    if (!isAdminByRole && !isAdminByRoleId && !isSuperAdmin) {
       throw new ForbiddenException('Admin access required');
     }
 

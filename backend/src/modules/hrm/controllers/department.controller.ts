@@ -17,8 +17,12 @@ export class DepartmentController {
     const user = req.user;
     if (!user) throw new ForbiddenException('User not authenticated');
     
-    // Super admin bypass
-    if (user.role === 'Super Admin' || user.role === 'Admin') return true;
+    // Super admin bypass - check role, roleId, and isSuperAdmin flag
+    const userRole = user.role || '';
+    const userRoleId = user.roleId || '';
+    if (userRole === 'Super Admin' || userRole === 'Admin' || 
+        userRoleId === 'Super Admin' || userRoleId === 'Admin' ||
+        user?.isSuperAdmin) return true;
     
     // Fast-path: honor permissions already present on JWT/user payload
     const userPerms: string[] = Array.isArray(user?.permissions) ? user.permissions : [];
