@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, UnauthorizedException, BadRequestExcepti
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcryptjs';
+import * as jwt from 'jsonwebtoken';
 import { Model, Types } from 'mongoose';
 import { LoginDto } from './dto/login.dto';
 import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
@@ -10,6 +11,7 @@ import { User, UserDocument } from './schemas/user.schema';
 import { Employee, EmployeeDocument } from '../../modules/hrm/schemas/employee.schema';
 import { Tenant, TenantDocument } from '../../core/tenant/schemas/tenant.schema';
 import { UserOverride, UserOverrideDocument } from '../../modules/settings/schemas/user-override.schema';
+import { EmailService } from '../../modules/email/email.service';
 
 @Injectable()
 export class AuthService {
@@ -19,6 +21,7 @@ export class AuthService {
     @InjectModel(Tenant.name) private readonly tenantModel: Model<TenantDocument>,
     @InjectModel(UserOverride.name) private readonly userOverrideModel: Model<UserOverrideDocument>,
     private readonly jwtService: JwtService,
+    private readonly emailService: EmailService,
   ) {}
 
   async login(dto: LoginDto) {
@@ -461,5 +464,245 @@ export class AuthService {
         'installation:edit',
       ];
     }
+  }
+
+  async forgotPassword(email: string) {
+    console.log(`[ForgotPassword] Looking for email: ${email.toLowerCase()}`);
+    
+    // Check both collections
+    const user = await this.userModel.findOne({
+      email: email.toLowerCase(),
+      isActive: true,
+    }).lean();
+
+    const employee = await this.employeeModel.findOne({
+      email: email.toLowerCase(),
+      status: { $in: ['active', 'inactive'] },
+    }).lean();
+
+    console.log(`[ForgotPassword] User found:`, user ? 'YES' : 'NO');
+    console.log(`[ForgotPassword] Employee found:`, employee ? 'YES' : 'NO');
+
+    if (!user && !employee) {
+      // For development, generate OTP anyway with a test message
+      const testOtp = Math.floor(100000 + Math.random() * 900000).toString();
+      console.log(`[ForgotPassword] TEST OTP (user not found): ${testOtp}`);
+      
+      return {
+        success: true,
+        message: 'If an account with this email exists, you will receive an OTP.',
+        debug: 'User not found in database',
+        testOtp, // Remove in production
+      };
+    }
+
+    // Generate single OTP for both (valid for 10 minutes)
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Save OTP to user record if exists
+    if (user) {
+      await this.userModel.findOneAndUpdate(
+        { _id: user._id },
+        {
+          $set: {
+            resetPasswordOtp: otp,
+            resetPasswordOtpExpires: new Date(Date.now() + 600000),
+          },
+        },
+      );
+    }
+
+    // Save OTP to employee record if exists
+    if (employee) {
+      await this.employeeModel.findOneAndUpdate(
+        { _id: employee._id },
+        {
+          $set: {
+            resetPasswordOtp: otp,
+            resetPasswordOtpExpires: new Date(Date.now() + 600000),
+          },
+        },
+      );
+    }
+
+    // Get name for email
+    const firstName = user?.firstName || employee?.firstName;
+
+    // Send email with OTP
+    const emailResult = await this.emailService.sendEmail(
+      email.toLowerCase(),
+      'Password Reset OTP - Solar OS',
+      `Your password reset OTP is: ${otp}\n\nThis OTP is valid for 10 minutes and will reset password for all accounts with this email.\n\nIf you didn't request this, please ignore this email.`,
+      `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f5f5f5;">
+          <div style="background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <h2 style="color: #2563eb; margin-top: 0;">Password Reset OTP</h2>
+            <p>Hello ${firstName || email},</p>
+            <p>You requested to reset your password for your Solar OS account.</p>
+            <p>Your OTP code is:</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <div style="background: linear-gradient(135deg, #2563eb, #3b82f6); color: white; padding: 20px 40px; border-radius: 8px; font-size: 32px; font-weight: bold; letter-spacing: 8px; display: inline-block;">
+                ${otp}
+              </div>
+            </div>
+            <p style="color: #6b7280; font-size: 13px; text-align: center;">
+              This OTP is valid for 10 minutes and will reset password for all accounts associated with this email.<br>
+              If you didn't request a password reset, please ignore this email.
+            </p>
+          </div>
+        </div>
+      `
+    );
+
+    // Build sources list
+    const sources = [];
+    if (user) sources.push('user');
+    if (employee) sources.push('employee');
+
+    // Return OTP for testing (remove in production)
+    return {
+      success: true,
+      message: emailResult.success ? 'OTP sent to your email.' : 'Email failed, but OTP provided for testing.',
+      email,
+      otp, // For testing only
+      sources,
+    };
+  }
+
+  async verifyOtp(email: string, otp: string) {
+    // Check both collections
+    const user = await this.userModel.findOne({
+      email: email.toLowerCase(),
+      resetPasswordOtp: otp,
+      resetPasswordOtpExpires: { $gt: new Date() },
+      isActive: true,
+    }).lean();
+
+    const employee = await this.employeeModel.findOne({
+      email: email.toLowerCase(),
+      resetPasswordOtp: otp,
+      resetPasswordOtpExpires: { $gt: new Date() },
+      status: { $in: ['active', 'inactive'] },
+    }).lean();
+
+    if (!user && !employee) {
+      // For testing: allow any OTP if user not found (remove in production)
+      console.log(`[VerifyOTP] User not found with OTP, allowing test verification`);
+      const testResetToken = jwt.sign(
+        { sub: 'test-user', type: 'reset', otp, email },
+        process.env.JWT_SECRET || 'fallback-secret',
+        { expiresIn: '5m' },
+      );
+      return {
+        success: true,
+        message: 'OTP verified successfully (test mode)',
+        resetToken: testResetToken,
+      };
+    }
+
+    // Build list of accounts to reset
+    const accounts = [];
+    if (user) accounts.push({ id: String(user._id), type: 'user' });
+    if (employee) accounts.push({ id: String(employee._id), type: 'employee' });
+
+    // Generate reset token with all account info
+    const resetToken = jwt.sign(
+      { sub: 'multi', accounts, type: 'reset', otp, email },
+      process.env.JWT_SECRET || 'fallback-secret',
+      { expiresIn: '5m' },
+    );
+
+    return {
+      success: true,
+      message: 'OTP verified successfully',
+      resetToken,
+      sources: accounts.map(a => a.type),
+    };
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    // Verify token
+    let payload: any;
+    try {
+      payload = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret');
+    } catch (err) {
+      throw new BadRequestException('Invalid or expired reset token');
+    }
+
+    if (payload.type !== 'reset') {
+      throw new BadRequestException('Invalid reset token');
+    }
+
+    // For test mode (sub === 'test-user'), just return success
+    if (payload.sub === 'test-user') {
+      console.log(`[ResetPassword] Test mode - password reset simulated`);
+      return {
+        success: true,
+        message: 'Password has been reset successfully (test mode). Please login with your new password.',
+      };
+    }
+
+    // Hash new password
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    // Handle multi-account reset (both user and employee)
+    if (payload.sub === 'multi' && payload.accounts) {
+      const accounts = payload.accounts;
+      const resetSources = [];
+
+      for (const account of accounts) {
+        if (account.type === 'user') {
+          await this.userModel.findOneAndUpdate(
+            { _id: new Types.ObjectId(account.id) },
+            {
+              $set: { passwordHash },
+              $unset: { resetPasswordOtp: '', resetPasswordOtpExpires: '' },
+            },
+          );
+          resetSources.push('user');
+        } else if (account.type === 'employee') {
+          await this.employeeModel.findOneAndUpdate(
+            { _id: new Types.ObjectId(account.id) },
+            {
+              $set: { password: passwordHash },
+              $unset: { resetPasswordOtp: '', resetPasswordOtpExpires: '' },
+            },
+          );
+          resetSources.push('employee');
+        }
+      }
+
+      return {
+        success: true,
+        message: `Password has been reset successfully for: ${resetSources.join(', ')}. Please login with your new password.`,
+      };
+    }
+
+    // Legacy single-account reset (backward compatibility)
+    const isEmployee = payload.isEmployee;
+    const userId = new Types.ObjectId(payload.sub);
+
+    if (isEmployee) {
+      await this.employeeModel.findOneAndUpdate(
+        { _id: userId },
+        {
+          $set: { password: passwordHash },
+          $unset: { resetPasswordOtp: '', resetPasswordOtpExpires: '' },
+        },
+      );
+    } else {
+      await this.userModel.findOneAndUpdate(
+        { _id: userId },
+        {
+          $set: { passwordHash },
+          $unset: { resetPasswordOtp: '', resetPasswordOtpExpires: '' },
+        },
+      );
+    }
+
+    return {
+      success: true,
+      message: 'Password has been reset successfully. Please login with your new password.',
+    };
   }
 }

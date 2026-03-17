@@ -18,4 +18,13 @@ export const authApi = {
 
   // Delete profile image
   deleteProfileImage: () => apiClient.delete('/auth/profile/image'),
+
+  // Forgot password
+  forgotPassword: (email) => apiClient.post('/auth/forgot-password', { email }),
+
+  // Verify OTP
+  verifyOtp: (email, otp) => apiClient.post('/auth/verify-otp', { email, otp }),
+
+  // Reset password with token
+  resetPassword: (token, newPassword) => apiClient.post('/auth/reset-password', { token, newPassword }),
 };

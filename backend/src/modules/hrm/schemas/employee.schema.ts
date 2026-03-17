@@ -72,6 +72,13 @@ export class Employee {
 
   @Prop({ type: Date })
   updatedAt!: Date;
+
+  // Password reset fields
+  @Prop({ type: String, required: false })
+  resetPasswordOtp?: string;
+
+  @Prop({ type: Date, required: false })
+  resetPasswordOtpExpires?: Date;
 }
 
 export const EmployeeSchema = SchemaFactory.createForClass(Employee);

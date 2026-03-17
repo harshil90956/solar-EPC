@@ -15,6 +15,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Layout from './components/Layout';
 
 import LoginPage from './pages/LoginPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 
 import SolarOSDashboard from './pages/SolarOSDashboard';
 
@@ -245,6 +247,9 @@ const AppInner = () => {
   const { resolvePermission, isModuleEnabled } = useSettings();
 
   const [currentPage, setCurrentPage] = useState(() => getInitialPage());
+  
+  // Force re-render on hash change (for forgot/reset password pages)
+  const [, setHash] = useState(window.location.hash);
 
 
 
@@ -279,6 +284,16 @@ const AppInner = () => {
     return () => window.removeEventListener('popstate', handlePopState);
 
   }, []);
+  
+  // ── Listen for hash changes (for forgot/reset password) ──
+  
+  useEffect(() => {
+    const handleHashChange = () => {
+      setHash(window.location.hash);
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
 
 
@@ -296,7 +311,12 @@ const AppInner = () => {
 
   // ── Auth guard: redirect to login if no user ──
 
-  if (!user) return <LoginPage />;
+  if (!user) {
+    const hash = window.location.hash.replace('#', '').replace(/^\//, '');
+    if (hash === 'forgot-password') return <ForgotPasswordPage />;
+    if (hash.startsWith('reset-password')) return <ResetPasswordPage />;
+    return <LoginPage />;
+  }
 
 
 

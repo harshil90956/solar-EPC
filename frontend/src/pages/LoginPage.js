@@ -172,7 +172,20 @@ const LoginPage = () => {
                   />
                 </div>
                 <div>
-                  <Label className="text-[11px]">Password</Label>
+                  <div className="flex items-center justify-between mb-1">
+                    <Label className="text-[11px]">Password</Label>
+                    <a
+                      href="#/forgot-password"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        window.location.hash = '/forgot-password';
+                        window.dispatchEvent(new HashChangeEvent('hashchange'));
+                      }}
+                      className="text-[10px] text-[var(--primary)] hover:underline"
+                    >
+                      Forgot password?
+                    </a>
+                  </div>
                   <div className="relative">
                     <Input
                       type={showPass ? 'text' : 'password'}

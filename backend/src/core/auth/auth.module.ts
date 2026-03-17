@@ -11,10 +11,12 @@ import { CustomRole, CustomRoleSchema } from '../../modules/settings/schemas/cus
 import { UserOverride, UserOverrideSchema } from '../../modules/settings/schemas/user-override.schema';
 import { Employee, EmployeeSchema } from '../../modules/hrm/schemas/employee.schema';
 import { CommonModule } from '../../common/common.module';
+import { EmailModule } from '../../modules/email/email.module';
 
 @Module({
   imports: [
     CommonModule, // Import for PermissionCacheService
+    EmailModule, // Import for EmailService
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
       { name: Employee.name, schema: EmployeeSchema },
