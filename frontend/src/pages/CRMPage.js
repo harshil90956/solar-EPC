@@ -924,9 +924,12 @@ const CRMPage = ({ onNavigate }) => {
 
   const statusMap = useMemo(() => {
     const map = {};
+    console.log('[DEBUG] Status options raw:', statusOptions);
     (statusOptions || []).forEach(s => {
       let label = s.label;
       let key = s.key;
+
+      console.log('[DEBUG] Processing status:', { key, label });
 
       // Transform status labels
       if (key === 'normal' || label === 'Normal') {
@@ -937,6 +940,7 @@ const CRMPage = ({ onNavigate }) => {
 
       map[key] = { label, color: s.color };
     });
+    console.log('[DEBUG] Final statusMap:', map);
     return map;
   }, [statusOptions]);
 
@@ -2375,6 +2379,7 @@ const CRMPage = ({ onNavigate }) => {
       {view === 'dashboard' && crmFeatures.analytics && (
         <LeadAnalyticsDashboard
           onNavigate={(nextView) => setView(nextView)}
+          dateFilter={dateRangeFilter}
           onFilter={(filterType) => {
             if (!filterType) return;
             // Navigate to leads view

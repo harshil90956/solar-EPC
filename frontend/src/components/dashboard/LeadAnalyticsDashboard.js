@@ -162,7 +162,7 @@ const ErrorState = ({ onRetry }) => (
 );
 
 // Empty State
-const EmptyState = ({ onAddLead }) => (
+const EmptyState = () => (
   <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-100 text-center">
     <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
       <Users size={40} className="text-gray-400" />
@@ -171,11 +171,6 @@ const EmptyState = ({ onAddLead }) => (
     <p className="text-gray-500 mb-6 max-w-md mx-auto">
       Import or add leads to see analytics. Once you have leads, this dashboard will show your sales funnel, pipeline value, and conversion metrics.
     </p>
-    {onAddLead && (
-      <Button variant="outline" onClick={onAddLead}>
-        <Zap size={16} className="mr-2" /> Add Lead
-      </Button>
-    )}
   </div>
 );
 
@@ -970,7 +965,7 @@ const SmartInsights = ({ insights, loading, finalKpis }) => {
 };
 
 // Main Dashboard Component with Live Data, Calendar and Individual Chart Filters
-const LeadAnalyticsDashboard = ({ onAddLead, onFilter }) => {
+const LeadAnalyticsDashboard = ({ onNavigate, onFilter, dateFilter }) => {
   const [isLive, setIsLive] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [showCalendar, setShowCalendar] = useState(false);
@@ -985,8 +980,81 @@ const LeadAnalyticsDashboard = ({ onAddLead, onFilter }) => {
   // eslint-disable-next-line no-unused-vars
   const { data: kpisRaw, isLoading: kpisLoading, error: kpisError, refetch: refetchKpis } = useQuery({
     // eslint-disable-next-line no-unused-vars
-    queryKey: ['leads-dashboard', 'kpis'],
-    queryFn: async () => { const response = await leadsApi.getDashboardKpis(); return response?.data || response; },
+    queryKey: ['leads-dashboard', 'kpis', dateFilter],
+    queryFn: async () => {
+      // Apply date filter to KPIs API call
+      const params = {};
+
+      if (dateFilter) {
+        // Use same date range logic as leads
+        const getDateRangeFromPreset = (preset) => {
+          const now = new Date();
+          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          let startDate, endDate;
+
+          switch (preset) {
+            case 'all':
+              return { startDate: null, endDate: null };
+            case 'today':
+              startDate = today;
+              endDate = new Date(today);
+              endDate.setHours(23, 59, 59, 999);
+              break;
+            case 'yesterday':
+              startDate = new Date(today);
+              startDate.setDate(startDate.getDate() - 1);
+              endDate = new Date(startDate);
+              endDate.setHours(23, 59, 59, 999);
+              break;
+            case 'last7days':
+              endDate = new Date(today);
+              endDate.setHours(23, 59, 59, 999);
+              startDate = new Date(today);
+              startDate.setDate(startDate.getDate() - 6);
+              startDate.setHours(0, 0, 0, 0);
+              break;
+            case 'last30days':
+              endDate = new Date(today);
+              endDate.setHours(23, 59, 59, 999);
+              startDate = new Date(today);
+              startDate.setDate(startDate.getDate() - 29);
+              startDate.setHours(0, 0, 0, 0);
+              break;
+            case 'thisMonth':
+              startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+              endDate = new Date(today);
+              endDate.setHours(23, 59, 59, 999);
+              break;
+            case 'lastMonth':
+              startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+              endDate = new Date(today.getFullYear(), today.getMonth(), 0);
+              endDate.setHours(23, 59, 59, 999);
+              break;
+            case 'custom':
+              if (dateFilter.startDate && dateFilter.endDate) {
+                startDate = new Date(dateFilter.startDate);
+                startDate.setHours(0, 0, 0, 0);
+                endDate = new Date(dateFilter.endDate);
+                endDate.setHours(23, 59, 59, 999);
+              }
+              break;
+            default:
+              return { startDate: null, endDate: null };
+          }
+
+          return { startDate, endDate };
+        };
+
+        const { startDate, endDate } = getDateRangeFromPreset(dateFilter.type || dateFilter);
+        if (startDate && endDate) {
+          params.startDate = startDate.toISOString();
+          params.endDate = endDate.toISOString();
+        }
+      }
+
+      const response = await leadsApi.getDashboardKpis(params);
+      return response?.data || response;
+    },
     ...queryOpts,
   });
   const { data: funnelRaw, isLoading: funnelLoading } = useQuery({
@@ -1016,9 +1084,79 @@ const LeadAnalyticsDashboard = ({ onAddLead, onFilter }) => {
 
   // Fetch leads for calendar and filtering
   const { data: leadsRaw, isLoading: leadsLoading } = useQuery({
-    queryKey: ['leads-dashboard', 'all-leads'],
+    queryKey: ['leads-dashboard', 'all-leads', dateFilter],
     queryFn: async () => {
-      const response = await leadsApi.getAll({ limit: 1000 });
+      // Apply same date filtering as CRM
+      const params = { limit: 1000 };
+
+      if (dateFilter) {
+        // Helper function to get date range based on preset
+        const getDateRangeFromPreset = (preset) => {
+          const now = new Date();
+          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          let startDate, endDate;
+
+          switch (preset) {
+            case 'all':
+              return { startDate: null, endDate: null };
+            case 'today':
+              startDate = today;
+              endDate = new Date(today);
+              endDate.setHours(23, 59, 59, 999);
+              break;
+            case 'yesterday':
+              startDate = new Date(today);
+              startDate.setDate(startDate.getDate() - 1);
+              endDate = new Date(startDate);
+              endDate.setHours(23, 59, 59, 999);
+              break;
+            case 'last7days':
+              endDate = new Date(today);
+              endDate.setHours(23, 59, 59, 999);
+              startDate = new Date(today);
+              startDate.setDate(startDate.getDate() - 6);
+              startDate.setHours(0, 0, 0, 0);
+              break;
+            case 'last30days':
+              endDate = new Date(today);
+              endDate.setHours(23, 59, 59, 999);
+              startDate = new Date(today);
+              startDate.setDate(startDate.getDate() - 29);
+              startDate.setHours(0, 0, 0, 0);
+              break;
+            case 'thisMonth':
+              startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+              endDate = new Date(today);
+              endDate.setHours(23, 59, 59, 999);
+              break;
+            case 'lastMonth':
+              startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+              endDate = new Date(today.getFullYear(), today.getMonth(), 0);
+              endDate.setHours(23, 59, 59, 999);
+              break;
+            case 'custom':
+              if (dateFilter.startDate && dateFilter.endDate) {
+                startDate = new Date(dateFilter.startDate);
+                startDate.setHours(0, 0, 0, 0);
+                endDate = new Date(dateFilter.endDate);
+                endDate.setHours(23, 59, 59, 999);
+              }
+              break;
+            default:
+              return { startDate: null, endDate: null };
+          }
+
+          return { startDate, endDate };
+        };
+
+        const { startDate, endDate } = getDateRangeFromPreset(dateFilter.type || dateFilter);
+        if (startDate && endDate) {
+          params.startDate = startDate.toISOString();
+          params.endDate = endDate.toISOString();
+        }
+      }
+
+      const response = await leadsApi.getAll(params);
       return response?.data || response || [];
     },
     ...queryOpts,
@@ -1040,15 +1178,21 @@ const LeadAnalyticsDashboard = ({ onAddLead, onFilter }) => {
   const leads = leadsRaw || [];
 
   // Calculate pending and dead leads from leads data
+  console.log('[DEBUG] All leads:', leads.map(l => ({ name: l.name, status: l.status, statusKey: l.statusKey })));
+
   const pendingLeads = leads.filter(lead => {
     const status = (lead.statusKey || lead.status || '').toLowerCase();
+    console.log('[DEBUG] Lead:', lead.name, 'Status:', status, 'Is Pending:', status === 'pending' || status === 'normal');
     return status === 'pending' || status === 'normal';
   }).length;
 
   const deadLeads = leads.filter(lead => {
     const status = (lead.statusKey || lead.status || '').toLowerCase();
+    console.log('[DEBUG] Lead:', lead.name, 'Status:', status, 'Is Dead:', status === 'dead' || status === 'failure');
     return status === 'dead' || status === 'failure';
   }).length;
+
+  console.log('[DEBUG] Final counts - Pending:', pendingLeads, 'Dead:', deadLeads);
 
   // Override KPI values with calculated ones
   const finalKpis = {
@@ -1130,7 +1274,7 @@ const LeadAnalyticsDashboard = ({ onAddLead, onFilter }) => {
           <LiveIndicator isLive={isLive} />
         </div>
 
-        <EmptyState onAddLead={onAddLead} />
+        <EmptyState />
       </div>
     );
   }
