@@ -380,14 +380,19 @@ export class SiteSurveysService {
       throw new BadRequestException('Tenant context is required for updating surveys');
     }
 
+    const effectiveTid = tid || (survey as any).tenantId;
+    if (!effectiveTid) {
+      throw new BadRequestException('Tenant context is required for updating surveys');
+    }
+
     const rawAssignedTo = (moveDto as any)?.assignedTo;
     const { assigneeId: assignedToId, assigneeName: resolvedAssigneeName } = rawAssignedTo
-      ? await this.resolveAssigneeForTenant(String(rawAssignedTo), tid)
+      ? await this.resolveAssigneeForTenant(String(rawAssignedTo), effectiveTid)
       : { assigneeId: undefined as any, assigneeName: undefined };
 
     // Tenant-authoritative update: ensure state transition works even if visibility filtering would hide the survey.
     const filter: any = {
-      tenantId: tid,
+      tenantId: effectiveTid,
       isDeleted: { $ne: true },
       _id: (survey as any)._id,
     };
@@ -598,10 +603,15 @@ export class SiteSurveysService {
       throw new BadRequestException('Tenant context is required for assigning surveys');
     }
 
-    const { assigneeId: assignedToId, assigneeName } = await this.resolveAssigneeForTenant(String(assignDto.assignedTo), tid);
+    const effectiveTid = tid || (survey as any).tenantId;
+    if (!effectiveTid) {
+      throw new BadRequestException('Tenant context is required for assigning surveys');
+    }
+
+    const { assigneeId: assignedToId, assigneeName } = await this.resolveAssigneeForTenant(String(assignDto.assignedTo), effectiveTid);
 
     const filter: any = {
-      tenantId: tid,
+      tenantId: effectiveTid,
       isDeleted: { $ne: true },
       _id: (survey as any)._id,
     };
