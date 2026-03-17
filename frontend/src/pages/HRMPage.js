@@ -781,32 +781,37 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
           );
         }
 
+        // Convert customRoles to array if it's an object (dictionary)
+        const customRolesArray = Array.isArray(customRoles) 
+          ? customRoles 
+          : Object.values(customRoles || {});
+        
         // Check custom roles first
-        const customRole = Array.isArray(customRoles) ? customRoles.find(r => r.id === val || r._id === val) : null;
+        const customRole = customRolesArray.find(r => r.id === val || r._id === val || r.roleId === val);
         if (customRole) {
           return (
             <span className="px-2 py-1 rounded-full text-xs font-medium bg-[var(--primary)]/10 text-[var(--primary)]">
-              {customRole.name || customRole.label}
+              {customRole.name || customRole.label || customRole.roleId}
             </span>
           );
         }
 
         // Check HRM roles
-        const hrmRole = Array.isArray(hrmRoles) ? hrmRoles.find(r => r._id === val || r.id === val) : null;
+        const hrmRole = Array.isArray(hrmRoles) ? hrmRoles.find(r => r._id === val || r.id === val || r.roleId === val) : null;
         if (hrmRole) {
           return (
             <span className="px-2 py-1 rounded-full text-xs font-medium bg-[var(--primary)]/10 text-[var(--primary)]">
-              {hrmRole.label || hrmRole.name}
+              {hrmRole.label || hrmRole.name || hrmRole.roleId}
             </span>
           );
         }
 
         // Check all roles from settings
-        const allRole = Array.isArray(allRoles) ? allRoles.find(r => r.id === val || r._id === val) : null;
+        const allRole = Array.isArray(allRoles) ? allRoles.find(r => r.id === val || r._id === val || r.roleId === val) : null;
         if (allRole) {
           return (
             <span className="px-2 py-1 rounded-full text-xs font-medium bg-[var(--primary)]/10 text-[var(--primary)]">
-              {allRole.name || allRole.label}
+              {allRole.name || allRole.label || allRole.roleId}
             </span>
           );
         }

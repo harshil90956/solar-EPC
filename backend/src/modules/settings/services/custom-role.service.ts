@@ -116,10 +116,15 @@ export class CustomRoleService {
     const role = await this.getCustomRole(tenantId, roleId);
     if (!role) return undefined;
 
-    const modulePerms = role.permissions?.get(moduleId);
+    const rawPerms: any = (role as any).permissions;
+    if (!rawPerms) return undefined;
+
+    // Support both Map<moduleId, Map<actionId, boolean>> and plain object formats
+    const modulePerms: any = rawPerms instanceof Map ? rawPerms.get(moduleId) : rawPerms?.[moduleId];
     if (!modulePerms) return undefined;
 
-    return modulePerms.get(actionId);
+    const val = modulePerms instanceof Map ? modulePerms.get(actionId) : modulePerms?.[actionId];
+    return typeof val === 'boolean' ? val : undefined;
   }
 
   async createCustomRole(

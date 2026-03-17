@@ -177,12 +177,12 @@ const CalendarFilter = ({ onDateChange, initialYear, initialMonth, initialDay, a
       {/* Trigger Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+        className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-[var(--text-primary)] bg-[var(--bg-surface)] border border-[var(--border-base)] rounded-lg hover:bg-[var(--bg-hover)] hover:border-[var(--border-muted)] transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
       >
-        <Calendar size={16} className="text-gray-500" />
+        <Calendar size={16} className="text-[var(--text-muted)]" />
         <span>{displayText}</span>
         <svg 
-          className={`w-4 h-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} 
+          className={`w-4 h-4 text-[var(--text-muted)] transition-transform ${isOpen ? 'rotate-180' : ''}`} 
           fill="none" 
           stroke="currentColor" 
           viewBox="0 0 24 24"
@@ -193,37 +193,37 @@ const CalendarFilter = ({ onDateChange, initialYear, initialMonth, initialDay, a
 
       {/* Dropdown Panel */}
       {isOpen && (
-        <div className="absolute z-50 mt-2 w-80 bg-white rounded-lg shadow-xl border border-gray-200">
+        <div className="absolute z-50 mt-2 w-80 bg-[var(--bg-elevated)] rounded-lg shadow-2xl border border-[var(--border-base)]">
           {/* Header with Year Navigation */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-muted)]">
             <button
               onClick={goToPreviousYear}
-              className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+              className="p-1 hover:bg-[var(--bg-hover)] rounded-full transition-colors"
               title="Previous Year"
             >
-              <ChevronLeft size={20} className="text-gray-600" />
+              <ChevronLeft size={20} className="text-[var(--text-muted)]" />
             </button>
             
-            <span className="text-lg font-semibold text-gray-800">{viewYear}</span>
+            <span className="text-lg font-semibold text-[var(--text-primary)]">{viewYear}</span>
             
             <button
               onClick={goToNextYear}
-              className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+              className="p-1 hover:bg-[var(--bg-hover)] rounded-full transition-colors"
               title="Next Year"
             >
-              <ChevronRight size={20} className="text-gray-600" />
+              <ChevronRight size={20} className="text-[var(--text-muted)]" />
             </button>
           </div>
 
           {/* Quick Year Selection - Custom Scrollable Dropdown */}
-          <div className="px-4 py-2 border-b border-gray-100 relative">
+          <div className="px-4 py-2 border-b border-[var(--border-muted)] relative">
             <button
               onClick={() => setIsYearDropdownOpen(!isYearDropdownOpen)}
-              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-left flex items-center justify-between"
+              className="w-full px-2 py-1 text-sm border border-[var(--border-base)] rounded focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--bg-surface)] text-[var(--text-primary)] text-left flex items-center justify-between"
             >
               <span>{viewYear}</span>
               <svg 
-                className={`w-4 h-4 text-gray-500 transition-transform ${isYearDropdownOpen ? 'rotate-180' : ''}`} 
+                className={`w-4 h-4 text-[var(--text-muted)] transition-transform ${isYearDropdownOpen ? 'rotate-180' : ''}`} 
                 fill="none" 
                 stroke="currentColor" 
                 viewBox="0 0 24 24"
@@ -233,15 +233,15 @@ const CalendarFilter = ({ onDateChange, initialYear, initialMonth, initialDay, a
             </button>
             
             {isYearDropdownOpen && (
-              <div className="absolute z-50 left-4 right-4 mt-1 max-h-40 overflow-y-auto bg-white border border-gray-300 rounded shadow-lg">
+              <div className="absolute z-50 left-4 right-4 mt-1 max-h-40 overflow-y-auto bg-[var(--bg-elevated)] border border-[var(--border-base)] rounded shadow-lg">
                 {/* Full Year Option */}
                 <button
                   onClick={() => {
                     setViewYear(viewYear);
                     selectMonth(undefined);
                   }}
-                  className={`w-full px-3 py-2 text-sm text-left hover:bg-blue-50 transition-colors font-medium border-b border-gray-100 ${
-                    selectedYear === viewYear && (selectedMonth === undefined || selectedMonth === null) ? 'bg-blue-100 text-blue-700' : 'text-gray-700'
+                  className={`w-full px-3 py-2 text-sm text-left hover:bg-[var(--bg-hover)] transition-colors font-medium border-b border-[var(--border-muted)] ${
+                    selectedYear === viewYear && (selectedMonth === undefined || selectedMonth === null) ? 'bg-[var(--primary)]/20 text-[var(--primary)]' : 'text-[var(--text-primary)]'
                   }`}
                 >
                   Full Year
@@ -253,8 +253,8 @@ const CalendarFilter = ({ onDateChange, initialYear, initialMonth, initialDay, a
                       setViewYear(year);
                       setIsYearDropdownOpen(false);
                     }}
-                    className={`w-full px-3 py-2 text-sm text-left hover:bg-blue-50 transition-colors ${
-                      year === viewYear ? 'bg-blue-100 text-blue-700 font-medium' : 'text-gray-700'
+                    className={`w-full px-3 py-2 text-sm text-left hover:bg-[var(--bg-hover)] transition-colors ${
+                      year === viewYear ? 'bg-[var(--primary)]/20 text-[var(--primary)] font-medium' : 'text-[var(--text-primary)]'
                     }`}
                   >
                     {year}
@@ -280,10 +280,10 @@ const CalendarFilter = ({ onDateChange, initialYear, initialMonth, initialDay, a
                     className={`
                       py-2 px-1 text-sm font-medium rounded-lg transition-all
                       ${isSelected 
-                        ? 'bg-blue-500 text-white shadow-md' 
+                        ? 'bg-[var(--primary)] text-white shadow-md' 
                         : isCurrentMonth
-                          ? 'bg-blue-50 text-blue-600 border border-blue-200'
-                          : 'text-gray-700 hover:bg-gray-100'
+                          ? 'bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20'
+                          : 'text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
                       }
                     `}
                   >
@@ -295,10 +295,10 @@ const CalendarFilter = ({ onDateChange, initialYear, initialMonth, initialDay, a
           </div>
 
           {/* Footer Actions */}
-          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50 rounded-b-lg">
+          <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border-muted)] bg-[var(--bg-surface)] rounded-b-lg">
             <button
               onClick={goToToday}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[var(--primary)] hover:bg-[var(--primary)]/10 rounded-lg transition-colors"
             >
               <Clock size={14} />
               Today
@@ -306,7 +306,7 @@ const CalendarFilter = ({ onDateChange, initialYear, initialMonth, initialDay, a
             
             <button
               onClick={clearFilter}
-              className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-200 rounded-lg transition-colors"
+              className="px-3 py-1.5 text-sm font-medium text-[var(--text-muted)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors"
             >
               Clear
             </button>

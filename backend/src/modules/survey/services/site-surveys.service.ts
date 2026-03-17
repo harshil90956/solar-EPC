@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException, forwardRef, Inject, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Survey, SurveyDocument, SurveyStatus } from '../schemas/site-survey.schema';
+import { SiteSurvey, SiteSurveyDocument, SurveyStatus } from '../schemas/site-survey.schema';
 import {
   CreateSiteSurveyDto,
   UpdateSiteSurveyDto,
@@ -18,7 +18,7 @@ export class SiteSurveysService {
   private readonly logger = new Logger(SiteSurveysService.name);
 
   constructor(
-    @InjectModel(Survey.name) private surveyModel: Model<SurveyDocument>,
+    @InjectModel(SiteSurvey.name) private surveyModel: Model<SiteSurveyDocument>,
     @Inject(forwardRef(() => LeadsService))
     private leadsService: LeadsService
   ) {}
@@ -28,6 +28,34 @@ export class SiteSurveysService {
     // Use the centralized buildCompleteFilter from visibility-filter.ts
     // This properly respects dataScope (ALL vs ASSIGNED)
     return buildCompleteFilter(tenantId, user, baseFilter);
+  }
+
+  async updateAssignmentByLeadId(
+    leadId: string,
+    assignedTo: string | undefined,
+    tenantId?: string,
+    user?: UserWithVisibility,
+  ): Promise<void> {
+    const tid = tenantId && Types.ObjectId.isValid(tenantId) ? new Types.ObjectId(tenantId) : undefined;
+    if (!tid && !(user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin')) {
+      throw new BadRequestException('Tenant context is required for updating surveys');
+    }
+
+    const leadObjId = this.toObjectId(leadId);
+    const assignedToId = assignedTo && Types.ObjectId.isValid(assignedTo) ? new Types.ObjectId(assignedTo) : undefined;
+
+    const filter: any = {
+      tenantId: tid,
+      isDeleted: { $ne: true },
+      $or: [
+        ...(leadObjId ? [{ leadId: leadObjId }] : []),
+        { leadId }, // legacy string leadId support
+      ],
+    };
+
+    await this.surveyModel
+      .updateOne(filter, { $set: { assignedTo: assignedToId || undefined, updatedAt: new Date() } })
+      .exec();
   }
 
   // Check if user can access a specific survey
@@ -56,22 +84,32 @@ export class SiteSurveysService {
   }
 
   // Create new site survey (from lead stage change)
-  async create(createDto: CreateSiteSurveyDto, tenantId?: string, user?: UserWithVisibility): Promise<Survey> {
+  async create(createDto: CreateSiteSurveyDto, tenantId?: string, user?: UserWithVisibility): Promise<SiteSurvey> {
     const tid = tenantId && Types.ObjectId.isValid(tenantId) ? new Types.ObjectId(tenantId) : undefined;
     if (!tid && !(user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin')) {
       throw new BadRequestException('Tenant context is required for creating surveys');
     }
 
     // Get current user ID for createdBy
-    const createdById = user?._id || (user?.id ? new Types.ObjectId(user.id) : undefined);
+    const rawUserId = (user?._id ? user._id.toString() : user?.id) || undefined;
+    const createdById = rawUserId && Types.ObjectId.isValid(rawUserId) ? new Types.ObjectId(rawUserId) : undefined;
+
+    const assignedToId = createDto.assignedTo && Types.ObjectId.isValid(createDto.assignedTo)
+      ? new Types.ObjectId(createDto.assignedTo)
+      : undefined;
+
+    const leadObjId = createDto.leadId && Types.ObjectId.isValid(createDto.leadId)
+      ? new Types.ObjectId(createDto.leadId)
+      : undefined;
 
     const surveyData = {
       ...createDto,
+      leadId: leadObjId,
       surveyId: this.generateSurveyId(),
       status: SurveyStatus.PENDING,
       tenantId: tid,
       createdBy: createdById,
-      assignedTo: createDto.assignedTo || undefined, // Can be set during creation
+      assignedTo: assignedToId || createdById || undefined, // ensure visibility for ASSIGNED users
       createdAt: new Date(),
       updatedAt: new Date()
     };
@@ -131,6 +169,7 @@ export class SiteSurveysService {
     const [surveys, total] = await Promise.all([
       this.surveyModel
         .find(filter)
+        .populate('leadId')
         .sort(sort)
         .skip(skip)
         .limit(limit)
@@ -149,8 +188,12 @@ export class SiteSurveysService {
             console.log(`[DEBUG] Survey ${survey.surveyId} has no leadId!`);
             return surveyObj;
           }
-          
-          const lead = await this.leadsService.findOneById(survey.leadId, tenantId, user);
+
+          const rawLeadId = (survey as any).leadId?._id
+            ? (survey as any).leadId._id.toString()
+            : survey.leadId.toString();
+
+          const lead = await this.leadsService.findOneById(rawLeadId, tenantId, user);
           
           console.log(`[DEBUG] Lead lookup result for ${survey.leadId}:`, lead ? 'FOUND' : 'NOT FOUND');
           
@@ -195,9 +238,9 @@ export class SiteSurveysService {
   }
 
   // Find one survey by ID
-  async findOne(id: string, tenantId?: string, user?: UserWithVisibility): Promise<Survey> {
+  async findOne(id: string, tenantId?: string, user?: UserWithVisibility): Promise<SiteSurvey> {
     const filter = this.buildCompleteFilter(tenantId, user, {
-      $or: [{ _id: id }, { surveyId: id }]
+      $or: [{ _id: id }, { surveyId: id }],
     });
 
     const survey = await this.surveyModel.findOne(filter).exec();
@@ -210,13 +253,44 @@ export class SiteSurveysService {
   }
 
   // Find survey by lead ID
-  async findByLeadId(leadId: string, tenantId?: string, user?: UserWithVisibility): Promise<Survey | null> {
-    const filter = this.buildCompleteFilter(tenantId, user, { leadId });
+  async findByLeadId(leadId: string, tenantId?: string, user?: UserWithVisibility): Promise<SiteSurvey | null> {
+    const leadObjId = this.toObjectId(leadId);
+    const filter = this.buildCompleteFilter(tenantId, user, {
+      $or: [
+        ...(leadObjId ? [{ leadId: leadObjId }] : []),
+        { leadId }, // legacy string leadId support
+      ],
+    });
     return this.surveyModel.findOne(filter).exec();
   }
 
+  async deactivateByLeadId(leadId: string, tenantId?: string, user?: UserWithVisibility): Promise<void> {
+    const tid = tenantId && Types.ObjectId.isValid(tenantId) ? new Types.ObjectId(tenantId) : undefined;
+    if (!tid && !(user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin')) {
+      throw new BadRequestException('Tenant context is required for deactivating surveys');
+    }
+
+    const leadObjId = this.toObjectId(leadId);
+    const filter: any = {
+      tenantId: tid,
+      isDeleted: { $ne: true },
+      $or: [
+        ...(leadObjId ? [{ leadId: leadObjId }] : []),
+        { leadId }, // legacy string leadId support
+      ],
+    };
+
+    const result = await this.surveyModel
+      .updateOne(filter, { $set: { status: SurveyStatus.CANCELLED, isDeleted: true, updatedAt: new Date() } })
+      .exec();
+
+    if (result.matchedCount === 0) {
+      return;
+    }
+  }
+
   // Update survey
-  async update(id: string, updateDto: UpdateSiteSurveyDto, tenantId?: string, user?: UserWithVisibility): Promise<Survey> {
+  async update(id: string, updateDto: UpdateSiteSurveyDto, tenantId?: string, user?: UserWithVisibility): Promise<SiteSurvey> {
     const filter = this.buildCompleteFilter(tenantId, user, {
       $or: [{ _id: id }, { surveyId: id }]
     });
@@ -235,7 +309,7 @@ export class SiteSurveysService {
   }
 
   // Move survey from Pending to Active
-  async moveToActive(id: string, moveDto: MoveToActiveDto, tenantId?: string, user?: UserWithVisibility): Promise<Survey> {
+  async moveToActive(id: string, moveDto: MoveToActiveDto, tenantId?: string, user?: UserWithVisibility): Promise<SiteSurvey> {
     // First verify the survey exists and belongs to tenant
     const survey = await this.findOne(id, tenantId, user);
 
@@ -243,16 +317,49 @@ export class SiteSurveysService {
       throw new Error(`Cannot move to Active: Survey is currently ${survey.status}`);
     }
 
-    const filter = this.buildCompleteFilter(tenantId, user, {
-      $or: [{ _id: id }, { surveyId: id }]
-    });
+    const rawAssignedBy = (user?._id ? user._id.toString() : user?.id) || undefined;
+    const assignedById = rawAssignedBy && Types.ObjectId.isValid(rawAssignedBy)
+      ? new Types.ObjectId(rawAssignedBy)
+      : undefined;
+
+    const tid = tenantId && Types.ObjectId.isValid(tenantId) ? new Types.ObjectId(tenantId) : undefined;
+    if (!tid && !(user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin')) {
+      throw new BadRequestException('Tenant context is required for updating surveys');
+    }
+
+    const assignedToId = (moveDto as any)?.assignedTo && Types.ObjectId.isValid((moveDto as any).assignedTo)
+      ? new Types.ObjectId((moveDto as any).assignedTo)
+      : undefined;
+
+    let resolvedAssigneeName: string | undefined;
+    if (assignedToId && (!moveDto.engineer || !moveDto.solarConsultant)) {
+      try {
+        const UserModel = (this.surveyModel as any).db.model('User');
+        const u = await UserModel.findOne({ _id: assignedToId }).select('firstName lastName name').lean().exec();
+        const built = u
+          ? String((u as any).name || `${(u as any).firstName || ''} ${(u as any).lastName || ''}`.trim()).trim()
+          : '';
+        resolvedAssigneeName = built || undefined;
+      } catch (e) {
+        resolvedAssigneeName = undefined;
+      }
+    }
+
+    // Tenant-authoritative update: ensure state transition works even if visibility filtering would hide the survey.
+    const filter: any = {
+      tenantId: tid,
+      isDeleted: { $ne: true },
+      _id: (survey as any)._id,
+    };
 
     const updatedSurvey = await this.surveyModel.findOneAndUpdate(
       filter,
       {
         status: SurveyStatus.ACTIVE,
-        engineer: moveDto.engineer || survey.engineer,
-        solarConsultant: moveDto.solarConsultant || survey.solarConsultant,
+        assignedTo: assignedToId || (survey as any).assignedTo,
+        assignedBy: assignedById || (survey as any).assignedBy,
+        engineer: moveDto.engineer || resolvedAssigneeName || survey.engineer,
+        solarConsultant: moveDto.solarConsultant || resolvedAssigneeName || survey.solarConsultant,
         activeData: {
           ...moveDto.activeData,
           startedAt: new Date()
@@ -271,7 +378,7 @@ export class SiteSurveysService {
   }
 
   // Move survey from Active to Complete
-  async moveToComplete(id: string, moveDto: MoveToCompleteDto, tenantId?: string, user?: UserWithVisibility): Promise<Survey> {
+  async moveToComplete(id: string, moveDto: MoveToCompleteDto, tenantId?: string, user?: UserWithVisibility): Promise<SiteSurvey> {
     // First verify the survey exists and belongs to tenant
     const survey = await this.findOne(id, tenantId, user);
 
@@ -386,16 +493,28 @@ export class SiteSurveysService {
       city: string;
       projectCapacity?: string;
       engineer?: string;
+      assignedTo?: string;
       sourceLeadId?: string;
     },
     tenantId?: string,
     user?: UserWithVisibility
-  ): Promise<Survey> {
-    // Check if survey already exists for this lead (respect tenant isolation)
-    const existingSurvey = await this.findByLeadId(leadData.leadId, tenantId, user);
-    if (existingSurvey) {
-      return existingSurvey;
+  ): Promise<SiteSurvey> {
+    const tid = tenantId && Types.ObjectId.isValid(tenantId) ? new Types.ObjectId(tenantId) : undefined;
+    if (!tid && !(user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin')) {
+      throw new BadRequestException('Tenant context is required for creating surveys');
     }
+
+    // Check if survey already exists for this lead (tenant-authoritative, not blocked by visibility)
+    const leadObjId = this.toObjectId(leadData.leadId);
+    const existingSurvey = await this.surveyModel.findOne({
+      tenantId: tid,
+      isDeleted: { $ne: true },
+      $or: [
+        ...(leadObjId ? [{ leadId: leadObjId }] : []),
+        { leadId: leadData.leadId }, // legacy string leadId support
+      ],
+    }).exec();
+    if (existingSurvey) return existingSurvey;
 
     return this.create({
       leadId: leadData.leadId,
@@ -408,7 +527,8 @@ export class SiteSurveysService {
       moduleType: 'To be selected',
       solarConsultant: leadData.engineer || 'Unassigned',
       engineer: leadData.engineer || 'Unassigned',
-      floors: 1
+      floors: 1,
+      assignedTo: leadData.assignedTo
     }, tenantId, user);
   }
 
@@ -418,7 +538,7 @@ export class SiteSurveysService {
     assignDto: AssignSurveyDto,
     tenantId?: string,
     user?: UserWithVisibility
-  ): Promise<Survey> {
+  ): Promise<SiteSurvey> {
     // First verify the survey exists and belongs to tenant
     const survey = await this.findOne(id, tenantId, user);
 
@@ -437,11 +557,34 @@ export class SiteSurveysService {
     }
 
     // Get current user ID for assignedBy
-    const assignedById = user?._id || (user?.id ? new Types.ObjectId(user.id) : undefined);
+    const rawAssignedBy = (user?._id ? user._id.toString() : user?.id) || undefined;
+    const assignedById = rawAssignedBy && Types.ObjectId.isValid(rawAssignedBy)
+      ? new Types.ObjectId(rawAssignedBy)
+      : undefined;
 
-    const filter = this.buildCompleteFilter(tenantId, user, {
-      $or: [{ _id: id }, { surveyId: id }]
-    });
+    const tid = tenantId && Types.ObjectId.isValid(tenantId) ? new Types.ObjectId(tenantId) : undefined;
+    if (!tid && !(user?.isSuperAdmin || user?.role?.toLowerCase() === 'superadmin')) {
+      throw new BadRequestException('Tenant context is required for assigning surveys');
+    }
+
+    // Resolve assignee display name for UI fields
+    let assigneeName: string | undefined;
+    try {
+      const UserModel = (this.surveyModel as any).db.model('User');
+      const u = await UserModel.findOne({ _id: assignedToId }).select('firstName lastName name').lean().exec();
+      const built = u
+        ? String(u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim()).trim()
+        : '';
+      assigneeName = built || undefined;
+    } catch (e) {
+      assigneeName = undefined;
+    }
+
+    const filter: any = {
+      tenantId: tid,
+      isDeleted: { $ne: true },
+      _id: (survey as any)._id,
+    };
 
     const updatedSurvey = await this.surveyModel.findOneAndUpdate(
       filter,
@@ -449,7 +592,8 @@ export class SiteSurveysService {
         assignedTo: assignedToId,
         assignedBy: assignedById,
         // Also update the engineer field to match assignment
-        engineer: assignDto.assignedTo,
+        engineer: assigneeName || survey.engineer,
+        solarConsultant: assigneeName || survey.solarConsultant,
         updatedAt: new Date()
       },
       { new: true }

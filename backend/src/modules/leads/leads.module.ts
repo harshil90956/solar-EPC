@@ -8,6 +8,7 @@ import { LeadsService } from './services/leads.service';
 import { LeadsController } from './controllers/leads.controller';
 import { SettingsModule } from '../settings/settings.module';
 import { SurveyModule } from '../survey/survey.module';
+import { CustomersModule } from '../customers/customers.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { SurveyModule } from '../survey/survey.module';
     ]),
     SettingsModule,
     forwardRef(() => SurveyModule),
+    CustomersModule,
   ],
   controllers: [LeadsController],
   providers: [LeadsService],

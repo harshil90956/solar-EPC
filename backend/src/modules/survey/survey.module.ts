@@ -5,7 +5,7 @@ import { SurveysService } from './services/surveys.service';
 import { Survey, SurveySchema } from './schemas/survey.schema';
 import { SiteSurveysController } from './controllers/site-surveys.controller';
 import { SiteSurveysService } from './services/site-surveys.service';
-import { Survey as SiteSurvey, SurveySchema as SiteSurveySchema } from './schemas/site-survey.schema';
+import { SiteSurvey, SiteSurveySchema } from './schemas/site-survey.schema';
 import { LeadsModule } from '../leads/leads.module';
 import { Lead, LeadSchema } from '../leads/schemas/lead.schema';
 import { SettingsModule } from '../settings/settings.module';

@@ -63,6 +63,9 @@ function LeadStatusBuilder() {
     const [modalOpen, setModalOpen] = useState(false);
     const [editing, setEditing] = useState(null);
     const [saving, setSaving] = useState(false);
+    const [deleteOpen, setDeleteOpen] = useState(false);
+    const [deleteTarget, setDeleteTarget] = useState(null);
+    const [deleting, setDeleting] = useState(false);
     const [form, setForm] = useState({
         key: '',
         label: '',
@@ -73,7 +76,7 @@ function LeadStatusBuilder() {
     const load = async () => {
         try {
             setLoading(true);
-            const res = await settingsApi.getLeadStatuses(false);
+            const res = await settingsApi.getLeadStatuses(true);
             const list = Array.isArray(res?.data?.data) ? res.data.data : Array.isArray(res?.data) ? res.data : [];
             setStatuses(list);
         } catch (e) {
@@ -90,7 +93,16 @@ function LeadStatusBuilder() {
 
     const openCreate = () => {
         setEditing(null);
-        setForm({ key: '', label: '', color: '#64748b', type: 'normal' });
+        setForm({
+            key: '',
+            label: '',
+            color: '#64748b',
+            type: 'normal',
+            surveyStatus: '',
+            customerStatus: '',
+            surveyColor: '#0ea5e9',
+            customerColor: '#22c55e',
+        });
         setModalOpen(true);
     };
 
@@ -101,37 +113,131 @@ function LeadStatusBuilder() {
             label: s?.label || '',
             color: s?.color || '#64748b',
             type: s?.type || 'normal',
+            surveyStatus: '',
+            customerStatus: '',
+            surveyColor: '#0ea5e9',
+            customerColor: '#22c55e',
         });
         setModalOpen(true);
     };
 
-    const save = async () => {
-        if (!form.label?.trim()) {
-            toast.error('Label is required');
-            return;
+    const slugifyKey = (value) => {
+        return String(value || '')
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '');
+    };
+
+    const upsertByKey = async (key, payload) => {
+        const allRes = await settingsApi.getLeadStatuses(false);
+        const all = Array.isArray(allRes?.data?.data) ? allRes.data.data : Array.isArray(allRes?.data) ? allRes.data : [];
+        const existing = (all || []).find(s => String(s?.key || '').toLowerCase() === String(key || '').toLowerCase());
+
+        if (existing) {
+            await settingsApi.updateLeadStatus(existing._id || existing.id, {
+                label: payload.label,
+                color: payload.color,
+                type: payload.type,
+                moduleConnection: payload.moduleConnection,
+                isActive: true,
+            });
+            return { action: 'updated' };
         }
-        if (!editing && !form.key?.trim()) {
-            toast.error('Key is required');
-            return;
+
+        await settingsApi.createLeadStatus(payload);
+        return { action: 'created' };
+    };
+
+    const save = async () => {
+        const mainLabel = form.label?.trim();
+        const mainKey = form.key?.trim();
+        const surveyLabel = form.surveyStatus?.trim();
+        const customerLabel = form.customerStatus?.trim();
+
+        if (!editing) {
+            const wantsMain = Boolean(mainLabel || mainKey);
+            const wantsSurvey = Boolean(surveyLabel);
+            const wantsCustomer = Boolean(customerLabel);
+
+            if (!wantsMain && !wantsSurvey && !wantsCustomer) {
+                toast.error('Please enter at least one status (Main, Survey, or Customer)');
+                return;
+            }
+
+            if (wantsMain) {
+                if (!mainLabel) {
+                    toast.error('Label is required');
+                    return;
+                }
+                if (!mainKey) {
+                    toast.error('Key is required');
+                    return;
+                }
+            }
+        } else {
+            if (!mainLabel) {
+                toast.error('Label is required');
+                return;
+            }
         }
 
         try {
             setSaving(true);
             if (editing) {
                 await settingsApi.updateLeadStatus(editing._id || editing.id, {
-                    label: form.label.trim(),
+                    label: mainLabel,
                     color: form.color,
                     type: form.type,
                 });
                 toast.success('Status updated');
             } else {
-                await settingsApi.createLeadStatus({
-                    key: form.key.trim(),
-                    label: form.label.trim(),
-                    color: form.color,
-                    type: form.type,
-                });
-                toast.success('Status created');
+                const createdLabels = [];
+
+                const wantsMain = Boolean(mainLabel || mainKey);
+                if (wantsMain) {
+                    await upsertByKey(mainKey, {
+                        key: mainKey,
+                        label: mainLabel,
+                        color: form.color,
+                        type: form.type,
+                    });
+                    createdLabels.push(mainLabel);
+                }
+
+                if (surveyLabel) {
+                    const key = slugifyKey(surveyLabel);
+                    if (!key) {
+                        toast.error('Survey Status is invalid');
+                        return;
+                    }
+                    await upsertByKey(key, {
+                        key,
+                        label: surveyLabel,
+                        color: form.surveyColor || form.color,
+                        type: form.type,
+                        moduleConnection: 'survey',
+                    });
+                    createdLabels.push(surveyLabel);
+                }
+
+                if (customerLabel) {
+                    const key = slugifyKey(customerLabel);
+                    if (!key) {
+                        toast.error('Customer Status is invalid');
+                        return;
+                    }
+                    await upsertByKey(key, {
+                        key,
+                        label: customerLabel,
+                        color: form.customerColor || form.color,
+                        type: form.type,
+                        moduleConnection: 'customer',
+                    });
+                    createdLabels.push(customerLabel);
+                }
+
+                toast.success(createdLabels.length > 1 ? 'Statuses created' : 'Status created');
             }
             setModalOpen(false);
             await load();
@@ -143,12 +249,28 @@ function LeadStatusBuilder() {
     };
 
     const remove = async (s) => {
+        setDeleteTarget(s);
+        setDeleteOpen(true);
+    };
+
+    const confirmDelete = async () => {
+        if (!deleteTarget) return;
         try {
-            await settingsApi.deleteLeadStatus(s._id || s.id);
-            toast.success('Status deleted');
+            setDeleting(true);
+            const res = await settingsApi.deleteLeadStatus(deleteTarget._id || deleteTarget.id, { force: 'true' });
+            const ok = res?.success === true || res?.data?.success === true;
+            if (!ok) {
+                const msg = res?.message || res?.data?.message || 'Failed to delete status';
+                throw new Error(msg);
+            }
+            toast.success(res?.message || res?.data?.message || 'Status deleted');
+            setDeleteOpen(false);
+            setDeleteTarget(null);
             await load();
         } catch (e) {
             toast.error(e?.message || 'Failed to delete status');
+        } finally {
+            setDeleting(false);
         }
     };
 
@@ -306,6 +428,89 @@ function LeadStatusBuilder() {
                                 <option value="dead">dead</option>
                             </select>
                         </div>
+                    </div>
+
+                    {!editing && (
+                        <>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="col-span-1">
+                                    <label className="text-[11px] font-semibold text-[var(--text-faint)] block mb-1">Survey Status (optional)</label>
+                                    <input
+                                        value={form.surveyStatus}
+                                        onChange={e => setForm(p => ({ ...p, surveyStatus: e.target.value }))}
+                                        placeholder="e.g. Site Visit"
+                                        className="w-full px-3 py-2 rounded-lg border border-[var(--border-base)] bg-[var(--bg-elevated)] text-xs text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--accent)]"
+                                    />
+                                </div>
+                                <div className="col-span-1">
+                                    <label className="text-[11px] font-semibold text-[var(--text-faint)] block mb-1">Survey Color</label>
+                                    <input
+                                        type="color"
+                                        value={form.surveyColor}
+                                        onChange={e => setForm(p => ({ ...p, surveyColor: e.target.value }))}
+                                        className="w-full h-10 rounded-lg border border-[var(--border-base)] bg-[var(--bg-elevated)]"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="col-span-1">
+                                    <label className="text-[11px] font-semibold text-[var(--text-faint)] block mb-1">Customer Status (optional)</label>
+                                    <input
+                                        value={form.customerStatus}
+                                        onChange={e => setForm(p => ({ ...p, customerStatus: e.target.value }))}
+                                        placeholder="e.g. Converted"
+                                        className="w-full px-3 py-2 rounded-lg border border-[var(--border-base)] bg-[var(--bg-elevated)] text-xs text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--accent)]"
+                                    />
+                                </div>
+                                <div className="col-span-1">
+                                    <label className="text-[11px] font-semibold text-[var(--text-faint)] block mb-1">Customer Color</label>
+                                    <input
+                                        type="color"
+                                        value={form.customerColor}
+                                        onChange={e => setForm(p => ({ ...p, customerColor: e.target.value }))}
+                                        className="w-full h-10 rounded-lg border border-[var(--border-base)] bg-[var(--bg-elevated)]"
+                                    />
+                                </div>
+                            </div>
+                        </>
+                    )}
+                </div>
+            </Modal>
+
+            <Modal
+                open={deleteOpen}
+                onClose={() => { if (!deleting) { setDeleteOpen(false); setDeleteTarget(null); } }}
+                title="Delete Lead Status"
+                size="sm"
+                footer={
+                    <>
+                        <button
+                            onClick={() => { if (!deleting) { setDeleteOpen(false); setDeleteTarget(null); } }}
+                            className="px-4 py-2 rounded-lg text-xs font-semibold border border-[var(--border-base)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={confirmDelete}
+                            disabled={deleting}
+                            className={`px-4 py-2 rounded-lg text-xs font-bold bg-red-500 text-white hover:opacity-90 transition-opacity ${deleting ? 'opacity-60 cursor-not-allowed' : ''}`}
+                        >
+                            {deleting ? 'Deleting…' : 'Delete'}
+                        </button>
+                    </>
+                }
+            >
+                <div className="space-y-2">
+                    <p className="text-xs text-[var(--text-faint)]">
+                        Are you sure you want to delete this status?
+                    </p>
+                    <div className="rounded-lg border border-[var(--border-base)] bg-[var(--bg-elevated)] px-3 py-2">
+                        <p className="text-xs font-bold text-[var(--text-primary)] truncate">{deleteTarget?.label || '—'}</p>
+                        <p className="text-[10px] text-[var(--text-faint)] mt-0.5">{deleteTarget?.key || ''}</p>
+                        <p className="text-[10px] text-[var(--text-faint)] mt-1">
+                            This will hide the status (soft delete). Existing leads already in this status will keep the same stage key.
+                        </p>
                     </div>
                 </div>
             </Modal>
