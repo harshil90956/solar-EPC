@@ -1778,6 +1778,13 @@ const SiteSurveyPage = () => {
       // Fetch regular surveys
       const response = await siteSurveysApi.getAll(params);
       const surveyData = response.data?.data || response.data || [];
+
+      const existingSurveyLeadIds = new Set(
+        (Array.isArray(surveyData) ? surveyData : [])
+          .map((s) => (s?.leadId?._id ? s.leadId._id : s?.leadId))
+          .filter(Boolean)
+          .map((v) => v.toString())
+      );
       
       // Also fetch leads with 'survey' stage from CRM
       let leadsAsSurveys = [];
@@ -1807,9 +1814,16 @@ const SiteSurveyPage = () => {
           });
           console.log('[SiteSurvey] Filtered survey leads:', leadsData.length);
         }
+
+        // If a real site-survey already exists for the lead, do not show LEAD-* placeholder
+        leadsData = leadsData.filter((lead) => {
+          const leadId = (lead?._id || lead?.id)?.toString();
+          if (!leadId) return false;
+          return !existingSurveyLeadIds.has(leadId);
+        });
         
-        // Convert leads to survey format
-        leadsAsSurveys = leadsData.map(lead => ({
+        // Convert leads to survey format (placeholders are always pending)
+        const leadsAsSurveysAll = leadsData.map(lead => ({
           _id: lead._id || lead.id,
           surveyId: `LEAD-${lead._id || lead.id}`,
           clientName: lead.name,
@@ -1823,6 +1837,9 @@ const SiteSurveyPage = () => {
           isFromLead: true,
           leadData: lead
         }));
+
+        // Only include placeholders in list for all/pending tabs
+        leadsAsSurveys = (activeTab === 'all' || activeTab === 'pending') ? leadsAsSurveysAll : [];
         
         console.log('[SiteSurvey] Converted leads to surveys:', leadsAsSurveys.length);
       } catch (err) {
@@ -1837,7 +1854,9 @@ const SiteSurveyPage = () => {
       const statsData = statsResponse.data || {};
       
       // Update stats to include leads with survey stage
-      const totalSurveyLeads = leadsAsSurveys.length;
+      const totalSurveyLeads = (activeTab === 'all' || activeTab === 'pending')
+        ? leadsAsSurveys.length
+        : 0;
       setStats({ 
         total: (statsData.total || 0) + totalSurveyLeads, 
         pending: (statsData.pending || 0) + totalSurveyLeads, 
