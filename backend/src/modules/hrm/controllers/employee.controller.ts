@@ -21,24 +21,37 @@ export class EmployeeController {
     const user = req.user;
     if (!user) throw new ForbiddenException('User not authenticated');
 
-    // Fast-path: honor permissions already present on JWT/user payload
-    // Supports:
-    // 1. permissions array: ["employees.view", "employees:view"]
-    // 2. modulePermissions object: { employees: { actions: ["view"], ... } }
+    // NEW: Check permissions from req.user.permissions object (single source of truth)
+    // Format: { employees: { view: true, edit: false }, attendance: { view: true } }
+    if (user?.permissions && typeof user.permissions === 'object') {
+      const modulePerms = user.permissions[module];
+      if (modulePerms && typeof modulePerms === 'object') {
+        if (modulePerms[action] === true) {
+          return; // Permission granted
+        }
+        if (modulePerms[action] === false) {
+          throw new ForbiddenException(`Permission denied: ${module}.${action} required`);
+        }
+      }
+    }
+
+    // Fallback: Check legacy format for backward compatibility during transition
     const userPerms: string[] = Array.isArray(user?.permissions) ? user.permissions : [];
-    const modulePerms = user?.modulePermissions?.[module];
-    
-    const keyColon = `${module}:${action}`;
-    const keyDot = `${module}.${action}`;
-    
-    if (userPerms.includes(keyColon) || userPerms.includes(keyDot)) {
+    if (userPerms.length > 0) {
+      const keyColon = `${module}:${action}`;
+      const keyDot = `${module}.${action}`;
+      if (userPerms.includes(keyColon) || userPerms.includes(keyDot)) {
+        return;
+      }
+    }
+
+    // Fallback: Check modulePermissions (legacy format)
+    const modulePermsLegacy = user?.modulePermissions?.[module];
+    if (modulePermsLegacy?.actions?.includes(action)) {
       return;
     }
 
-    if (modulePerms?.actions?.includes(action)) {
-      return;
-    }
-
+    // No permission found - check via PermissionService as last resort
     const roleId = user.roleId || user.role;
     if (!roleId) throw new ForbiddenException('User has no role assigned');
 
@@ -51,23 +64,56 @@ export class EmployeeController {
 
   private async getDataScopeFilter(req: any, module: string): Promise<any> {
     const user = req.user;
-    const roleId = user?.roleId || user?.role;
-    const tenantId = req.tenant?.id;
-
-    if (!roleId) return { employeeId: user?.sub };
-
-    const dataScope = await this.permissionService.getDataScope(roleId, module, tenantId);
     const userDepartment = user?.department;
 
-    switch (dataScope) {
-      case DataScope.OWN:
-        return { employeeId: user?.sub };
-      case DataScope.DEPARTMENT:
-        return userDepartment ? { department: userDepartment } : { employeeId: user?.sub };
-      case DataScope.ALL:
-      default:
-        return {};
+    // NEW: Check dataScope from req.user.dataScope object (single source of truth)
+    // Format: { employees: 'OWN', attendance: 'ALL', leaves: 'DEPARTMENT' }
+    if (user?.dataScope && typeof user.dataScope === 'object' && !Array.isArray(user.dataScope)) {
+      const scope = user.dataScope[module];
+      if (scope) {
+        switch (scope) {
+          case 'OWN':
+            return { employeeId: user?.sub };
+          case 'DEPARTMENT':
+            return userDepartment ? { department: userDepartment } : { employeeId: user?.sub };
+          case 'ALL':
+            return {};
+          default:
+            return {}; // Default to ALL if unknown scope
+        }
+      }
     }
+
+    // Legacy: Check if dataScope is a string (old format)
+    if (typeof user?.dataScope === 'string') {
+      switch (user.dataScope) {
+        case 'OWN':
+          return { employeeId: user?.sub };
+        case 'DEPARTMENT':
+          return userDepartment ? { department: userDepartment } : { employeeId: user?.sub };
+        case 'ALL':
+        default:
+          return {};
+      }
+    }
+
+    // Fallback: Check modulePermissions (legacy format)
+    const modulePermsLegacy = user?.modulePermissions?.[module];
+    if (modulePermsLegacy?.dataScope) {
+      const dataScope = modulePermsLegacy.dataScope;
+      switch (dataScope) {
+        case DataScope.OWN:
+          return { employeeId: user?.sub };
+        case DataScope.DEPARTMENT:
+          return userDepartment ? { department: userDepartment } : { employeeId: user?.sub };
+        case DataScope.ALL:
+        default:
+          return {};
+      }
+    }
+
+    // Default fallback
+    return {};
   }
 
   @Post('login')

@@ -4,11 +4,15 @@ import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../../../core/auth/guards/admin.guard';
 import { Permission } from '../schemas/permission.schema';
 import { Role } from '../schemas/role.schema';
+import { PermissionCacheService } from '../../../common/services/permission-cache.service';
 
 @Controller('hrm/permissions')
 @UseGuards(JwtAuthGuard)
 export class PermissionController {
-  constructor(private readonly permissionService: PermissionService) {}
+  constructor(
+    private readonly permissionService: PermissionService,
+    private readonly permissionCacheService: PermissionCacheService,
+  ) {}
 
   @Get()
   @UseGuards(AdminGuard)
@@ -210,6 +214,10 @@ export class PermissionController {
       body.dataScope as any,
       tid,
     );
+    
+    // Invalidate cache for this role to ensure fresh permissions
+    this.permissionCacheService.invalidateRoleCache(roleId, tid);
+    
     return {
       success: true,
       data: permission,
@@ -235,6 +243,10 @@ export class PermissionController {
       );
       results.push(permission);
     }
+    
+    // Invalidate cache after bulk update
+    this.permissionCacheService.invalidateRoleCache(roleId, tid);
+    
     return {
       success: true,
       data: results,
@@ -247,6 +259,38 @@ export class PermissionController {
     return {
       success: true,
       message: 'Module permissions seeded successfully',
+    };
+  }
+
+  // ==================== CACHE MANAGEMENT ====================
+
+  @Post('cache/clear')
+  @UseGuards(AdminGuard)
+  async clearPermissionCache(
+    @Query('userId') userId?: string,
+    @Query('roleId') roleId?: string,
+  ): Promise<any> {
+    if (userId) {
+      this.permissionCacheService.invalidateUserCache(userId);
+      return {
+        success: true,
+        message: `Cache cleared for user ${userId}`,
+      };
+    }
+    
+    if (roleId) {
+      this.permissionCacheService.invalidateRoleCache(roleId);
+      return {
+        success: true,
+        message: `Cache cleared for role ${roleId}`,
+      };
+    }
+    
+    // Clear all cache
+    this.permissionCacheService.clearCache();
+    return {
+      success: true,
+      message: 'All permission cache cleared',
     };
   }
 }

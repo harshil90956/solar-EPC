@@ -147,7 +147,7 @@ const LeavesPage = () => {
     canEdit, 
     canDelete, 
     canApprove,
-    columns 
+    visibleColumns: columns 
   } = usePermissions('leaves');
   
   const [mounted, setMounted] = useState(false);
