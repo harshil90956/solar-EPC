@@ -23,11 +23,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
-import HRMPermissionsPage from './HRMPermissionsPage';
-import AttendancePolicySettings from './AttendancePolicySettings';
-import { toast } from '../components/ui/Toast';
 import { CURRENCY } from '../config/app.config';
-import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
 
 const fmt = CURRENCY.format;
 
@@ -1312,7 +1308,11 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
           {/* ── Role Permissions Tab ── */}
           {(activeTab === 'role-permissions' || activeTab === 'hrm-role-permissions') && (
             <div className="animate-fade-in">
+<<<<<<< Updated upstream
               <HRMPermissionsPage />
+=======
+              <HrmPermissionsPage />
+>>>>>>> Stashed changes
             </div>
           )}
 
