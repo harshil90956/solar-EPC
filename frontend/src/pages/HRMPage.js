@@ -1321,7 +1321,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
           {/* ── Role Permissions Tab ── */}
           {(activeTab === 'role-permissions' || activeTab === 'hrm-role-permissions') && (
             <div className="animate-fade-in">
-              <HRMPermissionsPage />
+              <HrmPermissionsPage />
             </div>
           )}
 
