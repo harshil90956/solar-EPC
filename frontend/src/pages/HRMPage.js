@@ -22,12 +22,10 @@ import { api } from '../lib/apiClient';
 import { useQuery } from '@tanstack/react-query';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
-<<<<<<< HEAD
+import HrmPermissionsPage from './HrmPermissionsPage';
 import { usePermissions } from '../hooks/usePermissions';
 import HrmPermissionsPage from './HRMPermissionsPage';
-=======
-import HrmPermissionsPage from './HrmPermissionsPage';
->>>>>>> 4332b2bef35989a625d08f6f24dd3ed9900b0693
+
 import AttendancePolicySettings from './AttendancePolicySettings';
 import { toast } from '../components/ui/Toast';
 import { CURRENCY } from '../config/app.config';
