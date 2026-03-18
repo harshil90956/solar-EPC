@@ -120,7 +120,7 @@ const EmployeesPage = () => {
     canEdit, 
     canDelete, 
     canExport, 
-    columns,
+    visibleColumns: columns,
     permissions,
     userRole
   } = usePermissions('employees');

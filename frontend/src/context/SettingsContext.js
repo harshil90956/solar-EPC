@@ -24,39 +24,13 @@ const emptyPerms = () =>
 const fullPerms = () =>
     Object.fromEntries(ACTION_DEFS.map(a => [a.id, true]));
 
-const buildDefaultRBAC = () => {
-    const rbac = {};
-    const modules = [
-        'dashboard', 'crm', 'survey', 'design', 'project', 'inventory', 
-        'procurement', 'logistics', 'installation', 'commissioning', 
-        'finance', 'service', 'compliance', 'settings', 'hrm', 'intelligence'
-    ];
-    
-    ROLE_DEFS.forEach(role => {
-        rbac[role.id] = {};
-        const base = getRolePermissions(role.id);
-        const allowedModules = Array.isArray(base?.modules) ? base.modules : [];
-        modules.forEach(mod => {
-            const canView = allowedModules.includes(mod);
-            rbac[role.id][mod] = {
-                view: canView,
-                create: canView ? !!base?.canCreate : false,
-                edit: canView ? !!base?.canEdit : false,
-                delete: canView ? !!base?.canDelete : false,
-                export: canView ? !!base?.canExport : false,
-                approve: canView ? !!base?.canApprove : false,
-                assign: false,
-            };
-        });
-    });
-    return rbac;
-};
+// NOTE: buildDefaultRBAC removed - using single source of truth from AuthContext user.permissions
 
 export const SettingsProvider = ({ children }) => {
 
     // ── Core state ────────────────────────────────────────────────────────────
     const [flags, setFlagsState] = useState(buildDefaultFlags());
-    const [rbac, setRBACState] = useState(buildDefaultRBAC());
+    const [rbac, setRBACState] = useState({}); // Empty - permissions now from AuthContext
     const [workflows, setWorkflowsState] = useState([]);
     const [auditLogs, setAuditLogsState] = useState([]);
     const [customRoles, setCustomRoles] = useState({});
@@ -112,8 +86,8 @@ export const SettingsProvider = ({ children }) => {
                     // Backend returns object directly, use as-is
                     setRBACState(settings.rbac);
                 } else {
-                    // Use defaults if API returns empty RBAC
-                    setRBACState(buildDefaultRBAC());
+                    // Use empty object - permissions now from AuthContext
+                    setRBACState({});
                 }
 
                 // Set workflows
@@ -205,9 +179,9 @@ export const SettingsProvider = ({ children }) => {
                 }
             } catch (error) {
                 console.error('Failed to load settings from API:', error);
-                // Fall back to defaults on API failure
+                // Fall back to defaults on API failure - permissions now from AuthContext
                 setFlagsState(buildDefaultFlags());
-                setRBACState(buildDefaultRBAC());
+                setRBACState({});
                 setWorkflowsState([]);
                 setAuditLogsState([]);
                 setCustomRoles({});
@@ -229,17 +203,6 @@ export const SettingsProvider = ({ children }) => {
     //         refreshCustomRoles();
     //     }
     // }, []);
-
-    useEffect(() => {
-        try {
-            const modulePermissions = Object.fromEntries(
-                Object.entries(flags || {}).map(([moduleId, cfg]) => [moduleId, cfg?.actions || {}])
-            );
-            localStorage.setItem('modulePermissions', JSON.stringify(modulePermissions));
-        } catch (e) {
-            console.error('Failed to persist modulePermissions to localStorage:', e);
-        }
-    }, [flags]);
 
     // ── Audit helper ──────────────────────────────────────────────────────────
     const addAudit = useCallback(async (action, target, from, to, user = 'Admin User') => {
@@ -387,8 +350,8 @@ export const SettingsProvider = ({ children }) => {
 
     const resetRBAC = useCallback(async (user) => {
         await addAudit('RESET_RBAC', 'ALL RBAC', 'custom', 'defaults', user);
-        const defaults = buildDefaultRBAC();
-        setRBACState(defaults);
+        // Use empty object - permissions now from AuthContext
+        setRBACState({});
         // Note: Backend reset would require a specific endpoint
     }, [addAudit]);
 
@@ -891,305 +854,55 @@ export const SettingsProvider = ({ children }) => {
 
     /**
      * resolvePermission(userId, roleId, moduleId, actionId)
-     * Priority: Backend HRM Permissions -> Backend Matrix (Pre-computed) -> Feature Flag -> User Override -> Custom Role -> Base RBAC -> Admin Fallback
+     * SINGLE SOURCE OF TRUTH: Only checks user.permissions from localStorage
+     * NO fallback, NO dual permission system
      */
     const resolvePermission = useCallback((userId, roleId, moduleId, actionId) => {
-        // Debug logging
-        console.log('[PERMISSION CHECK]', { userId, roleId, moduleId, actionId });
-        
-        if (!(flags[moduleId]?.enabled ?? true)) {
-            console.log('  ❌ Module disabled by feature flag');
-            return false;
-        }
-
-        // Admin has full access by default
-        if (roleId === 'Admin' || roleId === 'admin') {
-            console.log('  ✅ Admin role - full access');
-            return true;
-        }
-
-        const roleIdStr = roleId === undefined || roleId === null ? '' : String(roleId);
-        const roleIdTrimmed = roleIdStr.trim();
-
-        // Normalize roleId to lowercase for case-insensitive matching
-        const normalizedRoleId = roleIdTrimmed.toLowerCase();
-
-        const savedUser = (typeof window !== 'undefined')
-            ? JSON.parse(localStorage.getItem('solar_user') || '{}')
-            : {};
-        const isAdminLike = savedUser?.isSuperAdmin || normalizedRoleId === 'admin' || normalizedRoleId === 'superadmin';
-
-        // STEP 1: Check Backend HRM Permissions from user.permissions (highest priority for HRM modules)
-        // Get user object to check backend permissions
+        // Get user from localStorage (single source of truth)
         const user = (typeof window !== 'undefined') 
             ? JSON.parse(localStorage.getItem('solar_user') || '{}')
             : {};
-
-        // Highest priority: normalized permissions object stored on user
-        // Supports mapping of hrm-* nav ids to HRM module keys.
+        
+        // Handle hrm- prefix (e.g., hrm-attendance -> attendance)
         const permModuleKey = (typeof moduleId === 'string' && moduleId.startsWith('hrm-'))
             ? moduleId.replace('hrm-', '')
             : moduleId;
-        const userPermVal = user?.permissions?.[permModuleKey]?.[actionId];
-        if (userPermVal === true) {
-            console.log('  ✅ Permission granted via user.permissions object');
-            return true;
-        }
-        if (userPermVal === false) {
-            console.log('  ❌ Permission denied via user.permissions object');
-            return false;
-        }
         
-        const backendPermissionsRaw = user?.permissions || [];
-        const backendPermissions = Array.isArray(backendPermissionsRaw)
-            ? backendPermissionsRaw
-                .filter(p => typeof p === 'string')
-                .map(p => (p.includes(':') ? p.replace(':', '.') : p))
-            : [];
+        // Direct permission check from user.permissions object
+        const hasPermission = user?.permissions?.[permModuleKey]?.[actionId] === true;
         
-        // Check if this is an HRM module or the parent HRM module
-        const isHrmModule = moduleId === 'hrm' || moduleId?.startsWith('hrm-');
-        
-        // For HRM modules, check backend permissions first (from JWT/user.permissions OR user.modulePermissions)
-        if (isHrmModule) {
-            // Check modulePermissions structure (from JWT payload)
-            // modulePermissions format: { employees: { actions: ['view', ...], dataScope: 'OWN' }, ... }
-            const modulePermissions = user?.modulePermissions || {};
-            const permissionsArray = user?.permissions || []; // From AuthContext (HRM permissions)
-            
-            // If checking parent 'hrm', we should return true if ANY hrm submodule has 'view' permission
-            if (moduleId === 'hrm' && actionId === 'view') {
-                const hasAnyChildPermission = Object.values(modulePermissions).some(p => p.actions?.includes('view')) ||
-                                             (Array.isArray(permissionsArray) && permissionsArray.some(p => p.includes('.view'))) ||
-                                             (typeof permissionsArray === 'object' && Object.values(permissionsArray).some(p => p.view === true));
-                
-                if (hasAnyChildPermission) {
-                    console.log('  ✅ HRM Parent permission granted because at least one submodule is visible');
-                    return true;
-                }
-            }
-
-            // DEBUG: Log actual structure
-            console.log('🔍 HRM Permission Check Debug:', {
-                moduleId,
-                moduleKey: moduleId === 'hrm' ? 'hrm' : moduleId.replace('hrm-', ''),
-                availableModules: Object.keys(modulePermissions),
-                permissionsArray: permissionsArray,
-                fullModulePermissions: modulePermissions
-            });
-            
-            const moduleKey = moduleId === 'hrm' ? 'hrm' : moduleId.replace('hrm-', ''); // hrm -> hrm, hrm-employees -> employees
-            const modulePerms = modulePermissions[moduleKey];
-            
-            // Check 1: modulePermissions object format
-            if (modulePerms) {
-                console.log('  📋 Found modulePerms for', moduleKey, ':', modulePerms);
-                if (Array.isArray(modulePerms.actions)) {
-                    const hasAction = modulePerms.actions.includes(actionId);
-                    console.log('  🔍 Checking actions:', { actionId, actions: modulePerms.actions, hasAction });
-                    if (hasAction) {
-                        console.log('  ✅ Module permission granted via modulePermissions');
-                        return true;
-                    }
-                } else {
-                    console.log('  ⚠️ modulePerms.actions is not an array:', modulePerms.actions);
-                }
-            }
-            
-            // Check 2: permissions object/array format (from AuthContext.fetchHrmPermissions)
-            // Can be either: ['employees.view', 'attendance.checkin'] or { employees: { view: true }, ... }
-            const rawPermissions = user?.permissions;
-            
-            if (Array.isArray(rawPermissions) && rawPermissions.length > 0) {
-                // Array format: ['employees.view', 'attendance.checkin', etc.]
-                const permissionPrefix = moduleKey; // employees, leaves, attendance, etc.
-                const fullPermission = `${permissionPrefix}.${actionId}`; // employees.view
-                const hasPermission = rawPermissions.includes(fullPermission);
-                
-                console.log('  🔍 Checking permissions array:', { 
-                    permissionPrefix, 
-                    fullPermission, 
-                    hasPermission,
-                    availablePermissions: rawPermissions 
-                });
-                
-                if (hasPermission) {
-                    console.log('  ✅ Module permission granted via permissions array');
-                    return true;
-                }
-            } else if (rawPermissions && typeof rawPermissions === 'object' && !Array.isArray(rawPermissions)) {
-                // Object format: { employees: { view: true, checkin: true }, ... }
-                const modulePermissionsObj = rawPermissions[moduleKey];
-                if (modulePermissionsObj && typeof modulePermissionsObj === 'object') {
-                    // Check if actionId exists and is true
-                    if (modulePermissionsObj[actionId] === true) {
-                        console.log('  ✅ Module permission granted via permissions object:', { moduleKey, actionId });
-                        return true;
-                    }
-                    // Also check nested structure like { employees: { view: true } }
-                    if (modulePermissionsObj.view === true && actionId === 'view') {
-                        console.log('  ✅ Module permission granted via permissions object (view)');
-                        return true;
-                    }
-                }
-                // Direct check: permissions.employees.view
-                if (rawPermissions[moduleKey]?.[actionId] === true) {
-                    console.log('  ✅ Module permission granted via nested permissions object');
-                    return true;
-                }
-            }
-            
-            // Also check backendPermissionMapping (dot notation)
-            if (Array.isArray(backendPermissions) && backendPermissions.length > 0) {
-                const matchingBackendKeys = Object.entries(backendPermissionMapping)
-                    .filter(([_, mapped]) => mapped?.moduleId === moduleId && mapped?.actionId === actionId)
-                    .map(([key]) => key);
-                
-                const hasBackendPermission = matchingBackendKeys.some(key => backendPermissions.includes(key));
-                
-                if (hasBackendPermission) {
-                    console.log('  ✅ Backend permission granted:', matchingBackendKeys);
-                    return true;
-                }
-            }
-            
-            // No permission found for HRM module
-            console.log('  ❌ No permission for HRM module:', { moduleId, actionId, modulePermissions, permissionsArray, backendPermissions });
-            return false;
-        }
-
-        // STEP 2: Hard user override (highest priority for specific users)
-        const userOvr = userOverrides[userId];
-        const hardVal = userOvr?.overrides?.[moduleId]?.[actionId];
-        if (hardVal !== undefined && hardVal !== null) {
-            console.log('  ✅ User override:', hardVal);
-            return hardVal;
-        }
-
-        // 2. Custom role permissions
-        // Priority for custom role id:
-        //   (a) explicit user override customRoleId
-        //   (b) user's roleId itself if it looks like a custom role id
-        //   (c) user's roleId itself if it exists in customRoles
-        const explicitCustomRoleId = userOvr?.customRoleId;
-        const roleIdAsCustomRoleId = normalizedRoleId?.startsWith('custom_') ? roleIdTrimmed : undefined;
-        const roleIdKeyCandidate = roleIdTrimmed || undefined;
-        const roleIdKeyCandidateLower = normalizedRoleId || undefined;
-        
-        // Check if roleId exists in customRoles (case-insensitive)
-        const availableRoleKeys = Object.keys(customRoles || {});
-        console.log('  Available role keys:', availableRoleKeys);
-        console.log('  Looking for:', roleIdKeyCandidate, '(normalized:', roleIdKeyCandidateLower, ')');
-        
-        const existsInCustomRoles = !!(
-            roleIdKeyCandidate && (customRoles?.[roleIdKeyCandidate] || customRoles?.[roleIdKeyCandidateLower])
-        ) || (roleIdKeyCandidateLower
-            ? availableRoleKeys.some(k => {
-                const matches = k.toLowerCase() === roleIdKeyCandidateLower;
-                console.log(`    Comparing "${k}" === "${roleIdKeyCandidateLower}": ${matches}`);
-                return matches;
-              })
-            : false);
-
-        const candidateCustomRoleId = explicitCustomRoleId || roleIdAsCustomRoleId || (existsInCustomRoles ? roleIdTrimmed : undefined);
-
-        console.log('  🔍 Checking custom role:', {
-            explicitCustomRoleId,
-            roleIdAsCustomRoleId,
-            existsInCustomRoles,
-            candidateCustomRoleId,
-            availableCustomRoles: availableRoleKeys
+        console.log('[PERMISSION CHECK]', { 
+            moduleId, 
+            permModuleKey, 
+            actionId, 
+            hasPermission,
+            userPermissions: user?.permissions 
         });
-
-        let customRole = candidateCustomRoleId ? customRoles[candidateCustomRoleId] : undefined;
         
-        // If not found by ID, search by role label (case-insensitive match)
-        if (!customRole && normalizedRoleId) {
-            const matchedByLabel = Object.values(customRoles).find(r => 
-                r.label?.toLowerCase() === normalizedRoleId || 
-                r.id?.toLowerCase() === normalizedRoleId
-            );
-            if (matchedByLabel) {
-                customRole = matchedByLabel;
-            }
+        return hasPermission;
+    }, []);
+
+    /**
+     * getDataScope(moduleId)
+     * Returns dataScope for a module from user.dataScope
+     */
+    const getDataScope = useCallback((moduleId) => {
+        const user = (typeof window !== 'undefined') 
+            ? JSON.parse(localStorage.getItem('solar_user') || '{}')
+            : {};
+        
+        // Handle hrm- prefix
+        const scopeModuleKey = (typeof moduleId === 'string' && moduleId.startsWith('hrm-'))
+            ? moduleId.replace('hrm-', '')
+            : moduleId;
+        
+        // dataScope can be string (legacy) or object (new format)
+        if (typeof user?.dataScope === 'object' && !Array.isArray(user.dataScope)) {
+            return user.dataScope[scopeModuleKey] || 'ALL';
         }
         
-        if (!customRole && candidateCustomRoleId) {
-            const normalizedCandidate = String(candidateCustomRoleId).trim().toLowerCase();
-            const matchedKey = Object.keys(customRoles).find(key => key.toLowerCase() === normalizedCandidate);
-            if (matchedKey) {
-                customRole = customRoles[matchedKey];
-                console.log('  ✅ Found custom role with normalized key:', matchedKey);
-            }
-        }
-
-        // Fallback: sometimes customRoles may be keyed by Mongo _id instead of roleId.
-        // In that case, scan values and match by roleId/id fields.
-        if (!customRole && candidateCustomRoleId) {
-            const normalizedCandidate = String(candidateCustomRoleId).trim().toLowerCase();
-            const matchedValue = Object.values(customRoles || {}).find(r => {
-                const rid = (r?.roleId || r?.id || r?._id);
-                return rid ? String(rid).trim().toLowerCase() === normalizedCandidate : false;
-            });
-            if (matchedValue) {
-                customRole = matchedValue;
-                console.log('  ✅ Found custom role by scanning values');
-            } else {
-                // DEBUG: Show what roles ARE available
-                console.warn('  ⚠️  Custom role NOT FOUND:', candidateCustomRoleId);
-                console.warn('  Available roles:', Object.values(customRoles || {}).map(r => ({
-                    roleId: r.roleId,
-                    id: r.id,
-                    label: r.label,
-                    _key: Object.keys(customRoles).find(k => customRoles[k] === r)
-                })));
-                
-                // Check if maybe the role was deleted - fall back to base role permissions
-                console.log('  ℹ️  Will use base RBAC permissions for this role');
-            }
-        }
-
-        if (customRole) {
-            console.log('  📋 Custom role found:', customRole.label);
-            const perm = customRole.permissions?.[moduleId]?.[actionId];
-            console.log('  Permission value:', perm, 'for', moduleId, actionId);
-            
-            // 1. Explicit allow
-            if (perm === true) {
-                console.log('  ✅ Explicit custom permission granted');
-                return true;
-            }
-            
-            // 2. Explicit deny
-            if (perm === false) {
-                console.log('  ❌ Explicit custom permission denied');
-                return false;
-            }
-
-            // 3. Undefined -> Fallback to base role if defined, else deny
-            const baseRole = customRole.baseRole;
-            if (baseRole && rbac[baseRole]) {
-                const basePerm = rbac[baseRole]?.[moduleId]?.[actionId] ?? false;
-                console.log(`  ℹ️  Custom permission undefined, falling back to base role (${baseRole}):`, basePerm);
-                return basePerm;
-            }
-
-            // TEMPORARY FIX: For CRM module, default allow edit/assign/delete if not explicitly denied
-            // This restores actions that disappeared due to missing permission configuration
-            if (moduleId === 'crm' && ['edit', 'assign', 'delete'].includes(actionId)) {
-                console.log(`  ⚠️  CRM ${actionId} permission undefined - defaulting to ALLOW for backward compatibility`);
-                return true;
-            }
-
-            console.log('  ❌ Custom permission undefined and no base role fallback, denying');
-            return false;
-        }
-
-        // 3. Base RBAC - for standard roles (Admin, Sales, etc.)
-        const rbacVal = rbac[normalizedRoleId]?.[moduleId]?.[actionId] ?? rbac[roleIdTrimmed]?.[moduleId]?.[actionId];
-        console.log('  📋 Checking standard RBAC:', { normalizedRoleId, roleId: roleIdTrimmed, result: rbacVal });
-        return rbacVal ?? false;
-    }, [flags, userOverrides, customRoles, rbac]);
+        return user?.dataScope || 'ALL';
+    }, []);
 
     /** Backward-compat: role-only check (no user id) */
     const hasPermission = useCallback((role, moduleId, actionId) =>
@@ -1256,7 +969,7 @@ export const SettingsProvider = ({ children }) => {
         rollbackAudit,
         // Permission helpers
         isModuleEnabled, isFeatureEnabled, isActionEnabled,
-        canRoleDo, hasPermission, hasPermissionForUser, resolvePermission,
+        canRoleDo, hasPermission, hasPermissionForUser, resolvePermission, getDataScope,
         // Project type APIs
         getProjectTypeCfg, updateProjectTypeField, resetProjectType, resetAllProjectTypes,
         // Utility
@@ -1277,7 +990,7 @@ export const SettingsProvider = ({ children }) => {
         toggleWorkflow, addWorkflow, deleteWorkflow,
         rollbackAudit,
         isModuleEnabled, isFeatureEnabled, isActionEnabled,
-        canRoleDo, hasPermission, hasPermissionForUser, resolvePermission,
+        canRoleDo, hasPermission, hasPermissionForUser, resolvePermission, getDataScope,
         getProjectTypeCfg, updateProjectTypeField, resetProjectType, resetAllProjectTypes,
         getEnrichedUsers,
     ]);

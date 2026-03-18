@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, UnauthorizedException, BadRequestException } from '@nestjs/common';
+
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcryptjs';
@@ -87,14 +88,21 @@ export class AuthService {
       // Get employee permissions from role
       const rolePermissions = await this.getEmployeeRolePermissions(employee.roleId);
       
+      // Build dataScope object for all modules
+      const dataScopeObj: Record<string, string> = {};
+      const modules = ['employees', 'attendance', 'leaves', 'payroll', 'increments', 'departments'];
+      for (const m of modules) {
+        dataScopeObj[m] = 'OWN'; // Default to OWN for employees
+      }
+      
       const payload = {
         sub: String(employee._id),
         role: 'Employee',
         tenantId: employee.tenantId ? String(employee.tenantId) : null,
         isSuperAdmin: false,
         customRoleId: employee.roleId || null,
-        dataScope: (employee as any).dataScope || 'ASSIGNED',
         permissions: rolePermissions,
+        dataScope: dataScopeObj,
         isEmployee: true,
       };
 
@@ -109,7 +117,8 @@ export class AuthService {
           tenantId: employee.tenantId ? String(employee.tenantId) : null,
           isSuperAdmin: false,
           roleId: employee.roleId || null,
-          dataScope: (employee as any).dataScope || 'ASSIGNED',
+          permissions: rolePermissions,
+          dataScope: dataScopeObj,
           isEmployee: true,
           firstName: employee.firstName,
           lastName: employee.lastName,
@@ -120,8 +129,11 @@ export class AuthService {
 
     // Handle regular user login
     // Check for custom role override
+    console.log('[AUTH DEBUG] Looking up user override for userId:', user!._id.toString());
     const userOverride = await this.userOverrideModel.findOne({ userId: user!._id }).lean();
+    console.log('[AUTH DEBUG] User override found:', userOverride);
     const customRoleId = userOverride?.customRoleId || null;
+    console.log('[AUTH DEBUG] Extracted customRoleId:', customRoleId);
 
     // Determine dataScope: default to 'ALL' for admins, 'ASSIGNED' for others
     const roleLower = (user!.role || '').toLowerCase();
@@ -130,7 +142,58 @@ export class AuthService {
       || roleLower === 'superadmin'
       || roleLower === 'super-admin'
       || roleLower === 'super_admin';
-    const dataScope = isAdminLike ? 'ALL' : 'ASSIGNED';
+    const globalDataScope = isAdminLike ? 'ALL' : 'ASSIGNED';
+    
+    // Build permissions and dataScope objects
+    const userPermissions: Record<string, Record<string, boolean>> = {};
+    const dataScopeObj: Record<string, string> = {};
+    
+    // Get all available modules
+    const allModules = ['dashboard', 'crm', 'survey', 'design', 'documents', 'procurement', 'inventory', 'project', 'logistics', 'installation', 'commissioning', 'finance', 'service', 'compliance', 'admin', 'settings', 'hrm', 'employees', 'attendance', 'leaves', 'payroll', 'increments', 'departments'];
+    
+    for (const module of allModules) {
+      // Default: admins get full access, others get minimal
+      const isHrmModule = ['employees', 'attendance', 'leaves', 'payroll', 'increments', 'departments'].includes(module);
+      if (isHrmModule) {
+        // For HRM modules, use HRM permissions
+        userPermissions[module] = { view: false, create: false, edit: false, delete: false };
+        dataScopeObj[module] = isAdminLike ? 'ALL' : 'OWN';
+      } else {
+        // For other modules, base role permissions
+        const basePerms = this.getBaseRolePermissions(user!.role, module);
+        userPermissions[module] = basePerms;
+        dataScopeObj[module] = isAdminLike ? 'ALL' : 'ASSIGNED';
+      }
+    }
+    
+    // Override HRM permissions with actual role permissions if roleId exists
+    if (customRoleId) {
+      try {
+        const { PermissionService } = require('../../modules/hrm/services/permission.service');
+        const permService = new PermissionService();
+        const hrmModulePerms = await permService.getAllRoleModulePermissions(customRoleId);
+        
+        console.log('[AUTH DEBUG] Custom roleId:', customRoleId, 'Found permissions:', hrmModulePerms.length);
+        
+        for (const modPerm of hrmModulePerms) {
+          const module = modPerm.module;
+          if (!userPermissions[module]) userPermissions[module] = {};
+          const actions = modPerm.actions || {};
+          console.log('[AUTH DEBUG] Applying permissions for module:', module, 'actions:', actions);
+          for (const [action, val] of Object.entries(actions)) {
+            userPermissions[module][action] = val === true;
+          }
+          dataScopeObj[module] = modPerm.dataScope || 'OWN';
+        }
+        
+        console.log('[AUTH DEBUG] Final userPermissions:', JSON.stringify(userPermissions, null, 2));
+      } catch (e) {
+        console.error('[AUTH DEBUG] Error fetching custom role permissions:', e);
+        // Use defaults if HRM service fails
+      }
+    } else {
+      console.log('[AUTH DEBUG] No customRoleId found for user');
+    }
 
     const payload = {
       sub: String(user!._id),
@@ -138,7 +201,8 @@ export class AuthService {
       tenantId: user!.tenantId ? String(user!.tenantId) : null,
       isSuperAdmin: Boolean(user!.isSuperAdmin),
       customRoleId: customRoleId,
-      dataScope: dataScope,
+      permissions: userPermissions,
+      dataScope: dataScopeObj,
     };
 
     const accessToken = await this.jwtService.signAsync(payload);
@@ -152,7 +216,8 @@ export class AuthService {
         tenantId: user!.tenantId ? String(user!.tenantId) : null,
         isSuperAdmin: Boolean(user!.isSuperAdmin),
         roleId: customRoleId,
-        dataScope: dataScope,
+        permissions: userPermissions,
+        dataScope: dataScopeObj,
       },
     };
   }
@@ -421,45 +486,98 @@ export class AuthService {
     };
   }
 
-  // Helper method to get employee role permissions
-  private async getEmployeeRolePermissions(roleId?: string): Promise<string[]> {
+  // Helper method to get employee role permissions - returns OBJECT format
+  private async getEmployeeRolePermissions(roleId?: string): Promise<Record<string, Record<string, boolean>>> {
+    const permissions: Record<string, Record<string, boolean>> = {};
+    
+    // Default modules structure
+    const modules = ['employees', 'attendance', 'leaves', 'payroll', 'increments', 'departments'];
+    modules.forEach(m => {
+      permissions[m] = { view: false, create: false, edit: false, delete: false };
+    });
+    
     if (!roleId) {
-      // Default permissions for all employees including technicians
-      return [
-        'hrm:view', 
-        'employees:view', 
-        'attendance:view', 
-        'leaves:view',
-        'payroll:view',
-        // Installation module permissions for technicians
-        'installation:view',
-        'installation:edit',
-        'installation:create',
-      ];
+      // Default for employees without role - minimal access
+      permissions.employees.view = true;
+      permissions.attendance.view = true;
+      permissions.attendance.checkin = true;
+      permissions.attendance.checkout = true;
+      permissions.leaves.view = true;
+      permissions.leaves.apply = true;
+      permissions.payroll.view = true;
+      return permissions;
     }
     
-    // Import PermissionService dynamically to avoid circular dependency
+    // Import PermissionService to get actual permissions
     try {
       const { PermissionService } = require('../../modules/hrm/services/permission.service');
-      // Return comprehensive permissions for employees
-      return [
-        'hrm:view', 
-        'employees:view', 
-        'attendance:view', 
-        'leaves:view',
-        'payroll:view',
-        // Installation module permissions
-        'installation:view',
-        'installation:edit',
-        'installation:create',
-      ];
+      const permService = new PermissionService();
+      
+      // Get module permissions for this role
+      const modulePerms = await permService.getAllRoleModulePermissions(roleId);
+      
+      for (const modPerm of modulePerms) {
+        const module = modPerm.module;
+        if (!permissions[module]) {
+          permissions[module] = {};
+        }
+        // Convert actions object to boolean map
+        const actions = modPerm.actions || {};
+        for (const [action, val] of Object.entries(actions)) {
+          permissions[module][action] = val === true;
+        }
+      }
+      
+      return permissions;
     } catch (e) {
-      return [
-        'hrm:view', 
-        'employees:view',
-        'installation:view',
-        'installation:edit',
-      ];
+      // Fallback to basic permissions if service fails
+      permissions.employees.view = true;
+      permissions.attendance.view = true;
+      permissions.attendance.checkin = true;
+      permissions.attendance.checkout = true;
+      permissions.leaves.view = true;
+      permissions.leaves.apply = true;
+      return permissions;
     }
+  }
+
+  // Get base role permissions for non-HRM modules
+  private getBaseRolePermissions(role: string, module: string): Record<string, boolean> {
+    const roleLower = (role || '').toLowerCase();
+    const isAdmin = roleLower === 'admin' || roleLower === 'superadmin' || roleLower === 'super admin';
+    
+    // Default permissions object
+    const defaultPerms = { view: false, create: false, edit: false, delete: false };
+    
+    // Admin gets all permissions
+    if (isAdmin) {
+      return { view: true, create: true, edit: true, delete: true };
+    }
+    
+    // Define module access by role
+    const roleModuleMap: Record<string, string[]> = {
+      'admin': ['dashboard', 'crm', 'survey', 'design', 'documents', 'procurement', 'inventory', 'project', 'logistics', 'installation', 'commissioning', 'finance', 'service', 'compliance', 'admin', 'settings', 'hrm'],
+      'manager': ['dashboard', 'crm', 'survey', 'design', 'procurement', 'inventory', 'project', 'logistics', 'installation', 'finance', 'service', 'hrm'],
+      'sales': ['dashboard', 'crm', 'quotations', 'leads'],
+      'technician': ['dashboard', 'installation', 'service'],
+      'hr': ['dashboard', 'hrm', 'employees', 'attendance', 'leaves'],
+      'employee': ['dashboard', 'hrm'],
+    };
+    
+    // Check if role has access to this module
+    const roleModules = roleModuleMap[roleLower] || roleModuleMap['employee'];
+    const hasAccess = roleModules.includes(module);
+    
+    if (!hasAccess) {
+      return defaultPerms;
+    }
+    
+    // Non-admin roles with access get view + limited create/edit
+    return {
+      view: true,
+      create: roleLower !== 'employee',
+      edit: roleLower !== 'employee',
+      delete: roleLower === 'manager' || roleLower === 'admin',
+    };
   }
 }

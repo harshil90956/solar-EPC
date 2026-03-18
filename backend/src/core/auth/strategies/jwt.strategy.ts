@@ -44,11 +44,10 @@ export interface JwtPayload {
   customRoleId?: string;
   tenantId?: any;
   isSuperAdmin?: boolean;
-  dataScope?: string;
+  dataScope?: string | Record<string, string>;
   department?: string;
   isEmployee?: boolean;
-  permissions?: string[];
-  modulePermissions?: any;
+  permissions?: Record<string, Record<string, boolean>>;
 }
 
 @Injectable()
@@ -86,7 +85,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     // DataScope logic: Payload takes priority for JWT-based auth
     const customRoleId = payload.customRoleId || (payload as any).roleId;
     
-    let effectiveDataScope: string;
+    // dataScope can be string (legacy) or Record<string, string> (new format)
+    let effectiveDataScope: string | Record<string, string>;
     const payloadDataScope = payload.dataScope;
 
     if (payloadDataScope) {
@@ -96,7 +96,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       effectiveDataScope = (isAdminLike || customRoleId) ? 'ALL' : 'ASSIGNED';
     }
 
-    const dataScope: 'ALL' | 'ASSIGNED' = effectiveDataScope === 'ALL' ? 'ALL' : 'ASSIGNED';
+    // For backward compatibility, if dataScope is a string, use it directly
+    // If it's an object, it will be passed through as-is
+    const dataScope: 'ALL' | 'ASSIGNED' | Record<string, string> = 
+      typeof effectiveDataScope === 'string' 
+        ? (effectiveDataScope === 'ALL' ? 'ALL' : 'ASSIGNED')
+        : effectiveDataScope;
 
     // Permissions matrix logic - silent load
     if (userId) {
@@ -127,8 +132,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       dataScope: dataScope,
       department: payload.department,
       isEmployee: payload.isEmployee || false,
-      permissions: payload.permissions || [],
-      modulePermissions: (payload as any).modulePermissions || payload.modulePermissions || {},
+      permissions: payload.permissions || {},
     };
   }
 }

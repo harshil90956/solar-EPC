@@ -22,8 +22,12 @@ import { api } from '../lib/apiClient';
 import { useQuery } from '@tanstack/react-query';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
+<<<<<<< HEAD
 import { usePermissions } from '../hooks/usePermissions';
 import HrmPermissionsPage from './HRMPermissionsPage';
+=======
+import HrmPermissionsPage from './HrmPermissionsPage';
+>>>>>>> 4332b2bef35989a625d08f6f24dd3ed9900b0693
 import AttendancePolicySettings from './AttendancePolicySettings';
 import { toast } from '../components/ui/Toast';
 import { CURRENCY } from '../config/app.config';
@@ -56,7 +60,8 @@ const LEAVE_TYPES = {
 
 // ==================== MAIN COMPONENT ====================
 const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
-  const { user } = useAuth();
+  const { user, can, getDataScope } = useAuth();
+  const { getDataScope: settingsGetDataScope } = useSettings();
 
   // Use initialTab prop if provided, otherwise default to 'employees'
   const [activeTab, setActiveTab] = useState(initialTab || 'employees');
@@ -70,45 +75,37 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
   }, [initialTab]);
   const [loading, setLoading] = useState(false);
 
-  // Permission hooks for each module
-  const employeePermissions = usePermissions('employees');
-  const leavePermissions = usePermissions('leaves');
-  const attendancePermissions = usePermissions('attendance');
-  const payrollPermissions = usePermissions('payroll');
-  const incrementPermissions = usePermissions('increments');
-  const departmentPermissions = usePermissions('departments');
+  // SINGLE SOURCE OF TRUTH: Direct permission checks from AuthContext
+  const canViewEmployees = can('employees', 'view');
+  const canManageEmployees = can('employees', 'edit') || can('employees', 'create');
+  const canDeleteEmployees = can('employees', 'delete');
 
-  const canViewEmployees = employeePermissions.canView();
-  const canManageEmployees = employeePermissions.canEdit() || employeePermissions.canCreate();
-  const canDeleteEmployees = employeePermissions.canDelete();
+  const canViewLeaves = can('leaves', 'view');
+  const canApplyLeave = can('leaves', 'create');
+  const canApproveLeave = can('leaves', 'approve');
 
-  const canViewLeaves = leavePermissions.canView();
-  const canApplyLeave = leavePermissions.canCreate();
-  const canApproveLeave = leavePermissions.canApprove();
+  const canViewAttendance = can('attendance', 'view');
+  const canCheckIn = can('attendance', 'checkin');
+  const canCheckOut = can('attendance', 'checkout');
+  const canManageAttendance = can('attendance', 'edit');
 
-  const canViewAttendanceSelf = attendancePermissions.canView();
-  const canViewAttendanceAll = attendancePermissions.canViewAll();
-  const canCheckInOut = attendancePermissions.canCheckin();
-  const canManageAttendance = attendancePermissions.canManage();
+  const canViewPayroll = can('payroll', 'view');
+  const canManagePayroll = can('payroll', 'edit') || can('payroll', 'create');
+  const canApprovePayroll = can('payroll', 'approve');
 
-  const canViewPayroll = payrollPermissions.canView();
-  const canManagePayroll = payrollPermissions.canEdit() || payrollPermissions.canCreate();
-  const canApprovePayroll = payrollPermissions.canApprove();
+  const canViewIncrements = can('increments', 'view');
+  const canManageIncrements = can('increments', 'edit') || can('increments', 'create');
 
-  const canViewIncrements = incrementPermissions.canView();
-  const canManageIncrements = incrementPermissions.canEdit() || incrementPermissions.canCreate();
+  const canViewDepartments = can('departments', 'view');
+  const canManageDepartments = can('departments', 'edit') || can('departments', 'create');
 
-  const canViewDepartments = departmentPermissions.canView();
-  const canManageDepartments = departmentPermissions.canEdit() || departmentPermissions.canCreate();
-
-  const canViewHrDashboard = user?.permissions?.dashboard?.view === true ||
-    user?.role?.toLowerCase() === 'admin' ||
-    user?.role?.toLowerCase() === 'superadmin';
+  const canViewHrDashboard = can('hrm', 'view');
 
   const isAdmin = user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'superadmin' || user?.isSuperAdmin;
 
-  const attendanceDataScope = user?.modulePermissions?.attendance?.dataScope || user?.permissions?.attendance?.dataScope;
-  const isAttendanceOwnScope = String(attendanceDataScope || '').toUpperCase() === 'OWN';
+  // Get data scope for attendance - single source of truth
+  const attendanceDataScope = getDataScope('attendance');
+  const isAttendanceOwnScope = attendanceDataScope === 'OWN';
 
   // Employee State
   const [employees, setEmployees] = useState([]);
@@ -227,14 +224,14 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
       roleId: user?.roleId || user?.role,
       visibleTabs: {
         employees: canViewEmployees,
-        attendance: (canViewAttendanceSelf || canViewAttendanceAll),
+        attendance: canViewAttendance,
         leaves: canViewLeaves,
         payroll: canViewPayroll,
         increments: canViewIncrements,
         departments: canViewDepartments,
       }
     });
-  }, [user, canViewEmployees, canViewAttendanceSelf, canViewAttendanceAll, canViewLeaves, canViewPayroll, canViewIncrements, canViewDepartments]);
+  }, [user, canViewEmployees, canViewAttendance, canViewLeaves, canViewPayroll, canViewIncrements, canViewDepartments]);
 
   useEffect(() => {
     if (activeTab === 'attendance') fetchAttendance();
@@ -1146,7 +1143,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
               if (activeTab === 'employees' && canManageEmployees) {
                 resetEmployeeForm();
                 setShowEmployeeModal(true);
-              } else if (activeTab === 'attendance' && canCheckInOut) {
+              } else if (activeTab === 'attendance' && (canCheckIn || canCheckOut)) {
                 const myId = user?.id || user?._id || user?.sub;
                 setAttendanceForm({ employeeId: isAttendanceOwnScope && myId ? String(myId) : '', type: 'office', notes: '' });
                 setShowAttendanceModal(true);
@@ -1220,7 +1217,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
                 Employees
               </button>
             )}
-            {(canViewAttendanceSelf || canViewAttendanceAll) && (
+            {canViewAttendance && (
               <button
                 onClick={() => onNavigate ? onNavigate('hrm-attendance') : setActiveTab('attendance')}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'attendance'
@@ -1364,7 +1361,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
           )}
 
           {/* ── Attendance Tab ── */}
-          {activeTab === 'attendance' && (canViewAttendanceSelf || canViewAttendanceAll) && (
+          {activeTab === 'attendance' && canViewAttendance && (
             <div className="space-y-4 animate-fade-in">
               {/* Header with Policy Button */}
               <div className="flex items-center justify-between">
@@ -1406,7 +1403,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
                 >
                   All Dates
                 </Button>
-                {canViewAttendanceAll && (
+                {!isAttendanceOwnScope && (
                   <div className="relative flex-1 max-w-xs ml-auto">
                     <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
                     <Input
@@ -1423,7 +1420,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
               </div>
 
               {/* Simple Stats Row */}
-              {canViewAttendanceAll && (
+              {!isAttendanceOwnScope && (
                 <div className="grid grid-cols-4 gap-3">
                   <div className="glass-card p-3 text-center border-l-4 border-emerald-500">
                     <p className="text-2xl font-bold text-emerald-500">
@@ -1472,7 +1469,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
               <div className="glass-card p-4">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-semibold">
-                    {selectedDate ? format(new Date(selectedDate), 'dd MMM yyyy') : 'All Dates'} - {canViewAttendanceAll ? 'Employee Attendance' : 'My Attendance'}
+                    {selectedDate ? format(new Date(selectedDate), 'dd MMM yyyy') : 'All Dates'} - {isAttendanceOwnScope ? 'My Attendance' : 'Employee Attendance'}
                   </h3>
                   <p className="text-sm text-[var(--text-muted)]">{filteredAttendance.length} records</p>
                 </div>
@@ -1481,7 +1478,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
                   {filteredAttendance.length === 0 ? (
                     <p className="text-center text-[var(--text-muted)] py-8">No records found</p>
                   ) : (
-                    (canViewAttendanceAll ? employees : employees.filter(e => e._id === user?.id)).map(emp => {
+                    (!isAttendanceOwnScope ? employees : employees.filter(e => e._id === user?.id)).map(emp => {
                       const date = selectedDate || new Date().toISOString().split('T')[0];
                       const record = attendance.find(a => {
                         const recordDate = new Date(a.date).toISOString().split('T')[0];
@@ -1541,7 +1538,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
                               </div>
                             ) : null}
 
-                            {record && !record.checkOut && (canCheckInOut || canManageAttendance) ? (
+                            {record && !record.checkOut && ((canCheckIn || canCheckOut) || canManageAttendance) ? (
                               <Button
                                 variant="outline"
                                 onClick={(e) => {
@@ -1552,7 +1549,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
                               >
                                 <LogOut size={12} /> Check Out
                               </Button>
-                            ) : !record && (canCheckInOut || canManageAttendance) ? (
+                            ) : !record && ((canCheckIn || canCheckOut) || canManageAttendance) ? (
                               <Button
                                 variant="outline"
                                 onClick={(e) => {
@@ -1576,7 +1573,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
               </div>
 
               {/* Attendance History Table */}
-              {canViewAttendanceAll && (
+              {!isAttendanceOwnScope && (
                 <div className="glass-card p-4">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-semibold">Attendance History</h3>
