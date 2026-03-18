@@ -78,7 +78,7 @@ const PayrollPage = () => {
     canDelete, 
     canExport, 
     canGenerate,
-    columns 
+    visibleColumns: columns 
   } = usePermissions('payroll');
   
   const [employees, setEmployees] = useState([]);
