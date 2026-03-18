@@ -1,5 +1,5 @@
-import { IsString, IsNumber, IsOptional, IsEnum, IsArray, ValidateNested, IsObject, IsDateString } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsString, IsNumber, IsOptional, IsArray, ValidateNested, IsObject, IsDateString, IsIn } from 'class-validator';
+import { Type, Transform } from 'class-transformer';
 import { PartialType } from '@nestjs/mapped-types';
 
 class MaterialItemDto {
@@ -110,6 +110,28 @@ export class CreateQuotationDto {
 
 export class UpdateQuotationDto extends PartialType(CreateQuotationDto) {
   @IsOptional()
-  @IsEnum(['Draft', 'Sent', 'Viewed', 'Approved', 'Rejected', 'Expired', 'ConvertedToProject'])
+  @Transform(({ value }) => {
+    if (typeof value !== 'string') return value;
+
+    const normalized = value.trim().toLowerCase();
+    const map: Record<string, string> = {
+      draft: 'Draft',
+      sent: 'Sent',
+      viewed: 'Viewed',
+      approved: 'Approved',
+      accepted: 'Approved',
+      signed: 'Approved',
+      paid: 'Approved',
+      pending: 'Sent',
+      rejected: 'Rejected',
+      expired: 'Expired',
+      convertedtoproject: 'ConvertedToProject',
+      converted_to_project: 'ConvertedToProject',
+      convertedtoprojects: 'ConvertedToProject',
+    };
+
+    return map[normalized] ?? value;
+  })
+  @IsIn(['Draft', 'Sent', 'Viewed', 'Approved', 'Rejected', 'Expired', 'ConvertedToProject'])
   status?: string;
 }

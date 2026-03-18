@@ -53,7 +53,7 @@ export class Project extends Document {
 
   @Prop({
     required: true,
-    enum: ['Survey', 'Design', 'Quotation', 'Procurement', 'Installation', 'Commissioned', 'On Hold', 'Cancelled'],
+    enum: ['Survey', 'Design', 'Quotation', 'Procurement', 'Logistics', 'Installation', 'Commissioned', 'On Hold', 'Cancelled'],
   })
   status!: string;
 
