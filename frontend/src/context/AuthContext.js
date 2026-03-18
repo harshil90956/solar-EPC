@@ -6,6 +6,30 @@ const AuthContext = createContext(null);
 const TOKEN_KEY = 'solar_token';
 const USER_KEY = 'solar_user';
 
+const shouldDebugLog = () => {
+  const v = String(process.env.REACT_APP_PERMISSION_DEBUG_LOGS || process.env.REACT_APP_AUTH_DEBUG_LOGS || '').toLowerCase();
+  return v === 'true';
+};
+
+const summarizePermissions = (perms) => {
+  let modules = 0;
+  let actions = 0;
+  let granted = 0;
+
+  if (!perms || typeof perms !== 'object') return { modules, actions, granted };
+
+  Object.values(perms).forEach((modulePerms) => {
+    modules += 1;
+    if (!modulePerms || typeof modulePerms !== 'object') return;
+    Object.values(modulePerms).forEach((v) => {
+      actions += 1;
+      if (v === true) granted += 1;
+    });
+  });
+
+  return { modules, actions, granted };
+};
+
 const sanitizeUserForStorage = (u) => {
   if (!u || typeof u !== 'object') return u;
   const {
@@ -36,8 +60,25 @@ export const AuthProvider = ({ children }) => {
   const tenantId = user?.tenantId || localStorage.getItem('tenantId');
 
   const fetchUser = useCallback(async () => {
+    if (shouldDebugLog()) {
+      const tokenPresent = Boolean(localStorage.getItem(TOKEN_KEY));
+      const tenantHeader = localStorage.getItem('tenantId');
+      console.log(
+        `[AUTH_DEBUG] fetchUser start endpoint=/auth/me tokenPresent=${tokenPresent ? 'true' : 'false'} tenantIdLocal=${String(tenantHeader || '')}`,
+      );
+    }
+
     const res = await api.get('/auth/me');
     const data = res?.data || res;
+
+    if (shouldDebugLog()) {
+      const permSummary = summarizePermissions(data?.permissions);
+      const scopeModules = data?.dataScope && typeof data?.dataScope === 'object' ? Object.keys(data.dataScope).length : 0;
+      console.log(
+        `[AUTH_DEBUG] fetchUser done endpoint=/auth/me permSummary=${JSON.stringify(permSummary)} scopeModules=${scopeModules} hasUser=${data?.user ? 'true' : 'false'}`,
+      );
+    }
+
     if (data?.user) setUser((prev) => sanitizeUserForStorage({ ...(prev || {}), ...(data.user || {}) }));
     setPermissions(data?.permissions || {});
     setDataScope(data?.dataScope || {});

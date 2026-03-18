@@ -136,11 +136,9 @@ export class AttendanceController {
     // Check data scope
     const scopeFilter = await this.getDataScopeFilter(req, 'attendance');
 
-    if (scopeFilter.employeeId && employeeId !== scopeFilter.employeeId) {
-      throw new ForbiddenException('You can only view your own attendance');
-    }
+    const effectiveEmployeeId = scopeFilter.employeeId ? scopeFilter.employeeId : employeeId;
 
-    const data = await this.attendanceService.findByEmployeeId(employeeId, tenantId, req.user);
+    const data = await this.attendanceService.findByEmployeeId(effectiveEmployeeId, tenantId, req.user);
     return { success: true, data };
   }
 
@@ -157,11 +155,9 @@ export class AttendanceController {
     // Check data scope
     const scopeFilter = await this.getDataScopeFilter(req, 'attendance');
 
-    if (scopeFilter.employeeId && employeeId !== scopeFilter.employeeId) {
-      throw new ForbiddenException('You can only view your own attendance summary');
-    }
+    const effectiveEmployeeId = scopeFilter.employeeId ? scopeFilter.employeeId : employeeId;
 
-    const data = await this.attendanceService.getMonthlySummary(employeeId, month, year, tenantId, req.user);
+    const data = await this.attendanceService.getMonthlySummary(effectiveEmployeeId, month, year, tenantId, req.user);
     return { success: true, data };
   }
 

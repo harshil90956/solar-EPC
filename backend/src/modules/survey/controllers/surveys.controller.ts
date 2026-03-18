@@ -15,7 +15,7 @@ export class SurveysController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @RequirePermission('surveys', 'create')
+  @RequirePermission('survey', 'create')
   create(@Body() createSurveyDto: CreateSurveyDto, @Request() req: any) {
     const tenantId = req.tenant?.id;
     this.logger.log(`[DEBUG] create survey - tenantId: ${tenantId}`);
@@ -23,7 +23,7 @@ export class SurveysController {
   }
 
   @Get()
-  @RequirePermission('surveys', 'view')
+  @RequirePermission('survey', 'view')
   findAll(@Query() query: QuerySurveyDto, @Request() req: any) {
     const tenantId = req.tenant?.id;
     const user = req.user;
@@ -36,7 +36,7 @@ export class SurveysController {
   }
 
   @Get('stats')
-  @RequirePermission('surveys', 'view')
+  @RequirePermission('survey', 'view')
   getStats(@Request() req: any) {
     const tenantId = req.tenant?.id;
     const user = req.user;
@@ -44,7 +44,7 @@ export class SurveysController {
   }
 
   @Get(':id')
-  @RequirePermission('surveys', 'view')
+  @RequirePermission('survey', 'view')
   findOne(@Param('id') id: string, @Request() req: any) {
     const tenantId = req.tenant?.id;
     const user = req.user;
@@ -52,7 +52,7 @@ export class SurveysController {
   }
 
   @Put(':id')
-  @RequirePermission('surveys', 'edit')
+  @RequirePermission('survey', 'edit')
   update(@Param('id') id: string, @Body() updateSurveyDto: UpdateSurveyDto, @Request() req: any) {
     const tenantId = req.tenant?.id;
     const user = req.user;
@@ -61,7 +61,7 @@ export class SurveysController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @RequirePermission('surveys', 'delete')
+  @RequirePermission('survey', 'delete')
   remove(@Param('id') id: string, @Request() req: any) {
     const tenantId = req.tenant?.id;
     const user = req.user;

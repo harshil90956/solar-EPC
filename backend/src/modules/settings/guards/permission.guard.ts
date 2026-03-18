@@ -21,6 +21,15 @@ export class PermissionGuard implements CanActivate {
       throw new UnauthorizedException('User not authenticated');
     }
 
+    const rawRole = String(user?.role || user?.roleName || user?.roleId || '').trim();
+    const normalizedRole = rawRole
+      .toUpperCase()
+      .replace(/\s+/g, '_')
+      .replace(/-+/g, '_');
+    if (user?.isSuperAdmin === true || normalizedRole === 'ADMIN' || normalizedRole === 'SUPER_ADMIN' || normalizedRole === 'SUPERADMIN') {
+      return true;
+    }
+
     // STEP 2: Check Tenant Context
     if (!tenantId) {
       throw new ForbiddenException('Tenant context missing. Access denied.');
@@ -51,6 +60,7 @@ export class PermissionGuard implements CanActivate {
       String(userId),
       String(tenantId),
       String(roleId),
+      user?.isSuperAdmin === true,
     );
 
     if (permissions?.[requiredModule]?.[requiredAction] !== true) {

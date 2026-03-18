@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, HttpCode, HttpStatus, UseGuards, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, HttpCode, HttpStatus, UseGuards, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { LeaveService } from '../services/leave.service';
 import { DataScope } from '../schemas/permission.schema';
 import { CreateLeaveDto, UpdateLeaveStatusDto, ApproveLeaveDto, GetLeaveQueryDto, UpdateLeaveDto } from '../dto/leave.dto';
@@ -118,7 +118,7 @@ export class LeaveController {
     if (scopeFilter.employeeId) {
       const leaveEmployeeId = data.employeeId?._id?.toString() || data.employeeId;
       if (leaveEmployeeId !== scopeFilter.employeeId) {
-        throw new ForbiddenException('You can only view your own leaves');
+        throw new NotFoundException('Leave not found');
       }
     }
 
@@ -208,12 +208,10 @@ export class LeaveController {
     // Check data scope - users can only view their own balance
     const scopeFilter = await this.getDataScopeFilter(req, 'leaves');
 
-    if (scopeFilter.employeeId && employeeId !== scopeFilter.employeeId) {
-      throw new ForbiddenException('You can only view your own leave balance');
-    }
+    const effectiveEmployeeId = scopeFilter.employeeId ? scopeFilter.employeeId : employeeId;
 
     const currentYear = year || new Date().getFullYear();
-    const data = await this.leaveService.getLeaveBalance(employeeId, currentYear, tenantId);
+    const data = await this.leaveService.getLeaveBalance(effectiveEmployeeId, currentYear, tenantId);
     return { success: true, data };
   }
 }

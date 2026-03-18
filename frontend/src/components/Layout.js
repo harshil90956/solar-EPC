@@ -132,8 +132,7 @@ const Layout = ({ currentPage, onNavigate, children }) => {
 
         const visibleChildren = item.children.filter((child) => {
           if (!isModuleEnabled(child.id)) return false;
-          const moduleKey = child.id.replace('hrm-', '');
-          return resolvePermission(moduleKey, 'view') === true;
+          return resolvePermission(child.id, 'view') === true;
         });
 
         if (!visibleChildren.length) return null;

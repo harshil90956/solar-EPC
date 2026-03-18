@@ -64,6 +64,47 @@ async function bootstrap() {
     }),
   );
 
+  const shouldDebugLog =
+    String(process.env.AUTH_DEBUG_LOGS || '').toLowerCase() === 'true' ||
+    String(process.env.PERMISSION_DEBUG_LOGS || '').toLowerCase() === 'true';
+
+  if (shouldDebugLog) {
+    const instance = app.getHttpAdapter().getInstance();
+    const shouldLogUrl = (urlRaw: any): boolean => {
+      const url = String(urlRaw || '');
+      return (
+        url.includes('/api/auth/me') ||
+        url.includes('/api/settings/rbac') ||
+        url.includes('/api/settings/custom') ||
+        url.includes('/api/settings/user') ||
+        url.includes('/api/settings/feature')
+      );
+    };
+
+    instance.addHook('onRequest', async (req: any) => {
+      if (!shouldLogUrl(req?.url)) return;
+      const tenantHeader = req?.headers?.['x-tenant-id'] || req?.headers?.['X-Tenant-Id'];
+      const authPresent = Boolean(req?.headers?.authorization);
+      console.log(
+        `[HTTP_DEBUG] req method=${String(req?.method || '')} url=${String(req?.url || '')} x-tenant-id=${String(tenantHeader || '')} authHeaderPresent=${authPresent}`,
+      );
+    });
+
+    instance.addHook('onSend', async (req: any, reply: any, payload: any) => {
+      if (!shouldLogUrl(req?.url)) return payload;
+      const size =
+        typeof payload === 'string'
+          ? payload.length
+          : Buffer.isBuffer(payload)
+            ? payload.length
+            : undefined;
+      console.log(
+        `[HTTP_DEBUG] res method=${String(req?.method || '')} url=${String(req?.url || '')} status=${Number(reply?.statusCode || 0)} payloadSize=${size === undefined ? 'unknown' : String(size)}`,
+      );
+      return payload;
+    });
+  }
+
   await app.register(multipart as any, {
     limits: {
       fileSize: 20 * 1024 * 1024,

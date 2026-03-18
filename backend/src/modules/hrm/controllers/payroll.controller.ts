@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, HttpCode, HttpStatus, UseGuards, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, HttpCode, HttpStatus, UseGuards, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PayrollService } from '../services/payroll.service';
 import { GeneratePayrollDto, GetPayrollQueryDto, MarkAsPaidDto, UpdatePayrollDto } from '../dto/payroll.dto';
 import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
@@ -52,14 +52,15 @@ export class PayrollController {
     const userId = user?.id || user?._id || user?.sub;
     const roleIdRaw = user?.roleId || user?.customRoleId || user?.role;
     const roleId = typeof roleIdRaw === 'string' ? roleIdRaw : (roleIdRaw ? String(roleIdRaw) : '');
-    if (!tenantId || !userId || !roleId) return 'ALL';
+    if (!tenantId || !userId || !roleId) return 'all';
 
     const { dataScope } = await this.permissionEngine.getPermissions(
       String(userId),
       String(tenantId),
       String(roleId),
     );
-    return dataScope?.[moduleId] || 'ALL';
+    const scopeRaw = dataScope?.[moduleId] || 'all';
+    return String(scopeRaw).toLowerCase();
   }
 
   @Post('generate')
@@ -93,7 +94,7 @@ export class PayrollController {
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
 
     const scope = await this.getDataScope(req, 'payroll');
-    const targetEmployeeId = scope === 'OWN' ? req.user.sub : query.employeeId;
+    const targetEmployeeId = scope === 'own' ? req.user.sub : query.employeeId;
 
     const data = await this.payrollService.findAll(
       targetEmployeeId,
@@ -110,6 +111,12 @@ export class PayrollController {
     await this.checkPermission(req, 'payroll.view');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const data = await this.payrollService.findOne(id, tenantId, req.user);
+
+    const scope = await this.getDataScope(req, 'payroll');
+    if (scope === 'own' && data?.employeeId?.toString?.() && data.employeeId.toString() !== req.user.sub) {
+      throw new NotFoundException('Payroll not found');
+    }
+
     return { success: true, data };
   }
 
@@ -117,7 +124,11 @@ export class PayrollController {
   async findByEmployee(@Param('employeeId') employeeId: string, @Req() req: any) {
     await this.checkPermission(req, 'payroll.view');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
-    const data = await this.payrollService.findByEmployeeId(employeeId, tenantId, req.user);
+
+    const scope = await this.getDataScope(req, 'payroll');
+    const effectiveEmployeeId = scope === 'own' ? req.user.sub : employeeId;
+
+    const data = await this.payrollService.findByEmployeeId(effectiveEmployeeId, tenantId, req.user);
     return { success: true, data };
   }
 
@@ -141,8 +152,8 @@ export class PayrollController {
     const data = await this.payrollService.getSalaryBreakdown(id, tenantId, req.user);
 
     const scope = await this.getDataScope(req, 'payroll');
-    if (scope === 'OWN' && data.employeeId?.toString() !== req.user.sub) {
-      throw new ForbiddenException('You can only view your own payroll');
+    if (scope === 'own' && data.employeeId?.toString() !== req.user.sub) {
+      throw new NotFoundException('Payroll not found');
     }
 
     return { success: true, data };
@@ -155,8 +166,8 @@ export class PayrollController {
     const data = await this.payrollService.getSalaryBreakdown(payrollId, tenantId, req.user);
 
     const scope = await this.getDataScope(req, 'payroll');
-    if (scope === 'OWN' && data.employeeId?.toString() !== req.user.sub) {
-      throw new ForbiddenException('You can only view your own payroll');
+    if (scope === 'own' && data.employeeId?.toString() !== req.user.sub) {
+      throw new NotFoundException('Payroll not found');
     }
 
     return { success: true, data };

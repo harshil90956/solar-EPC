@@ -862,11 +862,15 @@ export const SettingsProvider = ({ children }) => {
      * NO fallback, NO dual permission system
      */
     const resolvePermission = useCallback((moduleId, actionId) => {
-        const permModuleKey = (typeof moduleId === 'string' && moduleId.startsWith('hrm-'))
-            ? moduleId.replace('hrm-', '')
-            : moduleId;
+        if (!moduleId) return false;
 
-        return permissions?.[permModuleKey]?.[actionId] === true;
+        if (typeof moduleId === 'string' && moduleId.startsWith('hrm-')) {
+            if (permissions?.[moduleId]?.[actionId] === true) return true;
+            const stripped = moduleId.replace('hrm-', '');
+            return permissions?.[stripped]?.[actionId] === true;
+        }
+
+        return permissions?.[moduleId]?.[actionId] === true;
     }, [permissions]);
 
     /**
@@ -874,10 +878,15 @@ export const SettingsProvider = ({ children }) => {
      * Returns dataScope for a module from user.dataScope
      */
     const getDataScope = useCallback((moduleId) => {
-        const scopeModuleKey = (typeof moduleId === 'string' && moduleId.startsWith('hrm-'))
-            ? moduleId.replace('hrm-', '')
-            : moduleId;
-        return dataScope?.[scopeModuleKey] || 'ALL';
+        if (!moduleId) return 'ALL';
+
+        if (typeof moduleId === 'string' && moduleId.startsWith('hrm-')) {
+            if (typeof dataScope === 'object' && dataScope?.[moduleId]) return dataScope[moduleId];
+            const stripped = moduleId.replace('hrm-', '');
+            return dataScope?.[stripped] || 'ALL';
+        }
+
+        return dataScope?.[moduleId] || 'ALL';
     }, [dataScope]);
 
     /** Backward-compat: role-only check (no user id) */
