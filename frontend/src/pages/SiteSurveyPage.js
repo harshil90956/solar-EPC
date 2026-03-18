@@ -27,6 +27,7 @@ import { toast } from '../components/ui/Toast';
 import { PageHeader } from '../components/ui/PageHeader';
 import { KPICard } from '../components/ui/KPICard';
 import DataTable from '../components/ui/DataTable';
+import { downloadSurveyReportPDF } from '../lib/pdfGenerator';
 
 // ── Constants & Config ──────────────────────────────────────────────────────
 const STATUS_TABS = [
@@ -1722,11 +1723,11 @@ const CompletedSurveyPdfModal = ({ isOpen, onClose, survey }) => {
     }
   };
 
-  const handlePrint = () => {
+  const handleDownloadPdf = () => {
     try {
-      window.print();
+      downloadSurveyReportPDF(survey);
     } catch {
-      toast.error('Print failed');
+      toast.error('Download failed');
     }
   };
 
@@ -1881,8 +1882,8 @@ const CompletedSurveyPdfModal = ({ isOpen, onClose, survey }) => {
       footer={
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>Close</Button>
-          <Button variant="outline" onClick={handlePrint}>
-            <Download size={16} /> Print / Save PDF
+          <Button variant="outline" onClick={handleDownloadPdf}>
+            <Download size={16} /> Download PDF
           </Button>
         </div>
       }
@@ -2296,7 +2297,8 @@ const SiteSurveyPage = () => {
   const openCompleteModal = (s) => { setSelectedSurvey(s); setCompleteModalOpen(true); };
   const openDetailsModal  = (s) => {
     setSelectedSurvey(s);
-    if (s?.status === 'complete') {
+    const normalizedStatus = (s?.status ?? '').toString().trim().toLowerCase();
+    if (normalizedStatus === 'complete') {
       setPdfModalOpen(true);
       return;
     }
@@ -2321,17 +2323,17 @@ const SiteSurveyPage = () => {
     {
       label: 'Edit',
       icon: Edit2,
-      onClick: row => (row.status === 'complete' ? openCompleteModal(row) : openEditModal(row))
+      onClick: row => (((row?.status ?? '').toString().trim().toLowerCase() === 'complete') ? openCompleteModal(row) : openEditModal(row))
     },
-    { label: 'Start Survey', icon: Play,       onClick: row => openPendingModal(row), show: row => row.status === 'pending' },
-    { label: 'Fill Form',    icon: FileText,   onClick: row => openCompleteModal(row), show: row => row.status === 'active' },
+    { label: 'Start Survey', icon: Play,       onClick: row => openPendingModal(row), show: row => (row?.status ?? '').toString().trim().toLowerCase() === 'pending' },
+    { label: 'Fill Form',    icon: FileText,   onClick: row => openCompleteModal(row), show: row => (row?.status ?? '').toString().trim().toLowerCase() === 'active' },
     { label: 'Delete',       icon: Trash2,     onClick: row => handleDelete(row), danger: true },
   ];
 
   // Filtered surveys for current tab
-  const filteredSurveys = activeTab === 'all' 
-    ? surveys 
-    : surveys.filter(s => s.status === activeTab);
+  const filteredSurveys = activeTab === 'all'
+    ? surveys
+    : surveys.filter(s => (s?.status ?? '').toString().trim().toLowerCase() === activeTab);
 
   // Pagination Logic
   const totalPages = Math.ceil(filteredSurveys.length / itemsPerPage);
