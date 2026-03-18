@@ -132,33 +132,62 @@ export class LogisticsService {
 
 
   async create(data: Partial<Dispatch>, tenantId?: string): Promise<Dispatch> {
-
-    const lastDispatch = await this.dispatchModel.findOne().sort({ _id: -1 }).exec();
-
-    const nextId = lastDispatch ? this.generateNextId(lastDispatch.id) : 'DS001';
-
+    // Build query to find last dispatch with proper tenant filter
+    const query: any = {};
+    if (tenantId) {
+      const tid = this.toObjectId(tenantId);
+      if (tid) {
+        query.tenantId = tid;
+      }
+    }
     
+    // Find the last dispatch for this tenant, sorted by creation time
+    const lastDispatch = await this.dispatchModel.findOne(query).sort({ createdAt: -1 }).exec();
+    
+    // Generate next ID - if no dispatch exists or parsing fails, start from DS001
+    let nextId: string;
+    if (lastDispatch?.id && lastDispatch.id.startsWith('DS')) {
+      const numPart = lastDispatch.id.replace('DS', '');
+      const num = parseInt(numPart, 10);
+      if (isNaN(num)) {
+        nextId = 'DS001';
+      } else {
+        nextId = `DS${(num + 1).toString().padStart(3, '0')}`;
+      }
+    } else {
+      nextId = 'DS001';
+    }
 
+    // Check for collision and increment until we find a free ID
+    // Note: ID must be unique across ALL tenants (global unique index)
+    let collisionCheck = await this.dispatchModel.findOne({ id: nextId }).exec();
+    let maxAttempts = 1000;
+    let attempts = 0;
+    while (collisionCheck && attempts < maxAttempts) {
+      const numPart = nextId.replace('DS', '');
+      const num = parseInt(numPart, 10);
+      if (isNaN(num)) {
+        nextId = 'DS001';
+      } else {
+        nextId = `DS${(num + 1).toString().padStart(3, '0')}`;
+      }
+      collisionCheck = await this.dispatchModel.findOne({ id: nextId }).exec();
+      attempts++;
+    }
+    
+    console.log(`[LOGISTICS] Generated dispatch ID: ${nextId} (attempts: ${attempts})`);
+    
     // Set default dispatchDate if not provided
-
     const dispatchDate = data.dispatchDate || new Date().toISOString().split('T')[0];
-
     
-
     const newDispatch = new this.dispatchModel({
-
       ...data,
-
       id: nextId,
-
       dispatchDate,
-
       tenantId: tenantId ? this.toObjectId(tenantId) : undefined,
-
     });
 
     return newDispatch.save();
-
   }
 
 
@@ -788,21 +817,27 @@ export class LogisticsService {
 
 
   private generateNextId(lastId: string): string {
-
-    const num = parseInt(lastId.replace('DS', '')) + 1;
-
-    return `DS${num.toString().padStart(3, '0')}`;
-
+    if (!lastId || !lastId.startsWith('DS')) {
+      return 'DS001';
+    }
+    const numPart = lastId.replace('DS', '');
+    const num = parseInt(numPart, 10);
+    if (isNaN(num)) {
+      return 'DS001';
+    }
+    const nextNum = num + 1;
+    return `DS${nextNum.toString().padStart(3, '0')}`;
   }
 
 
 
   private generateNextVendorId(lastId: string): string {
-
-    const num = parseInt(lastId.replace('V', '')) + 1;
-
-    return `V${num.toString().padStart(3, '0')}`;
-
+    const num = parseInt(lastId.replace('V', '') || '0');
+    if (isNaN(num)) {
+      return 'V001';
+    }
+    const nextNum = num + 1;
+    return `V${nextNum.toString().padStart(3, '0')}`;
   }
 
 }
