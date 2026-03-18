@@ -78,7 +78,7 @@ const PayrollPage = () => {
     canDelete, 
     canExport, 
     canGenerate,
-    visibleColumns: columns 
+    columns 
   } = usePermissions('payroll');
   
   const [employees, setEmployees] = useState([]);
@@ -319,7 +319,8 @@ const PayrollPage = () => {
         <div className="flex items-center gap-2">
           {canEdit() && (
             <button
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 setEditingPayroll(record);
                 setPayrollForm({
                   employeeId: record.employeeId?._id || record.employeeId,
@@ -340,7 +341,10 @@ const PayrollPage = () => {
           )}
           {canDelete() && (
             <button
-              onClick={() => handleDeletePayroll(record._id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeletePayroll(record._id);
+              }}
               className="p-1.5 rounded-lg hover:bg-red-500/10 text-[var(--text-muted)] hover:text-red-500 transition-colors"
               title="Delete"
             >
@@ -425,9 +429,14 @@ const PayrollPage = () => {
       <DataTable
         columns={tableColumns}
         data={filteredPayrolls}
+        total={filteredPayrolls.length}
+        rowKey="_id"
         emptyText="No payroll records found."
         loading={loading}
+        onRowClick={(row) => setViewPayroll(row)}
       />
+
+      <PayrollViewModal payroll={viewPayroll} onClose={() => setViewPayroll(null)} />
 
       {/* Generate Payroll Modal */}
       {showPayrollModal && (

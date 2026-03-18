@@ -396,6 +396,8 @@ const IncrementsPage = () => {
         data={filteredIncrements}
         emptyText="No increment records found."
         loading={loading}
+        rowKey="_id"
+        onRowClick={(row) => setViewIncrement(row)}
         expandedRowKey={viewIncrement?._id}
         renderExpanded={(increment) => (
           <div className="p-4 border-t border-[var(--border-muted)] bg-gradient-to-b from-white to-[var(--bg-elevated)]">

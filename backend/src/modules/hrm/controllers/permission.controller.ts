@@ -208,7 +208,7 @@ export class PermissionController {
     @Request() req: any,
     @Query('tenantId') tenantId?: string,
   ): Promise<any> {
-    const tid = tenantId || req?.tenant?.id;
+    const tid = tenantId || req?.tenant?.id || req?.user?.tenantId;
     const permission = await this.permissionService.setRoleModulePermission(
       roleId,
       module,
@@ -237,7 +237,7 @@ export class PermissionController {
     @Request() req: any,
     @Query('tenantId') tenantId?: string,
   ): Promise<any> {
-    const tid = tenantId || req?.tenant?.id;
+    const tid = tenantId || req?.tenant?.id || req?.user?.tenantId;
     const results = [];
     for (const [module, config] of Object.entries(body.permissions)) {
       const permission = await this.permissionService.setRoleModulePermission(
