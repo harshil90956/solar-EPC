@@ -475,6 +475,10 @@ export class InvoiceService {
 
     const isBackward = order[status] < order[previousStatus];
 
+    // Allow Overdue -> Partial and Overdue -> Paid even though they're technically backward
+    const backwardAllowedFromOverdue = previousStatus === 'Overdue' && 
+      (status === 'Partial' || status === 'Paid');
+
     const allowedTransitions = new Set<string>([
       'Draft->Sent',
       'Draft->Pending',
@@ -486,11 +490,13 @@ export class InvoiceService {
       'Pending->Overdue',
       'Partial->Overdue',
       'Sent->Overdue',
+      'Overdue->Partial',
+      'Overdue->Paid',
     ]);
 
     const transitionKey = `${previousStatus}->${status}`;
 
-    if (isBackward) {
+    if (isBackward && !backwardAllowedFromOverdue) {
       throw new BadRequestException('Invoice status cannot be moved backward.');
     }
 
