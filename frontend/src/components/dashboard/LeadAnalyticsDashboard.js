@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -972,183 +972,125 @@ const LeadAnalyticsDashboard = ({ onNavigate, onFilter, dateFilter }) => {
   const [showCards, setShowCards] = useState(true);
 
   const queryOpts = {
-    refetchInterval: 30000, // Refresh every 30 seconds for live data
-    staleTime: 30000
+    refetchInterval: false, // Disable auto-refresh
+    staleTime: 0, // Always consider data stale for immediate refetch on date change
+    cacheTime: 0, // Don't cache data
+    refetchOnWindowFocus: true,
+    refetchOnMount: true
   };
 
-  // Fetch all dashboard data
-  // eslint-disable-next-line no-unused-vars
-  const { data: kpisRaw, isLoading: kpisLoading, error: kpisError, refetch: refetchKpis } = useQuery({
-    // eslint-disable-next-line no-unused-vars
-    queryKey: ['leads-dashboard', 'kpis', dateFilter],
+  // Shared helper to convert dateFilter to start/end dates
+  const getDateRangeFromPreset = useCallback((preset) => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    let startDate, endDate;
+
+    switch (preset) {
+      case 'all':
+        return { startDate: null, endDate: null };
+      case 'today':
+        startDate = today;
+        endDate = new Date(today);
+        endDate.setHours(23, 59, 59, 999);
+        break;
+      case 'yesterday':
+        startDate = new Date(today);
+        startDate.setDate(startDate.getDate() - 1);
+        endDate = new Date(startDate);
+        endDate.setHours(23, 59, 59, 999);
+        break;
+      case 'last7days':
+        endDate = new Date(today);
+        endDate.setHours(23, 59, 59, 999);
+        startDate = new Date(today);
+        startDate.setDate(startDate.getDate() - 6);
+        startDate.setHours(0, 0, 0, 0);
+        break;
+      case 'last30days':
+        endDate = new Date(today);
+        endDate.setHours(23, 59, 59, 999);
+        startDate = new Date(today);
+        startDate.setDate(startDate.getDate() - 29);
+        startDate.setHours(0, 0, 0, 0);
+        break;
+      case 'thisMonth':
+        startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+        endDate = new Date(today);
+        endDate.setHours(23, 59, 59, 999);
+        break;
+      case 'lastMonth':
+        startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        endDate = new Date(today.getFullYear(), today.getMonth(), 0);
+        endDate.setHours(23, 59, 59, 999);
+        break;
+      case 'custom':
+        if (dateFilter?.startDate && dateFilter?.endDate) {
+          startDate = new Date(dateFilter.startDate);
+          startDate.setHours(0, 0, 0, 0);
+          endDate = new Date(dateFilter.endDate);
+          endDate.setHours(23, 59, 59, 999);
+        }
+        break;
+      default:
+        return { startDate: null, endDate: null };
+    }
+
+    return { startDate, endDate };
+  }, [dateFilter]);
+
+  // Debug: Log dateFilter changes
+  useEffect(() => {
+    console.log('[DATE FILTER] Changed:', dateFilter);
+  }, [dateFilter]);
+
+  // ============================================
+  // UNIFIED DASHBOARD API - Single call for all data
+  // ============================================
+  const { 
+    data: dashboardData, 
+    isLoading: dashboardLoading, 
+    error: dashboardError,
+    refetch: refetchDashboard 
+  } = useQuery({
+    queryKey: ['leads-dashboard', 'unified', dateFilter],
     queryFn: async () => {
-      // Apply date filter to KPIs API call
       const params = {};
-
+      
       if (dateFilter) {
-        // Use same date range logic as leads
-        const getDateRangeFromPreset = (preset) => {
-          const now = new Date();
-          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          let startDate, endDate;
-
-          switch (preset) {
-            case 'all':
-              return { startDate: null, endDate: null };
-            case 'today':
-              startDate = today;
-              endDate = new Date(today);
-              endDate.setHours(23, 59, 59, 999);
-              break;
-            case 'yesterday':
-              startDate = new Date(today);
-              startDate.setDate(startDate.getDate() - 1);
-              endDate = new Date(startDate);
-              endDate.setHours(23, 59, 59, 999);
-              break;
-            case 'last7days':
-              endDate = new Date(today);
-              endDate.setHours(23, 59, 59, 999);
-              startDate = new Date(today);
-              startDate.setDate(startDate.getDate() - 6);
-              startDate.setHours(0, 0, 0, 0);
-              break;
-            case 'last30days':
-              endDate = new Date(today);
-              endDate.setHours(23, 59, 59, 999);
-              startDate = new Date(today);
-              startDate.setDate(startDate.getDate() - 29);
-              startDate.setHours(0, 0, 0, 0);
-              break;
-            case 'thisMonth':
-              startDate = new Date(today.getFullYear(), today.getMonth(), 1);
-              endDate = new Date(today);
-              endDate.setHours(23, 59, 59, 999);
-              break;
-            case 'lastMonth':
-              startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-              endDate = new Date(today.getFullYear(), today.getMonth(), 0);
-              endDate.setHours(23, 59, 59, 999);
-              break;
-            case 'custom':
-              if (dateFilter.startDate && dateFilter.endDate) {
-                startDate = new Date(dateFilter.startDate);
-                startDate.setHours(0, 0, 0, 0);
-                endDate = new Date(dateFilter.endDate);
-                endDate.setHours(23, 59, 59, 999);
-              }
-              break;
-            default:
-              return { startDate: null, endDate: null };
-          }
-
-          return { startDate, endDate };
-        };
-
         const { startDate, endDate } = getDateRangeFromPreset(dateFilter.type || dateFilter);
         if (startDate && endDate) {
           params.startDate = startDate.toISOString();
           params.endDate = endDate.toISOString();
         }
       }
-
-      const response = await leadsApi.getDashboardKpis(params);
-      return response?.data || response;
-    },
-    ...queryOpts,
-  });
-  const { data: funnelRaw, isLoading: funnelLoading } = useQuery({
-    queryKey: ['leads-dashboard', 'funnel'],
-    queryFn: async () => { const response = await leadsApi.getDashboardFunnel(); return response?.data || response; },
-    ...queryOpts,
-  });
-  const { data: monthlyRaw, isLoading: monthlyLoading } = useQuery({
-    queryKey: ['leads-dashboard', 'monthly'],
-    queryFn: async () => { const response = await leadsApi.getDashboardMonthly(); return response?.data || response; },
-    ...queryOpts,
-  });
-  const { data: performersRaw, isLoading: performersLoading } = useQuery({
-    queryKey: ['leads-dashboard', 'performers'],
-    queryFn: async () => {
-      const response = await leadsApi.getDashboardTopPerformers();
+      
+      // Add cache-busting timestamp
+      params._t = Date.now();
+      
+      console.log('[UNIFIED API CALL] Sending dates:', params);
+      const response = await leadsApi.getDashboard(params);
+      console.log('[UNIFIED API CALL] Response:', response);
+      
+      // Return the data object which contains all dashboard sections
       return response?.data || response;
     },
     ...queryOpts,
   });
 
-  const { data: sourcesRaw, isLoading: sourcesLoading } = useQuery({
-    queryKey: ['leads-dashboard', 'sources'],
-    queryFn: async () => { const response = await leadsApi.getDashboardSources(); return response?.data || response; },
-    ...queryOpts,
-  });
+  // Extract data sections from unified response
+  const kpis = dashboardData?.kpis || {};
+  const funnel = dashboardData?.funnel || {};
+  const sources = dashboardData?.sources || {};
+  const monthly = dashboardData?.monthly || {};
+  const performers = dashboardData?.topPerformers || {};
 
-  // Fetch leads for calendar and filtering
+  // Fetch leads for calendar and filtering (separate call)
   const { data: leadsRaw, isLoading: leadsLoading } = useQuery({
     queryKey: ['leads-dashboard', 'all-leads', dateFilter],
     queryFn: async () => {
-      // Apply same date filtering as CRM
       const params = { limit: 1000 };
 
       if (dateFilter) {
-        // Helper function to get date range based on preset
-        const getDateRangeFromPreset = (preset) => {
-          const now = new Date();
-          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          let startDate, endDate;
-
-          switch (preset) {
-            case 'all':
-              return { startDate: null, endDate: null };
-            case 'today':
-              startDate = today;
-              endDate = new Date(today);
-              endDate.setHours(23, 59, 59, 999);
-              break;
-            case 'yesterday':
-              startDate = new Date(today);
-              startDate.setDate(startDate.getDate() - 1);
-              endDate = new Date(startDate);
-              endDate.setHours(23, 59, 59, 999);
-              break;
-            case 'last7days':
-              endDate = new Date(today);
-              endDate.setHours(23, 59, 59, 999);
-              startDate = new Date(today);
-              startDate.setDate(startDate.getDate() - 6);
-              startDate.setHours(0, 0, 0, 0);
-              break;
-            case 'last30days':
-              endDate = new Date(today);
-              endDate.setHours(23, 59, 59, 999);
-              startDate = new Date(today);
-              startDate.setDate(startDate.getDate() - 29);
-              startDate.setHours(0, 0, 0, 0);
-              break;
-            case 'thisMonth':
-              startDate = new Date(today.getFullYear(), today.getMonth(), 1);
-              endDate = new Date(today);
-              endDate.setHours(23, 59, 59, 999);
-              break;
-            case 'lastMonth':
-              startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-              endDate = new Date(today.getFullYear(), today.getMonth(), 0);
-              endDate.setHours(23, 59, 59, 999);
-              break;
-            case 'custom':
-              if (dateFilter.startDate && dateFilter.endDate) {
-                startDate = new Date(dateFilter.startDate);
-                startDate.setHours(0, 0, 0, 0);
-                endDate = new Date(dateFilter.endDate);
-                endDate.setHours(23, 59, 59, 999);
-              }
-              break;
-            default:
-              return { startDate: null, endDate: null };
-          }
-
-          return { startDate, endDate };
-        };
-
         const { startDate, endDate } = getDateRangeFromPreset(dateFilter.type || dateFilter);
         if (startDate && endDate) {
           params.startDate = startDate.toISOString();
@@ -1156,7 +1098,11 @@ const LeadAnalyticsDashboard = ({ onNavigate, onFilter, dateFilter }) => {
         }
       }
 
+      params._t = Date.now();
+
+      console.log('[API CALL] All Leads - Sending dates:', params);
       const response = await leadsApi.getAll(params);
+      console.log('[API CALL] All Leads - Response count:', response?.data?.length || response?.length || 0);
       return response?.data || response || [];
     },
     ...queryOpts,
@@ -1164,17 +1110,12 @@ const LeadAnalyticsDashboard = ({ onNavigate, onFilter, dateFilter }) => {
 
   // Update last updated time when data refreshes
   useEffect(() => {
-    if (kpisRaw) {
+    if (dashboardData) {
       setLastUpdated(new Date());
       setIsLive(true);
     }
-  }, [kpisRaw]);
+  }, [dashboardData]);
 
-  const kpis = kpisRaw || {};
-  const funnel = funnelRaw || {};
-  const sources = sourcesRaw || {};
-  const monthly = monthlyRaw || {};
-  const performers = performersRaw || {};
   const leads = leadsRaw || [];
 
   // Calculate pending and dead leads from leads data
@@ -1201,11 +1142,11 @@ const LeadAnalyticsDashboard = ({ onNavigate, onFilter, dateFilter }) => {
     deadLeads
   };
 
-  const isLoading = kpisLoading || funnelLoading || sourcesLoading || monthlyLoading || performersLoading;
+  const isLoading = dashboardLoading || leadsLoading;
   const hasNoLeads = !finalKpis.totalLeads || finalKpis.totalLeads === 0;
 
   const handleRefresh = () => {
-    refetchKpis();
+    refetchDashboard();
     setLastUpdated(new Date());
   };
 
@@ -1366,14 +1307,14 @@ const LeadAnalyticsDashboard = ({ onNavigate, onFilter, dateFilter }) => {
 
       {/* Charts Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <FunnelChart data={funnel.stages} loading={funnelLoading} leads={leads} />
-        <SourceChart data={sources.sources} loading={sourcesLoading} leads={leads} />
+        <FunnelChart data={funnel.stages} loading={dashboardLoading} leads={leads} />
+        <SourceChart data={sources.sources} loading={dashboardLoading} leads={leads} />
       </div>
 
       {/* Charts Row 2 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <TrendChart data={monthly.months} loading={monthlyLoading} />
-        <AgentLeaderboard data={performers.performers} loading={performersLoading} leads={leads} />
+        <TrendChart data={monthly.months} loading={dashboardLoading} />
+        <AgentLeaderboard data={performers.performers} loading={dashboardLoading} leads={leads} />
       </div>
     </div>
   );
