@@ -34,6 +34,7 @@ import QuotationBuilderPage from './QuotationBuilderPage';
 import EquipmentPage from './EquipmentPage';
 import EstimatePage from './EstimatePage';
 import ProposalPage from './ProposalPage';
+import { toast } from '../components/ui/Toast';
 import { documentsApi } from '../services/documentsApi';
 
 const fmt = CURRENCY.format;
@@ -52,6 +53,51 @@ const DOCUMENT_STATUS = {
   signed: { label: 'Signed', color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
   paid: { label: 'Paid', color: '#059669', bg: 'rgba(5,150,105,0.12)' },
   pending: { label: 'Pending', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
+};
+
+// ── Status Cell Component (for using hooks in table column) ────────────────────
+const StatusCell = ({ status, doc, isProcessing, onUpdateStatus }) => {
+  const [statusMenuOpen, setStatusMenuOpen] = useState(false);
+  const config = DOCUMENT_STATUS[status] || DOCUMENT_STATUS.draft;
+  
+  return (
+    <div className="relative">
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setStatusMenuOpen(!statusMenuOpen);
+        }}
+        disabled={isProcessing}
+        className="px-2.5 py-1 rounded-full text-[10px] font-medium transition-all hover:opacity-80"
+        style={{ background: config.bg, color: config.color }}
+      >
+        {config.label}
+      </button>
+      
+      {statusMenuOpen && (
+        <div className="absolute left-0 mt-1 w-32 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1">
+          {Object.entries(DOCUMENT_STATUS).map(([statusKey, statusConfig]) => (
+            <button
+              key={statusKey}
+              onClick={(e) => {
+                e.stopPropagation();
+                onUpdateStatus(doc, statusKey);
+                setStatusMenuOpen(false);
+              }}
+              disabled={isProcessing || status === statusKey}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              <span 
+                className="w-2 h-2 rounded-full" 
+                style={{ background: statusConfig.color }}
+              />
+              <span>{statusConfig.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 };
 
 const DOCUMENT_TYPES = {
@@ -186,47 +232,57 @@ const DocumentPage = () => {
 
         // Extract real quotations
         const rawQuots = quotRes?.data || quotRes || [];
-        const formattedQuots = (Array.isArray(rawQuots) ? rawQuots : []).map(q => ({
-          id: q.quotationId || q._id,
-          dbId: q._id,
-          type: 'quotation',
-          title: q.notes || `Solar Quote - ${q.customerName}`,
-          customerName: q.customerName,
-          customerEmail: q.customerEmail,
-          customerPhone: q.customerPhone,
-          total: q.finalQuotationPrice,
-          status: q.status?.toLowerCase() || 'draft',
-          createdAt: q.createdAt,
-          validUntil: q.validUntil,
-          items: (q.materials || []).map(m => ({
-            name: m.name,
-            quantity: m.quantity,
-            unitPrice: m.unitPrice,
-            total: m.totalPrice
-          }))
-        }));
+        const formattedQuots = (Array.isArray(rawQuots) ? rawQuots : []).map(q => {
+          const statusRaw = (q.status ?? 'draft').toString().toLowerCase();
+          const status = statusRaw === 'approved' ? 'accepted' : statusRaw;
+
+          return ({
+            id: q.quotationId || q._id,
+            dbId: q._id,
+            type: 'quotation',
+            title: q.notes || `Solar Quote - ${q.customerName}`,
+            customerName: q.customerName,
+            customerEmail: q.customerEmail,
+            customerPhone: q.customerPhone,
+            total: q.finalQuotationPrice,
+            status,
+            createdAt: q.createdAt,
+            validUntil: q.validUntil,
+            items: (q.materials || []).map(m => ({
+              name: m.name,
+              quantity: m.quantity,
+              unitPrice: m.unitPrice,
+              total: m.totalPrice
+            }))
+          });
+        });
 
         // Extract real documents (Estimates, Proposals, etc.)
         const rawDocs = docsRes?.data?.data || docsRes?.data || [];
-        const formattedDocs = (Array.isArray(rawDocs) ? rawDocs : []).map(d => ({
-          id: d.documentId || d.id || d._id,
-          dbId: d._id,
-          type: d.type || 'estimate',
-          title: d.title || d.projectName || `Document - ${d.customerName}`,
-          customerName: d.customerName,
-          customerEmail: d.customerEmail,
-          customerPhone: d.customerPhone,
-          total: d.total || d.totalValue || 0,
-          status: d.status?.toLowerCase() || 'draft',
-          createdAt: d.createdAt,
-          validUntil: d.validUntil,
-          items: (d.items || []).map(i => ({
-            name: i.name,
-            quantity: i.quantity,
-            unitPrice: i.unitPrice,
-            total: i.total
-          }))
-        }));
+        const formattedDocs = (Array.isArray(rawDocs) ? rawDocs : []).map(d => {
+          const statusRaw = (d.status ?? 'draft').toString().toLowerCase();
+          const status = statusRaw === 'approved' ? 'accepted' : statusRaw;
+
+          return ({
+            id: d.documentId || d.id || d._id,
+            dbId: d._id,
+            type: d.type || 'estimate',
+            title: d.title || d.projectName || `Document - ${d.customerName}`,
+            customerName: d.customerName,
+            customerEmail: d.customerEmail,
+            customerPhone: d.customerPhone,
+            total: d.total || d.totalValue || 0,
+            status,
+            createdAt: d.createdAt,
+            validUntil: d.validUntil,
+            items: (d.items || []).map(i => ({
+              name: i.name,
+              quantity: i.quantity,
+              unitPrice: i.unitPrice,
+              total: i.total
+            }))
+          });
+        });
         
         if (!cancelled) {
           setRealQuotations(formattedQuots);
@@ -334,6 +390,39 @@ const DocumentPage = () => {
     }
   };
 
+  // ── Status Update Handler ─────────────────────────────────────────────────────
+  const handleUpdateStatus = async (doc, newStatus) => {
+    setIsProcessing(true);
+    try {
+      // Use different endpoints based on document type
+      let endpoint;
+      if (doc.type === 'quotation') {
+        endpoint = `/quotations/${doc.dbId || doc.id}`;
+      } else {
+        endpoint = `/documents/${doc.dbId || doc.id}`;
+      }
+      
+      // API call to update document/quotation status
+      await api.put(endpoint, { status: newStatus });
+      
+      // Update local state
+      setDocuments(docs => docs.map(d =>
+        d.id === doc.id ? { ...d, status: newStatus } : d
+      ));
+      setRealQuotations(quots => quots.map(q =>
+        q.id === doc.id ? { ...q, status: newStatus } : q
+      ));
+      
+      toast.success(`Status updated to ${newStatus}`);
+    } catch (error) {
+      console.error('Error updating status:', error);
+      toast.error('Failed to update status');
+    } finally {
+      setIsProcessing(false);
+      setActionMenuOpen(null);
+    }
+  };
+
   // ── New Action Handlers ──────────────────────────────────────────────────────
   const handleApproveDocument = async (doc) => {
     if (!window.confirm(`Approve ${doc.id} and create project?`)) return;
@@ -348,7 +437,7 @@ const DocumentPage = () => {
         mobileNumber: doc.customerPhone, // Mapped from customerPhone
         site: 'TBD', // Required by DTO
         systemSize: 0, // Required by DTO
-        status: 'Survey', // Must be one of the Enum values
+        status: 'Logistics', // Must be one of the Enum values
         pm: 'Unassigned', // Required by DTO
         startDate: new Date().toISOString(),
         progress: 0, // Required by DTO
@@ -372,7 +461,7 @@ const DocumentPage = () => {
       if (response.data) {
         // Update document status to approved
         setDocuments(docs => docs.map(d =>
-          d.id === doc.id ? { ...d, status: 'approved', approvedAt: new Date().toISOString() } : d
+          d.id === doc.id ? { ...d, status: 'accepted', approvedAt: new Date().toISOString() } : d
         ));
         
         alert(`✅ Project created successfully from ${doc.id}!`);
@@ -486,17 +575,14 @@ const DocumentPage = () => {
     {
       key: 'status',
       header: 'Status',
-      render: v => {
-        const config = DOCUMENT_STATUS[v] || DOCUMENT_STATUS.draft;
-        return (
-          <span
-            className="px-2.5 py-1 rounded-full text-[10px] font-medium"
-            style={{ background: config.bg, color: config.color }}
-          >
-            {config.label}
-          </span>
-        );
-      },
+      render: (v, doc) => (
+        <StatusCell 
+          status={v} 
+          doc={doc} 
+          isProcessing={isProcessing} 
+          onUpdateStatus={handleUpdateStatus} 
+        />
+      ),
     },
     {
       key: 'actions',
@@ -515,13 +601,58 @@ const DocumentPage = () => {
           </button>
           
           {actionMenuOpen === doc.id && (
-            <div className="action-menu-container absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1">
+            <>
+              {/* Backdrop to close menu when clicking outside */}
+              <div 
+                className="fixed inset-0 z-[9998]"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActionMenuOpen(null);
+                }}
+              />
+              <div 
+                className="action-menu-container fixed z-[9999] w-56 bg-white border border-gray-200 rounded-lg shadow-2xl py-2"
+                style={{
+                  right: '20px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                }}
+              >
+                {/* Status Update Submenu */}
+                <div className="px-3 py-2 text-[11px] font-bold text-gray-600 uppercase tracking-wider border-b border-gray-100">
+                  Change Status
+                </div>
+                <div className="py-1">
+                  {Object.entries(DOCUMENT_STATUS).map(([statusKey, statusConfig]) => (
+                    <button
+                      key={statusKey}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleUpdateStatus(doc, statusKey);
+                      }}
+                      disabled={isProcessing || doc.status === statusKey}
+                      className="w-full flex items-center gap-3 px-4 py-2 text-sm text-left hover:bg-gray-50 transition-colors disabled:opacity-50"
+                    >
+                      <span 
+                        className="w-3 h-3 rounded-full flex-shrink-0" 
+                        style={{ background: statusConfig.color }}
+                      />
+                      <span className="flex-1">{statusConfig.label}</span>
+                      {doc.status === statusKey && (
+                        <span className="text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded">Current</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              
+              <div className="border-t border-gray-200 my-1" />
+              
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   handleApproveDocument(doc);
                 }}
-                disabled={isProcessing || doc.status === 'approved'}
+                disabled={isProcessing || doc.status === 'accepted'}
                 className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-gray-50 transition-colors disabled:opacity-50"
               >
                 <CheckCircle size={14} className="text-emerald-500" />
@@ -552,6 +683,8 @@ const DocumentPage = () => {
                 <span>Mark as Completed</span>
               </button>
               
+              <div className="border-t border-gray-200 my-1" />
+              
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -564,7 +697,8 @@ const DocumentPage = () => {
                 <span>Delete</span>
               </button>
             </div>
-          )}
+          </>
+        )}
         </div>
       ),
     },

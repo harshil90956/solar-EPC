@@ -50,6 +50,7 @@ const QuotationBuilderPage = () => {
       batteryOption: '',
       mountingStructure: ''
     },
+    paymentTerms: '', // User will enter payment terms percentage
     materials: [{
       itemId: `TEMP-${Date.now()}`,
       name: '',
@@ -267,8 +268,15 @@ const QuotationBuilderPage = () => {
     setSaving(true);
     try {
       const payload = { ...quotation, status };
-      await api.post('/quotations', payload);
+      console.log('Payload being sent:', payload); // Debug paymentTerms
+      const response = await api.post('/quotations', payload);
+      console.log('Response:', response.data); // Debug saved quotation
       toast.success(`Quotation ${status === 'Draft' ? 'saved as draft' : 'created'}!`);
+      
+      // Navigate to documents page to show saved quotation
+      setTimeout(() => {
+        window.location.href = '/documents';
+      }, 1500);
     } catch (err) {
       console.error('Save error:', err);
       // Detailed error message from backend
@@ -414,6 +422,17 @@ const QuotationBuilderPage = () => {
                   onChange={(e) => setQuotation(prev => ({ 
                     ...prev, 
                     systemConfig: { ...prev.systemConfig, systemSize: parseFloat(e.target.value) || 0 } 
+                  }))}
+                />
+              </FormField>
+              <FormField label="Payment Terms %">
+                <Input 
+                  type="number"
+                  placeholder="e.g., 50"
+                  value={quotation.paymentTerms}
+                  onChange={(e) => setQuotation(prev => ({ 
+                    ...prev, 
+                    paymentTerms: e.target.value === '' ? '' : parseFloat(e.target.value)
                   }))}
                 />
               </FormField>

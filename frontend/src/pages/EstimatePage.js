@@ -414,7 +414,7 @@ const EstimatePage = () => {
         mobileNumber: doc.customerPhone,
         site: doc.projectLocation || 'TBD',
         systemSize: doc.systemCapacity || 0,
-        status: 'Survey',
+        status: 'Logistics',
         pm: 'Unassigned',
         startDate: new Date().toISOString(),
         progress: 0,

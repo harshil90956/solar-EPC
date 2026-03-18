@@ -468,6 +468,423 @@ export const printEstimate = (estimate, company) => {
   });
 };
 
+let surveyReportDownloadQueue = Promise.resolve();
+
+export const generateSurveyReportPDF = (survey) => {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+  const pageWidth = doc.internal.pageSize.width;
+  const pageHeight = doc.internal.pageSize.height;
+
+  const primaryColor = [15, 23, 42];
+  const borderColor = [226, 232, 240];
+  const textColor = [15, 23, 42];
+  const mutedColor = [100, 116, 139];
+
+  const activeData = survey?.activeData || {};
+  const completeData = survey?.completeData || {};
+
+  const safeText = (v, fallback = '—') => {
+    if (v === null || v === undefined) return fallback;
+    const s = String(v).trim();
+    return s ? s : fallback;
+  };
+
+  const formatDate = (d) => {
+    if (!d) return '—';
+    const dt = new Date(d);
+    if (Number.isNaN(dt.getTime())) return '—';
+    return dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+
+  const safeCapacity = (() => {
+    const val = (survey?.projectCapacity ?? '').toString().trim();
+    if (!val) return '—';
+    return val.toLowerCase().includes('kw') ? val : `${val} kWp`;
+  })();
+
+  const normalizeDrawing = (d) => {
+    if (!d || typeof d !== 'object') return null;
+    return {
+      lines: Array.isArray(d.lines) ? d.lines : [],
+      rects: Array.isArray(d.rects) ? d.rects : [],
+      circles: Array.isArray(d.circles) ? d.circles : [],
+      freehand: Array.isArray(d.freehand) ? d.freehand : [],
+      dimensions: Array.isArray(d.dimensions) ? d.dimensions : [],
+      textLabels: Array.isArray(d.textLabels) ? d.textLabels : [],
+    };
+  };
+
+  const getDrawingBounds = (drawingData) => {
+    const allPoints = [];
+
+    drawingData.lines.forEach((l) => {
+      if (typeof l?.startX === 'number' && typeof l?.startY === 'number') allPoints.push({ x: l.startX, y: l.startY });
+      if (typeof l?.endX === 'number' && typeof l?.endY === 'number') allPoints.push({ x: l.endX, y: l.endY });
+    });
+
+    drawingData.rects.forEach((r) => {
+      if (typeof r?.x === 'number' && typeof r?.y === 'number') allPoints.push({ x: r.x, y: r.y });
+      if (typeof r?.x2 === 'number' && typeof r?.y2 === 'number') allPoints.push({ x: r.x2, y: r.y2 });
+    });
+
+    drawingData.circles.forEach((c) => {
+      if (typeof c?.cx === 'number' && typeof c?.cy === 'number') allPoints.push({ x: c.cx, y: c.cy });
+      if (typeof c?.r === 'number' && typeof c?.cx === 'number' && typeof c?.cy === 'number') {
+        allPoints.push({ x: c.cx + c.r, y: c.cy + c.r });
+        allPoints.push({ x: c.cx - c.r, y: c.cy - c.r });
+      }
+    });
+
+    drawingData.freehand.forEach((stroke) => {
+      if (Array.isArray(stroke?.points)) {
+        stroke.points.forEach((p) => {
+          if (typeof p?.x === 'number' && typeof p?.y === 'number') allPoints.push({ x: p.x, y: p.y });
+        });
+      }
+    });
+
+    drawingData.textLabels.forEach((t) => {
+      if (typeof t?.x === 'number' && typeof t?.y === 'number') allPoints.push({ x: t.x, y: t.y });
+    });
+
+    if (allPoints.length === 0) return null;
+
+    const minX = Math.min(...allPoints.map((p) => p.x));
+    const minY = Math.min(...allPoints.map((p) => p.y));
+    const maxX = Math.max(...allPoints.map((p) => p.x));
+    const maxY = Math.max(...allPoints.map((p) => p.y));
+
+    return { minX, minY, maxX, maxY };
+  };
+
+  const safeHexToRgb = (hex) => {
+    if (typeof hex !== 'string') return null;
+    const h = hex.trim();
+    const m = /^#?([0-9a-f]{6})$/i.exec(h);
+    if (!m) return null;
+    const n = parseInt(m[1], 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  };
+
+  const setStrokeColor = (color, fallback = [37, 99, 235]) => {
+    const rgb = safeHexToRgb(color);
+    if (rgb) {
+      doc.setDrawColor(...rgb);
+      return;
+    }
+    doc.setDrawColor(...fallback);
+  };
+
+  const setTextFillColor = (color, fallback = [15, 23, 42]) => {
+    const rgb = safeHexToRgb(color);
+    if (rgb) {
+      doc.setTextColor(...rgb);
+      return;
+    }
+    doc.setTextColor(...fallback);
+  };
+
+  const renderDrawingToPdf = (drawingData, boxX, boxY, boxW, boxH) => {
+    const bounds = getDrawingBounds(drawingData);
+    if (!bounds) return false;
+
+    const pad = 20;
+    const minX = bounds.minX - pad;
+    const minY = bounds.minY - pad;
+    const srcW = (bounds.maxX - bounds.minX) + pad * 2;
+    const srcH = (bounds.maxY - bounds.minY) + pad * 2;
+    const safeSrcW = Math.max(1, srcW);
+    const safeSrcH = Math.max(1, srcH);
+
+    const scale = Math.min(boxW / safeSrcW, boxH / safeSrcH);
+
+    const tx = boxX + (boxW - safeSrcW * scale) / 2;
+    const ty = boxY + (boxH - safeSrcH * scale) / 2;
+
+    const mapX = (x) => tx + (x - minX) * scale;
+    const mapY = (y) => ty + (y - minY) * scale;
+
+    doc.setDrawColor(...borderColor);
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(boxX, boxY, boxW, boxH, 2, 2, 'FD');
+
+    drawingData.lines.forEach((l) => {
+      if (typeof l?.startX !== 'number' || typeof l?.startY !== 'number' || typeof l?.endX !== 'number' || typeof l?.endY !== 'number') return;
+      setStrokeColor(l?.color);
+      doc.setLineWidth(Math.max(0.15, Math.min(1.2, ((l?.strokeWidth || 2) * scale) / 2)));
+      doc.line(mapX(l.startX), mapY(l.startY), mapX(l.endX), mapY(l.endY));
+    });
+
+    drawingData.rects.forEach((r) => {
+      if (typeof r?.x !== 'number' || typeof r?.y !== 'number') return;
+      const x2 = (typeof r?.x2 === 'number') ? r.x2 : r.x;
+      const y2 = (typeof r?.y2 === 'number') ? r.y2 : r.y;
+      const x = Math.min(r.x, x2);
+      const y = Math.min(r.y, y2);
+      const w = Math.abs(x2 - r.x);
+      const h = Math.abs(y2 - r.y);
+      setStrokeColor(r?.color);
+      doc.setLineWidth(Math.max(0.15, Math.min(1.2, ((r?.strokeWidth || 2) * scale) / 2)));
+      doc.rect(mapX(x), mapY(y), w * scale, h * scale);
+    });
+
+    drawingData.circles.forEach((c) => {
+      if (typeof c?.cx !== 'number' || typeof c?.cy !== 'number' || typeof c?.r !== 'number') return;
+      setStrokeColor(c?.color);
+      doc.setLineWidth(Math.max(0.15, Math.min(1.2, ((c?.strokeWidth || 2) * scale) / 2)));
+      doc.circle(mapX(c.cx), mapY(c.cy), Math.max(0.2, c.r * scale));
+    });
+
+    const downsamplePoints = (points, maxPoints = 1200) => {
+      if (!Array.isArray(points) || points.length <= maxPoints) return points;
+      const step = Math.ceil(points.length / maxPoints);
+      const out = [];
+      for (let i = 0; i < points.length; i += step) out.push(points[i]);
+      if (out[out.length - 1] !== points[points.length - 1]) out.push(points[points.length - 1]);
+      return out;
+    };
+
+    drawingData.freehand.forEach((stroke) => {
+      const pts = downsamplePoints(Array.isArray(stroke?.points) ? stroke.points : []);
+      if (pts.length < 2) return;
+      setStrokeColor(stroke?.color);
+      doc.setLineWidth(Math.max(0.15, Math.min(1.0, ((stroke?.strokeWidth || 2) * scale) / 2)));
+      for (let i = 1; i < pts.length; i++) {
+        const p0 = pts[i - 1];
+        const p1 = pts[i];
+        if (typeof p0?.x !== 'number' || typeof p0?.y !== 'number' || typeof p1?.x !== 'number' || typeof p1?.y !== 'number') continue;
+        doc.line(mapX(p0.x), mapY(p0.y), mapX(p1.x), mapY(p1.y));
+      }
+    });
+
+    drawingData.textLabels.forEach((t) => {
+      if (typeof t?.x !== 'number' || typeof t?.y !== 'number') return;
+      const txt = safeText(t?.text, '');
+      if (!txt) return;
+      setTextFillColor(t?.color);
+      doc.setFont('helvetica', 'normal');
+      const fontSize = typeof t?.fontSize === 'number' ? t.fontSize : 12;
+      doc.setFontSize(Math.max(6, Math.min(16, fontSize * Math.max(0.35, scale))));
+      doc.text(txt, mapX(t.x), mapY(t.y));
+      doc.setTextColor(...textColor);
+    });
+
+    return true;
+  };
+
+  const addFooter = (pageNumber) => {
+    doc.setFontSize(8);
+    doc.setTextColor(...mutedColor);
+    doc.text('Generated by Solar EPC', 15, pageHeight - 8);
+    doc.text(String(pageNumber), pageWidth - 15, pageHeight - 8, { align: 'right' });
+  };
+
+  const addSectionTitle = (title, y) => {
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(...borderColor);
+    doc.roundedRect(15, y - 6, pageWidth - 30, 10, 2, 2, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(...textColor);
+    doc.text(title, 19, y);
+    return y + 10;
+  };
+
+  doc.setFillColor(...primaryColor);
+  doc.rect(0, 0, pageWidth, 28, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.text('Site Survey Report', 15, 17);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.text(`Survey ID: ${safeText(survey?.surveyId, '')}`, 15, 23);
+  doc.text(`Report Date: ${formatDate(completeData?.completionDate || survey?.updatedAt || survey?.createdAt)}`, pageWidth - 15, 23, { align: 'right' });
+
+  let y = 42;
+  y = addSectionTitle('Customer & Project', y);
+
+  autoTable(doc, {
+    startY: y,
+    theme: 'grid',
+    styles: { fontSize: 9, cellPadding: 3, lineColor: borderColor, lineWidth: 0.2 },
+    columnStyles: { 0: { cellWidth: 45, fontStyle: 'bold' }, 1: { cellWidth: 'auto' } },
+    margin: { left: 15, right: 15 },
+    body: [
+      ['Customer', safeText(survey?.clientName)],
+      ['City', safeText(survey?.city)],
+      ['Capacity', safeCapacity],
+      ['Floors', safeText(survey?.floors)],
+      ['Engineer', safeText(survey?.engineer)],
+      ['Survey Date', formatDate(activeData?.scheduledDate || survey?.createdAt)],
+    ],
+  });
+
+  y = (doc.lastAutoTable?.finalY || y) + 12;
+  y = addSectionTitle('Pre-Sales Site Assessment', y);
+
+  autoTable(doc, {
+    startY: y,
+    theme: 'grid',
+    styles: { fontSize: 9, cellPadding: 3, lineColor: borderColor, lineWidth: 0.2 },
+    columnStyles: { 0: { cellWidth: 60, fontStyle: 'bold' }, 1: { cellWidth: 'auto' } },
+    margin: { left: 15, right: 15 },
+    body: [
+      ['Roof Type', safeText(survey?.roofType ? String(survey.roofType).replaceAll('_', ' ') : '')],
+      ['Structure Type', safeText(survey?.structureType ? String(survey.structureType).replaceAll('_', ' ') : '')],
+      ['Structure Height', safeText(survey?.structureHeight ? `${survey.structureHeight}${survey?.customHeight ? ` (${survey.customHeight})` : ''}` : '')],
+      ['Module Type', safeText(survey?.moduleType)],
+      ['Solar Consultant', safeText(survey?.solarConsultant)],
+    ],
+  });
+
+  y = (doc.lastAutoTable?.finalY || y) + 12;
+
+  if (y > pageHeight - 55) {
+    addFooter(doc.internal.getNumberOfPages());
+    doc.addPage();
+    y = 20;
+  }
+
+  y = addSectionTitle('Survey Completion', y);
+
+  autoTable(doc, {
+    startY: y,
+    theme: 'grid',
+    styles: { fontSize: 9, cellPadding: 3, lineColor: borderColor, lineWidth: 0.2 },
+    columnStyles: { 0: { cellWidth: 60, fontStyle: 'bold' }, 1: { cellWidth: 'auto' } },
+    margin: { left: 15, right: 15 },
+    body: [
+      ['Completion Date', formatDate(completeData?.completionDate)],
+      ['Engineer Approval', completeData?.engineerApproval ? 'Approved' : 'Not Approved'],
+      ['Engineer Name', safeText(completeData?.engineerName || survey?.engineer)],
+      ['Panel Placement Details', safeText(completeData?.panelPlacementDetails)],
+      ['Final Notes', safeText(completeData?.finalNotes)],
+    ],
+  });
+
+  y = (doc.lastAutoTable?.finalY || y) + 12;
+
+  const notes = safeText(survey?.notes, '');
+  if (notes && notes !== '—') {
+    if (y > pageHeight - 40) {
+      addFooter(doc.internal.getNumberOfPages());
+      doc.addPage();
+      y = 20;
+    }
+    y = addSectionTitle('Notes', y + 2);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(...textColor);
+    const wrapped = doc.splitTextToSize(notes, pageWidth - 30);
+    doc.text(wrapped, 15, y);
+    y += wrapped.length * 5 + 6;
+  }
+
+  const drawingData = normalizeDrawing(completeData?.finalDrawing) || normalizeDrawing(activeData?.roofDrawing);
+  if (drawingData) {
+    const currentY = y + 18;
+    const needsNewPage = currentY > pageHeight - 130;
+    if (needsNewPage) {
+      addFooter(doc.internal.getNumberOfPages());
+      doc.addPage();
+      y = 20;
+    } else {
+      y = currentY;
+    }
+
+    y = addSectionTitle('Final Roof Layout', y);
+
+    const boxX = 15;
+    const boxW = pageWidth - 30;
+    const boxH = 95;
+    const boxY = y;
+    const rendered = renderDrawingToPdf(drawingData, boxX, boxY, boxW, boxH);
+    if (!rendered) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(...mutedColor);
+      doc.text('No drawing available', 15, y + 10);
+      doc.setTextColor(...textColor);
+    }
+    y = boxY + boxH + 12;
+  }
+
+  const finalImages = Array.isArray(completeData?.finalImages) ? completeData.finalImages : [];
+  const topImages = finalImages.slice(0, 3);
+  if (topImages.length > 0) {
+    if (y > pageHeight - 85) {
+      addFooter(doc.internal.getNumberOfPages());
+      doc.addPage();
+      y = 20;
+    }
+
+    y = addSectionTitle('Final Site Photos', y);
+
+    const gap = 4;
+    const imgW = (pageWidth - 30 - gap * 2) / 3;
+    const imgH = 40;
+    const imgY = y;
+    topImages.forEach((src, idx) => {
+      const x = 15 + idx * (imgW + gap);
+      doc.setDrawColor(...borderColor);
+      doc.setFillColor(255, 255, 255);
+      doc.rect(x, imgY, imgW, imgH, 'FD');
+
+      if (typeof src === 'string' && src.startsWith('data:image/')) {
+        const type = src.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+        try {
+          doc.addImage(src, type, x + 1, imgY + 1, imgW - 2, imgH - 2);
+        } catch {
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8);
+          doc.setTextColor(...mutedColor);
+          doc.text('Image not available', x + imgW / 2, imgY + imgH / 2, { align: 'center' });
+          doc.setTextColor(...textColor);
+        }
+      } else {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(...mutedColor);
+        doc.text('Image skipped', x + imgW / 2, imgY + imgH / 2, { align: 'center' });
+        doc.setTextColor(...textColor);
+      }
+    });
+
+    y = imgY + imgH + 12;
+  }
+
+  const pages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pages; i++) {
+    doc.setPage(i);
+    addFooter(i);
+  }
+
+  return doc.output('blob');
+};
+
+export const downloadSurveyReportPDF = (survey) => {
+  const task = async () => {
+    await new Promise((r) => setTimeout(r, 0));
+    const blob = generateSurveyReportPDF(survey);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const id = (survey?.surveyId || 'SURVEY').toString().replaceAll(' ', '_');
+    link.download = `SiteSurveyReport_${id}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  surveyReportDownloadQueue = surveyReportDownloadQueue
+    .then(task)
+    .catch(() => {});
+
+  return surveyReportDownloadQueue;
+};
+
 // Professional Color Palette
 const COLORS = {
   primary: [0, 128, 128],      // Teal

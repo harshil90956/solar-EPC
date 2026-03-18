@@ -194,6 +194,8 @@ const DataTable = ({
 
     };
 
+    const getSortKey = useCallback((col) => col?.sortKey ?? col?.key, []);
+
 
 
     const handleJump = (e) => {
@@ -300,7 +302,9 @@ const DataTable = ({
 
     const SortIcon = ({ col }) => {
 
-        if (sort.key !== col.key) return <ChevronDown size={11} className="text-[var(--text-faint)] opacity-50" />;
+        const sortKey = getSortKey(col);
+
+        if (sort.key !== sortKey) return <ChevronDown size={11} className="text-[var(--text-faint)] opacity-50" />;
 
         return sort.dir === 'asc'
 
@@ -471,7 +475,7 @@ const DataTable = ({
 
                                         style={col.width ? { width: col.width } : undefined}
 
-                                        onClick={() => col.sortable && handleSort(col.key)}
+                                        onClick={() => col.sortable && handleSort(getSortKey(col))}
 
                                     >
 

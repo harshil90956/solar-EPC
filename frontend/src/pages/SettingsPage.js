@@ -1711,7 +1711,7 @@ const UserPermissionsPanel = () => {
 
     const getEffectivePerm = (moduleId, actionId) => {
         if (!selectedUser) return false;
-        return resolvePermission(selectedUser.id, selectedUser.role, moduleId, actionId);
+        return resolvePermission(moduleId, actionId);
     };
 
     const getOverrideState = (moduleId, actionId) => {
@@ -1926,11 +1926,11 @@ const ViewAsPanel = () => {
     const previewUser = enrichedUsers.find(u => u.id === selectedUserId);
     const filteredMods = MODULE_DEFS.filter(m => !modFilter || m.label.toLowerCase().includes(modFilter.toLowerCase()));
 
-    const getPerms = (moduleId) => {
+    const getPermSnapshot = (moduleId) => {
         if (!previewUser) return {};
         return Object.fromEntries(ACTION_DEFS.map(act => [
             act.id,
-            resolvePermission(previewUser.id, previewUser.role, moduleId, act.id),
+            resolvePermission(moduleId, act.id),
         ]));
     };
 
@@ -2031,7 +2031,7 @@ const ViewAsPanel = () => {
                                     </thead>
                                     <tbody>
                                         {filteredMods.map((mod, i) => {
-                                            const perms = getPerms(mod.id);
+                                            const perms = getPermSnapshot(mod.id);
                                             const count = Object.values(perms).filter(Boolean).length;
                                             const ovr = userOverrides[previewUser.id]?.overrides?.[mod.id];
                                             const hasModOvr = ovr && Object.values(ovr).some(v => v !== null && v !== undefined);
@@ -2494,31 +2494,10 @@ const SettingsPage = () => {
             )}
 
             {/* ── STATS OVERVIEW ── */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                {[
-                    { label: 'Active Modules', value: `${enabledMods}/${MODULE_DEFS.length}`, icon: Flag, color: '#f59e0b' },
-                    { label: 'Feature Flags', value: `${onFlags}/${totalFlags} ON`, icon: Zap, color: '#3b82f6' },
-                    { label: 'Custom Roles', value: customRoleCount, icon: Layers, color: '#8b5cf6' },
-                    { label: 'Active Rules', value: activeWf, icon: GitBranch, color: '#22c55e' },
-                    { label: 'Audit Events', value: auditCount, icon: ScrollText, color: '#ec4899' },
-                ].map(s => {
-                    const Icon = s.icon;
-                    return (
-                        <div key={s.label} className="glass-card p-4 flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: s.color + '15', border: `1px solid ${s.color}25` }}>
-                                <Icon size={15} style={{ color: s.color }} />
-                            </div>
-                            <div>
-                                <p className="text-base font-extrabold text-[var(--text-primary)] leading-none">{s.value}</p>
-                                <p className="text-[10px] text-[var(--text-faint)] mt-1">{s.label}</p>
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
+            {null}
 
             {/* ── LIVE CONFIG JSON PREVIEW (collapsed) ── */}
-            <ConfigJSONPreview flags={flags} rbac={rbac} />
+            {null}
 
             {/* ── TAB NAV ── */}
             <div className="flex flex-nowrap gap-1 p-1 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-base)] overflow-x-auto">

@@ -15,6 +15,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Layout from './components/Layout';
 
 import LoginPage from './pages/LoginPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 
 import SolarOSDashboard from './pages/SolarOSDashboard';
 
@@ -295,6 +297,15 @@ const AppInner = () => {
 
   // ── Auth guard: redirect to login if no user ──
 
+  // Check for forgot password / reset password pages first (no auth needed)
+  const path = window.location.pathname.replace('/', '').trim();
+  if (path === 'forgot-password') {
+    return <ForgotPasswordPage />;
+  }
+  if (path === 'reset-password') {
+    return <ResetPasswordPage />;
+  }
+
   if (!user) return <LoginPage />;
 
 
@@ -306,18 +317,9 @@ const AppInner = () => {
   // Custom role / employee: only modules where view = true in Role Builder
 
   const hasAccess = (page) => {
-
-    if (page === 'dashboard') return true;
-
     if (!isModuleEnabled(page)) return false;
 
-    const userRole = (user?.role || '').toLowerCase();
-
-    if (user?.isSuperAdmin || userRole === 'admin' || userRole === 'superadmin') return true;
-
-    const roleId = user?.roleId || user?.role;
-
-    return resolvePermission(user?.id, roleId, page, 'view');
+    return resolvePermission(page, 'view') === true;
 
   };
 

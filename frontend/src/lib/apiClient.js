@@ -12,13 +12,7 @@ export const apiClient = axios.create({
 
 const getTenantId = () => {
     try {
-        // First try to get from user object
-        const user = JSON.parse(localStorage.getItem('solar_user') || '{}');
-        const userTenantId = user?.tenantId || user?.tenant?.id;
-        if (userTenantId && userTenantId !== 'default') {
-            return userTenantId;
-        }
-        // Fallback to tenantId stored separately (for pre-login requests)
+        // TenantId stored separately (for pre-login requests)
         const storedTenantId = localStorage.getItem('tenantId');
         if (storedTenantId && storedTenantId !== 'default') {
             return storedTenantId;
@@ -84,7 +78,20 @@ apiClient.interceptors.response.use(
 
 // ── Generic CRUD helpers ──
 export const api = {
-    get: (url, params = {}) => apiClient.get(url, { params }),
+    get: (url, paramsOrConfig = {}) => {
+        const cfg = paramsOrConfig || {};
+        // Backwards compatible:
+        // - api.get('/path', { a: 1 }) => treated as params
+        // - api.get('/path', { params: {...}, headers: {...} }) => treated as full axios config
+        const isAxiosConfig =
+            typeof cfg === 'object' &&
+            (Object.prototype.hasOwnProperty.call(cfg, 'params') ||
+                Object.prototype.hasOwnProperty.call(cfg, 'headers') ||
+                Object.prototype.hasOwnProperty.call(cfg, 'responseType') ||
+                Object.prototype.hasOwnProperty.call(cfg, 'timeout'));
+
+        return isAxiosConfig ? apiClient.get(url, cfg) : apiClient.get(url, { params: cfg });
+    },
     post: (url, data, config = {}) => apiClient.post(url, data, config),
     put: (url, data, config = {}) => apiClient.put(url, data, config),
     patch: (url, data, config = {}) => apiClient.patch(url, data, config),
