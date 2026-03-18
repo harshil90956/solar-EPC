@@ -13,6 +13,7 @@ import { ItemsService } from './services/items.service';
 import { InventoryService } from './services/inventory.service';
 import { LookupService } from './services/lookup.service';
 import { SettingsModule } from '../settings/settings.module';
+import { CommonModule } from '../../common/common.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { SettingsModule } from '../settings/settings.module';
       { name: InventoryReservation.name, schema: InventoryReservationSchema },
       { name: Tenant.name, schema: TenantSchema }
     ]),
+    CommonModule,
     SettingsModule,
   ],
   controllers: [ItemsController, LookupController],

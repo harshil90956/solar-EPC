@@ -7,7 +7,6 @@ import { Model, Types } from 'mongoose';
 import { User, UserDocument } from '../schemas/user.schema';
 import { CustomRole, CustomRoleDocument } from '../../../modules/settings/schemas/custom-role.schema';
 import { UserOverride, UserOverrideDocument } from '../../../modules/settings/schemas/user-override.schema';
-import { PermissionCacheService } from '../../../common/services/permission-cache.service';
 
 const jwtExtractor = (logger: Logger) =>
   ExtractJwt.fromExtractors([
@@ -44,10 +43,8 @@ export interface JwtPayload {
   customRoleId?: string;
   tenantId?: any;
   isSuperAdmin?: boolean;
-  dataScope?: string | Record<string, string>;
   department?: string;
   isEmployee?: boolean;
-  permissions?: Record<string, Record<string, boolean>>;
 }
 
 @Injectable()
@@ -58,7 +55,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     @InjectModel(CustomRole.name) private readonly customRoleModel: Model<CustomRoleDocument>,
     @InjectModel(UserOverride.name) private readonly userOverrideModel: Model<UserOverrideDocument>,
-    private readonly permissionCacheService: PermissionCacheService,
   ) {
     super({
       jwtFromRequest: jwtExtractor(new Logger(JwtStrategy.name)),
@@ -77,47 +73,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     const role = payload.role;
     const isSuperAdmin = payload.isSuperAdmin === true;
-    const isAdminLike = isSuperAdmin || (typeof role === 'string' && role.toLowerCase() === 'admin');
-
     const roleIdRaw = payload.customRoleId ?? payload.roleId ?? payload.role;
     const roleId = typeof roleIdRaw === 'string' ? roleIdRaw : (roleIdRaw?.roleId || roleIdRaw?._id || roleIdRaw);
 
-    // DataScope logic: Payload takes priority for JWT-based auth
-    const customRoleId = payload.customRoleId || (payload as any).roleId;
-    
-    // dataScope can be string (legacy) or Record<string, string> (new format)
-    let effectiveDataScope: string | Record<string, string>;
-    const payloadDataScope = payload.dataScope;
-
-    if (payloadDataScope) {
-      effectiveDataScope = payloadDataScope;
-    } else {
-      // Default: ALL for admins and custom-role users; ASSIGNED only for plain non-admin base roles
-      effectiveDataScope = (isAdminLike || customRoleId) ? 'ALL' : 'ASSIGNED';
-    }
-
-    // For backward compatibility, if dataScope is a string, use it directly
-    // If it's an object, it will be passed through as-is
-    const dataScope: 'ALL' | 'ASSIGNED' | Record<string, string> = 
-      typeof effectiveDataScope === 'string' 
-        ? (effectiveDataScope === 'ALL' ? 'ALL' : 'ASSIGNED')
-        : effectiveDataScope;
-
-    // Permissions matrix logic - silent load
-    if (userId) {
-      try {
-        const roleIdString = roleId ? String(roleId) : (typeof role === 'string' ? role : null);
-        if (roleIdString && tenantId) {
-          await this.permissionCacheService.getAllPermissions(
-            userId,
-            roleIdString,
-            tenantId
-          );
-        }
-      } catch (error: any) {
-        // Only warn on actual errors
-      }
-    }
+    const customRoleId = payload.customRoleId;
 
     return {
       id: userId,
@@ -129,10 +88,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       customRoleId: customRoleId,
       tenantId: tenantId,
       isSuperAdmin: isSuperAdmin,
-      dataScope: dataScope,
       department: payload.department,
       isEmployee: payload.isEmployee || false,
-      permissions: payload.permissions || {},
     };
   }
 }

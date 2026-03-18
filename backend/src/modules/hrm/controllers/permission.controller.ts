@@ -5,6 +5,7 @@ import { AdminGuard } from '../../../core/auth/guards/admin.guard';
 import { Permission } from '../schemas/permission.schema';
 import { Role } from '../schemas/role.schema';
 import { PermissionCacheService } from '../../../common/services/permission-cache.service';
+import { PermissionEngineService } from '../../../common/services/permission-engine.service';
 
 @Controller('hrm/permissions')
 @UseGuards(JwtAuthGuard)
@@ -12,6 +13,7 @@ export class PermissionController {
   constructor(
     private readonly permissionService: PermissionService,
     private readonly permissionCacheService: PermissionCacheService,
+    private readonly permissionEngine: PermissionEngineService,
   ) {}
 
   @Get()
@@ -217,6 +219,10 @@ export class PermissionController {
     
     // Invalidate cache for this role to ensure fresh permissions
     this.permissionCacheService.invalidateRoleCache(roleId, tid);
+
+    if (tid) {
+      await this.permissionEngine.invalidateTenantPermissions(String(tid));
+    }
     
     return {
       success: true,
@@ -246,6 +252,10 @@ export class PermissionController {
     
     // Invalidate cache after bulk update
     this.permissionCacheService.invalidateRoleCache(roleId, tid);
+
+    if (tid) {
+      await this.permissionEngine.invalidateTenantPermissions(String(tid));
+    }
     
     return {
       success: true,

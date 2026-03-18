@@ -15,7 +15,6 @@ import { Permission, PermissionSchema } from './schemas/permission.schema';
 import { Role, RoleSchema } from './schemas/role.schema';
 import { RoleColumnPermission, RoleColumnPermissionSchema } from './schemas/role-column-permission.schema';
 import { RoleModulePermission, RoleModulePermissionSchema } from './schemas/role-module-permission.schema';
-import { HrmPermission, HrmPermissionSchema } from './schemas/hrm-permission.schema';
 import { CompanyAttendancePolicy, CompanyAttendancePolicySchema } from './schemas/company-attendance-policy.schema';
 import { User, UserSchema } from '../../core/auth/schemas/user.schema';
 
@@ -27,7 +26,6 @@ import { PayrollService } from './services/payroll.service';
 import { SalaryIncrementService } from './services/salary-increment.service';
 import { DepartmentService } from './services/department.service';
 import { PermissionService } from './services/permission.service';
-import { HrmPermissionService } from './services/hrm-permission.service';
 import { AttendancePolicyService } from './services/attendance-policy.service';
 
 // Controllers
@@ -55,7 +53,6 @@ import { AttendancePolicyController } from './controllers/attendance-policy.cont
       { name: Role.name, schema: RoleSchema },
       { name: RoleColumnPermission.name, schema: RoleColumnPermissionSchema },
       { name: RoleModulePermission.name, schema: RoleModulePermissionSchema },
-      { name: HrmPermission.name, schema: HrmPermissionSchema },
       { name: CompanyAttendancePolicy.name, schema: CompanyAttendancePolicySchema },
       { name: User.name, schema: UserSchema },
     ]),
@@ -78,7 +75,6 @@ import { AttendancePolicyController } from './controllers/attendance-policy.cont
     SalaryIncrementService,
     DepartmentService,
     PermissionService,
-    HrmPermissionService,
     AttendancePolicyService,
   ],
   exports: [
@@ -89,7 +85,6 @@ import { AttendancePolicyController } from './controllers/attendance-policy.cont
     SalaryIncrementService,
     DepartmentService,
     PermissionService,
-    HrmPermissionService,
   ],
 })
 export class HrmModule {}

@@ -9,9 +9,23 @@ export class RedisService implements OnModuleDestroy {
   private readonly logger = new Logger(RedisService.name);
   private connectionAttempts = 0;
   private readonly maxConnectionAttempts = 5;
+  private subscriber: Redis | null = null;
 
   constructor(private configService: ConfigService) {
     this.initializeRedis();
+  }
+
+  private sanitizeRedisUrl(url: string): string {
+    try {
+      const u = new URL(url);
+      if (u.password) {
+        u.password = '***';
+      }
+      return u.toString();
+    } catch {
+      // Fallback: avoid leaking secrets in logs
+      return url.replace(/:\/\/[^:@/]+:([^@/]+)@/i, '://***:***@');
+    }
   }
 
   private initializeRedis(): void {
@@ -24,6 +38,7 @@ export class RedisService implements OnModuleDestroy {
     }
 
     try {
+      this.logger.log(`[Redis] Initializing client: ${this.sanitizeRedisUrl(redisUrl)} (TLS=${useTls ? 'on' : 'off'})`);
       this.client = new Redis(redisUrl, {
         tls: useTls ? {} : undefined,
         keepAlive: parseInt(this.configService.get('REDIS_KEEPALIVE') || '30000'),
@@ -42,6 +57,12 @@ export class RedisService implements OnModuleDestroy {
         lazyConnect: true,
         connectTimeout: 5000,
         disconnectTimeout: 2000,
+      });
+
+      // Force initial connect so the app prints Redis connected/ready logs on startup.
+      // With lazyConnect=true, ioredis won't connect until the first command otherwise.
+      this.client.connect().catch((err: any) => {
+        this.logger.error('[Redis] Initial connect failed:', err?.message || String(err));
       });
 
       this.client.on('connect', () => {
@@ -172,7 +193,55 @@ export class RedisService implements OnModuleDestroy {
     );
   }
 
+  async publish(channel: string, message: string): Promise<number> {
+    return this.safeExecute(
+      () => this.client!.publish(channel, message),
+      0,
+    );
+  }
+
+  async subscribe(channel: string, handler: (message: string) => void): Promise<void> {
+    if (!this.client) return;
+    if (!this.subscriber) {
+      try {
+        this.subscriber = this.client.duplicate();
+        await this.subscriber.connect();
+      } catch (err: any) {
+        this.logger.warn('[Redis] Failed to initialize subscriber:', err?.message || String(err));
+        this.subscriber = null;
+        return;
+      }
+    }
+
+    try {
+      await this.subscriber.subscribe(channel);
+      this.subscriber.on('message', (ch, msg) => {
+        if (ch === channel) handler(msg);
+      });
+    } catch (err: any) {
+      this.logger.warn('[Redis] Subscribe failed:', err?.message || String(err));
+    }
+  }
+
+  async unsubscribe(channel: string): Promise<void> {
+    if (!this.subscriber) return;
+    try {
+      await this.subscriber.unsubscribe(channel);
+    } catch (err: any) {
+      this.logger.warn('[Redis] Unsubscribe failed:', err?.message || String(err));
+    }
+  }
+
   async onModuleDestroy() {
+    if (this.subscriber) {
+      try {
+        await this.subscriber.quit();
+      } catch (error: any) {
+        this.logger.warn('[Redis] Error closing subscriber connection:', error.message);
+      }
+      this.subscriber = null;
+    }
+
     if (this.client) {
       try {
         await this.client.quit();

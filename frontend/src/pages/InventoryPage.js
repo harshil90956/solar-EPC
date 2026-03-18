@@ -808,12 +808,14 @@ const InventoryPage = () => {
       const token = localStorage.getItem('solar_token') || localStorage.getItem('accessToken') || localStorage.getItem('token');
       if (!token) return;
       
-      const res = await api.get('/documents', { 
+      const res = await api.get('/documents/estimates-proposals-quotations', {
         headers: { 'x-tenant-id': TENANT_ID },
-        params: { type: 'quotation', status: 'accepted' }
+        params: { type: 'quotation', status: 'accepted' },
       });
-      const quotations = Array.isArray(res) ? res : (res.data || []);
-      setApprovedQuotations(quotations.filter(q => q.status === 'accepted' || q.status === 'ACCEPTED'));
+      const docs = res?.data || [];
+      setApprovedQuotations(
+        docs.filter((q) => q.status === 'accepted' || q.status === 'ACCEPTED'),
+      );
     } catch (err) {
       console.error('Failed to fetch approved quotations:', err);
       setApprovedQuotations([]);

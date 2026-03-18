@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { api } from '../lib/apiClient';
 
 const AuthContext = createContext(null);
@@ -6,18 +6,65 @@ const AuthContext = createContext(null);
 const TOKEN_KEY = 'solar_token';
 const USER_KEY = 'solar_user';
 
+const sanitizeUserForStorage = (u) => {
+  if (!u || typeof u !== 'object') return u;
+  const {
+    permissions,
+    modulePermissions,
+    dataScope,
+    effectivePermissions,
+    effectiveDataScope,
+    ...rest
+  } = u;
+  return rest;
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
     try {
       const saved = localStorage.getItem(USER_KEY);
-      return saved ? JSON.parse(saved) : null;
+      const parsed = saved ? JSON.parse(saved) : null;
+      return sanitizeUserForStorage(parsed);
     } catch { return null; }
   });
+  const [permissions, setPermissions] = useState(null);
+  const [dataScope, setDataScope] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   // Extract tenantId from user object
   const tenantId = user?.tenantId || localStorage.getItem('tenantId');
+
+  const fetchUser = useCallback(async () => {
+    const res = await api.get('/auth/me');
+    const data = res?.data || res;
+    if (data?.user) setUser((prev) => sanitizeUserForStorage({ ...(prev || {}), ...(data.user || {}) }));
+    setPermissions(data?.permissions || {});
+    setDataScope(data?.dataScope || {});
+    return data;
+  }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) return;
+    fetchUser().catch(() => {});
+  }, [fetchUser]);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(USER_KEY);
+      if (!saved) return;
+      const parsed = JSON.parse(saved);
+      localStorage.setItem(USER_KEY, JSON.stringify(sanitizeUserForStorage(parsed)));
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try {
+      if (!user) return;
+      localStorage.setItem(USER_KEY, JSON.stringify(sanitizeUserForStorage(user)));
+    } catch {}
+  }, [user]);
 
   const login = useCallback(async (email, password) => {
     setLoading(true);
@@ -52,25 +99,26 @@ export const AuthProvider = ({ children }) => {
           tenantId = payload.tenantId || tenantId;
         } catch (e) {}
 
-        // Store user EXACTLY as received from backend (object format)
-        const authedUser = { 
-          ...employeeData,
+        const authedUser = {
+          id: employeeData?.id || employeeData?._id,
+          email: employeeData?.email,
+          role: employeeData?.role || 'Employee',
+          roleId: employeeData?.roleId,
+          tenantId,
           isEmployee: true,
-          token 
+          token,
         };
+
+        const safeUser = sanitizeUserForStorage(authedUser);
         
         localStorage.setItem(TOKEN_KEY, token);
-        localStorage.setItem(USER_KEY, JSON.stringify(authedUser));
+        localStorage.setItem(USER_KEY, JSON.stringify(safeUser));
         if (tenantId) {
           localStorage.setItem('tenantId', tenantId);
         }
-        setUser(authedUser);
+        setUser(safeUser);
 
-        console.log(' [AUTH_SUCCESS - Employee]', {
-          role: authedUser.role,
-          permissions: authedUser.permissions,
-          dataScope: authedUser.dataScope
-        });
+        await fetchUser();
 
         setError('');
         return true;
@@ -82,24 +130,26 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Invalid response from server');
       }
       
-      // Store user EXACTLY as received from backend (object format)
-      const authedUser = { 
-        ...userData,
-        token: accessToken 
+      const authedUser = {
+        id: userData?.id || userData?._id,
+        email: userData?.email,
+        role: userData?.role,
+        roleId: userData?.roleId || userData?.role,
+        tenantId: userData?.tenantId,
+        isSuperAdmin: userData?.isSuperAdmin,
+        token: accessToken,
       };
+
+      const safeUser = sanitizeUserForStorage(authedUser);
       
       localStorage.setItem(TOKEN_KEY, accessToken);
-      localStorage.setItem(USER_KEY, JSON.stringify(authedUser));
+      localStorage.setItem(USER_KEY, JSON.stringify(safeUser));
       if (userData.tenantId) {
         localStorage.setItem('tenantId', userData.tenantId);
       }
-      setUser(authedUser);
+      setUser(safeUser);
 
-      console.log(' [AUTH_SUCCESS - User]', {
-        role: authedUser.role,
-        permissions: authedUser.permissions,
-        dataScope: authedUser.dataScope
-      });
+      await fetchUser();
 
       setError('');
       return true;
@@ -114,6 +164,8 @@ export const AuthProvider = ({ children }) => {
 
   const logout = useCallback(() => {
     setUser(null);
+    setPermissions(null);
+    setDataScope(null);
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
     localStorage.removeItem('tenantId');
@@ -122,22 +174,21 @@ export const AuthProvider = ({ children }) => {
 
   // Simple permission check - reads directly from user.permissions object
   const can = useCallback((module, action) => {
-    if (!user?.permissions) return false;
-    return user.permissions[module]?.[action] === true;
-  }, [user]);
+    if (!permissions) return false;
+    return permissions[module]?.[action] === true;
+  }, [permissions]);
 
   // Get data scope for a module
   const getDataScope = useCallback((module) => {
-    if (!user?.dataScope) return 'ALL';
-    // dataScope can be a string (legacy) or object (new format)
-    if (typeof user.dataScope === 'object') {
-      return user.dataScope[module] || 'ALL';
+    if (!dataScope) return 'ALL';
+    if (typeof dataScope === 'object') {
+      return dataScope[module] || 'ALL';
     }
-    return user.dataScope || 'ALL';
-  }, [user]);
+    return 'ALL';
+  }, [dataScope]);
 
   return (
-    <AuthContext.Provider value={{ user, setUser, tenantId, login, logout, error, can, getDataScope, loading }}>
+    <AuthContext.Provider value={{ user, setUser, tenantId, login, logout, error, can, getDataScope, fetchUser, permissions, dataScope, loading }}>
       {children}
     </AuthContext.Provider>
   );

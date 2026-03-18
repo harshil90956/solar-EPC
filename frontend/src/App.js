@@ -318,18 +318,9 @@ const AppInner = () => {
   // Custom role / employee: only modules where view = true in Role Builder
 
   const hasAccess = (page) => {
-
-    if (page === 'dashboard') return true;
-
     if (!isModuleEnabled(page)) return false;
 
-    const userRole = (user?.role || '').toLowerCase();
-
-    if (user?.isSuperAdmin || userRole === 'admin' || userRole === 'superadmin') return true;
-
-    const roleId = user?.roleId || user?.role;
-
-    return resolvePermission(user?.id, roleId, page, 'view');
+    return resolvePermission(page, 'view') === true;
 
   };
 

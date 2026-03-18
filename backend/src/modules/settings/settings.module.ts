@@ -15,10 +15,12 @@ import { ProjectTypeService } from './services/project-type.service';
 import { InstallationTaskService } from './services/installation-task.service';
 import { CommissioningTaskService } from './services/commissioning-task.service';
 import { LeadStatusService } from './services/lead-status.service';
+import { PermissionGuard } from './guards/permission.guard';
 import { InstallationTaskConfig, InstallationTaskConfigSchema } from './schemas/installation-task.schema';
 import { CommissioningTaskConfig, CommissioningTaskConfigSchema } from './schemas/commissioning-task.schema';
 import { Lead, LeadSchema } from '../leads/schemas/lead.schema';
 import { Employee, EmployeeSchema } from '../hrm/schemas/employee.schema';
+import { CommonModule } from '../../common/common.module';
 import {
   FeatureFlag,
   FeatureFlagSchema,
@@ -42,6 +44,7 @@ import {
 
 @Module({
   imports: [
+    CommonModule,
     MongooseModule.forFeature([
       { name: FeatureFlag.name, schema: FeatureFlagSchema },
       { name: RBACConfig.name, schema: RBACConfigSchema },
@@ -66,6 +69,7 @@ import {
     CustomRoleService,
     UserOverrideService,
     PermissionService,
+    PermissionGuard,
     ViewAsService,
     WorkflowEngineService,
     AuditService,
@@ -75,12 +79,14 @@ import {
     LeadStatusService,
   ],
   exports: [
+    CommonModule,
     SettingsService, 
     FeatureFlagService, 
     RBACService,
     CustomRoleService,
     UserOverrideService,
     PermissionService,
+    PermissionGuard,
     ViewAsService,
     WorkflowEngineService,
     AuditService,

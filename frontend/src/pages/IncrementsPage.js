@@ -78,7 +78,7 @@ const IncrementsPage = () => {
     canCreate, 
     canEdit, 
     canDelete, 
-    columns 
+    columns = {} 
   } = usePermissions('increments');
   
   const [employees, setEmployees] = useState([]);
@@ -246,7 +246,7 @@ const IncrementsPage = () => {
 
   // Build columns dynamically based on permissions
   const tableColumns = [
-    columns.employee && {
+    columns?.employee && {
       key: 'employeeId',
       header: 'Employee',
       render: (val) => (
@@ -256,22 +256,22 @@ const IncrementsPage = () => {
         </div>
       ),
     },
-    columns.previousSalary && {
+    columns?.previousSalary && {
       key: 'previousSalary',
       header: 'Previous Salary',
       render: (val) => `₹${val?.toLocaleString() || 0}`,
     },
-    columns.increasePercent && {
+    columns?.increasePercent && {
       key: 'incrementPercentage',
       header: 'Increase %',
       render: (val) => <span className="font-bold text-emerald-600">{val}%</span>,
     },
-    columns.newSalary && {
+    columns?.newSalary && {
       key: 'newSalary',
       header: 'New Salary',
       render: (val) => <span className="font-bold text-blue-600">₹{val?.toLocaleString() || 0}</span>,
     },
-    columns.increaseAmount && {
+    columns?.increaseAmount && {
       key: 'incrementAmount',
       header: 'Increase Amount',
       render: (_, row) => {
@@ -279,12 +279,12 @@ const IncrementsPage = () => {
         return <span className="font-medium text-emerald-600">₹{amount.toLocaleString()}</span>;
       },
     },
-    columns.effectiveFrom && {
+    columns?.effectiveFrom && {
       key: 'effectiveFrom',
       header: 'Effective From',
       render: (val) => format(new Date(val), 'dd MMM yyyy'),
     },
-    columns.reason && {
+    columns?.reason && {
       key: 'reason',
       header: 'Reason',
       render: (val) => (
@@ -293,7 +293,7 @@ const IncrementsPage = () => {
         </div>
       ),
     },
-    columns.actions && (canEdit() || canDelete()) && {
+    columns?.actions && (canEdit() || canDelete()) && {
       key: 'actions',
       header: 'Actions',
       render: (_, record) => (
