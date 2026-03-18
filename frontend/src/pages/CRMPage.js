@@ -2310,15 +2310,31 @@ const CRMPage = ({ onNavigate }) => {
               <span className="text-xs text-[var(--text-muted)]">Date Range:</span>
               <Input
                 type="date"
-                value={dateRange.start}
-                onChange={e => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                value={dateRangeFilter.type === 'custom' ? dateRangeFilter.startDate || '' : dateRange.start}
+                onChange={e => {
+                  const newDate = e.target.value;
+                  setDateRange(prev => ({ ...prev, start: newDate }));
+                  setDateRangeFilter(prev => ({
+                    type: 'custom',
+                    startDate: newDate,
+                    endDate: prev.endDate || dateRange.end
+                  }));
+                }}
                 className="h-7 text-xs w-32"
               />
               <span className="text-xs text-[var(--text-muted)]">to</span>
               <Input
                 type="date"
-                value={dateRange.end}
-                onChange={e => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                value={dateRangeFilter.type === 'custom' ? dateRangeFilter.endDate || '' : dateRange.end}
+                onChange={e => {
+                  const newDate = e.target.value;
+                  setDateRange(prev => ({ ...prev, end: newDate }));
+                  setDateRangeFilter(prev => ({
+                    type: 'custom',
+                    startDate: prev.startDate || dateRange.start,
+                    endDate: newDate
+                  }));
+                }}
                 className="h-7 text-xs w-32"
               />
             </div>
@@ -2367,6 +2383,11 @@ const CRMPage = ({ onNavigate }) => {
                   setDateRange({
                     start: format(subMonths(new Date(), 6), 'yyyy-MM-dd'),
                     end: format(new Date(), 'yyyy-MM-dd')
+                  });
+                  setDateRangeFilter({
+                    type: 'custom',
+                    startDate: format(subMonths(new Date(), 6), 'yyyy-MM-dd'),
+                    endDate: format(new Date(), 'yyyy-MM-dd')
                   });
                   setSelectedYear(new Date().getFullYear());
                   setSelectedMonth(new Date().getMonth() + 1);
