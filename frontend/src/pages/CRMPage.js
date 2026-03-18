@@ -2138,13 +2138,15 @@ const CRMPage = ({ onNavigate }) => {
         }
       },
       {
-        key: 'createdAt',
+        key: 'createdAtDate',
+        sortKey: 'createdAt',
         header: 'Date',
         sortable: true,
         width: '100px',
-        render: (val) => {
-          if (!val) return <span className="text-[11px] text-[var(--text-muted)]">—</span>;
-          const date = new Date(val);
+        render: (_val, row) => {
+          const raw = row?.createdAt;
+          if (!raw) return <span className="text-[11px] text-[var(--text-muted)]">—</span>;
+          const date = new Date(raw);
           return (
             <span className="text-[11px] text-[var(--text-secondary)]">
               {format(date, 'dd/MM/yyyy')}
@@ -2153,13 +2155,15 @@ const CRMPage = ({ onNavigate }) => {
         }
       },
       {
-        key: 'createdAt',
+        key: 'createdAtTime',
+        sortKey: 'createdAt',
         header: 'Time',
         sortable: true,
         width: '80px',
-        render: (val) => {
-          if (!val) return <span className="text-[11px] text-[var(--text-muted)]">—</span>;
-          const date = new Date(val);
+        render: (_val, row) => {
+          const raw = row?.createdAt;
+          if (!raw) return <span className="text-[11px] text-[var(--text-muted)]">—</span>;
+          const date = new Date(raw);
           return (
             <span className="text-[11px] text-[var(--text-secondary)]">
               {format(date, 'HH:mm')}
