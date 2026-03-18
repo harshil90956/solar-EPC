@@ -16,7 +16,7 @@ import { CommonModule } from '../../common/common.module';
 
 @Module({
   imports: [
-    CommonModule, // Import for PermissionCacheService
+    CommonModule,
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
       { name: Employee.name, schema: EmployeeSchema },

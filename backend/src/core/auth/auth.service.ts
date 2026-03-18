@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnauthorizedException, BadRequestException, InternalServerErrorException } from '@nestjs/common';
+
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcryptjs';
@@ -11,6 +12,11 @@ import { Employee, EmployeeDocument } from '../../modules/hrm/schemas/employee.s
 import { Tenant, TenantDocument } from '../../core/tenant/schemas/tenant.schema';
 import { UserOverride, UserOverrideDocument } from '../../modules/settings/schemas/user-override.schema';
 
+ type FindUserByEmailResult = {
+   userType: 'user' | 'employee';
+   name?: string;
+ };
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -20,6 +26,79 @@ export class AuthService {
     @InjectModel(UserOverride.name) private readonly userOverrideModel: Model<UserOverrideDocument>,
     private readonly jwtService: JwtService,
   ) {}
+
+  async findUserByEmail(email: string): Promise<FindUserByEmailResult | null> {
+    const normalizedEmail = email.toLowerCase().trim();
+
+    const user = await this.userModel
+      .findOne({ email: normalizedEmail, isActive: true })
+      .lean();
+
+    if (user) {
+      const name = user.firstName || user.lastName
+        ? `${user.firstName || ''} ${user.lastName || ''}`.trim()
+        : user.email?.split('@')[0];
+
+      return {
+        userType: 'user',
+        name,
+      };
+    }
+
+    const employee = await this.employeeModel
+      .findOne({ email: normalizedEmail, status: { $in: ['active', 'inactive'] } })
+      .lean();
+
+    if (employee) {
+      const name = employee.firstName || employee.lastName
+        ? `${employee.firstName || ''} ${employee.lastName || ''}`.trim()
+        : employee.email?.split('@')[0];
+
+      return {
+        userType: 'employee',
+        name,
+      };
+    }
+
+    return null;
+  }
+
+  async resetPasswordByEmail(
+    email: string,
+    newPassword: string,
+    userType: 'user' | 'employee',
+  ): Promise<void> {
+    const normalizedEmail = email.toLowerCase().trim();
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    if (userType === 'user') {
+      const updated = await this.userModel
+        .findOneAndUpdate(
+          { email: normalizedEmail, isActive: true },
+          { $set: { passwordHash: hashedPassword } },
+          { new: true },
+        )
+        .lean();
+
+      if (!updated) {
+        throw new NotFoundException('User not found');
+      }
+
+      return;
+    }
+
+    const updatedEmployee = await this.employeeModel
+      .findOneAndUpdate(
+        { email: normalizedEmail, status: { $in: ['active', 'inactive'] } },
+        { $set: { password: hashedPassword } },
+        { new: true },
+      )
+      .lean();
+
+    if (!updatedEmployee) {
+      throw new NotFoundException('User not found');
+    }
+  }
 
   async login(dto: LoginDto) {
     const email = dto.email.toLowerCase().trim();
@@ -84,24 +163,12 @@ export class AuthService {
 
     // Handle employee login
     if (isEmployee && employee) {
-      // Get employee permissions from role
-      const rolePermissions = await this.getEmployeeRolePermissions(employee.roleId);
-      
-      // Build dataScope object for all modules
-      const dataScopeObj: Record<string, string> = {};
-      const modules = ['employees', 'attendance', 'leaves', 'payroll', 'increments', 'departments'];
-      for (const m of modules) {
-        dataScopeObj[m] = 'OWN'; // Default to OWN for employees
-      }
-      
       const payload = {
         sub: String(employee._id),
         role: 'Employee',
         tenantId: employee.tenantId ? String(employee.tenantId) : null,
         isSuperAdmin: false,
-        customRoleId: employee.roleId || null,
-        permissions: rolePermissions,
-        dataScope: dataScopeObj,
+        roleId: employee.roleId || null,
         isEmployee: true,
       };
 
@@ -116,8 +183,6 @@ export class AuthService {
           tenantId: employee.tenantId ? String(employee.tenantId) : null,
           isSuperAdmin: false,
           roleId: employee.roleId || null,
-          permissions: rolePermissions,
-          dataScope: dataScopeObj,
           isEmployee: true,
           firstName: employee.firstName,
           lastName: employee.lastName,
@@ -139,85 +204,12 @@ export class AuthService {
     const customRoleId = userOverride?.customRoleId || null;
     console.log('[AUTH DEBUG] Extracted customRoleId:', customRoleId);
 
-    // Determine dataScope: default to 'ALL' for admins, 'ASSIGNED' for others
-    const roleLower = (user!.role || '').toLowerCase();
-    const isAdminLike = user!.isSuperAdmin 
-      || roleLower === 'admin'
-      || roleLower === 'superadmin'
-      || roleLower === 'super-admin'
-      || roleLower === 'super_admin';
-    console.log('[AUTH DEBUG] isAdminLike:', isAdminLike, '(role:', user!.role, ', isSuperAdmin:', user!.isSuperAdmin, ')');
-    const globalDataScope = isAdminLike ? 'ALL' : 'ASSIGNED';
-    
-    // Build permissions and dataScope objects
-    const userPermissions: Record<string, Record<string, boolean>> = {};
-    const dataScopeObj: Record<string, string> = {};
-    
-    // Get all available modules
-    const allModules = ['dashboard', 'crm', 'survey', 'design', 'documents', 'procurement', 'inventory', 'project', 'logistics', 'installation', 'commissioning', 'finance', 'service', 'compliance', 'admin', 'settings', 'hrm', 'employees', 'attendance', 'leaves', 'payroll', 'increments', 'departments'];
-    
-    console.log('[AUTH DEBUG] Building base permissions...');
-    
-    for (const module of allModules) {
-      // Default: admins get full access, others get minimal
-      const isHrmModule = ['employees', 'attendance', 'leaves', 'payroll', 'increments', 'departments'].includes(module);
-      if (isHrmModule) {
-        // For HRM modules: if admin without custom role → full access, otherwise use role-based
-        if (isAdminLike && !customRoleId) {
-          userPermissions[module] = { view: true, create: true, edit: true, delete: true };
-          console.log('[AUTH DEBUG] HRM Module', module, '-> FULL ACCESS (admin without custom role)');
-        } else {
-          userPermissions[module] = { view: false, create: false, edit: false, delete: false };
-          console.log('[AUTH DEBUG] HRM Module', module, '-> NO ACCESS (has custom role or not admin)');
-        }
-        dataScopeObj[module] = isAdminLike ? 'ALL' : 'OWN';
-      } else {
-        // For other modules, base role permissions
-        const basePerms = this.getBaseRolePermissions(user!.role, module);
-        userPermissions[module] = basePerms;
-        dataScopeObj[module] = isAdminLike ? 'ALL' : 'ASSIGNED';
-      }
-    }
-    
-    console.log('[AUTH DEBUG] Base permissions built:', JSON.stringify(userPermissions, null, 2));
-    
-    // Override HRM permissions with actual role permissions if roleId exists
-    if (customRoleId) {
-      try {
-        const { PermissionService } = require('../../modules/hrm/services/permission.service');
-        const permService = new PermissionService();
-        const hrmModulePerms = await permService.getAllRoleModulePermissions(customRoleId);
-        
-        console.log('[AUTH DEBUG] Custom roleId:', customRoleId, 'Found permissions:', hrmModulePerms.length);
-        
-        for (const modPerm of hrmModulePerms) {
-          const module = modPerm.module;
-          if (!userPermissions[module]) userPermissions[module] = {};
-          const actions = modPerm.actions || {};
-          console.log('[AUTH DEBUG] Applying permissions for module:', module, 'actions:', actions);
-          for (const [action, val] of Object.entries(actions)) {
-            userPermissions[module][action] = val === true;
-          }
-          dataScopeObj[module] = modPerm.dataScope || 'OWN';
-        }
-        
-        console.log('[AUTH DEBUG] Final userPermissions:', JSON.stringify(userPermissions, null, 2));
-      } catch (e) {
-        console.error('[AUTH DEBUG] Error fetching custom role permissions:', e);
-        // Use defaults if HRM service fails
-      }
-    } else {
-      console.log('[AUTH DEBUG] No customRoleId found for user');
-    }
-
     const payload = {
       sub: String(user!._id),
       role: user!.role,
       tenantId: user!.tenantId ? String(user!.tenantId) : null,
       isSuperAdmin: Boolean(user!.isSuperAdmin),
-      customRoleId: customRoleId,
-      permissions: userPermissions,
-      dataScope: dataScopeObj,
+      roleId: user!.role,
     };
 
     const accessToken = await this.jwtService.signAsync(payload);
@@ -230,12 +222,71 @@ export class AuthService {
         role: user!.role,
         tenantId: user!.tenantId ? String(user!.tenantId) : null,
         isSuperAdmin: Boolean(user!.isSuperAdmin),
-        roleId: customRoleId,
-        permissions: userPermissions,
-        dataScope: dataScopeObj,
+        roleId: user!.role,
       },
     };
   }
+
+  /**
+   * Find a user or employee by email for password reset
+   */
+  async findUserByEmail(email: string) {
+    const normalizedEmail = email.toLowerCase().trim();
+    
+    // Check regular users
+    const user = await this.userModel.findOne({ email: normalizedEmail }).lean();
+    if (user) {
+      return {
+        id: user._id.toString(),
+        email: user.email,
+        name: user.email.split('@')[0],
+        userType: 'user',
+      };
+    }
+
+    // Check employees
+    const employee = await this.employeeModel.findOne({ email: normalizedEmail }).lean();
+    if (employee) {
+      return {
+        id: employee._id.toString(),
+        email: employee.email,
+        name: `${employee.firstName} ${employee.lastName}`,
+        userType: 'employee',
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Reset password by email and user type
+   */
+  async resetPasswordByEmail(email: string, newPassword: string, userType: string) {
+    const normalizedEmail = email.toLowerCase().trim();
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    try {
+      if (userType === 'employee') {
+        const result = await this.employeeModel.findOneAndUpdate(
+          { email: normalizedEmail },
+          { $set: { password: passwordHash } },
+          { new: true }
+        ).exec();
+        if (!result) throw new NotFoundException('Employee not found');
+      } else {
+        const result = await this.userModel.findOneAndUpdate(
+          { email: normalizedEmail },
+          { $set: { passwordHash: passwordHash } },
+          { new: true }
+        ).exec();
+        if (!result) throw new NotFoundException('User not found');
+      }
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      throw new InternalServerErrorException('Failed to reset password');
+    }
+  }
+
 
   async getUsersByTenantAndRole(tenantCode: string, role?: string) {
     const tenant = await this.tenantModel.findOne({ code: tenantCode }).lean();

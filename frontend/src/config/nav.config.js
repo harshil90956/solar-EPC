@@ -4,7 +4,7 @@ import {
     Package, ShoppingCart, Truck, Wrench, CheckCircle, DollarSign,
     Headphones, FileCheck, Settings, Brain, Bell, Shield,
     Briefcase, UserCircle, Calendar, Clock, Wallet, TrendingUp, List,
-    Building2, ArrowUpRight, Files, Sun, Hammer, Home
+    Building2, ArrowUpRight, Files, Sun, Hammer, Home, CheckSquare
 } from 'lucide-react';
 import { INVENTORY, TICKETS, LEADS, PROJECTS, QUOTATIONS } from '../data/mockData';
 
@@ -21,6 +21,7 @@ export const NAV_CONFIG = [
         items: [
             { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, badge: null },
             { id: 'crm', label: 'CRM & Sales', icon: Users, badge: hotLeads || null },
+            { id: 'tasks', label: 'Tasks', icon: CheckSquare, badge: null },
             {
                 id: 'hrm',
                 label: 'HRM',

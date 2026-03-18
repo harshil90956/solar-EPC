@@ -4,17 +4,18 @@ import { CustomersController } from './controllers/customers.controller';
 import { CustomersService } from './services/customers.service';
 import { Customer, CustomerSchema } from './schemas/customer.schema';
 import { SettingsModule } from '../settings/settings.module';
-import { PermissionGuard } from '../settings/guards/permission.guard';
+import { CommonModule } from '../../common/common.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Customer.name, schema: CustomerSchema },
     ]),
+    CommonModule,
     SettingsModule,
   ],
   controllers: [CustomersController],
-  providers: [CustomersService, PermissionGuard],
+  providers: [CustomersService],
   exports: [CustomersService],
 })
 export class CustomersModule {}

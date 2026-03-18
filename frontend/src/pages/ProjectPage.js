@@ -648,28 +648,8 @@ const ProjectPage = () => {
   };
 
   const handleStageChange = async (id, newStage) => {
-    // Get current user role from localStorage - check multiple possible field names
-    const user = JSON.parse(localStorage.getItem('solar_user') || localStorage.getItem('user') || '{}');
-    const userRole = user?.role || user?.roleId || user?.userRole || '';
-    const userEmail = user?.email || user?.userEmail || '';
-    
-    // DEBUG: Log user object
-    console.log('[DEBUG] User object:', user);
-    console.log('[DEBUG] User email:', userEmail);
-    console.log('[DEBUG] User role:', userRole);
-    
-    const normalizedRole = userRole.toString().toLowerCase().trim();
-    const isAdmin = normalizedRole.includes('admin');
-    const isProjectManager = normalizedRole.includes('project manager') || normalizedRole.includes('manager');
-    const isAuthorizedEmail = userEmail.toLowerCase() === 'abc@gmail.com';
-    const canCancel = isAdmin || isProjectManager || isAuthorizedEmail;
-
-    // DEBUG: Log permission check
-    console.log('[DEBUG] isAuthorizedEmail:', isAuthorizedEmail, 'canCancel:', canCancel);
-
-    // Check if trying to cancel without proper role
-    if (newStage === 'Cancelled' && !canCancel) {
-      alert('Only Admin or Project Manager can cancel a project');
+    if (newStage === 'Cancelled' && !canEdit) {
+      alert('You do not have permission to cancel a project');
       return;
     }
 
@@ -693,8 +673,6 @@ const ProjectPage = () => {
   };
 
   const executeStageChange = async (id, newStage) => {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const userRole = user?.role;
     const project = projects.find(p => p.id === id);
     const currentStage = project?.status;
     
@@ -759,11 +737,11 @@ const ProjectPage = () => {
 
     // API call to update status
     try {
-      await api.patch(`/projects/${id}/status?tenantId=${TENANT_ID}`, { 
-        status: newStage, 
-        progress: newProgress, 
+      await api.patch(`/projects/${id}/status?tenantId=${TENANT_ID}`, {
+        status: newStage,
+        progress: newProgress,
         milestones: updatedMilestones,
-        userRole 
+        userRole: perm.userRole,
       });
     } catch (err) {
       console.error('Error updating project status:', err);
@@ -892,11 +870,11 @@ const ProjectPage = () => {
       else if (milestoneName === 'Installation') newStatus = 'Installation';
       else if (milestoneName === 'Commission') newStatus = 'Commissioned';
 
-      await api.patch(`/projects/${selected.id}/status?tenantId=${TENANT_ID}`, {
+      await api.post(`/projects/${selected.id}/status?tenantId=${TENANT_ID}`, {
         status: newStatus,
         progress: newProgress,
         milestones: updatedMilestones.map(m => ({ name: m.name, status: m.status, date: m.date })),
-        userRole: JSON.parse(localStorage.getItem('user') || '{}')?.role
+        userRole: perm.userRole
       });
 
       // Update local state
