@@ -15,6 +15,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Layout from './components/Layout';
 
 import LoginPage from './pages/LoginPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 
 import SolarOSDashboard from './pages/SolarOSDashboard';
 
@@ -75,7 +77,8 @@ import AttendancePageV3 from './pages/AttendancePageV3';
 import IntelligenceDashboardPage from './pages/IntelligenceDashboardPage';
 
 import RemindersPage from './pages/RemindersPage';
-import HRMPermissionsPage from './pages/HRMPermissionsPage';
+import HrmPermissionsPage from './pages/HrmPermissionsPage';
+import ProfilePage from './pages/ProfilePage';
 import NotificationSystem from './components/NotificationSystem';
 
 
@@ -138,7 +141,7 @@ const PAGE_MAP = {
 
   compliance: { component: CompliancePage, title: 'Compliance' },
   settings: { component: SettingsPage, title: 'Settings' },
-  'hrm-permissions': { component: HRMPermissionsPage, title: 'HRM Permissions' },
+  'hrm-permissions': { component: HrmPermissionsPage, title: 'HRM Permissions' },
   intelligence: { component: IntelligenceDashboardPage, title: 'AI Intelligence' },
 
   documents: { component: DocumentPage, title: 'Documents' },
@@ -294,6 +297,15 @@ const AppInner = () => {
 
 
   // ── Auth guard: redirect to login if no user ──
+
+  // Check for forgot password / reset password pages first (no auth needed)
+  const path = window.location.pathname.replace('/', '').trim();
+  if (path === 'forgot-password') {
+    return <ForgotPasswordPage />;
+  }
+  if (path === 'reset-password') {
+    return <ResetPasswordPage />;
+  }
 
   if (!user) return <LoginPage />;
 

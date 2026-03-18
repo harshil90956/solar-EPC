@@ -17,6 +17,7 @@ import { LoginDto } from './dto/login.dto';
 import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
 import { UpdateProfileDto } from './dto/profile.dto';
 import { AuthService } from './auth.service';
+import { OtpService } from '../../services/otp.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 const s3Client = new S3Client({
@@ -39,11 +40,107 @@ interface AuthenticatedRequest {
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly otpService: OtpService,
+  ) {}
 
   @Post('login')
   async login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  // Send OTP for password reset
+  @Post('send-otp')
+  async sendOtp(@Body() dto: { email: string }) {
+    const { email } = dto;
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Check if user exists (users or employees)
+    const user = await this.authService.findUserByEmail(normalizedEmail);
+
+    if (!user) {
+      // Don't reveal if email exists (security best practice)
+      return {
+        success: true,
+        message: 'If an account exists with this email, an OTP has been sent.',
+      };
+    }
+
+    // Send OTP
+    const result = await this.otpService.sendOtp(
+      normalizedEmail,
+      user.userType as 'user' | 'employee',
+      user.name,
+    );
+
+    // If rate limited, return remaining time
+    if (!result.success && result.remainingTime) {
+      return {
+        success: false,
+        message: result.message,
+        remainingTime: result.remainingTime,
+      };
+    }
+
+    return {
+      success: true,
+      message: result.message,
+    };
+  }
+
+  // Reset Password with OTP verification (step-based flow)
+  @Post('verify-otp')
+  async verifyOtp(@Body() dto: { email: string; otp: string }) {
+    const { email, otp } = dto;
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Verify OTP
+    const verifyResult = await this.otpService.verifyOtp(normalizedEmail, otp);
+
+    if (!verifyResult.success || !verifyResult.userType) {
+      throw new BadRequestException(verifyResult.message || 'OTP verification failed');
+    }
+
+    return {
+      success: true,
+      message: 'OTP verified successfully',
+      email: normalizedEmail,
+      userType: verifyResult.userType,
+    };
+  }
+
+  // Reset Password (after OTP verified in previous step)
+  @Post('reset-password')
+  async resetPassword(@Body() dto: { email: string; newPassword: string }) {
+    const { email, newPassword } = dto;
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Validate password
+    if (!newPassword || newPassword.length < 6) {
+      throw new BadRequestException('Password must be at least 6 characters long');
+    }
+
+    // Check if user exists and get type
+    const user = await this.authService.findUserByEmail(normalizedEmail);
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    // Reset password
+    await this.authService.resetPasswordByEmail(
+      normalizedEmail,
+      newPassword,
+      user.userType,
+    );
+
+    // Delete any remaining OTP for this email
+    this.otpService.deleteOtp(normalizedEmail);
+
+    return {
+      success: true,
+      message: 'Password reset successfully. Please login with your new password.',
+    };
   }
 
   @Get('users')

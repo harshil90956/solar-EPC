@@ -924,9 +924,12 @@ const CRMPage = ({ onNavigate }) => {
 
   const statusMap = useMemo(() => {
     const map = {};
+    console.log('[DEBUG] Status options raw:', statusOptions);
     (statusOptions || []).forEach(s => {
       let label = s.label;
       let key = s.key;
+
+      console.log('[DEBUG] Processing status:', { key, label });
 
       // Transform status labels
       if (key === 'normal' || label === 'Normal') {
@@ -937,6 +940,7 @@ const CRMPage = ({ onNavigate }) => {
 
       map[key] = { label, color: s.color };
     });
+    console.log('[DEBUG] Final statusMap:', map);
     return map;
   }, [statusOptions]);
 
@@ -2134,13 +2138,15 @@ const CRMPage = ({ onNavigate }) => {
         }
       },
       {
-        key: 'createdAt',
+        key: 'createdAtDate',
+        sortKey: 'createdAt',
         header: 'Date',
         sortable: true,
         width: '100px',
-        render: (val) => {
-          if (!val) return <span className="text-[11px] text-[var(--text-muted)]">—</span>;
-          const date = new Date(val);
+        render: (_val, row) => {
+          const raw = row?.createdAt;
+          if (!raw) return <span className="text-[11px] text-[var(--text-muted)]">—</span>;
+          const date = new Date(raw);
           return (
             <span className="text-[11px] text-[var(--text-secondary)]">
               {format(date, 'dd/MM/yyyy')}
@@ -2149,13 +2155,15 @@ const CRMPage = ({ onNavigate }) => {
         }
       },
       {
-        key: 'createdAt',
+        key: 'createdAtTime',
+        sortKey: 'createdAt',
         header: 'Time',
         sortable: true,
         width: '80px',
-        render: (val) => {
-          if (!val) return <span className="text-[11px] text-[var(--text-muted)]">—</span>;
-          const date = new Date(val);
+        render: (_val, row) => {
+          const raw = row?.createdAt;
+          if (!raw) return <span className="text-[11px] text-[var(--text-muted)]">—</span>;
+          const date = new Date(raw);
           return (
             <span className="text-[11px] text-[var(--text-secondary)]">
               {format(date, 'HH:mm')}
@@ -2375,6 +2383,7 @@ const CRMPage = ({ onNavigate }) => {
       {view === 'dashboard' && crmFeatures.analytics && (
         <LeadAnalyticsDashboard
           onNavigate={(nextView) => setView(nextView)}
+          dateFilter={dateRangeFilter}
           onFilter={(filterType) => {
             if (!filterType) return;
             // Navigate to leads view
@@ -2565,24 +2574,27 @@ const CRMPage = ({ onNavigate }) => {
       {view === 'kanban' && crmFeatures.kanban && (
         <div className="space-y-4">
           {(() => { console.log('[KANBAN DEBUG] statusOptions:', statusOptions); console.log('[KANBAN DEBUG] enhancedLeads first 3:', enhancedLeads.slice(0, 3).map(l => ({ name: l.name, statusKey: l.statusKey, status: l.status }))); return null; })()}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <h3 className="text-lg font-bold text-[var(--text-primary)]">Pipeline Kanban Board</h3>
-              <span className="text-xs text-[var(--text-muted)]">{enhancedLeads.length} total leads</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button className="px-3 py-1 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] text-[10px] font-medium text-[var(--text-muted)] hover:bg-[var(--bg-hovered)] transition-colors">
-                <FilterX size={10} className="inline mr-1" /> Clear Filters
-              </button>
-              <button className="px-3 py-1 rounded-lg bg-[var(--primary)] text-white text-[10px] font-medium hover:opacity-90 transition-opacity">
-                <Plus size={10} className="inline mr-1" /> Add Stage
-              </button>
-            </div>
-          </div>
+          <div className="overflow-x-auto pb-3 cursor-grab active:cursor-grabbing" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 transparent' }}>
+            <div className="min-w-max px-1">
+              {/* Header Row */}
+              <div className="flex items-center justify-between mb-3 px-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-bold text-[var(--text-primary)]">Pipeline Kanban Board</h3>
+                  <span className="text-xs text-[var(--text-muted)]">{enhancedLeads.length} total leads</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button className="px-3 py-1 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] text-[10px] font-medium text-[var(--text-muted)] hover:bg-[var(--bg-hovered)] transition-colors">
+                    <FilterX size={10} className="inline mr-1" /> Clear Filters
+                  </button>
+                  <button className="px-3 py-1 rounded-lg bg-[var(--primary)] text-white text-[10px] font-medium hover:opacity-90 transition-opacity">
+                    <Plus size={10} className="inline mr-1" /> Add Stage
+                  </button>
+                </div>
+              </div>
 
-          <div className="overflow-x-auto pb-3">
-            <div className="flex gap-4 min-w-max px-1">
-              {(statusOptions || []).map((stage, stageIndex) => {
+              {/* Kanban Columns */}
+              <div className="flex gap-4">
+                {(statusOptions || []).map((stage, stageIndex) => {
                 // Filter leads that match this stage's key
                 // Also match survey-related keys to the same column
                 const stageKeyLower = stage.key.toLowerCase();
@@ -2733,7 +2745,12 @@ const CRMPage = ({ onNavigate }) => {
                             dragRef.current.destIndex = insertAfter ? (idx + 1) : idx;
                           }}
                           className="rounded-xl bg-white border border-gray-200 p-4 cursor-grab active:cursor-grabbing transition-all hover:shadow-lg hover:border-gray-300"
-                          onClick={() => { setTrackerLeadId(lead._id || lead.id); setShowTrackerDrawer(true); }}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            console.log('[Kanban] Clicked lead:', lead._id || lead.id, lead.name);
+                            handleViewLead(lead);
+                          }}
                         >
                           {/* Lead ID & kW */}
                           <div className="flex items-center justify-between mb-2">
@@ -2771,13 +2788,13 @@ const CRMPage = ({ onNavigate }) => {
                           <div className="mb-3">
                             <div className="flex items-center justify-between mb-1">
                               <span className="text-[10px] text-gray-400">{lead.assignedTo?.name || lead.assignedTo || 'Unassigned'}</span>
-                              <span className="text-[10px] text-gray-500">{lead.progress || Math.floor(Math.random() * 30 + 20)}%</span>
+                              <span className="text-[10px] text-gray-500">{lead.progress || 0}%</span>
                             </div>
                             <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                               <div
                                 className="h-full rounded-full"
                                 style={{
-                                  width: `${lead.progress || Math.floor(Math.random() * 30 + 20)}%`,
+                                  width: `${lead.progress || 0}%`,
                                   backgroundColor: stage.color || '#3b82f6'
                                 }}
                               />
@@ -2811,6 +2828,7 @@ const CRMPage = ({ onNavigate }) => {
               })}
             </div>
           </div>
+        </div>
         </div>
       )}
 

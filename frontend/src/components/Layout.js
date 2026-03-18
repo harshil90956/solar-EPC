@@ -14,16 +14,29 @@ import { cn } from '../lib/utils';
 import ThemeCustomizer from './ThemeCustomizer';
 import ReminderSidebar from './Reminder/ReminderSidebar';
 import { api } from '../lib/apiClient';
+import { useQuery } from '@tanstack/react-query';
 import DataScopeBanner from './DataScopeBanner';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api/v1';
 const TENANT_ID = 'solarcorp';
 
 const Layout = ({ currentPage, onNavigate, children }) => {
-  const { user, logout } = useAuth();
+  const { user, logout, can } = useAuth();
   const { theme, setTheme, themes, currentLabel, customization } = useTheme();
   const { activeNotifications, upcomingCount, overdueCount } = useReminders();
-  const { isModuleEnabled, resolvePermission, userOverrides, customRoles } = useSettings();
+  const { isModuleEnabled, resolvePermission, getDataScope } = useSettings();
+  
+  // Fetch fresh permissions from backend
+  const { data: freshPermissions } = useQuery({
+    queryKey: ['user-permissions', user?.id],
+    queryFn: async () => {
+      if (!user?.roleId) return null; // Only fetch for custom roles
+      const res = await api.get(`/hrm/permissions/role/${user.roleId}`);
+      return res.data;
+    },
+    enabled: !!user?.roleId,
+    staleTime: 0, // Always fetch fresh
+  });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarHovered, setSidebarHovered] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState({ hrm: false });
@@ -136,21 +149,17 @@ const Layout = ({ currentPage, onNavigate, children }) => {
   const isAdminLike = user?.isSuperAdmin || userRole === 'admin' || userRole === 'superadmin';
   const canViewSettings = isAdminLike ? true : (resolvePermission(userId, roleId, 'settings', 'view') === true);
 
-  // Sidebar visibility:
-  // - Admin (role='Admin'/'admin', or isSuperAdmin): always sees all enabled modules
-  // - Custom role / employee: only shows modules where view = true in Role Builder
+  // Sidebar visibility - SINGLE SOURCE OF TRUTH from user.permissions
   const visibleSections = NAV_CONFIG.map(section => ({
     ...section,
     items: section.items
       .map(item => {
-        // 1. Feature Flag Check (Highest Priority)
+        // 1. Feature Flag Check
         if (!isModuleEnabled(item.id)) return null;
 
-        // 2. Admin Bypass
-        // 3. Custom Role / Employee check
-
-        // Parent items with children (e.g. HRM): filter children by permissions.
+        // 2. HRM Section with children
         if (Array.isArray(item.children) && item.children.length > 0) {
+          // Filter children based on their individual permissions first
           const filteredChildren = item.children.filter(child => {
             const enabled = isModuleEnabled(child.id);
             if (!enabled) return false;
@@ -161,20 +170,34 @@ const Layout = ({ currentPage, onNavigate, children }) => {
             // HRM permissions screen should be admin-only
             if (child.id === 'hrm-permissions' && !isAdminLike) return false;
 
-            const permitted = isAdminLike ? true : (resolvePermission(userId, roleId, child.id, 'view') === true);
-
-            return permitted;
+            // Check permission for child (strip hrm- prefix)
+            // Always check view permission - no admin bypass
+            const moduleKey = child.id.replace('hrm-', '');
+            const hasViewPermission = can(moduleKey, 'view');
+            
+            console.log('[SIDEBAR DEBUG] Checking child:', child.id, 'moduleKey:', moduleKey, 'can view:', hasViewPermission, 'user.roleId:', user?.roleId);
+            
+            return hasViewPermission;
           });
 
+          // Only show HRM parent if at least one child is visible
           if (filteredChildren.length === 0) return null;
           return { ...item, children: filteredChildren };
         }
 
-        // Single module check
-        if (isAdminLike) return item;
-        const isPermitted = resolvePermission(userId, roleId, item.id, 'view');
-
-        return isPermitted === true ? item : null;
+        // 3. Single module check using can() from AuthContext
+        // For non-HRM modules: show by default if no permission is defined
+        // For HRM modules: require explicit permission
+        const isHRMModule = ['employees', 'attendance', 'leaves', 'payroll', 'increments', 'departments'].includes(item.id);
+        const hasExplicitPermission = user?.permissions?.[item.id]?.view !== undefined;
+        
+        // If it's an HRM module OR has explicit permission defined, check strictly
+        // Otherwise (non-HRM modules without permissions defined), show by default
+        const permitted = isHRMModule || hasExplicitPermission 
+          ? can(item.id, 'view') 
+          : true;
+        
+        return permitted ? item : null;
       })
       .filter(Boolean),
   })).filter(s => s.items.length > 0);

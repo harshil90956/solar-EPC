@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 
-// Import SettingsModule for PermissionService
-import { SettingsModule } from '../settings/settings.module';
+// Import CommonModule for PermissionCacheService
+import { CommonModule } from '../../common/common.module';
 
 // Schemas
 import { Employee, EmployeeSchema } from './schemas/employee.schema';
@@ -42,7 +42,8 @@ import { AttendancePolicyController } from './controllers/attendance-policy.cont
 
 @Module({
   imports: [
-    // SettingsModule removed to allow public API access
+    // Import CommonModule to get PermissionCacheService
+    CommonModule,
     MongooseModule.forFeature([
       { name: Employee.name, schema: EmployeeSchema },
       { name: Attendance.name, schema: AttendanceSchema },

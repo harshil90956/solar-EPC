@@ -830,7 +830,7 @@ const ProposalPage = () => {
         mobileNumber: doc.customerPhone,
         site: doc.projectLocation || 'TBD',
         systemSize: doc.systemCapacity || 0,
-        status: 'Procurement',
+        status: 'Logistics',
         pm: 'Unassigned',
         startDate: new Date().toISOString(),
         progress: 0,

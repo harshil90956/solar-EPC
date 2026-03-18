@@ -1,10 +1,9 @@
 /**
- * Enhanced usePermissions Hook
- * Provides role-based access control with column-level permissions
+ * Simplified usePermissions Hook
+ * SINGLE SOURCE OF TRUTH: Uses AuthContext user.permissions
+ * NO dual permission system, NO fallback to API
  */
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { apiClient } from '../lib/apiClient';
+import { useCallback, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
 
@@ -18,231 +17,68 @@ const MODULE_COLUMNS = {
   departments: ['departmentName', 'code', 'employees', 'description', 'status', 'created', 'actions'],
 };
 
-// Map module names to backend module IDs
-const MODULE_TO_BACKEND = {
-  employees: 'employees',
-  leaves: 'leaves',
-  attendance: 'attendance',
-  payroll: 'payroll',
-  increments: 'increments',
-  departments: 'departments',
-};
-
 /**
  * Hook to check permissions for a specific module
  * @param {string} module - Module ID (e.g., 'employees', 'leaves', 'attendance')
  * @returns {Object} Permission check functions and column visibility
  */
 export const usePermissions = (module) => {
-  const { user } = useAuth();
+  const { user, can, getDataScope } = useAuth();
   const { isModuleEnabled, isFeatureEnabled } = useSettings();
-  const [isLoading, setIsLoading] = useState(true);
 
-  // Get user's role and permissions from auth context
   const userRole = user?.role || 'Employee';
-  const userRoleId = user?.roleId || user?._id;
-  const userPermissions = Array.isArray(user?.permissions) ? user.permissions : [];
   const isAdminLike = userRole === 'Admin' || userRole === 'Super Admin' || user?.isSuperAdmin;
 
-  // Fetch role permissions from API for ALL users with a roleId
-  const { data: roleData, isLoading: roleLoading, error: roleError } = useQuery({
-    queryKey: ['role-permissions', userRoleId],
-    queryFn: async () => {
-      if (!userRoleId) return { permissions: [], columns: {} };
-      try {
-        const [permsRes, columnsRes] = await Promise.all([
-          apiClient.get(`/hrm/permissions/roles/${userRoleId}/permissions`),
-          apiClient.get(`/hrm/permissions/roles/${userRoleId}/column-permissions`),
-        ]);
-        return {
-          permissions: permsRes.data || [],
-          columns: columnsRes.data?.columns || {},
-        };
-      } catch (error) {
-        // Return empty permissions on error - will fallback to JWT permissions
-        return { permissions: [], columns: {} };
-      }
-    },
-    enabled: Boolean(userRoleId && isAdminLike),
-    staleTime: 2 * 60 * 1000, // Cache for 2 minutes
-    cacheTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
-    refetchOnWindowFocus: false,
-  });
+  // Get data scope for this module
+  const dataScope = useMemo(() => {
+    return getDataScope(module);
+  }, [getDataScope, module]);
 
-  // Combine JWT permissions with API permissions (API takes precedence)
-  const effectivePermissions = useMemo(() => {
+  // Permission check functions - use can() from AuthContext (single source of truth)
+  const canDo = useCallback((action) => {
     // Admin/Super Admin have all permissions
-    if (userRole === 'Admin' || userRole === 'Super Admin') {
-      return Object.keys(MODULE_TO_BACKEND).flatMap(mod => [
-        `${mod}.view`,
-        `${mod}.create`,
-        `${mod}.edit`,
-        `${mod}.delete`,
-        `${mod}.export`,
-        `${mod}.approve`,
-        `${mod}.assign`,
-        `${mod}.generate`,
-      ]);
-    }
-    
-    // Employee role gets installation permissions by default
-    if (userRole === 'Employee') {
-      const basePermissions = [
-        'installation.view',
-        'installation.edit',
-        'installation.create',
-        'commissioning.view',
-        'commissioning.edit',
-        'logistics.view',
-        'logistics.edit',
-      ];
-      const apiPermissions = roleData?.permissions || [];
-      return [...new Set([...basePermissions, ...userPermissions, ...apiPermissions])];
-    }
-    
-    const apiPermissions = roleData?.permissions || [];
-    // Merge API permissions with JWT permissions (API takes priority)
-    const combined = [...new Set([...userPermissions, ...apiPermissions])];
-    return combined;
-  }, [userPermissions, roleData, userRole]);
+    if (isAdminLike) return true;
+    // Use AuthContext.can() which reads from user.permissions object
+    return can(module, action);
+  }, [can, module, isAdminLike]);
 
-  // Get column permissions for the module
-  const columnPermissions = useMemo(() => {
-    // Admin/Super Admin see all columns
-    if (userRole === 'Admin' || userRole === 'Super Admin') {
-      const allColumns = MODULE_COLUMNS[module] || [];
-      return allColumns.reduce((acc, col) => ({ ...acc, [col]: true }), {});
-    }
-
-    // Use API column permissions or default to all visible
-    const apiColumns = roleData?.columns?.[module] || {};
-    const allColumns = MODULE_COLUMNS[module] || [];
-    
-    return allColumns.reduce((acc, col) => ({
-      ...acc,
-      [col]: apiColumns[col] !== false, // Default to true if not explicitly false
-    }), {});
-  }, [roleData, module, userRole]);
-
-  // Permission check functions
-  const can = useCallback((action) => {
-    // Admin/Super Admin have all permissions
-    if (userRole === 'Admin' || userRole === 'Super Admin') {
-      return true;
-    }
-
-    // Employee role has installation/commissioning/logistics permissions
-    if (userRole === 'Employee') {
-      const employeePermissions = [
-        'installation.view', 'installation.edit', 'installation.create',
-        'commissioning.view', 'commissioning.edit',
-        'logistics.view', 'logistics.edit',
-      ];
-      const permissionKey = `${module}.${action}`;
-      if (employeePermissions.includes(permissionKey)) {
-        return true;
-      }
-    }
-
-    // Check if user has the specific permission
-    const permissionKey = `${module}.${action}`;
-    return effectivePermissions.includes(permissionKey);
-  }, [effectivePermissions, module, userRole]);
-
-  // Check if user can view the module
-  const canView = useCallback(() => {
-    return can('view');
-  }, [can]);
-
-  // Check if user can create
-  const canCreate = useCallback(() => {
-    return can('create');
-  }, [can]);
-
-  // Check if user can edit
-  const canEdit = useCallback(() => {
-    return can('edit');
-  }, [can]);
-
-  // Check if user can delete
-  const canDelete = useCallback(() => {
-    return can('delete');
-  }, [can]);
-
-  // Check if user can export
-  const canExport = useCallback(() => {
-    return can('export');
-  }, [can]);
-
-  // Check if user can approve
-  const canApprove = useCallback(() => {
-    return can('approve');
-  }, [can]);
-
-  // Check if user can assign
-  const canAssign = useCallback(() => {
-    return can('assign');
-  }, [can]);
-
-  // Check if user can generate (for payroll)
-  const canGenerate = useCallback(() => {
-    return can('generate');
-  }, [can]);
-
-  // Check if user can manage (generic management permission)
-  const canManage = useCallback(() => {
-    return can('manage');
-  }, [can]);
-
-  // Check if user can check-in/out (for attendance)
-  const canCheckin = useCallback(() => {
-    return can('checkin') || can('checkout') || can('checkin_checkout');
-  }, [can]);
-
-  // Check if user can view all records (for attendance)
-  const canViewAll = useCallback(() => {
-    return can('view_all') || can('viewAll');
-  }, [can]);
-
-  // Feature flags support - checks if a feature is enabled (e.g., 'kanban_view', 'analytics_view')
-  const feature = useCallback((featureName) => {
-    if (userRole === 'Admin' || userRole === 'Super Admin') {
-      return true;
-    }
-    // Check if feature is in permissions (e.g., 'crm.kanban_view' or just 'kanban_view')
-    const fullKey = `${module}.${featureName}`;
-    return effectivePermissions.includes(featureName) || effectivePermissions.includes(fullKey);
-  }, [effectivePermissions, module, userRole]);
+  const canView = useCallback(() => canDo('view'), [canDo]);
+  const canCreate = useCallback(() => canDo('create'), [canDo]);
+  const canEdit = useCallback(() => canDo('edit'), [canDo]);
+  const canDelete = useCallback(() => canDo('delete'), [canDo]);
+  const canExport = useCallback(() => canDo('export'), [canDo]);
+  const canApprove = useCallback(() => canDo('approve'), [canDo]);
+  const canAssign = useCallback(() => canDo('assign'), [canDo]);
+  const canGenerate = useCallback(() => canDo('generate'), [canDo]);
+  const canManage = useCallback(() => canDo('manage'), [canDo]);
+  const canCheckin = useCallback(() => canDo('checkin') || canDo('checkout'), [canDo]);
+  const canViewAll = useCallback(() => canDo('view_all') || canDo('viewAll'), [canDo]);
 
   // Check if a specific column should be visible
   const isColumnVisible = useCallback((columnKey) => {
-    return columnPermissions[columnKey] !== false;
-  }, [columnPermissions]);
+    const allColumns = MODULE_COLUMNS[module] || [];
+    if (isAdminLike) return true;
+    // Check if user.permissions has column-specific settings
+    return user?.permissions?.[module]?.columns?.[columnKey] !== false;
+  }, [module, isAdminLike, user?.permissions]);
 
   // Get all visible columns
   const visibleColumns = useMemo(() => {
-    return Object.entries(columnPermissions)
-      .filter(([_, isVisible]) => isVisible)
-      .map(([key]) => key);
-  }, [columnPermissions]);
-
-  // Get column configuration object for conditional rendering
-  const columns = useMemo(() => {
-    return columnPermissions;
-  }, [columnPermissions]);
-
-  // Loading state
-  useEffect(() => {
-    setIsLoading(roleLoading);
-  }, [roleLoading]);
+    const allColumns = MODULE_COLUMNS[module] || [];
+    if (isAdminLike) return allColumns;
+    return allColumns.filter(col => user?.permissions?.[module]?.columns?.[col] !== false);
+  }, [module, isAdminLike, user?.permissions]);
 
   // Module/feature enabled checks from SettingsContext
   const moduleOn = useCallback((mod) => isModuleEnabled(mod), [isModuleEnabled]);
   const featureOn = useCallback((mod, featureName) => isFeatureEnabled(mod, featureName), [isFeatureEnabled]);
+  
+  // Backward compatibility: 'feature' function for legacy code
+  const feature = useCallback((featureName) => isFeatureEnabled(module, featureName), [isFeatureEnabled, module]);
 
   return {
     // Permission checks
-    can,
+    can: canDo,
     canView,
     canCreate,
     canEdit,
@@ -254,20 +90,18 @@ export const usePermissions = (module) => {
     canManage,
     canCheckin,
     canViewAll,
-    // Feature flags
-    feature,
+    // Data scope
+    dataScope,
     // Module/Feature enabled checks
     moduleOn,
     featureOn,
+    feature, // backward compatibility
     // Column visibility
-    columns,
     isColumnVisible,
     visibleColumns,
     // Meta
-    isLoading,
+    isLoading: false,
     userRole,
-    permissions: effectivePermissions,
-    error: roleError,
   };
 };
 
@@ -276,77 +110,25 @@ export const usePermissions = (module) => {
  * @returns {Object} Global permission check functions
  */
 export const useGlobalPermissions = () => {
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const userRole = user?.role || 'Employee';
-  const userRoleId = user?.roleId || user?._id;
-  const userPermissions = user?.permissions || [];
+  const isAdminLike = userRole === 'Admin' || userRole === 'Super Admin' || user?.isSuperAdmin;
 
-  // Fetch all role permissions
-  const { data: roleData, isLoading, error } = useQuery({
-    queryKey: ['role-permissions', userRoleId],
-    queryFn: async () => {
-      if (!userRoleId) return { permissions: [], columns: {} };
-      try {
-        const [permsRes, columnsRes] = await Promise.all([
-          apiClient.get(`/hrm/permissions/roles/${userRoleId}/permissions`),
-          apiClient.get(`/hrm/permissions/roles/${userRoleId}/column-permissions`),
-        ]);
-        return {
-          permissions: permsRes.data || [],
-          columns: columnsRes.data?.columns || {},
-        };
-      } catch (err) {
-        console.error('Failed to fetch role permissions:', err);
-        return { permissions: [], columns: {} };
-      }
-    },
-    enabled: !!userRoleId,
-    staleTime: 2 * 60 * 1000,
-    cacheTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
-
-  const effectivePermissions = useMemo(() => {
-    if (userRole === 'Admin' || userRole === 'Super Admin') {
-      return Object.keys(MODULE_TO_BACKEND).flatMap(mod => [
-        `${mod}.view`, `${mod}.create`, `${mod}.edit`, `${mod}.delete`, 
-        `${mod}.export`, `${mod}.approve`, `${mod}.assign`, `${mod}.generate`,
-      ]);
-    }
-    const apiPermissions = roleData?.permissions || [];
-    return [...new Set([...userPermissions, ...apiPermissions])];
-  }, [userPermissions, roleData, userRole]);
-
-  const hasPermission = useCallback((permissionKey) => {
-    if (userRole === 'Admin' || userRole === 'Super Admin') {
-      return true;
-    }
-    return effectivePermissions.includes(permissionKey);
-  }, [userRole, effectivePermissions]);
+  const hasPermission = useCallback((module, action) => {
+    if (isAdminLike) return true;
+    return can(module, action);
+  }, [can, isAdminLike]);
 
   const canAccessModule = useCallback((module) => {
-    return hasPermission(`${module}.view`);
+    return hasPermission(module, 'view');
   }, [hasPermission]);
-
-  const getModuleColumns = useCallback((module) => {
-    if (userRole === 'Admin' || userRole === 'Super Admin') {
-      return MODULE_COLUMNS[module] || [];
-    }
-    const moduleColumns = roleData?.columns?.[module] || {};
-    return Object.entries(moduleColumns)
-      .filter(([_, isVisible]) => isVisible)
-      .map(([key]) => key);
-  }, [roleData, userRole]);
 
   return {
     hasPermission,
     canAccessModule,
-    getModuleColumns,
     userRole,
-    isAdmin: userRole === 'Admin' || userRole === 'Super Admin',
-    permissions: effectivePermissions,
-    isLoading,
-    error,
+    isAdmin: isAdminLike,
+    isLoading: false,
   };
 };
 

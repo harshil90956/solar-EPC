@@ -87,6 +87,9 @@ const ServiceDashboardPage = ({ onNavigate }) => {
   const [amcStats, setAmcStats] = useState({ activeContracts: 0 });
   const [visitStats, setVisitStats] = useState({ totalVisits: 0, scheduled: 0, completed: 0, cancelled: 0 });
   const [aiInsight, setAiInsight] = useState({ insight: '', recommendations: [] });
+  // Store raw API responses to extract pagination metadata
+  const [amcResponseMeta, setAmcResponseMeta] = useState({ total: 0 });
+  const [visitsResponseMeta, setVisitsResponseMeta] = useState({ total: 0 });
 
   // Loading states
   const [loadingTickets, setLoadingTickets] = useState(false);
@@ -155,25 +158,49 @@ const ServiceDashboardPage = ({ onNavigate }) => {
 
       // Process AMC contracts
       let contractsData = [];
+      let amcTotalCount = 0;
+      console.log('DEBUG - AMC Raw Response:', amcRes);
       if (Array.isArray(amcRes)) {
         contractsData = amcRes;
+        amcTotalCount = amcRes.length;
       } else if (amcRes?.data && Array.isArray(amcRes.data)) {
         contractsData = amcRes.data;
+        amcTotalCount = amcRes?.total || amcRes.data?.length;
       } else if (amcRes?.data?.data && Array.isArray(amcRes.data.data)) {
         contractsData = amcRes.data.data;
+        // Priority: data.data.total > data.total > res.total > array.length
+        amcTotalCount = amcRes.data?.total ?? amcRes?.data?.total ?? amcRes?.total ?? amcRes.data.data.length;
+        console.log('DEBUG - AMC total extracted:', amcTotalCount, 'from:', { 'data.total': amcRes.data?.total, 'res.data.total': amcRes?.data?.total, 'res.total': amcRes?.total });
+      } else if (amcRes?.data && typeof amcRes.data === 'object') {
+        // Handle case where data.data might not exist but data is object with data and total
+        if (Array.isArray(amcRes.data.data)) {
+          contractsData = amcRes.data.data;
+          amcTotalCount = amcRes.data.total || amcRes.data.data.length;
+        } else {
+          contractsData = Object.values(amcRes.data).filter(v => Array.isArray(v))[0] || [];
+          amcTotalCount = amcRes.data.total || contractsData.length;
+        }
       }
       setAmcContracts(contractsData);
+      setAmcResponseMeta({ total: amcTotalCount });
+      console.log('DEBUG - AMC total from API:', amcTotalCount, 'array length:', contractsData.length);
 
       // Process visits
       let visitsData = [];
+      let visitsTotalCount = 0;
       if (Array.isArray(visitsRes)) {
         visitsData = visitsRes;
+        visitsTotalCount = visitsRes.length;
       } else if (visitsRes?.data && Array.isArray(visitsRes.data)) {
         visitsData = visitsRes.data;
+        visitsTotalCount = visitsRes?.total || visitsRes.data?.length;
       } else if (visitsRes?.data?.data && Array.isArray(visitsRes.data.data)) {
         visitsData = visitsRes.data.data;
+        visitsTotalCount = visitsRes?.data?.total || visitsRes?.total || visitsRes.data.data.length;
       }
       setVisits(visitsData);
+      setVisitsResponseMeta({ total: visitsTotalCount });
+      console.log('DEBUG - Visits total from API:', visitsTotalCount, 'array length:', visitsData.length);
 
       // Process engineers
       let engineersData = [];
@@ -234,10 +261,10 @@ const ServiceDashboardPage = ({ onNavigate }) => {
   }, [tickets, ticketStats]);
 
   const dynamicAmcStats = useMemo(() => {
-    // Prioritize API stats, fallback to calculated from array
-    const totalContracts = amcStats?.totalContracts ?? amcContracts.length;
+    // Use API response metadata total (actual total count), not array length (paginated)
+    const totalContracts = amcResponseMeta?.total || amcContracts.length;
     const activeContracts = amcStats?.activeContracts ?? amcContracts.filter(c => c.status === 'Active').length;
-    console.log('DEBUG - AMC Stats final:', { totalContracts, activeContracts, amcStats, contractsLength: amcContracts.length });
+    console.log('DEBUG - AMC Stats final:', { totalContracts, activeContracts, amcResponseMeta, contractsLength: amcContracts.length });
     return {
       total: totalContracts,
       active: activeContracts,
@@ -245,21 +272,21 @@ const ServiceDashboardPage = ({ onNavigate }) => {
       expired: amcStats?.expiredContracts ?? amcContracts.filter(c => c.status === 'Expired').length,
       totalValue: amcStats?.totalValue ?? amcContracts.reduce((sum, c) => sum + (c.amount || 0), 0),
     };
-  }, [amcContracts, amcStats]);
+  }, [amcContracts, amcStats, amcResponseMeta]);
 
   const dynamicVisitStats = useMemo(() => {
-    // Prioritize API stats, fallback to calculated from array
-    const totalVisits = visitStats?.totalVisits ?? visits.length;
-    const scheduledVisits = visitStats?.scheduled ?? visits.filter(v => v.status === 'Scheduled').length;
-    const completedVisits = visitStats?.completed ?? visits.filter(v => v.status === 'Completed').length;
-    console.log('DEBUG - Visit Stats final:', { totalVisits, scheduledVisits, completedVisits, visitStats, visitsLength: visits.length });
+    // Use API response metadata total (actual total count), not array length (paginated)
+    const totalVisits = visitsResponseMeta?.total || visits.length;
+    const scheduledVisits = visits.filter(v => v.status === 'Scheduled').length;
+    const completedVisits = visits.filter(v => v.status === 'Completed').length;
+    console.log('DEBUG - Visit Stats final:', { totalVisits, scheduledVisits, completedVisits, visitsResponseMeta, visitsLength: visits.length });
     return {
       total: totalVisits,
       scheduled: scheduledVisits,
       completed: completedVisits,
-      cancelled: visitStats?.cancelled ?? visits.filter(v => v.status === 'Cancelled').length,
+      cancelled: visits.filter(v => v.status === 'Cancelled').length,
     };
-  }, [visits, visitStats]);
+  }, [visits, visitsResponseMeta]);
 
   // AI insight text
   const aiInsightText = aiInsight?.insight ||
