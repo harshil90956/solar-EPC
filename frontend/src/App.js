@@ -77,6 +77,7 @@ import IntelligenceDashboardPage from './pages/IntelligenceDashboardPage';
 import RemindersPage from './pages/RemindersPage';
 import HrmPermissionsPage from './pages/HrmPermissionsPage';
 import ProfilePage from './pages/ProfilePage';
+import TasksPage from './pages/TasksPage';
 import NotificationSystem from './components/NotificationSystem';
 
 
@@ -141,11 +142,9 @@ const PAGE_MAP = {
   settings: { component: SettingsPage, title: 'Settings' },
   'hrm-permissions': { component: HrmPermissionsPage, title: 'HRM Permissions' },
   intelligence: { component: IntelligenceDashboardPage, title: 'AI Intelligence' },
-
   documents: { component: DocumentPage, title: 'Documents' },
-
   profile: { component: ProfilePage, title: 'My Profile' },
-
+  tasks: { component: TasksPage, title: 'Tasks' },
 };
 
 
