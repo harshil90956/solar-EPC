@@ -436,6 +436,12 @@ const ProposalPage = () => {
           customerEmail: d.customerEmail || '',
           customerPhone: d.customerPhone || '',
           customerAddress: d.customerAddress || '',
+          // Individual address fields for canvas
+          address: d.address || '',
+          city: d.city || '',
+          state: d.state || '',
+          country: d.country || '',
+          zipCode: d.zipCode || '',
           companyName: d.companyName || '',
           
           // System Details
@@ -514,66 +520,106 @@ const ProposalPage = () => {
 
   const handleCreateProposal = async (data) => {
     try {
+      console.log('[DEBUG] Creating proposal with data:', data);
+      
+      // Generate unique documentId with timestamp to avoid duplicates
+      const timestamp = Date.now().toString(36).toUpperCase();
+      const uniqueId = `PROP-${new Date().getFullYear()}-${timestamp}`;
+      
+      // Ensure all fields have default values
       const payload = {
         type: 'proposal',
-        documentId: data.proposalNumber || generateProposalNumber(proposals),
-        title: data.projectName,
-        description: data.projectDescription || '',
-        customerName: data.customerName,
-        customerEmail: data.customerEmail || '',
-        customerPhone: data.customerPhone || '',
-        customerAddress: data.customerAddress || data.projectLocation || '',
+        documentId: data.proposalNumber || uniqueId,
+        title: data.projectName || data.subject || 'New Solar Proposal',
+        description: data.projectDescription || data.description || '',
+        customerName: data.customerName || data.to || 'Unknown Customer',
+        customerEmail: data.customerEmail || data.email || '',
+        customerPhone: data.customerPhone || data.phone || '',
+        customerAddress: data.customerAddress || [data.address, data.city, data.state, data.country, data.zipCode].filter(Boolean).join(', ') || '',
+        // Keep individual address fields for canvas display
+        address: data.address || '',
+        city: data.city || '',
+        state: data.state || '',
+        country: data.country || '',
+        zipCode: data.zipCode || '',
         companyName: data.companyName || '',
         
-        // System details (stored in metadata or extended schema)
+        // System details
         systemCapacity: data.systemCapacity || 0,
         projectType: data.projectType || 'residential',
         installationType: data.installationType || 'rooftop',
         projectLocation: data.projectLocation || '',
         
-        // Equipment items
-        items: data.equipmentItems?.map(item => ({
-          name: item.component,
-          description: item.description,
-          brand: item.brand,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice || 0,
-          total: item.total || 0
-        })) || [],
-        equipmentItems: data.equipmentItems || [],
+        // Equipment items - ensure proper format
+        items: (data.items || []).map(item => ({
+          name: item.name || item.component || item.description || 'Item',
+          description: item.description || item.longDescription || '',
+          brand: item.brand || '',
+          quantity: parseInt(item.quantity) || 1,
+          unitPrice: parseFloat(item.unitPrice || item.rate) || 0,
+          total: parseFloat(item.total || (item.quantity * item.unitPrice)) || 0
+        })),
+        equipmentItems: (data.items || []).map(item => ({
+          component: item.name || item.component || 'Item',
+          brand: item.brand || '',
+          description: item.description || item.longDescription || '',
+          quantity: parseInt(item.quantity) || 1
+        })),
         
-        // Costs
-        equipmentCost: data.equipmentCost || 0,
-        installationCost: data.installationCost || 0,
-        engineeringCost: data.engineeringCost || 0,
-        transportationCost: data.transportationCost || 0,
-        miscellaneousCost: data.miscellaneousCost || 0,
-        discount: data.discount || 0,
+        // Costs - ensure numbers
+        equipmentCost: parseFloat(data.equipmentCost) || 0,
+        installationCost: parseFloat(data.installationCost) || 0,
+        engineeringCost: parseFloat(data.engineeringCost) || 0,
+        transportationCost: parseFloat(data.transportationCost) || 0,
+        miscellaneousCost: parseFloat(data.miscellaneousCost) || 0,
+        discount: parseFloat(data.discount) || 0,
         
         // Financials
-        subtotal: data.subtotal || 0,
-        taxRate: data.gstRate || 18,
-        taxAmount: data.gstAmount || 0,
-        total: data.total || 0,
+        subtotal: parseFloat(data.subtotal || data.subTotal || 0),
+        taxRate: parseFloat(data.taxRate || data.gstRate) || 18,
+        taxAmount: parseFloat(data.taxAmount || data.gstAmount) || 0,
+        total: parseFloat(data.total) || 0,
         
         // Status
-        status: 'draft',
+        status: data.status || 'draft',
+        validUntil: data.validUntil || data.openTill || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         
         // Terms & Notes
         terms: data.terms || '',
         notes: data.notes || '',
         
         // Benefits
-        benefits: data.benefits || null
+        benefits: data.benefits || {
+          yearlySavings: Math.round((data.systemCapacity || 5) * 15000),
+          co2Reduction: Math.round((data.systemCapacity || 5) * 1.3 * 10) / 10,
+          paybackPeriod: 5,
+          warrantyYears: 25
+        }
       };
       
-      await documentsApi.create(payload);
-      toast.success('Proposal created successfully');
+      console.log('[DEBUG] Payload being sent to API:', payload);
+      
+      const response = await documentsApi.create(payload);
+      console.log('[DEBUG] API Response:', response);
+      
+      toast.success('Proposal created successfully!');
       fetchProposals();
       setIsCreateModalOpen(false);
+      
+      // Open canvas editor with the newly created proposal data
+      const newProposal = response.data || { ...payload, id: response.id || Date.now() };
+      setSelectedProposal(newProposal);
+      setIsCanvasEditorOpen(true);
     } catch (error) {
-      console.error('Error creating proposal:', error);
-      toast.error('Failed to create proposal');
+      console.error('[DEBUG] Error creating proposal:', error);
+      console.error('[DEBUG] Error status:', error?.status);
+      console.error('[DEBUG] Error message:', error?.message);
+      console.error('[DEBUG] Error data:', error?.data);
+      
+      // Show detailed error message
+      const errorMsg = error?.message || 'Failed to create proposal';
+      const errorDetails = error?.data?.errors?.map(e => e.message).join(', ') || '';
+      toast.error(`${errorMsg}${errorDetails ? ': ' + errorDetails : ''}`);
     }
   };
 
@@ -831,6 +877,13 @@ const ProposalPage = () => {
   const handleCloseDetail = () => {
     setShowDetailPanel(false);
     // Keep selectedProposal so we can reopen with arrow
+  };
+
+  // ── Open Canvas Editor with Proposal Data ───────────────────────────────────
+  const handleOpenCanvasEditor = (proposal) => {
+    setSelectedProposal(proposal);
+    setIsCanvasEditorOpen(true);
+    setShowDetailPanel(false);
   };
 
   // ── Table Columns ─────────────────────────────────────────────────────────
@@ -1121,13 +1174,23 @@ const ProposalPage = () => {
                       <tr 
                         key={proposal.id} 
                         className={`border-b border-gray-100 hover:bg-gray-50 cursor-pointer ${selectedProposal?.id === proposal.id ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''}`}
-                        onClick={() => handleProposalClick(proposal)}
                       >
                         <td className="py-3 px-4 group">
                           <div className="relative">
-                            <span className="text-xs font-medium text-red-500 hover:text-red-600 cursor-pointer block">{proposal.proposalNumber}</span>
+                            <span 
+                              className="text-xs font-medium text-red-500 hover:text-red-600 cursor-pointer block"
+                              onClick={() => handleOpenCanvasEditor(proposal)}
+                            >{proposal.proposalNumber}</span>
                             {/* View | Edit links - visible on hover */}
                             <div className="absolute left-0 top-full mt-0.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none group-hover:pointer-events-auto">
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); handleOpenCanvasEditor(proposal); }}
+                                className="text-[10px] text-gray-500 hover:text-purple-500 hover:underline"
+                                title="Open in Canvas Editor"
+                              >
+                                Canvas
+                              </button>
+                              <span className="text-[10px] text-gray-400">|</span>
                               <button 
                                 onClick={(e) => { e.stopPropagation(); handleProposalClick(proposal); }}
                                 className="text-[10px] text-gray-500 hover:text-blue-500 hover:underline"
@@ -1144,11 +1207,17 @@ const ProposalPage = () => {
                             </div>
                           </div>
                         </td>
-                        <td className="py-3 px-4">
-                          <span className="text-xs text-gray-700">{proposal.projectName}</span>
+                        <td 
+                          className="py-3 px-4"
+                          onClick={() => { setSelectedProposal(proposal); setIsEditMode(true); }}
+                        >
+                          <span className="text-xs text-gray-700 hover:text-blue-600 cursor-pointer">{proposal.projectName}</span>
                         </td>
-                        <td className="py-3 px-4">
-                          <span className="text-xs text-gray-600">{proposal.customerName}</span>
+                        <td 
+                          className="py-3 px-4"
+                          onClick={() => { setSelectedProposal(proposal); setIsEditMode(true); }}
+                        >
+                          <span className="text-xs text-gray-600 hover:text-blue-600 cursor-pointer">{proposal.customerName}</span>
                         </td>
                         <td className="py-3 px-4">
                           <span className="text-xs font-medium text-gray-800">{fmt(proposal.total)}</span>
@@ -1374,6 +1443,7 @@ const ProposalPage = () => {
         size="full"
       >
         <ProposalCanvasEditor
+          key={`canvas-${selectedProposal?.id || 'new'}-${Date.now()}`}
           initialData={selectedProposal}
           onSave={(data) => {
             console.log('Canvas data saved:', data);
@@ -1761,20 +1831,50 @@ const CreateProposalWizard = ({
   };
 
   const handleSubmit = (send = false) => {
+    console.log('[DEBUG] handleSubmit called with send=', send);
+    console.log('[DEBUG] onSubmit prop is:', typeof onSubmit);
+    console.log('[DEBUG] Form data before submit:', formData);
+    
+    if (!onSubmit || typeof onSubmit !== 'function') {
+      console.error('[DEBUG] ERROR: onSubmit is not a function!');
+      alert('Error: onSubmit function is not defined');
+      return;
+    }
+    
+    // Use default values if fields are empty
+    const subject = formData.subject?.trim() || 'New Solar Proposal';
+    const customerName = formData.to?.trim() || 'Unknown Customer';
+    const email = formData.email?.trim() || '';
+    
     const totals = calculateTotals();
+    console.log('[DEBUG] Calculated totals:', totals);
+    
     const payload = {
       ...formData,
       ...totals,
-      projectName: formData.subject,
-      customerName: formData.to,
-      customerEmail: formData.email,
-      customerPhone: formData.phone,
-      customerAddress: [formData.address, formData.city, formData.state, formData.country, formData.zipCode].filter(Boolean).join(', '),
-      projectLocation: [formData.city, formData.state].filter(Boolean).join(', '),
-      validUntil: formData.openTill,
-      total: totals.total,
-      status: send ? 'sent' : formData.status
+      subject,
+      to: customerName,
+      projectName: subject,
+      customerName: customerName,
+      customerEmail: email,
+      customerPhone: formData.phone || '',
+      // Keep individual address fields for canvas
+      address: formData.address || '',
+      city: formData.city || '',
+      state: formData.state || '',
+      country: formData.country || '',
+      zipCode: formData.zipCode || '',
+      customerAddress: [formData.address, formData.city, formData.state, formData.country, formData.zipCode].filter(Boolean).join(', ') || '',
+      projectLocation: [formData.city, formData.state].filter(Boolean).join(', ') || '',
+      validUntil: formData.openTill || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      total: totals.total || 0,
+      status: send ? 'sent' : (formData.status || 'draft'),
+      // Ensure items is always an array
+      items: formData.items || [],
+      equipmentItems: formData.items || []
     };
+    
+    console.log('[DEBUG] Final payload:', payload);
     onSubmit(payload);
   };
 
@@ -1791,6 +1891,20 @@ const CreateProposalWizard = ({
 
   return (
     <div className="space-y-6">
+      {/* DEBUG TEST BUTTON */}
+      {!readOnly && (
+        <div className="p-4 bg-yellow-100 border border-yellow-400 rounded">
+          <p className="text-sm text-yellow-800 mb-2">Debug: Test if buttons work</p>
+          <button
+            type="button"
+            onClick={() => window.alert('TEST BUTTON CLICKED!')}
+            className="px-4 py-2 bg-red-500 text-white rounded"
+          >
+            CLICK ME TO TEST
+          </button>
+        </div>
+      )}
+      
       {/* Header - Only show in readOnly mode */}
       {readOnly && initialData && (
         <div className="flex items-center justify-between pb-4 border-b border-gray-200">
@@ -1840,6 +1954,7 @@ const CreateProposalWizard = ({
             <label className="block text-sm font-medium text-gray-700 mb-1">Related</label>
             <select
               value={formData.related}
+              onChange={(e) => !readOnly && setFormData({ ...formData, related: e.target.value })}
               disabled={readOnly}
               className={selectBaseClass}
             >
@@ -1857,6 +1972,7 @@ const CreateProposalWizard = ({
               <input
                 type="date"
                 value={formData.date}
+                onChange={(e) => !readOnly && setFormData({ ...formData, date: e.target.value })}
                 readOnly={readOnly}
                 className={inputBaseClass}
               />
@@ -1866,6 +1982,7 @@ const CreateProposalWizard = ({
               <input
                 type="date"
                 value={formData.openTill}
+                onChange={(e) => !readOnly && setFormData({ ...formData, openTill: e.target.value })}
                 readOnly={readOnly}
                 className={inputBaseClass}
               />
@@ -1878,6 +1995,7 @@ const CreateProposalWizard = ({
               <label className="block text-sm font-medium text-gray-700 mb-1">Currency</label>
               <select
                 value={formData.currency}
+                onChange={(e) => !readOnly && setFormData({ ...formData, currency: e.target.value })}
                 disabled={readOnly}
                 className={selectBaseClass}
               >
@@ -1890,6 +2008,7 @@ const CreateProposalWizard = ({
               <label className="block text-sm font-medium text-gray-700 mb-1">Discount Type</label>
               <select
                 value={formData.discountType}
+                onChange={(e) => !readOnly && setFormData({ ...formData, discountType: e.target.value })}
                 disabled={readOnly}
                 className={selectBaseClass}
               >
@@ -1908,6 +2027,7 @@ const CreateProposalWizard = ({
             <input
               type="text"
               value={formData.tags}
+              onChange={(e) => !readOnly && setFormData({ ...formData, tags: e.target.value })}
               readOnly={readOnly}
               className={inputBaseClass}
               placeholder="Enter tags separated by comma"
@@ -1917,15 +2037,19 @@ const CreateProposalWizard = ({
           {/* Allow Comments Toggle */}
           <div className="flex items-center gap-3">
             <label className="text-sm font-medium text-gray-700">Allow Comments</label>
-            <div className={`relative inline-flex h-5 w-9 items-center rounded-full ${
-              formData.allowComments ? 'bg-blue-500' : 'bg-gray-300'
-            }`}>
+            <button
+              type="button"
+              onClick={() => !readOnly && setFormData({ ...formData, allowComments: !formData.allowComments })}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                formData.allowComments ? 'bg-blue-500' : 'bg-gray-300'
+              }`}
+            >
               <span
                 className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
                   formData.allowComments ? 'translate-x-5' : 'translate-x-1'
                 }`}
               />
-            </div>
+            </button>
           </div>
         </div>
 
@@ -1939,6 +2063,7 @@ const CreateProposalWizard = ({
               </label>
               <select
                 value={formData.status}
+                onChange={(e) => !readOnly && setFormData({ ...formData, status: e.target.value })}
                 disabled={readOnly}
                 className={selectBaseClass}
               >
@@ -1952,6 +2077,7 @@ const CreateProposalWizard = ({
               <label className="block text-sm font-medium text-gray-700 mb-1">Assigned</label>
               <select
                 value={formData.assignedTo}
+                onChange={(e) => !readOnly && setFormData({ ...formData, assignedTo: e.target.value })}
                 disabled={readOnly}
                 className={selectBaseClass}
               >
@@ -1965,17 +2091,16 @@ const CreateProposalWizard = ({
           {/* To */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              <span className="text-red-500">*</span> To
+              <span className="text-red-500">*</span> To (Customer Name)
             </label>
-            <select
+            <input
+              type="text"
               value={formData.to}
-              disabled={readOnly}
-              className={selectBaseClass}
-            >
-              <option value="">Nothing selected</option>
-              <option value="customer1">Customer 1</option>
-              <option value="customer2">Customer 2</option>
-            </select>
+              onChange={(e) => !readOnly && setFormData({ ...formData, to: e.target.value })}
+              className={inputBaseClass}
+              placeholder="Enter customer name"
+              readOnly={readOnly}
+            />
           </div>
 
           {/* Address */}
@@ -1983,6 +2108,7 @@ const CreateProposalWizard = ({
             <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
             <textarea
               value={formData.address}
+              onChange={(e) => !readOnly && setFormData({ ...formData, address: e.target.value })}
               readOnly={readOnly}
               className={`${inputBaseClass} resize-none`}
               rows={2}
@@ -1997,6 +2123,7 @@ const CreateProposalWizard = ({
               <input
                 type="text"
                 value={formData.city}
+                onChange={(e) => !readOnly && setFormData({ ...formData, city: e.target.value })}
                 readOnly={readOnly}
                 className={inputBaseClass}
               />
@@ -2006,6 +2133,7 @@ const CreateProposalWizard = ({
               <input
                 type="text"
                 value={formData.state}
+                onChange={(e) => !readOnly && setFormData({ ...formData, state: e.target.value })}
                 readOnly={readOnly}
                 className={inputBaseClass}
               />
@@ -2017,6 +2145,7 @@ const CreateProposalWizard = ({
               <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
               <select
                 value={formData.country}
+                onChange={(e) => !readOnly && setFormData({ ...formData, country: e.target.value })}
                 disabled={readOnly}
                 className={selectBaseClass}
               >
@@ -2031,6 +2160,7 @@ const CreateProposalWizard = ({
               <input
                 type="text"
                 value={formData.zipCode}
+                onChange={(e) => !readOnly && setFormData({ ...formData, zipCode: e.target.value })}
                 readOnly={readOnly}
                 className={inputBaseClass}
               />
@@ -2046,6 +2176,7 @@ const CreateProposalWizard = ({
               <input
                 type="email"
                 value={formData.email}
+                onChange={(e) => !readOnly && setFormData({ ...formData, email: e.target.value })}
                 readOnly={readOnly}
                 className={inputBaseClass}
               />
@@ -2055,6 +2186,7 @@ const CreateProposalWizard = ({
               <input
                 type="tel"
                 value={formData.phone}
+                onChange={(e) => !readOnly && setFormData({ ...formData, phone: e.target.value })}
                 readOnly={readOnly}
                 className={inputBaseClass}
               />
@@ -2343,7 +2475,7 @@ const CreateProposalWizard = ({
           Include proposal items with merge field anywhere in proposal content by using: {'{proposal_items}'}
         </p>
         
-        <div className="flex items-center justify-end gap-3">
+        <div className="flex items-center justify-end gap-3 relative z-50">
           {readOnly ? (
             <>
               <button
@@ -2362,20 +2494,37 @@ const CreateProposalWizard = ({
           ) : (
             <>
               <button
+                type="button"
                 onClick={onCancel}
                 className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
               >
                 Cancel
               </button>
               <button
-                onClick={() => handleSubmit(false)}
-                className="px-4 py-2 text-sm text-white bg-gray-700 hover:bg-gray-800 rounded"
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  window.alert('Save as Draft clicked!');
+                  console.log('[DEBUG] Save as Draft clicked - executing handleSubmit');
+                  handleSubmit(false);
+                }}
+                style={{position: 'relative', zIndex: 9999}}
+                className="px-4 py-2 text-sm text-white bg-gray-700 hover:bg-gray-800 rounded pointer-events-auto"
               >
                 Save as Draft
               </button>
               <button
-                onClick={() => handleSubmit(true)}
-                className="px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded"
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  window.alert('Save & Send clicked!');
+                  console.log('[DEBUG] Save & Send clicked - executing handleSubmit');
+                  handleSubmit(true);
+                }}
+                style={{position: 'relative', zIndex: 9999}}
+                className="px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded pointer-events-auto"
               >
                 Save & Send
               </button>

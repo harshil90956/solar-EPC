@@ -83,6 +83,9 @@ export class Quotation {
   gstPercentage!: number;
 
   @Prop({ default: 0 })
+  paymentTerms!: number; // Payment terms percentage (e.g., 50 for 50% advance)
+
+  @Prop({ default: 0 })
   tax!: number;
 
   @Prop({ required: true })
