@@ -808,12 +808,30 @@ const InventoryPage = () => {
       const token = localStorage.getItem('solar_token') || localStorage.getItem('accessToken') || localStorage.getItem('token');
       if (!token) return;
       
-      const res = await api.get('/documents', { 
+      // Solar Quote approvals live under /quotations
+      const res = await api.get('/quotations', {
         headers: { 'x-tenant-id': TENANT_ID },
-        params: { type: 'quotation', status: 'accepted' }
       });
-      const quotations = Array.isArray(res) ? res : (res.data || []);
-      setApprovedQuotations(quotations.filter(q => q.status === 'accepted' || q.status === 'ACCEPTED'));
+
+      const raw = res?.data ?? res;
+      const quotations = Array.isArray(raw) ? raw : (raw?.data || []);
+
+      // Filter accepted/approved (case-insensitive)
+      const approved = quotations.filter((q) => {
+        const s = (q?.status ?? '').toString().toLowerCase();
+        return s === 'approved' || s === 'accepted';
+      });
+
+      // Normalize shape for dropdown usage
+      setApprovedQuotations(
+        approved.map((q) => ({
+          ...q,
+          id: q.quotationId || q._id || q.id,
+          dbId: q._id || q.id,
+          status: (q?.status ?? '').toString().toLowerCase(),
+          items: q.materials || q.items || [],
+        })),
+      );
     } catch (err) {
       console.error('Failed to fetch approved quotations:', err);
       setApprovedQuotations([]);

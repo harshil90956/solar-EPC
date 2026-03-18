@@ -18,6 +18,9 @@ export enum DocumentStatus {
   ACCEPTED = 'accepted',
   REJECTED = 'rejected',
   EXPIRED = 'expired',
+  SIGNED = 'signed',
+  PAID = 'paid',
+  PENDING = 'pending',
 }
 
 @Schema({ timestamps: true })
