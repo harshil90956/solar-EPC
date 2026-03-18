@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnauthorizedException, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
@@ -221,6 +221,67 @@ export class AuthService {
       },
     };
   }
+
+  /**
+   * Find a user or employee by email for password reset
+   */
+  async findUserByEmail(email: string) {
+    const normalizedEmail = email.toLowerCase().trim();
+    
+    // Check regular users
+    const user = await this.userModel.findOne({ email: normalizedEmail }).lean();
+    if (user) {
+      return {
+        id: user._id.toString(),
+        email: user.email,
+        name: user.email.split('@')[0],
+        userType: 'user',
+      };
+    }
+
+    // Check employees
+    const employee = await this.employeeModel.findOne({ email: normalizedEmail }).lean();
+    if (employee) {
+      return {
+        id: employee._id.toString(),
+        email: employee.email,
+        name: `${employee.firstName} ${employee.lastName}`,
+        userType: 'employee',
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Reset password by email and user type
+   */
+  async resetPasswordByEmail(email: string, newPassword: string, userType: string) {
+    const normalizedEmail = email.toLowerCase().trim();
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    try {
+      if (userType === 'employee') {
+        const result = await this.employeeModel.findOneAndUpdate(
+          { email: normalizedEmail },
+          { $set: { password: passwordHash } },
+          { new: true }
+        ).exec();
+        if (!result) throw new NotFoundException('Employee not found');
+      } else {
+        const result = await this.userModel.findOneAndUpdate(
+          { email: normalizedEmail },
+          { $set: { passwordHash: passwordHash } },
+          { new: true }
+        ).exec();
+        if (!result) throw new NotFoundException('User not found');
+      }
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      throw new InternalServerErrorException('Failed to reset password');
+    }
+  }
+
 
   async getUsersByTenantAndRole(tenantCode: string, role?: string) {
     const tenant = await this.tenantModel.findOne({ code: tenantCode }).lean();
