@@ -128,9 +128,14 @@ export class AuthService {
 
     // Handle regular user login
     // Check for custom role override
-    console.log('[AUTH DEBUG] Looking up user override for userId:', user!._id.toString());
+    console.log('[AUTH DEBUG] ==========================================');
+    console.log('[AUTH DEBUG] LOGIN START - User:', user!._id.toString(), 'Role:', user!.role);
+    console.log('[AUTH DEBUG] ==========================================');
     const userOverride = await this.userOverrideModel.findOne({ userId: user!._id }).lean();
-    console.log('[AUTH DEBUG] User override found:', userOverride);
+    console.log('[AUTH DEBUG] User override found:', userOverride ? 'YES' : 'NO');
+    if (userOverride) {
+      console.log('[AUTH DEBUG] User override details:', JSON.stringify(userOverride, null, 2));
+    }
     const customRoleId = userOverride?.customRoleId || null;
     console.log('[AUTH DEBUG] Extracted customRoleId:', customRoleId);
 
@@ -141,6 +146,7 @@ export class AuthService {
       || roleLower === 'superadmin'
       || roleLower === 'super-admin'
       || roleLower === 'super_admin';
+    console.log('[AUTH DEBUG] isAdminLike:', isAdminLike, '(role:', user!.role, ', isSuperAdmin:', user!.isSuperAdmin, ')');
     const globalDataScope = isAdminLike ? 'ALL' : 'ASSIGNED';
     
     // Build permissions and dataScope objects
@@ -150,12 +156,20 @@ export class AuthService {
     // Get all available modules
     const allModules = ['dashboard', 'crm', 'survey', 'design', 'documents', 'procurement', 'inventory', 'project', 'logistics', 'installation', 'commissioning', 'finance', 'service', 'compliance', 'admin', 'settings', 'hrm', 'employees', 'attendance', 'leaves', 'payroll', 'increments', 'departments'];
     
+    console.log('[AUTH DEBUG] Building base permissions...');
+    
     for (const module of allModules) {
       // Default: admins get full access, others get minimal
       const isHrmModule = ['employees', 'attendance', 'leaves', 'payroll', 'increments', 'departments'].includes(module);
       if (isHrmModule) {
-        // For HRM modules, use HRM permissions
-        userPermissions[module] = { view: false, create: false, edit: false, delete: false };
+        // For HRM modules: if admin without custom role → full access, otherwise use role-based
+        if (isAdminLike && !customRoleId) {
+          userPermissions[module] = { view: true, create: true, edit: true, delete: true };
+          console.log('[AUTH DEBUG] HRM Module', module, '-> FULL ACCESS (admin without custom role)');
+        } else {
+          userPermissions[module] = { view: false, create: false, edit: false, delete: false };
+          console.log('[AUTH DEBUG] HRM Module', module, '-> NO ACCESS (has custom role or not admin)');
+        }
         dataScopeObj[module] = isAdminLike ? 'ALL' : 'OWN';
       } else {
         // For other modules, base role permissions
@@ -164,6 +178,8 @@ export class AuthService {
         dataScopeObj[module] = isAdminLike ? 'ALL' : 'ASSIGNED';
       }
     }
+    
+    console.log('[AUTH DEBUG] Base permissions built:', JSON.stringify(userPermissions, null, 2));
     
     // Override HRM permissions with actual role permissions if roleId exists
     if (customRoleId) {

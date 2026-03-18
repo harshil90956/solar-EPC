@@ -97,8 +97,19 @@ export const AuthProvider = ({ children }) => {
 
       console.log(' [AUTH_SUCCESS - User]', {
         role: authedUser.role,
+        roleId: authedUser.roleId,
+        isSuperAdmin: authedUser.isSuperAdmin,
         permissions: authedUser.permissions,
         dataScope: authedUser.dataScope
+      });
+      
+      // DEBUG: Log specific HRM permissions
+      console.log('[AUTH DEBUG] HRM Permissions received:', {
+        employees: authedUser.permissions?.employees,
+        departments: authedUser.permissions?.departments,
+        leaves: authedUser.permissions?.leaves,
+        attendance: authedUser.permissions?.attendance,
+        payroll: authedUser.permissions?.payroll
       });
 
       setError('');
