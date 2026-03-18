@@ -596,6 +596,7 @@ export class AuthService {
     };
   }
 
+<<<<<<< HEAD
   // In-memory OTP store (use Redis in production)
   // Added attempts tracking for security (max 3 attempts)
   private otpStore: Map<string, { 
@@ -819,10 +820,27 @@ export class AuthService {
     }
 
     // Check employees collection
+=======
+  // Find user by email (used for password reset)
+  async findUserByEmail(email: string): Promise<{ userType: 'user' | 'employee'; name: string } | null> {
+    const normalizedEmail = email.toLowerCase().trim();
+    
+    // First check users collection
+    const user = await this.userModel.findOne({ email: normalizedEmail, isActive: true }).lean();
+    if (user) {
+      return {
+        userType: 'user',
+        name: user.firstName || user.email.split('@')[0],
+      };
+    }
+    
+    // Then check employees collection
+>>>>>>> 729537b (fixed)
     const employee = await this.employeeModel.findOne({ 
       email: normalizedEmail,
       status: { $in: ['active', 'inactive'] }
     }).lean();
+<<<<<<< HEAD
 
     if (employee) {
       const name = `${employee.firstName || ''} ${employee.lastName || ''}`.trim() || employee.email.split('@')[0];
@@ -843,10 +861,41 @@ export class AuthService {
 
     if (userType === 'user') {
       const user = await this.userModel.findOneAndUpdate(
+=======
+    if (employee) {
+      return {
+        userType: 'employee',
+        name: `${employee.firstName || ''} ${employee.lastName || ''}`.trim() || employee.email.split('@')[0],
+      };
+    }
+    
+    return null;
+  }
+
+  // Reset password by email
+  async resetPasswordByEmail(email: string, newPassword: string, userType: string): Promise<void> {
+    const normalizedEmail = email.toLowerCase().trim();
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    
+    if (userType === 'employee') {
+      // Update employee password
+      const result = await this.employeeModel.findOneAndUpdate(
+        { email: normalizedEmail },
+        { $set: { password: passwordHash } },
+        { new: true }
+      );
+      if (!result) {
+        throw new NotFoundException('Employee not found');
+      }
+    } else {
+      // Update user password
+      const result = await this.userModel.findOneAndUpdate(
+>>>>>>> 729537b (fixed)
         { email: normalizedEmail, isActive: true },
         { $set: { passwordHash } },
         { new: true }
       );
+<<<<<<< HEAD
 
       if (!user) {
         throw new NotFoundException('User not found');
@@ -861,6 +910,11 @@ export class AuthService {
       if (!employee) {
         throw new NotFoundException('Employee not found');
       }
+=======
+      if (!result) {
+        throw new NotFoundException('User not found');
+      }
+>>>>>>> 729537b (fixed)
     }
   }
 }
