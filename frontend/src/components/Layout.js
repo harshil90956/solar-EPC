@@ -171,21 +171,13 @@ const Layout = ({ currentPage, onNavigate, children }) => {
             if (child.id === 'hrm-permissions' && !isAdminLike) return false;
 
             // Check permission for child (strip hrm- prefix)
-            // Use fresh permissions from API if available, otherwise fall back to cached
+            // Always check view permission - no admin bypass
             const moduleKey = child.id.replace('hrm-', '');
+            const hasViewPermission = can(moduleKey, 'view');
             
-            // Check fresh permissions first (from API)
-            const freshPerm = freshPermissions?.data?.find(p => p.module === moduleKey);
-            const hasViewPermission = freshPerm 
-              ? freshPerm.actions?.view === true 
-              : can(moduleKey, 'view'); // fallback to cached
+            console.log('[SIDEBAR DEBUG] Checking child:', child.id, 'moduleKey:', moduleKey, 'can view:', hasViewPermission, 'user.roleId:', user?.roleId);
             
-            // Admin bypass only for admins without custom role
-            const hasCustomRole = !!user?.roleId;
-            const permitted = isAdminLike && !hasCustomRole
-              ? true  // True admin sees all
-              : hasViewPermission;
-            return permitted;
+            return hasViewPermission;
           });
 
           // Only show HRM parent if at least one child is visible
