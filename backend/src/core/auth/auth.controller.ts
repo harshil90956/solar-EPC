@@ -70,7 +70,7 @@ export class AuthController {
     // Send OTP
     const result = await this.otpService.sendOtp(
       normalizedEmail,
-      user.userType,
+      user.userType as 'user' | 'employee',
       user.name,
     );
 

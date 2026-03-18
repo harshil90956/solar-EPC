@@ -22,9 +22,8 @@ import { api } from '../lib/apiClient';
 import { useQuery } from '@tanstack/react-query';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
-import HrmPermissionsPage from './HrmPermissionsPage';
 import { usePermissions } from '../hooks/usePermissions';
-import HrmPermissionsPage from './HRMPermissionsPage';
+import HrmPermissionsPage from './HrmPermissionsPage';
 
 import AttendancePolicySettings from './AttendancePolicySettings';
 import { toast } from '../components/ui/Toast';

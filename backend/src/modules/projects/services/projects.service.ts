@@ -214,6 +214,9 @@ export class ProjectsService {
         if (Types.ObjectId.isValid(projectId)) {
           projectQuery.push({ projectId: new Types.ObjectId(projectId) });
         }
+        
+        // Also add project._id to query to be sure
+        projectQuery.push({ projectId: project._id });
 
         const tenantIdStr = tenantId.toString();
         const reservations = await this.reservationModel.find({
@@ -228,8 +231,10 @@ export class ProjectsService {
               $or: projectQuery,
             },
           ],
-          status: { $nin: ['Cancelled', 'cancelled'] },
+          status: { $nin: ['Cancelled', 'cancelled', 'released', 'Released'] },
         } as any).session(session);
+
+        console.log(`[DEBUG] Found ${reservations.length} reservations to restore for project ${projectId}`);
 
         let missingInventoryCount = 0;
 
@@ -246,14 +251,31 @@ export class ProjectsService {
 
           // Inventory is stored in Item collection (not Inventory collection)
           // Item schema: itemId, stock, reserved, tenantId (as string)
-          const item = await this.itemModel.findOne({
-            itemId: reservation.itemId,
+          // Search by both itemId and description/name to be robust
+          // Also try to find by inventoryId if present in reservation
+          const itemQuery: any = {
             isDeleted: false,
             $or: [
               { tenantId: tenantIdStr },
               { tenantId: tenantId.toString() },
             ],
-          } as any).session(session);
+          };
+
+          if (reservation.inventoryId) {
+            itemQuery.$or = [
+              { _id: reservation.inventoryId },
+              { itemId: reservation.itemId },
+              { description: reservation.itemId }
+            ];
+          } else {
+            itemQuery.$or = [
+              { itemId: reservation.itemId },
+              { description: reservation.itemId },
+              { name: reservation.itemId }
+            ];
+          }
+
+          const item = await this.itemModel.findOne(itemQuery).session(session);
 
           if (!item) {
             console.warn('PROJECT CANCEL INVENTORY RESTORE - item not found in items collection', {
@@ -274,15 +296,17 @@ export class ProjectsService {
             available: (item.stock || 0) - (item.reserved || 0),
           };
 
-          // Calculate new values (clamp reserved >= 0, available <= stock)
+          // Calculate new values (clamp reserved >= 0)
           const newReserved = Math.max(0, (item.reserved || 0) - qty);
-          // available is derived: stock - reserved
+          // Increment stock because it was decremented during issue/stock-out
+          const newStock = (item.stock || 0) + qty;
 
           await this.itemModel.updateOne(
             { _id: item._id },
             {
               $set: {
                 reserved: newReserved,
+                stock: newStock,
               },
             },
             { session },
