@@ -1,450 +1,278 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  ShieldCheck, Save, RefreshCcw, Check, X, Loader2,
-  Users, Calendar, Clock, Wallet, TrendingUp, Building,
-  ChevronDown, ChevronRight, Eye, EyeOff, Lock, AlertCircle
+import { 
+  ShieldCheck, 
+  Save, 
+  RefreshCcw, 
+  Check, 
+  X,
+  Loader2,
+  Users,
+  Calendar,
+  Clock,
+  Wallet,
+  TrendingUp,
+  Building,
+  LayoutDashboard,
+  Settings
 } from 'lucide-react';
 import api from '../lib/apiClient';
 import { toast } from '../components/ui/Toast';
 import { Button } from '../components/ui/Button';
-import { useAuth } from '../context/AuthContext';
+import { Select } from '../components/ui/Input';
 
 const PERMISSION_COLUMNS = [
   { id: 'view', label: 'View' },
-  { id: 'create', label: 'Create' },
-  { id: 'edit', label: 'Edit' },
+  { id: 'manage', label: 'Create/Edit' },
   { id: 'delete', label: 'Delete' },
   { id: 'approve', label: 'Approve' },
   { id: 'reject', label: 'Reject' },
-  { id: 'apply', label: 'Apply' },
-  { id: 'checkin', label: 'Check In' },
-  { id: 'checkout', label: 'Check Out' },
-  { id: 'generate', label: 'Generate' },
-  { id: 'export', label: 'Export' },
+  { id: 'checkin_checkout', label: 'Check In/Out' },
 ];
-
-const MODULE_SPECIFIC_ACTIONS = {
-  employees: ['export', 'assign'],
-  leaves: ['apply'],
-  attendance: ['checkin', 'checkout', 'export'],
-  payroll: ['generate', 'export'],
-  increments: ['export'],
-  departments: ['export', 'assign'],
-};
 
 const MODULES = [
-  { id: 'employees', label: 'Employees', icon: Users },
-  { id: 'leaves', label: 'Leaves', icon: Calendar },
-  { id: 'attendance', label: 'Attendance', icon: Clock },
-  { id: 'payroll', label: 'Payroll', icon: Wallet },
-  { id: 'increments', label: 'Increments', icon: TrendingUp },
-  { id: 'departments', label: 'Departments', icon: Building },
+  {
+    id: 'employees',
+    label: 'HRM — Employees',
+    icon: Users,
+    availablePermissions: ['view', 'manage', 'delete']
+  },
+  {
+    id: 'leaves',
+    label: 'HRM — Leaves',
+    icon: Calendar,
+    availablePermissions: ['view', 'apply', 'approve', 'reject']
+  },
+  {
+    id: 'attendance',
+    label: 'HRM — Attendance',
+    icon: Clock,
+    availablePermissions: ['view_self', 'view_all', 'checkin_checkout', 'manage']
+  },
+  {
+    id: 'payroll',
+    label: 'HRM — Payroll',
+    icon: Wallet,
+    availablePermissions: ['view', 'manage', 'approve']
+  },
+  {
+    id: 'increments',
+    label: 'HRM — Increments',
+    icon: TrendingUp,
+    availablePermissions: ['view', 'manage']
+  },
+  {
+    id: 'departments',
+    label: 'HRM — Departments',
+    icon: Building,
+    availablePermissions: ['view', 'manage']
+  },
+  {
+    id: 'dashboard',
+    label: 'HRM — Dashboard',
+    icon: LayoutDashboard,
+    availablePermissions: ['view']
+  }
 ];
 
-const DATA_SCOPES = [
-  { value: 'own', label: 'Own Only' },
-  { value: 'department', label: 'Department' },
-  { value: 'all', label: 'All Data' },
-];
-
-const PERMISSION_PRESETS = {
-  hr_manager: { label: 'HR Manager', permissions: { employees: { view: true, create: true, edit: true, delete: true }, leaves: { view: true, apply: true, approve: true, reject: true }, attendance: { view: true, checkin: true, checkout: true }, payroll: { view: true, generate: true }, increments: { view: true, create: true }, departments: { view: true, create: true } } },
-  department_head: { label: 'Department Head', permissions: { employees: { view: true, create: false, edit: true, delete: false }, leaves: { view: true, apply: false, approve: true, reject: true }, attendance: { view: true, checkin: false, checkout: false }, payroll: { view: true }, increments: { view: true }, departments: { view: true } } },
-  employee: { label: 'Employee', permissions: { employees: { view: true, create: false, edit: false, delete: false }, leaves: { view: true, apply: true, approve: false, reject: false }, attendance: { view: true, checkin: true, checkout: true }, payroll: { view: true }, increments: { view: true }, departments: { view: false } } },
+// Map internal permission IDs to the visual column IDs for the table display
+const PERM_MAP = {
+  'manage': ['manage', 'apply'], // 'manage' in schema covers 'apply' for leaves
+  'approve': ['approve'],
+  'reject': ['reject'],
+  'checkin_checkout': ['checkin_checkout'],
 };
 
+const ROLES = ['Employee', 'HR', 'Manager', 'Admin'];
+
 const HRMPermissionsPage = () => {
-  const { user } = useAuth();
-  const [roles, setRoles] = useState([]);
-  const [selectedRoleId, setSelectedRoleId] = useState('');
-  const [selectedRoleName, setSelectedRoleName] = useState('');
+  const [selectedRole, setSelectedRole] = useState('Employee');
   const [permissions, setPermissions] = useState({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [activePreset, setActivePreset] = useState('');
 
-  const isAdmin = user?.role === 'Admin' || user?.role === 'Super Admin';
-
-  // Fetch roles on mount
-  useEffect(() => {
-    fetchRoles();
-  }, []);
-
-  // Fetch permissions when role changes
-  useEffect(() => {
-    if (selectedRoleId) {
-      fetchPermissions(selectedRoleId);
-    }
-  }, [selectedRoleId]);
-
-  const fetchRoles = async () => {
-    try {
-      // Fetch custom roles from Settings > Role Builder
-      const response = await api.get('/settings/custom-roles');
-      let rolesData = response.data || [];
-      
-      // API returns object { roleId: { roleId, label, ... }, ... }
-      // Convert to array
-      let customRoles = [];
-      if (Array.isArray(rolesData)) {
-        customRoles = rolesData;
-      } else if (rolesData.customRoles) {
-        customRoles = rolesData.customRoles;
-      } else if (typeof rolesData === 'object') {
-        // Convert object to array
-        customRoles = Object.values(rolesData);
-      }
-      
-      // Map Settings roles to frontend format (roleId -> id, label -> name)
-      const mappedRoles = customRoles.map(role => ({
-        _id: role.roleId || role._id || role.id,
-        name: role.label || role.name || 'Unknown',
-        ...role
-      }));
-      
-      setRoles(mappedRoles);
-      if (mappedRoles.length > 0) {
-        setSelectedRoleId(mappedRoles[0]._id);
-        setSelectedRoleName(mappedRoles[0].name);
-      } else {
-        toast.info('No custom roles found. Create roles in Settings > Role Builder first.');
-      }
-    } catch (err) {
-      console.error('Error fetching roles:', err);
-      toast.error('Failed to load roles from Settings');
-    }
-  };
-
-  const fetchPermissions = async (roleId) => {
+  const fetchPermissions = useCallback(async (role) => {
     setLoading(true);
     try {
-      const response = await api.get(`/hrm/permissions/roles/${roleId}/module-permissions`);
-      const perms = response.data?.permissions || {};
-
-      // Ensure all modules have default structure
-      const defaultPerms = {};
-      MODULES.forEach(module => {
-        defaultPerms[module.id] = {
-          actions: perms[module.id]?.actions || {
-            view: false, create: false, edit: false, delete: false,
-            approve: false, reject: false, export: false
-          },
-          dataScope: perms[module.id]?.dataScope || 'own'
-        };
-      });
-
-      setPermissions(defaultPerms);
-      setActivePreset('');
+      const response = await api.get(`/hrm/permissions/role/${role}`);
+      setPermissions(response.permissions || {});
     } catch (err) {
-      console.error('Error fetching permissions:', err);
+      console.error('Error fetching HRM permissions:', err);
       toast.error('Failed to load permissions');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const handleRoleChange = (e) => {
-    const roleId = e.target.value;
-    const role = roles.find(r => r._id === roleId);
-    setSelectedRoleId(roleId);
-    setSelectedRoleName(role?.name || '');
-  };
+  useEffect(() => {
+    fetchPermissions(selectedRole);
+  }, [selectedRole, fetchPermissions]);
 
-  const handleToggleAction = (moduleId, actionKey) => {
+  const handleTogglePermission = (moduleId, permId) => {
+    // Determine which internal permission key to toggle based on column
+    let internalKey = permId;
+    
+    // Custom mapping for complex modules like Attendance
+    if (moduleId === 'attendance') {
+      if (permId === 'view') internalKey = 'view_all';
+    }
+    if (moduleId === 'leaves' && permId === 'manage') internalKey = 'apply';
+
     setPermissions(prev => ({
       ...prev,
       [moduleId]: {
-        ...prev[moduleId],
-        actions: {
-          ...prev[moduleId].actions,
-          [actionKey]: !prev[moduleId].actions[actionKey]
-        }
+        ...(prev[moduleId] || {}),
+        [internalKey]: !prev[moduleId]?.[internalKey]
       }
     }));
-    setActivePreset('');
-  };
-
-  const handleDataScopeChange = (moduleId, scope) => {
-    setPermissions(prev => ({
-      ...prev,
-      [moduleId]: {
-        ...prev[moduleId],
-        dataScope: scope
-      }
-    }));
-    setActivePreset('');
-  };
-
-  const applyPreset = (presetKey) => {
-    const preset = PERMISSION_PRESETS[presetKey];
-    if (!preset) return;
-
-    const newPermissions = {};
-    MODULES.forEach(module => {
-      const modulePreset = preset.permissions[module.id] || {};
-      newPermissions[module.id] = {
-        actions: {
-          view: modulePreset.view || false,
-          create: modulePreset.create || false,
-          edit: modulePreset.edit || false,
-          delete: modulePreset.delete || false,
-          approve: modulePreset.approve || false,
-          reject: modulePreset.reject || false,
-          export: modulePreset.export || false
-        },
-        dataScope: 'all'
-      };
-    });
-
-    setPermissions(newPermissions);
-    setActivePreset(presetKey);
-    toast.success(`Applied ${preset.label} preset`);
   };
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      await api.post(`/hrm/permissions/roles/${selectedRoleId}/module-permissions/bulk`, {
+      await api.post(`/hrm/permissions/role/${selectedRole}`, {
         permissions
       });
-      toast.success('Permissions saved successfully');
+      toast.success('Permissions updated successfully');
     } catch (err) {
-      console.error('Error saving permissions:', err);
+      console.error('Error saving HRM permissions:', err);
       toast.error('Failed to save permissions');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleReset = () => {
-    if (window.confirm('Reset all permissions to default for this role?')) {
-      fetchPermissions(selectedRoleId);
-      toast.info('Permissions reset');
+  const isChecked = (moduleId, colId) => {
+    const modPerms = permissions[moduleId] || {};
+    if (colId === 'view') {
+      return modPerms.view || modPerms.view_all || modPerms.view_self;
     }
+    if (colId === 'manage') {
+      return modPerms.manage || modPerms.apply;
+    }
+    return modPerms[colId];
   };
 
-  // Admin-only access check
-  if (!isAdmin) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] p-8">
-        <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mb-4">
-          <Lock className="w-8 h-8 text-red-500" />
-        </div>
-        <h2 className="text-xl font-semibold text-gray-800 mb-2">Access Denied</h2>
-        <p className="text-gray-500 text-center max-w-md">
-          Only administrators can access the HRM Permissions page.
-        </p>
-      </div>
-    );
-  }
+  const isEnabled = (moduleId, colId) => {
+    const module = MODULES.find(m => m.id === moduleId);
+    if (colId === 'view') return true;
+    if (colId === 'manage') return module.availablePermissions.some(p => p === 'manage' || p === 'apply');
+    return module.availablePermissions.includes(colId);
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50/50 p-6">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
       {/* Header */}
-      <div className="max-w-7xl mx-auto mb-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center text-white shadow-lg shadow-orange-200">
-                <ShieldCheck size={24} />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">HRM Permissions</h1>
-                <p className="text-sm text-gray-500">Configure granular access controls for each role</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <Button
-                variant="outline"
-                onClick={handleReset}
-                disabled={loading || saving}
-                className="gap-2"
-              >
-                <RefreshCcw size={16} />
-                Reset
-              </Button>
-              <Button
-                onClick={handleSave}
-                disabled={saving || loading}
-                className="bg-orange-500 hover:bg-orange-600 text-white gap-2"
-              >
-                {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                Save Changes
-              </Button>
-            </div>
+      <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-orange-500 flex items-center justify-center text-white shadow-lg shadow-orange-200">
+            <Settings size={20} />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-gray-800">HRM Permissions</h2>
+            <p className="text-xs text-gray-500">Configure access levels for organizational roles</p>
           </div>
         </div>
-      </div>
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Left Sidebar - Role Selector & Presets */}
-        <div className="lg:col-span-1 space-y-6">
-          {/* Role Selector */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-            <label className="block text-sm font-semibold text-gray-700 mb-3">
-              Select Role
-            </label>
-            <select
-              value={selectedRoleId}
-              onChange={handleRoleChange}
-              className="w-full bg-white border border-gray-300 rounded-lg px-4 py-2.5 text-sm text-gray-700 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all"
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-gray-600">Active Role:</span>
+            <select 
+              value={selectedRole}
+              onChange={(e) => setSelectedRole(e.target.value)}
+              className="bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-semibold text-gray-700 outline-none focus:ring-2 focus:ring-orange-500/20 transition-all cursor-pointer"
             >
-              {roles.map(role => (
-                <option key={role._id} value={role._id}>
-                  {role.name}
-                </option>
-              ))}
+              {ROLES.map(role => <option key={role} value={role}>{role}</option>)}
             </select>
-            <p className="mt-2 text-xs text-gray-500">
-              Configuring for: <span className="font-medium text-orange-600">{selectedRoleName}</span>
-            </p>
           </div>
-
-          {/* Permission Presets */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-            <label className="block text-sm font-semibold text-gray-700 mb-3">
-              Quick Presets
-            </label>
-            <div className="space-y-2">
-              {Object.entries(PERMISSION_PRESETS).map(([key, preset]) => (
-                <button
-                  key={key}
-                  onClick={() => applyPreset(key)}
-                  className={`w-full text-left p-3 rounded-lg border transition-all ${
-                    activePreset === key
-                      ? 'border-orange-500 bg-orange-50 text-orange-700'
-                      : 'border-gray-200 hover:border-orange-300 hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="font-medium text-sm">{preset.label}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Main Permission Matrix */}
-        <div className="lg:col-span-3">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="p-5 border-b border-gray-100 bg-gray-50/50">
-              <h2 className="font-semibold text-gray-800">Permission Matrix</h2>
-              <p className="text-sm text-gray-500 mt-1">Configure actions and data scope for each module</p>
-            </div>
-
-            <div className="divide-y divide-gray-100">
-              {MODULES.map(module => {
-                const Icon = module.icon;
-                const modulePerms = permissions[module.id] || { actions: {}, dataScope: 'own' };
-
-                return (
-                  <div key={module.id} className="p-5">
-                    {/* Module Header */}
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center">
-                          <Icon size={20} />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-gray-800">{module.label}</h3>
-                        </div>
-                      </div>
-
-                      {/* Data Scope Selector */}
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm text-gray-500">Data Scope:</span>
-                        <select
-                          value={modulePerms.dataScope || 'own'}
-                          onChange={(e) => handleDataScopeChange(module.id, e.target.value)}
-                          className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none"
-                        >
-                          {DATA_SCOPES.map(scope => (
-                            <option key={scope.value} value={scope.value}>
-                              {scope.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    {/* Action Toggles */}
-                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
-                      {(() => {
-                        // Get module-specific actions
-                        const specificActions = MODULE_SPECIFIC_ACTIONS[module.id] || [];
-                        // Common actions for all modules
-                        const commonActions = ['view', 'create', 'edit', 'delete', 'approve', 'reject'];
-                        // Combine based on module
-                        let relevantActions = [];
-                        
-                        if (module.id === 'leaves') {
-                          relevantActions = ['view', 'apply', 'approve', 'reject', 'delete'];
-                        } else if (module.id === 'attendance') {
-                          relevantActions = ['view', 'checkin', 'checkout', 'edit', 'delete'];
-                        } else if (module.id === 'payroll') {
-                          relevantActions = ['view', 'generate', 'edit', 'delete', 'export'];
-                        } else if (module.id === 'increments') {
-                          relevantActions = ['view', 'create', 'edit', 'delete', 'approve'];
-                        } else {
-                          relevantActions = [...commonActions, ...specificActions];
-                        }
-                        
-                        return PERMISSION_COLUMNS.filter(action => relevantActions.includes(action.id));
-                      })().map(action => (
-                        <button
-                          key={action.id}
-                          onClick={() => handleToggleAction(module.id, action.id)}
-                          className={`flex flex-col items-center p-3 rounded-lg border transition-all ${
-                            modulePerms.actions?.[action.id]
-                              ? 'border-orange-500 bg-orange-50 text-orange-700'
-                              : 'border-gray-200 hover:border-orange-300 text-gray-600'
-                          }`}
-                        >
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-2 ${
-                            modulePerms.actions?.[action.id]
-                              ? 'bg-orange-500 text-white'
-                              : 'bg-gray-100 text-gray-400'
-                          }`}>
-                            {modulePerms.actions?.[action.id] ? <Check size={14} /> : <X size={14} />}
-                          </div>
-                          <span className="text-xs font-medium text-center">{action.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Data Scope Legend */}
-          <div className="bg-blue-50 rounded-xl border border-blue-100 p-4 mt-6">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-blue-500 mt-0.5" />
-              <div>
-                <h4 className="text-sm font-medium text-blue-900">Data Scope Explanation</h4>
-                <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm text-blue-700">
-                  {DATA_SCOPES.map(scope => (
-                    <div key={scope.value}>
-                      <span className="font-medium">{scope.label}:</span>{' '}
-                      <span className="text-blue-600">{scope.value === 'own' ? 'Only their own records' : scope.value === 'department' ? 'Records in their department' : 'All records in the system'}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
+          
+          <Button 
+            onClick={handleSave}
+            disabled={saving || loading}
+            className="bg-orange-500 hover:bg-orange-600 text-white shadow-md shadow-orange-100"
+          >
+            {saving ? <Loader2 size={16} className="animate-spin mr-2" /> : <Save size={16} className="mr-2" />}
+            Save Changes
+          </Button>
         </div>
       </div>
 
-      {/* Loading Overlay */}
+      {/* Table Content */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="bg-gray-50/30 text-[11px] uppercase tracking-wider text-gray-400 font-bold border-b border-gray-100">
+              <th className="px-6 py-4 font-bold">Module / Feature</th>
+              {PERMISSION_COLUMNS.map(col => (
+                <th key={col.id} className="px-4 py-4 text-center">{col.label}</th>
+              ))}
+              <th className="px-6 py-4 text-right">Progress</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {MODULES.map(module => {
+              const Icon = module.icon;
+              const activeCount = Object.values(permissions[module.id] || {}).filter(Boolean).length;
+              const totalAvailable = module.availablePermissions.length;
+              const progress = Math.round((activeCount / totalAvailable) * 100) || 0;
+
+              return (
+                <tr key={module.id} className="hover:bg-gray-50/50 transition-colors group">
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-gray-100 text-gray-400 group-hover:bg-orange-100 group-hover:text-orange-500 transition-colors">
+                        <Icon size={16} />
+                      </div>
+                      <span className="text-sm font-semibold text-gray-700">{module.label}</span>
+                    </div>
+                  </td>
+
+                  {PERMISSION_COLUMNS.map(col => {
+                    const enabled = isEnabled(module.id, col.id);
+                    const checked = isChecked(module.id, col.id);
+
+                    return (
+                      <td key={col.id} className="px-4 py-4 text-center">
+                        {enabled ? (
+                          <button
+                            onClick={() => handleTogglePermission(module.id, col.id)}
+                            className={`w-6 h-6 rounded-md border flex items-center justify-center transition-all ${
+                              checked 
+                                ? 'bg-orange-50 border-orange-200 text-orange-500 shadow-sm shadow-orange-100' 
+                                : 'bg-white border-gray-200 text-gray-300 hover:border-orange-300 hover:text-orange-300'
+                            }`}
+                          >
+                            {checked ? <Check size={14} strokeWidth={3} /> : <X size={12} />}
+                          </button>
+                        ) : (
+                          <div className="w-6 h-6 mx-auto flex items-center justify-center text-gray-100">
+                            <X size={12} />
+                          </div>
+                        )}
+                      </td>
+                    );
+                  })}
+
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3 justify-end">
+                      <div className="w-24 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-orange-500 transition-all duration-500"
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
+                      <span className="text-[11px] font-bold text-gray-400 w-4">{activeCount}</span>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
       {loading && (
-        <div className="fixed inset-0 bg-white/60 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-lg p-6 flex items-center gap-3">
-            <Loader2 className="text-orange-500 animate-spin" size={24} />
-            <span className="text-gray-600 font-medium">Loading permissions...</span>
-          </div>
+        <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center">
+          <Loader2 className="text-orange-500 animate-spin" size={32} />
         </div>
       )}
     </div>
