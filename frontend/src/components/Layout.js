@@ -132,6 +132,8 @@ const Layout = ({ currentPage, onNavigate, children }) => {
 
         const visibleChildren = item.children.filter((child) => {
           if (!isModuleEnabled(child.id)) return false;
+          // Admin bypass for adminOnly items
+          if (child.adminOnly && userRole === 'admin') return true;
           return resolvePermission(child.id, 'view') === true;
         });
 

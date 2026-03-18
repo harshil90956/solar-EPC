@@ -13,7 +13,8 @@ import {
   Timer, AlertTriangle, Navigation, QrCode, Camera,
   Settings
 } from 'lucide-react';
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays, addDays, isSameDay } from 'date-fns';
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfDay, endOfDay, subDays, addDays, isSameDay } from 'date-fns';
+
 import { PageHeader } from '../components/ui/PageHeader';
 import { KPICard } from '../components/ui/KPICard';
 import DataTable from '../components/ui/DataTable';
@@ -276,11 +277,12 @@ const AttendancePageV3 = () => {
       let startDate, endDate;
 
       if (selectedCalendarDate) {
-        startDate = new Date(selectedCalendarDate);
-        endDate = new Date(selectedCalendarDate);
+        const d = new Date(selectedCalendarDate);
+        startDate = startOfDay(d);
+        endDate = endOfDay(d);
       } else if (dateRangeFilter.start && dateRangeFilter.end) {
-        startDate = new Date(dateRangeFilter.start);
-        endDate = new Date(dateRangeFilter.end);
+        startDate = startOfDay(new Date(dateRangeFilter.start));
+        endDate = endOfDay(new Date(dateRangeFilter.end));
       } else {
         startDate = startOfMonth(new Date());
         endDate = endOfMonth(new Date());
@@ -976,6 +978,8 @@ const AttendancePageV3 = () => {
               data={paginatedRecords}
               loading={loading}
               emptyMessage="No attendance records found"
+              rowKey="_id"
+              onRowClick={(row) => setViewAttendance(row)}
               expandedRowKey={viewAttendance?._id}
               renderExpanded={(record) => (
                 <div className="p-4 border-t border-[var(--border-muted)] bg-gradient-to-b from-white to-[var(--bg-elevated)]">

@@ -363,6 +363,36 @@ export class PermissionEngineService {
       }
     }
 
+    // Keep HRM navigation module IDs in sync with canonical HRM modules.
+    // Do this at the very end so no other RBAC/customRole/userOverride source can re-introduce mismatches.
+    const hrmSidebarMap: Record<string, string> = {
+      'hrm-employees': 'employees',
+      'hrm-leaves': 'leaves',
+      'hrm-attendance': 'attendance',
+      'hrm-payroll': 'payroll',
+      'hrm-increments': 'increments',
+      'hrm-departments': 'departments',
+    };
+
+    for (const [sidebarModuleId, canonicalModuleId] of Object.entries(hrmSidebarMap)) {
+      this.ensureModuleShape(permissions, sidebarModuleId);
+      this.ensureModuleShape(permissions, canonicalModuleId);
+
+      for (const actionId of this.getAllowedActions(sidebarModuleId)) {
+        const v = permissions?.[canonicalModuleId]?.[actionId] === true;
+        this.setPermission(permissions, sidebarModuleId, actionId, v);
+      }
+
+      if (dataScope[canonicalModuleId]) {
+        dataScope[sidebarModuleId] = dataScope[canonicalModuleId];
+      }
+    }
+
+    // HRM parent is visible if any HRM child is visible
+    const hrmChildren = Object.keys(hrmSidebarMap);
+    const anyHrmVisible = hrmChildren.some(m => permissions?.[m]?.view === true);
+    this.setPermission(permissions, 'hrm', 'view', anyHrmVisible);
+
     try {
       const permKey = this.permissionKey(tenantId, userId);
       const scopeKey = this.dataScopeKey(tenantId, userId);
