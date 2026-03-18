@@ -22,8 +22,12 @@ import { api } from '../lib/apiClient';
 import { useQuery } from '@tanstack/react-query';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
+<<<<<<< HEAD
 import { usePermissions } from '../hooks/usePermissions';
 import HrmPermissionsPage from './HRMPermissionsPage';
+=======
+import HrmPermissionsPage from './HrmPermissionsPage';
+>>>>>>> 8223624 (hrm solved)
 import AttendancePolicySettings from './AttendancePolicySettings';
 import { toast } from '../components/ui/Toast';
 import { CURRENCY } from '../config/app.config';
