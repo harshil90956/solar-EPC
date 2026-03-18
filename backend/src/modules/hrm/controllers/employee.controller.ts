@@ -1,19 +1,18 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Req, Headers, Query, HttpCode, HttpStatus, UnauthorizedException, UseGuards, ForbiddenException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EmployeeService } from '../services/employee.service';
-import { PermissionService } from '../services/permission.service';
-import { DataScope } from '../schemas/permission.schema';
 import { CreateEmployeeDto, UpdateEmployeeDto } from '../dto/employee.dto';
 import { EmployeeDocument } from '../schemas/employee.schema';
 import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
+import { PermissionEngineService } from '../../../common/services/permission-engine.service';
 
 @Controller('hrm/employees')
 @UseGuards(JwtAuthGuard, TenantGuard)
 export class EmployeeController {
   constructor(
     private readonly employeeService: EmployeeService,
-    private readonly permissionService: PermissionService,
+    private readonly permissionEngine: PermissionEngineService,
     private readonly configService: ConfigService,
   ) {}
 
@@ -21,43 +20,26 @@ export class EmployeeController {
     const user = req.user;
     if (!user) throw new ForbiddenException('User not authenticated');
 
-    // NEW: Check permissions from req.user.permissions object (single source of truth)
-    // Format: { employees: { view: true, edit: false }, attendance: { view: true } }
-    if (user?.permissions && typeof user.permissions === 'object') {
-      const modulePerms = user.permissions[module];
-      if (modulePerms && typeof modulePerms === 'object') {
-        if (modulePerms[action] === true) {
-          return; // Permission granted
-        }
-        if (modulePerms[action] === false) {
-          throw new ForbiddenException(`Permission denied: ${module}.${action} required`);
-        }
-      }
-    }
-
-    // Fallback: Check legacy format for backward compatibility during transition
-    const userPerms: string[] = Array.isArray(user?.permissions) ? user.permissions : [];
-    if (userPerms.length > 0) {
-      const keyColon = `${module}:${action}`;
-      const keyDot = `${module}.${action}`;
-      if (userPerms.includes(keyColon) || userPerms.includes(keyDot)) {
-        return;
-      }
-    }
-
-    // Fallback: Check modulePermissions (legacy format)
-    const modulePermsLegacy = user?.modulePermissions?.[module];
-    if (modulePermsLegacy?.actions?.includes(action)) {
-      return;
-    }
-
-    // No permission found - check via PermissionService as last resort
-    const roleId = user.roleId || user.role;
-    if (!roleId) throw new ForbiddenException('User has no role assigned');
-
     const tenantId = req.tenant?.id || req.user?.tenantId;
-    const hasPermission = await this.permissionService.checkModuleAction(roleId, module, action, tenantId);
-    if (!hasPermission) {
+    if (!tenantId) {
+      throw new ForbiddenException('Tenant context missing. Access denied.');
+    }
+
+    const userId = user.id || user._id || user.sub;
+    const roleIdRaw = user.roleId || user.customRoleId || user.role;
+    const roleId = typeof roleIdRaw === 'string' ? roleIdRaw : (roleIdRaw ? String(roleIdRaw) : '');
+
+    if (!userId || !roleId) {
+      throw new ForbiddenException('User ID or role not found in token');
+    }
+
+    const { permissions } = await this.permissionEngine.getPermissions(
+      String(userId),
+      String(tenantId),
+      String(roleId),
+    );
+
+    if (permissions?.[module]?.[action] !== true) {
       throw new ForbiddenException(`Permission denied: ${module}.${action} required`);
     }
   }
@@ -66,54 +48,29 @@ export class EmployeeController {
     const user = req.user;
     const userDepartment = user?.department;
 
-    // NEW: Check dataScope from req.user.dataScope object (single source of truth)
-    // Format: { employees: 'OWN', attendance: 'ALL', leaves: 'DEPARTMENT' }
-    if (user?.dataScope && typeof user.dataScope === 'object' && !Array.isArray(user.dataScope)) {
-      const scope = user.dataScope[module];
-      if (scope) {
-        switch (scope) {
-          case 'OWN':
-            return { employeeId: user?.sub };
-          case 'DEPARTMENT':
-            return userDepartment ? { department: userDepartment } : { employeeId: user?.sub };
-          case 'ALL':
-            return {};
-          default:
-            return {}; // Default to ALL if unknown scope
-        }
-      }
-    }
+    const tenantId = req.tenant?.id || req.user?.tenantId;
+    const userId = user?.id || user?._id || user?.sub;
+    const roleIdRaw = user?.roleId || user?.customRoleId || user?.role;
+    const roleId = typeof roleIdRaw === 'string' ? roleIdRaw : (roleIdRaw ? String(roleIdRaw) : '');
 
-    // Legacy: Check if dataScope is a string (old format)
-    if (typeof user?.dataScope === 'string') {
-      switch (user.dataScope) {
-        case 'OWN':
-          return { employeeId: user?.sub };
-        case 'DEPARTMENT':
-          return userDepartment ? { department: userDepartment } : { employeeId: user?.sub };
-        case 'ALL':
-        default:
-          return {};
-      }
-    }
+    if (!tenantId || !userId || !roleId) return {};
 
-    // Fallback: Check modulePermissions (legacy format)
-    const modulePermsLegacy = user?.modulePermissions?.[module];
-    if (modulePermsLegacy?.dataScope) {
-      const dataScope = modulePermsLegacy.dataScope;
-      switch (dataScope) {
-        case DataScope.OWN:
-          return { employeeId: user?.sub };
-        case DataScope.DEPARTMENT:
-          return userDepartment ? { department: userDepartment } : { employeeId: user?.sub };
-        case DataScope.ALL:
-        default:
-          return {};
-      }
-    }
+    const { dataScope } = await this.permissionEngine.getPermissions(
+      String(userId),
+      String(tenantId),
+      String(roleId),
+    );
 
-    // Default fallback
-    return {};
+    const scope = dataScope?.[module];
+    switch (scope) {
+      case 'OWN':
+        return { employeeId: user?.sub };
+      case 'DEPARTMENT':
+        return userDepartment ? { department: userDepartment } : { employeeId: user?.sub };
+      case 'ALL':
+      default:
+        return {};
+    }
   }
 
   @Post('login')
@@ -143,26 +100,20 @@ export class EmployeeController {
     // The incoming tenantId may be a placeholder like 'default' if frontend didn't send x-tenant-id.
     const effectiveTenantId = employee?.tenantId ? String(employee.tenantId) : tenantId;
 
-    // Get role permissions from unified system
-    const roleId = employee.roleId?.toString() || '';
-    const permissions = await this.permissionService.getRolePermissions(roleId);
-    const modulePermissions = await this.permissionService.getAllRoleModulePermissions(roleId, effectiveTenantId);
+    const roleIdRaw = (employee as any)?.roleId;
+    const roleId = typeof roleIdRaw === 'string'
+      ? roleIdRaw
+      : (roleIdRaw?._id ? String(roleIdRaw._id) : (roleIdRaw ? String(roleIdRaw) : null));
 
     // Generate JWT token using same secret as JwtStrategy
     const jwtSecret = this.configService.getOrThrow<string>('JWT_SECRET');
     const token = require('jsonwebtoken').sign(
       {
         sub: employee._id,
-        email: employee.email,
         role: 'Employee',
-        roleId: employee.roleId,
+        roleId,
         tenantId: effectiveTenantId,
-        department: employee.department,
-        permissions,
-        modulePermissions: modulePermissions.reduce((acc: Record<string, any>, mp) => {
-          acc[mp.module] = { actions: mp.actions, dataScope: mp.dataScope };
-          return acc;
-        }, {}),
+        isEmployee: true,
       },
       jwtSecret,
       { expiresIn: '24h' }
@@ -176,10 +127,9 @@ export class EmployeeController {
         firstName: employee.firstName,
         lastName: employee.lastName,
         email: employee.email,
-        roleId: employee.roleId,
+        roleId,
         department: employee.department,
         tenantId: effectiveTenantId,
-        permissions,
         token
       }
     };

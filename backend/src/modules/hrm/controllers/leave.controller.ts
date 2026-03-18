@@ -1,64 +1,67 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, HttpCode, HttpStatus, UseGuards, ForbiddenException } from '@nestjs/common';
 import { LeaveService } from '../services/leave.service';
-import { PermissionService } from '../services/permission.service';
 import { DataScope } from '../schemas/permission.schema';
 import { CreateLeaveDto, UpdateLeaveStatusDto, ApproveLeaveDto, GetLeaveQueryDto, UpdateLeaveDto } from '../dto/leave.dto';
 import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
+import { PermissionEngineService } from '../../../common/services/permission-engine.service';
 
 @Controller('hrm/leaves')
 @UseGuards(JwtAuthGuard, TenantGuard)
 export class LeaveController {
   constructor(
     private readonly leaveService: LeaveService,
-    private readonly permissionService: PermissionService,
+    private readonly permissionEngine: PermissionEngineService,
   ) {}
 
   private async checkPermission(req: any, module: string, action: string) {
     const user = req.user;
     if (!user) throw new ForbiddenException('User not authenticated');
 
-    const tenantId = req.tenant?.id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.query?.tenantId;
-    console.log('[PERMISSION BACKEND]', { roleId: user?.roleId || user?.role, module, action, tenantId });
-
-    // Fast-path: honor permissions already present on JWT/user payload
-    // Supports:
-    // 1. permissions array: ["employees.view", "employees:view"]
-    // 2. modulePermissions object: { employees: { actions: ["view"], ... } }
-    const userPerms: string[] = Array.isArray(user?.permissions) ? user.permissions : [];
-    const modulePerms = user?.modulePermissions?.[module];
-    
-    const keyColon = `${module}:${action}`;
-    const keyDot = `${module}.${action}`;
-    
-    if (userPerms.includes(keyColon) || userPerms.includes(keyDot)) {
-      return;
+    const tenantId = req.tenant?.id || req.user?.tenantId;
+    if (!tenantId) {
+      throw new ForbiddenException('Tenant context missing. Access denied.');
     }
 
-    if (modulePerms?.actions?.includes(action)) {
-      return;
+    const userId = user.id || user._id || user.sub;
+    const roleIdRaw = user.roleId || user.customRoleId || user.role;
+    const roleId = typeof roleIdRaw === 'string' ? roleIdRaw : (roleIdRaw ? String(roleIdRaw) : '');
+
+    if (!userId || !roleId) {
+      throw new ForbiddenException('User ID or role not found in token');
     }
 
-    const roleId = user.roleId || user.role;
-    if (!roleId) throw new ForbiddenException('User has no role assigned');
+    const { permissions } = await this.permissionEngine.getPermissions(
+      String(userId),
+      String(tenantId),
+      String(roleId),
+    );
 
-    const hasPermission = await this.permissionService.checkModuleAction(roleId, module, action, tenantId);
-    if (!hasPermission) {
+    if (permissions?.[module]?.[action] !== true) {
       throw new ForbiddenException(`Permission denied: ${module}.${action} required`);
     }
   }
 
   private async getDataScopeFilter(req: any, module: string): Promise<any> {
     const user = req.user;
-    const roleId = user?.roleId || user?.role;
-    const tenantId = req.tenant?.id;
-
-    if (!roleId) return { employeeId: user?.sub };
-
-    const dataScope = await this.permissionService.getDataScope(roleId, module, tenantId);
     const userDepartment = user?.department;
 
-    switch (dataScope) {
+    const tenantId = req.tenant?.id || req.user?.tenantId;
+    const userId = user?.id || user?._id || user?.sub;
+    const roleIdRaw = user?.roleId || user?.customRoleId || user?.role;
+    const roleId = typeof roleIdRaw === 'string' ? roleIdRaw : (roleIdRaw ? String(roleIdRaw) : '');
+
+    if (!tenantId || !userId || !roleId) return { employeeId: user?.sub };
+
+    const { dataScope } = await this.permissionEngine.getPermissions(
+      String(userId),
+      String(tenantId),
+      String(roleId),
+    );
+
+    const scope = dataScope?.[module];
+
+    switch (scope) {
       case DataScope.OWN:
         return { employeeId: user?.sub };
       case DataScope.DEPARTMENT:
@@ -128,7 +131,7 @@ export class LeaveController {
     @Body() updateLeaveDto: UpdateLeaveDto,
     @Req() req: any,
   ) {
-    await this.checkPermission(req, 'leaves', 'edit');
+    await this.checkPermission(req, 'leaves', 'apply');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
 
     // Check data scope
@@ -175,7 +178,7 @@ export class LeaveController {
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   async delete(@Param('id') id: string, @Req() req: any) {
-    await this.checkPermission(req, 'leaves', 'delete');
+    await this.checkPermission(req, 'leaves', 'apply');
     const tenantId = req.tenant?.id || 'default';
 
     // Check data scope

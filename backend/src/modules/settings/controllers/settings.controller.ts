@@ -17,6 +17,7 @@ import { RBACService } from '../services/rbac.service';
 import { CustomRoleService } from '../services/custom-role.service';
 import { UserOverrideService } from '../services/user-override.service';
 import { PermissionService } from '../services/permission.service';
+import { PermissionEngineService } from '../../../common/services/permission-engine.service';
 import { ViewAsService } from '../services/view-as.service';
 import { WorkflowEngineService } from '../services/workflow-engine.service';
 import { AuditService } from '../services/audit.service';
@@ -75,6 +76,7 @@ export class SettingsController {
     private readonly customRoleService: CustomRoleService,
     private readonly userOverrideService: UserOverrideService,
     private readonly permissionService: PermissionService,
+    private readonly permissionEngine: PermissionEngineService,
     private readonly viewAsService: ViewAsService,
     private readonly workflowEngineService: WorkflowEngineService,
     private readonly auditService: AuditService,
@@ -513,6 +515,8 @@ export class SettingsController {
   ) {
     const tenantId = req.tenant?.id;
     await this.rbacService.updatePermissions(tenantId, roleId, moduleId, body.permissions);
+
+    await this.permissionEngine.invalidateTenantPermissions(String(tenantId));
     
     return { 
       roleId, 
@@ -546,6 +550,8 @@ export class SettingsController {
       body.enabled,
       req.user?.id,
     );
+
+    await this.permissionEngine.invalidateTenantPermissions(String(tenantId));
     
     return { 
       roleId, 
@@ -896,6 +902,8 @@ export class SettingsController {
       req.user?.id,
     );
 
+    await this.permissionEngine.invalidateTenantPermissions(String(tenantId));
+
     return {
       id: roleId,
       moduleId: body.moduleId,
@@ -1011,6 +1019,8 @@ export class SettingsController {
       req.user?.id,
     );
 
+    await this.permissionEngine.invalidateTenantPermissions(String(tenantId));
+
     return {
       userId,
       customRoleId: body.customRoleId,
@@ -1041,6 +1051,8 @@ export class SettingsController {
       req.user?.id,
     );
 
+    await this.permissionEngine.invalidateTenantPermissions(String(tenantId));
+
     return {
       userId,
       moduleId: body.moduleId,
@@ -1060,6 +1072,8 @@ export class SettingsController {
   async clearUserOverrides(@Param('userId') userId: string, @Request() req: any) {
     const tenantId = req.tenant?.id;
     await this.userOverrideService.clearUserOverrides(tenantId, userId, req.user?.id);
+
+    await this.permissionEngine.invalidateTenantPermissions(String(tenantId));
 
     return {
       userId,

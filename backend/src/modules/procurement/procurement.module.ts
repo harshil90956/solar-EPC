@@ -9,6 +9,7 @@ import { Tenant, TenantSchema } from '../../core/tenant/schemas/tenant.schema';
 import { SettingsModule } from '../settings/settings.module';
 import { RequestLoggingMiddleware } from '../../common/middleware/request-logging.middleware';
 import { LoggingGuard } from '../../common/guards/logging.guard';
+import { CommonModule } from '../../common/common.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { LoggingGuard } from '../../common/guards/logging.guard';
       { name: Project.name, schema: ProjectSchema },
       { name: Tenant.name, schema: TenantSchema },
     ]),
+    CommonModule,
     SettingsModule,
   ],
   controllers: [ProcurementController],

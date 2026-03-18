@@ -26,9 +26,6 @@ export const usePermissions = (module) => {
   const { user, can, getDataScope } = useAuth();
   const { isModuleEnabled, isFeatureEnabled } = useSettings();
 
-  const userRole = user?.role || 'Employee';
-  const isAdminLike = userRole === 'Admin' || userRole === 'Super Admin' || user?.isSuperAdmin;
-
   // Get data scope for this module
   const dataScope = useMemo(() => {
     return getDataScope(module);
@@ -36,11 +33,8 @@ export const usePermissions = (module) => {
 
   // Permission check functions - use can() from AuthContext (single source of truth)
   const canDo = useCallback((action) => {
-    // Admin/Super Admin have all permissions
-    if (isAdminLike) return true;
-    // Use AuthContext.can() which reads from user.permissions object
     return can(module, action);
-  }, [can, module, isAdminLike]);
+  }, [can, module]);
 
   const canView = useCallback(() => canDo('view'), [canDo]);
   const canCreate = useCallback(() => canDo('create'), [canDo]);
@@ -57,17 +51,14 @@ export const usePermissions = (module) => {
   // Check if a specific column should be visible
   const isColumnVisible = useCallback((columnKey) => {
     const allColumns = MODULE_COLUMNS[module] || [];
-    if (isAdminLike) return true;
-    // Check if user.permissions has column-specific settings
     return user?.permissions?.[module]?.columns?.[columnKey] !== false;
-  }, [module, isAdminLike, user?.permissions]);
+  }, [module, user?.permissions]);
 
   // Get all visible columns
   const visibleColumns = useMemo(() => {
     const allColumns = MODULE_COLUMNS[module] || [];
-    if (isAdminLike) return allColumns;
     return allColumns.filter(col => user?.permissions?.[module]?.columns?.[col] !== false);
-  }, [module, isAdminLike, user?.permissions]);
+  }, [module, user?.permissions]);
 
   // Module/feature enabled checks from SettingsContext
   const moduleOn = useCallback((mod) => isModuleEnabled(mod), [isModuleEnabled]);
@@ -101,7 +92,7 @@ export const usePermissions = (module) => {
     visibleColumns,
     // Meta
     isLoading: false,
-    userRole,
+    userRole: user?.role || 'Employee',
   };
 };
 

@@ -19,6 +19,8 @@ import { UpdateProfileDto } from './dto/profile.dto';
 import { AuthService } from './auth.service';
 import { OtpService } from '../../services/otp.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { PermissionEngineService } from '../../common/services/permission-engine.service';
+import { TenantGuard } from '../tenant/guards/tenant.guard';
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION || 'ap-southeast-2',
@@ -43,11 +45,33 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly otpService: OtpService,
+    private readonly permissionEngine: PermissionEngineService,
   ) {}
 
   @Post('login')
   async login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard, TenantGuard)
+  async me(@Request() req: any) {
+    const user = req.user;
+    const tenantId = req.tenant?.id || user?.tenantId;
+    const userId = user?.id || user?._id || user?.sub;
+    const roleId = user?.roleId || user?.customRoleId || user?.role;
+
+    const { permissions, dataScope } = await this.permissionEngine.getPermissions(
+      String(userId),
+      String(tenantId),
+      String(roleId),
+    );
+
+    return {
+      user,
+      permissions,
+      dataScope,
+    };
   }
 
   // Send OTP for password reset
