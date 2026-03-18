@@ -127,10 +127,19 @@ export class TasksService {
 
     // For employees, only show tasks assigned to them
     if (!this.isAdmin(user)) {
-      // Get user's email to filter assigned tasks
-      const userEmail = user.email;
-      baseFilter.assignedTo = userEmail;
-      console.log('[TASKS DEBUG] Employee filter - only showing tasks assigned to:', userEmail);
+      const userId = user?._id || user?.id;
+      if (userId) {
+        const objectId =
+          typeof userId === 'string' && Types.ObjectId.isValid(userId)
+            ? new Types.ObjectId(userId)
+            : userId;
+        baseFilter.assignedToUserId = objectId;
+        console.log('[TASKS DEBUG] Employee filter - only showing tasks assigned to userId:', String(userId));
+      } else {
+        // No userId context, safest behavior is to match nothing for non-admin
+        baseFilter.assignedToUserId = null;
+        console.log('[TASKS DEBUG] Employee filter - missing userId, returning empty result set');
+      }
     }
 
     const filter = buildCompleteFilter(tenantId, user, baseFilter);
