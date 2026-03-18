@@ -23,6 +23,9 @@ import { useQuery } from '@tanstack/react-query';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
 import HrmPermissionsPage from './HrmPermissionsPage';
+import { usePermissions } from '../hooks/usePermissions';
+import HrmPermissionsPage from './HRMPermissionsPage';
+
 import AttendancePolicySettings from './AttendancePolicySettings';
 import { toast } from '../components/ui/Toast';
 import { CURRENCY } from '../config/app.config';

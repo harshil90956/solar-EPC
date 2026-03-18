@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   Sun, Eye, EyeOff, ArrowRight, Shield, CheckCircle
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Input, Label } from '../components/ui/Input';
 import { APP_CONFIG } from '../config/app.config';
@@ -172,7 +173,16 @@ const LoginPage = () => {
                   />
                 </div>
                 <div>
-                  <Label className="text-[11px]">Password</Label>
+                  <div className="flex items-center justify-between mb-1">
+                    <Label className="text-[11px]">Password</Label>
+                    <button
+                      type="button"
+                      onClick={() => window.location.href = '/forgot-password'}
+                      className="text-[10px] text-[var(--primary)] hover:text-[var(--primary-light)] transition-colors"
+                    >
+                      Forgot Password?
+                    </button>
+                  </div>
                   <div className="relative">
                     <Input
                       type={showPass ? 'text' : 'password'}
