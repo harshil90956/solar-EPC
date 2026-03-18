@@ -1,42 +1,66 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, HttpCode, HttpStatus, UseGuards, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, HttpCode, HttpStatus, UseGuards, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { SalaryIncrementService } from '../services/salary-increment.service';
-import { HrmPermissionService } from '../services/hrm-permission.service';
 import { CreateIncrementDto, GetIncrementQueryDto, UpdateIncrementDto } from '../dto/salary-increment.dto';
 import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
+import { PermissionEngineService } from '../../../common/services/permission-engine.service';
 
 @Controller('hrm/increments')
 @UseGuards(JwtAuthGuard, TenantGuard)
 export class SalaryIncrementController {
   constructor(
     private readonly incrementService: SalaryIncrementService,
-    private readonly hrmPermissionService: HrmPermissionService,
+    private readonly permissionEngine: PermissionEngineService,
   ) {}
 
   private async checkPermission(req: any, permission: string) {
     const user = req.user;
     if (!user) throw new ForbiddenException('User not authenticated');
 
-    // Fast-path: honor permissions already present on JWT/user payload
-    const userPerms: string[] = Array.isArray(user?.permissions) ? user.permissions : [];
-    const [module, action] = permission.split('.');
-    const modulePerms = user?.modulePermissions?.[module];
-
-    if (userPerms.includes(permission) || userPerms.includes(permission.replace('.', ':'))) {
-      return;
+    const tenantId = req.tenant?.id || req.user?.tenantId;
+    if (!tenantId) {
+      throw new ForbiddenException('Tenant context missing. Access denied.');
     }
 
-    if (modulePerms?.actions?.includes(action)) {
-      return;
+    const userId = user.id || user._id || user.sub;
+    const roleIdRaw = user.roleId || user.customRoleId || user.role;
+    const roleId = typeof roleIdRaw === 'string' ? roleIdRaw : (roleIdRaw ? String(roleIdRaw) : '');
+
+    if (!userId || !roleId) {
+      throw new ForbiddenException('User ID or role not found in token');
     }
 
-    const roleId = user.roleId || user.role;
-    if (!roleId) throw new ForbiddenException('User has no role assigned');
-    
-    const hasPermission = await this.hrmPermissionService.checkPermission(roleId, permission);
-    if (!hasPermission) {
+    const [moduleId, actionId] = String(permission || '').split('.');
+    if (!moduleId || !actionId) {
+      throw new ForbiddenException('Invalid permission format');
+    }
+
+    const { permissions } = await this.permissionEngine.getPermissions(
+      String(userId),
+      String(tenantId),
+      String(roleId),
+    );
+
+    if (permissions?.[moduleId]?.[actionId] !== true) {
       throw new ForbiddenException(`Permission denied: ${permission} required`);
     }
+  }
+
+  private async getDataScope(req: any, moduleId: string): Promise<string> {
+    const user = req.user;
+    const tenantId = req.tenant?.id || req.user?.tenantId;
+    const userId = user?.id || user?._id || user?.sub;
+    const roleIdRaw = user?.roleId || user?.customRoleId || user?.role;
+    const roleId = typeof roleIdRaw === 'string' ? roleIdRaw : (roleIdRaw ? String(roleIdRaw) : '');
+    if (!tenantId || !userId || !roleId) return 'all';
+
+    const { dataScope } = await this.permissionEngine.getPermissions(
+      String(userId),
+      String(tenantId),
+      String(roleId),
+    );
+    const scopeRaw = dataScope?.[moduleId] || 'all';
+    return String(scopeRaw).toLowerCase();
   }
 
   @Post()
@@ -44,8 +68,6 @@ export class SalaryIncrementController {
   async create(@Body() createDto: CreateIncrementDto, @Req() req: any) {
     await this.checkPermission(req, 'increments.create');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
-    const roleId = req.user?.roleId || req.user?.role;
-    await this.hrmPermissionService.validateAction(roleId, 'increments.manage', tenantId);
     
     const data = await this.incrementService.create(createDto, tenantId, req.user);
     return { success: true, data };
@@ -55,11 +77,9 @@ export class SalaryIncrementController {
   async findAll(@Query() query: GetIncrementQueryDto, @Req() req: any) {
     await this.checkPermission(req, 'increments.view');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
-    const roleId = req.user?.roleId || req.user?.role;
-    
-    // Check if user can view all increments or just their own
-    const hasFullAccess = await this.hrmPermissionService.checkPermission(roleId, 'increments.view', tenantId);
-    const targetEmployeeId = hasFullAccess ? query.employeeId : req.user.sub;
+
+    const scope = await this.getDataScope(req, 'increments');
+    const targetEmployeeId = scope === 'own' ? req.user.sub : query.employeeId;
 
     const data = await this.incrementService.findAll(targetEmployeeId, tenantId, req.user);
     return { success: true, data };
@@ -69,13 +89,12 @@ export class SalaryIncrementController {
   async findOne(@Param('id') id: string, @Req() req: any) {
     await this.checkPermission(req, 'increments.view');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
-    const roleId = req.user?.roleId || req.user?.role;
     
     const data = await this.incrementService.findOne(id, tenantId, req.user);
     
-    // Check ownership or full access
-    if (data.employeeId?.toString() !== req.user.sub) {
-      await this.hrmPermissionService.validateAction(roleId, 'increments.view', tenantId);
+    const scope = await this.getDataScope(req, 'increments');
+    if (scope === 'own' && data.employeeId?.toString() !== req.user.sub) {
+      throw new NotFoundException('Increment not found');
     }
     
     return { success: true, data };
@@ -85,13 +104,11 @@ export class SalaryIncrementController {
   async findByEmployee(@Param('employeeId') employeeId: string, @Req() req: any) {
     await this.checkPermission(req, 'increments.view');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
-    const roleId = req.user?.roleId || req.user?.role;
+
+    const scope = await this.getDataScope(req, 'increments');
+    const effectiveEmployeeId = scope === 'own' ? req.user.sub : employeeId;
     
-    if (employeeId !== req.user.sub) {
-      await this.hrmPermissionService.validateAction(roleId, 'increments.view', tenantId);
-    }
-    
-    const data = await this.incrementService.findByEmployeeId(employeeId, tenantId, req.user);
+    const data = await this.incrementService.findByEmployeeId(effectiveEmployeeId, tenantId, req.user);
     return { success: true, data };
   }
 
@@ -99,13 +116,11 @@ export class SalaryIncrementController {
   async getIncrementHistory(@Param('employeeId') employeeId: string, @Req() req: any) {
     await this.checkPermission(req, 'increments.view');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
-    const roleId = req.user?.roleId || req.user?.role;
+
+    const scope = await this.getDataScope(req, 'increments');
+    const effectiveEmployeeId = scope === 'own' ? req.user.sub : employeeId;
     
-    if (employeeId !== req.user.sub) {
-      await this.hrmPermissionService.validateAction(roleId, 'increments.view', tenantId);
-    }
-    
-    const data = await this.incrementService.getIncrementHistory(employeeId, tenantId, req.user);
+    const data = await this.incrementService.getIncrementHistory(effectiveEmployeeId, tenantId, req.user);
     return { success: true, data };
   }
 
@@ -113,13 +128,11 @@ export class SalaryIncrementController {
   async getLatestSalary(@Param('employeeId') employeeId: string, @Req() req: any) {
     await this.checkPermission(req, 'increments.view');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
-    const roleId = req.user?.roleId || req.user?.role;
+
+    const scope = await this.getDataScope(req, 'increments');
+    const effectiveEmployeeId = scope === 'own' ? req.user.sub : employeeId;
     
-    if (employeeId !== req.user.sub) {
-      await this.hrmPermissionService.validateAction(roleId, 'increments.view', tenantId);
-    }
-    
-    const data = await this.incrementService.getLatestSalary(employeeId, tenantId, req.user);
+    const data = await this.incrementService.getLatestSalary(effectiveEmployeeId, tenantId, req.user);
     return { success: true, data };
   }
 
@@ -131,8 +144,6 @@ export class SalaryIncrementController {
   ) {
     await this.checkPermission(req, 'increments.edit');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
-    const roleId = req.user?.roleId || req.user?.role;
-    await this.hrmPermissionService.validateAction(roleId, 'increments.manage', tenantId);
     
     const data = await this.incrementService.update(id, updateDto, tenantId, req.user);
     return { success: true, data };
@@ -143,8 +154,6 @@ export class SalaryIncrementController {
   async delete(@Param('id') id: string, @Req() req: any) {
     await this.checkPermission(req, 'increments.delete');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
-    const roleId = req.user?.roleId || req.user?.role;
-    await this.hrmPermissionService.validateAction(roleId, 'increments.manage', tenantId);
     
     await this.incrementService.delete(id, tenantId, req.user);
     return { success: true, message: 'Salary increment deleted successfully' };

@@ -60,7 +60,6 @@ const ProfilePage = () => {
       if (user && setUser && data.profileImage !== undefined) {
         const updatedUser = { ...user, profileImage: data.profileImage || '' };
         setUser(updatedUser);
-        localStorage.setItem('solar_user', JSON.stringify(updatedUser));
       }
     } catch (error) {
       console.error('Failed to fetch profile:', error);
@@ -109,7 +108,7 @@ const ProfilePage = () => {
       // Update local user data if email changed
       if (data.email && user) {
         const updatedUser = { ...user, email: data.email };
-        localStorage.setItem('solar_user', JSON.stringify(updatedUser));
+        setUser(updatedUser);
         // Note: In a real app, you might want to update the auth context here
       }
 
@@ -160,7 +159,6 @@ const ProfilePage = () => {
       if (user && setUser) {
         const updatedUser = { ...user, profileImage: data.imageUrl };
         setUser(updatedUser);
-        localStorage.setItem('solar_user', JSON.stringify(updatedUser));
       }
     } catch (error) {
       console.error('Failed to upload image:', error);
@@ -183,7 +181,6 @@ const ProfilePage = () => {
       if (user && setUser) {
         const updatedUser = { ...user, profileImage: '' };
         setUser(updatedUser);
-        localStorage.setItem('solar_user', JSON.stringify(updatedUser));
       }
     } catch (error) {
       console.error('Failed to delete image:', error);

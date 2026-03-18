@@ -26,6 +26,7 @@ import { InventoryModule } from '../inventory/inventory.module';
       { name: InventoryReservation.name, schema: InventoryReservationSchema },
       { name: Tenant.name, schema: TenantSchema }
     ]),
+    CommonModule,
     SettingsModule,
     forwardRef(() => InventoryModule),
   ],

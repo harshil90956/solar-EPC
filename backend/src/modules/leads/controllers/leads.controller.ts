@@ -419,21 +419,50 @@ export class LeadsController {
   }
 
   // ============================================
-  // DASHBOARD ANALYTICS ENDPOINTS
+  // UNIFIED DASHBOARD API - SINGLE ENDPOINT WITH STRICT DATE FILTER
   // ============================================
 
-  @Get('dashboard/kpis')
-  async getDashboardKpis(@Request() req: any) {
+  @Get('dashboard')
+  async getFullDashboard(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+    @Request() req: any
+  ) {
     try {
       const tenantId = req.tenant?.id;
       const user = req.user;
-      const result = await this.leadsService.getDashboardKpis(tenantId, user);
+      this.logger.log(`[UNIFIED DASHBOARD] startDate: ${startDate}, endDate: ${endDate}`);
+      const result = await this.leadsService.getFullDashboard(tenantId, user, { startDate, endDate });
+      return { success: true, data: result };
+    } catch (error: any) {
+      this.logger.error(`Get full dashboard failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
+  // ============================================
+  // OLD DASHBOARD ENDPOINTS - DEPRECATED (kept for backward compatibility)
+  // ============================================
+
+  /* DEPRECATED - Use GET /leads/dashboard instead
+  @Get('dashboard/kpis')
+  async getDashboardKpis(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+    @Request() req: any
+  ) {
+    try {
+      const tenantId = req.tenant?.id;
+      const user = req.user;
+      this.logger.log(`[DATE FILTER] KPIs - startDate: ${startDate}, endDate: ${endDate}`);
+      const result = await this.leadsService.getDashboardKpis(tenantId, user, { startDate, endDate });
       return { success: true, data: result };
     } catch (error: any) {
       this.logger.error(`Get dashboard kpis failed: ${error?.message || 'Unknown error'}`, error?.stack);
       throw error;
     }
   }
+  */
 
   @Get('dashboard/overview')
   async getDashboardOverview(@Request() req: any) {
@@ -449,11 +478,16 @@ export class LeadsController {
   }
 
   @Get('dashboard/funnel')
-  async getFunnelData(@Request() req: any) {
+  async getFunnelData(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+    @Request() req: any
+  ) {
     try {
       const tenantId = req.tenant?.id;
       const user = req.user;
-      const result = await this.leadsService.getDashboardFunnel(tenantId, user);
+      this.logger.log(`[DATE FILTER] Funnel - startDate: ${startDate}, endDate: ${endDate}`);
+      const result = await this.leadsService.getDashboardFunnel(tenantId, user, { startDate, endDate });
       return { success: true, data: result };
     } catch (error: any) {
       this.logger.error(`Get funnel data failed: ${error?.message || 'Unknown error'}`, error?.stack);
@@ -462,11 +496,16 @@ export class LeadsController {
   }
 
   @Get('dashboard/sources')
-  async getDashboardSources(@Request() req: any) {
+  async getDashboardSources(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+    @Request() req: any
+  ) {
     try {
       const tenantId = req.tenant?.id;
       const user = req.user;
-      const result = await this.leadsService.getDashboardSources(tenantId, user);
+      this.logger.log(`[DATE FILTER] Sources - startDate: ${startDate}, endDate: ${endDate}`);
+      const result = await this.leadsService.getDashboardSources(tenantId, user, { startDate, endDate });
       return { success: true, data: result };
     } catch (error: any) {
       this.logger.error(`Get dashboard sources failed: ${error?.message || 'Unknown error'}`, error?.stack);
@@ -488,11 +527,16 @@ export class LeadsController {
   }
 
   @Get('dashboard/monthly')
-  async getDashboardMonthly(@Request() req: any) {
+  async getDashboardMonthly(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+    @Request() req: any
+  ) {
     try {
       const tenantId = req.tenant?.id;
       const user = req.user;
-      const result = await this.leadsService.getDashboardMonthly(tenantId, user);
+      this.logger.log(`[DATE FILTER] Monthly - startDate: ${startDate}, endDate: ${endDate}`);
+      const result = await this.leadsService.getDashboardMonthly(tenantId, user, { startDate, endDate });
       return { success: true, data: result };
     } catch (error: any) {
       this.logger.error(`Get dashboard monthly failed: ${error?.message || 'Unknown error'}`, error?.stack);
@@ -514,11 +558,16 @@ export class LeadsController {
   }
 
   @Get('dashboard/top-performers')
-  async getDashboardTopPerformers(@Request() req: any) {
+  async getDashboardTopPerformers(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+    @Request() req: any
+  ) {
     try {
       const tenantId = req.tenant?.id;
       const user = req.user;
-      const result = await this.leadsService.getDashboardTopPerformers(tenantId, user);
+      this.logger.log(`[DATE FILTER] Top Performers - startDate: ${startDate}, endDate: ${endDate}`);
+      const result = await this.leadsService.getDashboardTopPerformers(tenantId, user, { startDate, endDate });
       return { success: true, data: result };
     } catch (error: any) {
       this.logger.error(`Get dashboard top performers failed: ${error?.message || 'Unknown error'}`, error?.stack);

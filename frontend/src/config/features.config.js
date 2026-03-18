@@ -4,9 +4,6 @@
  * Every key maps to a flag that can be toggled from SettingsPage.
  */
 
-// ─── IMPORTS (must be at top) ─────────────────────────────────────────────────
-import { ROLE_PERMISSIONS } from './roles.config';
-
 // ─── MODULE DEFINITIONS ──────────────────────────────────────────────────────
 // Each module has: enabled, label, icon name, description, features{}, actions{}
 export const MODULE_DEFS = [
@@ -273,18 +270,16 @@ export function buildDefaultFlags() {
 export function buildDefaultRBAC() {
     const rbac = {};
     ROLE_DEFS.forEach(role => {
-        const rp = ROLE_PERMISSIONS[role.id] || {};
         rbac[role.id] = {};
         MODULE_DEFS.forEach(mod => {
-            const hasModule = (rp.modules || []).includes(mod.id);
             rbac[role.id][mod.id] = {
-                view: hasModule,
-                create: hasModule && (rp.canCreate ?? false),
-                edit: hasModule && (rp.canEdit ?? false),
-                delete: hasModule && (rp.canDelete ?? false),
-                export: hasModule && (rp.canExport ?? false),
-                approve: hasModule && (rp.canApprove ?? false),
-                assign: hasModule && (rp.canCreate ?? false),
+                view: false,
+                create: false,
+                edit: false,
+                delete: false,
+                export: false,
+                approve: false,
+                assign: false,
             };
         });
     });

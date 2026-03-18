@@ -16,15 +16,13 @@ import { Modal } from '../components/ui/Modal';
 import { Input, FormField, Select, Textarea } from '../components/ui/Input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/Tabs';
 import DataTable from '../components/ui/DataTable';
-import { StatusBadge } from '../components/ui/Badge';
+import { Badge } from '../components/ui/Badge'; // Fix component usage to match import name
 import { employeeApi, attendanceApi, leaveApi, payrollApi, incrementApi, departmentApi } from '../services/hrmApi';
 import { api } from '../lib/apiClient';
 import { useQuery } from '@tanstack/react-query';
 import { useSettings } from '../context/SettingsContext';
-import { useAuth } from '../context/AuthContext';
-import { usePermissions } from '../hooks/usePermissions';
-import HrmPermissionsPage from './HrmPermissionsPage';
-
+import { useAuth } from '../context/AuthContext'; // Fix component usage to match import name
+import HRMPermissionsPage from './HRMPermissionsPage';
 import AttendancePolicySettings from './AttendancePolicySettings';
 import { toast } from '../components/ui/Toast';
 import { CURRENCY } from '../config/app.config';
@@ -1323,7 +1321,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
           {/* ── Role Permissions Tab ── */}
           {(activeTab === 'role-permissions' || activeTab === 'hrm-role-permissions') && (
             <div className="animate-fade-in">
-              <HrmPermissionsPage />
+              <HRMPermissionsPage />
             </div>
           )}
 

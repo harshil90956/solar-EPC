@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Logger,
   Param,
   Patch,
   Post,
@@ -19,6 +20,8 @@ import { UpdateProfileDto } from './dto/profile.dto';
 import { AuthService } from './auth.service';
 import { OtpService } from '../../services/otp.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { PermissionEngineService } from '../../common/services/permission-engine.service';
+import { TenantGuard } from '../tenant/guards/tenant.guard';
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION || 'ap-southeast-2',
@@ -40,14 +43,78 @@ interface AuthenticatedRequest {
 
 @Controller('auth')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+
   constructor(
     private readonly authService: AuthService,
     private readonly otpService: OtpService,
+    private readonly permissionEngine: PermissionEngineService,
   ) {}
+
+  private shouldDebugLog(): boolean {
+    return (
+      String(process.env.AUTH_DEBUG_LOGS || '').toLowerCase() === 'true' ||
+      String(process.env.PERMISSION_DEBUG_LOGS || '').toLowerCase() === 'true'
+    );
+  }
+
+  private summarizePermissions(perms: any): { modules: number; actions: number; granted: number } {
+    let modules = 0;
+    let actions = 0;
+    let granted = 0;
+
+    if (!perms || typeof perms !== 'object') return { modules, actions, granted };
+
+    for (const modulePerms of Object.values(perms)) {
+      modules += 1;
+      if (!modulePerms || typeof modulePerms !== 'object') continue;
+      for (const v of Object.values(modulePerms as any)) {
+        actions += 1;
+        if (v === true) granted += 1;
+      }
+    }
+
+    return { modules, actions, granted };
+  }
 
   @Post('login')
   async login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard, TenantGuard)
+  async me(@Request() req: any) {
+    const user = req.user;
+    const tenantId = req.tenant?.id || user?.tenantId;
+    const userId = user?.id || user?._id || user?.sub;
+    const roleId = user?.roleId || user?.customRoleId || user?.role;
+
+    if (this.shouldDebugLog()) {
+      this.logger.debug(
+        `[AUTH_DEBUG] /auth/me req method=${req?.method} url=${req?.url} tenantId=${String(tenantId)} userId=${String(userId)} roleId=${String(roleId)} x-tenant-id=${String(req?.headers?.['x-tenant-id'] || '')}`,
+      );
+    }
+
+    const { permissions, dataScope } = await this.permissionEngine.getPermissions(
+      String(userId),
+      String(tenantId),
+      String(roleId),
+    );
+
+    if (this.shouldDebugLog()) {
+      const permSummary = this.summarizePermissions(permissions);
+      const scopeModules = Object.keys(dataScope || {}).length;
+      this.logger.debug(
+        `[AUTH_DEBUG] /auth/me res tenantId=${String(tenantId)} userId=${String(userId)} permSummary=${JSON.stringify(permSummary)} scopeModules=${scopeModules}`,
+      );
+    }
+
+    return {
+      user,
+      permissions,
+      dataScope,
+    };
   }
 
   // Send OTP for password reset

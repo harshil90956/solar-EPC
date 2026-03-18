@@ -21,6 +21,9 @@ const ProposalCanvasEditor = ({
   const [selectedElement, setSelectedElement] = useState(null);
   const [draggingElement, setDraggingElement] = useState(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [resizingElement, setResizingElement] = useState(null);
+  const [resizeHandle, setResizeHandle] = useState(null);
+  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const [showGrid, setShowGrid] = useState(true);
   const [snapToGrid, setSnapToGrid] = useState(true);
   const [activeTool, setActiveTool] = useState('select');
@@ -29,477 +32,8 @@ const ProposalCanvasEditor = ({
   const [showLayers, setShowLayers] = useState(false);
   const [canvasSize, setCanvasSize] = useState({ width: 794, height: 1124 }); // A4 size in pixels at 96 DPI
 
-  // Canvas elements state with professional proposal template
-  const [elements, setElements] = useState(initialData?.canvasElements || [
-    // Header Background
-    {
-      id: 'header-bg',
-      type: 'shape',
-      x: 0,
-      y: 0,
-      width: 794,
-      height: 130,
-      shapeType: 'rectangle',
-      style: {
-        backgroundColor: '#006b6b',
-        borderColor: 'transparent',
-        borderWidth: 0
-      },
-      zIndex: 0
-    },
-    // Company Logo Area
-    {
-      id: 'company-name',
-      type: 'text',
-      x: 40,
-      y: 25,
-      width: 400,
-      height: 35,
-      content: '<div style="font-size: 26px; font-weight: 800; color: white; letter-spacing: -0.5px;">Sunvora Energy Pvt. Ltd.</div>',
-      style: {
-        fontSize: 26,
-        fontWeight: '800',
-        color: '#ffffff',
-        fontFamily: 'Inter, system-ui, sans-serif'
-      },
-      zIndex: 1
-    },
-    {
-      id: 'company-tagline',
-      type: 'text',
-      x: 40,
-      y: 62,
-      width: 400,
-      height: 20,
-      content: '<div style="font-size: 13px; color: rgba(255,255,255,0.85); font-weight: 500;">Best Value & Quality Solar Solution</div>',
-      style: {
-        fontSize: 13,
-        color: 'rgba(255,255,255,0.85)',
-        fontFamily: 'Inter, system-ui, sans-serif'
-      },
-      zIndex: 1
-    },
-    // Proposal Number Box
-    {
-      id: 'proposal-box',
-      type: 'shape',
-      x: 580,
-      y: 20,
-      width: 190,
-      height: 90,
-      shapeType: 'rectangle',
-      style: {
-        backgroundColor: 'rgba(255,255,255,0.15)',
-        borderColor: 'rgba(255,255,255,0.3)',
-        borderWidth: 1,
-        borderRadius: 8
-      },
-      zIndex: 1
-    },
-    {
-      id: 'proposal-label',
-      type: 'text',
-      x: 590,
-      y: 30,
-      width: 170,
-      height: 20,
-      content: '<div style="font-size: 11px; color: rgba(255,255,255,0.8); text-align: center; letter-spacing: 2px;">PROPOSAL</div>',
-      style: {
-        fontSize: 11,
-        color: 'rgba(255,255,255,0.8)',
-        textAlign: 'center',
-        fontFamily: 'Inter, system-ui, sans-serif'
-      },
-      zIndex: 2
-    },
-    {
-      id: 'proposal-number',
-      type: 'text',
-      x: 590,
-      y: 55,
-      width: 170,
-      height: 30,
-      content: `<div style="font-size: 22px; font-weight: 700; color: white; text-align: center;">${initialData?.proposalNumber || 'PROP-2026-0001'}</div>`,
-      style: {
-        fontSize: 22,
-        fontWeight: '700',
-        color: '#ffffff',
-        textAlign: 'center',
-        fontFamily: 'Inter, system-ui, sans-serif'
-      },
-      zIndex: 2
-    },
-    // Customer Section
-    {
-      id: 'to-label',
-      type: 'text',
-      x: 40,
-      y: 155,
-      width: 60,
-      height: 20,
-      content: '<div style="font-size: 11px; color: #6b7280; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">To:</div>',
-      style: {
-        fontSize: 11,
-        fontWeight: '600',
-        color: '#6b7280',
-        fontFamily: 'Inter, system-ui, sans-serif'
-      },
-      zIndex: 1
-    },
-    {
-      id: 'customer-name',
-      type: 'text',
-      x: 40,
-      y: 175,
-      width: 350,
-      height: 30,
-      content: `<div style="font-size: 18px; font-weight: 700; color: #1f2937;">${initialData?.customerName || 'Customer Name'}</div>`,
-      style: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#1f2937',
-        fontFamily: 'Inter, system-ui, sans-serif'
-      },
-      zIndex: 1
-    },
-    {
-      id: 'customer-address',
-      type: 'text',
-      x: 40,
-      y: 208,
-      width: 350,
-      height: 70,
-      content: `<div style="font-size: 12px; color: #4b5563; line-height: 1.6;">${initialData?.projectLocation || 'Project Location Address'}<br><span style="color: #6b7280;">📧 ${initialData?.customerEmail || 'customer@email.com'}</span><br><span style="color: #6b7280;">📞 ${initialData?.customerPhone || '+91 9876543210'}</span></div>`,
-      style: {
-        fontSize: 12,
-        color: '#4b5563',
-        fontFamily: 'Inter, system-ui, sans-serif',
-        lineHeight: 1.6
-      },
-      zIndex: 1
-    },
-    // Date Section (Right side)
-    {
-      id: 'date-box',
-      type: 'shape',
-      x: 580,
-      y: 155,
-      width: 190,
-      height: 100,
-      shapeType: 'rectangle',
-      style: {
-        backgroundColor: '#f9fafb',
-        borderColor: '#e5e7eb',
-        borderWidth: 1,
-        borderRadius: 6
-      },
-      zIndex: 1
-    },
-    {
-      id: 'date-content',
-      type: 'text',
-      x: 590,
-      y: 165,
-      width: 170,
-      height: 80,
-      content: `<div style="font-size: 12px; color: #374151; line-height: 2;">
-        <div style="display: flex; justify-content: space-between;"><span style="color: #6b7280;">Date:</span> <strong>${new Date().toISOString().split('T')[0]}</strong></div>
-        <div style="display: flex; justify-content: space-between;"><span style="color: #6b7280;">Valid Until:</span> <strong>${new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}</strong></div>
-        <div style="display: flex; justify-content: space-between;"><span style="color: #6b7280;">Status:</span> <span style="color: #f59e0b; font-weight: 600;">DRAFT</span></div>
-      </div>`,
-      style: {
-        fontSize: 12,
-        color: '#374151',
-        fontFamily: 'Inter, system-ui, sans-serif'
-      },
-      zIndex: 2
-    },
-    // Subject Section
-    {
-      id: 'subject-bg',
-      type: 'shape',
-      x: 40,
-      y: 285,
-      width: 730,
-      height: 55,
-      shapeType: 'rectangle',
-      style: {
-        backgroundColor: '#f3f4f6',
-        borderColor: '#e5e7eb',
-        borderWidth: 1,
-        borderRadius: 6
-      },
-      zIndex: 1
-    },
-    {
-      id: 'subject-label',
-      type: 'text',
-      x: 55,
-      y: 295,
-      width: 80,
-      height: 20,
-      content: '<div style="font-size: 11px; color: #6b7280; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Subject</div>',
-      style: {
-        fontSize: 11,
-        fontWeight: '600',
-        color: '#6b7280',
-        fontFamily: 'Inter, system-ui, sans-serif'
-      },
-      zIndex: 2
-    },
-    {
-      id: 'subject-text',
-      type: 'text',
-      x: 55,
-      y: 315,
-      width: 700,
-      height: 25,
-      content: `<div style="font-size: 15px; font-weight: 600; color: #1f2937;">${initialData?.projectName || '5kW Solar Installation Proposal'}</div>`,
-      style: {
-        fontSize: 15,
-        fontWeight: '600',
-        color: '#1f2937',
-        fontFamily: 'Inter, system-ui, sans-serif'
-      },
-      zIndex: 2
-    },
-    // Services Section Header
-    {
-      id: 'services-header',
-      type: 'text',
-      x: 40,
-      y: 365,
-      width: 200,
-      height: 30,
-      content: '<div style="font-size: 20px; font-weight: 700; color: #059669;">Services Offered</div>',
-      style: {
-        fontSize: 20,
-        fontWeight: '700',
-        color: '#059669',
-        fontFamily: 'Inter, system-ui, sans-serif'
-      },
-      zIndex: 1
-    },
-    // Services Table
-    {
-      id: 'services-table',
-      type: 'table',
-      x: 40,
-      y: 405,
-      width: 730,
-      height: 220,
-      rows: 5,
-      cols: 5,
-      headers: ['#', 'Item Description', 'Qty', 'Rate', 'Amount'],
-      data: [
-        ['1', 'Solar PV Module 550W - Bifacial TopCon', '8 nos', '₹35,000', '₹2,80,000'],
-        ['2', 'Module Mounting Structure GI', '1 set', '₹45,000', '₹45,000'],
-        ['3', 'Grid Tie Inverter 5kW with WiFi', '1 nos', '₹1,20,000', '₹1,20,000'],
-        ['4', 'DC/AC Cables & Accessories', '1 set', '₹35,000', '₹35,000'],
-        ['5', 'Installation & Commissioning', '1 job', '₹50,000', '₹50,000']
-      ],
-      style: {
-        borderColor: '#d1d5db',
-        borderWidth: 1,
-        backgroundColor: 'white',
-        headerBackground: '#f9fafb'
-      },
-      zIndex: 1
-    },
-    // Summary Section
-    {
-      id: 'summary-line',
-      type: 'shape',
-      x: 450,
-      y: 640,
-      width: 320,
-      height: 1,
-      shapeType: 'rectangle',
-      style: {
-        backgroundColor: '#e5e7eb',
-        borderColor: 'transparent'
-      },
-      zIndex: 1
-    },
-    {
-      id: 'subtotal-label',
-      type: 'text',
-      x: 450,
-      y: 650,
-      width: 200,
-      height: 25,
-      content: '<div style="font-size: 13px; color: #6b7280; text-align: right;">Subtotal</div>',
-      style: {
-        fontSize: 13,
-        color: '#6b7280',
-        textAlign: 'right',
-        fontFamily: 'Inter, system-ui, sans-serif'
-      },
-      zIndex: 1
-    },
-    {
-      id: 'subtotal-value',
-      type: 'text',
-      x: 670,
-      y: 650,
-      width: 100,
-      height: 25,
-      content: '<div style="font-size: 13px; color: #1f2937; text-align: right; font-weight: 600;">₹5,30,000</div>',
-      style: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: '#1f2937',
-        textAlign: 'right',
-        fontFamily: 'Inter, system-ui, sans-serif'
-      },
-      zIndex: 1
-    },
-    {
-      id: 'gst-label',
-      type: 'text',
-      x: 450,
-      y: 680,
-      width: 200,
-      height: 25,
-      content: '<div style="font-size: 13px; color: #6b7280; text-align: right;">GST (18%)</div>',
-      style: {
-        fontSize: 13,
-        color: '#6b7280',
-        textAlign: 'right',
-        fontFamily: 'Inter, system-ui, sans-serif'
-      },
-      zIndex: 1
-    },
-    {
-      id: 'gst-value',
-      type: 'text',
-      x: 670,
-      y: 680,
-      width: 100,
-      height: 25,
-      content: '<div style="font-size: 13px; color: #1f2937; text-align: right; font-weight: 600;">₹95,400</div>',
-      style: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: '#1f2937',
-        textAlign: 'right',
-        fontFamily: 'Inter, system-ui, sans-serif'
-      },
-      zIndex: 1
-    },
-    {
-      id: 'total-line',
-      type: 'shape',
-      x: 450,
-      y: 715,
-      width: 320,
-      height: 2,
-      shapeType: 'rectangle',
-      style: {
-        backgroundColor: '#059669',
-        borderColor: 'transparent'
-      },
-      zIndex: 1
-    },
-    {
-      id: 'total-label',
-      type: 'text',
-      x: 450,
-      y: 725,
-      width: 200,
-      height: 30,
-      content: '<div style="font-size: 16px; color: #1f2937; text-align: right; font-weight: 700;">Total Amount</div>',
-      style: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#1f2937',
-        textAlign: 'right',
-        fontFamily: 'Inter, system-ui, sans-serif'
-      },
-      zIndex: 1
-    },
-    {
-      id: 'total-value',
-      type: 'text',
-      x: 670,
-      y: 725,
-      width: 100,
-      height: 30,
-      content: '<div style="font-size: 20px; color: #059669; text-align: right; font-weight: 800;">₹6,25,400</div>',
-      style: {
-        fontSize: 20,
-        fontWeight: '800',
-        color: '#059669',
-        textAlign: 'right',
-        fontFamily: 'Inter, system-ui, sans-serif'
-      },
-      zIndex: 1
-    },
-    // Terms Section
-    {
-      id: 'terms-header',
-      type: 'text',
-      x: 40,
-      y: 780,
-      width: 250,
-      height: 25,
-      content: '<div style="font-size: 14px; font-weight: 700; color: #1f2937; letter-spacing: -0.3px;">Terms & Conditions</div>',
-      style: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: '#1f2937',
-        fontFamily: 'Inter, system-ui, sans-serif'
-      },
-      zIndex: 1
-    },
-    {
-      id: 'terms-content',
-      type: 'text',
-      x: 40,
-      y: 810,
-      width: 730,
-      height: 120,
-      content: '<div style="font-size: 11px; color: #6b7280; line-height: 1.8;">1. <strong>Payment Terms:</strong> 50% advance payment required before project commencement. Balance 50% on completion and commissioning.<br>2. <strong>Warranty:</strong> 5-year warranty on installation workmanship. 25 years performance warranty on solar panels.<br>3. <strong>Timeline:</strong> Project completion within 4-6 weeks from order confirmation.<br>4. <strong>Approvals:</strong> All government approvals and net metering charges are extra.<br>5. <strong>Validity:</strong> This proposal is valid for 30 days from the date of issue.</div>',
-      style: {
-        fontSize: 11,
-        color: '#6b7280',
-        fontFamily: 'Inter, system-ui, sans-serif',
-        lineHeight: 1.8
-      },
-      zIndex: 1
-    },
-    // Footer
-    {
-      id: 'footer-line',
-      type: 'shape',
-      x: 40,
-      y: 950,
-      width: 730,
-      height: 1,
-      shapeType: 'rectangle',
-      style: {
-        backgroundColor: '#e5e7eb',
-        borderColor: 'transparent'
-      },
-      zIndex: 0
-    },
-    {
-      id: 'footer-text',
-      type: 'text',
-      x: 40,
-      y: 965,
-      width: 730,
-      height: 50,
-      content: '<div style="font-size: 10px; color: #9ca3af; text-align: center; line-height: 1.6;"><strong style="color: #6b7280;">Sunvora Energy Pvt. Ltd.</strong> | 104 to 1117, Millennium Business Hub-1, Surat, Gujarat - 395006<br>📞 +91 96380 00461 | ✉️ epc@sunvoraenergy.com | 🌐 www.sunvoraenergy.com</div>',
-      style: {
-        fontSize: 10,
-        color: '#9ca3af',
-        textAlign: 'center',
-        fontFamily: 'Inter, system-ui, sans-serif'
-      },
-      zIndex: 1
-    }
-  ]);
+  // Canvas elements state - starts empty, populated from proposal data
+  const [elements, setElements] = useState([]);
 
   // Text formatting state with toggle support
   const [textFormat, setTextFormat] = useState({
@@ -571,7 +105,7 @@ const ProposalCanvasEditor = ({
       y: 100 + elements.length * 20,
       width: type === 'text' ? 300 : type === 'table' ? 600 : 150,
       height: type === 'text' ? 100 : type === 'table' ? 200 : 150,
-      content: type === 'text' ? 'Double click to edit text' : '',
+      content: type === 'text' ? '<div style="font-size: 14px; color: #1f2937;">Double click to edit text</div>' : '',
       style: {
         fontSize: 14,
         fontFamily: 'Inter, sans-serif',
@@ -690,8 +224,91 @@ const ProposalCanvasEditor = ({
     if (draggingElement) {
       saveHistory(elements);
     }
+    if (resizingElement) {
+      saveHistory(elements);
+    }
     setDraggingElement(null);
+    setResizingElement(null);
+    setResizeHandle(null);
   };
+
+  // Handle resize start
+  const handleResizeStart = (e, handle) => {
+    e.stopPropagation();
+    e.preventDefault();
+    
+    if (!selectedElement) return;
+    
+    const element = elements.find(el => el.id === selectedElement);
+    if (!element) return;
+    
+    setResizingElement(selectedElement);
+    setResizeHandle(handle);
+    setResizeStart({
+      x: e.clientX,
+      y: e.clientY,
+      width: element.width,
+      height: element.height,
+      elementX: element.x,
+      elementY: element.y
+    });
+  };
+
+  // Handle resize move
+  const handleResizeMove = useCallback((e) => {
+    if (!resizingElement || !resizeHandle || !canvasRef.current) return;
+    
+    const rect = canvasRef.current.getBoundingClientRect();
+    const deltaX = (e.clientX - resizeStart.x) / scale;
+    const deltaY = (e.clientY - resizeStart.y) / scale;
+    
+    const element = elements.find(el => el.id === resizingElement);
+    if (!element) return;
+    
+    let newWidth = resizeStart.width;
+    let newHeight = resizeStart.height;
+    let newX = resizeStart.elementX;
+    let newY = resizeStart.elementY;
+    
+    // Calculate new size based on handle
+    switch (resizeHandle) {
+      case 'se': // Southeast - bottom right
+        newWidth = Math.max(50, resizeStart.width + deltaX);
+        newHeight = Math.max(20, resizeStart.height + deltaY);
+        break;
+      case 'sw': // Southwest - bottom left
+        newWidth = Math.max(50, resizeStart.width - deltaX);
+        newHeight = Math.max(20, resizeStart.height + deltaY);
+        newX = resizeStart.elementX + (resizeStart.width - newWidth);
+        break;
+      case 'ne': // Northeast - top right
+        newWidth = Math.max(50, resizeStart.width + deltaX);
+        newHeight = Math.max(20, resizeStart.height - deltaY);
+        newY = resizeStart.elementY + (resizeStart.height - newHeight);
+        break;
+      case 'nw': // Northwest - top left
+        newWidth = Math.max(50, resizeStart.width - deltaX);
+        newHeight = Math.max(20, resizeStart.height - deltaY);
+        newX = resizeStart.elementX + (resizeStart.width - newWidth);
+        newY = resizeStart.elementY + (resizeStart.height - newHeight);
+        break;
+    }
+    
+    // Snap to grid
+    if (snapToGrid) {
+      newWidth = Math.round(newWidth / 10) * 10;
+      newHeight = Math.round(newHeight / 10) * 10;
+      newX = Math.round(newX / 10) * 10;
+      newY = Math.round(newY / 10) * 10;
+    }
+    
+    updateElement(resizingElement, { 
+      width: newWidth, 
+      height: newHeight,
+      x: newX,
+      y: newY
+    });
+  }, [resizingElement, resizeHandle, resizeStart, scale, snapToGrid, elements]);
 
   // Handle text edit
   const handleTextEdit = (id, newContent) => {
@@ -771,10 +388,16 @@ const ProposalCanvasEditor = ({
   };
 
   useEffect(() => {
-    const handleGlobalMouseMove = (e) => handleMouseMove(e);
+    const handleGlobalMouseMove = (e) => {
+      if (resizingElement) {
+        handleResizeMove(e);
+      } else {
+        handleMouseMove(e);
+      }
+    };
     const handleGlobalMouseUp = () => handleMouseUp();
 
-    if (draggingElement) {
+    if (draggingElement || resizingElement) {
       window.addEventListener('mousemove', handleGlobalMouseMove);
       window.addEventListener('mouseup', handleGlobalMouseUp);
     }
@@ -783,7 +406,7 @@ const ProposalCanvasEditor = ({
       window.removeEventListener('mousemove', handleGlobalMouseMove);
       window.removeEventListener('mouseup', handleGlobalMouseUp);
     };
-  }, [draggingElement, handleMouseMove]);
+  }, [draggingElement, resizingElement, handleMouseMove, handleResizeMove]);
 
   // Initialize history
   useEffect(() => {
@@ -792,6 +415,449 @@ const ProposalCanvasEditor = ({
       setHistoryIndex(0);
     }
   }, []);
+
+  // Update elements when initialData changes (for real proposal data)
+  useEffect(() => {
+    if (initialData && (initialData.id || initialData.proposalNumber)) {
+      console.log('[Canvas] Received initialData:', initialData);
+      
+      // Create new elements with real data
+      const newElements = createElementsFromData(initialData);
+      setElements(newElements);
+      
+      // Reset history with new elements
+      setHistory([JSON.parse(JSON.stringify(newElements))]);
+      setHistoryIndex(0);
+    } else {
+      // No data - clear canvas
+      setElements([]);
+      setHistory([]);
+      setHistoryIndex(-1);
+    }
+  }, [initialData?.id, initialData?.proposalNumber, initialData?.customerName, initialData?.projectName]);
+
+  // Function to create elements from proposal data
+  const createElementsFromData = (data) => {
+    // Only create elements if we have real proposal data
+    if (!data || (!data.id && !data.proposalNumber)) {
+      return []; // Return empty array if no real data
+    }
+    
+    const today = new Date().toISOString().split('T')[0];
+    const validUntil = data.validUntil || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    // Parse address fields - use individual fields if available, otherwise parse from customerAddress
+    const parseAddressFields = () => {
+      // If individual fields are already present, use them
+      if (data.address || data.city || data.state || data.country || data.zipCode) {
+        return {
+          address: data.address || '',
+          city: data.city || '',
+          state: data.state || '',
+          country: data.country || '',
+          zipCode: data.zipCode || ''
+        };
+      }
+      
+      // Otherwise try to parse from customerAddress or projectLocation
+      const fullAddress = data.customerAddress || data.projectLocation || '';
+      if (!fullAddress) return { address: '', city: '', state: '', country: '', zipCode: '' };
+      
+      // Split by comma and try to identify parts
+      const parts = fullAddress.split(',').map(p => p.trim()).filter(Boolean);
+      
+      return {
+        address: parts[0] || '',
+        city: parts[1] || '',
+        state: parts[2] || '',
+        country: parts[3] || '',
+        zipCode: parts[4] || ''
+      };
+    };
+    
+    const addressFields = parseAddressFields();
+    
+    // Use actual data only - NO fallback defaults
+    const customerName = data.customerName || '';
+    const projectName = data.projectName || '';
+    const location = data.projectLocation || data.customerAddress || '';
+    const proposalNumber = data.proposalNumber || data.documentId || '';
+    const total = data.total || 0;
+    const subtotal = data.subtotal || 0;
+    const gstAmount = data.gstAmount || data.taxAmount || 0;
+    
+    // Company Info - only from data, no defaults
+    const companyName = data.companyName || '';
+    const companyTagline = data.companyTagline || '';
+    const companyAddress = data.companyAddress || '';
+    const companyCity = data.companyCity || '';
+    const companyState = data.companyState || '';
+    const companyZip = data.companyZip || '';
+    const companyPhone = data.companyPhone || '';
+    const companyEmail = data.companyEmail || '';
+    const companyWebsite = data.companyWebsite || '';
+    
+    // Format items for table - only real items, no defaults
+    const items = data.items || data.equipmentItems || [];
+    const tableData = items.length > 0 
+      ? items.map((item, idx) => [
+          String(idx + 1),
+          item.name || item.component || '',
+          String(item.quantity || 1),
+          `₹${(item.unitPrice || 0).toLocaleString()}`,
+          `₹${((item.quantity || 1) * (item.unitPrice || 0)).toLocaleString()}`
+        ])
+      : []; // Empty if no items
+    
+    const customerInitial = customerName.charAt(0).toUpperCase();
+    
+    return [
+      // Header
+      {
+        id: 'header-bg',
+        type: 'shape',
+        x: 0, y: 0, width: 794, height: 130,
+        shapeType: 'rectangle',
+        style: { backgroundColor: '#006b6b', borderColor: 'transparent', borderWidth: 0 },
+        zIndex: 0
+      },
+      {
+        id: 'company-name',
+        type: 'text',
+        x: 40, y: 30, width: 400, height: 35,
+        content: `<div style="font-size: 28px; font-weight: 800; color: white; letter-spacing: -0.5px;">${companyName}</div>`,
+        style: { fontSize: 28, fontWeight: '800', color: '#ffffff', fontFamily: 'Inter, system-ui, sans-serif' },
+        zIndex: 1
+      },
+      {
+        id: 'company-tagline',
+        type: 'text',
+        x: 40, y: 68, width: 400, height: 20,
+        content: `<div style="font-size: 13px; color: rgba(255,255,255,0.9); font-weight: 500; letter-spacing: 0.5px;">${companyTagline}</div>`,
+        style: { fontSize: 13, color: 'rgba(255,255,255,0.9)', fontFamily: 'Inter, system-ui, sans-serif' },
+        zIndex: 1
+      },
+      {
+        id: 'proposal-box',
+        type: 'shape',
+        x: 580, y: 20, width: 190, height: 90,
+        shapeType: 'rectangle',
+        style: { backgroundColor: 'rgba(255,255,255,0.15)', borderColor: 'rgba(255,255,255,0.3)', borderWidth: 1, borderRadius: 8 },
+        zIndex: 1
+      },
+      {
+        id: 'proposal-label',
+        type: 'text',
+        x: 590, y: 32, width: 170, height: 18,
+        content: '<div style="font-size: 10px; color: rgba(255,255,255,0.85); text-align: center; letter-spacing: 3px; font-weight: 600;">PROPOSAL</div>',
+        style: { fontSize: 10, color: 'rgba(255,255,255,0.85)', textAlign: 'center', fontFamily: 'Inter, system-ui, sans-serif' },
+        zIndex: 2
+      },
+      {
+        id: 'proposal-number',
+        type: 'text',
+        x: 590, y: 55, width: 170, height: 30,
+        content: `<div style="font-size: 22px; font-weight: 700; color: white; text-align: center; letter-spacing: 1px;">${proposalNumber}</div>`,
+        style: { fontSize: 22, fontWeight: '700', color: '#ffffff', textAlign: 'center', fontFamily: 'Inter, system-ui, sans-serif' },
+        zIndex: 2
+      },
+      // Company Info
+      {
+        id: 'company-info-title',
+        type: 'text',
+        x: 40, y: 155, width: 350, height: 25,
+        content: `<div style="font-size: 16px; font-weight: 700; color: #1f2937;">${companyName}</div>`,
+        style: { fontSize: 16, fontWeight: '700', color: '#1f2937', fontFamily: 'Inter, system-ui, sans-serif' },
+        zIndex: 2
+      },
+      {
+        id: 'company-address',
+        type: 'text',
+        x: 40, y: 180, width: 350, height: 100,
+        content: `<div style="font-size: 12px; color: #4b5563; line-height: 1.7;">${companyAddress}<br>Opp. Sarthana Nature Park, ${companyCity} - ${companyZip}<br>${companyState} - India<br>📞 ${companyPhone}<br>✉️ ${companyEmail}</div>`,
+        style: { fontSize: 12, color: '#4b5563', fontFamily: 'Inter, system-ui, sans-serif', lineHeight: 1.7 },
+        zIndex: 2
+      },
+      // Customer Info - with individual address fields
+      {
+        id: 'to-label',
+        type: 'text',
+        x: 450, y: 145, width: 300, height: 18,
+        content: '<div style="font-size: 11px; color: #6b7280; font-weight: 600;">To (Customer Name):</div>',
+        style: { fontSize: 11, fontWeight: '600', color: '#6b7280', fontFamily: 'Inter, system-ui, sans-serif' },
+        zIndex: 1
+      },
+      {
+        id: 'customer-name',
+        type: 'text',
+        x: 450, y: 162, width: 320, height: 22,
+        content: `<div style="font-size: 15px; font-weight: 700; color: #2563eb;">${customerName}</div>`,
+        style: { fontSize: 15, fontWeight: '700', color: '#2563eb', fontFamily: 'Inter, system-ui, sans-serif' },
+        zIndex: 1
+      },
+      // Address
+      {
+        id: 'address-label',
+        type: 'text',
+        x: 450, y: 188, width: 300, height: 16,
+        content: '<div style="font-size: 10px; color: #9ca3af;">Address</div>',
+        style: { fontSize: 10, color: '#9ca3af', fontFamily: 'Inter, system-ui, sans-serif' },
+        zIndex: 1
+      },
+      {
+        id: 'customer-address',
+        type: 'text',
+        x: 450, y: 202, width: 320, height: 18,
+        content: `<div style="font-size: 12px; color: #4b5563;">${addressFields.address}</div>`,
+        style: { fontSize: 12, color: '#4b5563', fontFamily: 'Inter, system-ui, sans-serif' },
+        zIndex: 1
+      },
+      // City, State
+      {
+        id: 'city-state',
+        type: 'text',
+        x: 450, y: 222, width: 320, height: 16,
+        content: `<div style="font-size: 11px; color: #4b5563;">${[addressFields.city, addressFields.state].filter(Boolean).join(', ')}</div>`,
+        style: { fontSize: 11, color: '#4b5563', fontFamily: 'Inter, system-ui, sans-serif' },
+        zIndex: 1
+      },
+      // Country, Zip
+      {
+        id: 'country-zip',
+        type: 'text',
+        x: 450, y: 238, width: 320, height: 16,
+        content: `<div style="font-size: 11px; color: #4b5563;">${[addressFields.country, addressFields.zipCode].filter(Boolean).join(' - ')}</div>`,
+        style: { fontSize: 11, color: '#4b5563', fontFamily: 'Inter, system-ui, sans-serif' },
+        zIndex: 1
+      },
+      // Email
+      {
+        id: 'customer-email',
+        type: 'text',
+        x: 450, y: 258, width: 320, height: 16,
+        content: `<div style="font-size: 11px; color: #2563eb;">${data.customerEmail || data.email || ''}</div>`,
+        style: { fontSize: 11, color: '#2563eb', fontFamily: 'Inter, system-ui, sans-serif' },
+        zIndex: 1
+      },
+      // Phone
+      {
+        id: 'customer-phone',
+        type: 'text',
+        x: 450, y: 274, width: 320, height: 16,
+        content: `<div style="font-size: 11px; color: #2563eb;">${data.customerPhone || data.phone || ''}</div>`,
+        style: { fontSize: 11, color: '#2563eb', fontFamily: 'Inter, system-ui, sans-serif' },
+        zIndex: 1
+      },
+      // Date Section - moved down to accommodate customer info
+      {
+        id: 'date-content',
+        type: 'text',
+        x: 580, y: 300, width: 190, height: 80,
+        content: `<div style="font-size: 11px; color: #374151; line-height: 1.8; text-align: right;">
+          <div><span style="color: #6b7280;">Date:</span> <strong>${today}</strong></div>
+          <div><span style="color: #6b7280;">Valid Until:</span> <strong>${validUntil}</strong></div>
+          <div><span style="color: #6b7280;">Status:</span> <span style="color: #f59e0b; font-weight: 600;">${(data.status || 'DRAFT').toUpperCase()}</span></div>
+        </div>`,
+        style: { fontSize: 11, color: '#374151', fontFamily: 'Inter, system-ui, sans-serif', textAlign: 'right' },
+        zIndex: 2
+      },
+      // Subject - moved down
+      {
+        id: 'subject-bg',
+        type: 'shape',
+        x: 40, y: 380, width: 730, height: 60,
+        shapeType: 'rectangle',
+        style: { backgroundColor: '#f9fafb', borderColor: '#e5e7eb', borderWidth: 1, borderRadius: 6 },
+        zIndex: 1
+      },
+      {
+        id: 'subject-label',
+        type: 'text',
+        x: 55, y: 390, width: 80, height: 18,
+        content: '<div style="font-size: 11px; color: #6b7280; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">SUBJECT</div>',
+        style: { fontSize: 11, fontWeight: '600', color: '#6b7280', fontFamily: 'Inter, system-ui, sans-serif' },
+        zIndex: 2
+      },
+      {
+        id: 'subject-text',
+        type: 'text',
+        x: 55, y: 410, width: 700, height: 25,
+        content: `<div style="font-size: 14px; font-weight: 600; color: #1f2937;">Site Survey Proposal - ${projectName} (${location})</div>`,
+        style: { fontSize: 14, fontWeight: '600', color: '#1f2937', fontFamily: 'Inter, system-ui, sans-serif' },
+        zIndex: 2
+      },
+      // Description - moved down
+      {
+        id: 'description-box',
+        type: 'shape',
+        x: 40, y: 460, width: 730, height: 70,
+        shapeType: 'rectangle',
+        style: { backgroundColor: 'white', borderColor: '#e5e7eb', borderWidth: 1, borderRadius: 6 },
+        zIndex: 1
+      },
+      {
+        id: 'description-text',
+        type: 'text',
+        x: 55, y: 475, width: 700, height: 50,
+        content: `<div style="font-size: 13px; color: #4b5563; line-height: 1.6;">${data.projectDescription || ''}</div>`,
+        style: { fontSize: 13, color: '#4b5563', fontFamily: 'Inter, system-ui, sans-serif', lineHeight: 1.6 },
+        zIndex: 2
+      },
+      // Services Header - moved down
+      {
+        id: 'services-header',
+        type: 'text',
+        x: 40, y: 550, width: 200, height: 25,
+        content: '<div style="font-size: 16px; font-weight: 700; color: #059669;">Services Offered</div>',
+        style: { fontSize: 16, fontWeight: '700', color: '#059669', fontFamily: 'Inter, system-ui, sans-serif' },
+        zIndex: 1
+      },
+      // Services Table - moved down
+      {
+        id: 'services-table',
+        type: 'table',
+        x: 40, y: 585, width: 730, height: 200,
+        rows: tableData.length,
+        cols: 5,
+        headers: ['#', 'Item Description', 'Qty', 'Rate', 'Amount'],
+        data: tableData,
+        style: { borderColor: '#d1d5db', borderWidth: 1, backgroundColor: 'white', headerBackground: '#f9fafb' },
+        zIndex: 1
+      },
+      // Summary - moved down
+      {
+        id: 'subtotal-label',
+        type: 'text',
+        x: 450, y: 795, width: 200, height: 20,
+        content: '<div style="font-size: 12px; color: #6b7280; text-align: right;">Subtotal</div>',
+        style: { fontSize: 12, color: '#6b7280', textAlign: 'right', fontFamily: 'Inter, system-ui, sans-serif' },
+        zIndex: 1
+      },
+      {
+        id: 'subtotal-value',
+        type: 'text',
+        x: 670, y: 795, width: 100, height: 20,
+        content: `<div style="font-size: 12px; color: #1f2937; text-align: right; font-weight: 600;">₹${subtotal.toLocaleString()}</div>`,
+        style: { fontSize: 12, fontWeight: '600', color: '#1f2937', textAlign: 'right', fontFamily: 'Inter, system-ui, sans-serif' },
+        zIndex: 1
+      },
+      {
+        id: 'gst-label',
+        type: 'text',
+        x: 450, y: 820, width: 200, height: 20,
+        content: '<div style="font-size: 12px; color: #6b7280; text-align: right;">GST (18%)</div>',
+        style: { fontSize: 12, color: '#6b7280', textAlign: 'right', fontFamily: 'Inter, system-ui, sans-serif' },
+        zIndex: 1
+      },
+      {
+        id: 'gst-value',
+        type: 'text',
+        x: 670, y: 820, width: 100, height: 20,
+        content: `<div style="font-size: 12px; color: #1f2937; text-align: right; font-weight: 600;">₹${gstAmount.toLocaleString()}</div>`,
+        style: { fontSize: 12, fontWeight: '600', color: '#1f2937', textAlign: 'right', fontFamily: 'Inter, system-ui, sans-serif' },
+        zIndex: 1
+      },
+      {
+        id: 'total-line',
+        type: 'shape',
+        x: 450, y: 850, width: 320, height: 2,
+        shapeType: 'rectangle',
+        style: { backgroundColor: '#059669', borderColor: 'transparent' },
+        zIndex: 1
+      },
+      {
+        id: 'total-label',
+        type: 'text',
+        x: 450, y: 860, width: 200, height: 25,
+        content: '<div style="font-size: 14px; color: #1f2937; text-align: right; font-weight: 700;">Total Amount</div>',
+        style: { fontSize: 14, fontWeight: '700', color: '#1f2937', textAlign: 'right', fontFamily: 'Inter, system-ui, sans-serif' },
+        zIndex: 1
+      },
+      {
+        id: 'total-value',
+        type: 'text',
+        x: 670, y: 860, width: 100, height: 25,
+        content: `<div style="font-size: 18px; color: #059669; text-align: right; font-weight: 800;">₹${total.toLocaleString()}</div>`,
+        style: { fontSize: 18, fontWeight: '800', color: '#059669', textAlign: 'right', fontFamily: 'Inter, system-ui, sans-serif' },
+        zIndex: 1
+      },
+      // Terms - moved down
+      {
+        id: 'terms-header',
+        type: 'text',
+        x: 40, y: 900, width: 250, height: 20,
+        content: '<div style="font-size: 13px; font-weight: 700; color: #1f2937;">Terms & Conditions</div>',
+        style: { fontSize: 13, fontWeight: '700', color: '#1f2937', fontFamily: 'Inter, system-ui, sans-serif' },
+        zIndex: 1
+      },
+      {
+        id: 'terms-content',
+        type: 'text',
+        x: 40, y: 925, width: 730, height: 80,
+        content: `<div style="font-size: 10px; color: #6b7280; line-height: 1.7;">${data.terms || ''}</div>`,
+        style: { fontSize: 10, color: '#6b7280', fontFamily: 'Inter, system-ui, sans-serif', lineHeight: 1.7 },
+        zIndex: 1
+      },
+      // Signature - moved down
+      {
+        id: 'signature-line-left',
+        type: 'shape',
+        x: 40, y: 1030, width: 300, height: 1,
+        shapeType: 'rectangle',
+        style: { backgroundColor: '#9ca3af', borderColor: 'transparent' },
+        zIndex: 1
+      },
+      {
+        id: 'signature-text-left',
+        type: 'text',
+        x: 40, y: 1040, width: 300, height: 40,
+        content: `<div style="font-size: 11px; color: #4b5563; line-height: 1.5;"><strong>Signer Name:</strong> ${customerName}<br><strong>Signed Date:</strong> ${today} 07:52:52<br><strong>IP Address:</strong> 49.200.152.110</div>`,
+        style: { fontSize: 11, color: '#4b5563', fontFamily: 'Inter, system-ui, sans-serif', lineHeight: 1.5 },
+        zIndex: 1
+      },
+      {
+        id: 'signature-label-right',
+        type: 'text',
+        x: 580, y: 1010, width: 190, height: 20,
+        content: '<div style="font-size: 12px; color: #ef4444; text-align: right;">✕ Signature (Customer)</div>',
+        style: { fontSize: 12, color: '#ef4444', textAlign: 'right', fontFamily: 'Inter, system-ui, sans-serif' },
+        zIndex: 1
+      },
+      {
+        id: 'signature-box-right',
+        type: 'shape',
+        x: 580, y: 1035, width: 190, height: 60,
+        shapeType: 'rectangle',
+        style: { backgroundColor: 'white', borderColor: '#d1d5db', borderWidth: 1, borderRadius: 4 },
+        zIndex: 1
+      },
+      {
+        id: 'signature-initials',
+        type: 'text',
+        x: 580, y: 1055, width: 190, height: 30,
+        content: `<div style="font-size: 24px; color: #1f2937; text-align: center; font-style: italic; font-family: Georgia, serif;">${customerInitial}</div>`,
+        style: { fontSize: 24, color: '#1f2937', textAlign: 'center', fontFamily: 'Georgia, serif', fontStyle: 'italic' },
+        zIndex: 2
+      },
+      // Footer - moved down
+      {
+        id: 'footer-line',
+        type: 'shape',
+        x: 40, y: 1110, width: 730, height: 1,
+        shapeType: 'rectangle',
+        style: { backgroundColor: '#e5e7eb', borderColor: 'transparent' },
+        zIndex: 0
+      },
+      {
+        id: 'footer-text',
+        type: 'text',
+        x: 40, y: 1120, width: 730, height: 40,
+        content: `<div style="font-size: 10px; color: #9ca3af; text-align: center; line-height: 1.5;"><strong>${companyName}</strong> | ${companyAddress}, ${companyCity}, ${companyState} - ${companyZip}<br>📞 ${companyPhone} | ✉️ ${companyEmail} | 🌐 ${companyWebsite}</div>`,
+        style: { fontSize: 10, color: '#9ca3af', textAlign: 'center', fontFamily: 'Inter, system-ui, sans-serif' },
+        zIndex: 1
+      }
+    ];
+  };
 
   const selectedEl = elements.find(el => el.id === selectedElement);
 
@@ -1140,6 +1206,7 @@ const ProposalCanvasEditor = ({
                 onSendToBack={() => changeZIndex(selectedEl.id, 'down')}
                 onDelete={() => deleteElement(selectedEl.id)}
                 onDuplicate={() => duplicateElement(selectedEl.id)}
+                onResizeStart={handleResizeStart}
               />
             )}
           </div>
@@ -1234,7 +1301,7 @@ const CanvasElement = ({
   const [isEditing, setIsEditing] = useState(false);
   const contentRef = useRef(null);
 
-  const handleDoubleClick = () => {
+  const handleClick = () => {
     if (element.type === 'text' && !readOnly) {
       setIsEditing(true);
     }
@@ -1264,9 +1331,9 @@ const CanvasElement = ({
             contentEditable={isEditing && !readOnly}
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
-            onDoubleClick={handleDoubleClick}
+            onClick={handleClick}
             dangerouslySetInnerHTML={{ __html: element.content }}
-            className={`w-full h-full p-2 ${isEditing ? 'cursor-text' : 'cursor-move'}`}
+            className={`w-full h-full p-2 ${isEditing ? 'cursor-text' : 'cursor-pointer'}`}
             style={{
               fontSize: element.style?.fontSize || 14,
               fontWeight: element.style?.fontWeight || 'normal',
@@ -1411,7 +1478,8 @@ const SelectionBox = ({
   onBringToFront, 
   onSendToBack, 
   onDelete, 
-  onDuplicate 
+  onDuplicate,
+  onResizeStart
 }) => {
   return (
     <div
@@ -1428,10 +1496,22 @@ const SelectionBox = ({
       <div className="absolute inset-0 border-2 border-blue-500" />
       
       {/* Resize handles */}
-      <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm" />
-      <div className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm" />
-      <div className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm" />
-      <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm" />
+      <div 
+        className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm cursor-nw-resize pointer-events-auto"
+        onMouseDown={(e) => onResizeStart?.(e, 'nw')}
+      />
+      <div 
+        className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm cursor-ne-resize pointer-events-auto"
+        onMouseDown={(e) => onResizeStart?.(e, 'ne')}
+      />
+      <div 
+        className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm cursor-sw-resize pointer-events-auto"
+        onMouseDown={(e) => onResizeStart?.(e, 'sw')}
+      />
+      <div 
+        className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm cursor-se-resize pointer-events-auto"
+        onMouseDown={(e) => onResizeStart?.(e, 'se')}
+      />
 
       {/* Action buttons */}
       <div className="absolute -top-10 left-0 flex items-center gap-1 bg-white rounded-lg shadow-lg border border-gray-200 p-1 pointer-events-auto">
