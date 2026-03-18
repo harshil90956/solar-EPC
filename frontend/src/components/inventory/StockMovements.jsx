@@ -60,6 +60,8 @@ const MovementTypeBadge = ({ type }) => {
 
 const StockMovements = () => {
   const [movements, setMovements] = useState([]);
+  const [items, setItems] = useState([]);
+  const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [page, setPage] = useState(1);
@@ -68,12 +70,13 @@ const StockMovements = () => {
   const [filterType, setFilterType] = useState('');
   const [filterItem, setFilterItem] = useState('');
   const [filterWarehouse, setFilterWarehouse] = useState('');
+  const [filterReference, setFilterReference] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [stats, setStats] = useState({ byType: [], topItems: [] });
   const [showStatsCards, setShowStatsCards] = useState(true);
 
-  const fetchMovements = async () => {
+    const fetchMovements = async () => {
     setLoading(true);
     try {
       const params = { 
@@ -84,13 +87,22 @@ const StockMovements = () => {
       if (filterType) params.type = filterType;
       if (filterItem) params.itemId = filterItem;
       if (filterWarehouse) params.warehouseId = filterWarehouse;
+      if (filterReference) params.reference = filterReference;
       if (startDate) params.startDate = startDate;
       if (endDate) params.endDate = endDate;
 
-      const data = await api.get('/inventory/stock-movements', { params });
+      // Try fetching from the unified endpoint
+      let response;
+      try {
+        response = await api.get('/inventory/stock-movements', params);
+      } catch (e) {
+        console.error('Failed to fetch stock movements:', e);
+        throw e;
+      }
+      
+      const data = response?.data ?? response;
       console.log('[StockMovements] API response:', data);
       
-      // Handle different response structures
       let movementsData = [];
       if (Array.isArray(data)) {
         movementsData = data;
@@ -99,7 +111,6 @@ const StockMovements = () => {
       } else if (data && Array.isArray(data.results)) {
         movementsData = data.results;
       } else if (data && typeof data === 'object') {
-        // If data is an object but not what we expect, try to find an array property
         const possibleArrays = Object.values(data).filter(Array.isArray);
         if (possibleArrays.length > 0) {
           movementsData = possibleArrays[0];
@@ -117,15 +128,14 @@ const StockMovements = () => {
     }
   };
 
-  const fetchStats = async () => {
+    const fetchStats = async () => {
     try {
-      const data = await api.get('/inventory/stock-movements/stats', {
-        params: { 
-          startDate: startDate || undefined,
-          endDate: endDate || undefined,
-          tenantId: TENANT_ID 
-        }
+      const response = await api.get('/inventory/stock-movements/stats', {
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+        tenantId: TENANT_ID,
       });
+      const data = response?.data ?? response;
       console.log('[StockMovements] Stats API response:', data);
       setStats(data || { byType: [], topItems: [] });
     } catch (err) {
@@ -135,13 +145,96 @@ const StockMovements = () => {
 
   useEffect(() => {
     fetchMovements();
-  }, [page, filterType, filterItem, filterWarehouse, startDate, endDate]);
+  }, [page]);
+
+  useEffect(() => {
+    setPage(1);
+    fetchMovements();
+  }, [filterType, filterItem, filterWarehouse, filterReference, startDate, endDate]);
+
+  useEffect(() => {
+    fetchItems();
+    fetchProjects();
+  }, []);
+
+  const fetchItems = async () => {
+    try {
+      const response = await api.get('/items', { tenantId: TENANT_ID });
+      const data = response?.data ?? response;
+      const itemsArray = Array.isArray(data) ? data : (data.data || []);
+      setItems(itemsArray);
+    } catch (err) {
+      console.error('Failed to fetch items:', err);
+    }
+  };
+
+  const fetchProjects = async () => {
+    try {
+      const response = await api.get('/projects', { tenantId: TENANT_ID });
+      const data = response?.data ?? response;
+      const projectsArray = Array.isArray(data) ? data : (data.data || []);
+      setProjects(projectsArray);
+    } catch (err) {
+      console.error('Failed to fetch projects:', err);
+    }
+  };
 
   useEffect(() => {
     fetchStats();
   }, [startDate, endDate]);
 
   const totalPages = Math.ceil(total / limit);
+
+  // Create lookup maps for items and projects
+  const itemMap = useMemo(() => {
+    const map = new Map();
+    items.forEach(item => {
+      // Map by both _id and itemId for flexibility
+      if (item._id) map.set(item._id.toString(), item);
+      if (item.id) map.set(item.id.toString(), item);
+      if (item.itemId) map.set(item.itemId, item);
+    });
+    return map;
+  }, [items]);
+
+  const projectMap = useMemo(() => {
+    const map = new Map();
+    projects.forEach(project => {
+      if (project.projectId) map.set(project.projectId, project);
+      if (project._id) map.set(project._id.toString(), project);
+      if (project.id) map.set(project.id.toString(), project);
+    });
+    return map;
+  }, [projects]);
+
+  // Helper to get item details
+  const getItemDetails = (row) => {
+    // Try to find by itemId first (which might be MongoDB ID or INV ID)
+    let item = itemMap.get(row.itemId?.toString());
+    
+    // If not found and itemId looks like MongoDB ID, try other fields
+    if (!item && row.itemId) {
+      const itemIdStr = row.itemId.toString();
+      // Check if any item has this as _id or id
+      item = items.find(i => i._id?.toString() === itemIdStr || i.id?.toString() === itemIdStr);
+    }
+    
+    return {
+      itemId: item?.itemId || row.itemId || '-',
+      name: item?.description || item?.name || row.itemDescription || '-'
+    };
+  };
+
+  // Helper to get project details
+  const getProjectDetails = (row) => {
+    if (row.referenceType !== 'PROJECT' || !row.reference) return null;
+    
+    const project = projectMap.get(row.reference);
+    return {
+      projectId: row.reference,
+      projectName: project?.customerName || project?.name || row.customerName || null
+    };
+  };
 
   const columns = [
     { 
@@ -154,12 +247,15 @@ const StockMovements = () => {
       key: 'itemDescription', 
       header: 'Item', 
       sortable: true,
-      render: (v, row) => (
-        <div className="flex flex-col">
-          <span className="text-xs font-medium text-[var(--text-primary)]">{v}</span>
-          <span className="text-[10px] text-[var(--text-muted)]">{row.itemId?.toString().slice(-8)}</span>
-        </div>
-      )
+      render: (v, row) => {
+        const item = getItemDetails(row);
+        return (
+          <div className="flex flex-col">
+            <span className="text-xs font-mono text-[var(--accent-light)]">{item.itemId}</span>
+            <span className="text-[10px] font-medium text-[var(--text-primary)]">{item.name}</span>
+          </div>
+        );
+      }
     },
     { 
       key: 'warehouseName', 
@@ -190,14 +286,23 @@ const StockMovements = () => {
     { 
       key: 'reference', 
       header: 'Reference', 
-      render: (v, row) => (
-        <div className="flex flex-col">
-          <span className="text-xs text-[var(--text-secondary)]">{v || '-'}</span>
-          {row.referenceType && (
-            <span className="text-[10px] text-[var(--text-muted)]">{row.referenceType}</span>
-          )}
-        </div>
-      )
+      render: (v, row) => {
+        const project = getProjectDetails(row);
+        return (
+          <div className="flex flex-col">
+            <span className="text-xs text-[var(--text-secondary)]">{v || '-'}</span>
+            {project?.projectName ? (
+              <span className="text-[10px] text-[var(--text-muted)] font-medium">
+                {project.projectName}
+              </span>
+            ) : (
+              <span className="text-[10px] text-[var(--text-muted)] font-medium">
+                {row.referenceType === 'PROJECT' ? 'Project' : (row.referenceType || '-')}
+              </span>
+            )}
+          </div>
+        );
+      }
     },
     { 
       key: 'note', 
@@ -238,6 +343,7 @@ const StockMovements = () => {
     setFilterType('');
     setFilterItem('');
     setFilterWarehouse('');
+    setFilterReference('');
     setStartDate('');
     setEndDate('');
     setPage(1);
@@ -263,7 +369,7 @@ const StockMovements = () => {
           {[
             { type: 'PURCHASE', label: 'Purchase', color: 'blue', icon: ArrowDown, gradient: 'from-blue-100 to-sky-200', border: 'border-blue-200', iconBg: 'bg-blue-200', text: 'text-blue-700' },
             { type: 'RESERVE', label: 'Reserve', color: 'indigo', icon: Lock, gradient: 'from-indigo-100 to-purple-200', border: 'border-indigo-200', iconBg: 'bg-indigo-200', text: 'text-indigo-700' },
-            { type: 'RELEASE', label: 'Cancelled Project', color: 'cyan', icon: Unlock, gradient: 'from-cyan-100 to-teal-200', border: 'border-cyan-200', iconBg: 'bg-cyan-200', text: 'text-cyan-700' },
+            { type: 'RELEASE', label: 'PROJECT RETURNED (RELEASE)', color: 'cyan', icon: Unlock, gradient: 'from-cyan-100 to-teal-200', border: 'border-cyan-200', iconBg: 'bg-cyan-200', text: 'text-cyan-700' },
             { type: 'TRANSFER', label: 'Transfer', color: 'violet', icon: ArrowRightLeft, gradient: 'from-violet-100 to-purple-200', border: 'border-violet-200', iconBg: 'bg-violet-200', text: 'text-violet-700' },
           ].map(({ type, label, icon: Icon, gradient, border, iconBg, text }) => {
             const stat = stats.byType?.find(s => s._id === type);
@@ -311,6 +417,13 @@ const StockMovements = () => {
             placeholder="Warehouse..."
             value={filterWarehouse}
             onChange={(e) => setFilterWarehouse(e.target.value)}
+            className="px-2 py-1.5 text-xs bg-[var(--bg-elevated)] border border-[var(--border-base)] rounded-lg w-24 flex-shrink-0"
+          />
+          <input
+            type="text"
+            placeholder="Reference..."
+            value={filterReference}
+            onChange={(e) => setFilterReference(e.target.value)}
             className="px-2 py-1.5 text-xs bg-[var(--bg-elevated)] border border-[var(--border-base)] rounded-lg w-24 flex-shrink-0"
           />
           <input

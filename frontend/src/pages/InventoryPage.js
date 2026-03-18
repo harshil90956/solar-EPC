@@ -93,8 +93,6 @@ const COLUMNS = [
   { key: '__status', header: 'Status', render: (_, row) => <StatusBadge domain="inventory" value={getStockStatus(row)} /> },
 ];
 
-const CATEGORY_FILTERS = ['All', 'Panel', 'Inverter', 'BOS', 'Structure'];
-
 /* ── Inventory Kanban Card ── */
 const InvCard = ({ item, onDragStart, onClick }) => {
   const available = (item.stock || 0) - (item.reserved || 0);
@@ -880,6 +878,9 @@ const InventoryPage = () => {
   // Consolidate items by itemId for kanban view (aggregate stock across all warehouses)
   const consolidatedItems = useMemo(() => {
     const grouped = filtered.reduce((acc, item) => {
+      // Skip base item definitions (dash/empty warehouse) from consolidated view
+      if (!item.warehouse || item.warehouse === '—' || item.warehouse === '-') return acc;
+      
       const key = item.itemId;
       if (!acc[key]) {
         acc[key] = {
@@ -908,10 +909,35 @@ const InventoryPage = () => {
 
   // NO FILTER for table view - show all items including 0 stock (Out of Stock items)
   const filteredWithStock = useMemo(() => {
-    return filtered;
+    return filtered.filter(i => i.warehouse && i.warehouse !== '—' && i.warehouse !== '-');
+  }, [filtered]);
+
+  const baseItems = useMemo(() => {
+    return filtered.filter(i => !i.warehouse || i.warehouse === '—' || i.warehouse === '-');
   }, [filtered]);
 
   const paginated = filteredWithStock.slice((page - 1) * pageSize, page * pageSize);
+
+  // Calculate stats for ACTIVE STOCK ONLY (excludes base items without warehouse)
+  const activeStockStats = useMemo(() => {
+    // Only items with warehouse (active stock), exclude base items
+    const data = filtered.filter(i => i.warehouse && i.warehouse !== '—' && i.warehouse !== '-');
+    
+    const totalItems = data.length;
+    const totalValue = data.reduce((a, i) => a + ((i.stock || 0) - (i.reserved || 0)) * (i.rate || 0), 0);
+    
+    // Use getStockStatus logic to match Kanban columns exactly
+    const lowStockItems = data.filter(i => getStockStatus(i) === 'low-stock').length;
+    const outOfStockItems = data.filter(i => getStockStatus(i) === 'out-of-stock').length;
+    
+    // Total reserved quantity (sum of reserved stock across all items)
+    const totalReservedQuantity = data.reduce((sum, i) => sum + (i.reserved || 0), 0);
+    
+    // Total available stock (stock - reserved)
+    const totalAvailableStock = data.reduce((sum, i) => sum + ((i.stock || 0) - (i.reserved || 0)), 0);
+
+    return { totalItems, totalValue, lowStockItems, outOfStockItems, totalReservedQuantity, totalAvailableStock };
+  }, [filtered]);
 
   const chartData = inventory.slice(0, 10).map(i => ({
     name: (i.name || i.description || 'Unknown').length > 14 ? (i.name || i.description || 'Unknown').slice(0, 14) + '…' : (i.name || i.description || 'Unknown'),
@@ -1078,7 +1104,8 @@ const InventoryPage = () => {
       minStock: item.minStock || '',
       rate: item.rate || '',
       warehouse: item.warehouse || '',
-      status: item.status || ''
+      status: item.status || '',
+      _isBaseItem: item._isBaseItem || !item.warehouse || item.warehouse === '—' || item.warehouse === '-'
     });
     setShowEdit(true);
   };
@@ -1653,8 +1680,8 @@ const InventoryPage = () => {
                 <PieChartIcon size={16} className="text-[var(--accent)]" />
                 <h3 className="text-sm font-semibold text-[var(--text-primary)]">Stock Status</h3>
               </div>
-              <ResponsiveContainer width="100%" height={180}>
-                <PieChart>
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart margin={{ top: 0, right: 20, left: 20, bottom: 0 }}>
                   <Pie
                     data={[
                       { name: 'In Stock', value: Math.max(0, dynamicStats.totalItems - dynamicStats.lowStockItems - dynamicStats.outOfStockItems), color: '#3b82f6' },
@@ -1663,12 +1690,11 @@ const InventoryPage = () => {
                     ].filter(d => d.value > 0)}
                     cx="50%"
                     cy="50%"
-                    innerRadius={40}
+                    innerRadius={45}
                     outerRadius={70}
                     paddingAngle={5}
                     dataKey="value"
                     label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
-                    labelLine={false}
                   >
                     {[
                       { name: 'In Stock', value: Math.max(0, dynamicStats.totalItems - dynamicStats.lowStockItems - dynamicStats.outOfStockItems), color: '#3b82f6' },
@@ -1686,7 +1712,7 @@ const InventoryPage = () => {
                       fontSize: 12
                     }}
                   />
-                  <Legend wrapperStyle={{ fontSize: 10 }} />
+                  <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: 10, paddingTop: 10 }} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -1697,8 +1723,8 @@ const InventoryPage = () => {
                 <Tag size={16} className="text-[var(--accent)]" />
                 <h3 className="text-sm font-semibold text-[var(--text-primary)]">Category Distribution</h3>
               </div>
-              <ResponsiveContainer width="100%" height={180}>
-                <PieChart>
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart margin={{ top: 10, right: 40, left: 40, bottom: 10 }}>
                   <Pie
                     data={categories.map((cat, i) => ({
                       name: cat,
@@ -1706,19 +1732,19 @@ const InventoryPage = () => {
                       color: ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4'][i % 6]
                     })).filter(d => d.value > 0)}
                     cx="50%"
-                    cy="50%"
-                    innerRadius={40}
-                    outerRadius={70}
+                    cy="45%"
+                    innerRadius={45}
+                    outerRadius={65}
                     paddingAngle={3}
                     dataKey="value"
                     label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
-                    labelLine={false}
                   >
                     {categories.map((cat, i) => (
                       <Cell key={`cell-${i}`} fill={['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4'][i % 6]} />
                     ))}
                   </Pie>
                   <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)', borderRadius: 8, fontSize: 12 }} />
+                  <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: 10, paddingTop: 10 }} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -1729,8 +1755,8 @@ const InventoryPage = () => {
                 <Scale size={16} className="text-[var(--accent)]" />
                 <h3 className="text-sm font-semibold text-[var(--text-primary)]">Unit Distribution</h3>
               </div>
-              <ResponsiveContainer width="100%" height={180}>
-                <PieChart>
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart margin={{ top: 0, right: 30, left: 30, bottom: 0 }}>
                   <Pie
                     data={units.map((unit, i) => ({
                       name: unit,
@@ -1739,18 +1765,18 @@ const InventoryPage = () => {
                     })).filter(d => d.value > 0)}
                     cx="50%"
                     cy="50%"
-                    innerRadius={30}
+                    innerRadius={45}
                     outerRadius={70}
                     paddingAngle={2}
                     dataKey="value"
-                    label={({ name }) => name}
-                    labelLine={true}
+                    label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
                   >
                     {units.map((unit, i) => (
                       <Cell key={`cell-${i}`} fill={['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'][i % 6]} />
                     ))}
                   </Pie>
                   <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)', borderRadius: 8, fontSize: 12 }} />
+                  <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: 10, paddingTop: 10 }} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -1980,7 +2006,7 @@ const InventoryPage = () => {
           <div className="flex flex-wrap items-center gap-2 justify-between">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs text-[var(--text-muted)]">Category:</span>
-              {CATEGORY_FILTERS.map(c => (
+              {['All', ...categories].map(c => (
                 <button key={c} onClick={() => { setCatFilter(c); setPage(1); }}
                   className={`filter-chip ${catFilter === c ? 'filter-chip-active' : ''}`}>{c}</button>
               ))}
@@ -2008,7 +2034,7 @@ const InventoryPage = () => {
                 <div className="relative flex items-start justify-between">
                   <div>
                     <p className="text-xs font-bold text-blue-700 uppercase tracking-wider">Total Stock</p>
-                    <p className="text-3xl font-bold text-gray-800 mt-2">{inventory.reduce((sum, i) => sum + ((i.stock || 0) - (i.reserved || 0)), 0)}</p>
+                    <p className="text-3xl font-bold text-gray-800 mt-2">{activeStockStats.totalAvailableStock}</p>
                     <p className="text-xs text-gray-500 mt-1">Available quantity in inventory</p>
                   </div>
                   <div className="w-12 h-12 rounded-xl bg-blue-200 flex items-center justify-center">
@@ -2021,7 +2047,7 @@ const InventoryPage = () => {
                 <div className="relative flex items-start justify-between">
                   <div>
                     <p className="text-xs font-bold text-violet-700 uppercase tracking-wider">Reserved Items</p>
-                    <p className="text-3xl font-bold text-gray-800 mt-2">{dynamicStats.totalReservedQuantity}</p>
+                    <p className="text-3xl font-bold text-gray-800 mt-2">{activeStockStats.totalReservedQuantity}</p>
                     <p className="text-xs text-gray-500 mt-1">Allocated to projects</p>
                   </div>
                   <div className="w-12 h-12 rounded-xl bg-violet-200 flex items-center justify-center">
@@ -2034,7 +2060,7 @@ const InventoryPage = () => {
                 <div className="relative flex items-start justify-between">
                   <div>
                     <p className="text-xs font-bold text-amber-700 uppercase tracking-wider">Low Stock</p>
-                    <p className="text-3xl font-bold text-gray-800 mt-2">{dynamicStats.lowStockItems}</p>
+                    <p className="text-3xl font-bold text-gray-800 mt-2">{activeStockStats.lowStockItems}</p>
                     <p className="text-xs text-gray-500 mt-1">Items need reorder</p>
                   </div>
                   <div className="w-12 h-12 rounded-xl bg-amber-200 flex items-center justify-center">
@@ -2047,7 +2073,7 @@ const InventoryPage = () => {
                 <div className="relative flex items-start justify-between">
                   <div>
                     <p className="text-xs font-bold text-rose-700 uppercase tracking-wider">Out of Stock</p>
-                    <p className="text-3xl font-bold text-gray-800 mt-2">{dynamicStats.outOfStockItems}</p>
+                    <p className="text-3xl font-bold text-gray-800 mt-2">{activeStockStats.outOfStockItems}</p>
                     <p className="text-xs text-gray-500 mt-1">Immediate action needed</p>
                   </div>
                   <div className="w-12 h-12 rounded-xl bg-rose-200 flex items-center justify-center">
@@ -2061,7 +2087,7 @@ const InventoryPage = () => {
                 <div className="relative flex items-start justify-between">
                   <div>
                     <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Inventory Value</p>
-                    <p className="text-xl font-bold text-gray-800 mt-2">₹{(dynamicStats.totalValue / 100000).toFixed(1)}L</p>
+                    <p className="text-xl font-bold text-gray-800 mt-2">₹{(activeStockStats.totalValue / 100000).toFixed(1)}L</p>
                     <p className="text-xs text-gray-500 mt-1">At current rates</p>
                   </div>
                   <div className="w-12 h-12 rounded-xl bg-emerald-200 flex items-center justify-center">
@@ -2078,14 +2104,14 @@ const InventoryPage = () => {
                 page={page} pageSize={pageSize} onPageChange={setPage}
                 onPageSizeChange={s => { setPageSize(s); setPage(1); }}
                 search={search} onSearch={v => { setSearch(v); setPage(1); }}
-                rowActions={ROW_ACTIONS} emptyText="No inventory items found."
+                rowActions={ROW_ACTIONS} emptyText="No active stock found."
                 onRowClick={setSelected}
                 selectedRows={selectedInventoryItems}
                 onSelectRows={setSelectedInventoryItems}
                 rowKey="_id"
                 toolbar={
                   <Button variant="outline" size="sm" onClick={() => exportToCSV(
-                    filtered.map(item => ({
+                    filteredWithStock.map(item => ({
                       itemId: item.itemId,
                       name: item.name || item.description,
                       category: item.category,
@@ -2121,7 +2147,7 @@ const InventoryPage = () => {
                     label: 'Export Selected',
                     icon: Download,
                     onClick: (selectedIds) => {
-                      const selectedData = filtered.filter(i => selectedIds.has(i._id));
+                      const selectedData = filteredWithStock.filter(i => selectedIds.has(i._id));
                       const dataToExport = selectedData.map(item => ({
                         itemId: item.itemId,
                         name: item.name || item.description,
@@ -2482,8 +2508,7 @@ const InventoryPage = () => {
                 className="h-9 text-xs w-64"
               />
               <span className="text-xs text-[var(--text-muted)]">
-                {inventory.filter(item => item.name?.toLowerCase().includes(search.toLowerCase()) ||
-                  item.itemId?.toLowerCase().includes(search.toLowerCase())).length} items
+                {filteredWithStock.length} items in stock
               </span>
             </div>
             <div className="flex gap-2">
@@ -2493,7 +2518,7 @@ const InventoryPage = () => {
                     variant="outline" 
                     size="sm" 
                     onClick={() => {
-                      const selectedData = inventory.filter(item => selectedItems.has(item._id || item.itemId));
+                      const selectedData = filteredWithStock.filter(item => selectedItems.has(item._id || item.itemId));
                       const dataToExport = selectedData.map(item => ({
                         itemId: item.itemId,
                         name: item.name || item.description,
@@ -2550,7 +2575,7 @@ const InventoryPage = () => {
                         
                         try {
                           const deletePromises = Array.from(selectedItems).map(id => {
-                            const item = inventory.find(i => (i._id || i.itemId) === id);
+                            const item = filteredWithStock.find(i => (i._id || i.itemId) === id);
                             if (item && item._id) {
                               return api.delete(`/items/${item._id}`, { headers: { 'x-tenant-id': TENANT_ID } });
                             }
@@ -2573,9 +2598,7 @@ const InventoryPage = () => {
                 </>
               )}
               <Button variant="outline" size="sm" onClick={() => exportToCSV(
-                inventory
-                  .filter(item => item.name?.toLowerCase().includes(search.toLowerCase()) ||
-                    item.itemId?.toLowerCase().includes(search.toLowerCase()))
+                filteredWithStock
                   .map(item => ({
                     itemId: item.itemId,
                     name: item.name || item.description,
@@ -2608,7 +2631,7 @@ const InventoryPage = () => {
             </div>
           </div>
 
-          {/* Items Table */}
+          {/* Active Items Table */}
           <div className="glass-card overflow-hidden">
             <table className="w-full text-left">
               <thead>
@@ -2616,25 +2639,20 @@ const InventoryPage = () => {
                   <th className="w-10 px-3 py-3">
                     <input
                       type="checkbox"
-                      checked={inventory.filter(item => item.name?.toLowerCase().includes(search.toLowerCase()) ||
-                        item.itemId?.toLowerCase().includes(search.toLowerCase())).length > 0 &&
-                        inventory.filter(item => item.name?.toLowerCase().includes(search.toLowerCase()) ||
-                          item.itemId?.toLowerCase().includes(search.toLowerCase()))
-                          .every(item => selectedItems.has(item._id || item.itemId))}
+                      checked={filteredWithStock.length > 0 &&
+                        filteredWithStock.every(item => selectedItems.has(item._id || item.itemId))}
                       onChange={() => {
-                        const filteredItems = inventory.filter(item => item.name?.toLowerCase().includes(search.toLowerCase()) ||
-                          item.itemId?.toLowerCase().includes(search.toLowerCase()));
-                        const allSelected = filteredItems.every(item => selectedItems.has(item._id || item.itemId));
+                        const allSelected = filteredWithStock.every(item => selectedItems.has(item._id || item.itemId));
                         if (allSelected) {
                           setSelectedItems(prev => {
                             const next = new Set(prev);
-                            filteredItems.forEach(item => next.delete(item._id || item.itemId));
+                            filteredWithStock.forEach(item => next.delete(item._id || item.itemId));
                             return next;
                           });
                         } else {
                           setSelectedItems(prev => {
                             const next = new Set(prev);
-                            filteredItems.forEach(item => next.add(item._id || item.itemId));
+                            filteredWithStock.forEach(item => next.add(item._id || item.itemId));
                             return next;
                           });
                         }
@@ -2661,119 +2679,127 @@ const InventoryPage = () => {
                       </div>
                     </td>
                   </tr>
-                ) : inventory.length === 0 ? (
+                ) : filteredWithStock.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="px-4 py-8 text-center text-[var(--text-muted)]">
                       <Package size={32} className="mx-auto mb-2 text-[var(--text-faint)]" />
-                      <p>No items found</p>
+                      <p>No active stock found</p>
                     </td>
                   </tr>
                 ) : (
-                  inventory
-                    .filter(item => item.name?.toLowerCase().includes(search.toLowerCase()) ||
-                      item.itemId?.toLowerCase().includes(search.toLowerCase()))
-                    .map((item) => (
-                      <tr key={item._id || item.itemId}
-                        onClick={() => setSelected(item)}
-                        className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)] cursor-pointer">
-                        <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={selectedItems.has(item._id || item.itemId)}
-                            onChange={() => {
-                              setSelectedItems(prev => {
-                                const next = new Set(prev);
-                                const id = item._id || item.itemId;
-                                if (next.has(id)) next.delete(id);
-                                else next.add(id);
-                                return next;
-                              });
-                            }}
-                            className="w-3.5 h-3.5 accent-[var(--primary)] cursor-pointer"
-                          />
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="text-xs font-mono text-[var(--accent-light)]">{item.itemId}</span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="text-xs font-semibold text-[var(--text-primary)]">{item.name || item.description}</span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="text-xs text-[var(--text-secondary)]">{item.category}</span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="text-xs text-[var(--text-secondary)]">{item.warehouse || '—'}</span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="text-xs text-[var(--text-secondary)]">{item.unit}</span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="text-xs text-[var(--text-primary)]">₹{(item.rate || 0).toLocaleString('en-IN')}</span>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setSelected(item); }}
-                              className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-[var(--primary)] hover:bg-[var(--bg-hover)]"
-                              title="View"
-                            >
-                              <Package size={14} />
-                            </button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleEditClick(item); }}
-                              className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
-                              title="Edit"
-                            >
-                              <Edit2 size={14} />
-                            </button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleDeleteItem(item); }}
-                              className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-red-500 hover:bg-red-500/10"
-                              title="Delete"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                  filteredWithStock.map((item) => (
+                    <tr key={item._id || item.itemId}
+                      onClick={() => setSelected(item)}
+                      className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)] cursor-pointer">
+                      <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedItems.has(item._id || item.itemId)}
+                          onChange={() => {
+                            setSelectedItems(prev => {
+                              const next = new Set(prev);
+                              const id = item._id || item.itemId;
+                              if (next.has(id)) next.delete(id);
+                              else next.add(id);
+                              return next;
+                            });
+                          }}
+                          className="w-3.5 h-3.5 accent-[var(--primary)] cursor-pointer"
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs font-mono text-[var(--accent-light)]">{item.itemId}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs font-semibold text-[var(--text-primary)]">{item.name || item.description}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs text-[var(--text-secondary)]">{item.category}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs text-[var(--text-secondary)]">{item.warehouse || '—'}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs text-[var(--text-secondary)]">{item.unit}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs text-[var(--text-primary)]">₹{(item.rate || 0).toLocaleString('en-IN')}</span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setSelected(item); }}
+                            className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-[var(--primary)] hover:bg-[var(--bg-hover)]"
+                            title="View"
+                          >
+                            <Package size={14} />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleEditClick(item); }}
+                            className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
+                            title="Edit"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDeleteItem(item); }}
+                            className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-red-500 hover:bg-red-500/10"
+                            title="Delete"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>
-            {/* Pagination */}
-            {(() => {
-              const filteredCount = inventory.filter(item =>
-                item.name?.toLowerCase().includes(search.toLowerCase()) ||
-                item.itemId?.toLowerCase().includes(search.toLowerCase())
-              ).length;
-              if (filteredCount <= itemsPageSize) return null;
-              return (
-                <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border-base)]">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-[var(--text-muted)]">Page {itemsPage} of {Math.ceil(filteredCount / itemsPageSize)}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={itemsPage === 1}
-                      onClick={() => setItemsPage(p => p - 1)}
-                    >
-                      Previous
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={itemsPage >= Math.ceil(filteredCount / itemsPageSize)}
-                      onClick={() => setItemsPage(p => p + 1)}
-                    >
-                      Next
-                    </Button>
-                  </div>
-                </div>
-              );
-            })()}
           </div>
+
+          {/* Base Item Definitions (Dash entries) */}
+          {baseItems.length > 0 && (
+            <div className="mt-8 pt-8 border-t border-[var(--border-base)]">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-sm font-bold text-[var(--text-primary)]">Base Item Definitions</h3>
+                  <p className="text-[10px] text-[var(--text-muted)]">Generic item records created during 'Add Item' (no warehouse assigned yet)</p>
+                </div>
+              </div>
+              <div className="glass-card overflow-hidden">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="border-b border-[var(--border-base)] bg-[var(--bg-elevated)]">
+                      <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Item ID</th>
+                      <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Description</th>
+                      <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Category</th>
+                      <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Unit</th>
+                      <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase">Rate (₹)</th>
+                      <th className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {baseItems.map((item) => (
+                      <tr key={item._id || item.itemId} className="border-b border-[var(--border-base)] last:border-0 hover:bg-[var(--bg-hover)] cursor-pointer" onClick={() => setSelected({ ...item, _isBaseItem: true })}>
+                        <td className="px-4 py-3"><span className="text-xs font-mono text-[var(--accent-light)]">{item.itemId}</span></td>
+                        <td className="px-4 py-3"><span className="text-xs font-semibold text-[var(--text-primary)]">{item.name || item.description}</span></td>
+                        <td className="px-4 py-3"><span className="text-xs text-[var(--text-secondary)]">{item.category}</span></td>
+                        <td className="px-4 py-3"><span className="text-xs text-[var(--text-secondary)]">{item.unit}</span></td>
+                        <td className="px-4 py-3"><span className="text-xs text-[var(--text-primary)]">₹{(item.rate || 0).toLocaleString('en-IN')}</span></td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button onClick={(e) => { e.stopPropagation(); setSelected({ ...item, _isBaseItem: true }); }} className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-[var(--primary)] hover:bg-[var(--bg-hover)]"><Package size={14} /></button>
+                            <button onClick={(e) => { e.stopPropagation(); handleEditClick({ ...item, _isBaseItem: true }); }} className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"><Edit2 size={14} /></button>
+                            <button onClick={(e) => { e.stopPropagation(); handleDeleteItem(item); }} className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-red-500 hover:bg-red-500/10"><Trash2 size={14} /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -3468,15 +3494,17 @@ const InventoryPage = () => {
                 onChange={e => setEditForm(f => ({ ...f, rate: e.target.value }))} />
             </FormField>
           </div>
-          <FormField label="Status">
-            <Select value={editForm.status} onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))}>
-              <option value="">Auto (calculated from stock)</option>
-              <option value="In Stock">In Stock</option>
-              <option value="Reserved">Reserved</option>
-              <option value="Low Stock">Low Stock</option>
-              <option value="Out of Stock">Out of Stock</option>
-            </Select>
-          </FormField>
+          {!editForm._isBaseItem && (
+            <FormField label="Status">
+              <Select value={editForm.status} onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))}>
+                <option value="">Auto (calculated from stock)</option>
+                <option value="In Stock">In Stock</option>
+                <option value="Reserved">Reserved</option>
+                <option value="Low Stock">Low Stock</option>
+                <option value="Out of Stock">Out of Stock</option>
+              </Select>
+            </FormField>
+          )}
         </div>
       </Modal>
 
@@ -3659,115 +3687,134 @@ const InventoryPage = () => {
       {selected && (
         <Modal open={!!selected} onClose={() => setSelected(null)} title={selected.name}
           footer={<Button variant="ghost" onClick={() => setSelected(null)}>Close</Button>}>
-          <div className="grid grid-cols-2 gap-3 text-xs mb-4">
-            {[
-              ['Item ID', selected.itemId], ['Category', selected.category],
-              ['Warehouse', selected.warehouse || '—'], ['Unit', selected.unit],
-              ['Total Stock', `${selected.stock} ${selected.unit}`],
-              ['Reserved', `${selected.reserved || 0} ${selected.unit}`], ['Available', `${(selected.stock || 0) - (selected.reserved || 0)} ${selected.unit}`],
-              ['Min Stock', `${selected.minStock} ${selected.unit}`], ['Unit Rate', `₹${(selected.rate || 0).toLocaleString('en-IN')}`],
-              ['Total Value', fmt((selected.stock || 0) * (selected.rate || 0))],
-              ...(selected.poReference ? [['PO Reference', selected.poReference]] : []),
-              ['Status', <StatusBadge domain="inventory" value={getStockStatus(selected)} />],
-              ['Last Updated', selected.lastUpdated],
-            ].map(([k, v]) => (
-              <div key={k} className="glass-card p-2">
-                <div className="text-[var(--text-muted)] mb-0.5">{k}</div>
-                <div className="font-semibold text-[var(--text-primary)]">{v}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Warehouse Breakdown Section - Only show warehouses with stock > 0 */}
-          {selected._originalWarehouses && selected._originalWarehouses.filter(wh => (wh.stock || 0) > 0).length > 0 && (
-            <div className="border-t border-[var(--border-base)] pt-3 mb-4">
-              <h4 className="text-xs font-semibold text-[var(--text-primary)] mb-2">Warehouse Distribution</h4>
-              <div className="grid grid-cols-1 gap-2">
-                {selected._originalWarehouses
-                  .filter(wh => (wh.stock || 0) > 0)
-                  .map((wh) => (
-                  <div key={wh.warehouse} className="glass-card p-2 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Warehouse size={14} className="text-[var(--accent-light)]" />
-                      <span className="text-xs font-medium text-[var(--text-primary)]">{wh.warehouse}</span>
+          {(() => {
+            const isBaseItem = !selected.warehouse || selected.warehouse === '—' || selected.warehouse === '-';
+            return (
+              <>
+                <div className="grid grid-cols-2 gap-3 text-xs mb-4">
+                  {[
+                    ['Item ID', selected.itemId], ['Category', selected.category],
+                    ...(!isBaseItem ? [
+                      ['Warehouse', selected.warehouse || '—'],
+                    ] : []),
+                    ['Unit', selected.unit],
+                    ...(!isBaseItem ? [
+                      ['Total Stock', `${selected.stock} ${selected.unit}`],
+                      ['Reserved', `${selected.reserved || 0} ${selected.unit}`],
+                      ['Available', `${(selected.stock || 0) - (selected.reserved || 0)} ${selected.unit}`],
+                    ] : []),
+                    ['Min Stock', `${selected.minStock} ${selected.unit}`], ['Unit Rate', `₹${(selected.rate || 0).toLocaleString('en-IN')}`],
+                    ...(!isBaseItem ? [
+                      ['Total Value', fmt((selected.stock || 0) * (selected.rate || 0))],
+                    ] : []),
+                    ...(selected.poReference ? [['PO Reference', selected.poReference]] : []),
+                    ...(!isBaseItem ? [
+                      ['Status', <StatusBadge domain="inventory" value={getStockStatus(selected)} />],
+                    ] : []),
+                    ['Last Updated', selected.lastUpdated],
+                  ].map(([k, v]) => (
+                    <div key={k} className="glass-card p-2">
+                      <div className="text-[var(--text-muted)] mb-0.5">{k}</div>
+                      <div className="font-semibold text-[var(--text-primary)]">{v}</div>
                     </div>
-                    <div className="text-xs text-[var(--text-secondary)]">
-                      Stock: {wh.stock} {selected.unit} | Avail: {(wh.stock || 0) - (wh.reserved || 0)} {selected.unit}
+                  ))}
+                </div>
+
+                {/* Warehouse Breakdown Section - Only show for non-base items with warehouses */}
+                {!isBaseItem && selected._originalWarehouses && selected._originalWarehouses.filter(wh => (wh.stock || 0) > 0).length > 0 && (
+                  <div className="border-t border-[var(--border-base)] pt-3 mb-4">
+                    <h4 className="text-xs font-semibold text-[var(--text-primary)] mb-2">Warehouse Distribution</h4>
+                    <div className="grid grid-cols-1 gap-2">
+                      {selected._originalWarehouses
+                        .filter(wh => (wh.stock || 0) > 0)
+                        .map((wh) => (
+                        <div key={wh.warehouse} className="glass-card p-2 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Warehouse size={14} className="text-[var(--accent-light)]" />
+                            <span className="text-xs font-medium text-[var(--text-primary)]">{wh.warehouse}</span>
+                          </div>
+                          <div className="text-xs text-[var(--text-secondary)]">
+                            Stock: {wh.stock} {selected.unit} | Avail: {(wh.stock || 0) - (wh.reserved || 0)} {selected.unit}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                )}
 
-          {/* Project Reservations Section */}
-          <div className="border-t border-[var(--border-base)] pt-3">
-            <h4 className="text-xs font-semibold text-[var(--text-primary)] mb-2">Reserved for Projects</h4>
-            {loadingReservations ? (
-              <p className="text-xs text-[var(--text-muted)]">Loading reservations...</p>
-            ) : itemReservations.length === 0 ? (
-              <p className="text-xs text-[var(--text-muted)]">No active reservations</p>
-            ) : (
-              <div className="space-y-2">
-                {itemReservations.map(res => {
-                  // First check if reservation has project details embedded
-                  const projectFromRes = res.project;
-                  // Check for projectName directly on reservation
-                  const projectNameFromRes = res.projectName || res.project_name;
-                  // Then try to find in projects array
-                  const projectFromList = projects.find(p =>
-                    p.projectId === res.projectId ||
-                    p._id === res.projectId ||
-                    p.id === res.projectId
-                  );
+                {/* Project Reservations Section - Only show for non-base items */}
+                {!isBaseItem && (
+                  <div className="border-t border-[var(--border-base)] pt-3">
+                    <h4 className="text-xs font-semibold text-[var(--text-primary)] mb-2">Reserved for Projects</h4>
+                    {loadingReservations ? (
+                      <p className="text-xs text-[var(--text-muted)]">Loading reservations...</p>
+                    ) : itemReservations.length === 0 ? (
+                      <p className="text-xs text-[var(--text-muted)]">No active reservations</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {itemReservations.map(res => {
+                          // First check if reservation has project details embedded
+                          const projectFromRes = res.project;
+                          // Check for projectName directly on reservation
+                          const projectNameFromRes = res.projectName || res.project_name;
+                          // Then try to find in projects array
+                          const projectFromList = projects.find(p =>
+                            p.projectId === res.projectId ||
+                            p._id === res.projectId ||
+                            p.id === res.projectId
+                          );
 
-                  // Determine project name and status
-                  let projectName = 'Unknown Project';
-                  let isDeleted = false;
+                          // Determine project name and status
+                          let projectName = 'Unknown Project';
+                          let isDeleted = false;
 
-                  // First priority: Look up in projects array (most current data)
-                  if (projectFromList?.customerName || projectFromList?.name) {
-                    projectName = projectFromList.customerName || projectFromList.name;
-                    isDeleted = projectFromList.deleted || projectFromList.isDeleted;
-                  } else if (projectFromRes?.customerName || projectFromRes?.name) {
-                    // Project info embedded in reservation
-                    projectName = projectFromRes.customerName || projectFromRes.name;
-                    isDeleted = projectFromRes.deleted || projectFromRes.isDeleted;
-                  } else if (projectNameFromRes) {
-                    // Project name stored directly in reservation
-                    projectName = projectNameFromRes;
-                    // Mark as deleted if project not found in active projects list
-                    isDeleted = true;
-                  } else {
-                    // Project not found anywhere - show ID as unknown but mark deleted
-                    projectName = res.projectId || 'Unknown Project';
-                    isDeleted = true;
-                  }
+                          // First priority: Look up in projects array (most current data)
+                          if (projectFromList?.customerName || projectFromList?.name) {
+                            projectName = projectFromList.customerName || projectFromList.name;
+                            isDeleted = projectFromList.deleted || projectFromList.isDeleted;
+                          } else if (projectFromRes?.customerName || projectFromRes?.name) {
+                            // Project info embedded in reservation
+                            projectName = projectFromRes.customerName || projectFromRes.name;
+                            isDeleted = projectFromRes.deleted || projectFromRes.isDeleted;
+                          } else if (projectNameFromRes) {
+                            // Project name stored directly in reservation
+                            projectName = projectNameFromRes;
+                            // Mark as deleted if project not found in active projects list
+                            isDeleted = true;
+                          } else {
+                            // Project not found anywhere - show ID as unknown but mark deleted
+                            projectName = res.projectId || 'Unknown Project';
+                            isDeleted = true;
+                          }
 
-                  const projectId = res.projectId || res.projectID || 'N/A';
+                          const projectId = res.projectId || res.projectID || 'N/A';
 
-                  return (
-                    <div key={res.reservationId || res._id} className="flex items-center justify-between glass-card p-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--primary)]/20 text-[var(--primary-light)] font-medium">
-                          {res.status || 'active'}
-                        </span>
-                        <span className="text-xs font-medium text-[var(--text-primary)]">
-                          {projectName}{' '}
-                          <span className="text-[var(--text-muted)]">
-                            ({projectId}{isDeleted ? ' - deleted' : ''})
-                          </span>
-                        </span>
+                          return (
+                            <div key={res.reservationId || res._id} className="flex items-center justify-between glass-card p-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--primary)]/20 text-[var(--primary-light)] font-medium">
+                                  {res.status || 'active'}
+                                </span>
+                                <span className="text-xs font-medium text-[var(--text-primary)]">
+                                  {projectName}{' '}
+                                  <span className="text-[var(--text-muted)]">
+                                    ({projectId}{isDeleted ? ' - deleted' : ''})
+                                  </span>
+                                </span>
+                              </div>
+                              <span className="text-xs font-bold text-amber-400">
+                                {res.quantity} {selected.unit}
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
-                      <span className="text-xs font-bold text-amber-400">
-                        {res.quantity} {selected.unit}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                    )}
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </Modal>
       )}
 

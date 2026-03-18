@@ -1,10 +1,11 @@
-import { Injectable, NotFoundException, ConflictException, Inject } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, Inject, forwardRef } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Inventory } from '../schemas/inventory.schema';
 import { Item } from '../schemas/item.schema';
 import { Warehouse } from '../schemas/warehouse.schema';
 import { Tenant } from '../../../core/tenant/schemas/tenant.schema';
+import { StockMovementService } from '../../inventory/services/stock-movement.service';
 
 interface UserWithVisibility {
   id?: string;
@@ -19,6 +20,7 @@ export class InventoryService {
     @InjectModel(Item.name) private readonly itemModel: Model<Item>,
     @InjectModel(Warehouse.name) private readonly warehouseModel: Model<Warehouse>,
     @InjectModel(Tenant.name) private readonly tenantModel: Model<Tenant>,
+    @Inject(forwardRef(() => StockMovementService)) private readonly stockMovementService: StockMovementService,
   ) {}
 
   private async getTenantId(tenantCode: string): Promise<string> {
@@ -284,6 +286,23 @@ export class InventoryService {
       { tenantId: actualTenantId, _id: sourceInv._id },
       { $inc: { stock: -quantity } },
     ).exec();
+
+    // Log stock movement for TRANSFER
+    try {
+      console.log(`[INVENTORY TRANSFER] Logging TRANSFER movement from ${sourceInv.warehouseName} to ${destWarehouse.name}, qty: ${quantity}`);
+      await this.stockMovementService.logMovement(tenantId, {
+        itemId: sourceInv.itemId.toString(),
+        type: 'TRANSFER',
+        quantity: quantity,
+        reference: `From ${sourceInv.warehouseName} to ${destWarehouse.name}`,
+        referenceType: 'TRANSFER',
+        note: remarks || `Transferred ${quantity} units from ${sourceInv.warehouseName} to ${destWarehouse.name}`,
+        warehouseName: `${sourceInv.warehouseName} → ${destWarehouse.name}`,
+      });
+      console.log(`[INVENTORY TRANSFER] TRANSFER logged successfully`);
+    } catch (err) {
+      console.error('[INVENTORY TRANSFER] Failed to log TRANSFER:', err);
+    }
 
     return {
       message: `Transfer successful. ${quantity} units transferred from ${sourceInv.warehouseName} to ${destWarehouse.name}.`,

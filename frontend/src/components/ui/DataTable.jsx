@@ -388,11 +388,11 @@ const DataTable = ({
 
                                     <div className="absolute right-0 top-9 z-40 w-44 glass-card shadow-2xl shadow-black/40 py-1.5 animate-slide-up">
 
-                                        {columns.map(col => (
+                                        {columns.map((col, idx) => (
 
                                             <button
 
-                                                key={col.key}
+                                                key={`${col.key}-${idx}`}
 
                                                 onClick={() => toggleCol(col.key)}
 
@@ -459,11 +459,11 @@ const DataTable = ({
 
                                 )}
 
-                                {visibleColumns.map(col => (
+                                {visibleColumns.map((col, idx) => (
 
                                     <th
 
-                                        key={col.key}
+                                        key={`${col.key}-${idx}`}
 
                                         className={cn(
 
@@ -576,9 +576,9 @@ const DataTable = ({
 
                                         )}
 
-                                        {visibleColumns.map(col => (
+                                        {visibleColumns.map((col, colIdx) => (
 
-                                            <td key={`${row[rowKey] ?? index}-${col.key}`} className="px-3 py-2 text-[12px] text-[var(--text-primary)]">
+                                            <td key={`${row[rowKey] ?? index}-${col.key}-${colIdx}`} className="px-3 py-2 text-[12px] text-[var(--text-primary)]">
 
                                                 {col.render ? col.render(row[col.key], row) : row[col.key] ?? '—'}
 

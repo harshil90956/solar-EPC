@@ -18,6 +18,7 @@ interface CreateStockMovementDto {
   reservedAfter?: number;
   reference?: string;
   referenceType?: string;
+  customerName?: string;
   note?: string;
   createdBy?: string;
   createdByName?: string;
@@ -99,6 +100,7 @@ export class StockMovementService {
       quantity: number;
       reference?: string;
       referenceType?: string;
+      customerName?: string;
       note?: string;
       createdBy?: string;
       createdByName?: string;
@@ -172,22 +174,45 @@ export class StockMovementService {
     limit = 50
   ): Promise<{ data: StockMovement[]; total: number; page: number; totalPages: number }> {
     const tenantId = await this.resolveTenantObjectId(tenantCode);
+    const tenantIdStr = tenantId.toString();
 
-    const filter: any = { tenantId, isDeleted: false };
+    const filter: any = { tenantId: tenantIdStr, isDeleted: false };
+    console.log(`[StockMovement.findAll] tenantIdStr: ${tenantIdStr}, query:`, query);
 
     if (query.itemId) {
-      filter.$or = [
-        { itemId: query.itemId },
-        ...(Types.ObjectId.isValid(query.itemId) ? [{ itemId: new Types.ObjectId(query.itemId) }] : [])
-      ];
+      // If user types 'INV3552', we need to find the Mongo _id for that item
+      const invQuery = {
+        tenantId,
+        $or: [
+          { itemId: { $regex: query.itemId, $options: 'i' } },
+          ...(Types.ObjectId.isValid(query.itemId) ? [{ _id: new Types.ObjectId(query.itemId) }] : [])
+        ]
+      };
+      console.log(`[StockMovement.findAll] Looking up inventory with query:`, invQuery);
+      const invItems = await this.inventoryModel.find(invQuery, { _id: 1 }).lean();
+      console.log(`[StockMovement.findAll] Found invItems:`, invItems.map(i => i._id.toString()));
+
+      if (invItems.length > 0) {
+        // Stock movements store itemId as STRING (not ObjectId), so we need to match strings
+        filter.itemId = { $in: invItems.map(i => i._id.toString()) };
+        console.log(`[StockMovement.findAll] Setting filter.itemId:`, filter.itemId);
+      } else if (Types.ObjectId.isValid(query.itemId)) {
+        filter.itemId = query.itemId.toString();
+        console.log(`[StockMovement.findAll] Setting filter.itemId from valid ObjectId:`, filter.itemId);
+      } else {
+        // Fallback search by description
+        filter.itemDescription = { $regex: query.itemId, $options: 'i' };
+        console.log(`[StockMovement.findAll] Fallback to itemDescription search`);
+      }
     }
 
     if (query.warehouseId) {
-      filter.$or = filter.$or || [];
-      filter.$or.push(
-        { warehouseId: query.warehouseId },
-        ...(Types.ObjectId.isValid(query.warehouseId) ? [{ warehouseId: new Types.ObjectId(query.warehouseId) }] : [])
-      );
+      // UI sends warehouse search text; support both ObjectId warehouseId and warehouseName text.
+      if (Types.ObjectId.isValid(query.warehouseId)) {
+        filter.warehouseId = new Types.ObjectId(query.warehouseId);
+      } else {
+        filter.warehouseName = { $regex: query.warehouseId, $options: 'i' };
+      }
     }
 
     if (query.type) {
@@ -195,7 +220,10 @@ export class StockMovementService {
     }
 
     if (query.reference) {
-      filter.reference = { $regex: query.reference, $options: 'i' };
+      filter.$or = [
+        { reference: { $regex: query.reference, $options: 'i' } },
+        { customerName: { $regex: query.reference, $options: 'i' } }
+      ];
     }
 
     if (query.startDate || query.endDate) {
@@ -208,6 +236,8 @@ export class StockMovementService {
       }
     }
 
+    console.log(`[StockMovement.findAll] Final filter:`, JSON.stringify(filter));
+
     const skip = (page - 1) * limit;
 
     const [data, total] = await Promise.all([
@@ -219,6 +249,9 @@ export class StockMovementService {
         .exec(),
       this.stockMovementModel.countDocuments(filter).exec(),
     ]);
+
+    console.log(`[StockMovement.findAll] Found ${data.length} movements, total: ${total}`);
+    console.log(`[StockMovement.findAll] Movement types found:`, data.map(m => m.type));
 
     const totalPages = Math.ceil(total / limit);
 
@@ -278,6 +311,7 @@ export class StockMovementService {
    */
   async getStats(tenantCode: string, startDate?: Date, endDate?: Date): Promise<any> {
     const tenantId = await this.resolveTenantObjectId(tenantCode);
+    const tenantIdStr = tenantId.toString();
 
     const dateFilter: any = {};
     if (startDate || endDate) {
@@ -287,10 +321,12 @@ export class StockMovementService {
     }
 
     const matchStage = {
-      tenantId,
+      tenantId: tenantIdStr,
       isDeleted: false,
       ...dateFilter,
     };
+
+    console.log(`[StockMovement.getStats] matchStage:`, JSON.stringify(matchStage));
 
     const stats = await this.stockMovementModel.aggregate([
       { $match: matchStage },
@@ -302,6 +338,8 @@ export class StockMovementService {
         },
       },
     ]).exec();
+
+    console.log(`[StockMovement.getStats] Aggregation result:`, stats);
 
     // Get item-wise movement summary
     const itemStats = await this.stockMovementModel.aggregate([

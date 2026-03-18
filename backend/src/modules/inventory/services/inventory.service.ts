@@ -267,15 +267,21 @@ export class InventoryService {
 
     // Log stock movement for RESERVE
     try {
-      await this.stockMovementService.logMovement(tenantCode, {
+      console.log(`[STOCK MOVEMENT] Attempting to log RESERVE for item: ${item._id.toString()}`);
+      // Find project for customer name
+      const project = await this.inventoryModel.db.collection('projects').findOne({ projectId: createDto.projectId }, { projection: { customerName: 1 } });
+      console.log(`[STOCK MOVEMENT] Found project:`, project);
+      const result = await this.stockMovementService.logMovement(tenantCode, {
         itemId: item._id.toString(),
         type: 'RESERVE',
         quantity: createDto.quantity,
         reference: createDto.projectId,
         referenceType: 'PROJECT',
+        customerName: project?.customerName,
         note: `Reserved ${createDto.quantity} units for project ${createDto.projectId}`,
         warehouseName: item.warehouse,
       });
+      console.log(`[STOCK MOVEMENT] RESERVE logged successfully:`, result);
     } catch (err) {
       console.error('[STOCK MOVEMENT] Failed to log RESERVE:', err);
     }
@@ -521,21 +527,6 @@ export class InventoryService {
 
         ).exec();
 
-        // Log stock movement for RELEASE
-        try {
-          await this.stockMovementService.logMovement(tenantCode, {
-            itemId: item._id.toString(),
-            type: 'RELEASE',
-            quantity: reservation.quantity,
-            reference: String(reservation.projectId),
-            referenceType: 'PROJECT',
-            note: `Released ${reservation.quantity} units from cancelled reservation ${reservation._id}`,
-            warehouseName: item.warehouse,
-          });
-        } catch (err) {
-          console.error('[STOCK MOVEMENT] Failed to log RELEASE:', err);
-        }
-
       }
 
     }
@@ -659,7 +650,8 @@ export class InventoryService {
 
     // Log stock movement for PURCHASE
     try {
-      await this.stockMovementService.logMovement(tenantCode, {
+      console.log(`[STOCK MOVEMENT] Attempting to log PURCHASE for item: ${item._id.toString()}, qty: ${stockInDto.quantity}`);
+      const result = await this.stockMovementService.logMovement(tenantCode, {
         itemId: item._id.toString(),
         type: 'PURCHASE',
         quantity: stockInDto.quantity,
@@ -668,6 +660,7 @@ export class InventoryService {
         note: stockInDto.remarks || `Stock in: ${stockInDto.quantity} units`,
         warehouseName: item.warehouse,
       });
+      console.log(`[STOCK MOVEMENT] PURCHASE logged successfully:`, result);
     } catch (err) {
       console.error('[STOCK MOVEMENT] Failed to log PURCHASE:', err);
     }
