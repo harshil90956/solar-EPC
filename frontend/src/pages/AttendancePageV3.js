@@ -171,11 +171,11 @@ const AttendancePageV3 = () => {
     columns: permissionColumns 
   } = usePermissions('attendance');
   
-  const { user } = useAuth();
+  const { user, getDataScope } = useAuth();
   
   // Check if data scope is OWN (only view own data)
-  const attendanceDataScope = user?.modulePermissions?.attendance?.dataScope;
-  const isOwnScope = String(attendanceDataScope || '').toLowerCase() === 'own';
+  const attendanceDataScope = getDataScope('attendance');
+  const isOwnScope = attendanceDataScope === 'OWN';
   const currentEmployee = user?.employee;
 
   // ==================== CORE STATE ====================
@@ -736,6 +736,11 @@ const AttendancePageV3 = () => {
 
   // ==================== RENDER ====================
   if (!mounted) return null;
+
+  // Guard against undefined user (auth context not initialized yet)
+  if (!user) {
+    return <div className="p-4 text-center text-[var(--text-muted)]">Loading...</div>;
+  }
 
   return (
     <div className="p-3 space-y-3">
