@@ -1,4 +1,4 @@
-// Solar OS – EPC Edition — FinancePage.js  (Kanban + Table)  
+﻿// Solar OS â€“ EPC Edition â€” FinancePage.js  (Kanban + Table)  
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 
@@ -53,7 +53,7 @@ import CalendarFilter from '../components/finance/CalendarFilter';
 
 const fmt = CURRENCY.format;
 
-/* ── Invoice stage definitions ──────────────────────────────────────────────── */
+/* â”€â”€ Invoice stage definitions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 const INV_STAGES = [
 
@@ -69,7 +69,7 @@ const INV_STAGES = [
 
 ];
 
-/* ── Invoice card ────────────────────────────────────────────────────────────── */
+/* â”€â”€ Invoice card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 const InvCard = ({ inv, onDragStart, onClick }) => {
   const paid = inv.paid || inv.amountPaid || 0;
@@ -148,7 +148,7 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
  
       <div className="flex items-center gap-1 text-[9px] text-[var(--text-muted)]">
 
-        <Calendar size={9} /><span>Due: {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : '—'}</span>
+        <Calendar size={9} /><span>Due: {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : 'â€”'}</span>
   
         {isOverdue && <AlertCircle size={9} className="text-red-400 ml-auto" />}
    
@@ -160,7 +160,7 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
    
 };
     
-/* ── Kanban board ────────────────────────────────────────────────────────────── */
+/* â”€â”€ Kanban board â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
    
 const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
    
@@ -278,7 +278,7 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
 
 };
 
-/* ── Table columns ──────────────────────────────────────────────────────────── */
+/* â”€â”€ Table columns â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 const INVOICE_COLUMNS = [
 
@@ -287,7 +287,7 @@ const INVOICE_COLUMNS = [
 
   { key: 'customerName', header: 'Customer', sortable: true, render: v => <span className="text-xs font-semibold text-[var(--text-primary)]">{v}</span> },
 
-  { key: 'email', header: 'Email', render: v => <span className="text-xs text-[var(--text-muted)]">{v || '—'}</span> },
+  { key: 'email', header: 'Email', render: v => <span className="text-xs text-[var(--text-muted)]">{v || 'â€”'}</span> },
 
   { key: 'amount', header: 'Invoice Amt', sortable: true, render: v => <span className="text-xs font-bold text-[var(--text-primary)]">{fmt(v)}</span> },
 
@@ -297,12 +297,12 @@ const INVOICE_COLUMNS = [
 
   { key: 'status', header: 'Status', render: v => <StatusBadge domain="invoice" value={v} /> },
 
-  { key: 'invoiceDate', header: 'Date', render: v => <span className="text-xs text-[var(--text-muted)]">{v ? new Date(v).toLocaleDateString() : '—'}</span> },
+  { key: 'invoiceDate', header: 'Date', render: v => <span className="text-xs text-[var(--text-muted)]">{v ? new Date(v).toLocaleDateString() : 'â€”'}</span> },
 
-  { key: 'dueDate', header: 'Due Date', render: v => <span className="text-xs text-[var(--text-muted)]">{v ? new Date(v).toLocaleDateString() : '—'}</span> },
+  { key: 'dueDate', header: 'Due Date', render: v => <span className="text-xs text-[var(--text-muted)]">{v ? new Date(v).toLocaleDateString() : 'â€”'}</span> },
 
 
-  { key: 'paidDate', header: 'Paid On', render: v => <span className="text-xs text-[var(--text-muted)]">{v ? new Date(v).toLocaleDateString() : '—'}</span> },
+  { key: 'paidDate', header: 'Paid On', render: v => <span className="text-xs text-[var(--text-muted)]">{v ? new Date(v).toLocaleDateString() : 'â€”'}</span> },
 
 
   {
@@ -331,7 +331,7 @@ const INVOICE_COLUMNS = [
 
         ) : (
 
-          <span className="text-xs text-[var(--text-faint)]">—</span>
+          <span className="text-xs text-[var(--text-faint)]">â€”</span>
 
         )}
 
@@ -362,9 +362,9 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 const INV_STATUS_FILTERS = ['All', 'Draft', 'Sent', 'Partial', 'Paid', 'Overdue', 'Outstanding'];
 
-/* ══════════════════════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   PAGE
-══════════════════════════════════════════════════════════════════════════════ */
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 const FinancePage = ({ onNavigate }) => {
 
@@ -547,6 +547,8 @@ const FinancePage = ({ onNavigate }) => {
    
   const [showDeleteInvoice, setShowDeleteInvoice] = useState(false);
 
+  const [showStatusChangeConfirm, setShowStatusChangeConfirm] = useState(false);
+  const [pendingStageChange, setPendingStageChange] = useState(null);
 
   const [deleteInvoiceTarget, setDeleteInvoiceTarget] = useState(null);
   
@@ -616,46 +618,14 @@ const FinancePage = ({ onNavigate }) => {
   
 
   const [submittingPayment, setSubmittingPayment] = useState(false);
-  
-  // Manual Adjustment state
+ 
  
   const [showAdjustModal, setShowAdjustModal] = useState(false);
- 
-  const [adjustForm, setAdjustForm] = useState({
- 
-    type: 'credit',
- 
-    category: '',
- 
-    amount: '',
- 
-    lf: '',
- 
-    reason: '',
-
-    reference: '',
-
- 
-    date: new Date().toISOString().slice(0, 10),
- 
-
-    selectedInvoiceId: '',
- 
-
-    selectedVendorId: '',
-  
-    paymentMethod: 'Bank Transfer',
- 
-  });
-
- 
+  const [adjustForm, setAdjustForm] = useState({ amount: '', reason: '', description: '', type: '' });
   const [adjustErrors, setAdjustErrors] = useState({});
- 
   const [adjustError, setAdjustError] = useState(null);
-
- 
   const [submittingAdjust, setSubmittingAdjust] = useState(false);
- 
+  const [adjustRevertState, setAdjustRevertState] = useState(null);
   const [manualAdjustments, setManualAdjustments] = useState([]);
  
   const [manualBalance, setManualBalance] = useState(0);
@@ -1871,9 +1841,8 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
       // Calculate monthly income/expense trend from manual adjustments only
  
       const adjustmentTrendSeries = months.map((m) => {
-
-
  
+
         const income = (manualAdjustmentsRes || [])
  
           .filter(adj => adj.type === 'credit')
@@ -3026,7 +2995,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-            console.log('✅ Saved to backend');
+            console.log('âœ… Saved to backend');
 
 
 
@@ -3748,7 +3717,6 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
           projectRes?.value ??
  
           projectRes?.data?.value ??
-
  
           projectRes?.project?.value ??
  
@@ -3902,67 +3870,8 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
   }, [newInvoice.projectId]);
   
  
-  const handleStageChange = async (id, newStage) => {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  const handleStageChange = async (id, newStage, skipConfirm = false) => {
+ 
 
 
 
@@ -3970,93 +3879,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     const previousStatus = existing?.status;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -4068,59 +3891,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       const order = {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -4132,59 +3903,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         Sent: 1,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -4196,59 +3915,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         Partial: 3,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -4260,59 +3927,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         Overdue: 5,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -4324,213 +3939,29 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      const isBackward = order[newStage] < order[previousStatus];
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      if (isBackward) {
-
-
-
-        // Only allow backward transfer for Overdue status with confirmation
-
-
-
-        if (previousStatus === 'Overdue' && (newStage === 'Partial' || newStage === 'Paid')) {
-
-
-
-          const confirmed = window.confirm(
-
-
-
-            `Are you sure you want to move this invoice from ${previousStatus} to ${newStage}?\n\nThis is a backward status transition and should only be done in exceptional circumstances.`
-
-
-
-          );
-
-
-
-          if (!confirmed) {
-
-
-
-            return;
-
-
-
+          const isBackward = order[newStage] < order[previousStatus];
+
+          // Only allow backward transition with confirmation for Overdue -> Partial/Paid
+          const isOverdueToPartialOrPaid = previousStatus === 'Overdue' && (newStage === 'Partial' || newStage === 'Paid');
+
+          if (isBackward && !skipConfirm) {
+            if (isOverdueToPartialOrPaid) {
+              setPendingStageChange({ id, newStage, previousStatus });
+              setShowStatusChangeConfirm(true);
+              return;
+            } else {
+              toast.error('Invoice status cannot be moved backward.');
+              return;
+            }
           }
 
 
 
-        } else {
+          const allowedTransitions = new Set([
 
 
 
-          toast.error('Invoice status cannot be moved backward.');
-
-
-
-          return;
-
-
-
-        }
-
-
-
-      }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      const allowedTransitions = new Set([
+            'Draft->Sent',
 
 
 
@@ -4702,38 +4133,6 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     try {
 
 
@@ -4862,121 +4261,22 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-      if (newStage === 'Partial' && previousStatus === 'Sent' && existing) {
-
-
-
+      if (newStage === 'Partial' && (previousStatus === 'Sent' || previousStatus === 'Overdue') && existing) {
         const outstandingAmount = (existing.amount || 0) - (existing.paid || 0);
-
-
-
-
-
-
-
+        setAdjustRevertState({ invoiceId: existing._id || existing.id, previousStatus });
         setAdjustForm({ 
-
-
-
-
-
-
-
           type: 'credit',
-
-
-
-
-
-
-
           category: 'Invoice Amount Received',
-
-
-
-
-
-
-
           amount: String(outstandingAmount),
-
-
-
-
-
-
-
           lf: '',
-
-
-
-
-
-
-
           reason: `Partial payment for invoice ${existing.invoiceNumber || ''}`,
-
-
-
-
-
-
-
           reference: '',
-
-
-
-
-
-
-
           date: new Date().toISOString().slice(0, 10),
-
-
-
-
-
-
-
           selectedInvoiceId: existing._id || existing.id,
-
-
-
-
-
-
-
           selectedVendorId: '',
-
-
-
-
-
-
-
           paymentMethod: 'Bank Transfer',
-
-
-
-
-
-
-
         });
-
-
-
-
-
-
-
         setShowAdjustModal(true);
-
-
-
-
-
-
 
       }
 
@@ -5386,7 +4686,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-            console.log('✅ Saved to backend');
+            console.log('âœ… Saved to backend');
 
 
 
@@ -12738,7 +12038,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-    if (maxAmount > 0 && amountNum > maxAmount) nextErrors.amount = `Amount cannot exceed ₹${maxAmount}`;
+    if (maxAmount > 0 && amountNum > maxAmount) nextErrors.amount = `Amount cannot exceed â‚¹${maxAmount}`;
 
 
 
@@ -14787,6 +14087,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
   };
+ 
 
 
 
@@ -14869,49 +14170,49 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  // Handle delete journal entry
+  const handleDeleteJournalEntry = async (entry) => {
+    if (!entry?._id && !entry?.id) {
+      console.error('No entry ID to delete');
+      return;
+    }
+    
+    const entryId = entry._id || entry.id;
+    const entryIdStr = typeof entryId === 'string' ? entryId : entryId.toString();
+    
+    // Skip local-only entries (vendor payment entries created locally)
+    if (entryIdStr.startsWith('ven-') || entryIdStr.startsWith('TXN-VEN-')) {
+      console.log('Removing local-only entry:', entryIdStr);
+      setJournalEntries(prev => prev.filter(e => (e._id || e.id) !== entryId));
+      return;
+    }
+    
+    if (!window.confirm('Are you sure you want to delete this entry? This will also update the cash position.')) {
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      console.log('Deleting journal entry:', entryIdStr);
+      
+      // Delete from backend
+      await financeApi.deleteJournalEntry(entryIdStr);
+      
+      // Remove from local state
+      setJournalEntries(prev => prev.filter(e => (e._id || e.id) !== entryId));
+      
+      // Refresh balance to reflect in cash position
+      const newBalance = await financeApi.getManualAdjustmentBalance();
+      setManualBalance(newBalance);
+      
+      console.log('Entry deleted successfully');
+    } catch (error) {
+      console.error('Failed to delete journal entry:', error);
+      alert('Failed to delete entry: ' + (error.message || 'Unknown error'));
+    } finally {
+      setLoading(false);
+    }
+  };
 
 
   const handleSubmitAdjustment = async () => {
@@ -16378,7 +15679,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-          console.log('✅ Saved to backend');
+          console.log('âœ… Saved to backend');
 
 
 
@@ -16599,39 +15900,10 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
         // Update manual balance locally (increase cash position for credit)
-
-
-
-
-
-
-
         setManualBalance(prev => prev + amountNum);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         setShowAdjustModal(false);
-
-
-
-
-
+        setAdjustRevertState(null);
 
 
         setAdjustForm({
@@ -17322,7 +16594,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-          console.log('✅ Saved to backend');
+          console.log('âœ… Saved to backend');
 
 
 
@@ -18306,7 +17578,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-        console.log('✅ Saved to backend');
+        console.log('âœ… Saved to backend');
 
 
 
@@ -30474,7 +29746,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-          <p className="text-xs text-[var(--text-muted)] mt-0.5 hidden sm:block">Revenue · receivables · payables · cash flow · invoices</p>
+          <p className="text-xs text-[var(--text-muted)] mt-0.5 hidden sm:block">Revenue Â· receivables Â· payables Â· cash flow Â· invoices</p>
 
 
 
@@ -32606,7 +31878,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-              <div className="text-6xl mb-4">📅</div>
+              <div className="text-6xl mb-4">ðŸ“…</div>
 
 
 
@@ -34329,40 +33601,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-
         </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -37518,7 +36757,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-                          <div className="text-xs text-right text-[var(--text-muted)]">{p.lastPurchaseOrderDate || '—'}</div>
+                          <div className="text-xs text-right text-[var(--text-muted)]">{p.lastPurchaseOrderDate || 'â€”'}</div>
 
 
 
@@ -39564,6 +38803,22 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+                          {/* Delete button */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteJournalEntry(entry);
+                            }}
+                            className="absolute top-2 right-2 p-1.5 text-[var(--text-muted)] hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                            title="Delete entry"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3 6 5 6 21 6"></polyline>
+                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
+                          </button>
 
 
                         </div>
@@ -43278,7 +42533,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-            <FormField label="Invoice Amount (₹)">
+            <FormField label="Invoice Amount (â‚¹)">
 
 
 
@@ -47262,7 +46517,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-        <Modal isOpen={!!selected} onClose={() => setSelected(null)} title={`Invoice — ${selected.invoiceNumber || selected.id}`}
+        <Modal isOpen={!!selected} onClose={() => setSelected(null)} title={`Invoice â€” ${selected.invoiceNumber || selected.id}`}
 
 
 
@@ -47902,7 +47157,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-              ['Email', selected.email || '—'],
+              ['Email', selected.email || 'â€”'],
 
 
 
@@ -48222,7 +47477,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-              ['Invoice Date', selected.invoiceDate ? new Date(selected.invoiceDate).toLocaleDateString() : '—'],
+              ['Invoice Date', selected.invoiceDate ? new Date(selected.invoiceDate).toLocaleDateString() : 'â€”'],
 
 
 
@@ -48286,7 +47541,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-              ['Due Date', selected.dueDate ? new Date(selected.dueDate).toLocaleDateString() : '—'],
+              ['Due Date', selected.dueDate ? new Date(selected.dueDate).toLocaleDateString() : 'â€”'],
 
 
 
@@ -48350,7 +47605,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-              ['Paid On', selected.paidDate ? new Date(selected.paidDate).toLocaleDateString() : '—'],
+              ['Paid On', selected.paidDate ? new Date(selected.paidDate).toLocaleDateString() : 'â€”'],
 
 
 
@@ -48414,7 +47669,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-              ['Last Reminder', selected.lastReminderSentAt ? new Date(selected.lastReminderSentAt).toLocaleDateString() : '—'],
+              ['Last Reminder', selected.lastReminderSentAt ? new Date(selected.lastReminderSentAt).toLocaleDateString() : 'â€”'],
 
 
 
@@ -49822,7 +49077,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-          title={`Edit Invoice — ${editInvoiceTarget.invoiceNumber || editInvoiceTarget.id}`}
+          title={`Edit Invoice â€” ${editInvoiceTarget.invoiceNumber || editInvoiceTarget.id}`}
 
 
 
@@ -52958,7 +52213,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-              <FormField label="Invoice Amount (₹)">
+              <FormField label="Invoice Amount (â‚¹)">
 
 
 
@@ -59570,7 +58825,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-              <p className="text-xs text-[var(--text-muted)] mt-1">{deleteInvoiceTarget.invoiceNumber || deleteInvoiceTarget.id} • {deleteInvoiceTarget.customerName}</p>
+              <p className="text-xs text-[var(--text-muted)] mt-1">{deleteInvoiceTarget.invoiceNumber || deleteInvoiceTarget.id} â€¢ {deleteInvoiceTarget.customerName}</p>
 
 
 
@@ -60018,6 +59273,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+      {showStatusChangeConfirm && pendingStageChange && (<Modal open={showStatusChangeConfirm} onClose={() => { setShowStatusChangeConfirm(false); setPendingStageChange(null); }} title="Confirm Status Change" footer={<div className="flex gap-2 justify-end"><Button variant="ghost" onClick={() => { setShowStatusChangeConfirm(false); setPendingStageChange(null); }}>Cancel</Button><Button onClick={() => { setShowStatusChangeConfirm(false); handleStageChange(pendingStageChange.id, pendingStageChange.newStage, true); setPendingStageChange(null); }}>OK</Button></div>}><div className="space-y-3"><p className="text-sm text-gray-600">Are you sure you want to change this invoice status from {pendingStageChange.previousStatus} to {pendingStageChange.newStage}?</p></div></Modal>)}
       {/* Assign Invoice Modal */}
 
 
@@ -60594,7 +59850,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-          title={`Assign Invoice — ${assignInvoiceTarget.invoiceNumber || assignInvoiceTarget.id}`}
+          title={`Assign Invoice â€” ${assignInvoiceTarget.invoiceNumber || assignInvoiceTarget.id}`}
 
 
 
@@ -62861,49 +62117,8 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-
         <Modal
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
           open={showReminderModal}
-
-
-
-
-
 
 
 
@@ -63314,7 +62529,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-          title={`Send Reminder — ${selectedReminderInvoice.invoiceNumber || selectedReminderInvoice.id}`}
+          title={`Send Reminder â€” ${selectedReminderInvoice.invoiceNumber || selectedReminderInvoice.id}`}
 
 
 
@@ -66514,7 +65729,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-                <div className="font-semibold text-[var(--text-primary)]">{selectedReminderInvoice.dueDate ? new Date(selectedReminderInvoice.dueDate).toLocaleDateString() : '—'}</div>
+                <div className="font-semibold text-[var(--text-primary)]">{selectedReminderInvoice.dueDate ? new Date(selectedReminderInvoice.dueDate).toLocaleDateString() : 'â€”'}</div>
 
 
 
@@ -73298,7 +72513,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-                                <p>{activity.metadata.previousStatus} → {activity.metadata.newStatus}</p>
+                                <p>{activity.metadata.previousStatus} â†’ {activity.metadata.newStatus}</p>
 
 
 
@@ -81874,7 +81089,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-                    {inv.invoiceNumber} - {inv.customerName} (₹{inv.amount})
+                    {inv.invoiceNumber} - {inv.customerName} (â‚¹{inv.amount})
 
 
 
@@ -82066,7 +81281,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-                    {p.vendorName} (Outstanding: ₹{p.outstandingAmount})
+                    {p.vendorName} (Outstanding: â‚¹{p.outstandingAmount})
 
 
 
@@ -82706,7 +81921,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-            <FormField label="Amount (₹)">
+            <FormField label="Amount (â‚¹)">
 
 
 
@@ -86548,2907 +85763,222 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
           </FormField>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
         </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
       </Modal>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
       {/* Manual Adjustment Modal */}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
       <Modal
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
         isOpen={showAdjustModal}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
         onClose={() => {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
           if (submittingAdjust) return;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+          // Revert to original status if no payment was made
+          if (adjustRevertState) {
+            const { invoiceId, previousStatus } = adjustRevertState;
+            financeApi.updateInvoiceStatus(invoiceId, previousStatus).then(() => {
+              setInvoices(prev => prev.map(i => 
+                (i._id === invoiceId || i.id === invoiceId) ? { ...i, status: previousStatus } : i
+              ));
+            }).catch(() => {});
+            setAdjustRevertState(null);
+          }
           setShowAdjustModal(false);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
           setAdjustError(null);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
           setAdjustErrors({});
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
         }}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
         title="Manual Adjustment"
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
         footer={
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
           <div className="flex gap-2 justify-end">
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
             <Button
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
               variant="ghost"
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
               onClick={() => {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
                 if (submittingAdjust) return;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+                // Revert to original status if no payment was made
+                if (adjustRevertState) {
+                  const { invoiceId, previousStatus } = adjustRevertState;
+                  financeApi.updateInvoiceStatus(invoiceId, previousStatus).then(() => {
+                    setInvoices(prev => prev.map(i => 
+                      (i._id === invoiceId || i.id === invoiceId) ? { ...i, status: previousStatus } : i
+                    ));
+                  }).catch(() => {});
+                  setAdjustRevertState(null);
+                }
                 setShowAdjustModal(false);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
                 setAdjustError(null);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
                 setAdjustErrors({});
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
               }}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
               disabled={submittingAdjust}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             >
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
               Cancel
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             </Button>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
             <Button onClick={handleSubmitAdjustment} disabled={submittingAdjust}>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
               {submittingAdjust ? <Loader2 size={13} className="animate-spin" /> : <TrendingUp size={13} />}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
               {submittingAdjust ? ' Saving...' : ' Save Adjustment'}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
             </Button>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
           </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+        } 
 
       >
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
         <div className="space-y-[64px] pb-4">
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
           {adjustError && (
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
             <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
               {adjustError}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
             </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
           )}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
           <div className="grid grid-cols-2 gap-3">
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
             <FormField label="Type">
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
               <Select
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
                 value={adjustForm.type}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
                 onChange={e => {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
                   setAdjustForm({ ...adjustForm, type: e.target.value, category: '' });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
                   if (adjustErrors.type) setAdjustErrors(prev => ({ ...prev, type: undefined }));
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                }}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+                }} 
 
                 disabled={submittingAdjust}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
               >
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
                 <option value="credit">Credit (+ Add Amount)</option>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
                 <option value="debit">Debit (- Subtract Amount)</option>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
               </Select>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
             </FormField>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
             <FormField label="Category *">
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
               <Select
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
                 value={adjustForm.category}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
                 onChange={e => {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
                   const value = e.target.value;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
                   if (value === '__add_new__') {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
                     setShowAddCategoryModal(true);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
                     setNewCategory({ categoryName: '', type: adjustForm.type });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
                     return;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
                   }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
                   setAdjustForm({ ...adjustForm, category: value });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
                   if (adjustErrors.category) setAdjustErrors(prev => ({ ...prev, category: undefined }));
+ 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                }}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+                }} 
                 disabled={submittingAdjust}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
               >
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
 
                 <option value="">Select Category</option>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
                 {adjustmentCategories
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
                   .filter(cat => cat.type === adjustForm.type)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
                   .map(cat => (
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
 
                     <option key={cat._id || cat.id} value={cat.categoryName}>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
 
                       {cat.categoryName}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
                     </option>
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
                   ))}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
                 {/* Special payment categories are already included in adjustmentCategories from API */}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
                 <option value="__add_new__">+ Add New Category</option>
+  
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-              </Select>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+              </Select> 
               {adjustErrors.category && (
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
                 <div className="text-[11px] text-red-400 mt-1">{adjustErrors.category}</div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
               )}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
 
             </FormField>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
           </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
           {/* Invoice Selection for Customer Payment (Credit - Invoice Amount Received) */}
 
@@ -90418,7 +86948,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-            <FormField label="Amount (₹)">
+            <FormField label="Amount (â‚¹)">
 
 
 
@@ -94999,7 +91529,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
           }}
 
-          title={`Journal Entry — JE-${String(selectedJournalEntryIndex || 1).padStart(3, '0')}`}
+          title={`Journal Entry â€” JE-${String(selectedJournalEntryIndex || 1).padStart(3, '0')}`}
 
           footer={
 
@@ -95065,7 +91595,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
                 <div className="font-semibold text-[var(--text-primary)]">
 
 
-                  {selectedJournalEntry.reference || '—'}
+                  {selectedJournalEntry.reference || 'â€”'}
 
 
                 </div>
@@ -95083,7 +91613,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
                     ? selectedJournalEntry.narration.split(':')[0]?.trim()
 
 
-                    : (selectedJournalEntry.category || '—')}
+                    : (selectedJournalEntry.category || 'â€”')}
 
                 </div>
 
@@ -95107,7 +91637,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
                 <div className="font-semibold text-[var(--text-primary)]">
 
-                  {selectedJournalEntry.lf || '—'}
+                  {selectedJournalEntry.lf || 'â€”'}
 
                 </div>
 
@@ -95125,9 +91655,9 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
                 <div className="col-span-6 border-r-2 border-[var(--border-base)] px-1">Account</div>
 
-                <div className="col-span-3 border-r-2 border-[var(--border-base)] px-1 text-right">Debit (₹)</div>
+                <div className="col-span-3 border-r-2 border-[var(--border-base)] px-1 text-right">Debit (â‚¹)</div>
 
-                <div className="col-span-3 pl-1 text-right">Credit (₹)</div>
+                <div className="col-span-3 pl-1 text-right">Credit (â‚¹)</div>
 
               </div>
 
@@ -95277,7 +91807,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
             <div className="text-[10px] text-[var(--text-muted)] text-right">
 
 
-              Created: {selectedJournalEntry.createdAt ? new Date(selectedJournalEntry.createdAt).toLocaleString('en-IN') : '—'}
+              Created: {selectedJournalEntry.createdAt ? new Date(selectedJournalEntry.createdAt).toLocaleString('en-IN') : 'â€”'}
 
 
             </div>

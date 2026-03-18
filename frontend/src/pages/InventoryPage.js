@@ -319,9 +319,11 @@ const InventoryPage = () => {
   const [editingItem, setEditingItem] = useState(null);
   const [editForm, setEditForm] = useState({ name: '', category: '', unit: '', minStock: '', rate: '', status: '' });
   const [showStockOut, setShowStockOut] = useState(false);
-  const [stockOutForm, setStockOutForm] = useState({ itemId: '', quantity: '', projectId: '', issuedDate: '', remarks: '', quotationId: '' });
+  const [stockOutForm, setStockOutForm] = useState({ projectId: '', issuedDate: '', remarks: '', quotationId: '' });
   const [approvedQuotations, setApprovedQuotations] = useState([]);
   const [selectedQuotationItems, setSelectedQuotationItems] = useState([]);
+  const [selectedQuotationItemIndexes, setSelectedQuotationItemIndexes] = useState([]);
+  const [stockOutRows, setStockOutRows] = useState([]);
   const [inventory, setInventory] = useState([]);
   
   // Dynamic month options based on inventory dates
@@ -1145,66 +1147,70 @@ const InventoryPage = () => {
   };
 
   const handleStockOut = async () => {
-    if (!stockOutForm.itemId || !stockOutForm.quantity) return;
+    if (!selectedQuotationItemIndexes.length) return;
 
     setSubmitting(true);
     try {
-      // Find item by itemId to get _id
-      const item = inventory.find(i => i.itemId === stockOutForm.itemId || i._id === stockOutForm.itemId);
-      if (!item || !item._id) {
-        alert('Item not found');
-        setSubmitting(false);
-        return;
-      }
-
-      const updatedItem = await api.post(`/items/${item._id}/stock-out`, {
-        quantity: parseInt(stockOutForm.quantity),
-        projectId: stockOutForm.projectId,
-        issuedDate: stockOutForm.issuedDate,
-        remarks: stockOutForm.remarks,
-      }, { headers: { 'x-tenant-id': TENANT_ID } });
-
-      const itemData = updatedItem.data || updatedItem;
-
-      // Create reservation record for the project
-      if (stockOutForm.projectId) {
-        try {
-          // Find project name
-          const project = projects.find(p => p.projectId === stockOutForm.projectId);
-          const projectName = project?.customerName || project?.name || 'Unknown Project';
-
-          console.log('[FRONTEND] Creating reservation for item:', item?.itemId, 'project:', stockOutForm.projectId);
-          
-          const resResponse = await apiClient.post('/inventory/reservations', {
-            reservationId: `RES-${Date.now()}`,
-            itemId: item?.itemId || stockOutForm.itemId,
-            inventoryId: item?._id,
-            projectId: stockOutForm.projectId,
-            projectName: projectName,
-            quantity: parseInt(stockOutForm.quantity),
-            notes: stockOutForm.remarks || `Stock issued on ${stockOutForm.issuedDate || new Date().toISOString().split('T')[0]}`,
-          }, { params: { tenantId: TENANT_ID } });
-          
-          console.log('[FRONTEND] Reservation created:', resResponse);
-        } catch (resErr) {
-          console.error('[FRONTEND] Reservation creation failed:', resErr);
-          // Don't fail the whole operation if reservation creation fails
+      for (const idx of selectedQuotationItemIndexes) {
+        const row = stockOutRows.find(r => r.idx === idx);
+        if (!row?.inventoryId) {
+          throw new Error('Please select item for all selected rows');
         }
+        if (!row?.quantity || Number(row.quantity) <= 0) {
+          throw new Error('Please enter quantity for all selected rows');
+        }
+
+        const item = inventory.find(i => i._id === row.inventoryId);
+        if (!item || !item._id) {
+          throw new Error('Item not found');
+        }
+
+        const updatedItem = await api.post(`/items/${item._id}/stock-out`, {
+          quantity: parseInt(row.quantity),
+          projectId: stockOutForm.projectId,
+          issuedDate: stockOutForm.issuedDate,
+          remarks: stockOutForm.remarks,
+        }, { headers: { 'x-tenant-id': TENANT_ID } });
+
+        const itemData = updatedItem.data || updatedItem;
+
+        // Create reservation record for the project
+        if (stockOutForm.projectId) {
+          try {
+            const project = projects.find(p => p.projectId === stockOutForm.projectId);
+            const projectName = project?.customerName || project?.name || 'Unknown Project';
+
+            await apiClient.post('/inventory/reservations', {
+              reservationId: `RES-${Date.now()}-${idx}`,
+              itemId: item?.itemId,
+              inventoryId: item?._id,
+              projectId: stockOutForm.projectId,
+              projectName: projectName,
+              quantity: parseInt(row.quantity),
+              notes: stockOutForm.remarks || `Stock issued on ${stockOutForm.issuedDate || new Date().toISOString().split('T')[0]}`,
+            }, { params: { tenantId: TENANT_ID } });
+          } catch (resErr) {
+            console.error('[FRONTEND] Reservation creation failed:', resErr);
+          }
+        }
+
+        const transformedItem = {
+          ...itemData,
+          _id: itemData._id || itemData.id,
+          name: itemData.description || itemData.name || 'Unnamed Item',
+          reserved: itemData.reserved || 0,
+          available: (itemData.stock || 0) - (itemData.reserved || 0),
+          lastUpdated: itemData.updatedAt || new Date().toISOString().split('T')[0],
+        };
+
+        setInventory(prev => prev.map(i => i._id === item._id ? transformedItem : i));
       }
 
-      // Transform the item data to match frontend format (same as handleStockIn)
-      const transformedItem = {
-        ...itemData,
-        _id: itemData._id || itemData.id,
-        name: itemData.description || itemData.name || 'Unnamed Item',
-        reserved: itemData.reserved || 0,
-        available: (itemData.stock || 0) - (itemData.reserved || 0),
-        lastUpdated: itemData.updatedAt || new Date().toISOString().split('T')[0],
-      };
-
-      setInventory(prev => prev.map(i => i._id === item._id ? transformedItem : i));
       setShowStockOut(false);
-      setStockOutForm({ itemId: '', quantity: '', projectId: '', issuedDate: '', remarks: '' });
+      setStockOutForm({ projectId: '', issuedDate: '', remarks: '', quotationId: '' });
+      setSelectedQuotationItems([]);
+      setSelectedQuotationItemIndexes([]);
+      setStockOutRows([]);
       alert('Stock issued successfully! Project reservation recorded.');
     } catch (err) {
       alert(err.message || 'Failed to issue stock. Please try again.');
@@ -1419,7 +1425,7 @@ const InventoryPage = () => {
       }); 
       setStockIn(true); 
     } }] : []),
-    ...(canAssign ? [{ label: 'Stock Out', icon: ArrowDown, onClick: row => { setStockOutForm({ ...stockOutForm, itemId: row.itemId }); setShowStockOut(true); } }] : []),
+    ...(canAssign ? [{ label: 'Stock Out', icon: ArrowDown, onClick: row => { setStockOutForm(f => ({ ...f })); setShowStockOut(true); } }] : []),
     ...(canDelete ? [{ label: 'Delete', icon: Trash2, onClick: row => handleDeleteItem(row), danger: true }] : []),
   ];
 
@@ -3478,7 +3484,7 @@ const InventoryPage = () => {
       <Modal open={showStockOut} onClose={() => setShowStockOut(false)} title="Stock Out — Issue Materials"
         footer={<div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={() => setShowStockOut(false)}>Cancel</Button>
-          <Button onClick={handleStockOut} disabled={submitting || !stockOutForm.itemId || !stockOutForm.quantity}>
+          <Button onClick={handleStockOut} disabled={submitting || selectedQuotationItemIndexes.length === 0}>
             {submitting ? 'Processing...' : <><ArrowDown size={13} /> Confirm Issue</>}
           </Button>
         </div>}>
@@ -3489,19 +3495,34 @@ const InventoryPage = () => {
               value={stockOutForm.quotationId} 
               onChange={e => {
                 const quotationId = e.target.value;
-                const selectedQuotation = approvedQuotations.find(q => q._id === quotationId || q.documentId === quotationId);
-                setSelectedQuotationItems(selectedQuotation?.items || []);
+                const selectedQuotation = approvedQuotations.find(q => (q._id || q.dbId) === quotationId || q.documentId === quotationId);
+                const items = selectedQuotation?.items || [];
+                setSelectedQuotationItems(items);
+                setSelectedQuotationItemIndexes(items.map((_, idx) => idx));
+                setStockOutRows(items.map((it, idx) => {
+                  const candidates = inventory.filter(i =>
+                    i.name?.toLowerCase() === it.name?.toLowerCase() ||
+                    i.description?.toLowerCase() === it.name?.toLowerCase()
+                  );
+                  const preferred = candidates[0];
+                  return {
+                    idx,
+                    name: it.name,
+                    quantity: String(it.quantity || 1),
+                    price: it.unitPrice ?? it.unitPricePerItem ?? it.unitPricePerUnit ?? it.rate ?? '',
+                    inventoryId: preferred?._id || '',
+                  };
+                }));
                 setStockOutForm(f => ({ 
                   ...f, 
                   quotationId,
-                  itemId: '',
                   projectId: selectedQuotation?.projectId || ''
                 }));
               }}
             >
               <option value="">Select Approved Quotation</option>
               {approvedQuotations.map(q => (
-                <option key={q._id} value={q._id}>
+                <option key={q._id || q.dbId} value={q._id || q.dbId}>
                   {q.documentId || q.quotationId || q._id} - {q.customerName || 'Unknown'} ({(q.items || []).length} items)
                 </option>
               ))}
@@ -3519,16 +3540,16 @@ const InventoryPage = () => {
                     i.description?.toLowerCase() === item.name?.toLowerCase()
                   );
                   const available = inventoryItem ? (inventoryItem.stock || 0) - (inventoryItem.reserved || 0) : 0;
-                  const isSelected = stockOutForm.itemId === (inventoryItem?.itemId || item.name);
+                  const isSelected = selectedQuotationItemIndexes.includes(idx);
                   
                   return (
                     <div 
                       key={idx} 
-                      onClick={() => setStockOutForm(f => ({ 
-                        ...f, 
-                        itemId: inventoryItem?.itemId || '',
-                        quantity: item.quantity || 1
-                      }))}
+                      onClick={() => {
+                        setSelectedQuotationItemIndexes((prev) => (
+                          prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]
+                        ));
+                      }}
                       className={`p-2 rounded-lg cursor-pointer transition-all border ${
                         isSelected 
                           ? 'bg-[var(--primary)]/10 border-[var(--primary)]' 
@@ -3538,7 +3559,7 @@ const InventoryPage = () => {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <input 
-                            type="radio" 
+                            type="checkbox" 
                             checked={isSelected} 
                             onChange={() => {}}
                             className="accent-[var(--primary)]"
@@ -3561,27 +3582,74 @@ const InventoryPage = () => {
             </div>
           )}
 
-          {/* Selected Item Display */}
-          {stockOutForm.itemId && (
-            <FormField label="Selected Item">
-              <div className="glass-card p-2 text-xs text-[var(--text-primary)]">
-                {(() => {
-                  const item = inventory.find(i => i.itemId === stockOutForm.itemId);
-                  return item ? `${item.name || item.description} (${item.warehouse})` : 'Item not found in inventory';
-                })()}
+          {/* Selected Items Table */}
+          {selectedQuotationItems.length > 0 && (
+            <div className="glass-card p-3 border border-[var(--border-base)]">
+              <h4 className="text-xs font-semibold text-[var(--text-primary)] mb-2">Selected Items</h4>
+              <div className="w-full overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-[10px] text-[var(--text-muted)] border-b border-[var(--border-base)]">
+                      <th className="text-left py-2 pr-2">Item</th>
+                      <th className="text-left py-2 pr-2">Quantity</th>
+                      <th className="text-left py-2">Price</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stockOutRows
+                      .filter(r => selectedQuotationItemIndexes.includes(r.idx))
+                      .map((row) => {
+                        const candidates = inventory.filter(i =>
+                          i.name?.toLowerCase() === row.name?.toLowerCase() ||
+                          i.description?.toLowerCase() === row.name?.toLowerCase()
+                        );
+
+                        return (
+                          <tr key={row.idx} className="border-b border-[var(--border-base)]/40">
+                            <td className="py-2 pr-2 min-w-[220px]">
+                              <Select
+                                value={row.inventoryId}
+                                onChange={(e) => {
+                                  const inventoryId = e.target.value;
+                                  setStockOutRows((prev) => prev.map(r => r.idx === row.idx ? { ...r, inventoryId } : r));
+                                }}
+                              >
+                                <option value="">Select Item</option>
+                                {candidates.map(i => (
+                                  <option key={i._id} value={i._id}>
+                                    {(i.name || i.description)} ({i.warehouse || '—'})
+                                  </option>
+                                ))}
+                              </Select>
+                            </td>
+                            <td className="py-2 pr-2 w-[120px]">
+                              <Input
+                                type="number"
+                                value={row.quantity}
+                                onChange={(e) => {
+                                  const quantity = e.target.value;
+                                  setStockOutRows((prev) => prev.map(r => r.idx === row.idx ? { ...r, quantity } : r));
+                                }}
+                              />
+                            </td>
+                            <td className="py-2 w-[100px]">
+                              <Input type="number" value={row.price ?? ''} disabled />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
               </div>
-            </FormField>
+            </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <FormField label="Quantity to Issue"><Input type="number" placeholder="50" value={stockOutForm.quantity} onChange={e => setStockOutForm(f => ({ ...f, quantity: e.target.value }))} /></FormField>
-            <FormField label="Project">
-              <Select value={stockOutForm.projectId} onChange={e => setStockOutForm(f => ({ ...f, projectId: e.target.value }))}>
-                <option value="">Select Project</option>
-                {projects.map(p => <option key={p._id || p.projectId} value={p.projectId}>{p.customerName || p.name} ({p.projectId})</option>)}
-              </Select>
-            </FormField>
-          </div>
+          <FormField label="Project">
+            <Select value={stockOutForm.projectId} onChange={e => setStockOutForm(f => ({ ...f, projectId: e.target.value }))}>
+              <option value="">Select Project</option>
+              {projects.map(p => <option key={p._id || p.projectId} value={p.projectId}>{p.customerName || p.name} ({p.projectId})</option>)}
+            </Select>
+          </FormField>
           <FormField label="Issue Date"><Input type="date" value={stockOutForm.issuedDate} onChange={e => setStockOutForm(f => ({ ...f, issuedDate: e.target.value }))} /></FormField>
           <FormField label="Remarks"><Input placeholder="Any notes about the issue…" value={stockOutForm.remarks} onChange={e => setStockOutForm(f => ({ ...f, remarks: e.target.value }))} /></FormField>
         </div>

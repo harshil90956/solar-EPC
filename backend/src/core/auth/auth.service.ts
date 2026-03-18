@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnauthorizedException, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
@@ -193,9 +193,14 @@ export class AuthService {
 
     // Handle regular user login
     // Check for custom role override
-    console.log('[AUTH DEBUG] Looking up user override for userId:', user!._id.toString());
+    console.log('[AUTH DEBUG] ==========================================');
+    console.log('[AUTH DEBUG] LOGIN START - User:', user!._id.toString(), 'Role:', user!.role);
+    console.log('[AUTH DEBUG] ==========================================');
     const userOverride = await this.userOverrideModel.findOne({ userId: user!._id }).lean();
-    console.log('[AUTH DEBUG] User override found:', userOverride);
+    console.log('[AUTH DEBUG] User override found:', userOverride ? 'YES' : 'NO');
+    if (userOverride) {
+      console.log('[AUTH DEBUG] User override details:', JSON.stringify(userOverride, null, 2));
+    }
     const customRoleId = userOverride?.customRoleId || null;
     console.log('[AUTH DEBUG] Extracted customRoleId:', customRoleId);
 
@@ -221,6 +226,67 @@ export class AuthService {
       },
     };
   }
+
+  /**
+   * Find a user or employee by email for password reset
+   */
+  async findUserByEmail(email: string) {
+    const normalizedEmail = email.toLowerCase().trim();
+    
+    // Check regular users
+    const user = await this.userModel.findOne({ email: normalizedEmail }).lean();
+    if (user) {
+      return {
+        id: user._id.toString(),
+        email: user.email,
+        name: user.email.split('@')[0],
+        userType: 'user',
+      };
+    }
+
+    // Check employees
+    const employee = await this.employeeModel.findOne({ email: normalizedEmail }).lean();
+    if (employee) {
+      return {
+        id: employee._id.toString(),
+        email: employee.email,
+        name: `${employee.firstName} ${employee.lastName}`,
+        userType: 'employee',
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Reset password by email and user type
+   */
+  async resetPasswordByEmail(email: string, newPassword: string, userType: string) {
+    const normalizedEmail = email.toLowerCase().trim();
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    try {
+      if (userType === 'employee') {
+        const result = await this.employeeModel.findOneAndUpdate(
+          { email: normalizedEmail },
+          { $set: { password: passwordHash } },
+          { new: true }
+        ).exec();
+        if (!result) throw new NotFoundException('Employee not found');
+      } else {
+        const result = await this.userModel.findOneAndUpdate(
+          { email: normalizedEmail },
+          { $set: { passwordHash: passwordHash } },
+          { new: true }
+        ).exec();
+        if (!result) throw new NotFoundException('User not found');
+      }
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      throw new InternalServerErrorException('Failed to reset password');
+    }
+  }
+
 
   async getUsersByTenantAndRole(tenantCode: string, role?: string) {
     const tenant = await this.tenantModel.findOne({ code: tenantCode }).lean();
@@ -579,5 +645,273 @@ export class AuthService {
       edit: roleLower !== 'employee',
       delete: roleLower === 'manager' || roleLower === 'admin',
     };
+  }
+
+  // In-memory OTP store (use Redis in production)
+  // Added attempts tracking for security (max 3 attempts)
+  private otpStore: Map<string, { 
+    otp: string; 
+    expiresAt: Date; 
+    userType: 'user' | 'employee';
+    attempts: number;
+    maxAttempts: number;
+  }> = new Map();
+
+  // Generate 6-digit OTP
+  private generateOTP(): string {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  }
+
+  // Send OTP email (mock - replace with actual email service)
+  private async sendOtpEmail(email: string, otp: string, name?: string): Promise<void> {
+    // TODO: Integrate with your email service (SendGrid, AWS SES, Nodemailer, etc.)
+    console.log(`[OTP EMAIL] To: ${email}, OTP: ${otp}, Name: ${name || 'User'}`);
+    
+    // Example integration placeholder:
+    // await this.emailService.send({
+    //   to: email,
+    //   subject: 'Password Reset OTP - Solar OS',
+    //   template: 'otp-reset',
+    //   data: { otp, name, expiresIn: '5 minutes' }
+    // });
+  }
+
+  // Forgot Password - Send OTP
+  async forgotPassword(email: string) {
+    const normalizedEmail = email.toLowerCase().trim();
+    
+    // Check in users collection first
+    let user = await this.userModel.findOne({ email: normalizedEmail, isActive: true }).lean();
+    let employee = null;
+    let userType: 'user' | 'employee' = 'user';
+    let name = '';
+
+    // If not found in users, check employees
+    if (!user) {
+      employee = await this.employeeModel.findOne({ 
+        email: normalizedEmail,
+        status: { $in: ['active', 'inactive'] }
+      }).lean();
+      
+      if (employee) {
+        userType = 'employee';
+        name = `${employee.firstName || ''} ${employee.lastName || ''}`.trim();
+      }
+    } else {
+      name = `${user.firstName || ''} ${user.lastName || ''}`.trim();
+    }
+
+    // If neither found
+    if (!user && !employee) {
+      // Don't reveal if email exists (security best practice)
+      // But for UX, we'll return success even if email not found
+      // This prevents email enumeration attacks
+      return {
+        success: true,
+        message: 'If an account exists with this email, an OTP has been sent.',
+        email: normalizedEmail,
+      };
+    }
+
+    // Generate OTP
+    const otp = this.generateOTP();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes expiry
+
+    // Store OTP with attempts tracking (max 3 attempts)
+    this.otpStore.set(normalizedEmail, { 
+      otp, 
+      expiresAt, 
+      userType,
+      attempts: 0,
+      maxAttempts: 3
+    });
+
+    // Send email
+    await this.sendOtpEmail(normalizedEmail, otp, name);
+
+    return {
+      success: true,
+      message: 'OTP sent successfully to your email',
+      email: normalizedEmail,
+      expiresIn: '5 minutes',
+      // NEVER expose OTP in production - only in development for testing
+      ...(process.env.NODE_ENV === 'development' && { otp }),
+    };
+  }
+
+  // Verify OTP
+  async verifyOtp(email: string, otp: string) {
+    const normalizedEmail = email.toLowerCase().trim();
+    const stored = this.otpStore.get(normalizedEmail);
+
+    if (!stored) {
+      throw new BadRequestException('OTP not found or expired. Please request a new one.');
+    }
+
+    if (new Date() > stored.expiresAt) {
+      this.otpStore.delete(normalizedEmail);
+      throw new BadRequestException('OTP has expired. Please request a new one.');
+    }
+
+    // Check max attempts (3 attempts allowed)
+    if (stored.attempts >= stored.maxAttempts) {
+      this.otpStore.delete(normalizedEmail);
+      throw new BadRequestException('Maximum OTP attempts exceeded. Please request a new OTP.');
+    }
+
+    if (stored.otp !== otp) {
+      // Increment failed attempts
+      stored.attempts++;
+      const remainingAttempts = stored.maxAttempts - stored.attempts;
+      
+      if (stored.attempts >= stored.maxAttempts) {
+        this.otpStore.delete(normalizedEmail);
+        throw new BadRequestException('Maximum OTP attempts exceeded. Please request a new OTP.');
+      }
+      
+      throw new BadRequestException(`Invalid OTP. ${remainingAttempts} attempt${remainingAttempts > 1 ? 's' : ''} remaining.`);
+    }
+
+    // OTP verified - don't delete yet, wait for password reset
+    return {
+      success: true,
+      message: 'OTP verified successfully',
+      email: normalizedEmail,
+      verified: true,
+    };
+  }
+
+  // Reset Password
+  async resetPassword(email: string, otp: string, newPassword: string) {
+    const normalizedEmail = email.toLowerCase().trim();
+    const stored = this.otpStore.get(normalizedEmail);
+
+    if (!stored) {
+      throw new BadRequestException('OTP not found or expired. Please request a new one.');
+    }
+
+    if (new Date() > stored.expiresAt) {
+      this.otpStore.delete(normalizedEmail);
+      throw new BadRequestException('OTP has expired. Please request a new one.');
+    }
+
+    // Check max attempts (3 attempts allowed)
+    if (stored.attempts >= stored.maxAttempts) {
+      this.otpStore.delete(normalizedEmail);
+      throw new BadRequestException('Maximum OTP attempts exceeded. Please request a new OTP.');
+    }
+
+    if (stored.otp !== otp) {
+      // Increment failed attempts
+      stored.attempts++;
+      const remainingAttempts = stored.maxAttempts - stored.attempts;
+      
+      if (stored.attempts >= stored.maxAttempts) {
+        this.otpStore.delete(normalizedEmail);
+        throw new BadRequestException('Maximum OTP attempts exceeded. Please request a new OTP.');
+      }
+      
+      throw new BadRequestException(`Invalid OTP. ${remainingAttempts} attempt${remainingAttempts > 1 ? 's' : ''} remaining.`);
+    }
+
+    // Validate password
+    if (!newPassword || newPassword.length < 6) {
+      throw new BadRequestException('Password must be at least 6 characters long');
+    }
+
+    // Hash new password
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    // Update password based on user type
+    if (stored.userType === 'user') {
+      const user = await this.userModel.findOneAndUpdate(
+        { email: normalizedEmail, isActive: true },
+        { $set: { passwordHash } },
+        { new: true }
+      );
+
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+    } else {
+      const employee = await this.employeeModel.findOneAndUpdate(
+        { email: normalizedEmail, status: { $in: ['active', 'inactive'] } },
+        { $set: { password: passwordHash } },
+        { new: true }
+      );
+
+      if (!employee) {
+        throw new NotFoundException('Employee not found');
+      }
+    }
+
+    // Clear OTP after successful reset
+    this.otpStore.delete(normalizedEmail);
+
+    return {
+      success: true,
+      message: 'Password reset successfully. Please login with your new password.',
+    };
+  }
+
+  // Find user by email (for OTP service)
+  async findUserByEmail(email: string): Promise<{ userType: 'user' | 'employee'; name: string } | null> {
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Check users collection first
+    const user = await this.userModel.findOne({ 
+      email: normalizedEmail, 
+      isActive: true 
+    }).lean();
+
+    if (user) {
+      const name = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email.split('@')[0];
+      return { userType: 'user', name };
+    }
+
+    // Check employees collection
+    const employee = await this.employeeModel.findOne({ 
+      email: normalizedEmail,
+      status: { $in: ['active', 'inactive'] }
+    }).lean();
+
+    if (employee) {
+      const name = `${employee.firstName || ''} ${employee.lastName || ''}`.trim() || employee.email.split('@')[0];
+      return { userType: 'employee', name };
+    }
+
+    return null;
+  }
+
+  // Reset password by email (used after OTP verification)
+  async resetPasswordByEmail(
+    email: string, 
+    newPassword: string,
+    userType: 'user' | 'employee'
+  ): Promise<void> {
+    const normalizedEmail = email.toLowerCase().trim();
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    if (userType === 'user') {
+      const user = await this.userModel.findOneAndUpdate(
+        { email: normalizedEmail, isActive: true },
+        { $set: { passwordHash } },
+        { new: true }
+      );
+
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+    } else {
+      const employee = await this.employeeModel.findOneAndUpdate(
+        { email: normalizedEmail, status: { $in: ['active', 'inactive'] } },
+        { $set: { password: passwordHash } },
+        { new: true }
+      );
+
+      if (!employee) {
+        throw new NotFoundException('Employee not found');
+      }
+    }
   }
 }

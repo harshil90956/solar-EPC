@@ -274,8 +274,8 @@ export class PermissionController {
 
   // ==================== CACHE MANAGEMENT ====================
 
-  @Post('cache/clear')
-  @UseGuards(AdminGuard)
+  @Get('cache/clear')
+   @UseGuards(AdminGuard)
   async clearPermissionCache(
     @Query('userId') userId?: string,
     @Query('roleId') roleId?: string,
