@@ -27,6 +27,7 @@ import { UpdateInstallationTasksConfigDto } from '../dto/installation-task.dto';
 import { UpdateCommissioningTasksConfigDto } from '../dto/commissioning-task.dto';
 import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
+import { AdminGuard } from '../../../core/auth/guards/admin.guard';
 import { 
   ToggleModuleDto, 
   UpdateFeatureFlagDto 
@@ -107,6 +108,7 @@ export class SettingsController {
 
   // ── Full Settings ─────────────────────────────────────────────────────────
   @Get()
+  @UseGuards(AdminGuard)
   async getFullSettings(@Request() req: any) {
     try {
       const tenantId = req.tenant?.id;
@@ -193,6 +195,7 @@ export class SettingsController {
    * GET /settings/flags
    */
   @Get('flags')
+  @UseGuards(AdminGuard)
   async getFeatureFlags(@Request() req: any) {
     const tenantId = req.tenant?.id;
     const flags = await this.featureFlagService.getAllFlags(tenantId);
@@ -204,6 +207,7 @@ export class SettingsController {
    * GET /settings/flags/:moduleId
    */
   @Get('flags/:moduleId')
+  @UseGuards(AdminGuard)
   async getFeatureFlag(
     @Param('moduleId') moduleId: string,
     @Request() req: any,
@@ -233,6 +237,7 @@ export class SettingsController {
    * GET /settings/flags/:moduleId/check
    */
   @Get('flags/:moduleId/check')
+  @UseGuards(AdminGuard)
   async checkModuleEnabled(
     @Param('moduleId') moduleId: string,
     @Request() req: any,
@@ -247,6 +252,7 @@ export class SettingsController {
    * GET /settings/flags/:moduleId/actions/:actionId/check
    */
   @Get('flags/:moduleId/actions/:actionId/check')
+  @UseGuards(AdminGuard)
   async checkActionEnabled(
     @Param('moduleId') moduleId: string,
     @Param('actionId') actionId: string,
@@ -262,6 +268,7 @@ export class SettingsController {
    * PUT /settings/flags/:moduleId
    */
   @Put('flags/:moduleId')
+  @UseGuards(AdminGuard)
   @UsePipes(new ValidationPipe({ transform: true }))
   async updateFeatureFlag(
     @Param('moduleId') moduleId: string,
@@ -290,6 +297,7 @@ export class SettingsController {
    * POST /settings/flags/:moduleId/toggle
    */
   @Post('flags/:moduleId/toggle')
+  @UseGuards(AdminGuard)
   @UsePipes(new ValidationPipe({ transform: true }))
   async toggleModule(
     @Param('moduleId') moduleId: string,
@@ -318,6 +326,7 @@ export class SettingsController {
    * POST /settings/flags/:moduleId/features/:featureId
    */
   @Post('flags/:moduleId/features/:featureId')
+  @UseGuards(AdminGuard)
   @UsePipes(new ValidationPipe({ transform: true }))
   async toggleFeature(
     @Param('moduleId') moduleId: string,
@@ -348,6 +357,7 @@ export class SettingsController {
    * POST /settings/flags/:moduleId/actions/:actionId
    */
   @Post('flags/:moduleId/actions/:actionId')
+  @UseGuards(AdminGuard)
   @UsePipes(new ValidationPipe({ transform: true }))
   async toggleAction(
     @Param('moduleId') moduleId: string,
@@ -378,6 +388,7 @@ export class SettingsController {
    * POST /settings/flags/:moduleId/reset
    */
   @Post('flags/:moduleId/reset')
+  @UseGuards(AdminGuard)
   async resetFeatureFlag(
     @Param('moduleId') moduleId: string,
     @Request() req: any,
@@ -398,6 +409,7 @@ export class SettingsController {
    * POST /settings/flags/reset-all
    */
   @Post('flags/reset-all')
+  @UseGuards(AdminGuard)
   async resetAllFeatureFlags(@Request() req: any) {
     const tenantId = req.tenant?.id;
     await this.featureFlagService.resetToDefaults(tenantId);
@@ -418,6 +430,7 @@ export class SettingsController {
    * GET /settings/rbac
    */
   @Get('rbac')
+  @UseGuards(AdminGuard)
   async getRBACConfigs(@Request() req: any) {
     const tenantId = req.tenant?.id;
     const rbac = await this.rbacService.getFullRBAC(tenantId);
@@ -429,6 +442,7 @@ export class SettingsController {
    * GET /settings/rbac/:roleId
    */
   @Get('rbac/:roleId')
+  @UseGuards(AdminGuard)
   async getRolePermissions(
     @Param('roleId') roleId: string,
     @Request() req: any,
@@ -443,6 +457,7 @@ export class SettingsController {
    * GET /settings/rbac/:roleId/:moduleId/:actionId
    */
   @Get('rbac/:roleId/:moduleId/:actionId')
+  @UseGuards(AdminGuard)
   async getPermission(
     @Param('roleId') roleId: string,
     @Param('moduleId') moduleId: string,
@@ -459,6 +474,7 @@ export class SettingsController {
    * GET /settings/rbac/:roleId/:moduleId
    */
   @Get('rbac/:roleId/:moduleId')
+  @UseGuards(AdminGuard)
   async getRBACConfig(
     @Param('roleId') roleId: string,
     @Param('moduleId') moduleId: string,
@@ -487,6 +503,7 @@ export class SettingsController {
    * PUT /settings/rbac/:roleId/:moduleId
    */
   @Put('rbac/:roleId/:moduleId')
+  @UseGuards(AdminGuard)
   @UsePipes(new ValidationPipe({ transform: true }))
   async updateRBAC(
     @Param('roleId') roleId: string,
@@ -511,6 +528,7 @@ export class SettingsController {
    * PATCH /settings/rbac/:roleId/:moduleId/:actionId
    */
   @Put('rbac/:roleId/:moduleId/:actionId')
+  @UseGuards(AdminGuard)
   @UsePipes(new ValidationPipe({ transform: true }))
   async updatePermission(
     @Param('roleId') roleId: string,
@@ -544,6 +562,7 @@ export class SettingsController {
    * POST /settings/rbac/:roleId/preset
    */
   @Post('rbac/:roleId/preset')
+  @UseGuards(AdminGuard)
   async applyPreset(
     @Param('roleId') roleId: string,
     @Body() body: { preset: 'full' | 'view_only' | 'none' },
@@ -563,24 +582,28 @@ export class SettingsController {
 
   // ── Workflow Rules ────────────────────────────────────────────────────────
   @Get('workflows')
+  @UseGuards(AdminGuard)
   async getWorkflowRules(@Request() req: any) {
     const tenantId = req.tenant?.id;
     return this.settingsService.getWorkflowRules(tenantId);
   }
 
   @Post('workflows')
+  @UseGuards(AdminGuard)
   async createWorkflowRule(@Body() body: any, @Request() req: any) {
     const tenantId = req.tenant?.id;
     return this.settingsService.createWorkflowRule(body, tenantId);
   }
 
   @Put('workflows/:wfId')
+  @UseGuards(AdminGuard)
   async updateWorkflowRule(@Param('wfId') wfId: string, @Body() body: any, @Request() req: any) {
     const tenantId = req.tenant?.id;
     return this.settingsService.updateWorkflowRule(wfId, body, tenantId);
   }
 
   @Delete('workflows/:wfId')
+  @UseGuards(AdminGuard)
   async deleteWorkflowRule(@Param('wfId') wfId: string, @Request() req: any) {
     const tenantId = req.tenant?.id;
     return this.settingsService.deleteWorkflowRule(wfId, tenantId);
@@ -588,12 +611,14 @@ export class SettingsController {
 
   // ── Audit Logs ────────────────────────────────────────────────────────────
   @Get('audit')
+  @UseGuards(AdminGuard)
   async getAuditLogs(@Request() req: any) {
     const tenantId = req.tenant?.id;
     return this.settingsService.getAuditLogs(tenantId);
   }
 
   @Post('audit')
+  @UseGuards(AdminGuard)
   async createAuditLog(@Body() body: any, @Request() req: any) {
     const tenantId = req.tenant?.id;
     return this.settingsService.createAuditLog(body, tenantId);
@@ -660,6 +685,7 @@ export class SettingsController {
    * GET /settings/debug-permission/:moduleId/:actionId
    */
   @Get('debug-permission/:moduleId/:actionId')
+  @UseGuards(AdminGuard)
   async debugPermission(
     @Param('moduleId') moduleId: string,
     @Param('actionId') actionId: string,
@@ -693,6 +719,7 @@ export class SettingsController {
    * GET /settings/custom-roles
    */
   @Get('custom-roles')
+  @UseGuards(AdminGuard)
   async getCustomRoles(@Request() req: any) {
     const tenantId = req.tenant?.id;
     const roles = await this.customRoleService.getCustomRoles(tenantId);
@@ -747,6 +774,7 @@ export class SettingsController {
    * GET /settings/custom-roles/:roleId
    */
   @Get('custom-roles/:roleId')
+  @UseGuards(AdminGuard)
   async getCustomRole(@Param('roleId') roleId: string, @Request() req: any) {
     const tenantId = req.tenant?.id;
     const role = await this.customRoleService.getCustomRole(tenantId, roleId);
@@ -777,6 +805,7 @@ export class SettingsController {
    * POST /settings/custom-roles
    */
   @Post('custom-roles')
+  @UseGuards(AdminGuard)
   @UsePipes(new ValidationPipe({ transform: true }))
   async createCustomRole(@Body() body: CreateCustomRoleDto, @Request() req: any) {
     const tenantId = req.tenant?.id;
@@ -804,6 +833,7 @@ export class SettingsController {
    * PATCH /settings/custom-roles/:roleId
    */
   @Put('custom-roles/:roleId')
+  @UseGuards(AdminGuard)
   @UsePipes(new ValidationPipe({ transform: true }))
   async updateCustomRole(
     @Param('roleId') roleId: string, 
@@ -829,6 +859,7 @@ export class SettingsController {
    * DELETE /settings/custom-roles/:roleId
    */
   @Delete('custom-roles/:roleId')
+  @UseGuards(AdminGuard)
   async deleteCustomRole(@Param('roleId') roleId: string, @Request() req: any) {
     const tenantId = req.tenant?.id;
     const role = await this.customRoleService.deleteCustomRole(tenantId, roleId, req.user?.id);
@@ -849,6 +880,7 @@ export class SettingsController {
    * PUT /settings/custom-roles/:roleId/permissions
    */
   @Put('custom-roles/:roleId/permissions')
+  @UseGuards(AdminGuard)
   @UsePipes(new ValidationPipe({ transform: true }))
   async updateCustomRolePermissions(
     @Param('roleId') roleId: string,
@@ -877,6 +909,7 @@ export class SettingsController {
    * POST /settings/custom-roles/:roleId/clone
    */
   @Post('custom-roles/:roleId/clone')
+  @UseGuards(AdminGuard)
   @UsePipes(new ValidationPipe({ transform: true }))
   async cloneRole(
     @Param('roleId') roleId: string,
@@ -904,6 +937,7 @@ export class SettingsController {
    * GET /settings/user-overrides
    */
   @Get('user-overrides')
+  @UseGuards(AdminGuard)
   async getUserOverrides(@Request() req: any) {
     const tenantId = req.tenant?.id;
     const overrides = await this.userOverrideService.getAllUserOverrides(tenantId);
@@ -928,6 +962,7 @@ export class SettingsController {
    * GET /settings/user-overrides/:userId
    */
   @Get('user-overrides/:userId')
+  @UseGuards(AdminGuard)
   async getUserOverride(@Param('userId') userId: string, @Request() req: any) {
     const tenantId = req.tenant?.id;
     const override = await this.userOverrideService.getUserOverride(tenantId, userId);
@@ -961,6 +996,7 @@ export class SettingsController {
    * PUT /settings/user-overrides/:userId/role
    */
   @Put('user-overrides/:userId/role')
+  @UseGuards(AdminGuard)
   @UsePipes(new ValidationPipe({ transform: true }))
   async assignCustomRole(
     @Param('userId') userId: string,
@@ -988,6 +1024,7 @@ export class SettingsController {
    * PUT /settings/user-overrides/:userId/permissions
    */
   @Put('user-overrides/:userId/permissions')
+  @UseGuards(AdminGuard)
   @UsePipes(new ValidationPipe({ transform: true }))
   async setPermissionOverride(
     @Param('userId') userId: string,
@@ -1019,6 +1056,7 @@ export class SettingsController {
    * DELETE /settings/user-overrides/:userId
    */
   @Delete('user-overrides/:userId')
+  @UseGuards(AdminGuard)
   async clearUserOverrides(@Param('userId') userId: string, @Request() req: any) {
     const tenantId = req.tenant?.id;
     await this.userOverrideService.clearUserOverrides(tenantId, userId, req.user?.id);
@@ -1039,6 +1077,7 @@ export class SettingsController {
    * POST /settings/view-as
    */
   @Post('view-as')
+  @UseGuards(AdminGuard)
   @UsePipes(new ValidationPipe({ transform: true }))
   async startViewAs(@Body() body: StartViewAsDto, @Request() req: any) {
     const adminUserId = req.user?.id;
@@ -1071,6 +1110,7 @@ export class SettingsController {
    * GET /settings/view-as
    */
   @Get('view-as')
+  @UseGuards(AdminGuard)
   async getViewAsStatus(@Request() req: any) {
     const adminUserId = req.user?.id;
     
@@ -1101,6 +1141,7 @@ export class SettingsController {
    * DELETE /settings/view-as
    */
   @Delete('view-as')
+  @UseGuards(AdminGuard)
   async endViewAs(@Request() req: any) {
     const adminUserId = req.user?.id;
     
@@ -1121,6 +1162,7 @@ export class SettingsController {
    * GET /settings/view-as/preview/:userId
    */
   @Get('view-as/preview/:userId')
+  @UseGuards(AdminGuard)
   async previewUserPermissions(
     @Param('userId') userId: string,
     @Request() req: any,
@@ -1145,6 +1187,7 @@ export class SettingsController {
 
   // ── Installation Task Checklist Builder ─────────────────────────────────
   @Get('installation/tasks')
+  @UseGuards(AdminGuard)
   async getInstallationTasks(@Request() req: any) {
     const tenantId = req.tenant?.id;
     const cfg = await this.installationTaskService.getConfig(tenantId);
@@ -1152,6 +1195,7 @@ export class SettingsController {
   }
 
   @Put('installation/tasks')
+  @UseGuards(AdminGuard)
   async updateInstallationTasks(
     @Body() body: UpdateInstallationTasksConfigDto,
     @Request() req: any,
@@ -1164,6 +1208,7 @@ export class SettingsController {
 
   // ── Commissioning Task Checklist Builder ────────────────────────────────
   @Get('commissioning/tasks')
+  @UseGuards(AdminGuard)
   async getCommissioningTasks(@Request() req: any) {
     const tenantId = req.tenant?.id;
     const cfg = await this.commissioningTaskService.getConfig(tenantId);
@@ -1171,6 +1216,7 @@ export class SettingsController {
   }
 
   @Put('commissioning/tasks')
+  @UseGuards(AdminGuard)
   async updateCommissioningTasks(
     @Body() body: UpdateCommissioningTasksConfigDto,
     @Request() req: any,
@@ -1183,6 +1229,7 @@ export class SettingsController {
 
   // ── Project Type Configs ────────────────────────────────────────────────
   @Get('project-types')
+  @UseGuards(AdminGuard)
   async getProjectTypeConfigs(@Request() req: any) {
     const tenantId = req.tenant?.id;
     const configs = await this.settingsService.getProjectTypeConfigs(tenantId);
@@ -1194,6 +1241,7 @@ export class SettingsController {
   }
 
   @Put('project-types/:typeId')
+  @UseGuards(AdminGuard)
   async updateProjectTypeConfig(@Param('typeId') typeId: string, @Body() body: any, @Request() req: any) {
     const tenantId = req.tenant?.id;
     return this.settingsService.updateProjectTypeConfig(typeId, body, tenantId);

@@ -9,6 +9,8 @@ import { Inventory, InventorySchema } from '../inventory/schemas/inventory.schem
 import { InventoryReservation, InventoryReservationSchema } from '../inventory/schemas/inventory-reservation.schema';
 import { DocumentEntity, DocumentEntitySchema } from '../document/schemas/document.schema';
 import { SettingsModule } from '../settings/settings.module';
+import { StockMovementService } from '../inventory/services/stock-movement.service';
+import { StockMovement, StockMovementSchema } from '../inventory/schemas/stock-movement.schema';
 
 @Module({
   imports: [
@@ -19,11 +21,12 @@ import { SettingsModule } from '../settings/settings.module';
       { name: Inventory.name, schema: InventorySchema },
       { name: InventoryReservation.name, schema: InventoryReservationSchema },
       { name: DocumentEntity.name, schema: DocumentEntitySchema },
+      { name: StockMovement.name, schema: StockMovementSchema },
     ]),
     SettingsModule,
   ],
   controllers: [ProjectsController],
-  providers: [ProjectsService],
+  providers: [ProjectsService, StockMovementService],
   exports: [ProjectsService, MongooseModule],
 })
 export class ProjectsModule {}

@@ -259,6 +259,10 @@ export class UpdateSiteSurveyDto {
 
 // Move to Active DTO
 export class MoveToActiveDto {
+  @IsString()
+  @IsOptional()
+  assignedTo?: string;
+
   @IsOptional()
   activeData!: ActiveSurveyDataDto;
 

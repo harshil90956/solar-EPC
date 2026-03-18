@@ -465,28 +465,18 @@ const DocumentPage = () => {
   const tableColumns = [
     {
       key: 'id',
-      header: 'Doc ID',
-      render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span>,
-    },
-    {
-      key: 'type',
-      header: 'Type',
-      render: v => (
-        <div className="flex items-center gap-1.5">
-          {React.createElement(DOCUMENT_TYPES[v]?.icon || FileText, { size: 14, style: { color: DOCUMENT_TYPES[v]?.color } })}
-          <span className="text-xs capitalize">{DOCUMENT_TYPES[v]?.label || v}</span>
-        </div>
-      ),
-    },
-    {
-      key: 'title',
-      header: 'Title',
-      render: v => <span className="text-xs font-medium text-[var(--text-primary)] line-clamp-1">{v}</span>,
+      header: 'Proposal #',
+      render: v => <span className="text-xs font-medium text-red-500 hover:text-red-600 cursor-pointer">{v}</span>,
     },
     {
       key: 'customerName',
       header: 'Customer',
       render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span>,
+    },
+    {
+      key: 'title',
+      header: 'Project',
+      render: v => <span className="text-xs text-[var(--text-muted)] line-clamp-1">{v}</span>,
     },
     {
       key: 'total',
@@ -500,18 +490,13 @@ const DocumentPage = () => {
         const config = DOCUMENT_STATUS[v] || DOCUMENT_STATUS.draft;
         return (
           <span
-            className="px-2 py-0.5 rounded-full text-[10px] font-medium"
+            className="px-2.5 py-1 rounded-full text-[10px] font-medium"
             style={{ background: config.bg, color: config.color }}
           >
             {config.label}
           </span>
         );
       },
-    },
-    {
-      key: 'createdAt',
-      header: 'Created',
-      render: v => <span className="text-xs text-[var(--text-muted)]">{new Date(v).toLocaleDateString()}</span>,
     },
     {
       key: 'actions',
@@ -524,20 +509,20 @@ const DocumentPage = () => {
               setActionMenuOpen(actionMenuOpen === doc.id ? null : doc.id);
             }}
             disabled={isProcessing}
-            className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
           >
             <MoreVertical size={16} />
           </button>
           
           {actionMenuOpen === doc.id && (
-            <div className="action-menu-container absolute right-0 mt-1 w-48 bg-[var(--bg-elevated)] border border-[var(--border-base)] rounded-lg shadow-lg z-50 py-1">
+            <div className="action-menu-container absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   handleApproveDocument(doc);
                 }}
                 disabled={isProcessing || doc.status === 'approved'}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-[var(--bg-hover)] transition-colors disabled:opacity-50"
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-gray-50 transition-colors disabled:opacity-50"
               >
                 <CheckCircle size={14} className="text-emerald-500" />
                 <span>Approve & Create Project</span>
@@ -549,7 +534,7 @@ const DocumentPage = () => {
                   handleSendEmailAndComplete(doc);
                 }}
                 disabled={isProcessing || !doc.customerEmail}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-[var(--bg-hover)] transition-colors disabled:opacity-50"
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-gray-50 transition-colors disabled:opacity-50"
               >
                 <Mail size={14} className="text-blue-500" />
                 <span>Send Email & Complete</span>
@@ -561,13 +546,11 @@ const DocumentPage = () => {
                   handleMarkAsCompleted(doc);
                 }}
                 disabled={isProcessing}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-[var(--bg-hover)] transition-colors disabled:opacity-50"
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-gray-50 transition-colors disabled:opacity-50"
               >
                 <FileCheck size={14} className="text-purple-500" />
                 <span>Mark as Completed</span>
               </button>
-              
-              {/* Removed Send Document and Duplicate as per user request */}
               
               <button
                 onClick={(e) => {
@@ -575,7 +558,7 @@ const DocumentPage = () => {
                   handleDeleteDocument(doc);
                   setActionMenuOpen(null);
                 }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-red-400/10 text-red-400 transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-red-50 text-red-500 transition-colors"
               >
                 <Trash2 size={14} />
                 <span>Delete</span>
@@ -931,73 +914,111 @@ const DocumentPage = () => {
   // ── Document List View ───────────────────────────────────────────────────────
   const DocumentListView = () => {
     const [selectedDocForView, setSelectedDocForView] = useState(null);
+    const [statusFilter, setStatusFilter] = useState('all');
+
+    const filteredByStatus = useMemo(() => {
+      if (statusFilter === 'all') return filteredDocuments;
+      return filteredDocuments.filter(d => d.status === statusFilter);
+    }, [filteredDocuments, statusFilter]);
 
     return (
       <div className="space-y-4 animate-fade-in">
-        {/* Toolbar */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-            <div className="relative flex-1">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+        {/* Clean Toolbar - Matching Proposal Page */}
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-lg border border-gray-200">
+          <div className="flex items-center gap-3">
+            {/* Search */}
+            <div className="relative">
+              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search documents..."
+                placeholder="Search..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-base)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--primary)]"
+                className="w-[200px] pl-10 pr-4 py-2 rounded-lg bg-gray-50 border border-gray-200 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:border-gray-300"
               />
             </div>
-            <button className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-base)] text-xs font-medium text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors">
-              <Filter size={14} />
-              Filter
-            </button>
+
+            {/* Status Filter Dropdown */}
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-4 py-2 rounded-lg bg-gray-50 border border-gray-200 text-sm text-gray-700 focus:outline-none focus:border-gray-300"
+            >
+              <option value="all">All Status</option>
+              <option value="draft">Draft</option>
+              <option value="sent">Sent</option>
+              <option value="accepted">Accepted</option>
+              <option value="rejected">Rejected</option>
+            </select>
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="flex items-center p-1 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-base)]">
-              <button
-                onClick={() => setViewMode('grid')}
-                className={cn(
-                  'p-1.5 rounded-lg transition-colors',
-                  viewMode === 'grid' ? 'bg-[var(--primary)] text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                )}
-              >
-                <LayoutGrid size={16} />
-              </button>
+            {/* View Toggle */}
+            <div className="flex items-center p-1 rounded-lg bg-gray-100 border border-gray-200">
               <button
                 onClick={() => setViewMode('list')}
                 className={cn(
-                  'p-1.5 rounded-lg transition-colors',
-                  viewMode === 'list' ? 'bg-[var(--primary)] text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  'p-1.5 rounded-md transition-colors',
+                  viewMode === 'list' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
                 )}
               >
                 <List size={16} />
               </button>
+              <button
+                onClick={() => setViewMode('grid')}
+                className={cn(
+                  'p-1.5 rounded-md transition-colors',
+                  viewMode === 'grid' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                )}
+              >
+                <LayoutGrid size={16} />
+              </button>
             </div>
 
-            <Button onClick={() => setIsCreateModalOpen(true)} className="flex items-center gap-1.5">
+            {/* Convert from Estimate Button */}
+            <button
+              onClick={() => {
+                if (window.openEstimateModal) {
+                  window.openEstimateModal();
+                } else {
+                  setIsCreateModalOpen(true);
+                }
+              }}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-900 text-white text-sm font-medium transition-colors"
+            >
+              <span>Convert from Estimate</span>
+            </button>
+
+            {/* Create Proposal Button - Red */}
+            <button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm font-medium transition-colors"
+            >
               <Plus size={16} />
-              <span className="hidden sm:inline">Add Document</span>
-            </Button>
+              <span>Create Proposal</span>
+            </button>
           </div>
         </div>
 
         {/* Documents Display */}
-        {filteredDocuments.length === 0 ? (
-          <div className="glass-card p-12 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-[var(--bg-elevated)] flex items-center justify-center mx-auto mb-4">
-              <FileText size={32} className="text-[var(--text-muted)]" />
+        {filteredByStatus.length === 0 ? (
+          <div className="bg-white p-12 text-center rounded-lg border border-gray-200">
+            <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-4">
+              <FileText size={32} className="text-gray-400" />
             </div>
-            <h3 className="text-lg font-bold text-[var(--text-primary)] mb-1">No documents found</h3>
-            <p className="text-sm text-[var(--text-muted)] mb-4">Create your first document to get started</p>
-            <Button onClick={() => setIsCreateModalOpen(true)}>
-              <Plus size={16} className="mr-1.5" />
-              Create Document
-            </Button>
+            <h3 className="text-lg font-bold text-gray-800 mb-1">No proposals found</h3>
+            <p className="text-sm text-gray-500 mb-4">Create your first proposal to get started</p>
+            <button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm font-medium transition-colors mx-auto"
+            >
+              <Plus size={16} />
+              Create Proposal
+            </button>
           </div>
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredDocuments.map(doc => (
+            {filteredByStatus.map(doc => (
               <DocumentCard
                 key={doc.id}
                 document={doc}
@@ -1009,10 +1030,10 @@ const DocumentPage = () => {
             ))}
           </div>
         ) : (
-          <div className="glass-card overflow-hidden">
+          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
             <DataTable 
               columns={tableColumns} 
-              data={filteredDocuments} 
+              data={filteredByStatus} 
               onRowClick={(doc) => setSelectedDocForView(doc)}
             />
           </div>

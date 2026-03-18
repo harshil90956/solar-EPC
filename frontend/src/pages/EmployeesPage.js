@@ -86,9 +86,11 @@ const EmployeeViewModal = ({ employee, onClose, onEdit, inline = false }) => {
     return (
       <div>
         {content}
-        <div className="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-[var(--border-muted)]">
-          <button onClick={() => { onClose(); onEdit(employee); }} className="flex items-center gap-1.5 px-4 py-1.5 text-xs rounded-xl bg-[var(--primary)] text-white hover:opacity-90 transition-opacity"><Edit size={13} /> Edit Employee</button>
-        </div>
+        {onEdit && (
+          <div className="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-[var(--border-muted)]">
+            <button onClick={() => { onClose(); onEdit(employee); }} className="flex items-center gap-1.5 px-4 py-1.5 text-xs rounded-xl bg-[var(--primary)] text-white hover:opacity-90 transition-opacity"><Edit size={13} /> Edit Employee</button>
+          </div>
+        )}
       </div>
     );
   }
@@ -98,7 +100,9 @@ const EmployeeViewModal = ({ employee, onClose, onEdit, inline = false }) => {
     <Modal open={!!employee} onClose={onClose} title="" size="lg" footer={
       <div className="flex items-center justify-between">
         <button onClick={onClose} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-xl border border-[var(--border-base)] text-[var(--text-muted)] hover:bg-[var(--bg-elevated)] transition-colors"><X size={13} /> Close</button>
-        <button onClick={() => { onClose(); onEdit(employee); }} className="flex items-center gap-1.5 px-4 py-1.5 text-xs rounded-xl bg-[var(--primary)] text-white hover:opacity-90 transition-opacity"><Edit size={13} /> Edit Employee</button>
+        {onEdit && (
+          <button onClick={() => { onClose(); onEdit(employee); }} className="flex items-center gap-1.5 px-4 py-1.5 text-xs rounded-xl bg-[var(--primary)] text-white hover:opacity-90 transition-opacity"><Edit size={13} /> Edit Employee</button>
+        )}
       </div>
     }>
       {content}
@@ -116,8 +120,21 @@ const EmployeesPage = () => {
     canEdit, 
     canDelete, 
     canExport, 
-    columns 
+    columns,
+    permissions,
+    userRole
   } = usePermissions('employees');
+  
+  // Debug permissions
+  useEffect(() => {
+    console.log('[DEBUG] usePermissions result:', { 
+      userRole, 
+      permissions, 
+      canEdit: canEdit(),
+      canCreate: canCreate(),
+      canDelete: canDelete()
+    });
+  }, [permissions, userRole]);
   
   const [employees, setEmployees] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -263,6 +280,17 @@ const EmployeesPage = () => {
     }
   };
 
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this employee?')) return;
+    try {
+      await employeeApi.delete(id);
+      toast.success('Employee deleted successfully');
+      fetchEmployees();
+    } catch (error) {
+      toast.error('Failed to delete employee');
+    }
+  };
+
   const handleEdit = (employee) => {
     setEditingEmployee(employee);
     setFormData({
@@ -282,17 +310,6 @@ const EmployeesPage = () => {
       emergencyPhone: employee.emergencyPhone || '',
     });
     setShowModal(true);
-  };
-
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this employee?')) return;
-    try {
-      await employeeApi.delete(id);
-      toast.success('Employee deleted successfully');
-      fetchEmployees();
-    } catch (error) {
-      toast.error('Failed to delete employee');
-    }
   };
 
   const resetForm = () => {
@@ -407,17 +424,25 @@ const EmployeesPage = () => {
       key: 'roleId',
       header: 'Role',
       render: (val) => {
-        const role = Object.values(customRoles || {}).find(r => (r._id || r.id) === val);
-        return <span className="text-sm">{role?.label || role?.name || val || '-'}</span>;
+        // customRoles is an object/dictionary: { roleId: { id, label, ... } }
+        const role = customRoles?.[val];
+        if (role) {
+          return <span className="text-sm">{role.label || role.name || val}</span>;
+        }
+        // Fallback: try array search if customRoles is array
+        const roleFromArray = Array.isArray(customRoles) 
+          ? customRoles.find(r => (r._id || r.id) === val)
+          : null;
+        return <span className="text-sm">{roleFromArray?.label || roleFromArray?.name || val || '-'}</span>;
       },
     },
     columns.joinDate && {
-      key: 'joinDate',
+      key: 'joiningDate',
       header: 'Join Date',
       render: (val) => (
         <div className="flex items-center gap-2">
           <Calendar size={14} className="text-[var(--text-muted)]" />
-          <span className="text-sm">{val ? new Date(val).toLocaleDateString() : '-'}</span>
+          <span className="text-sm">{val ? new Date(val).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}</span>
         </div>
       ),
     },
@@ -612,14 +637,44 @@ const EmployeesPage = () => {
           data={filteredEmployees}
           emptyText={kpiFilter ? `No ${kpiFilter} employees found.` : "No employees found."}
           loading={loading}
+          onRowClick={(row) => setViewEmployee(row)}
           expandedRowKey={viewEmployee?._id}
           renderExpanded={(emp) => (
             <div className="p-4 border-t border-[var(--border-muted)] bg-gradient-to-b from-white to-[var(--bg-elevated)]">
-              <EmployeeViewModal employee={emp} onClose={() => setViewEmployee(null)} onEdit={canEdit() ? (e) => handleEdit(e) : null} inline />
+              <EmployeeViewModal employee={emp} onClose={() => setViewEmployee(null)} onEdit={canEdit() ? handleEdit : null} inline />
             </div>
           )}
         />
       </div>
+
+      {/* Employee Detail Modal (Popup) */}
+      {viewEmployee && (
+        <Modal
+          open={!!viewEmployee}
+          onClose={() => setViewEmployee(null)}
+          title="Employee Details"
+          size="lg"
+          footer={
+            <div className="flex items-center justify-between">
+              <Button variant="ghost" onClick={() => setViewEmployee(null)}>
+                Close
+              </Button>
+              {canEdit() && (
+                <Button onClick={() => { setViewEmployee(null); handleEdit(viewEmployee); }}>
+                  Edit Employee
+                </Button>
+              )}
+            </div>
+          }
+        >
+          <EmployeeViewModal 
+            employee={viewEmployee} 
+            onClose={() => setViewEmployee(null)} 
+            onEdit={canEdit() ? handleEdit : null} 
+            inline 
+          />
+        </Modal>
+      )}
 
       {/* Add/Edit Modal */}
       <Modal

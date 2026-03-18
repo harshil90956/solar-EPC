@@ -60,7 +60,7 @@ const MODULE_TYPES = [
 ];
 
 // Table columns definition
-const COLUMNS = [
+const getColumns = ({ onStartSurvey, onFillForm }) => [
   {
     key: 'surveyId',
     header: 'Survey ID',
@@ -110,6 +110,43 @@ const COLUMNS = [
         {v ? format(new Date(v), 'dd MMM yyyy') : '—'}
       </span>
     ),
+  },
+  {
+    key: '__action',
+    header: '',
+    render: (_v, row) => {
+      if (row?.status === 'pending') {
+        return (
+          <div onClick={(e) => e.stopPropagation()} className="flex justify-end">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onStartSurvey(row)}
+              className="h-7 px-2 text-xs"
+            >
+              <Play size={14} className="mr-1" />
+              Start
+            </Button>
+          </div>
+        );
+      }
+      if (row?.status === 'active') {
+        return (
+          <div onClick={(e) => e.stopPropagation()} className="flex justify-end">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onFillForm(row)}
+              className="h-7 px-2 text-xs"
+            >
+              <FileText size={14} className="mr-1" />
+              Fill Form
+            </Button>
+          </div>
+        );
+      }
+      return null;
+    },
   },
 ];
 
@@ -792,7 +829,14 @@ const SurveyCard = ({ survey, onView, onStart, onComplete, onDelete }) => {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-xs font-mono text-[var(--primary)] font-semibold">{survey.surveyId}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-xs font-mono text-[var(--primary)] font-semibold">{survey.surveyId}</p>
+            {survey.isFromLead && (
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-purple-100 text-purple-700 border border-purple-200">
+                From Lead
+              </span>
+            )}
+          </div>
           <p className="text-sm font-bold text-[var(--text-primary)] line-clamp-1">{survey.clientName}</p>
         </div>
         <div
@@ -890,8 +934,8 @@ const SurveyCard = ({ survey, onView, onStart, onComplete, onDelete }) => {
 };
 
 // ── Assign Survey Modal (Pending → Active) ───────────────────────────────────
-const PendingToActiveModal = ({ isOpen, onClose, survey, onSubmit }) => {
-  const [formData, setFormData] = useState({ engineer: '', surveyDate: format(new Date(), 'yyyy-MM-dd'), notes: '' });
+const PendingToActiveModal = ({ isOpen, onClose, survey, onSubmit, onAssign }) => {
+  const [formData, setFormData] = useState({ engineerId: '', engineerName: '', surveyDate: format(new Date(), 'yyyy-MM-dd'), notes: '' });
   const [employees, setEmployees] = useState([]);
   const [empLoading, setEmpLoading] = useState(false);
 
@@ -915,7 +959,13 @@ const PendingToActiveModal = ({ isOpen, onClose, survey, onSubmit }) => {
   }, [isOpen]);
 
   useEffect(() => {
-    if (survey) setFormData(prev => ({ ...prev, engineer: survey.engineer || '', surveyDate: format(new Date(), 'yyyy-MM-dd') }));
+    if (!survey) return;
+    setFormData(prev => ({
+      ...prev,
+      engineerId: '',
+      engineerName: survey.engineer || '',
+      surveyDate: format(new Date(), 'yyyy-MM-dd'),
+    }));
   }, [survey]);
 
   const set = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
@@ -928,18 +978,36 @@ const PendingToActiveModal = ({ isOpen, onClose, survey, onSubmit }) => {
     return acc;
   }, {});
 
-  const engineerLabel = employees.find(e =>
-    `${e.firstName} ${e.lastName}`.trim() === formData.engineer ||
-    e._id === formData.engineer
-  );
+  const engineerLabel = employees.find(e => e._id === formData.engineerId);
 
   return (
     <Modal open={isOpen} onClose={onClose} title="Assign Survey" size="md"
       footer={
         <div className="flex justify-end gap-3">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button onClick={() => onSubmit({ engineer: formData.engineer, solarConsultant: formData.engineer, scheduledDate: formData.surveyDate, notes: formData.notes, activeData: { assignedAt: new Date().toISOString(), scheduledDate: formData.surveyDate } })} disabled={!formData.engineer} className="bg-amber-500 hover:bg-amber-600">
-            <Play size={16} className="mr-2" /> Start Survey
+          <Button
+            onClick={async () => {
+              if (!formData.engineerId) {
+                toast.error('Please select an engineer');
+                return;
+              }
+              try {
+                await onSubmit({
+                  assignedTo: formData.engineerId,
+                  engineer: formData.engineerName,
+                  solarConsultant: formData.engineerName,
+                  scheduledDate: formData.surveyDate,
+                  notes: formData.notes,
+                  activeData: { assignedAt: new Date().toISOString(), scheduledDate: formData.surveyDate }
+                });
+              } catch (e) {
+                toast.error(e?.response?.data?.message || e?.message || 'Failed to start survey');
+              }
+            }}
+            disabled={!formData.engineerId}
+            className="bg-amber-500 hover:bg-amber-600"
+          >
+            <Play size={16} className="mr-2" /> Assign & Start
           </Button>
         </div>
       }
@@ -965,8 +1033,13 @@ const PendingToActiveModal = ({ isOpen, onClose, survey, onSubmit }) => {
               <HardHat size={14} className="inline mr-1" /> Assign Engineer *
             </label>
             <select
-              value={formData.engineer}
-              onChange={e => set('engineer', e.target.value)}
+              value={formData.engineerId}
+              onChange={e => {
+                const id = e.target.value;
+                const emp = employees.find(x => x._id === id);
+                const fullName = emp ? `${emp.firstName} ${emp.lastName}`.trim() : '';
+                setFormData(prev => ({ ...prev, engineerId: id, engineerName: fullName }));
+              }}
               disabled={empLoading}
               className="w-full border border-[var(--border-base)] bg-[var(--bg-elevated)] rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 text-[var(--text-primary)] disabled:opacity-50"
             >
@@ -978,7 +1051,7 @@ const PendingToActiveModal = ({ isOpen, onClose, survey, onSubmit }) => {
                   {emps.map(emp => {
                     const fullName = `${emp.firstName} ${emp.lastName}`.trim();
                     return (
-                      <option key={emp._id} value={fullName}>
+                      <option key={emp._id} value={emp._id}>
                         {fullName}{emp.designation ? ` (${emp.designation})` : ''}
                       </option>
                     );
@@ -1043,7 +1116,19 @@ const ActiveToCompleteModal = ({ isOpen, onClose, survey, onSubmit, isAdmin, onS
 
   useEffect(() => {
     if (survey) {
-      setFormData(prev => ({ ...prev, engineerName: survey.solarConsultant || '' }));
+      const completeData = survey?.completeData || {};
+      setFormData(prev => ({
+        ...prev,
+        engineerName: survey.solarConsultant || '',
+        finalImages: Array.isArray(completeData.finalImages) ? completeData.finalImages : prev.finalImages,
+        finalNotes: completeData.finalNotes ?? prev.finalNotes,
+        engineerApproval: typeof completeData.engineerApproval === 'boolean' ? completeData.engineerApproval : prev.engineerApproval,
+        completionDate: completeData.completionDate
+          ? format(new Date(completeData.completionDate), 'yyyy-MM-dd')
+          : prev.completionDate,
+        panelPlacementDetails: completeData.panelPlacementDetails ?? prev.panelPlacementDetails,
+        finalDrawing: completeData.finalDrawing || prev.finalDrawing,
+      }));
       setEditForm({
         clientName: survey.clientName || '',
         city: survey.city || '',
@@ -1142,10 +1227,16 @@ const ActiveToCompleteModal = ({ isOpen, onClose, survey, onSubmit, isAdmin, onS
     <Modal open={isOpen} onClose={onClose} title="" size="xl"
       footer={
         <div className="flex justify-end gap-3">
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button onClick={() => onSubmit({ completeData: { ...formData, completionDate: new Date().toISOString() } })} disabled={uploading || !formData.engineerApproval} className="bg-emerald-500 hover:bg-emerald-600">
-            <CheckCircle size={16} className="mr-2" /> Complete Survey
-          </Button>
+          <Button variant="ghost" onClick={onClose}>{survey?.status === 'complete' ? 'Close' : 'Cancel'}</Button>
+          {survey?.status !== 'complete' && (
+            <Button
+              onClick={() => onSubmit({ completeData: { ...formData, completionDate: new Date().toISOString() } })}
+              disabled={uploading || !formData.engineerApproval}
+              className="bg-emerald-500 hover:bg-emerald-600"
+            >
+              <CheckCircle size={16} className="mr-2" /> Complete Survey
+            </Button>
+          )}
         </div>
       }
     >
@@ -1616,6 +1707,356 @@ const SurveyDetailsModal = ({ isOpen, onClose, survey }) => {
   );
 };
 
+const CompletedSurveyPdfModal = ({ isOpen, onClose, survey }) => {
+  if (!survey || !isOpen) return null;
+
+  const activeData = survey.activeData || {};
+  const completeData = survey.completeData || {};
+
+  const displayDate = (d) => {
+    if (!d) return '—';
+    try {
+      return format(new Date(d), 'dd MMM yyyy');
+    } catch {
+      return '—';
+    }
+  };
+
+  const handlePrint = () => {
+    try {
+      window.print();
+    } catch {
+      toast.error('Print failed');
+    }
+  };
+
+  const safeCapacity = (() => {
+    const val = (survey.projectCapacity ?? '').toString();
+    if (!val) return '—';
+    return val.toLowerCase().includes('kw') ? val : `${val} kWp`;
+  })();
+
+  const normalizeDrawing = (d) => {
+    if (!d || typeof d !== 'object') return null;
+    return {
+      lines: Array.isArray(d.lines) ? d.lines : [],
+      rects: Array.isArray(d.rects) ? d.rects : [],
+      circles: Array.isArray(d.circles) ? d.circles : [],
+      freehand: Array.isArray(d.freehand) ? d.freehand : [],
+      dimensions: Array.isArray(d.dimensions) ? d.dimensions : [],
+      textLabels: Array.isArray(d.textLabels) ? d.textLabels : [],
+    };
+  };
+
+  const drawingData = normalizeDrawing(completeData.finalDrawing) || normalizeDrawing(activeData.roofDrawing);
+
+  const renderDrawingSvg = () => {
+    if (!drawingData) return null;
+
+    const allPoints = [];
+    drawingData.lines.forEach(l => {
+      if (typeof l?.startX === 'number' && typeof l?.startY === 'number') allPoints.push({ x: l.startX, y: l.startY });
+      if (typeof l?.endX === 'number' && typeof l?.endY === 'number') allPoints.push({ x: l.endX, y: l.endY });
+    });
+    drawingData.rects.forEach(r => {
+      if (typeof r?.x === 'number' && typeof r?.y === 'number') allPoints.push({ x: r.x, y: r.y });
+      if (typeof r?.x2 === 'number' && typeof r?.y2 === 'number') allPoints.push({ x: r.x2, y: r.y2 });
+    });
+    drawingData.circles.forEach(c => {
+      if (typeof c?.cx === 'number' && typeof c?.cy === 'number') allPoints.push({ x: c.cx, y: c.cy });
+      if (typeof c?.r === 'number') {
+        allPoints.push({ x: c.cx + c.r, y: c.cy + c.r });
+        allPoints.push({ x: c.cx - c.r, y: c.cy - c.r });
+      }
+    });
+    drawingData.freehand.forEach(stroke => {
+      if (Array.isArray(stroke?.points)) {
+        stroke.points.forEach(p => {
+          if (typeof p?.x === 'number' && typeof p?.y === 'number') allPoints.push({ x: p.x, y: p.y });
+        });
+      }
+    });
+    drawingData.textLabels.forEach(t => {
+      if (typeof t?.x === 'number' && typeof t?.y === 'number') allPoints.push({ x: t.x, y: t.y });
+    });
+
+    if (allPoints.length === 0) return null;
+
+    const minX = Math.min(...allPoints.map(p => p.x));
+    const minY = Math.min(...allPoints.map(p => p.y));
+    const maxX = Math.max(...allPoints.map(p => p.x));
+    const maxY = Math.max(...allPoints.map(p => p.y));
+    const pad = 20;
+    const w = Math.max(1, (maxX - minX) + pad * 2);
+    const h = Math.max(1, (maxY - minY) + pad * 2);
+    const viewBox = `${minX - pad} ${minY - pad} ${w} ${h}`;
+
+    return (
+      <svg viewBox={viewBox} className="w-full h-64 bg-white border border-gray-200 rounded-md">
+        <defs>
+          <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+            <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#f1f5f9" strokeWidth="1" />
+          </pattern>
+        </defs>
+        <rect x={minX - pad} y={minY - pad} width={w} height={h} fill="url(#grid)" />
+
+        {drawingData.lines.map((l, idx) => (
+          <line
+            key={`l-${idx}`}
+            x1={l.startX}
+            y1={l.startY}
+            x2={l.endX}
+            y2={l.endY}
+            stroke={l.color || '#2563eb'}
+            strokeWidth={l.strokeWidth || 2}
+          />
+        ))}
+
+        {drawingData.rects.map((r, idx) => {
+          const x = r.x;
+          const y = r.y;
+          const width = (r.x2 ?? x) - x;
+          const height = (r.y2 ?? y) - y;
+          return (
+            <rect
+              key={`r-${idx}`}
+              x={x}
+              y={y}
+              width={width}
+              height={height}
+              fill="transparent"
+              stroke={r.color || '#2563eb'}
+              strokeWidth={r.strokeWidth || 2}
+            />
+          );
+        })}
+
+        {drawingData.circles.map((c, idx) => (
+          <circle
+            key={`c-${idx}`}
+            cx={c.cx}
+            cy={c.cy}
+            r={c.r}
+            fill="transparent"
+            stroke={c.color || '#2563eb'}
+            strokeWidth={c.strokeWidth || 2}
+          />
+        ))}
+
+        {drawingData.freehand.map((stroke, idx) => {
+          const pts = Array.isArray(stroke?.points) ? stroke.points : [];
+          if (pts.length < 2) return null;
+          const d = `M ${pts[0].x} ${pts[0].y} ` + pts.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ');
+          return (
+            <path
+              key={`f-${idx}`}
+              d={d}
+              fill="none"
+              stroke={stroke.color || '#2563eb'}
+              strokeWidth={stroke.strokeWidth || 2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          );
+        })}
+
+        {drawingData.textLabels.map((t, idx) => (
+          <text key={`t-${idx}`} x={t.x} y={t.y} fontSize={t.fontSize || 14} fill={t.color || '#0f172a'}>
+            {t.text}
+          </text>
+        ))}
+      </svg>
+    );
+  };
+
+  const finalImages = Array.isArray(completeData.finalImages) ? completeData.finalImages : [];
+  const topImages = finalImages.slice(0, 3);
+
+  return (
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      title="Survey Report Preview"
+      size="xl"
+      footer={
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>Close</Button>
+          <Button variant="outline" onClick={handlePrint}>
+            <Download size={16} /> Print / Save PDF
+          </Button>
+        </div>
+      }
+    >
+      <style>{`
+        @media print {
+          body * { visibility: hidden !important; }
+          #survey-pdf-preview, #survey-pdf-preview * { visibility: visible !important; }
+          #survey-pdf-preview { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; }
+        }
+
+        @page {
+          size: A4;
+          margin: 12mm;
+        }
+
+        #survey-pdf-preview {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+
+        #survey-pdf-preview .no-print {
+          display: block;
+        }
+
+        @media print {
+          #survey-pdf-preview { box-shadow: none !important; border: none !important; }
+          #survey-pdf-preview .no-print { display: none !important; }
+        }
+      `}</style>
+
+      <div className="max-h-[75vh] overflow-y-auto bg-[var(--bg-surface)] p-4">
+        <div id="survey-pdf-preview" className="mx-auto bg-white text-gray-900 shadow-sm border border-gray-200 overflow-hidden" style={{ maxWidth: 900 }}>
+          <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-slate-900 to-slate-700 text-white">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold text-white/80">Solar EPC</p>
+                <h2 className="text-2xl font-bold tracking-tight">Site Survey Report</h2>
+                <p className="text-sm text-white/90 mt-1">Survey ID: <span className="font-mono text-white">{survey.surveyId || '—'}</span></p>
+              </div>
+              <div className="text-right">
+                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-white/10 border border-white/20 backdrop-blur-sm">{(survey.status || 'complete').toString().toUpperCase()}</span>
+                <p className="text-sm text-white/90 mt-2">Report Date: <span className="font-semibold text-white">{displayDate(completeData.completionDate || survey.updatedAt || survey.createdAt)}</span></p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6 space-y-5">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="rounded-xl p-4 border border-gray-200 bg-white">
+                <p className="text-[11px] font-semibold text-gray-500 uppercase">Customer</p>
+                <p className="text-base font-bold text-gray-900 mt-1">{survey.clientName || '—'}</p>
+                <p className="text-sm text-gray-700 mt-1 flex items-center gap-1"><MapPin size={14} className="text-gray-400" /> {survey.city || '—'}</p>
+              </div>
+              <div className="rounded-xl p-4 border border-gray-200 bg-white">
+                <p className="text-[11px] font-semibold text-gray-500 uppercase">Project</p>
+                <div className="mt-2 grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-[11px] font-semibold text-gray-500 uppercase">Capacity</p>
+                    <p className="text-sm font-semibold text-gray-900">{safeCapacity}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-semibold text-gray-500 uppercase">Floors</p>
+                    <p className="text-sm font-semibold text-gray-900">{survey.floors ?? '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-semibold text-gray-500 uppercase">Engineer</p>
+                    <p className="text-sm font-semibold text-gray-900">{survey.engineer || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-semibold text-gray-500 uppercase">Survey Date</p>
+                    <p className="text-sm font-semibold text-gray-900">{displayDate(activeData.scheduledDate || survey.createdAt)}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="border border-gray-200 rounded-xl p-4">
+              <h3 className="text-sm font-bold text-gray-900">Pre-Sales Site Assessment</h3>
+              <div className="grid grid-cols-2 gap-3 mt-3">
+                <div className="bg-slate-50 rounded-lg p-3">
+                  <p className="text-[11px] font-semibold text-slate-500 uppercase">Roof Type</p>
+                  <p className="text-sm font-semibold text-slate-900 mt-1">{survey.roofType ? survey.roofType.replace('_', ' ') : '—'}</p>
+                </div>
+                <div className="bg-slate-50 rounded-lg p-3">
+                  <p className="text-[11px] font-semibold text-slate-500 uppercase">Structure Type</p>
+                  <p className="text-sm font-semibold text-slate-900 mt-1">{survey.structureType ? survey.structureType.replace('_', ' ') : '—'}</p>
+                </div>
+                <div className="bg-slate-50 rounded-lg p-3">
+                  <p className="text-[11px] font-semibold text-slate-500 uppercase">Structure Height</p>
+                  <p className="text-sm font-semibold text-slate-900 mt-1">{survey.structureHeight ? `${survey.structureHeight}${survey.customHeight ? ` (${survey.customHeight})` : ''}` : '—'}</p>
+                </div>
+                <div className="bg-slate-50 rounded-lg p-3">
+                  <p className="text-[11px] font-semibold text-slate-500 uppercase">Module Type</p>
+                  <p className="text-sm font-semibold text-slate-900 mt-1">{survey.moduleType || '—'}</p>
+                </div>
+                <div className="bg-slate-50 rounded-lg p-3 col-span-2">
+                  <p className="text-[11px] font-semibold text-slate-500 uppercase">Solar Consultant</p>
+                  <p className="text-sm font-semibold text-slate-900 mt-1">{survey.solarConsultant || '—'}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="border border-gray-200 rounded-xl p-4">
+              <h3 className="text-sm font-bold text-gray-900">Survey Completion</h3>
+              <div className="grid grid-cols-2 gap-3 mt-3">
+                <div className="bg-emerald-50 rounded-lg p-3 border border-emerald-100">
+                  <p className="text-[11px] font-semibold text-emerald-700 uppercase">Completion Date</p>
+                  <p className="text-sm font-semibold text-emerald-950 mt-1">{displayDate(completeData.completionDate)}</p>
+                </div>
+                <div className="bg-emerald-50 rounded-lg p-3 border border-emerald-100">
+                  <p className="text-[11px] font-semibold text-emerald-700 uppercase">Engineer Approval</p>
+                  <p className="text-sm font-semibold text-emerald-950 mt-1">{completeData.engineerApproval ? 'Approved' : 'Not Approved'}</p>
+                </div>
+                <div className="bg-slate-50 rounded-lg p-3 col-span-2">
+                  <p className="text-[11px] font-semibold text-slate-500 uppercase">Engineer Name</p>
+                  <p className="text-sm font-semibold text-slate-900 mt-1">{completeData.engineerName || survey.engineer || '—'}</p>
+                </div>
+                <div className="bg-slate-50 rounded-lg p-3 col-span-2">
+                  <p className="text-[11px] font-semibold text-slate-500 uppercase">Panel Placement Details</p>
+                  <p className="text-sm text-slate-900 mt-1 whitespace-pre-wrap">{completeData.panelPlacementDetails || '—'}</p>
+                </div>
+                <div className="bg-slate-50 rounded-lg p-3 col-span-2">
+                  <p className="text-[11px] font-semibold text-slate-500 uppercase">Final Notes</p>
+                  <p className="text-sm text-slate-900 mt-1 whitespace-pre-wrap">{completeData.finalNotes || '—'}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="border border-gray-200 rounded-xl p-4">
+              <h3 className="text-sm font-bold text-gray-900">Final Roof Layout</h3>
+              <div className="mt-3">
+                {renderDrawingSvg() || (
+                  <div className="h-64 flex items-center justify-center text-sm text-gray-500 bg-slate-50 border border-gray-200 rounded-md">
+                    No drawing available
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {topImages.length > 0 && (
+              <div className="border border-gray-200 rounded-xl p-4">
+                <h3 className="text-sm font-bold text-gray-900">Final Site Photos</h3>
+                <div className="grid grid-cols-3 gap-3 mt-3">
+                  {topImages.map((src, idx) => (
+                    <div key={idx} className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+                      <img src={src} alt={`final-${idx}`} className="w-full h-40 object-cover" />
+                      <div className="px-3 py-2 bg-slate-50 border-t border-gray-200">
+                        <p className="text-xs font-semibold text-gray-700">Image {idx + 1}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {survey.notes && (
+              <div className="border border-gray-200 rounded-lg p-4">
+                <h3 className="text-sm font-bold text-gray-800">Notes</h3>
+                <p className="text-sm text-gray-800 mt-2 whitespace-pre-wrap">{survey.notes}</p>
+              </div>
+            )}
+          </div>
+
+          <div className="px-6 py-4 border-t border-gray-200 text-xs text-gray-500 flex items-center justify-between">
+            <span>Generated by Solar EPC</span>
+            <span>{survey.surveyId || ''}</span>
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
 // ── Survey KPI List Modal ─────────────────────────────────────────────────────
 const SurveyKpiModal = ({ title, surveys, filter, onClose, onView }) => {
   const statusColor = {
@@ -1666,7 +2107,7 @@ const SiteSurveyPage = () => {
   const { user } = useAuth();
   const isAdmin = user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'superadmin';
 
-  const [view, setView] = useState('grid');
+  const [view, setView] = useState('table');
   const [activeTab, setActiveTab] = useState('all');
   const [surveys, setSurveys] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1677,6 +2118,7 @@ const SiteSurveyPage = () => {
   const [pendingModalOpen, setPendingModalOpen]   = useState(false);
   const [completeModalOpen, setCompleteModalOpen] = useState(false);
   const [detailsModalOpen, setDetailsModalOpen]   = useState(false);
+  const [pdfModalOpen, setPdfModalOpen] = useState(false);
   const [calendarModalOpen, setCalendarModalOpen] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -1701,13 +2143,95 @@ const SiteSurveyPage = () => {
       if (activeTab !== 'all') {
         params.status = activeTab;
       }
+      
+      // Fetch regular surveys
       const response = await siteSurveysApi.getAll(params);
       const surveyData = response.data?.data || response.data || [];
-      setSurveys(surveyData);
+
+      const existingSurveyLeadIds = new Set(
+        (Array.isArray(surveyData) ? surveyData : [])
+          .map((s) => (s?.leadId?._id ? s.leadId._id : s?.leadId))
+          .filter(Boolean)
+          .map((v) => v.toString())
+      );
+      
+      // Also fetch leads with 'survey' stage from CRM
+      let leadsAsSurveys = [];
+      try {
+        console.log('[SiteSurvey] Fetching leads with statusKey=survey...');
+        let leadsResponse = await leadsApi.getAll({ 
+          statusKey: 'survey', 
+          limit: 100,
+          search: searchQuery 
+        });
+        console.log('[SiteSurvey] Leads API response:', leadsResponse);
+        
+        let leadsData = leadsResponse.data?.data || leadsResponse.data || [];
+        console.log('[SiteSurvey] Leads with statusKey filter:', leadsData.length);
+        
+        // If no leads returned, try fetching all and filter client-side
+        if (leadsData.length === 0) {
+          console.log('[SiteSurvey] No leads with statusKey filter, trying to fetch all leads...');
+          leadsResponse = await leadsApi.getAll({ limit: 200 });
+          const allLeads = leadsResponse.data?.data || leadsResponse.data || [];
+          console.log('[SiteSurvey] All leads count:', allLeads.length);
+          
+          // Filter leads with survey stage client-side
+          leadsData = allLeads.filter(lead => {
+            const status = (lead.statusKey || lead.status || lead.stage || '').toString().toLowerCase();
+            return status === 'survey';
+          });
+          console.log('[SiteSurvey] Filtered survey leads:', leadsData.length);
+        }
+
+        // If a real site-survey already exists for the lead, do not show LEAD-* placeholder
+        leadsData = leadsData.filter((lead) => {
+          const leadId = (lead?._id || lead?.id)?.toString();
+          if (!leadId) return false;
+          return !existingSurveyLeadIds.has(leadId);
+        });
+        
+        // Convert leads to survey format (placeholders are always pending)
+        const leadsAsSurveysAll = leadsData.map(lead => ({
+          _id: lead._id || lead.id,
+          surveyId: `LEAD-${lead._id || lead.id}`,
+          clientName: lead.name,
+          city: lead.city || 'Unknown',
+          projectCapacity: lead.value ? `${lead.value} kWp` : 'To be determined',
+          engineer: lead.assignedTo?.name || 'Unassigned',
+          roofType: null,
+          status: 'pending',
+          notes: lead.notes || '',
+          createdAt: lead.createdAt,
+          isFromLead: true,
+          leadData: lead
+        }));
+
+        // Only include placeholders in list for all/pending tabs
+        leadsAsSurveys = (activeTab === 'all' || activeTab === 'pending') ? leadsAsSurveysAll : [];
+        
+        console.log('[SiteSurvey] Converted leads to surveys:', leadsAsSurveys.length);
+      } catch (err) {
+        console.error('[SiteSurvey] Could not fetch leads:', err);
+      }
+      
+      // Combine both sources
+      const combinedSurveys = [...surveyData, ...leadsAsSurveys];
+      setSurveys(combinedSurveys);
 
       const statsResponse = await siteSurveysApi.getStats();
       const statsData = statsResponse.data || {};
-      setStats({ total: statsData.total || 0, pending: statsData.pending || 0, active: statsData.active || 0, complete: statsData.complete || 0 });
+      
+      // Update stats to include leads with survey stage
+      const totalSurveyLeads = (activeTab === 'all' || activeTab === 'pending')
+        ? leadsAsSurveys.length
+        : 0;
+      setStats({ 
+        total: (statsData.total || 0) + totalSurveyLeads, 
+        pending: (statsData.pending || 0) + totalSurveyLeads, 
+        active: statsData.active || 0, 
+        complete: statsData.complete || 0 
+      });
     } catch (error) {
       console.error('[SiteSurvey] Failed to fetch surveys:', error);
       toast.error('Failed to load surveys');
@@ -1717,6 +2241,22 @@ const SiteSurveyPage = () => {
   }, [activeTab, searchQuery]);
 
   useEffect(() => { fetchSurveys(); }, [fetchSurveys]);
+
+  useEffect(() => {
+    const onLeadStageUpdated = () => {
+      fetchSurveys();
+    };
+
+    if (typeof window !== 'undefined' && window?.addEventListener) {
+      window.addEventListener('leadStageUpdated', onLeadStageUpdated);
+    }
+
+    return () => {
+      if (typeof window !== 'undefined' && window?.removeEventListener) {
+        window.removeEventListener('leadStageUpdated', onLeadStageUpdated);
+      }
+    };
+  }, [fetchSurveys]);
 
   const handleMoveToActive = async (formData) => {
     try {
@@ -1735,16 +2275,33 @@ const SiteSurveyPage = () => {
   };
 
   const handleDelete = async (survey) => {
-    if (!window.confirm(`Delete survey for ${survey.clientName}?`)) return;
+    if (!window.confirm(`Delete ${survey.isFromLead ? 'lead' : 'survey'} for ${survey.clientName}?`)) return;
     try {
-      await siteSurveysApi.delete(survey._id || survey.surveyId);
-      toast.success('Survey deleted'); fetchSurveys();
-    } catch { toast.error('Failed to delete survey'); }
+      // If this is a lead from CRM (has isFromLead flag), delete via leadsApi
+      if (survey.isFromLead) {
+        await leadsApi.delete(survey._id || survey.surveyId.replace('LEAD-', ''));
+      } else {
+        // Regular survey - delete via siteSurveysApi
+        await siteSurveysApi.delete(survey._id || survey.surveyId);
+      }
+      toast.success(`${survey.isFromLead ? 'Lead' : 'Survey'} deleted`);
+      fetchSurveys();
+    } catch (err) {
+      console.error('Delete error:', err);
+      toast.error(err?.response?.data?.message || `Failed to delete ${survey.isFromLead ? 'lead' : 'survey'}`);
+    }
   };
 
   const openPendingModal  = (s) => { setSelectedSurvey(s); setPendingModalOpen(true);  };
   const openCompleteModal = (s) => { setSelectedSurvey(s); setCompleteModalOpen(true); };
-  const openDetailsModal  = (s) => { setSelectedSurvey(s); setDetailsModalOpen(true);  };
+  const openDetailsModal  = (s) => {
+    setSelectedSurvey(s);
+    if (s?.status === 'complete') {
+      setPdfModalOpen(true);
+      return;
+    }
+    setDetailsModalOpen(true);
+  };
   const openEditModal = (s) => { setSelectedSurvey(s); setEditModalOpen(true); };
   const openAssignModal = (s) => { setSelectedSurvey(s); setAssignModalOpen(true); };
 
@@ -1761,8 +2318,11 @@ const SiteSurveyPage = () => {
   // Table row actions
   const ROW_ACTIONS = [
     { label: 'View Details', icon: Eye,       onClick: row => openDetailsModal(row) },
-    { label: 'Edit',         icon: Edit2,      onClick: row => openEditModal(row) },
-    { label: 'Assign',       icon: User,       onClick: row => openAssignModal(row) },
+    {
+      label: 'Edit',
+      icon: Edit2,
+      onClick: row => (row.status === 'complete' ? openCompleteModal(row) : openEditModal(row))
+    },
     { label: 'Start Survey', icon: Play,       onClick: row => openPendingModal(row), show: row => row.status === 'pending' },
     { label: 'Fill Form',    icon: FileText,   onClick: row => openCompleteModal(row), show: row => row.status === 'active' },
     { label: 'Delete',       icon: Trash2,     onClick: row => handleDelete(row), danger: true },
@@ -1974,7 +2534,10 @@ const SiteSurveyPage = () => {
         /* Table View - DataTable has built-in pagination */
         <div className="glass-card overflow-hidden">
           <DataTable
-            columns={COLUMNS}
+            columns={getColumns({
+              onStartSurvey: openPendingModal,
+              onFillForm: openCompleteModal,
+            })}
             data={paginatedSurveys}
             total={filteredSurveys.length}
             page={currentPage}
@@ -1995,6 +2558,7 @@ const SiteSurveyPage = () => {
         onClose={() => { setPendingModalOpen(false); setSelectedSurvey(null); }}
         survey={selectedSurvey}
         onSubmit={handleMoveToActive}
+        onAssign={handleAssignSurvey}
       />
       <ActiveToCompleteModal
         isOpen={completeModalOpen}
@@ -2007,6 +2571,12 @@ const SiteSurveyPage = () => {
       <SurveyDetailsModal
         isOpen={detailsModalOpen}
         onClose={() => { setDetailsModalOpen(false); setSelectedSurvey(null); }}
+        survey={selectedSurvey}
+      />
+
+      <CompletedSurveyPdfModal
+        isOpen={pdfModalOpen}
+        onClose={() => { setPdfModalOpen(false); setSelectedSurvey(null); }}
         survey={selectedSurvey}
       />
 

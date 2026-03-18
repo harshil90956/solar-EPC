@@ -183,37 +183,37 @@ const CompactCalendarFilter = ({ onDateChange, initialYear, initialMonth }) => {
 
       {/* Dropdown Panel */}
       {isOpen && (
-        <div className="absolute z-50 mt-2 w-80 bg-white rounded-lg shadow-xl border border-gray-200">
+        <div className="absolute z-50 mt-2 w-80 bg-slate-900 rounded-lg shadow-2xl border border-slate-700 dark:bg-slate-900">
           {/* Header with Year Navigation */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
             <button
               onClick={goToPreviousYear}
-              className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+              className="p-1 hover:bg-slate-800 rounded-full transition-colors"
               title="Previous Year"
             >
-              <ChevronLeft size={20} className="text-gray-600" />
+              <ChevronLeft size={20} className="text-slate-400" />
             </button>
             
-            <span className="text-lg font-semibold text-gray-800">{viewYear}</span>
+            <span className="text-lg font-semibold text-slate-100">{viewYear}</span>
             
             <button
               onClick={goToNextYear}
-              className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+              className="p-1 hover:bg-slate-800 rounded-full transition-colors"
               title="Next Year"
             >
-              <ChevronRight size={20} className="text-gray-600" />
+              <ChevronRight size={20} className="text-slate-400" />
             </button>
           </div>
 
           {/* Quick Year Selection - Custom Scrollable Dropdown */}
-          <div className="px-4 py-2 border-b border-gray-100 relative">
+          <div className="px-4 py-2 border-b border-slate-700 relative">
             <button
               onClick={() => setIsYearDropdownOpen(!isYearDropdownOpen)}
-              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-left flex items-center justify-between"
+              className="w-full px-2 py-1 text-sm border border-slate-600 rounded focus:outline-none focus:ring-2 focus:ring-orange-500 bg-slate-800 text-slate-200 text-left flex items-center justify-between"
             >
               <span>{viewYear}</span>
               <svg 
-                className={`w-4 h-4 text-gray-500 transition-transform ${isYearDropdownOpen ? 'rotate-180' : ''}`} 
+                className={`w-4 h-4 text-slate-400 transition-transform ${isYearDropdownOpen ? 'rotate-180' : ''}`} 
                 fill="none" 
                 stroke="currentColor" 
                 viewBox="0 0 24 24"
@@ -223,15 +223,15 @@ const CompactCalendarFilter = ({ onDateChange, initialYear, initialMonth }) => {
             </button>
             
             {isYearDropdownOpen && (
-              <div className="absolute z-50 left-4 right-4 mt-1 max-h-40 overflow-y-auto bg-white border border-gray-300 rounded shadow-lg">
+              <div className="absolute z-50 left-4 right-4 mt-1 max-h-40 overflow-y-auto bg-slate-900 border border-slate-700 rounded shadow-lg">
                 {/* Full Year Option */}
                 <button
                   onClick={() => {
                     setViewYear(viewYear);
                     selectMonth(undefined);
                   }}
-                  className={`w-full px-3 py-2 text-sm text-left hover:bg-blue-50 transition-colors font-medium border-b border-gray-100 ${
-                    selectedYear === viewYear && (selectedMonth === undefined || selectedMonth === null) ? 'bg-blue-100 text-blue-700' : 'text-gray-700'
+                  className={`w-full px-3 py-2 text-sm text-left hover:bg-slate-800 transition-colors font-medium border-b border-slate-700 ${
+                    selectedYear === viewYear && (selectedMonth === undefined || selectedMonth === null) ? 'bg-orange-500/20 text-orange-400' : 'text-slate-200'
                   }`}
                 >
                   Full Year
@@ -243,8 +243,8 @@ const CompactCalendarFilter = ({ onDateChange, initialYear, initialMonth }) => {
                       setViewYear(year);
                       setIsYearDropdownOpen(false);
                     }}
-                    className={`w-full px-3 py-2 text-sm text-left hover:bg-blue-50 transition-colors ${
-                      year === viewYear ? 'bg-blue-100 text-blue-700 font-medium' : 'text-gray-700'
+                    className={`w-full px-3 py-2 text-sm text-left hover:bg-slate-800 transition-colors ${
+                      year === viewYear ? 'bg-orange-500/20 text-orange-400 font-medium' : 'text-slate-200'
                     }`}
                   >
                     {year}
@@ -270,10 +270,10 @@ const CompactCalendarFilter = ({ onDateChange, initialYear, initialMonth }) => {
                     className={`
                       py-2 px-1 text-sm font-medium rounded-lg transition-all
                       ${isSelected 
-                        ? 'bg-blue-500 text-white shadow-md' 
+                        ? 'bg-orange-500 text-white shadow-md' 
                         : isCurrentMonth
-                          ? 'bg-blue-50 text-blue-600 border border-blue-200'
-                          : 'text-gray-700 hover:bg-gray-100'
+                          ? 'bg-orange-500/10 text-orange-400 border border-orange-500/30'
+                          : 'text-slate-300 hover:bg-slate-800'
                       }
                     `}
                   >
@@ -285,10 +285,10 @@ const CompactCalendarFilter = ({ onDateChange, initialYear, initialMonth }) => {
           </div>
 
           {/* Footer Actions */}
-          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50 rounded-b-lg">
+          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-700 bg-slate-800 rounded-b-lg">
             <button
               onClick={goToToday}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-orange-400 hover:bg-orange-500/10 rounded-lg transition-colors"
             >
               <Clock size={14} />
               Today
@@ -296,7 +296,7 @@ const CompactCalendarFilter = ({ onDateChange, initialYear, initialMonth }) => {
             
             <button
               onClick={clearFilter}
-              className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-200 rounded-lg transition-colors"
+              className="px-3 py-1.5 text-sm font-medium text-slate-400 hover:bg-slate-700 rounded-lg transition-colors"
             >
               Clear
             </button>

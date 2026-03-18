@@ -16,6 +16,7 @@ import { CURRENCY, APP_CONFIG } from '../config/app.config';
 import apiClient, { api } from '../lib/apiClient';
 import { usePermissions } from '../hooks/usePermissions';
 import CompactCalendarFilter from '../components/ui/CompactCalendarFilter';
+import StockMovements from '../components/inventory/StockMovements';
 
 const fmt = CURRENCY.format;
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
@@ -87,7 +88,7 @@ const COLUMNS = [
     }
   },
   { key: 'minStock', header: 'Min Stock', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
-  { key: 'rate', header: 'Unit Rate', sortable: true, render: v => <span className="text-xs text-[var(--text-muted)]">₹{v.toLocaleString('en-IN')}</span> },
+  { key: 'rate', header: 'Unit Rate', sortable: true, render: v => <span className="text-xs text-[var(--text-muted)]">₹{(v || 0).toLocaleString('en-IN')}</span> },
   { key: 'warehouse', header: 'Warehouse', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
   { key: '__status', header: 'Status', render: (_, row) => <StatusBadge domain="inventory" value={getStockStatus(row)} /> },
 ];
@@ -138,7 +139,7 @@ const InvCard = ({ item, onDragStart, onClick }) => {
         </div>
       )}
       <div className="mt-1.5 text-[10px] font-bold text-[var(--text-secondary)]">
-        ₹{(item.stock * item.rate).toLocaleString('en-IN')}
+        ₹{((item.stock || 0) * (item.rate || 0)).toLocaleString('en-IN')}
       </div>
       <div className="mt-1 text-[9px] text-[var(--text-faint)]">
         Min: {item.minStock || 0} {item.unit}
@@ -148,7 +149,7 @@ const InvCard = ({ item, onDragStart, onClick }) => {
 };
 
 /* ── Kanban Board ── */
-const InvKanbanBoard = ({ items, onCardClick, onDrop }) => {
+const InvKanbanBoard = ({ items, onCardClick, onDrop, inventoryStats }) => {
   const draggingId = useRef(null);
   const draggingStageId = useRef(null);
   const [dragOver, setDragOver] = useState(null);
@@ -200,6 +201,12 @@ const InvKanbanBoard = ({ items, onCardClick, onDrop }) => {
     draggingId.current = null; setDragOver(null);
   };
 
+  // Get dynamic count from API stats or fallback to client-side calculation
+  const getColumnCount = (stageId, cardsLength) => {
+    // Always use client-side count for kanban columns to match displayed cards
+    return cardsLength;
+  };
+
   return (
     <div className="overflow-x-auto pb-3 -mx-2 px-2">
       <div className="flex gap-3 min-w-max">
@@ -209,6 +216,7 @@ const InvKanbanBoard = ({ items, onCardClick, onDrop }) => {
           .map(stage => {
             const cards = items.filter(i => getStockStatus(i) === stage.id);
             const totalVal = cards.reduce((a, i) => a + ((i.stock || 0) - (i.reserved || 0)) * i.rate, 0);
+            const count = getColumnCount(stage.id, cards.length);
             return (
               <div key={stage.id}
                 className={`flex flex-col w-72 sm:w-60 rounded-xl border transition-colors ${dragOver === stage.id ? 'border-[var(--primary)]/50 bg-[var(--primary)]/5' : 'border-[var(--border-base)] bg-[var(--bg-surface)]'}`}
@@ -236,7 +244,7 @@ const InvKanbanBoard = ({ items, onCardClick, onDrop }) => {
                   <div className="flex items-center gap-1.5">
                     {totalVal > 0 && <span className="text-[10px] text-[var(--text-muted)] hidden sm:inline">₹{(totalVal / 100000).toFixed(1)}L</span>}
                     <span className="min-w-[20px] h-5 rounded-full text-[10px] font-bold flex items-center justify-center"
-                      style={{ background: stage.bg, color: stage.color }}>{cards.length}</span>
+                      style={{ background: stage.bg, color: stage.color }}>{count}</span>
                   </div>
                 </div>
                 <div className="flex flex-col gap-2 p-2 flex-1 min-h-[180px]">
@@ -311,7 +319,9 @@ const InventoryPage = () => {
   const [editingItem, setEditingItem] = useState(null);
   const [editForm, setEditForm] = useState({ name: '', category: '', unit: '', minStock: '', rate: '', status: '' });
   const [showStockOut, setShowStockOut] = useState(false);
-  const [stockOutForm, setStockOutForm] = useState({ itemId: '', quantity: '', projectId: '', issuedDate: '', remarks: '' });
+  const [stockOutForm, setStockOutForm] = useState({ itemId: '', quantity: '', projectId: '', issuedDate: '', remarks: '', quotationId: '' });
+  const [approvedQuotations, setApprovedQuotations] = useState([]);
+  const [selectedQuotationItems, setSelectedQuotationItems] = useState([]);
   const [inventory, setInventory] = useState([]);
   
   // Dynamic month options based on inventory dates
@@ -789,7 +799,26 @@ const InventoryPage = () => {
 
     fetchProjects();
     fetchPurchaseOrders();
+    fetchApprovedQuotations();
   }, []);
+
+  // Fetch approved quotations for Stock Out
+  const fetchApprovedQuotations = async () => {
+    try {
+      const token = localStorage.getItem('solar_token') || localStorage.getItem('accessToken') || localStorage.getItem('token');
+      if (!token) return;
+      
+      const res = await api.get('/documents', { 
+        headers: { 'x-tenant-id': TENANT_ID },
+        params: { type: 'quotation', status: 'accepted' }
+      });
+      const quotations = Array.isArray(res) ? res : (res.data || []);
+      setApprovedQuotations(quotations.filter(q => q.status === 'accepted' || q.status === 'ACCEPTED'));
+    } catch (err) {
+      console.error('Failed to fetch approved quotations:', err);
+      setApprovedQuotations([]);
+    }
+  };
 
   // Filtered inventory for dashboard based on calendar filter
   const filteredInventoryForDashboard = useMemo(() => {
@@ -1438,6 +1467,12 @@ const InventoryPage = () => {
               Warehouse
             </button>
             <button
+              onClick={() => setActiveTab('stock-movements')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${activeTab === 'stock-movements' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+            >
+              Stock Movements
+            </button>
+            <button
               onClick={() => setActiveTab('items')}
               className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${activeTab === 'items' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
             >
@@ -1489,7 +1524,7 @@ const InventoryPage = () => {
             <>
               {/* 5 Cards Row - One for each tab */}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-            {/* Inventory Card */}
+            {/* Inventory Card - Shows AVAILABLE stock (Total - Reserved) */}
             <div
               onClick={() => setActiveTab('inventory')}
               className="relative overflow-hidden bg-gradient-to-br from-blue-100 to-sky-200 border border-blue-200 rounded-2xl p-5 cursor-pointer hover:shadow-md transition-all"
@@ -1497,8 +1532,8 @@ const InventoryPage = () => {
               <div className="relative flex items-start justify-between">
                 <div>
                   <p className="text-xs font-bold text-blue-700 uppercase tracking-wider">Total Stock</p>
-                  <p className="text-3xl font-bold text-gray-800 mt-2">{filteredInventoryForDashboard.reduce((sum, i) => sum + (i.stock || 0), 0)}</p>
-                  <p className="text-xs text-gray-500 mt-1">Total quantity in inventory</p>
+                  <p className="text-3xl font-bold text-gray-800 mt-2">{filteredInventoryForDashboard.reduce((sum, i) => sum + ((i.stock || 0) - (i.reserved || 0)), 0)}</p>
+                  <p className="text-xs text-gray-500 mt-1">Available quantity in inventory</p>
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-blue-200 flex items-center justify-center">
                   <Package size={24} className="text-blue-700" />
@@ -1933,10 +1968,16 @@ const InventoryPage = () => {
       {/* INVENTORY TAB CONTENT */}
       {activeTab === 'inventory' && (
         <>
-          {/* Inventory Controls Row */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              {/* Left side can have other controls if needed */}
+          {/* Inventory Controls Row - Combined */}
+          <div className="flex flex-wrap items-center gap-2 justify-between">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-[var(--text-muted)]">Category:</span>
+              {CATEGORY_FILTERS.map(c => (
+                <button key={c} onClick={() => { setCatFilter(c); setPage(1); }}
+                  className={`filter-chip ${catFilter === c ? 'filter-chip-active' : ''}`}>{c}</button>
+              ))}
+              <Input placeholder="Search inventory…" value={search}
+                onChange={e => { setSearch(e.target.value); setPage(1); }} className="h-8 text-xs w-44 ml-2" />
             </div>
             <div className="flex items-center gap-2">
               <div className="view-toggle-pill">
@@ -1959,8 +2000,8 @@ const InventoryPage = () => {
                 <div className="relative flex items-start justify-between">
                   <div>
                     <p className="text-xs font-bold text-blue-700 uppercase tracking-wider">Total Stock</p>
-                    <p className="text-3xl font-bold text-gray-800 mt-2">{inventory.reduce((sum, i) => sum + (i.stock || 0), 0)}</p>
-                    <p className="text-xs text-gray-500 mt-1">Total quantity in inventory</p>
+                    <p className="text-3xl font-bold text-gray-800 mt-2">{inventory.reduce((sum, i) => sum + ((i.stock || 0) - (i.reserved || 0)), 0)}</p>
+                    <p className="text-xs text-gray-500 mt-1">Available quantity in inventory</p>
                   </div>
                   <div className="w-12 h-12 rounded-xl bg-blue-200 flex items-center justify-center">
                     <Package size={24} className="text-blue-700" />
@@ -2025,15 +2066,16 @@ const InventoryPage = () => {
 
           {view === 'table' ? (
             <>
-              <div className="flex flex-wrap gap-2 items-center justify-between">
-                <div className="flex flex-wrap gap-2 items-center">
-                  <span className="text-xs text-[var(--text-muted)] mr-1">Category:</span>
-                  {CATEGORY_FILTERS.map(c => (
-                    <button key={c} onClick={() => { setCatFilter(c); setPage(1); }}
-                      className={`filter-chip ${catFilter === c ? 'filter-chip-active' : ''}`}>{c}</button>
-                  ))}
-                </div>
-                <div className="flex items-center gap-2">
+              <DataTable columns={COLUMNS} data={paginated} total={filteredWithStock.length}
+                page={page} pageSize={pageSize} onPageChange={setPage}
+                onPageSizeChange={s => { setPageSize(s); setPage(1); }}
+                search={search} onSearch={v => { setSearch(v); setPage(1); }}
+                rowActions={ROW_ACTIONS} emptyText="No inventory items found."
+                onRowClick={setSelected}
+                selectedRows={selectedInventoryItems}
+                onSelectRows={setSelectedInventoryItems}
+                rowKey="_id"
+                toolbar={
                   <Button variant="outline" size="sm" onClick={() => exportToCSV(
                     filtered.map(item => ({
                       itemId: item.itemId,
@@ -2065,19 +2107,7 @@ const InventoryPage = () => {
                   )}>
                     <Download size={14} /> Export
                   </Button>
-                  <Input placeholder="Search inventory…" value={search}
-                    onChange={e => { setSearch(e.target.value); setPage(1); }} className="h-8 text-xs w-52" />
-                </div>
-              </div>
-              <DataTable columns={COLUMNS} data={paginated} total={filteredWithStock.length}
-                page={page} pageSize={pageSize} onPageChange={setPage}
-                onPageSizeChange={s => { setPageSize(s); setPage(1); }}
-                search={search} onSearch={v => { setSearch(v); setPage(1); }}
-                rowActions={ROW_ACTIONS} emptyText="No inventory items found."
-                onRowClick={setSelected}
-                selectedRows={selectedInventoryItems}
-                onSelectRows={setSelectedInventoryItems}
-                rowKey="_id"
+                }
                 bulkActions={[
                   {
                     label: 'Export Selected',
@@ -2162,16 +2192,6 @@ const InventoryPage = () => {
             </>
           ) : (
             <>
-              <div className="flex flex-wrap gap-2 items-center">
-                <span className="text-xs text-[var(--text-muted)] mr-1">Category:</span>
-                {CATEGORY_FILTERS.map(c => (
-                  <button key={c} onClick={() => setCatFilter(c)}
-                    className={`filter-chip ${catFilter === c ? 'filter-chip-active' : ''}`}>{c}</button>
-                ))}
-                <div className="ml-auto">
-                  <Input placeholder="Search inventory…" value={search} onChange={e => setSearch(e.target.value)} className="h-8 text-xs w-52" />
-                </div>
-              </div>
               {loading ? (
                 <div className="glass-card p-8 text-center">
                   <div className="animate-pulse text-[var(--text-muted)]">Loading inventory...</div>
@@ -2182,7 +2202,7 @@ const InventoryPage = () => {
                   <p className="text-xs mt-2 text-[var(--text-muted)]">Make sure the backend server is running on port 3000</p>
                 </div>
               ) : (
-                <InvKanbanBoard items={consolidatedItems} onCardClick={setSelected} onDrop={handleKanbanDrop} />
+                <InvKanbanBoard items={consolidatedItems} onCardClick={setSelected} onDrop={handleKanbanDrop} inventoryStats={inventoryStats} />
               )}
             </>
           )}
@@ -2435,6 +2455,13 @@ const InventoryPage = () => {
         </div>
       )}
 
+      {/* STOCK MOVEMENTS TAB CONTENT */}
+      {activeTab === 'stock-movements' && (
+        <div className="space-y-4">
+          <StockMovements />
+        </div>
+      )}
+
       {/* ITEMS TAB CONTENT */}
       {activeTab === 'items' && (
         <div className="space-y-4">
@@ -2673,7 +2700,7 @@ const InventoryPage = () => {
                           <span className="text-xs text-[var(--text-secondary)]">{item.unit}</span>
                         </td>
                         <td className="px-4 py-3">
-                          <span className="text-xs text-[var(--text-primary)]">₹{item.rate?.toLocaleString('en-IN')}</span>
+                          <span className="text-xs text-[var(--text-primary)]">₹{(item.rate || 0).toLocaleString('en-IN')}</span>
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
@@ -3454,12 +3481,96 @@ const InventoryPage = () => {
           </Button>
         </div>}>
         <div className="space-y-3 max-h-[60vh] sm:max-h-[70vh] overflow-y-auto">
-          <FormField label="Item">
-            <Select value={stockOutForm.itemId} onChange={e => setStockOutForm(f => ({ ...f, itemId: e.target.value }))}>
-              <option value="">Select Item</option>
-              {inventory.map(i => <option key={i._id} value={i.itemId}>{i.name || i.description} ({i.warehouse}) - Available: {(i.stock || 0) - (i.reserved || 0)}</option>)}
+          {/* Approved Quotation Selection */}
+          <FormField label="Approved Quotation">
+            <Select 
+              value={stockOutForm.quotationId} 
+              onChange={e => {
+                const quotationId = e.target.value;
+                const selectedQuotation = approvedQuotations.find(q => q._id === quotationId || q.documentId === quotationId);
+                setSelectedQuotationItems(selectedQuotation?.items || []);
+                setStockOutForm(f => ({ 
+                  ...f, 
+                  quotationId,
+                  itemId: '',
+                  projectId: selectedQuotation?.projectId || ''
+                }));
+              }}
+            >
+              <option value="">Select Approved Quotation</option>
+              {approvedQuotations.map(q => (
+                <option key={q._id} value={q._id}>
+                  {q.documentId || q.quotationId || q._id} - {q.customerName || 'Unknown'} ({(q.items || []).length} items)
+                </option>
+              ))}
             </Select>
           </FormField>
+
+          {/* Quotation Items List */}
+          {selectedQuotationItems.length > 0 && (
+            <div className="glass-card p-3 border border-[var(--border-base)]">
+              <h4 className="text-xs font-semibold text-[var(--text-primary)] mb-2">Quotation Items</h4>
+              <div className="space-y-2 max-h-40 overflow-y-auto">
+                {selectedQuotationItems.map((item, idx) => {
+                  const inventoryItem = inventory.find(i => 
+                    i.name?.toLowerCase() === item.name?.toLowerCase() || 
+                    i.description?.toLowerCase() === item.name?.toLowerCase()
+                  );
+                  const available = inventoryItem ? (inventoryItem.stock || 0) - (inventoryItem.reserved || 0) : 0;
+                  const isSelected = stockOutForm.itemId === (inventoryItem?.itemId || item.name);
+                  
+                  return (
+                    <div 
+                      key={idx} 
+                      onClick={() => setStockOutForm(f => ({ 
+                        ...f, 
+                        itemId: inventoryItem?.itemId || '',
+                        quantity: item.quantity || 1
+                      }))}
+                      className={`p-2 rounded-lg cursor-pointer transition-all border ${
+                        isSelected 
+                          ? 'bg-[var(--primary)]/10 border-[var(--primary)]' 
+                          : 'bg-[var(--bg-elevated)] border-[var(--border-base)] hover:border-[var(--primary)]/50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <input 
+                            type="radio" 
+                            checked={isSelected} 
+                            onChange={() => {}}
+                            className="accent-[var(--primary)]"
+                          />
+                          <span className="text-xs font-medium text-[var(--text-primary)]">{item.name}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xs text-[var(--text-muted)]">Qty: {item.quantity}</span>
+                          {inventoryItem && (
+                            <span className={`text-xs ml-2 ${available < item.quantity ? 'text-red-500' : 'text-green-500'}`}>
+                              (Avail: {available})
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Selected Item Display */}
+          {stockOutForm.itemId && (
+            <FormField label="Selected Item">
+              <div className="glass-card p-2 text-xs text-[var(--text-primary)]">
+                {(() => {
+                  const item = inventory.find(i => i.itemId === stockOutForm.itemId);
+                  return item ? `${item.name || item.description} (${item.warehouse})` : 'Item not found in inventory';
+                })()}
+              </div>
+            </FormField>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <FormField label="Quantity to Issue"><Input type="number" placeholder="50" value={stockOutForm.quantity} onChange={e => setStockOutForm(f => ({ ...f, quantity: e.target.value }))} /></FormField>
             <FormField label="Project">
@@ -3484,8 +3595,8 @@ const InventoryPage = () => {
               ['Warehouse', selected.warehouse || '—'], ['Unit', selected.unit],
               ['Total Stock', `${selected.stock} ${selected.unit}`],
               ['Reserved', `${selected.reserved || 0} ${selected.unit}`], ['Available', `${(selected.stock || 0) - (selected.reserved || 0)} ${selected.unit}`],
-              ['Min Stock', `${selected.minStock} ${selected.unit}`], ['Unit Rate', `₹${selected.rate.toLocaleString('en-IN')}`],
-              ['Total Value', fmt(selected.stock * selected.rate)],
+              ['Min Stock', `${selected.minStock} ${selected.unit}`], ['Unit Rate', `₹${(selected.rate || 0).toLocaleString('en-IN')}`],
+              ['Total Value', fmt((selected.stock || 0) * (selected.rate || 0))],
               ...(selected.poReference ? [['PO Reference', selected.poReference]] : []),
               ['Status', <StatusBadge domain="inventory" value={getStockStatus(selected)} />],
               ['Last Updated', selected.lastUpdated],

@@ -28,6 +28,9 @@ export class DocumentItem {
   @Prop({ required: true })
   description!: string;
 
+  @Prop({ default: '' })
+  brand!: string;
+
   @Prop({ type: Number, required: true })
   quantity!: number;
 
@@ -39,6 +42,23 @@ export class DocumentItem {
 }
 
 const DocumentItemSchema = SchemaFactory.createForClass(DocumentItem);
+
+@Schema({ timestamps: true })
+export class ProjectBenefits {
+  @Prop({ type: Number, default: 0 })
+  yearlySavings!: number;
+
+  @Prop({ type: Number, default: 0 })
+  co2Reduction!: number;
+
+  @Prop({ type: Number, default: 0 })
+  paybackPeriod!: number;
+
+  @Prop({ type: Number, default: 25 })
+  warrantyYears!: number;
+}
+
+const ProjectBenefitsSchema = SchemaFactory.createForClass(ProjectBenefits);
 
 @Schema({ timestamps: true })
 export class DocumentEntity {
@@ -67,6 +87,9 @@ export class DocumentEntity {
   customerName!: string;
 
   @Prop({ default: '' })
+  companyName!: string;
+
+  @Prop({ default: '' })
   customerEmail!: string;
 
   @Prop({ default: '' })
@@ -75,8 +98,40 @@ export class DocumentEntity {
   @Prop({ default: '' })
   customerAddress!: string;
 
+  // Solar Project Specific Fields
+  @Prop({ type: Number, default: 0 })
+  systemCapacity!: number;
+
+  @Prop({ default: 'residential' })
+  projectType!: string;
+
+  @Prop({ default: 'rooftop' })
+  installationType!: string;
+
+  @Prop({ default: '' })
+  projectLocation!: string;
+
+  // Cost Breakdown
+  @Prop({ type: Number, default: 0 })
+  equipmentCost!: number;
+
+  @Prop({ type: Number, default: 0 })
+  installationCost!: number;
+
+  @Prop({ type: Number, default: 0 })
+  engineeringCost!: number;
+
+  @Prop({ type: Number, default: 0 })
+  transportationCost!: number;
+
+  @Prop({ type: Number, default: 0 })
+  miscellaneousCost!: number;
+
   @Prop({ type: [DocumentItemSchema], default: [] })
   items!: DocumentItem[];
+
+  @Prop({ type: ProjectBenefitsSchema, default: null })
+  benefits!: ProjectBenefits | null;
 
   @Prop({ type: Number, default: 0 })
   subtotal!: number;
@@ -103,7 +158,13 @@ export class DocumentEntity {
   sentAt?: Date | null;
 
   @Prop({ type: Date, default: null })
+  viewedAt?: Date | null;
+
+  @Prop({ type: Date, default: null })
   acceptedAt?: Date | null;
+
+  @Prop({ type: Date, default: null })
+  rejectedAt?: Date | null;
 
   @Prop({ default: '' })
   notes!: string;

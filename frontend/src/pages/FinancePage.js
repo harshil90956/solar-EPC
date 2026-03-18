@@ -1,5767 +1,1562 @@
-// Solar OS – EPC Edition — FinancePage.js  (Kanban + Table)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+// Solar OS – EPC Edition — FinancePage.js  (Kanban + Table)  
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-import * as XLSX from 'xlsx';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+import * as XLSX from 'xlsx'; 
 
 import {
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   DollarSign, TrendingUp, TrendingDown,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   CheckCircle, Clock, Zap, FileText, Plus, IndianRupee,
 
-
-
-
-
-
-
   LayoutGrid, List, Calendar, AlertCircle, RefreshCw,
-
-
-
-
-
-
-
   Edit, Download, Trash2, Loader2, X, BarChart3, Eye, EyeOff,
-
-
-
-
-
-
 
 } from 'lucide-react';
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 import { financeApi, getPaidAmount, getBalance } from '../lib/financeApi';
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 import { api } from '../lib/apiClient';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 import { StatusBadge } from '../components/ui/Badge';
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 import { Button } from '../components/ui/Button';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 import { Modal } from '../components/ui/Modal';
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 import { Input, FormField, Select } from '../components/ui/Input';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 import { toast } from '../components/ui/Toast';
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 import { KPICard } from '../components/ui/KPICard';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/Tabs';
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 import DataTable from '../components/ui/DataTable';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 import { CURRENCY, APP_CONFIG } from '../config/app.config';
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 import { useSettings } from '../context/SettingsContext';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 import { usePermissions } from '../hooks/usePermissions';
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 import { format, subMonths } from 'date-fns';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 import FinanceDashboard from '../components/finance/FinanceDashboard';
 
-
-
-
-
-
-
 import CalendarFilter from '../components/finance/CalendarFilter';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 const fmt = CURRENCY.format;
 
-
-
-
-
-
-
-
-
-
-
 /* ── Invoice stage definitions ──────────────────────────────────────────────── */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 const INV_STAGES = [
 
-
-
-
-
-
-
   { id: 'Draft', label: 'Draft', color: '#64748b', bg: 'rgba(100,116,139,0.12)' },
-
-
-
-
-
-
 
   { id: 'Sent', label: 'Sent', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
 
-
-
-
-
-
-
   { id: 'Partial', label: 'Partial', color: '#3b82f6', bg: 'rgba(59,130,246,0.12)' },
-
-
-
-
-
-
 
   { id: 'Paid', label: 'Paid', color: '#22c55e', bg: 'rgba(34,197,94,0.12)' },
 
-
-
-
-
-
-
   { id: 'Overdue', label: 'Overdue', color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
-
-
-
-
-
-
 
 ];
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /* ── Invoice card ────────────────────────────────────────────────────────────── */
 
-
-
-
-
 const InvCard = ({ inv, onDragStart, onClick }) => {
-
   const paid = inv.paid || inv.amountPaid || 0;
 
   const balancePct = inv.amount > 0 ? Math.round((paid / inv.amount) * 100) : 0;
 
-
-
-
-
   const isOverdue = inv.status === 'Overdue';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   const displayId = inv.invoiceNumber || inv.id;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   return (
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     <div
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       draggable
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
       onDragStart={() => onDragStart(inv._id || inv.id)}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       onClick={() => onClick(inv)}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
       className={`glass-card p-3 cursor-grab active:cursor-grabbing hover:scale-[1.01] transition-all space-y-2 ${isOverdue ? 'border-red-500/40' : ''}`}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     >
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
       <div className="flex items-center justify-between gap-2">
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         <span className="text-[10px] font-mono text-[var(--accent-light)]">{displayId}</span>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
         <StatusBadge domain="invoice" value={inv.status} />
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       </div>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       <p className="text-xs font-semibold text-[var(--text-primary)] truncate">{inv.customerName}</p>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
       <div className="grid grid-cols-2 gap-1 text-[10px]">
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
         <div className="glass-card p-1.5 text-center">
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
           <p className="text-[var(--text-muted)]">Total</p>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
           <p className="font-bold text-[var(--text-primary)]">{fmt(inv.amount)}</p>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
         </div>
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
         <div className="glass-card p-1.5 text-center">
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
           <p className="text-[var(--text-muted)]">Balance</p>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
           <p className={`font-bold ${inv.balance > 0 ? 'text-red-400' : 'text-emerald-400'}`}>{fmt(inv.balance)}</p>
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
         </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
       </div>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       <div>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         <div className="flex justify-between text-[9px] text-[var(--text-muted)] mb-0.5">
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
           <span>Collected</span><span>{balancePct}%</span>
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
         </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
         <div className="h-1 rounded-full bg-[var(--bg-elevated)] overflow-hidden">
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
           <div className={`h-full rounded-full ${balancePct === 100 ? 'bg-emerald-400' : 'bg-[var(--accent)]'}`}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
             style={{ width: `${balancePct}%` }} />
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
         </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
       </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
       <div className="flex items-center gap-1 text-[9px] text-[var(--text-muted)]">
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         <Calendar size={9} /><span>Due: {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : '—'}</span>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
         {isOverdue && <AlertCircle size={9} className="text-red-400 ml-auto" />}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+   
       </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
     </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
   );
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+   
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    
 /* ── Kanban board ────────────────────────────────────────────────────────────── */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+   
 const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+   
   const draggingId = useRef(null);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+   
   const [dragOver, setDragOver] = useState(null);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+   
   return (
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+   
     <div className="overflow-x-auto pb-3">
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+   
       <div className="flex gap-3 min-w-max">
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+   
         {INV_STAGES.map(stage => {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+   
           // Show Pending invoices in Sent column
-
-
-
+ 
           const cards = invoices.filter(i =>
-
-
-
-
-
-
-
+  
             i.status === stage.id || (stage.id === 'Sent' && i.status === 'Pending')
 
 
-
-
-
-
-
           );
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
           const colAmt = cards.reduce((s, i) => s + i.amount, 0);
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
           return (
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
             <div key={stage.id}
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
               className={`flex flex-col w-60 rounded-xl border transition-colors h-[530px] ${dragOver === stage.id ? 'border-[var(--primary)]/50 bg-[var(--primary)]/5' : 'border-[var(--border-base)] bg-[var(--bg-surface)]'}`}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
               onDragOver={e => { e.preventDefault(); setDragOver(stage.id); }}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
               onDragLeave={() => setDragOver(null)}
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
               onDrop={() => { if (draggingId.current) onStageChange(draggingId.current, stage.id); draggingId.current = null; setDragOver(null); }}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             >
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
               <div className="p-2.5 border-b border-[var(--border-base)] flex items-center justify-between">
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
                 <div className="flex items-center gap-2">
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
                   <div className="w-2.5 h-2.5 rounded-full" style={{ background: stage.color }} />
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
                   <span className="text-xs font-semibold text-[var(--text-primary)]">{stage.label}</span>
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
                 </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
                 <div className="flex items-center gap-1.5">
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
                   {colAmt > 0 && <span className="text-[10px] text-[var(--text-muted)]">{fmt(colAmt)}</span>}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
                   <span className="min-w-[20px] h-5 rounded-full text-[10px] font-bold flex items-center justify-center"
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
                     style={{ background: stage.bg, color: stage.color }}>{cards.length}</span>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+   
                 </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
               </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
               <div className="flex flex-col gap-2 p-2 h-[430px] overflow-y-auto">
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
                 {cards.map(inv => (
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
                   <InvCard key={inv._id || inv.id} inv={inv}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
                     onDragStart={id => { draggingId.current = id; }}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
                     onClick={onCardClick}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
                   />
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
                 ))}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
                 {cards.length === 0 && (
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
                   <div className="flex-1 flex items-center justify-center">
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
                     <p className="text-[11px] text-[var(--text-faint)]">Drop here</p>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
                   </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
                 )}
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
               </div>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
           );
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
         })}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
       </div>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   );
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 /* ── Table columns ──────────────────────────────────────────────────────────── */
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 const INVOICE_COLUMNS = [
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   { key: 'invoiceNumber', header: 'Invoice #', render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span> },
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
   { key: 'customerName', header: 'Customer', sortable: true, render: v => <span className="text-xs font-semibold text-[var(--text-primary)]">{v}</span> },
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   { key: 'email', header: 'Email', render: v => <span className="text-xs text-[var(--text-muted)]">{v || '—'}</span> },
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   { key: 'amount', header: 'Invoice Amt', sortable: true, render: v => <span className="text-xs font-bold text-[var(--text-primary)]">{fmt(v)}</span> },
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   { key: 'paid', header: 'Paid', render: v => <span className="text-xs text-emerald-400 font-bold">{fmt(v)}</span> },
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   { key: 'balance', header: 'Balance', render: v => <span className={`text-xs font-bold ${v > 0 ? 'text-red-400' : 'text-emerald-400'}`}>{fmt(v)}</span> },
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   { key: 'status', header: 'Status', render: v => <StatusBadge domain="invoice" value={v} /> },
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   { key: 'invoiceDate', header: 'Date', render: v => <span className="text-xs text-[var(--text-muted)]">{v ? new Date(v).toLocaleDateString() : '—'}</span> },
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   { key: 'dueDate', header: 'Due Date', render: v => <span className="text-xs text-[var(--text-muted)]">{v ? new Date(v).toLocaleDateString() : '—'}</span> },
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
   { key: 'paidDate', header: 'Paid On', render: v => <span className="text-xs text-[var(--text-muted)]">{v ? new Date(v).toLocaleDateString() : '—'}</span> },
 
 
-
-
-
-
-
   {
+
 
     key: 'reminderCount', header: 'Reminders', render: (v, row) => (
 
 
-
       <div className="flex items-center gap-1">
-
-
 
         {v > 0 ? (
 
-
-
           <>
-
-
 
             <span className="text-xs font-bold text-orange-400">{v}</span>
 
-
-
             {row.lastReminderSentAt && (
-
-
 
               <span className="text-[10px] text-[var(--text-faint)]">
 
-
-
                 ({new Date(row.lastReminderSentAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })})</span>
-
-
 
             )}
 
-
-
           </>
-
-
 
         ) : (
 
-
-
           <span className="text-xs text-[var(--text-faint)]">—</span>
-
-
 
         )}
 
-
-
       </div>
-
-
 
     )
 
   },
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 ];
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 const CustomTooltip = ({ active, payload, label }) => {
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   if (!active || !payload?.length) return null;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   return (
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     <div className="bg-[var(--bg-surface)] border border-[var(--border-base)] rounded-lg px-3 py-2 shadow-xl text-xs">
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
       <p className="text-[var(--text-muted)] mb-1">{label}</p>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       {payload.map((p, i) => <p key={i} style={{ color: p.color }} className="my-0.5">{p.name}: {fmt(p.value)}</p>)}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     </div>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   );
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 const INV_STATUS_FILTERS = ['All', 'Draft', 'Sent', 'Partial', 'Paid', 'Overdue', 'Outstanding'];
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /* ══════════════════════════════════════════════════════════════════════════════
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   PAGE
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 ══════════════════════════════════════════════════════════════════════════════ */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 const FinancePage = ({ onNavigate }) => {
 
-
-
-
-
-
-
   const { isActionEnabled } = useSettings();
-
-
-
-
-
-
-
-  const { can } = usePermissions();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ const { can } = usePermissions();
 
   const [view, setView] = useState('table');
 
 
-
-
-
-
-
-
-
-
-
   // Main view mode: 'dashboard', 'kanban', 'table'
-
-
-
-
-
-
 
   const [mainView, setMainView] = useState('dashboard');
 
-
-
-
-
-
-
   // Active tab in table view: 'invoices', 'payables', 'transactions'
-
-
-
-
-
-
 
   const [activeTab, setActiveTab] = useState('invoices');
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
   // Table view summary cards visibility (default hidden)
-
-
-
-
-
-
 
   const [showSummaryCards, setShowSummaryCards] = useState(false);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   const [invSearch, setInvSearch] = useState('');
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   const [invStatus, setInvStatus] = useState('All');
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
   const [page, setPage] = useState(1);
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
   const [pageSize, setPageSizeState] = useState(() => {
-
-
-
-
-
-
 
     const saved = localStorage.getItem('finance_invoice_pageSize');
 
-
-
-
-
-
-
     return saved ? parseInt(saved, 10) : APP_CONFIG.defaultPageSize;
 
-
-
-
-
-
-
   });
-
-
-
-
-
-
-
-
-
-
 
   const setPageSize = (size) => {
 
-
-
-
-
-
-
     localStorage.setItem('finance_invoice_pageSize', String(size));
-
-
-
-
-
-
 
     setPageSizeState(size);
 
-
-
-
-
-
-
   };
-
-
-
-
-
-
 
   const [dateRange, setDateRange] = useState({
 
-
-
-
-
-
-
     start: format(subMonths(new Date(), 6), 'yyyy-MM-dd'),
-
-
-
-
-
-
 
     end: format(new Date(), 'yyyy-MM-dd')
 
-
-
-
-
-
-
   });
-
-
-
-
-
-
 
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
-
-
-
-
-
-
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
 
-
-
-
   // Calendar filter year state - for filtering data by year
-  // Default to TODAY when opening finance module
+
+  // Default to FULL YEAR when opening finance module
   const today = new Date();
+
   const currentYear = today.getFullYear();
-  const currentMonth = today.getMonth();
-  const currentDay = today.getDate();
+
   const [calendarFilterYear, setCalendarFilterYear] = useState(currentYear.toString());
 
-  // Calendar filter month state - for displaying selected month in calendar
-  const [calendarFilterMonth, setCalendarFilterMonth] = useState(currentMonth);
+  // Calendar filter month state - for displaying selected month in calendar (undefined = full year)
 
-  // Calendar filter day state - for Today filter (exact day, undefined=no day filter)
-  const [calendarFilterDay, setCalendarFilterDay] = useState(currentDay);
+  const [calendarFilterMonth, setCalendarFilterMonth] = useState(undefined);
 
+  // Calendar filter day state - for Today filter (undefined=no day filter)
 
-
-
-
-
+  const [calendarFilterDay, setCalendarFilterDay] = useState(undefined);
 
   const [showInvoice, setShowInvoice] = useState(false);
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
   const [selected, setSelected] = useState(null);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   const [customers, setCustomers] = useState([]);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   const [loading, setLoading] = useState(true);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   const [error, setError] = useState(null);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   const [submitting, setSubmitting] = useState(false);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   const [invoices, setInvoices] = useState([]);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   const [payments, setPayments] = useState([]);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   const [dashboardStats, setDashboardStats] = useState(null);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   const [monthlyRevenue, setMonthlyRevenue] = useState([]);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   const [cashFlow, setCashFlow] = useState([]);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   const [adjustmentTrend, setAdjustmentTrend] = useState([]);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   const [payables, setPayables] = useState([]);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   const [transactionAnalytics, setTransactionAnalytics] = useState(null);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   const [projects, setProjects] = useState([]);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   const [allowedPaymentTerms, setAllowedPaymentTerms] = useState([]);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   const [canCreateInvoice, setCanCreateInvoice] = useState(true);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   const [projectStatus, setProjectStatus] = useState('');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   const [selectedProjectContractValue, setSelectedProjectContractValue] = useState(null);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   const latestProjectIdRef = useRef('');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   // Reminder modal state
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   const [showReminderModal, setShowReminderModal] = useState(false);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   const [selectedReminderInvoice, setSelectedReminderInvoice] = useState(null);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   const [reminderForm, setReminderForm] = useState({
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     reminderType: 'Gentle',
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     customerEmail: '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     messageBody: '',
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   const [sendingReminder, setSendingReminder] = useState(false);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   const [reminderSuccess, setReminderSuccess] = useState(false);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   // Timeline drawer state
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   const [showTimeline, setShowTimeline] = useState(false);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   const [timelineInvoice, setTimelineInvoice] = useState(null);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   const [timelineData, setTimelineData] = useState([]);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   const [loadingTimeline, setLoadingTimeline] = useState(false);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   // Edit invoice modal state
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   const [showEditInvoice, setShowEditInvoice] = useState(false);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   const [editInvoiceTarget, setEditInvoiceTarget] = useState(null);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   const [editInvoice, setEditInvoice] = useState({
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     invoiceNumber: '',
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     customerName: '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     amount: '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     invoiceDate: '',
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     dueDate: '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     paymentTerms: '',
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     description: '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     email: '',
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     status: '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
   });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
   const [newInvoiceErrors, setNewInvoiceErrors] = useState({});
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
   const [savingEditInvoice, setSavingEditInvoice] = useState(false);
-
-
-
-
-
-
-
+ 
   const [editModalError, setEditModalError] = useState(null);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    
   // Delete confirmation modal state
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+   
   const [showDeleteInvoice, setShowDeleteInvoice] = useState(false);
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
   const [deleteInvoiceTarget, setDeleteInvoiceTarget] = useState(null);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
   const [deletingInvoice, setDeletingInvoice] = useState(false);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+   
   // Assign invoice modal state
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
   const [showAssignInvoice, setShowAssignInvoice] = useState(false);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
   const [assignInvoiceTarget, setAssignInvoiceTarget] = useState(null);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
   const [assignToUser, setAssignToUser] = useState('');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    
 
   // Form state for new invoice
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
   const [newInvoice, setNewInvoice] = useState({
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
     invoiceNumber: '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
     projectId: '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
     customerName: '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
     amount: '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
     invoiceDate: '',
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     dueDate: '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     paymentTerms: '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
     description: '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
     email: '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
   });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
   // Record Payment modal state
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
   const [showRecordPayment, setShowRecordPayment] = useState(false);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
   const [recordPayment, setRecordPayment] = useState({
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
     paymentType: 'Customer Payment',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
     referenceType: 'Invoice',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
     referenceId: '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
     amount: '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
     maxAmount: 0,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
     paymentDate: new Date().toISOString().slice(0, 10),
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
     paymentMethod: 'Bank Transfer',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
     notes: '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
   });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
   const [recordPaymentErrors, setRecordPaymentErrors] = useState({});
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
   const [submittingPayment, setSubmittingPayment] = useState(false);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
   // Manual Adjustment state
-
-
-
-
-
-
-
+ 
   const [showAdjustModal, setShowAdjustModal] = useState(false);
-
-
-
-
-
-
-
+ 
   const [adjustForm, setAdjustForm] = useState({
-
-
-
-
-
-
-
+ 
     type: 'credit',
-
-
-
-
-
-
-
+ 
     category: '',
-
-
-
-
-
-
-
+ 
     amount: '',
-
-
-
-
-
-
-
+ 
     lf: '',
-
-
-
-
-
-
-
+ 
     reason: '',
-
-
-
-
-
-
 
     reference: '',
 
-
-
-
-
-
-
+ 
     date: new Date().toISOString().slice(0, 10),
-
-
-
-
-
-
+ 
 
     selectedInvoiceId: '',
-
-
-
-
-
-
+ 
 
     selectedVendorId: '',
-
-
-
-
-
-
-
+  
     paymentMethod: 'Bank Transfer',
-
-
-
-
-
-
-
+ 
   });
 
-
-
-
-
-
-
+ 
   const [adjustErrors, setAdjustErrors] = useState({});
-
-
-
-
-
-
-
+ 
   const [adjustError, setAdjustError] = useState(null);
 
-
-
-
-
-
-
+ 
   const [submittingAdjust, setSubmittingAdjust] = useState(false);
-
-
-
-
-
-
-
+ 
   const [manualAdjustments, setManualAdjustments] = useState([]);
-
-
-
-
-
-
-
+ 
   const [manualBalance, setManualBalance] = useState(0);
 
-
-
-
-
-
-
+ 
   // Adjustment categories state
 
-
-
-
-
-
-
+ 
   const [adjustmentCategories, setAdjustmentCategories] = useState([]);
-
-
-
-
-
-
-
+ 
   const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
 
-
-
-
-
-
-
+ 
   const [newCategory, setNewCategory] = useState({
 
-
-
-
-
-
-
+ 
     categoryName: '',
-
-
-
-
-
-
+ 
 
     type: 'credit',
-
-
-
-
-
-
+ 
 
   });
-
-
-
-
-
-
-
+ 
   const [addingCategory, setAddingCategory] = useState(false);
 
-
-
-
-
-
-
+ 
   // Journal entries state
-
-
-
-
-
-
-
+ 
   const [journalEntries, setJournalEntries] = useState([]);
-
-
-
-
-
+ 
 
 
   const [selectedJournalEntry, setSelectedJournalEntry] = useState(null);
 
-
-
-
-
-
+ 
 
   const [selectedJournalEntryIndex, setSelectedJournalEntryIndex] = useState(null);
 
-
-
-
-
-
+ 
 
   const [showJournalEntryModal, setShowJournalEntryModal] = useState(false);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
   const journalTotals = useMemo(() => {
 
-
-
-
-
-
+ 
 
     let debitTotal = 0;
-
-
-
-
-
-
-
+ 
     let creditTotal = 0;
 
-
-
-
-
-
-
-
-
-
-
-
+ 
 
 
 
     (journalEntries || []).forEach((entry) => {
-
-
-
-
-
-
-
+ 
       (entry?.lines || []).forEach((line) => {
 
-
-
-
-
-
-
+ 
         const d = Number(line?.debitAmount || 0);
 
-
-
-
-
-
-
+ 
         const c = Number(line?.creditAmount || 0);
 
-
-
-
-
-
-
+ 
         if (!Number.isNaN(d)) debitTotal += d;
-
-
-
-
-
-
-
+ 
         if (!Number.isNaN(c)) creditTotal += c;
-
-
-
-
-
-
-
+ 
       });
-
-
-
-
-
-
-
+ 
     });
 
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
 
     return { debitTotal, creditTotal };
-
-
-
-
-
-
-
+ 
   }, [journalEntries]);
-
-
-
-
-
-
+ 
 
   // Filtered data by selected year from calendar
-
-
-
+ 
   const filteredInvoicesByYear = useMemo(() => {
 
-
-
+ 
     if (calendarFilterYear === 'all') return invoices;
 
-
-
+ 
     return invoices.filter(inv => {
-
-
-
+ 
       const invoiceDate = new Date(inv.invoiceDate || inv.createdAt);
-
+ 
       const createdAtDate = inv.createdAt ? new Date(inv.createdAt) : null;
 
-
-
+ 
       if (calendarFilterDay !== undefined) {
+
+
+
+
+
+
 
         // Today mode: match if invoiceDate OR createdAt is today
 
+
+
+
+
+
+
         const year = parseInt(calendarFilterYear);
+
+
+
+
+
+
 
         const month = calendarFilterMonth;
 
+
+
+
+
+
+
         const day = calendarFilterDay;
+
+
+
+
+
+
 
         const invoiceDateMatch = invoiceDate.getFullYear() === year && invoiceDate.getMonth() === month && invoiceDate.getDate() === day;
 
+
+
+
+
+
+
         const createdAtMatch = createdAtDate && createdAtDate.getFullYear() === year && createdAtDate.getMonth() === month && createdAtDate.getDate() === day;
+
+
+
+
+
+
 
         return invoiceDateMatch || createdAtMatch;
 
+
+
+
+
+
+
       }
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
       if (invoiceDate.getFullYear().toString() !== calendarFilterYear) return false;
 
+
+
+
+
+
+
       if (calendarFilterMonth !== undefined && invoiceDate.getMonth() !== calendarFilterMonth) return false;
 
-      return true;
 
+
+
+
+
+
+      return true;
+ 
 
 
     });
-
+ 
 
 
 }, [invoices, calendarFilterYear, calendarFilterMonth, calendarFilterDay]);
 
-
+ 
 
 const filteredJournalEntriesByYear = useMemo(() => {
-
+ 
     if (calendarFilterYear === 'all') return journalEntries;
 
+ 
 
 
     return journalEntries.filter(entry => {
 
+ 
         const entryDate = new Date(entry.date || entry.createdAt);
 
+ 
+
         const entryCreatedAt = entry.createdAt ? new Date(entry.createdAt) : null;
+ 
+
 
         if (calendarFilterDay !== undefined) {
+ 
+
 
           const year = parseInt(calendarFilterYear);
 
+
+
+
+
+
+
           const entryDateMatch = entryDate.getFullYear() === year && entryDate.getMonth() === calendarFilterMonth && entryDate.getDate() === calendarFilterDay;
+
+
+
+
+
+
 
           const createdMatch = entryCreatedAt && entryCreatedAt.getFullYear() === year && entryCreatedAt.getMonth() === calendarFilterMonth && entryCreatedAt.getDate() === calendarFilterDay;
 
+
+
+
+
+
+
           return entryDateMatch || createdMatch;
+
+
+
+
+
+
 
         }
 
+
+
+
+
+
+
         if (entryDate.getFullYear().toString() !== calendarFilterYear) return false;
+
+
+
+
+
+
 
         if (calendarFilterMonth !== undefined && entryDate.getMonth() !== calendarFilterMonth) return false;
 
+
+
+
+
+
+
         return true;
+
+ 
 
     });
 
+ 
+
+
 }, [journalEntries, calendarFilterYear, calendarFilterMonth, calendarFilterDay]);
 
+ 
 
 
 const filteredJournalTotals = useMemo(() => {
 
+ 
+
     let debitTotal = 0;
+ 
+
 
     let creditTotal = 0;
 
+ 
+
     (filteredJournalEntriesByYear || []).forEach((entry) => {
+
+
+ 
+
 
       (entry?.lines || []).forEach((line) => {
 
+
+
+
+
+
+
         const d = Number(line?.debitAmount || 0);
+
+
+
+
+
+
 
         const c = Number(line?.creditAmount || 0);
 
+
+
+
+
+
+
         if (!Number.isNaN(d)) debitTotal += d;
+
+
+
+
+
+
 
         if (!Number.isNaN(c)) creditTotal += c;
 
+
+
+
+
+
+
       });
+
+
+
+
+
+
 
     });
 
+
+
+
+
+
+
     return { debitTotal, creditTotal };
+
+
+
+
+
+
 
 }, [filteredJournalEntriesByYear]);
 
-
+ 
 
 const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
+ 
 
     if (calendarFilterYear === 'all') return manualAdjustments;
 
-
+ 
 
     return manualAdjustments.filter(adj => {
 
 
+ 
+
 
       const adjDate = new Date(adj.date || adj.createdAt);
 
+
+
+
+
+
+
       const adjCreatedAt = adj.createdAt ? new Date(adj.createdAt) : null;
+
+ 
 
 
 
       if (calendarFilterDay !== undefined) {
 
+
+
+
+
+
+
         const year = parseInt(calendarFilterYear);
+
+
+
+
+
+
 
         const adjDateMatch = adjDate.getFullYear() === year && adjDate.getMonth() === calendarFilterMonth && adjDate.getDate() === calendarFilterDay;
 
+
+
+
+
+
+
         const createdMatch = adjCreatedAt && adjCreatedAt.getFullYear() === year && adjCreatedAt.getMonth() === calendarFilterMonth && adjCreatedAt.getDate() === calendarFilterDay;
 
+
+
+
+
+
+
         return adjDateMatch || createdMatch;
+ 
 
       }
 
+ 
 
 
       if (adjDate.getFullYear().toString() !== calendarFilterYear) return false;
 
+
+
+
+
+
+
       if (calendarFilterMonth !== undefined && adjDate.getMonth() !== calendarFilterMonth) return false;
+
+
+
+
+
+
 
       return true;
 
+ 
 
 
     });
 
-
-
+ 
   }, [manualAdjustments, calendarFilterYear, calendarFilterMonth, calendarFilterDay]);
 
-
-
-
-
+ 
 
 
   const filteredPayablesByYear = useMemo(() => {
 
+ 
 
 
     if (calendarFilterYear === 'all') return payables;
 
-
-
+ 
     return payables.filter(p => {
 
+ 
 
+      // Include vendors even without lastPurchaseOrderDate - they should show in current year
 
-      if (!p.lastPurchaseOrderDate) return false;
-
-
-
+      if (!p.lastPurchaseOrderDate) return true;
+ 
       const poDate = new Date(p.lastPurchaseOrderDate);
 
 
 
+      // Handle invalid dates
+
+      if (isNaN(poDate.getTime())) return true;
+ 
+
       if (poDate.getFullYear().toString() !== calendarFilterYear) return false;
+
+
+
+
+
+
 
       if (calendarFilterMonth !== undefined && poDate.getMonth() !== calendarFilterMonth) return false;
 
+
+
+
+
+
+
       if (calendarFilterDay !== undefined && poDate.getDate() !== calendarFilterDay) return false;
 
+
+
+
+
+
+
       return true;
-
-
-
-    });
-
-
+ 
+    }); 
 
   }, [payables, calendarFilterYear, calendarFilterMonth, calendarFilterDay]);
-
-
-
+ 
   const filteredPaymentsByYear = useMemo(() => {
 
+ 
+
     if (calendarFilterYear === 'all') return payments;
+ 
 
     return payments.filter(p => {
+ 
 
       const paymentDate = new Date(p.paymentDate || p.date || p.createdAt);
+ 
 
       if (calendarFilterDay !== undefined) {
+ 
+
 
         const year = parseInt(calendarFilterYear);
 
+ 
+
+
         return paymentDate.getFullYear() === year && paymentDate.getMonth() === calendarFilterMonth && paymentDate.getDate() === calendarFilterDay;
+ 
 
       }
 
+ 
+
       if (paymentDate.getFullYear().toString() !== calendarFilterYear) return false;
 
+ 
       if (calendarFilterMonth !== undefined && paymentDate.getMonth() !== calendarFilterMonth) return false;
 
-      return true;
+ 
 
-    });
+      return true;
+ 
+
+    }); 
 
   }, [payments, calendarFilterYear, calendarFilterMonth, calendarFilterDay]);
-
-
-
-
-
+ 
 
 
   // Extract unique years from invoice data for the calendar filter
-
+ 
 
 
   const availableYears = useMemo(() => {
 
-
-
+ 
     const years = new Set();
-
-
-
+ 
     (invoices || []).forEach(inv => {
 
-
-
+ 
       const date = new Date(inv.invoiceDate || inv.createdAt);
-
+ 
 
 
       if (!isNaN(date.getTime())) {
 
-
+ 
 
         years.add(date.getFullYear());
 
-
+ 
 
       }
 
-
+ 
 
     });
 
-
+ 
 
     (journalEntries || []).forEach(entry => {
 
-
+ 
 
       const date = new Date(entry.date || entry.createdAt);
-
-
+ 
 
       if (!isNaN(date.getTime())) {
-
-
+ 
 
         years.add(date.getFullYear());
 
-
-
+ 
       }
 
-
-
+ 
     });
-
-
-
+ 
     return Array.from(years).sort((a, b) => b - a); // Sort descending
-
-
+ 
 
   }, [invoices, journalEntries]);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
   // Fetch data on mount
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
   useEffect(() => {
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
     fetchData();
 
-
-
-
-
-
-
-
-
-
-
+  
 
 
 
 
     // Periodic refetch of manual adjustments and journal entries to keep Transactions tab in sync with database
 
+
+
+
+
+
+
     const intervalId = setInterval(async () => {
+
+
+
+
+
+
 
       try {
 
+
+
+
+
+
+
         const adjustments = await financeApi.getManualAdjustments();
+
+
+
+
+
+
 
         setManualAdjustments(adjustments || []);
 
+
+
+
+
+
+
         const entries = await financeApi.getJournalEntries();
+
+
+
+
+
+
 
         setJournalEntries(entries || []);
 
+
+
+
+
+
+
       } catch (err) {
+
+
+
+
+
+
 
         console.error('Failed to refresh data:', err);
 
+
+
+
+
+
+
       }
+
+
+
+
+
+
 
     }, 5000); // Refresh every 5 seconds
 
-
-
+ 
     return () => clearInterval(intervalId);
+
+ 
 
 
 
   }, []);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
+  
   const fetchData = async () => {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
     try {
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
       if (!canViewFinance) {
 
+ 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
         setLoading(false);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
         setError('This action is disabled from module settings.');
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+    
 
         return;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
       }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
 
       setLoading(true);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
       setError(null);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
       const [
-
-
-
-
-
-
+ 
 
         invoicesRes,
-
-
-
-
-
-
-
+ 
         paymentsRes,
-
-
-
-
-
-
+ 
 
         vendorExpensesRes,
 
-
-
-
-
-
+  
 
         statsRes,
-
-
-
-
-
+ 
 
 
         vendorsRes,
 
-
-
-
-
-
+ 
 
         posRes,
 
-
-
-
-
-
-
+ 
         manualAdjustmentsRes,
-
-
-
-
-
-
-
+ 
         manualBalanceRes,
 
-
-
-
-
-
-
+ 
         categoriesRes,
 
-
-
-
-
-
+ 
 
         journalEntriesRes,
-
-
-
-
-
-
+ 
 
         transactionAnalyticsRes,
-
-
-
-
-
-
+ 
 
       ] = await Promise.all([
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
         financeApi.getInvoices(),
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
         financeApi.getPayments(),
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
         financeApi.getExpenses(undefined, 'Vendor Payment'),
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
         financeApi.getDashboardStats(),
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
         api.get('/procurement/vendors'),
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
 
         api.get('/procurement/purchase-orders'),
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
         financeApi.getManualAdjustments(),
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
         financeApi.getManualAdjustmentBalance(),
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
         financeApi.getAdjustmentCategories(),
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
         financeApi.getJournalEntries(),
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
         financeApi.getTransactionAnalytics(),
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+  
 
       ]);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
       setInvoices(invoicesRes || []);
 
+ 
 
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
       const payments = paymentsRes || [];
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
       setPayments(payments);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+   
       const vendorExpenses = vendorExpensesRes || [];
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
       setDashboardStats(statsRes);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
       // Set manual adjustments and balance
-
-
-
-
-
-
-
+ 
       setManualAdjustments(manualAdjustmentsRes || []);
-
-
-
-
-
-
-
+ 
       setManualBalance(manualBalanceRes?.balance || 0);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
       // Set adjustment categories
-
-
-
-
-
-
-
+ 
       setAdjustmentCategories(categoriesRes || []);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
       // Set journal entries
-
-
-
-
-
-
-
+ 
       setJournalEntries(journalEntriesRes || []);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
       // Set transaction analytics
-
-
-
-
-
-
-
+ 
       setTransactionAnalytics(transactionAnalyticsRes || null);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
       // Vendor Payables (from Procurement Purchase Orders)
-
-
-
-
-
-
-
+ 
       const vendors = Array.isArray(vendorsRes)
 
-
-
-
-
-
-
+ 
         ? vendorsRes
 
-
-
-
-
-
-
+ 
         : (vendorsRes?.data || []);
-
-
-
-
-
-
+ 
 
       const purchaseOrders = Array.isArray(posRes)
 
@@ -5771,2606 +1566,1093 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+ 
         ? posRes
 
-
-
-
-
+ 
 
 
         : (posRes?.data || []);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
 
       const safeDate = (d) => {
 
-
-
-
-
+ 
 
 
         if (!d) return null;
-
-
-
-
-
-
-
+ 
         if (d instanceof Date) {
 
-
-
-
-
-
-
+ 
           return Number.isNaN(d.getTime()) ? null : d;
-
-
-
-
-
-
-
+ 
         }
-
-
-
-
-
-
-
+ 
         if (typeof d === 'string') {
 
-
-
-
-
-
-
+ 
           const m = d.trim().match(/^([0-3]\d)[-\/](0\d|1[0-2])[-\/](\d{4})$/);
-
-
-
-
-
-
-
+ 
           if (m) {
-
-
-
-
-
-
+ 
 
             const day = Number(m[1]);
-
-
-
-
-
-
-
+ 
             const month = Number(m[2]);
-
-
-
-
-
-
-
+ 
             const year = Number(m[3]);
-
-
-
-
-
-
-
+ 
             const dt = new Date(year, month - 1, day);
-
-
-
-
-
-
-
+ 
             return Number.isNaN(dt.getTime()) ? null : dt;
 
-
-
-
-
-
+ 
 
           }
-
-
-
-
-
-
+ 
 
         }
-
-
-
-
-
-
+ 
 
         const dt = new Date(d);
-
-
-
-
+ 
 
 
 
         return Number.isNaN(dt.getTime()) ? null : dt;
 
-
-
-
-
-
-
+  
       };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
+ 
 
       const getMonthKey = (dt) => {
 
-
-
-
-
+ 
 
 
         const y = dt.getFullYear();
 
-
-
-
-
-
-
+ 
         const m = String(dt.getMonth() + 1).padStart(2, '0');
-
-
-
-
-
-
-
+ 
         return `${y}-${m}`;
 
-
-
-
-
+ 
 
 
       };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
       const getMonthLabel = (dt) => dt.toLocaleString('en-IN', { month: 'short' });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
       const buildLastNMonths = (n) => {
 
-
-
-
-
-
-
+ 
         const now = new Date();
-
-
-
-
-
-
+ 
 
         const start = new Date(now.getFullYear(), now.getMonth(), 1);
 
-
-
-
-
-
+ 
 
         const months = [];
-
-
-
-
-
-
-
+ 
         for (let i = n - 1; i >= 0; i -= 1) {
-
-
-
-
-
-
-
+ 
           const d = new Date(start.getFullYear(), start.getMonth() - i, 1);
-
-
-
-
-
-
+ 
 
           months.push({
 
-
-
-
-
-
-
+ 
             key: getMonthKey(d),
-
-
-
-
-
-
+ 
 
             month: getMonthLabel(d),
-
-
-
-
-
-
-
+ 
             start: new Date(d.getFullYear(), d.getMonth(), 1),
-
-
-
-
-
-
+ 
 
             end: new Date(d.getFullYear(), d.getMonth() + 1, 1),
-
-
-
-
-
-
-
+ 
           });
 
-
-
-
-
-
+ 
 
         }
-
-
-
-
-
+ 
 
 
         return months;
 
-
-
-
-
-
+ 
 
       };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
       const months = buildLastNMonths(6);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
       const allowedInvoiceStatuses = new Set(['Paid', 'Partial', 'Pending']);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
       const invoiceCreatedAt = (inv) => safeDate(inv?.invoiceDate) || safeDate(inv?.createdAt);
 
-
-
-
-
-
+ 
 
       const paymentDate = (p) => safeDate(p?.paymentDate) || safeDate(p?.createdAt);
-
-
-
-
-
-
-
+ 
       const expenseCreatedAt = (exp) => safeDate(exp?.createdAt) || safeDate(exp?.expenseDate);
-
-
-
-
-
-
-
+ 
       const expensePaidAt = (exp) => safeDate(exp?.expenseDate) || safeDate(exp?.updatedAt) || safeDate(exp?.createdAt);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
       const invoicesForCharts = (invoicesRes || []).filter(inv => allowedInvoiceStatuses.has(inv?.status));
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
       const revenueCostSeries = months.map((m) => {
-
-
-
-
-
-
+ 
 
         const revenue = invoicesForCharts.reduce((sum, inv) => {
-
-
-
-
-
+ 
 
 
           const dt = invoiceCreatedAt(inv);
 
-
-
-
-
-
-
+ 
           if (!dt || dt < m.start || dt >= m.end) return sum;
-
-
-
-
-
-
-
+ 
           return sum + Number(inv?.amount || inv?.invoiceAmount || 0);
 
-
-
-
-
-
-
+ 
         }, 0);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
         const cost = (vendorExpenses || []).reduce((sum, exp) => {
-
-
-
-
-
-
-
+ 
           const dt = expenseCreatedAt(exp);
 
-
-
-
-
-
+ 
 
           if (!dt || dt < m.start || dt >= m.end) return sum;
-
-
-
-
-
-
-
+ 
           return sum + Number(exp?.amount || exp?.payableAmount || 0);
 
-
-
-
-
-
-
+ 
         }, 0);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
         return { month: m.month, revenue, cost };
-
-
-
-
-
+ 
 
 
       });
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
       const cashFlowSeries = months.map((m) => {
-
-
-
-
-
-
-
+ 
         // Inflow: Use invoices.paid instead of payments (like backend getBalance)
-
-
-
-
-
-
-
+ 
         const inflow = (invoicesRes || []).reduce((sum, inv) => {
 
-
-
-
-
-
+ 
 
           // For paid invoices, use invoiceDate if paidDate is missing
-
-
-
-
-
-
-
+  
           let dt = safeDate(inv?.paidDate);
-
-
-
-
-
-
+ 
+ 
 
           if (!dt && inv?.status === 'Paid') {
-
-
-
-
-
-
-
+ 
             dt = safeDate(inv?.invoiceDate) || safeDate(inv?.updatedAt) || safeDate(inv?.createdAt);
-
-
-
-
-
-
-
+ 
           }
 
-
-
-
-
-
-
+ 
           if (!dt || dt < m.start || dt >= m.end) return sum;
-
-
-
-
-
-
+ 
 
           // Use paid amount (or amount if status is Paid)
-
-
-
-
-
-
-
+ 
           const paid = Number(inv?.paid || 0);
-
-
-
-
-
-
-
+ 
           const amount = Number(inv?.amount || 0);
 
-
-
-
-
-
+ 
 
           const effectivePaid = (paid === 0 && inv?.status === 'Paid') ? amount : paid;
 
-
-
-
-
-
-
+  
           return sum + effectivePaid;
 
-
-
-
-
+ 
 
 
         }, 0);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+   
         const outflow = (vendorExpenses || []).reduce((sum, exp) => {
-
-
-
-
-
+ 
 
 
           if (String(exp?.status || '').toLowerCase() !== 'paid') return sum;
 
-
-
-
-
-
+ 
 
           const dt = expensePaidAt(exp);
 
-
-
-
-
-
-
+ 
           if (!dt || dt < m.start || dt >= m.end) return sum;
-
-
-
-
-
-
-
+ 
           return sum + Number(exp?.amount || exp?.paidAmount || 0);
-
-
-
-
-
-
-
+ 
         }, 0);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
         return { month: m.month, inflow, outflow };
 
 
-
-
-
-
-
+ 
       });
-
-
-
-
-
-
-
+  
       console.log('FinancePage CashFlow debug:', {
-
-
-
-
-
-
-
+  
         months: months.map(m => ({ month: m.month, start: m.start.toISOString(), end: m.end.toISOString() })),
 
-
-
-
-
-
+ 
 
         invoicesCount: invoicesRes?.length || 0,
-
-
-
+ 
         paidInvoices: invoicesRes?.filter(inv => inv?.status === 'Paid').map(inv => ({
 
-
-
+ 
           status: inv.status,
 
-
+ 
 
           amount: inv.amount,
 
-
-
-
-
+  
 
 
           paid: inv.paid,
 
-
-
-
-
-
+ 
 
           invoiceDate: inv.invoiceDate,
-
-
+ 
 
           paidDate: inv.paidDate
-
-
-
-
-
-
-
+ 
+ 
         })),
-
-
+ 
 
         cashFlowSeries
-
-
-
-
-
-
+ 
 
       });
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
+ 
       setMonthlyRevenue(revenueCostSeries);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
       setCashFlow(cashFlowSeries);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
       // Calculate monthly income/expense trend from manual adjustments only
-
-
-
-
-
-
-
+ 
       const adjustmentTrendSeries = months.map((m) => {
 
 
-
-
-
-
-
+ 
         const income = (manualAdjustmentsRes || [])
-
-
-
-
-
-
-
+ 
           .filter(adj => adj.type === 'credit')
-
-
-
-
-
-
-
+ 
           .reduce((sum, adj) => {
 
-
-
-
-
-
-
+ 
             const dt = safeDate(adj?.date) || safeDate(adj?.createdAt);
-
-
-
-
-
-
-
+  
             if (!dt || dt < m.start || dt >= m.end) return sum;
 
-
-
-
-
-
+ 
 
             return sum + Number(adj?.amount || 0);
-
-
-
-
-
-
-
+ 
+ 
           }, 0);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
         const expense = (manualAdjustmentsRes || [])
 
-
-
-
-
-
-
+ 
           .filter(adj => adj.type === 'debit')
 
-
-
-
-
-
-
+ 
           .reduce((sum, adj) => {
 
-
-
-
-
-
+ 
 
             const dt = safeDate(adj?.date) || safeDate(adj?.createdAt);
 
-
-
-
-
-
-
+ 
             if (!dt || dt < m.start || dt >= m.end) return sum;
-
-
-
-
-
-
-
+  
             return sum + Number(adj?.amount || 0);
-
-
-
-
-
-
-
+  
           }, 0);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
         return { month: m.month, income, expense };
 
-
-
-
-
-
+ 
 
       });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
       setAdjustmentTrend(adjustmentTrendSeries);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
       // Vendor Payables (from Finance Vendors API)
 
-
-
-
-
-
+  
 
       try {
 
-
-
-
-
-
-
+ 
         const financeVendorsRes = await financeApi.getFinanceVendors();
 
-
-
-
-
-
+ 
 
         const financeVendors = Array.isArray(financeVendorsRes) ? financeVendorsRes : [];
-
-
-
-
-
-
+ 
         const vendors = Array.isArray(vendorsRes)
+
+
+
           ? vendorsRes
+
+
+
           : (vendorsRes?.data || []);
+
+
+
         const purchaseOrders = Array.isArray(posRes)
+
+
+
           ? posRes
+
+
+
           : (posRes?.data || []);
 
+
+
+
+
+
+
         // Build vendor rows from procurement vendors (source of truth) with calculated PO counts
+
+
+
         const vendorMap = new Map();
+
+
+
         
+
+
+
         console.log('[Finance] Total vendors:', vendors.length);
+
+
+
         console.log('[Finance] Total purchase orders:', purchaseOrders.length);
+
+
+
         
+
+
+
         // First, add all procurement vendors who have POs
+
+
+
         for (const v of vendors) {
+
+
+
           const vendorId = v?._id || v?.id;
+
+
+
           if (!vendorId) continue;
+
+
+
           
+
+
+
           const vendorPOs = purchaseOrders.filter(po => {
+
+
+
             const poVendorId = (po?.vendorId && typeof po.vendorId === 'object') ? po.vendorId?._id : po?.vendorId;
+
+
+
             return String(poVendorId) === String(vendorId);
+
+
+
           });
+
+
+
           
+
+
+
           console.log(`[Finance] Vendor ${v?.name} (${vendorId}): ${vendorPOs.length} POs`);
+
+
+
           
+
+
+
           if (vendorPOs.length > 0) {
+
+
+
             const totalPayable = vendorPOs.reduce((sum, po) => sum + Number(po?.totalAmount || 0), 0);
+
+
+
             const totalPaid = vendorPOs.reduce((sum, po) => sum + Number(po?.amountPaid || 0), 0);
+
+
+
             
+
+
+
             vendorMap.set(String(vendorId), {
+
+
+
               vendorName: v?.name || v?.vendorName || 'Unknown',
+
+
+
               vendorId: v?.id || `V-${String(vendorId).slice(-4)}`,
+
+
+
               vendorObjectId: vendorId,
+
+
+
               vendorCode: v?.id || `V-${String(vendorId).slice(-4)}`,
+
+
+
               totalPurchaseOrders: vendorPOs.length,
+
+
+
               totalPayableAmount: totalPayable,
+
+
+
               amountPaid: totalPaid,
+
+
+
               outstandingAmount: totalPayable - totalPaid,
+
+
+
               lastPurchaseOrderDate: '',
+
+
+
               status: 'Active',
+
+
+
             });
+
+
+
           }
+
+
+
         }
+
+
+
         
+
+
+
         console.log('[Finance] Vendor map size:', vendorMap.size);
+
+
+
         console.log('[Finance] Vendor rows:', Array.from(vendorMap.values()).map(v => ({ name: v.vendorName, pos: v.totalPurchaseOrders })));
+
+
+
         
+
+
+
         // Merge with existing finance vendor data (for any additional info like last payment date)
+
+
+
         for (const fv of financeVendors) {
+
+
+
           const vendorId = fv?.vendorId;
+
+
+
           if (!vendorId) continue;
+
+
+
           
+
+
+
           const existing = vendorMap.get(String(vendorId));
+
+
+
           if (existing) {
+
+
+
             // Keep calculated values but merge additional finance data
+
+
+
             existing.lastPurchaseOrderDate = fv?.lastPaymentDate ? new Date(fv.lastPaymentDate).toLocaleDateString('en-IN') : '';
+
+
+
             existing.status = fv?.status || 'Active';
+
+
+
             // Add finance-paid amounts if any
+
+
+
             existing.amountPaid += fv?.totalPaid || 0;
+
+
+
             existing.outstandingAmount = existing.totalPayableAmount - existing.amountPaid;
+
+
+
           }
+
+
+
         }
+
+
+
         
+
+
+
         const vendorRows = Array.from(vendorMap.values());
+
+
+
         setPayables(vendorRows);
 
+
+
+
+
+
+
         for (const v of vendors) {
+
+
+
           const vendorId = v?._id || v?.id;
 
-
-
-
-
-
-
+ 
           if (!vendorId) continue;
-
-
-
-
-
-
+ 
 
           const exists = financeVendors.find(fv => String(fv.vendorId) === String(vendorId));
 
-
-
-
-
-
-
+ 
           // Always sync vendor data (new and existing)
 
-
+ 
 
             const vendorPOs = purchaseOrders.filter(po => {
-
-
+ 
 
               const poVendorId = (po?.vendorId && typeof po.vendorId === 'object') ? po.vendorId?._id : po?.vendorId;
-
-
-
-
-
-
+ 
 
               return String(poVendorId) === String(vendorId);
+ 
 
-
-
-
-
-
-
-
-
-
-
-            });
-
-
-
-
-
-
-
-
-
-
-
+            }); 
             const totalPayable = vendorPOs.reduce((sum, po) => sum + Number(po?.totalAmount || 0), 0);
 
-
-
-
-
-
+ 
 
             const totalPaid = vendorPOs.reduce((sum, po) => sum + Number(po?.amountPaid || 0), 0);
 
-
-
-
-
-
-
-
-
-
+ 
 
             try {
 
-
+ 
 
               await financeApi.syncFinanceVendor({
 
 
-
+ 
                 vendorId: String(vendorId),
 
 
-
+ 
                 vendorName: v?.name || v?.vendorName || 'Unknown',
 
 
-
+ 
                 vendorCode: v?.id || `V-${String(vendorId).slice(-4)}`,
 
-
-
-
-
-
+ 
 
                 totalPayable,
 
-
+ 
 
                 totalPaid,
 
-
+ 
 
                 totalPurchaseOrders: vendorPOs.length,
 
-
-
-
-
+ 
 
 
               });
 
-
-
-
-
-
-
-
-
-
-
+  
             } catch (syncErr) {
 
+ 
 
 
               console.error('Failed to sync vendor:', vendorId, syncErr);
 
-
-
-
-
-
-
-
-
-
+  
 
             }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          // Vendor sync completed
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
+          // Vendor sync completed 
         }
 
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
 
 
 
       } catch (fvErr) {
-
-
-
+ 
         console.error('Failed to load finance vendors:', fvErr);
-
-
-
-
-
-
-
-
-
-
+ 
 
       }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
     } catch (err) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
       setError(err.message || 'Failed to load finance data');
+ 
 
 
+ 
+ 
+    } finally { 
 
 
-
-
-
-
-
-
-
-
-
-
-
-    } finally {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
       setLoading(false);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
   };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
 
   const guardCreate = () => {
 
-
-
-
-
-
+ 
 
     if (!can('finance', 'create')) {
-
-
-
-
-
-
-
+ 
       toast.error('Permission denied: Cannot create invoices');
 
-
-
-
-
-
-
+ 
       return false;
 
-
-
-
-
-
+  
 
     }
 
 
+ 
 
+    return true;  
 
+  }; 
 
-
-
-    return true;
-
-
-
-
-
-
-
-  };
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
 
   const guardApprove = () => {
-
-
-
-
-
+ 
 
 
     if (!can('finance', 'approve')) {
 
-
-
-
-
-
-
+ 
       toast.error('Permission denied: Cannot approve/record payments');
 
-
-
-
-
-
-
+ 
       return false;
-
-
-
-
-
+ 
 
 
     }
-
-
-
-
-
-
+ 
 
     return true;
 
-
-
-
-
-
-
+ 
   };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
   const canFinance = (actionId) => isActionEnabled('finance', actionId);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
   const canViewFinance = canFinance('view');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
   const financePermissions = {
 
-
-
-
-
-
+ 
 
     create: canFinance('create'),
 
 
-
-
-
-
+ 
 
     edit: canFinance('edit'),
-
-
-
-
-
-
+ 
 
     delete: canFinance('delete'),
 
-
-
-
-
-
+ 
 
     export: canFinance('export'),
 
 
-
-
-
-
-
     assign: canFinance('assign'),
-
-
-
-
-
-
-
+ 
   };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
   const canEditInvoice = (inv) => canFinance('edit') && inv?.status !== 'Paid';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
   const canDeleteInvoice = (inv) => canFinance('delete') && inv?.status !== 'Paid';
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
   const canAssignInvoice = (inv) => canFinance('assign') && ['Draft', 'Pending', 'Partial', 'Overdue'].includes(inv?.status);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+   
 
   const toDateInputValue = (d) => {
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
     if (!d) return '';
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
     const dt = new Date(d);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
     if (Number.isNaN(dt.getTime())) return '';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
     return dt.toISOString().slice(0, 10);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
   };
+    
+
+  // Helper function to get valid next statuses based on current status
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  // Helper function to get valid next statuses based on current status (same as kanban rules)
   const getValidNextStatuses = (currentStatus) => {
+
+
+
     const transitions = {
-      'Draft': ['Sent', 'Pending'],
-      'Sent': ['Pending', 'Partial', 'Paid', 'Overdue'],
-      'Pending': ['Partial', 'Paid', 'Overdue'],
-      'Partial': ['Paid', 'Overdue'],
+
+
+
+      'Draft': ['Sent'],
+
+
+
+      'Sent': ['Partial', 'Paid'],
+
+
+
+      'Pending': ['Partial', 'Paid'],
+
+
+
+      'Partial': ['Paid'],
+
+
+
       'Paid': [], // No further transitions from Paid
-      'Overdue': [] // No further transitions from Overdue
+
+
+
+      'Overdue': ['Partial', 'Paid']
+
+
+
     };
+
+
+
     return transitions[currentStatus] || [];
+
+
+
   };
+
+
+
+
+
+
 
   const openEditInvoice = (row) => {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
     if (!canEditInvoice(row)) return;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
     setEditInvoiceTarget(row);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
     setEditInvoice({
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
       invoiceNumber: row?.invoiceNumber || '',
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+   
       customerName: row?.customerName || '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
       amount: String(row?.amount ?? ''),
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
       invoiceDate: toDateInputValue(row?.invoiceDate),
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
       dueDate: toDateInputValue(row?.dueDate),
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
       paymentTerms: row?.paymentTerms || '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
       description: row?.description || '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
       email: row?.email || '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
       status: row?.status || '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
     });
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
 
     setEditModalError(null);
-
-
-
-
-
-
+ 
 
     setShowEditInvoice(true);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
   };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    
   const handleSaveEditInvoice = async () => {
-
-
-
-
-
-
+ 
 
     if (!editInvoiceTarget) return;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
     if (!editInvoice.invoiceNumber.trim()) {
-
-
-
-
-
-
+ 
 
       setEditModalError('Invoice Number is required');
-
-
-
-
-
-
-
+ 
       return;
-
-
-
-
-
-
+ 
 
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
     if (!editInvoice.customerName.trim()) {
-
-
-
-
-
-
-
+ 
       setEditModalError('Customer Name is required');
-
-
-
-
-
-
+ 
 
       return;
-
-
-
-
-
-
-
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+    } 
 
     if (!editInvoice.amount || parseFloat(editInvoice.amount) <= 0) {
-
-
-
-
-
-
-
+ 
       setEditModalError('Valid Invoice Amount is required');
-
-
-
-
-
-
-
+ 
       return;
 
-
-
-
-
+ 
 
 
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
 
     if (!editInvoice.invoiceDate) {
 
-
-
-
-
-
-
+ 
       setEditModalError('Invoice Date is required');
 
-
-
-
-
-
-
+ 
       return;
-
-
-
-
-
-
-
+ 
+ 
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
     if (!editInvoice.dueDate) {
-
-
-
-
-
-
-
+ 
       setEditModalError('Due Date is required');
-
-
-
-
-
-
-
+ 
       return;
-
-
-
-
-
-
-
+ 
     }
 
+    if (new Date(editInvoice.dueDate) < new Date(editInvoice.invoiceDate)) {
+      setEditModalError('Due Date cannot be earlier than Invoice Date');
+      return;
+    }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
     // Status validation (same as Kanban view)
-
-
-
-
-
-
-
+ 
     const previousStatus = editInvoiceTarget?.status;
-
-
-
-
-
-
-
+ 
     const newStatus = editInvoice.status;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
     if (previousStatus && previousStatus !== newStatus) {
-
-
-
-
-
-
-
+ 
       const order = {
-
-
-
-
-
-
+ 
 
         Draft: 0,
-
-
-
-
-
-
+ 
 
         Sent: 1,
-
-
-
-
-
-
-
+ 
         Pending: 2,
 
-
-
-
-
-
-
+ 
         Partial: 3,
 
-
-
-
-
-
-
+ 
         Paid: 4,
-
-
-
-
-
-
-
-        Overdue: 5,
-
-
-
-
-
-
+ 
+        Overdue: 5, 
 
       };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
       const isBackward = order[newStatus] < order[previousStatus];
-
-
-
-
-
-
-
+ 
       if (isBackward) {
-
-
-
-
-
-
-
+ 
         setEditModalError('Invoice status cannot be moved backward.');
-
-
-
-
-
-
-
+ 
         return;
-
-
-
-
-
-
-
+ 
       }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
       const allowedTransitions = new Set([
+
+
+
         'Draft->Sent',
-        'Draft->Pending',
-        'Sent->Pending',
+
+
+
         'Sent->Partial',
+
+
+
         'Sent->Paid',
+
 
 
         'Pending->Partial',
 
 
 
-
+        'Pending->Paid',
 
 
 
@@ -8378,259 +2660,87 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+        'Overdue->Partial',
 
 
 
-
-        'Pending->Overdue',
-
+        'Overdue->Paid'
 
 
 
-
-
-
-        'Partial->Overdue',
-
-
-
-
-
-
-
-        'Sent->Overdue',
-
-
-
-
-
-
-
-      ]);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+      ]); 
+ 
 
       const key = `${previousStatus}->${newStatus}`;
-
-
-
-
-
-
+ 
 
       if (!allowedTransitions.has(key)) {
 
-
-
-
-
-
-
+ 
         setEditModalError('Invalid invoice status transition');
 
 
-
-
-
-
-
+ 
         return;
 
-
-
-
-
-
-
+ 
       }
-
-
-
-
-
-
+ 
 
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
 
 
     const invoiceId = editInvoiceTarget?._id || editInvoiceTarget?.id;
-
-
-
-
-
-
+ 
 
     if (!invoiceId) return;
+  
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-    try {
-
-
-
-
-
+    try { 
 
 
       setSavingEditInvoice(true);
-
-
-
-
-
-
-
+ 
       setEditModalError(null);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
       const dto = {
 
-
-
-
-
-
-
+ 
         invoiceNumber: editInvoice.invoiceNumber.trim(),
-
-
-
-
-
-
-
+ 
         customerName: editInvoice.customerName.trim(),
-
-
-
-
-
-
-
+ 
         amount: parseFloat(editInvoice.amount),
 
-
-
-
-
-
-
+ 
         invoiceDate: editInvoice.invoiceDate,
-
-
-
-
-
-
-
+ 
         dueDate: editInvoice.dueDate,
 
-
-
-
-
-
-
+ 
         ...(editInvoice.email ? { email: editInvoice.email.trim() } : {}),
-
-
-
-
-
-
-
+ 
         ...(editInvoice.status ? { status: editInvoice.status } : {}),
-
+ 
         ...(editInvoice.status === 'Paid' ? { paidDate: new Date().toISOString() } : {}),
-
-
-
-
-
-
+  
 
         ...(editInvoice.paymentTerms ? { paymentTerms: editInvoice.paymentTerms } : {}),
 
-
-
-
-
-
-
+ 
         ...(editInvoice.description ? { description: editInvoice.description } : {}),
 
-
-
-
-
-
+ 
 
       };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+  
+ 
 
       await financeApi.updateInvoice(invoiceId, dto);
 
@@ -8640,7 +2750,303 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+      // Handle Partial status - open adjust amount modal
 
+
+
+      if (newStatus === 'Partial' && editInvoiceTarget) {
+
+
+
+        const outstandingAmount = (editInvoiceTarget.amount || 0) - (editInvoiceTarget.paid || 0);
+
+
+
+        
+
+
+
+        setAdjustForm({ 
+
+
+
+          type: 'credit',
+
+
+
+          category: 'Invoice Amount Received',
+
+
+
+          amount: String(outstandingAmount),
+
+
+
+          lf: '',
+
+
+
+          reason: `Partial payment for invoice ${editInvoiceTarget.invoiceNumber || ''}`,
+
+
+
+          reference: '',
+
+
+
+          date: new Date().toISOString().slice(0, 10),
+
+
+
+          selectedInvoiceId: editInvoiceTarget._id || editInvoiceTarget.id,
+
+
+
+          selectedVendorId: '',
+
+
+
+          paymentMethod: 'Bank Transfer',
+
+
+
+        });
+
+
+
+        
+
+
+
+        setShowAdjustModal(true);
+
+
+
+      }
+
+
+
+
+
+
+
+      // Handle Paid status - create transaction entry
+
+
+
+      if (newStatus === 'Paid' && editInvoiceTarget) {
+
+
+
+        const outstandingAmount = (editInvoiceTarget.amount || 0) - (editInvoiceTarget.paid || 0);
+
+
+
+        
+
+
+
+        if (outstandingAmount > 0) {
+
+
+
+          const tenantId = localStorage.getItem('tenantId') || 'solarcorp';
+
+
+
+          const today = new Date().toISOString().slice(0, 10);
+
+
+
+          
+
+
+
+          // Create journal entry for the outstanding amount as credit
+
+
+
+          const invoiceJournalEntry = {
+
+
+
+            id: `je-inv-paid-${Date.now()}`,
+
+
+
+            _id: `je-inv-paid-${Date.now()}`,
+
+
+
+            entryDate: today,
+
+
+
+            reference: editInvoiceTarget.invoiceNumber || editInvoiceTarget._id || editInvoiceTarget.id,
+
+
+
+            description: `Invoice marked as Paid - ${editInvoiceTarget.customerName || 'Customer'}`,
+
+
+
+            entryType: 'Invoice Payment',
+
+
+
+            totalDebit: outstandingAmount,
+
+
+
+            totalCredit: outstandingAmount,
+
+
+
+            lines: [
+
+
+
+              {
+
+
+
+                accountName: 'Cash/Bank A/c',
+
+
+
+                debitAmount: outstandingAmount,
+
+
+
+                creditAmount: 0,
+
+
+
+                description: 'Cash/Bank A/c Dr.'
+
+
+
+              },
+
+
+
+              {
+
+
+
+                accountName: editInvoiceTarget.invoiceNumber ? `${editInvoiceTarget.customerName} (${editInvoiceTarget.invoiceNumber})` : (editInvoiceTarget.customerName || 'Customer'),
+
+
+
+                debitAmount: 0,
+
+
+
+                creditAmount: outstandingAmount,
+
+
+
+                description: `To ${editInvoiceTarget.customerName || 'Customer'}`
+
+
+
+
+
+
+
+              }
+
+
+
+            ]
+
+
+
+          };
+
+
+
+          
+
+
+
+          // Add to journalEntries state immediately
+
+
+
+          setJournalEntries(prev => [invoiceJournalEntry, ...prev]);
+
+
+
+          
+
+
+
+          // Save to backend
+
+
+
+          try {
+
+
+
+            await financeApi.createManualAdjustment({
+
+
+
+              type: 'credit',
+
+
+
+              category: 'Invoice Payment',
+
+
+
+              amount: outstandingAmount,
+
+
+
+              reason: `Invoice ${editInvoiceTarget.invoiceNumber || ''} marked as Paid - Outstanding amount received from ${editInvoiceTarget.customerName || 'Customer'}`,
+
+
+
+              reference: editInvoiceTarget._id || editInvoiceTarget.id,
+
+
+
+              date: today,
+
+
+
+              tenantId
+
+
+
+            });
+
+
+
+            console.log('✅ Saved to backend');
+
+
+
+          } catch (err) {
+
+
+
+            console.error('Failed to create journal entry for paid invoice:', err);
+
+
+
+          }
+
+
+
+        }
+
+
+
+      }
 
 
 
@@ -8652,15 +3058,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
       setEditInvoiceTarget(null);
-
-
-
-
 
 
 
@@ -8668,23 +3066,11 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
       await fetchData();
 
 
 
-
-
-
-
     } catch (err) {
-
-
-
-
 
 
 
@@ -8692,15 +3078,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
     } finally {
-
-
-
-
 
 
 
@@ -8708,1747 +3086,589 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
     }
 
 
 
-
-
-
-
   };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
 
   const openDeleteInvoice = (row) => {
+ 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
     if (!canDeleteInvoice(row)) return;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
     setDeleteInvoiceTarget(row);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
     setError(null);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
     setShowDeleteInvoice(true);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
   };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
   const openAssignInvoice = (row) => {
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
     if (!canAssignInvoice(row)) return;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
     setAssignInvoiceTarget(row);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
     setAssignToUser('');
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
     setError(null);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
     setShowAssignInvoice(true);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
   };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
 
   const handleSaveAssignInvoice = async () => {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
     if (!assignInvoiceTarget) return;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
     if (!assignToUser) {
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
       setError('Please select a user.');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
       return;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
     }
+ 
 
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
 
     setError('Assign is not available for invoices yet.');
+ 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
     setShowAssignInvoice(false);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
     setAssignInvoiceTarget(null);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
     setAssignToUser('');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
 
   };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
   const handleConfirmDeleteInvoice = async () => {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
     if (!deleteInvoiceTarget) return;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
     const invoiceId = deleteInvoiceTarget?._id || deleteInvoiceTarget?.id;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
     if (!invoiceId) return;
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     try {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
       setDeletingInvoice(true);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
       setError(null);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
       await financeApi.deleteInvoice(invoiceId);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
       setShowDeleteInvoice(false);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
       setDeleteInvoiceTarget(null);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
       await fetchData();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
     } catch (err) {
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
       setError(err.message || 'Failed to delete invoice');
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
 
     } finally {
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
       setDeletingInvoice(false);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
   };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
   // Generate next invoice number based on existing invoices
-
-
-
-
-
-
+ 
 
   const getNextInvoiceNumber = () => {
 
-
-
-
-
-
-
+ 
     const prefix = 'INV-';
-
-
-
-
-
-
-
+ 
     const numbers = invoices
 
-
-
-
-
-
-
+ 
       .map(inv => inv.invoiceNumber)
 
-
-
-
-
-
+ 
 
       .filter(num => num && num.startsWith(prefix))
-
-
-
-
-
-
-
+ 
+ 
       .map(num => {
-
-
-
-
-
-
+ 
 
         const match = num.match(/INV-(\d+)/);
 
-
-
-
-
-
+ 
 
         return match ? parseInt(match[1], 10) : 0;
-
-
-
-
-
-
-
+ 
       });
 
-
-
-
-
-
-
+ 
     const maxNum = numbers.length > 0 ? Math.max(...numbers) : 0;
-
-
-
-
-
-
-
+ 
     return `${prefix}${String(maxNum + 1).padStart(3, '0')}`;
 
+ 
 
-
-
-
-
-
-  };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  }; 
+ 
+ 
   const exportAllInvoicesCsv = () => {
+
+
+
     if (!canFinance('export')) return;
 
+
+
+
+
+
+
     const safe = (v) => {
+
+
+
       const s = v == null ? '' : String(v);
+
+
+
       const needsQuotes = /[\n\r,"]/g.test(s);
+
+
+
       const escaped = s.replace(/"/g, '""');
+
+
+
       return needsQuotes ? `"${escaped}"` : escaped;
+
+
+
     };
 
+
+
+
+
+
+
     const header = [
+
+
+
       'Invoice #',
+
+
+
       'Customer',
+
+
+
       'Amount',
+
+
+
       'Paid',
+
+
+
       'Balance',
+
+
+
       'Status',
+
+
+
       'Invoice Date',
+
+
+
       'Due Date',
+
+
+
       'Paid On',
+
+
+
       'Reminders',
+
+
+
     ].map(safe).join(',');
 
+
+
+
+
+
+
     const rows = (invoices || []).map((row) => {
+
+
+
       // Helper to format date as DD-MM-YYYY for Excel
+
+
+
       const formatDate = (dateStr) => {
+
+
+
         if (!dateStr) return '-';
+
+
+
         const d = new Date(dateStr);
+
+
+
         if (isNaN(d.getTime())) return '-';
+
+
+
         const day = String(d.getDate()).padStart(2, '0');
+
+
+
         const month = String(d.getMonth() + 1).padStart(2, '0');
+
+
+
         const year = d.getFullYear();
+
+
+
         return `${day}-${month}-${year}`;
+
+
+
       };
+
+
+
       
+
+
+
       const cols = [
+
+
+
         row?.invoiceNumber || row?.id || '',
+
+
+
         row?.customerName || '',
+
+
+
         row?.amount ?? '',
+
+
+
         row?.paid ?? '',
+
+
+
         row?.balance ?? '',
+
+
+
         row?.status || '',
+
+
+
         "'" + formatDate(row?.invoiceDate),
+
+
+
         "'" + formatDate(row?.dueDate),
+
+
+
         "'" + formatDate(row?.paidDate),
+
+
+
         (row?.reminderCount > 0) ? row.reminderCount : '-',
+
+
+
       ];
+
+
+
       return cols.map(safe).join(',');
+
+
+
     });
+
+
+
     const csv = [header, ...rows].join('\n');
+
+
+
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+
+
+
     const url = URL.createObjectURL(blob);
+
+
+
     const a = document.createElement('a');
+
+
+
     a.href = url;
+
+
+
     a.download = `invoices.csv`;
+
+
+
     document.body.appendChild(a);
+
+
+
     a.click();
+
+
+
     a.remove();
+
+
+
     URL.revokeObjectURL(url);
-  };
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  }; 
 
   useEffect(() => {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
     if (!showInvoice) return;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
     let mounted = true;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
     (async () => {
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
       try {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
 
         const [customersRes, projectsRes] = await Promise.all([
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
           financeApi.getCustomers(),
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
           financeApi.getProjects ? financeApi.getProjects() : Promise.resolve([]),
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+  
         ]);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
         if (!mounted) return;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
         setCustomers(Array.isArray(customersRes) ? customersRes : []);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
         setProjects(Array.isArray(projectsRes) ? projectsRes : []);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
       } catch {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
         if (!mounted) return;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
 
         setCustomers([]);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
 
         setProjects([]);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
       }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
     })();
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    
     // Pre-fill invoice number when modal opens
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
     setNewInvoice(prev => ({
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
       ...prev,
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
       invoiceNumber: getNextInvoiceNumber(),
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    }));
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
+    })); 
+  
 
     return () => {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
       mounted = false;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
     };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
   }, [showInvoice]);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    
 
   // Fetch project status and allowed payment terms when project is selected
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
 
   useEffect(() => {
+ 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
     if (!newInvoice.projectId) {
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
       setAllowedPaymentTerms([]);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
       setCanCreateInvoice(true);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
       setProjectStatus('');
+ 
 
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
 
       setSelectedProjectContractValue(null);
 
+  
 
+      return; 
 
-
-
-
-
-
-
-
-
-
-
-
-
-      return;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+   
+ 
 
 
     // Reset state immediately to avoid showing stale terms/status from previous project
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
 
     latestProjectIdRef.current = newInvoice.projectId;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
+ 
 
     setProjectStatus('');
 
-
-
-
-
-
-
-
-
-
-
-
-
+   
 
 
     setAllowedPaymentTerms([]);
 
-
-
-
-
-
-
-
-
-
-
-
-
+  
+ 
 
 
     setCanCreateInvoice(false);
 
-
-
-
-
-
-
-
-
-
-
+ 
 
 
 
 
     setNewInvoice((prev) => ({ ...prev, paymentTerms: '', email: '' }));
 
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
 
     // Try to get email from projects list immediately
 
-
-
-
-
+ 
 
 
     const selectedProjectFromList = projects.find(p => (p._id || p.id) === newInvoice.projectId);
 
 
-
-
-
+ 
 
 
     if (selectedProjectFromList?.email) {
 
-
-
-
-
+ 
 
 
       setNewInvoice(prev => ({ ...prev, email: selectedProjectFromList.email }));
-
-
-
-
+ 
 
 
 
@@ -10456,1159 +3676,281 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
+  
 
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+   
+ 
+  
     let mounted = true;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
     (async () => {
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
       try {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
         const requestedProjectId = newInvoice.projectId;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
         // Fetch project details from main projects endpoint
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
         const projectRes = await financeApi.getProject(requestedProjectId);
+ 
 
+ 
 
+        if (!mounted) return; 
 
-
-
-
-
-
-
-
-
-
-
-
-
-        if (!mounted) return;
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
 
 
         if (latestProjectIdRef.current !== requestedProjectId) return;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+   
+ 
 
         const projectStatus = projectRes?.status || projectRes?.data?.status || projectRes?.project?.status || '';
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
         const customerName = projectRes?.customerName || projectRes?.data?.customerName || projectRes?.project?.customerName || '';
-
-
-
-
-
-
+ 
 
         const customerEmail = projectRes?.email || projectRes?.data?.email || projectRes?.project?.email || projectRes?.customerEmail || projectRes?.data?.customerEmail || projectRes?.project?.customerEmail || '';
-
-
-
-
-
-
-
-
-
-
-
+ 
         console.log('Project Response:', projectRes);
 
-
-
-
-
-
+ 
 
         console.log('Extracted Email:', customerEmail);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
         // Get contract value from projects list (already loaded)
-
-
-
-
-
-
+ 
 
         const selectedProject = projects.find(p => (p._id || p.id) === requestedProjectId);
 
-
-
-
-
+  
 
 
         const contractValueFromList = selectedProject?.value ?? selectedProject?.contractValue ?? selectedProject?.contractAmount;
-
-
-
-
-
-
-
+  
         const contractValueRaw =
 
-
-
-
-
-
-
+ 
           contractValueFromList ??
-
-
-
-
-
-
-
+ 
           projectRes?.value ??
-
-
-
-
-
-
-
+ 
           projectRes?.data?.value ??
 
-
-
-
-
-
-
+ 
           projectRes?.project?.value ??
-
-
-
-
-
-
+ 
 
           projectRes?.contractValue ??
-
-
-
-
-
-
-
+ 
           projectRes?.data?.contractValue ??
-
-
-
-
-
-
-
+ 
           projectRes?.project?.contractValue ??
-
-
-
-
-
-
-
+ 
           projectRes?.contractAmount ??
-
-
-
-
-
-
-
+ 
           projectRes?.data?.contractAmount ??
-
-
-
-
-
-
-
+ 
           projectRes?.project?.contractAmount;
 
-
-
-
-
-
+ 
 
         const contractValue = Number(contractValueRaw);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
         if (!projectStatus) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
           console.error('Project status is empty/undefined. Full response:', projectRes);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
         }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
         setProjectStatus(projectStatus);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
         setNewInvoice(prev => ({ ...prev, customerName, email: customerEmail }));
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
         if (!Number.isNaN(contractValue) && contractValue > 0) {
 
-
-
-
-
-
-
+ 
           setSelectedProjectContractValue(contractValue);
-
-
-
-
-
-
-
+ 
           setNewInvoice(prev => ({ ...prev, amount: String(contractValue) }));
-
-
-
-
-
-
+ 
 
           setNewInvoiceErrors(prev => ({ ...prev, amount: undefined }));
 
-
-
-
-
-
-
+ 
         } else {
-
-
-
-
-
-
-
+ 
           setSelectedProjectContractValue(null);
-
-
-
-
-
-
+ 
 
         }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
+  
 
         // If status is undefined or empty, disable payment terms
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
         if (!projectStatus) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
           setAllowedPaymentTerms([]);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
           setCanCreateInvoice(false);
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
 
           console.error('Project status is undefined for project:', newInvoice.projectId);
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
 
 
           return;
+ 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+        } 
+ 
 
         // Fetch allowed payment terms from backend API
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
         console.log('Fetching allowed terms for status:', projectStatus);
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
 
         const termsRes = await financeApi.getAllowedPaymentTerms(projectStatus);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
         console.log('Allowed terms response:', termsRes);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
         if (!mounted) return;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 
         if (latestProjectIdRef.current !== requestedProjectId) return;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
+  
         const allowedTerms = termsRes?.allowedTerms || [];
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
         setAllowedPaymentTerms(allowedTerms);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
         setCanCreateInvoice(termsRes?.canCreateInvoice || allowedTerms.length > 0);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    
         // Clear payment term if not in allowed list
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
         if (!allowedTerms.includes(newInvoice.paymentTerms)) {
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
           setNewInvoice(prev => ({ ...prev, paymentTerms: '' }));
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
         }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
       } catch (err) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
         console.error('Failed to fetch project status:', err);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
         if (!mounted) return;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
         setAllowedPaymentTerms([]);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
         setCanCreateInvoice(false);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
         setProjectStatus('');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
         setSelectedProjectContractValue(null);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
       }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
     })();
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    
+ 
     return () => {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
       mounted = false;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
     };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
   }, [newInvoice.projectId]);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
+ 
   const handleStageChange = async (id, newStage) => {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -11632,7 +3974,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     const previousStatus = existing?.status;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -11656,7 +4070,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       const order = {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -11672,7 +4134,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         Sent: 1,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -11688,7 +4198,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         Partial: 3,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -11704,7 +4262,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         Overdue: 5,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -11728,7 +4334,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       const isBackward = order[newStage] < order[previousStatus];
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -11740,27 +4418,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+        // Only allow backward transfer for Overdue status with confirmation
 
 
 
-
-        toast.error('Invoice status cannot be moved backward.');
-
+        if (previousStatus === 'Overdue' && (newStage === 'Partial' || newStage === 'Paid')) {
 
 
 
+          const confirmed = window.confirm(
 
 
 
-        return;
+            `Are you sure you want to move this invoice from ${previousStatus} to ${newStage}?\n\nThis is a backward status transition and should only be done in exceptional circumstances.`
 
 
 
+          );
 
+
+
+          if (!confirmed) {
+
+
+
+            return;
+
+
+
+          }
+
+
+
+        } else {
+
+
+
+          toast.error('Invoice status cannot be moved backward.');
+
+
+
+          return;
+
+
+
+        }
 
 
 
       }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -11777,27 +4531,106 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
       const allowedTransitions = new Set([
+
+
+
         'Draft->Sent',
-        'Draft->Pending',
-        'Sent->Pending',
+
+
+
         'Sent->Partial',
+
+
+
         'Sent->Paid',
+
+
+
         'Pending->Partial',
+
+
+
+        'Pending->Paid',
+
+
+
         'Partial->Paid',
-        'Pending->Overdue',
-        'Partial->Overdue',
-        'Sent->Overdue',
+
+
+
+        'Overdue->Partial',
+
+
+
+        'Overdue->Paid'
+
+
+
       ]);
+
+
+
+
+
+
 
       const key = `${previousStatus}->${newStage}`;
 
+
+
+
+
+
+
       if (!allowedTransitions.has(key)) {
+
+
+
         toast.error('Invalid invoice status transition');
 
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         return;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -11813,7 +4646,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -11842,55 +4747,262 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       await financeApi.updateInvoiceStatus(id, newStage);
 
+
+
+
+
+
+
       setInvoices(prev => prev.map(i => {
+
+
+
         if (i._id === id || i.id === id) {
+
+
+
           // If becoming Paid, set paid = amount, balance = 0, and paidDate = today
+
+
+
           if (newStage === 'Paid') {
+
+
+
             return { 
+
+
+
               ...i, 
+
+
+
               status: newStage, 
+
+
+
               paid: i.amount || 0, 
+
+
+
               balance: 0,
+
+
+
               paidDate: new Date().toISOString()
+
+
+
             };
+
+
+
           }
+
+
+
           return { ...i, status: newStage };
+
+
+
         }
+
+
+
         return i;
+
+
+
       }));
 
+
+
+
+
+
+
       if (newStage === 'Partial' && previousStatus === 'Sent' && existing) {
+
+
+
         const outstandingAmount = (existing.amount || 0) - (existing.paid || 0);
+
+
+
+
+
+
 
         setAdjustForm({ 
 
+
+
+
+
+
+
           type: 'credit',
+
+
+
+
+
+
 
           category: 'Invoice Amount Received',
 
+
+
+
+
+
+
           amount: String(outstandingAmount),
+
+
+
+
+
+
 
           lf: '',
 
+
+
+
+
+
+
           reason: `Partial payment for invoice ${existing.invoiceNumber || ''}`,
+
+
+
+
+
+
 
           reference: '',
 
+
+
+
+
+
+
           date: new Date().toISOString().slice(0, 10),
+
+
+
+
+
+
 
           selectedInvoiceId: existing._id || existing.id,
 
+
+
+
+
+
+
           selectedVendorId: '',
+
+
+
+
+
+
 
           paymentMethod: 'Bank Transfer',
 
+
+
+
+
+
+
         });
+
+
+
+
+
+
 
         setShowAdjustModal(true);
 
+
+
+
+
+
+
       }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -11900,113 +5012,485 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
       // Create journal entry when invoice becomes Paid (from Sent or Partial)
 
+
+
+
+
+
+
       if (newStage === 'Paid' && existing) {
+
+
+
+
+
+
 
         const outstandingAmount = (existing.amount || 0) - (existing.paid || 0);
 
+
+
+
+
+
+
         if (outstandingAmount > 0) {
+
+
+
+
+
+
 
           const tenantId = localStorage.getItem('tenantId') || 'solarcorp';
 
+
+
+
+
+
+
           const today = new Date().toISOString().slice(0, 10);
 
+
+
+
+
+
+
           
+
+
+
+
+
+
 
           // Create journal entry for the outstanding amount as credit
 
+
+
+
+
+
+
           const invoiceJournalEntry = {
+
+
+
+
+
+
 
             id: `je-inv-paid-${Date.now()}`,
 
+
+
+
+
+
+
             _id: `je-inv-paid-${Date.now()}`,
+
+
+
+
+
+
 
             entryDate: today,
 
+
+
+
+
+
+
             reference: existing.invoiceNumber || existing._id || existing.id,
+
+
+
+
+
+
 
             description: `Invoice marked as Paid - ${existing.customerName || 'Customer'}`,
 
+
+
+
+
+
+
             entryType: 'Invoice Payment',
+
+
+
+
+
+
 
             totalDebit: outstandingAmount,
 
+
+
+
+
+
+
             totalCredit: outstandingAmount,
+
+
+
+
+
+
 
             lines: [
 
+
+
+
+
+
+
               {
+
+
+
+
+
+
 
                 accountName: 'Cash/Bank A/c',
 
+
+
+
+
+
+
                 debitAmount: outstandingAmount,
+
+
+
+
+
+
 
                 creditAmount: 0,
 
+
+
+
+
+
+
                 description: 'Cash/Bank A/c Dr.'
+
+
+
+
+
+
 
               },
 
+
+
+
+
+
+
               {
+
+
+
+
+
+
 
                 accountName: existing.invoiceNumber ? `${existing.customerName} (${existing.invoiceNumber})` : (existing.customerName || 'Customer'),
 
+
+
+
+
+
+
                 debitAmount: 0,
+
+
+
+
+
+
 
                 creditAmount: outstandingAmount,
 
+
+
+
+
+
+
                 description: `To ${existing.customerName || 'Customer'}`
+
+
+
+
+
+
 
               }
 
+
+
+
+
+
+
             ]
+
+
+
+
+
+
 
           };
 
+
+
+
+
+
+
           
+
+
+
+
+
+
 
           // Add to journalEntries state immediately
 
+
+
+
+
+
+
           setJournalEntries(prev => [invoiceJournalEntry, ...prev]);
+
+
+
+
+
+
 
           
 
+
+
+
+
+
+
           // Save to backend
+
+
+
+
+
+
 
           try {
 
+
+
+
+
+
+
             await financeApi.createManualAdjustment({
+
+
+
+
+
+
 
               type: 'credit',
 
+
+
+
+
+
+
               category: 'Invoice Payment',
+
+
+
+
+
+
 
               amount: outstandingAmount,
 
+
+
+
+
+
+
               reason: `Invoice ${existing.invoiceNumber || ''} marked as Paid - Outstanding amount received from ${existing.customerName || 'Customer'}`,
+
+
+
+
+
+
 
               reference: existing._id || existing.id,
 
+
+
+
+
+
+
               date: today,
+
+
+
+
+
+
 
               tenantId
 
+
+
+
+
+
+
             });
+
+
+
+
+
+
 
             console.log('✅ Saved to backend');
 
+
+
+
+
+
+
           // Note: Local journal entry already added above with lf field
+
+
+
+
+
+
 
           // Backend may not return lf, so we keep local state
 
+
+
+
+
+
+
           } catch (err) {
+
+
+
+
+
+
 
             console.error('Failed to create journal entry for paid invoice:', err);
 
+
+
+
+
+
+
           }
+
+
+
+
+
+
 
         }
 
+
+
+
+
+
+
       }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12023,6 +5507,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
     } catch (err) {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12054,6 +5586,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     }
 
 
@@ -12070,7 +5650,151 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12118,7 +5842,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     // Validation
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12142,7 +5962,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     if (!newInvoice.invoiceNumber.trim()) nextErrors.invoiceNumber = 'Invoice Number is required';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12158,6 +6026,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     if (!newInvoice.amount || parseFloat(newInvoice.amount) <= 0) nextErrors.amount = 'Valid Invoice Amount is required';
 
 
@@ -12166,7 +6058,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     if (!newInvoice.invoiceDate) nextErrors.invoiceDate = 'Invoice Date is required';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12190,7 +6130,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     if (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12206,7 +6218,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       selectedProjectContractValue !== null &&
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12222,7 +6282,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       Number(newInvoice.amount) > Number(selectedProjectContractValue)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12238,6 +6346,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       nextErrors.amount = 'Invoice amount cannot exceed the project contract value';
 
 
@@ -12246,7 +6378,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12270,6 +6474,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       nextErrors.dueDate = 'Due Date must be on/after Invoice Date';
 
 
@@ -12278,7 +6506,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12302,7 +6602,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       setNewInvoiceErrors(nextErrors);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12318,7 +6666,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12350,7 +6770,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     const invoiceNumberExists = (invoices || []).some(
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12382,7 +6898,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     );
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12414,7 +7026,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       setNewInvoiceErrors(prev => ({ ...prev, invoiceNumber: 'Invoice Number already exists' }));
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12446,7 +7154,127 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12486,7 +7314,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       setSubmitting(true);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12518,7 +7442,127 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       setNewInvoiceErrors({});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12558,7 +7602,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       const invoiceData = {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12590,7 +7730,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         projectId: newInvoice.projectId || undefined,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12622,6 +7858,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         customerName: newInvoice.customerName.trim(),
 
 
@@ -12630,7 +7914,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         email: newInvoice.email?.trim() || undefined,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12662,7 +8018,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         invoiceDate: newInvoice.invoiceDate,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12694,7 +8146,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         ...(newInvoice.paymentTerms && { paymentTerms: newInvoice.paymentTerms }),
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12726,7 +8274,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12766,7 +8410,127 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       setShowInvoice(false);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12798,7 +8562,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         invoiceNumber: getNextInvoiceNumber(),
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12830,7 +8690,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         customerName: '',
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12862,7 +8818,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         invoiceDate: '',
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12894,7 +8946,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         paymentTerms: '',
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12926,7 +9074,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         email: '',
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12958,7 +9202,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       setNewInvoiceErrors({});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12990,6 +9330,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       setAllowedPaymentTerms([]);
 
 
@@ -13006,7 +9394,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       setCanCreateInvoice(true);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -13046,7 +9530,127 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       // Refresh data to show new invoice
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -13078,7 +9682,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     } catch (err) {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -13110,7 +9810,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     } finally {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -13142,7 +9938,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -13190,7 +10082,151 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   const handleSendReminder = async () => {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -13238,7 +10274,151 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     // Validation
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -13270,6 +10450,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       setError('Customer email is required');
 
 
@@ -13286,7 +10514,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       return;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -13334,6 +10658,102 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     try {
 
 
@@ -13350,7 +10770,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       setSendingReminder(true);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -13398,7 +10914,151 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       await financeApi.sendInvoiceReminder(selectedReminderInvoice._id || selectedReminderInvoice.id, {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -13430,7 +11090,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         customerEmail: reminderForm.customerEmail.trim(),
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -13462,7 +11218,151 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -13518,7 +11418,127 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       // Close modal after 2 seconds
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -13550,7 +11570,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         setShowReminderModal(false);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -13582,7 +11698,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         setReminderForm({ reminderType: 'Gentle', customerEmail: '', messageBody: '' });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -13598,7 +11786,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     } catch (err) {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -13614,7 +11850,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     } finally {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -13630,6 +11914,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     }
 
 
@@ -13638,7 +11946,127 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -13678,7 +12106,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     const num = Number(val);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -13694,7 +12170,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     if (typeof max === 'number' && max > 0) return String(Math.min(num, max));
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -13710,7 +12234,127 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -13758,7 +12402,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     // Validation
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -13790,7 +12530,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     if (!recordPayment.referenceId) nextErrors.referenceId = recordPayment.paymentType === 'Customer Payment' ? 'Invoice is required' : 'Vendor is required';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -13814,7 +12650,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     const amountNum = Number(recordPayment.amount);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -13830,7 +12714,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     if (maxAmount > 0 && amountNum > maxAmount) nextErrors.amount = `Amount cannot exceed ₹${maxAmount}`;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -13846,7 +12778,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     if (!recordPayment.paymentMethod) nextErrors.paymentMethod = 'Payment method is required';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -13878,6 +12882,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       setRecordPaymentErrors(nextErrors);
 
 
@@ -13894,7 +12946,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       return;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -13942,7 +13090,151 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     try {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -13974,7 +13266,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       setError(null);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14022,7 +13410,127 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       const paymentData = {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14038,7 +13546,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         referenceType: recordPayment.referenceType,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14054,7 +13610,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         amount: parseFloat(recordPayment.amount),
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14070,7 +13674,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         paymentMethod: recordPayment.paymentMethod,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14086,7 +13738,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14118,7 +13842,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       setShowRecordPayment(false);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14142,7 +13962,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         paymentType: 'Customer Payment',
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14158,7 +14026,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         referenceId: '',
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14174,7 +14090,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         maxAmount: 0,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14190,6 +14154,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         paymentMethod: 'Bank Transfer',
 
 
@@ -14198,7 +14186,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         notes: '',
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14222,6 +14258,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       // Refresh data
 
 
@@ -14230,7 +14314,127 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       await fetchData();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14278,7 +14482,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       setError(err.message || 'Failed to record payment');
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14310,7 +14610,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       setSubmittingPayment(false);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14342,7 +14738,151 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14382,7 +14922,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     const nextErrors = {};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14398,7 +14986,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     if (!adjustForm.amount || Number.isNaN(amountNum) || amountNum <= 0) {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14414,7 +15050,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14430,6 +15114,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       nextErrors.date = 'Date is required';
 
 
@@ -14438,7 +15146,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14454,6 +15210,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       nextErrors.category = 'Category is required';
 
 
@@ -14462,7 +15242,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14472,79 +15300,349 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
     // Validate invoice selection for Invoice Amount Received
 
+
+
+
+
+
+
     if (adjustForm.type === 'credit' && adjustForm.category === 'Invoice Amount Received' && !adjustForm.selectedInvoiceId) {
+
+
+
+
+
+
 
       nextErrors.selectedInvoiceId = 'Please select an invoice';
 
+
+
+
+
+
+
     }
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
     // Validate vendor selection for Vendor Payment
 
+
+
+
+
+
+
     if (adjustForm.type === 'debit' && adjustForm.category === 'Vendor Payment' && !adjustForm.selectedVendorId) {
+
+
+
+
+
+
 
       nextErrors.selectedVendorId = 'Please select a vendor';
 
+
+
+
+
+
+
     }
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
     // Validate payment amount doesn't exceed total invoice amount for invoice payments
 
+
+
+
+
+
+
     if (adjustForm.type === 'credit' && (adjustForm.category === 'Invoice Payment' || adjustForm.category === 'Invoice Amount Received') && adjustForm.selectedInvoiceId) {
+
+
+
+
+
+
 
       const inv = invoices.find(i => (i._id || i.id) === adjustForm.selectedInvoiceId);
 
+
+
+
+
+
+
       if (inv) {
+
+
+
+
+
+
 
         // Check if amount exceeds total invoice amount (not just outstanding)
 
+
+
+
+
+
+
         if (amountNum > inv.amount) {
+
+
+
+
+
+
 
           nextErrors.amount = `Amount cannot exceed total invoice amount of ${fmt(inv.amount)}`;
 
+
+
+
+
+
+
           toast.error(`Cannot pay more than total invoice amount of ${fmt(inv.amount)}`);
+
+
+
+
+
+
 
         }
 
+
+
+
+
+
+
       }
 
+
+
+
+
+
+
     }
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
     // Validate amount doesn't exceed cash position for debit transactions
 
+
+
+
+
+
+
     if (adjustForm.type === 'debit') {
+
+
+
+
+
+
 
       if (amountNum > manualBalance) {
 
+
+
+
+
+
+
         nextErrors.amount = `Amount cannot exceed available cash position of ${fmt(manualBalance)}`;
+
+
+
+
+
+
 
         toast.error(`Cannot debit more than available cash position of ${fmt(manualBalance)}`);
 
+
+
+
+
+
+
       }
+
+
+
+
+
+
 
       
 
+
+
+
+
+
+
       // Additional validation for vendor payments - also check outstanding amount
+
+
+
+
+
+
 
       if (adjustForm.category === 'Vendor Payment' && adjustForm.selectedVendorId) {
 
+
+
+
+
+
+
         const vendor = payables.find(p => String(p.vendorObjectId || p.vendorId) === adjustForm.selectedVendorId);
+
+
+
+
+
+
 
         if (vendor && amountNum > (vendor.outstandingAmount || 0)) {
 
+
+
+
+
+
+
           nextErrors.amount = `Amount cannot exceed outstanding balance of ${fmt(vendor.outstandingAmount)}`;
+
+
+
+
+
+
 
           toast.error(`Amount cannot exceed outstanding balance of ${fmt(vendor.outstandingAmount)}`);
 
+
+
+
+
+
+
         }
+
+
+
+
+
+
 
       }
 
+
+
+
+
+
+
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14568,7 +15666,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       setAdjustErrors(nextErrors);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14584,7 +15730,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14608,6 +15826,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       setSubmittingAdjust(true);
 
 
@@ -14616,7 +15858,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       setAdjustError(null);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -14634,681 +15948,2775 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
       // Handle Invoice Payment (Credit - Invoice Amount Received)
 
+
+
+
+
+
+
       if (adjustForm.type === 'credit' && adjustForm.category === 'Invoice Amount Received' && adjustForm.selectedInvoiceId) {
+
+
+
+
+
+
 
         const inv = invoices.find(i => (i._id || i.id) === adjustForm.selectedInvoiceId);
 
+
+
+
+
+
+
         
+
+
+
+
+
+
 
         console.log('Processing invoice payment:', {
 
+
+
+
+
+
+
           invoiceId: adjustForm.selectedInvoiceId,
+
+
+
+
+
+
 
           invoiceNumber: inv?.invoiceNumber,
 
+
+
+
+
+
+
           amount: amountNum,
+
+
+
+
+
+
 
           currentPaid: inv?.paid || 0,
 
+
+
+
+
+
+
           outstanding: inv?.amount - (inv?.paid || 0)
+
+
+
+
+
+
 
         });
 
+
+
+
+
+
+
         
+
+
+
+
+
+
 
         // Create journal entry directly for UI display - Double entry format
 
+
+
+
+
+
+
         const invoiceJournalEntry = {
+
+
+
+
+
+
 
           id: `inv-${Date.now()}`,
 
+
+
+
+
+
+
           date: adjustForm.date,
+
+
+
+
+
+
 
           description: `Invoice payment: ${inv?.customerName || 'Customer'}`,
 
+
+
+
+
+
+
           type: 'Income',
+
+
+
+
+
+
 
           category: 'Invoice Payment',
 
+
+
+
+
+
+
           referenceId: adjustForm.selectedInvoiceId,
+
+
+
+
+
+
 
           transactionNumber: `TXN-INV-${Date.now().toString().slice(-6)}`,
 
+
+
+
+
+
+
           status: 'Completed',
+
+
+
+
+
+
 
           narration: adjustForm.reason || `Payment received from ${inv?.customerName || 'Customer'}`,
 
+
+
+
+
+
+
           createdAt: new Date(adjustForm.date + 'T00:00:00.000Z'),
+
+
+
+
+
+
 
           lf: adjustForm.lf ? parseInt(adjustForm.lf) : undefined,
 
+
+
+
+
+
+
           lines: [
 
+
+
+
+
+
+
             {
+
+
+
+
+
+
 
               accountName: 'Cash/Bank A/c',
 
+
+
+
+
+
+
               debitAmount: amountNum,
+
+
+
+
+
+
 
               creditAmount: 0,
 
+
+
+
+
+
+
               description: 'Cash/Bank A/c'
+
+
+
+
+
+
 
             },
 
+
+
+
+
+
+
             {
+
+
+
+
+
+
 
               accountName: inv?.invoiceNumber ? `${inv.customerName} (${inv.invoiceNumber})` : (inv?.customerName || 'Customer'),
 
+
+
+
+
+
+
               debitAmount: 0,
+
+
+
+
+
+
 
               creditAmount: amountNum,
 
+
+
+
+
+
+
               description: `To ${inv?.customerName || 'Customer'}`
+
+
+
+
+
+
 
             }
 
+
+
+
+
+
+
           ]
+
+
+
+
+
+
 
         };
 
+
+
+
+
+
+
         
+
+
+
+
+
+
 
         const tenantId = localStorage.getItem('tenantId') || 'solarcorp';
 
+
+
+
+
+
+
         try {
+
+
+
+
+
+
 
           console.log('Saving to backend with tenantId:', tenantId);
 
+
+
+
+
+
+
           await financeApi.createManualAdjustment({
+
+
+
+
+
+
 
             type: 'credit',
 
+
+
+
+
+
+
             category: 'Invoice Payment',
+
+
+
+
+
+
 
             amount: amountNum,
 
+
+
+
+
+
+
             reason: adjustForm.reason || `Payment received from ${inv?.customerName || 'Customer'}`,
+
+
+
+
+
+
 
             reference: adjustForm.selectedInvoiceId,
 
+
+
+
+
+
+
             date: adjustForm.date,
+
+
+
+
+
+
 
             tenantId,
 
+
+
+
+
+
+
             lf: adjustForm.lf ? parseInt(adjustForm.lf) : undefined
+
+
+
+
+
+
 
           });
 
+
+
+
+
+
+
           console.log('✅ Saved to backend');
+
+
+
+
+
+
 
           
 
+
+
+
+
+
+
           // Note: Local journal entry already added above with lf field
+
+
+
+
+
+
 
           // Backend may not return lf, so we keep local state
 
+
+
+
+
+
+
         } catch (err) {
+
+
+
+
+
+
 
           console.error('Backend save error:', err?.response?.data || err?.message);
 
+
+
+
+
+
+
         }
+
+
+
+
+
+
 
         
 
+
+
+
+
+
+
         // Update local invoice state (will be overwritten by refetch, but keeps UI responsive)
+
+
+
+
+
+
 
         let becamePaid = false;
 
+
+
+
+
+
+
         const newPaid = (inv?.paid || 0) + amountNum;
+
+
+
+
+
+
 
         const newBalance = inv?.amount - newPaid;
 
+
+
+
+
+
+
         const newStatus = newBalance <= 0 ? 'Paid' : 'Partial';
+
+
+
+
+
+
 
         if (newStatus === 'Paid') {
 
+
+
+
+
+
+
           becamePaid = true;
+
+
+
+
+
+
 
         }
 
+
+
+
+
+
+
         setInvoices(prev => prev.map(invItem => {
+
+
+
+
+
+
 
           if ((invItem._id || invItem.id) === adjustForm.selectedInvoiceId) {
 
+
+
+
+
+
+
             return { ...invItem, paid: newPaid, balance: newBalance, status: newStatus, paidDate: adjustForm.date };
+
+
+
+
+
+
 
           }
 
+
+
+
+
+
+
           return invItem;
+
+
+
+
+
+
 
         }));
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
         // Show notification if invoice became fully paid
+
+
+
+
+
+
 
         if (becamePaid) {
 
+
+
+
+
+
+
           toast.success('Invoice fully paid! Status moved to Paid.', { duration: 4000 });
 
+
+
+
+
+
+
         }
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
         // Update manual balance locally (increase cash position for credit)
 
+
+
+
+
+
+
         setManualBalance(prev => prev + amountNum);
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
         setShowAdjustModal(false);
 
+
+
+
+
+
+
         setAdjustForm({
+
+
+
+
+
+
 
           type: 'credit',
 
+
+
+
+
+
+
           category: '',
+
+
+
+
+
+
 
           amount: '',
 
+
+
+
+
+
+
           lf: '',
+
+
+
+
+
+
 
           reason: '',
 
+
+
+
+
+
+
           reference: '',
+
+
+
+
+
+
 
           date: new Date().toISOString().slice(0, 10),
 
+
+
+
+
+
+
           selectedInvoiceId: '',
+
+
+
+
+
+
 
           selectedVendorId: '',
 
+
+
+
+
+
+
           paymentMethod: 'Bank Transfer',
+
+
+
+
+
+
 
         });
 
+
+
+
+
+
+
         setAdjustErrors({});
 
+
+
+
+
+
+
         setAdjustError(null);
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
         toast.success(`Payment of ${fmt(amountNum)} recorded for invoice successfully`);
 
+
+
+
+
+
+
         
+
+
+
+
+
+
 
         // Refresh data from database to ensure changes persist
 
+
+
+
+
+
+
         await fetchData();
+
+
+
+
+
+
 
         return;
 
+
+
+
+
+
+
       }
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
       // Handle Vendor Payment (Debit - Vendor Payment) - Direct Update Method
 
+
+
+
+
+
+
       if (adjustForm.type === 'debit' && adjustForm.category === 'Vendor Payment' && adjustForm.selectedVendorId) {
+
+
+
+
+
+
 
         const vendor = payables.find(p => String(p.vendorObjectId || p.vendorId) === adjustForm.selectedVendorId);
 
+
+
+
+
+
+
         
+
+
+
+
+
+
 
         console.log('Processing vendor payment:', {
 
+
+
+
+
+
+
           vendorId: adjustForm.selectedVendorId,
+
+
+
+
+
+
 
           vendorName: vendor?.vendorName,
 
+
+
+
+
+
+
           amount: amountNum,
+
+
+
+
+
+
 
           outstandingAmount: vendor?.outstandingAmount
 
+
+
+
+
+
+
         });
 
+
+
+
+
+
+
         
+
+
+
+
+
+
 
         // Create journal entry directly for UI display - Double entry format
 
+
+
+
+
+
+
         const journalEntry = {
+
+
+
+
+
+
 
           id: `ven-${Date.now()}`,
 
+
+
+
+
+
+
           date: adjustForm.date,
+
+
+
+
+
+
 
           description: `Vendor payment: ${vendor?.vendorName || 'Vendor'}`,
 
+
+
+
+
+
+
           type: 'Expense',
+
+
+
+
+
+
 
           category: 'Vendor Bill Payment',
 
+
+
+
+
+
+
           referenceId: adjustForm.selectedVendorId,
+
+
+
+
+
+
 
           transactionNumber: `TXN-VEN-${Date.now().toString().slice(-6)}`,
 
+
+
+
+
+
+
           status: 'Completed',
+
+
+
+
+
+
 
           narration: adjustForm.reason || `Payment made to ${vendor?.vendorName || 'Vendor'}`,
 
+
+
+
+
+
+
           createdAt: new Date(adjustForm.date + 'T00:00:00.000Z'),
+
+
+
+
+
+
 
           lf: adjustForm.lf ? parseInt(adjustForm.lf) : undefined,
 
+
+
+
+
+
+
           lines: [
 
+
+
+
+
+
+
             {
+
+
+
+
+
+
 
               accountName: vendor?.vendorName || 'Vendor',
 
+
+
+
+
+
+
               debitAmount: amountNum,
+
+
+
+
+
+
 
               creditAmount: 0,
 
+
+
+
+
+
+
               description: `${vendor?.vendorName || 'Vendor'}`
+
+
+
+
+
+
 
             },
 
+
+
+
+
+
+
             {
+
+
+
+
+
+
 
               accountName: 'Cash/Bank A/c',
 
+
+
+
+
+
+
               debitAmount: 0,
+
+
+
+
+
+
 
               creditAmount: amountNum,
 
+
+
+
+
+
+
               description: 'To Cash/Bank A/c'
+
+
+
+
+
+
 
             }
 
+
+
+
+
+
+
           ]
+
+
+
+
+
+
 
         };
 
+
+
+
+
+
+
         
+
+
+
+
+
+
 
         console.log('Created vendor journal entry:', journalEntry);
 
+
+
+
+
+
+
         
+
+
+
+
+
+
 
         // Add to journalEntries state immediately
 
+
+
+
+
+
+
         setJournalEntries(prev => {
+
+
+
+
+
+
 
           console.log('Adding to journalEntries. Current count:', prev.length);
 
+
+
+
+
+
+
           const updated = [journalEntry, ...prev];
+
+
+
+
+
+
 
           console.log('Updated journalEntries count:', updated.length);
 
+
+
+
+
+
+
           return updated;
 
+
+
+
+
+
+
         });
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
         // Save to backend with tenantId
 
+
+
+
+
+
+
         try {
+
+
+
+
+
+
 
           const tenantId = localStorage.getItem('tenantId') || 'solarcorp';
 
+
+
+
+
+
+
           console.log('Saving to backend with tenantId:', tenantId);
+
+
+
+
+
+
 
           await financeApi.createManualAdjustment({
 
+
+
+
+
+
+
             type: 'debit',
+
+
+
+
+
+
 
             category: 'Vendor Payment',
 
+
+
+
+
+
+
             amount: amountNum,
+
+
+
+
+
+
 
             reason: adjustForm.reason || `Payment to ${vendor?.vendorName || 'Vendor'}`,
 
+
+
+
+
+
+
             reference: adjustForm.selectedVendorId,
+
+
+
+
+
+
 
             date: adjustForm.date,
 
+
+
+
+
+
+
             tenantId,
+
+
+
+
+
+
 
             lf: adjustForm.lf ? parseInt(adjustForm.lf) : undefined
 
+
+
+
+
+
+
           });
+
+
+
+
+
+
 
           console.log('✅ Saved to backend');
 
+
+
+
+
+
+
           
+
+
+
+
+
+
 
           // Note: Local journal entry already added above with lf field
 
+
+
+
+
+
+
           // Backend may not return lf, so we keep local state
+
+
+
+
+
+
 
         } catch (err) {
 
+
+
+
+
+
+
           console.error('Backend save error:', err?.response?.data || err?.message);
+
+
+
+
+
+
 
         }
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
         // Update local payables state to reflect the payment
+
+
+
+
+
+
 
         setPayables(prev => {
 
+
+
+
+
+
+
           const updatedPayables = prev.map(p => {
+
+
+
+
+
+
 
             if (String(p.vendorObjectId || p.vendorId) === adjustForm.selectedVendorId) {
 
+
+
+
+
+
+
               const newPaid = (p.amountPaid || 0) + amountNum;
+
+
+
+
+
+
 
               const newOutstanding = (p.outstandingAmount || 0) - amountNum;
 
+
+
+
+
+
+
               return { 
+
+
+
+
+
+
 
                 ...p, 
 
+
+
+
+
+
+
                 amountPaid: newPaid, 
+
+
+
+
+
+
 
                 outstandingAmount: newOutstanding,
 
+
+
+
+
+
+
                 status: newOutstanding <= 0 ? 'Paid' : 'Partial'
+
+
+
+
+
+
 
               };
 
+
+
+
+
+
+
             }
+
+
+
+
+
+
 
             return p;
 
+
+
+
+
+
+
           });
+
+
+
+
+
+
 
           return updatedPayables;
 
+
+
+
+
+
+
         });
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
         // Update manual balance locally (reduce cash position for debit)
 
+
+
+
+
+
+
         setManualBalance(prev => prev - amountNum);
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
         setShowAdjustModal(false);
 
+
+
+
+
+
+
         setAdjustForm({
+
+
+
+
+
+
 
           type: 'credit',
 
+
+
+
+
+
+
           category: '',
+
+
+
+
+
+
 
           amount: '',
 
+
+
+
+
+
+
           lf: '',
+
+
+
+
+
+
 
           reason: '',
 
+
+
+
+
+
+
           reference: '',
+
+
+
+
+
+
 
           date: new Date().toISOString().slice(0, 10),
 
+
+
+
+
+
+
           selectedInvoiceId: '',
+
+
+
+
+
+
 
           selectedVendorId: '',
 
+
+
+
+
+
+
           paymentMethod: 'Bank Transfer',
+
+
+
+
+
+
 
         });
 
+
+
+
+
+
+
         setAdjustErrors({});
+
+
+
+
+
+
 
         setAdjustError(null);
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
         toast.success(`Vendor payment of ${fmt(amountNum)} to ${vendor?.vendorName || 'Vendor'} recorded successfully`);
+
+
+
+
+
+
 
         
 
+
+
+
+
+
+
         // Refresh data from database to ensure changes persist
+
+
+
+
+
+
 
         await fetchData();
 
+
+
+
+
+
+
         return;
 
+
+
+
+
+
+
       }
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
       // Default: Create manual adjustment for other categories
 
+
+
+
+
+
+
       console.log('Creating manual adjustment for category:', adjustForm.category);
+
+
+
+
+
+
 
       console.log('Current manual balance before adjustment:', manualBalance);
 
+
+
+
+
+
+
       console.log('Adjustment details:', { type: adjustForm.type, amount: amountNum, category: adjustForm.category });
 
+
+
+
+
+
+
       
+
+
+
+
+
+
 
       // Create journal entry directly for UI display - Double entry format
 
+
+
+
+
+
+
       const adjustmentJournalEntry = {
+
+
+
+
+
+
 
         id: `adj-${Date.now()}`,
 
+
+
+
+
+
+
         date: adjustForm.date,
+
+
+
+
+
+
 
         description: `Manual adjustment: ${adjustForm.reason || adjustForm.type}`,
 
+
+
+
+
+
+
         type: adjustForm.type === 'debit' ? 'Expense' : 'Income',
+
+
+
+
+
+
 
         category: adjustForm.category || 'Manual Adjustment',
 
+
+
+
+
+
+
         referenceId: adjustForm.reference,
+
+
+
+
+
+
 
         transactionNumber: `TXN-ADJ-${Date.now().toString().slice(-6)}`,
 
+
+
+
+
+
+
         status: 'Completed',
+
+
+
+
+
+
 
         narration: adjustForm.reason || `${adjustForm.type} adjustment - ${adjustForm.category}`,
 
+
+
+
+
+
+
         createdAt: new Date(adjustForm.date + 'T00:00:00.000Z'),
+
+
+
+
+
+
 
         lf: adjustForm.lf ? parseInt(adjustForm.lf) : undefined,
 
+
+
+
+
+
+
         lines: adjustForm.type === 'debit' ? [
 
+
+
+
+
+
+
           {
+
+
+
+
+
+
 
             accountName: adjustForm.category || 'Expense',
 
+
+
+
+
+
+
             debitAmount: amountNum,
 
+
+
+
+
+
+
             creditAmount: 0,
+
+
+
+
+
+
 
             description: `${adjustForm.category || 'Expense'}`
 
+
+
+
+
+
+
           },
+
+
+
+
+
+
 
           {
 
+
+
+
+
+
+
             accountName: 'Cash/Bank A/c',
+
+
+
+
+
+
 
             debitAmount: 0,
 
+
+
+
+
+
+
             creditAmount: amountNum,
+
+
+
+
+
+
 
             description: 'To Cash/Bank A/c'
 
+
+
+
+
+
+
           }
+
+
+
+
+
+
 
         ] : [
 
+
+
+
+
+
+
           {
+
+
+
+
+
+
 
             accountName: 'Cash/Bank A/c',
 
+
+
+
+
+
+
             debitAmount: amountNum,
+
+
+
+
+
+
 
             creditAmount: 0,
 
+
+
+
+
+
+
             description: 'Cash/Bank A/c'
+
+
+
+
+
+
 
           },
 
+
+
+
+
+
+
           {
+
+
+
+
+
+
 
             accountName: adjustForm.category || 'Income',
 
+
+
+
+
+
+
             debitAmount: 0,
+
+
+
+
+
+
 
             creditAmount: amountNum,
 
+
+
+
+
+
+
             description: `To ${adjustForm.category || 'Income'}`
+
+
+
+
+
+
 
           }
 
+
+
+
+
+
+
         ]
+
+
+
+
+
+
 
       };
 
+
+
+
+
+
+
       
+
+
+
+
+
+
 
       console.log('Created manual adjustment journal entry:', adjustmentJournalEntry);
 
+
+
+
+
+
+
       
+
+
+
+
+
+
 
       // Add to journalEntries state immediately
 
+
+
+
+
+
+
       setJournalEntries(prev => {
+
+
+
+
+
+
 
         console.log('Adding to journalEntries. Current count:', prev.length);
 
+
+
+
+
+
+
         const updated = [adjustmentJournalEntry, ...prev];
+
+
+
+
+
+
 
         console.log('Updated journalEntries count:', updated.length);
 
+
+
+
+
+
+
         return updated;
 
+
+
+
+
+
+
       });
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
       // Save to backend with tenantId
 
+
+
+
+
+
+
       try {
+
+
+
+
+
+
 
         const tenantId = localStorage.getItem('tenantId') || 'solarcorp';
 
+
+
+
+
+
+
         console.log('Saving to backend with tenantId:', tenantId);
+
+
+
+
+
+
 
         await financeApi.createManualAdjustment({
 
+
+
+
+
+
+
           type: adjustForm.type,
+
+
+
+
+
+
 
           category: adjustForm.category || 'Manual Adjustment',
 
+
+
+
+
+
+
           amount: amountNum,
+
+
+
+
+
+
 
           reason: adjustForm.reason || 'Manual adjustment',
 
+
+
+
+
+
+
           reference: adjustForm.reference || '',
+
+
+
+
+
+
 
           date: adjustForm.date,
 
+
+
+
+
+
+
           tenantId,
+
+
+
+
+
+
 
           lf: adjustForm.lf ? parseInt(adjustForm.lf) : undefined
 
+
+
+
+
+
+
         });
+
+
+
+
+
+
 
         console.log('✅ Saved to backend');
 
+
+
+
+
+
+
         
+
+
+
+
+
+
 
         // Note: Local journal entry already added above with lf field
 
+
+
+
+
+
+
         // Backend may not return lf, so we keep local state
+
+
+
+
+
+
 
       } catch (err) {
 
+
+
+
+
+
+
         console.error('Backend save error:', err?.response?.data || err?.message);
+
+
+
+
+
+
 
       }
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
       // Update manual balance locally
+
+
+
+
+
+
 
       setManualBalance(prev => {
 
+
+
+
+
+
+
         const newBalance = adjustForm.type === 'credit' ? prev + amountNum : prev - amountNum;
+
+
+
+
+
+
 
         console.log('Updating manual balance:', { old: prev, new: newBalance, amount: amountNum, type: adjustForm.type });
 
+
+
+
+
+
+
         return newBalance;
+
+
+
+
+
+
 
       });
 
+
+
+
+
+
+
       
+
+
+
+
+
+
 
       console.log('Manual adjustment completed successfully');
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
       setShowAdjustModal(false);
+
+
+
+
+
+
 
       setAdjustForm({
 
+
+
+
+
+
+
         type: 'credit',
+
+
+
+
+
+
 
         category: '',
 
+
+
+
+
+
+
         amount: '',
+
+
+
+
+
+
 
         reason: '',
 
+
+
+
+
+
+
         reference: '',
+
+
+
+
+
+
 
         date: new Date().toISOString().slice(0, 10),
 
+
+
+
+
+
+
         selectedInvoiceId: '',
+
+
+
+
+
+
 
         selectedVendorId: '',
 
+
+
+
+
+
+
         paymentMethod: 'Bank Transfer',
+
+
+
+
+
+
 
       });
 
+
+
+
+
+
+
       setAdjustErrors({});
+
+
+
+
+
+
 
       setAdjustError(null);
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
       toast.success(`Manual ${adjustForm.type} of ${fmt(amountNum)} recorded successfully`);
+
+
+
+
+
+
 
       
 
+
+
+
+
+
+
       // Refresh data from database to ensure changes persist
+
+
+
+
+
+
 
       await fetchData();
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
     } catch (err) {
+
+
+
+
+
+
 
       console.error('Error in handleSubmitAdjustment:', err);
 
+
+
+
+
+
+
       setAdjustError(err.message || 'Failed to record adjustment');
+
+
+
+
+
+
 
     } finally {
 
+
+
+
+
+
+
       setSubmittingAdjust(false);
+
+
+
+
+
+
 
     }
 
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -15346,7 +18754,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     try {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -15378,7 +18882,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       const data = await financeApi.getInvoiceTimeline(invoiceId);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -15410,7 +19010,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     } catch (err) {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -15442,7 +19138,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       setTimelineData([]);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -15474,7 +19266,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       setLoadingTimeline(false);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -15506,7 +19394,151 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -15554,7 +19586,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     (filteredInvoicesByYear || []).filter(inv =>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -15566,7 +19670,67 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
         inv.status === invStatus ||
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -15598,7 +19762,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         (invStatus === 'Sent' && inv.status === 'Pending') ||
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -15630,7 +19890,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         (invStatus === 'Outstanding' && ['Draft', 'Sent', 'Partial', 'Overdue', 'Pending'].includes(inv.status))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -15662,7 +20018,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       inv.customerName?.toLowerCase().includes(invSearch.toLowerCase())
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -15694,7 +20146,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   const paginatedInvoices = useMemo(() =>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -15706,7 +20230,115 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
     [filteredInvoices, page, pageSize]);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -15746,7 +20378,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     if (!d) return null;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -15762,6 +20442,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       return Number.isNaN(d.getTime()) ? null : d;
 
 
@@ -15770,7 +20474,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -15786,7 +20538,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       const m = d.trim().match(/^([0-3]\d)[-\/](0\d|1[0-2])[-\/](\d{4})$/);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -15802,7 +20602,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         const day = Number(m[1]);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -15818,7 +20666,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         const year = Number(m[3]);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -15834,7 +20730,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         return Number.isNaN(dt.getTime()) ? null : dt;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -15850,7 +20794,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -15866,6 +20858,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     return Number.isNaN(dt.getTime()) ? null : dt;
 
 
@@ -15874,7 +20890,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -15898,7 +20986,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   const filteredRevenueData = useMemo(() => {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -15914,7 +21050,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       const itemDate = new Date(item.month + ' 01, ' + selectedYear);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -15930,6 +21114,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     });
 
 
@@ -15938,7 +21146,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   }, [dateRange, selectedYear]);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -15962,7 +21242,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     return (cashFlow || []).filter(item => {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -15978,6 +21306,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       return itemDate >= new Date(dateRange.start) && itemDate <= new Date(dateRange.end);
 
 
@@ -15986,7 +21338,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16010,7 +21410,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   const exportInvoiceCsv = (row) => {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16026,7 +21498,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     const headers = ['Invoice Number', 'Customer', 'Status', 'Amount', 'Paid', 'Balance', 'Invoice Date', 'Due Date'];
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16042,7 +21562,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       r.invoiceNumber || r.id || '',
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16058,7 +21626,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       r.status || '',
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16074,7 +21690,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       r.paid ?? '',
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16090,7 +21754,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       r.invoiceDate || '',
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16106,7 +21818,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     ];
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16122,7 +21882,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16138,7 +21946,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     const a = document.createElement('a');
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16154,7 +22010,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     a.download = `invoice_${r.invoiceNumber || r.id || 'export'}.csv`;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16170,7 +22074,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     a.click();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16186,6 +22138,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     URL.revokeObjectURL(url);
 
 
@@ -16194,7 +22170,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16218,7 +22266,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     // Prepare data rows
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16226,11 +22310,53 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
     let debitTotal = 0;
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
     let creditTotal = 0;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16242,7 +22368,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     dataToExport.forEach(entry => {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16254,7 +22416,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       const narration = entry.narration || '';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16266,7 +22464,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       const creditLines = entry.lines?.filter(l => l.creditAmount > 0) || [];
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16278,7 +22512,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       debitLines.forEach((line, idx) => {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16290,7 +22560,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         rows.push({
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16302,13 +22608,67 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           Particulars: `${line.accountName} Dr.`,
 
 
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           'Ledger / Account': line.accountName || '',
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16320,7 +22680,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           'Debit Amount (Dr.)': line.debitAmount || 0,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16332,7 +22728,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           'Narration / Notes': idx === 0 ? narration : ''
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16344,7 +22776,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16356,7 +22824,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       creditLines.forEach((line) => {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16368,7 +22872,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         rows.push({
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16380,7 +22920,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           Particulars: `To ${line.accountName}`,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16392,7 +22968,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           'L.F.': '',
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16404,7 +23016,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           'Credit Amount (Cr.)': line.creditAmount || 0,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16416,7 +23064,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16428,7 +23112,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16440,7 +23160,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     rows.push({
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16452,7 +23208,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       Particulars: 'TOTAL',
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16464,7 +23256,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       'L.F.': '',
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16476,7 +23304,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       'Credit Amount (Cr.)': creditTotal,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16488,7 +23352,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16500,7 +23400,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     const ws = XLSX.utils.json_to_sheet(rows);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16512,13 +23448,67 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     ws['!cols'] = [
 
 
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       { wch: 12 },  // Date
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16530,13 +23520,67 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       { wch: 25 },  // Ledger / Account
 
 
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       { wch: 8 },   // L.F.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16548,7 +23592,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       { wch: 18 },  // Credit Amount
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16560,7 +23640,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     ];
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16572,7 +23688,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     const wb = XLSX.utils.book_new();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16584,7 +23736,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     // Download file
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16596,7 +23784,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16606,7 +23830,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
     const rows = [];
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16618,7 +23866,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     dataToExport.forEach(adj => {
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16626,7 +23910,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
         Date: adj.date ? new Date(adj.date).toISOString().slice(0, 10) : '',
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16634,7 +23942,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
         Category: adj.category || '',
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16642,7 +23974,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
         Reason: adj.reason || '',
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16650,11 +24006,47 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
         'L.F.': adj.lf != null && adj.lf !== undefined ? adj.lf : '',
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
       });
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16666,7 +24058,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     const ws = XLSX.utils.json_to_sheet(rows);
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16674,7 +24102,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
       { wch: 12 },  // Date
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16682,7 +24134,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
       { wch: 20 },  // Category
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16690,7 +24166,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
       { wch: 40 },  // Reason
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16698,7 +24198,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
       { wch: 8 },   // L.F.
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16710,7 +24234,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     const wb = XLSX.utils.book_new();
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16718,11 +24278,59 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
     XLSX.writeFile(wb, `transactions_${new Date().toISOString().slice(0, 10)}.xlsx`);
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16738,7 +24346,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     { label: 'View Invoice', icon: FileText, onClick: row => setSelected(row) },
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16754,7 +24410,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16770,6 +24474,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         icon: Edit,
 
 
@@ -16778,7 +24506,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         show: (row) => row?.status !== 'Paid',
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16794,6 +24570,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       },
 
 
@@ -16802,7 +24602,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     ] : []),
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16818,7 +24666,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16834,7 +24730,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         icon: Download,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16850,6 +24794,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       },
 
 
@@ -16858,7 +24826,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     ] : []),
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16874,7 +24890,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16890,7 +24954,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         icon: Trash2,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16906,7 +25018,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         show: (row) => row?.status !== 'Paid',
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16922,7 +25082,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       },
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16938,7 +25146,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16954,7 +25210,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       icon: Clock,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16970,7 +25274,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       onClick: (row) => {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16986,7 +25338,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         setReminderForm({
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17002,7 +25402,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           customerEmail: row?.email || '',
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17018,7 +25466,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17034,7 +25530,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         setReminderSuccess(false);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17050,6 +25594,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       },
 
 
@@ -17058,7 +25626,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     },
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17082,7 +25698,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   const filteredRowActions = INV_ACTIONS.filter(action => {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17098,7 +25786,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       case 'Edit':
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17114,7 +25850,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       case 'Delete':
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17130,7 +25914,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       case 'Export':
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17146,7 +25978,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       default:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17162,7 +26042,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17198,9 +26126,123 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   // Calculate KPI values from real data
 
+
+
+
+
+
+
   // Use filteredInvoicesByYear so values respect the selected month/year filter
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17224,7 +26266,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   // Calculate total collected from invoices
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17248,7 +26362,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   // Calculate total receivables (outstanding balance only)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17272,7 +26458,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   // Calculate payables total for display
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17292,7 +26550,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   const cashPosition = (() => {
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17300,7 +26606,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
     const totalDebit = (manualAdjustments || []).filter(a => a.type === 'debit').reduce((s, a) => s + Number(a.amount || 0), 0);
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17308,7 +26638,67 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
   })();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17332,33 +26722,141 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     if (!dt) return false;
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
     // If a month filter is selected, use it; otherwise use today's month
 
+
+
+
+
+
+
     if (calendarFilterYear !== 'all' && calendarFilterMonth !== undefined) {
+
+
+
+
+
+
 
       if (calendarFilterDay !== undefined) {
 
+
+
+
+
+
+
         // For day filter, caller should check both invoiceDate and createdAt separately
+
+
+
+
+
+
 
         return dt.getFullYear().toString() === calendarFilterYear && dt.getMonth() === calendarFilterMonth && dt.getDate() === calendarFilterDay;
 
+
+
+
+
+
+
       }
+
+
+
+
+
+
 
       return dt.getFullYear().toString() === calendarFilterYear && dt.getMonth() === calendarFilterMonth;
 
+
+
+
+
+
+
     }
+
+
+
+
+
+
 
     if (calendarFilterYear !== 'all') {
 
+
+
+
+
+
+
       return dt.getFullYear().toString() === calendarFilterYear;
+
+
+
+
+
+
 
     }
 
+
+
+
+
+
+
     const now = new Date();
+
+
+
+
+
+
 
     return dt.getFullYear() === now.getFullYear() && dt.getMonth() === now.getMonth();
 
@@ -17368,7 +26866,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17392,7 +26962,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     if (!d) return null;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17408,6 +27026,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     return Number.isNaN(dt.getTime()) ? null : dt;
 
 
@@ -17416,7 +27058,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17434,29 +27148,125 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
   // Helper: checks if an invoice matches the current period filter (handles Today OR logic)
 
+
+
+
+
+
+
   const isInvoiceInCurrentPeriod = (inv) => {
+
+
+
+
+
+
 
     if (calendarFilterDay !== undefined && calendarFilterYear !== 'all') {
 
+
+
+
+
+
+
       // Today mode: match if invoiceDate OR createdAt is today
+
+
+
+
+
+
 
       const year = parseInt(calendarFilterYear);
 
+
+
+
+
+
+
       const dtInv = safeDate(inv?.invoiceDate);
+
+
+
+
+
+
 
       const dtCreated = safeDate(inv?.createdAt);
 
+
+
+
+
+
+
       const checkDate = (d) => d && d.getFullYear() === year && d.getMonth() === calendarFilterMonth && d.getDate() === calendarFilterDay;
+
+
+
+
+
+
 
       return checkDate(dtInv) || checkDate(dtCreated);
 
+
+
+
+
+
+
     }
+
+
+
+
+
+
 
     const dt = safeDate(inv?.invoiceDate) || safeDate(inv?.createdAt);
 
+
+
+
+
+
+
     return isInCurrentMonth(dt);
 
+
+
+
+
+
+
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17472,6 +27282,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     return sum + Number(inv?.amount || inv?.invoiceAmount || 0);
 
 
@@ -17480,7 +27314,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   }, 0);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17504,6 +27410,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     return sum + getPaidAmount(inv, manualAdjustments);
 
 
@@ -17512,7 +27442,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   }, 0);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17536,7 +27538,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     return sum + getBalance(inv, manualAdjustments);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17560,7 +27610,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   const currentMonthCollectionRate = currentMonthInvoiced > 0
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17576,7 +27698,127 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     : 0;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17624,7 +27866,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     return (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17656,7 +27994,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         <div className="glass-card p-6 text-center max-w-md">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17688,7 +28122,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-2">Error Loading Data</h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17720,7 +28250,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17752,6 +28378,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     );
 
 
@@ -17768,7 +28442,151 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17816,7 +28634,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     return (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17848,7 +28762,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         <div className="flex flex-col items-center gap-3">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17880,7 +28890,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           <p className="text-sm text-[var(--text-muted)]">Loading finance data...</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17912,7 +29018,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17944,7 +29146,151 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -17992,7 +29338,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     return (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18024,7 +29466,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         <div className="glass-card p-6 text-center max-w-md">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18056,7 +29594,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-2">Error Loading Data</h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18088,7 +29722,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           <Button onClick={fetchData}><Plus size={13} /> Retry</Button>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18120,6 +29850,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       </div>
 
 
@@ -18136,7 +29914,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     );
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18184,6 +30058,102 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   return (
 
 
@@ -18200,7 +30170,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-    <div className="animate-fade-in space-y-5 -mt-10">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <div className="animate-fade-in space-y-5 -mt-5">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18232,7 +30298,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         <div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18264,6 +30426,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           <p className="text-xs text-[var(--text-muted)] mt-0.5 hidden sm:block">Revenue · receivables · payables · cash flow · invoices</p>
 
 
@@ -18280,7 +30490,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18304,97 +30610,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-          <CalendarFilter 
 
 
 
-            onDateChange={(dateInfo) => {
 
 
 
-              if (dateInfo) {
 
 
 
-                setCalendarFilterYear(dateInfo.year.toString());
 
 
 
-                setCalendarFilterMonth(dateInfo.month); // undefined for full year
 
 
 
-                setCalendarFilterDay(dateInfo.day); // undefined unless Today selected
 
 
-
-              } else 
-
-
-
-              {
-
-                setCalendarFilterYear('all');
-
-
-
-                setCalendarFilterMonth(undefined);
-
-
-
-                setCalendarFilterDay(undefined);
-
-
-
-              }
-
-
-
-            }}
-
-
-
-            initialYear={calendarFilterYear !== 'all' ? parseInt(calendarFilterYear) : undefined}
-
-
-
-            initialMonth={calendarFilterMonth}
-
-
-
-            initialDay={calendarFilterDay}
-
-
-
-            availableYears={availableYears}
-
-
-
-          />
-
-
-
-
-
-
-
-          <div className="h-6 w-px bg-[var(--border-base)] mx-1" />
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          {/* Action Buttons - Row 1: View Toggle + New Invoice, Row 2: Adjust & Record */}
 
 
 
@@ -18410,7 +30642,343 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             <div className="flex items-center gap-2">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+              {/* Calendar Filter */}
+
+
+
+
+
+
+
+              <CalendarFilter 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                onDateChange={(dateInfo) => {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                  if (dateInfo) {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                    setCalendarFilterYear(dateInfo.year.toString());
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                    setCalendarFilterMonth(dateInfo.month); // undefined for full year
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                    setCalendarFilterDay(dateInfo.day); // undefined unless Today selected
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                  } else 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                  {
+
+
+
+
+
+
+
+                    setCalendarFilterYear('all');
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                    setCalendarFilterMonth(undefined);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                    setCalendarFilterDay(undefined);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                  }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                }}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                initialYear={calendarFilterYear !== 'all' ? parseInt(calendarFilterYear) : undefined}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                initialMonth={calendarFilterMonth}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                initialDay={calendarFilterDay}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                availableYears={availableYears}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+              />
+
+
+
+
+
+
+
+
 
 
 
@@ -18434,7 +31002,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 <button
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18446,7 +31062,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${mainView === 'dashboard'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18462,7 +31114,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                       : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18474,7 +31162,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 >
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18490,7 +31226,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 </button>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18506,11 +31290,71 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   onClick={() => setMainView('kanban')}
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${mainView === 'kanban'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18526,7 +31370,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                       : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18538,7 +31418,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 >
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18554,7 +31482,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 </button>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18570,11 +31546,71 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   onClick={() => setMainView('table')}
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${mainView === 'table'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18590,11 +31626,71 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                       : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                     }`}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18610,7 +31706,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   <List size={14} /> Table
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18626,7 +31770,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18642,7 +31834,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 <Button onClick={() => setShowInvoice(true)}><Plus size={13} /> New Invoice</Button>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18658,7 +31898,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18674,18 +31962,99 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <Button variant="outline" onClick={async () => {
+
+
+
                 // Refresh categories from database before opening modal
+
+
+
                 try {
+
+
+
                   const catsRes = await financeApi.getAdjustmentCategories();
+
+
+
                   const cats = Array.isArray(catsRes) ? catsRes : (catsRes?.data || []);
+
+
+
                   setAdjustmentCategories(cats);
+
+
+
                   console.log('[Finance] Loaded', cats.length, 'adjustment categories');
+
+
+
                 } catch (err) {
+
+
+
                   console.error('Failed to refresh adjustment categories:', err);
+
+
+
                 }
+
+
+
                 setShowAdjustModal(true);
+
+
+
               }}><TrendingUp size={13} /> Adjust Amount</Button>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18701,7 +32070,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             {mainView === 'table' && (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18717,7 +32134,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 <Button variant="outline" onClick={() => setShowSummaryCards(!showSummaryCards)}>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18733,7 +32198,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 </Button>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18749,7 +32262,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18773,7 +32334,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18805,7 +32462,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       {/* Dashboard View */}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18817,7 +32546,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
         <>
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18825,7 +32578,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
             <div className="flex flex-col items-center justify-center py-16 px-4">
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18833,7 +32610,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
               <h3 className="text-lg font-semibold text-gray-700 mb-2">No data available for the selected period</h3>
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18841,13 +32642,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                 {calendarFilterMonth !== undefined
+
+
+
+
+
+
 
                   ? `There are no invoices, journal entries, or transactions recorded for ${new Date(parseInt(calendarFilterYear), calendarFilterMonth, 1).toLocaleString('default', { month: 'long' })} ${calendarFilterYear}.`
 
+
+
+
+
+
+
                   : `There are no invoices, journal entries, or transactions recorded for ${calendarFilterYear}.`
 
+
+
+
+
+
+
                 }
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18855,7 +32698,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
               <button
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18863,7 +32730,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                 className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18871,7 +32762,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                 Show All Data
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18879,11 +32794,47 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
             </div>
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
           ) : (
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18895,11 +32846,71 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           isOpen={true}
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
           onClose={() => { }}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18915,7 +32926,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           payables={filteredPayablesByYear}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18931,7 +32990,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           payments={filteredPaymentsByYear}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18947,7 +33054,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           monthlyRevenue={monthlyRevenue}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18963,7 +33118,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           manualBalance={manualBalance}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18979,7 +33182,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           transactionAnalytics={transactionAnalytics}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18991,7 +33242,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
           calendarFilterYear={calendarFilterYear}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18999,101 +33274,419 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
           calendarFilterDay={calendarFilterDay}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
           onInvoicesClick={() => {
 
+
+
+
+
+
+
             setMainView('table');
+
+
+
+
+
+
 
             setActiveTab('invoices');
 
+
+
+
+
+
+
             setInvStatus('All');
+
+
+
+
+
+
 
             setPage(1);
 
+
+
+
+
+
+
           }}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
           onPayablesClick={() => {
 
+
+
+
+
+
+
             setMainView('table');
+
+
+
+
+
+
 
             setActiveTab('payables');
 
+
+
+
+
+
+
             setPage(1);
 
+
+
+
+
+
+
           }}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
           onReceivablesClick={() => {
 
+
+
+
+
+
+
             setMainView('table');
+
+
+
+
+
+
 
             setActiveTab('invoices');
 
+
+
+
+
+
+
             setInvStatus('Outstanding');
+
+
+
+
+
+
 
             setPage(1);
 
+
+
+
+
+
+
           }}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
           onCollectedClick={() => {
 
+
+
+
+
+
+
             setMainView('table');
+
+
+
+
+
+
 
             setActiveTab('invoices');
 
+
+
+
+
+
+
             setInvStatus('Paid');
+
+
+
+
+
+
 
             setPage(1);
 
+
+
+
+
+
+
           }}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
           onInvoicedClick={() => {
 
+
+
+
+
+
+
             setMainView('table');
+
+
+
+
+
+
 
             setActiveTab('invoices');
 
+
+
+
+
+
+
             setInvStatus('All');
+
+
+
+
+
+
 
             setPage(1);
 
+
+
+
+
+
+
           }}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
           onCashPositionClick={() => {
 
+
+
+
+
+
+
             setMainView('table');
+
+
+
+
+
+
 
             setActiveTab('transactions');
 
+
+
+
+
+
+
             setPage(1);
 
+
+
+
+
+
+
           }}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
           onOutstandingClick={() => {
 
+
+
+
+
+
+
             setMainView('table');
+
+
+
+
+
+
 
             setActiveTab('invoices');
 
+
+
+
+
+
+
             setInvStatus('Outstanding');
+
+
+
+
+
+
 
             setPage(1);
 
+
+
+
+
+
+
           }}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19105,7 +33698,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
           )}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19117,7 +33734,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19141,7 +33830,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       {mainView === 'kanban' && (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19157,7 +33894,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           <div className="flex flex-wrap gap-2 items-center">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19173,7 +33958,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             {INV_STATUS_FILTERS.map(s => (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19189,7 +34022,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 className={`filter-chip ${invStatus === s ? 'filter-chip-active' : ''}`}>{s}</button>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19205,7 +34086,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             <div className="flex items-center gap-2 ml-auto">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19221,7 +34150,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 onChange={e => { setInvSearch(e.target.value); setPage(1); }}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19237,7 +34214,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19253,7 +34278,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           <InvKanbanBoard invoices={filteredInvoices} onStageChange={handleStageChange} onCardClick={setSelected} />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19269,7 +34342,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19293,7 +34438,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       {mainView === 'table' && (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19305,7 +34498,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
           {showSummaryCards && (
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19313,7 +34530,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19321,11 +34562,47 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                 <KPICard className="glass-card bg-white" label="Cash Position" value={fmt(cashPosition)} sub="Collected - Payables" icon={IndianRupee} variant="blue" />
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                 <KPICard className="glass-card bg-white" label="Receivables" value={fmt(receivables)} sub="Outstanding" icon={Clock} variant="amber" />
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19341,7 +34618,67 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19353,7 +34690,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                 <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Cashflow Summary</p>
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19361,15 +34722,63 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                   {[
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                     { label: 'Total Invoiced', value: fmt(revenueCurrent), color: 'text-[var(--text-primary)]' },
+
+
+
                     { label: 'Collected', value: fmt(totalCollected), color: 'text-emerald-400' },
+
+
+
                     { label: 'Outstanding', value: fmt(receivables), color: 'text-amber-400' },
+
+
+
                     { label: 'Collection Rate', value: `${Math.round((totalCollected / (revenueCurrent || 1)) * 100)}%`, color: 'text-cyan-400' },
+
+
+
                   ].map(stat => (
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19377,7 +34786,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                       <p className="text-[11px] text-[var(--text-muted)] mb-1">{stat.label}</p>
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19389,7 +34822,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     </div>
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19397,7 +34866,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                 </div>
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19405,11 +34898,83 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
             </>
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
           )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19433,7 +34998,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             <TabsList>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19449,6 +35062,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <TabsTrigger value="payables">Payables Summary</TabsTrigger>
 
 
@@ -19457,7 +35094,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-              <TabsTrigger value="transactions">Transactions ({calendarFilterYear === 'all' ? manualAdjustments.length : filteredManualAdjustmentsByYear.length})</TabsTrigger>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+              <TabsTrigger value="transactions">Transactions ({calendarFilterYear === 'all' ? journalEntries.length : filteredJournalEntriesByYear.length})</TabsTrigger>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19481,7 +35166,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             <TabsContent value="invoices">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19497,7 +35254,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 <div className="flex flex-wrap gap-2 items-center">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19513,7 +35318,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   {INV_STATUS_FILTERS.map(s => (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19529,7 +35382,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                       className={`filter-chip ${invStatus === s ? 'filter-chip-active' : ''}`}>{s}</button>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19545,7 +35446,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   <div className="flex items-center gap-2 ml-auto">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19561,7 +35510,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                       onChange={e => { setInvSearch(e.target.value); setPage(1); }}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19581,6 +35578,42 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   </div>
 
 
@@ -19589,7 +35622,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19613,7 +35718,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   <InvKanbanBoard invoices={filteredInvoices} onStageChange={handleStageChange} onCardClick={setSelected} />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19629,7 +35782,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   <DataTable
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19645,7 +35846,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     data={paginatedInvoices}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19661,7 +35910,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     page={page}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19677,7 +35974,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     onPageChange={setPage}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19693,7 +36038,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     toolbar={canFinance('export') ? (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19709,7 +36102,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                         <Download size={12} /> Export
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19725,7 +36166,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     ) : null}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19741,7 +36230,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     onRowClick={setSelected}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19757,7 +36294,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     emptyText="No invoices found."
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19773,7 +36358,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19789,7 +36422,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </TabsContent>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19813,7 +36518,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <div className="glass-card p-4 space-y-3">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19829,7 +36582,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 {payables.length === 0 ? (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19845,7 +36646,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 ) : (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19861,7 +36710,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     <div className="grid grid-cols-7 gap-2 text-[11px] text-[var(--text-muted)] px-2">
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19869,7 +36754,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                       <div>Vendor ID</div>
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19877,7 +36786,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                       <div className="text-right">Total Payable</div>
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19885,11 +36818,47 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                       <div className="text-right">Outstanding</div>
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                       <div className="text-right">Last PO</div>
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19901,11 +36870,71 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     {payables.map((p) => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                       const isFullyPaid = (p.outstandingAmount || 0) <= 0 && (p.amountPaid || 0) > 0;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19921,7 +36950,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                         <div
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19937,7 +37014,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                           className={`grid grid-cols-7 gap-2 items-center p-3 rounded-lg border ${isFullyPaid ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-[var(--bg-elevated)] border-[var(--border-muted)]'}`}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19953,7 +37078,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                           <div className="text-xs font-semibold text-[var(--text-primary)] flex items-center gap-1.5">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19969,7 +37142,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                             {isFullyPaid && (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -19985,7 +37206,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                                 <CheckCircle size={10} /> Paid
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20001,7 +37270,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                             )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20017,7 +37334,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                           <div className="text-xs font-mono text-[var(--accent-light)]">{p.vendorId}</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20033,7 +37398,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                           <div className="text-xs text-right text-[var(--text-primary)]">{fmt(p.totalPayableAmount)}</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20049,7 +37462,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                           <div className={`text-xs text-right font-bold ${isFullyPaid ? 'text-emerald-400' : 'text-amber-400'}`}>{fmt(p.outstandingAmount)}</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20065,7 +37526,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                         </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20081,7 +37590,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     })}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20097,7 +37654,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20113,7 +37718,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </TabsContent>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20137,7 +37814,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <div className="glass-card p-4 space-y-3">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20149,7 +37874,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                   <h3 className="text-sm font-semibold text-[var(--text-primary)]">Journal Entries</h3>
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20157,7 +37906,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                     <Button size="sm" onClick={exportJournalEntriesCsv}>
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20165,7 +37938,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                     </Button>
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20173,7 +37970,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                 </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20189,7 +38022,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   <p className="text-sm text-[var(--text-muted)] text-center py-8">No journal entries recorded</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20205,7 +38086,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   <div className="border border-[var(--border-base)] overflow-auto bg-[var(--bg-elevated)] relative">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20217,7 +38146,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                     <div className="grid grid-cols-12 text-[13px] font-bold text-[var(--text-primary)] border-b-2 border-[var(--border-base)] pb-2 mt-3">
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20225,7 +38178,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                       <div className="col-span-6 border-r-2 border-[var(--border-base)] px-2">Particulars</div>
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20233,11 +38210,47 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                       <div className="col-span-2 border-r border-[var(--border-base)] px-1 text-right">Amount(Dr.)</div>
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                       <div className="col-span-1 pl-1 text-right">Amount(Cr.)</div>
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20249,7 +38262,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     {[...(calendarFilterYear === 'all' ? journalEntries : filteredJournalEntriesByYear)].reverse().map((entry, entryIdx) => (
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20257,7 +38306,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                         key={entry._id || entry.id}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20265,7 +38338,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                         onClick={() => {
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20273,7 +38370,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                           setSelectedJournalEntryIndex(entryIdx + 1);
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20281,7 +38402,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                         }}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20289,7 +38434,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                         {/* Continuous vertical lines using absolute positioned divs */}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20297,11 +38466,47 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                         <div className="absolute top-0 bottom-0 left-[66.66%] w-[1px] bg-[var(--border-base)] z-10"></div>
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                         <div className="absolute top-0 bottom-0 left-[75%] w-[1px] bg-[var(--border-base)] z-10"></div>
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20313,7 +38518,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                         {/* Journal Entry Content - No internal horizontal lines */}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20325,11 +38566,59 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                           {(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                             const debitLines = entry.lines?.filter(l => l.debitAmount > 0) || [];
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20341,7 +38630,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                             return (
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20349,7 +38674,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                                 {debitLines.map((line, idx) => (
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20357,7 +38706,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                                     key={`debit-${idx}`}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20365,7 +38738,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                                   >
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20373,7 +38770,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                                       {idx === 0 ? new Date(entry.date).toLocaleDateString('en-IN', {
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20381,7 +38802,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                                         month: '2-digit',
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20389,11 +38834,47 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                                       }) : ''}
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                                     </div>
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20401,11 +38882,47 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                                       {line.accountName} <span className="text-[var(--text-muted)]">Dr.</span>
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                                     </div>
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20413,7 +38930,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                                     <div className="col-span-2 px-2 py-2 text-right font-medium text-[var(--text-primary)]">
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20421,7 +38962,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                                     </div>
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20429,11 +38994,59 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                                   </div>
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                                 ))}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20445,7 +39058,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                                   <div
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20453,7 +39090,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                                     className="grid grid-cols-12 text-[13px] items-start relative"
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20461,7 +39122,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                                     <div className="col-span-2 px-2 py-2"></div>
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20469,11 +39154,47 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                                       <span className="text-[var(--text-muted)]">To</span> {line.accountName}
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                                     </div>
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20481,7 +39202,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                                     <div className="col-span-2 px-1 py-2 text-right"></div>
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20489,7 +39234,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                                       {fmt(line.creditAmount)}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20497,7 +39266,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                                   </div>
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20509,7 +39302,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                                 {entry.narration && (
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20517,7 +39346,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                                     <div className="col-span-2 px-2 py-2"></div>
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20525,7 +39378,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                                       ({entry.narration})
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20533,7 +39410,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                                     <div className="col-span-1 px-1 py-2"></div>
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20541,7 +39442,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                                     <div className="col-span-1 px-1 py-2"></div>
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20549,7 +39474,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                                 )}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20557,11 +39506,59 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                             );
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                           })()}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20577,7 +39574,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                       </div>
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20589,7 +39622,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     <div className="grid grid-cols-12 text-[15px] font-bold text-[var(--text-primary)] bg-[var(--bg-surface)] border-t-2 border-[var(--border-base)] sticky bottom-0 z-20">
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20597,7 +39666,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                       <div className="col-span-6 border-r-2 border-[var(--border-base)] px-2 py-2"></div>
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20605,7 +39698,31 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                       <div className="col-span-2 border-r border-[var(--border-base)] px-1 py-2 text-right">{fmt(filteredJournalTotals.debitTotal)}</div>
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20613,7 +39730,43 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
                     </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20629,7 +39782,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20645,7 +39846,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </TabsContent>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20657,6 +39906,18 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
         </>
 
 
@@ -20665,7 +39926,127 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20713,7 +40094,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       <Modal isOpen={showInvoice} onClose={() => { setShowInvoice(false); setError(null); setNewInvoiceErrors({}); }} title="Create Invoice"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20745,7 +40222,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           <div className="flex gap-2 justify-end">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20777,7 +40350,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             <Button onClick={handleCreateInvoice} disabled={submitting}>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20809,7 +40478,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               {submitting ? ' Creating...' : ' Create Invoice'}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20841,7 +40606,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20873,7 +40734,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         <div className="space-y-3 pb-20">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20905,7 +40862,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20937,6 +40990,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </div>
 
 
@@ -20953,7 +41054,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20985,7 +41182,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21017,7 +41310,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21049,7 +41438,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           <div className="grid grid-cols-2 gap-3">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21073,7 +41558,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <Input
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21105,7 +41662,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 onChange={e => {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21121,7 +41750,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   setNewInvoice({ ...newInvoice, invoiceNumber: v });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21137,6 +41814,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 }}
 
 
@@ -21145,7 +41846,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 placeholder="INV-001"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21177,6 +41950,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               {newInvoiceErrors.invoiceNumber ? (
 
 
@@ -21185,7 +42006,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 <div className="text-[11px] text-red-400 mt-1">{newInvoiceErrors.invoiceNumber}</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21209,7 +42078,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21241,7 +42206,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <Select
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21273,7 +42334,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 onChange={e => {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21289,6 +42422,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   setNewInvoice({ ...newInvoice, projectId: v });
 
 
@@ -21297,7 +42454,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   if (newInvoiceErrors.projectId) setNewInvoiceErrors(prev => ({ ...prev, projectId: undefined }));
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21321,7 +42526,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               >
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21353,7 +42654,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 {projects.map((p) => (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21385,7 +42782,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 ))}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21417,7 +42910,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               {newInvoiceErrors.projectId ? (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21433,7 +42998,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               ) : null}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21465,7 +43102,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21497,7 +43230,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             <FormField label="Invoice Amount (₹)">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21513,7 +43318,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 type="number"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21545,7 +43422,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 onChange={e => {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21561,7 +43510,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   setNewInvoice({ ...newInvoice, amount: v });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21577,7 +43574,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   if (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21593,7 +43638,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     selectedProjectContractValue !== null &&
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21609,7 +43702,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     num > Number(selectedProjectContractValue)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21625,7 +43766,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     setNewInvoiceErrors(prev => ({ ...prev, amount: 'Invoice amount cannot exceed the project contract value' }));
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21641,7 +43830,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     setNewInvoiceErrors(prev => ({ ...prev, amount: undefined }));
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21657,6 +43894,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 }}
 
 
@@ -21665,7 +43926,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 placeholder="280000"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21697,7 +44030,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               {newInvoiceErrors.amount ? (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21713,7 +44118,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               ) : null}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21745,7 +44222,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             <FormField label="Invoice Date">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21761,7 +44310,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 type="date"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21793,7 +44414,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 onChange={e => {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21809,7 +44502,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   setNewInvoice({ ...newInvoice, invoiceDate: v });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21825,7 +44566,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 }}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21857,7 +44670,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               {newInvoiceErrors.invoiceDate ? (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21873,7 +44758,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               ) : null}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21905,7 +44862,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21937,7 +44990,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             <FormField label="Due Date">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21953,7 +45078,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 type="date"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -21985,7 +45182,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 min={newInvoice.invoiceDate || undefined}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -22009,7 +45302,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   const v = e.target.value;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -22025,6 +45366,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   if (newInvoiceErrors.dueDate) setNewInvoiceErrors(prev => ({ ...prev, dueDate: undefined }));
 
 
@@ -22033,7 +45398,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 }}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -22065,7 +45502,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               {newInvoiceErrors.dueDate ? (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -22081,7 +45590,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               ) : null}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -22113,7 +45694,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             <FormField label="Payment Terms">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -22137,6 +45790,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 value={newInvoice.paymentTerms}
 
 
@@ -22145,7 +45846,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 onChange={e => setNewInvoice({ ...newInvoice, paymentTerms: e.target.value })}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -22177,7 +45950,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               >
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -22209,7 +46078,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   {!canCreateInvoice ? 'Not Available' : allowedPaymentTerms.length === 0 ? 'Select Project First' : 'Select Terms'}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -22241,7 +46206,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 {(allowedPaymentTerms.length > 0 ? allowedPaymentTerms : []).map((term) => (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -22273,7 +46334,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 ))}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -22305,7 +46462,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -22337,11 +46590,95 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           <FormField label="Customer Email">
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
             <Input
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -22357,7 +46694,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               value={newInvoice.email}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -22373,7 +46758,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               placeholder="customer@example.com"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -22389,6 +46822,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             />
 
 
@@ -22397,7 +46854,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           </FormField>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -22429,7 +46958,151 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       </Modal>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -22477,7 +47150,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       {selected && (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -22509,7 +47278,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           footer={
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -22541,7 +47406,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <Button variant="ghost" onClick={() => setSelected(null)}>Close</Button>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -22573,7 +47534,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           }>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -22605,7 +47662,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             {[
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -22637,7 +47790,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               ['Customer', selected.customerName],
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -22669,7 +47918,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               ['Invoice Amt', fmt(selected.amount)],
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -22701,7 +48046,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               ['Balance Due', fmt(selected.balance || 0)],
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -22733,7 +48174,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               ['Invoice Date', selected.invoiceDate ? new Date(selected.invoiceDate).toLocaleDateString() : '—'],
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -22765,7 +48302,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               ['Paid On', selected.paidDate ? new Date(selected.paidDate).toLocaleDateString() : '—'],
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -22797,7 +48430,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               ['Reminder Count', selected.reminderCount || 0],
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -22829,7 +48558,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <div key={k} className="glass-card p-2">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -22861,7 +48686,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 <div className="font-semibold text-[var(--text-primary)]">{v}</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -22893,7 +48814,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             ))}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -22925,6 +48942,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         </Modal>
 
 
@@ -22941,7 +49006,151 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -22989,7 +49198,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       {showEditInvoice && editInvoiceTarget && (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -23021,7 +49326,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           open={showEditInvoice}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -23053,7 +49454,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             if (savingEditInvoice) return;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -23085,7 +49582,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             setEditInvoiceTarget(null);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -23117,7 +49710,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           }}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -23149,7 +49838,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           footer={
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -23181,7 +49966,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <Button
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -23213,7 +50094,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 onClick={() => {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -23245,7 +50222,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   setShowEditInvoice(false);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -23277,7 +50350,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   setEditModalError(null);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -23309,7 +50478,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 disabled={savingEditInvoice}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -23341,6 +50606,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 Cancel
 
 
@@ -23357,7 +50670,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               </Button>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -23389,7 +50798,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 {savingEditInvoice ? <Loader2 size={13} className="animate-spin" /> : <Edit size={13} />}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -23421,7 +50926,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               </Button>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -23453,7 +51054,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -23485,7 +51182,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           <div className="space-y-3 pb-20">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -23517,7 +51310,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -23549,7 +51438,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -23597,7 +51582,151 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             <div className="grid grid-cols-2 gap-3">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -23629,7 +51758,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 <Input
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -23661,7 +51886,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   onChange={e => setEditInvoice({ ...editInvoice, invoiceNumber: e.target.value })}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -23693,7 +52014,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   disabled={savingEditInvoice}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -23725,7 +52142,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               </FormField>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -23757,7 +52270,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 <Input
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -23789,7 +52398,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   onChange={e => setEditInvoice({ ...editInvoice, customerName: e.target.value })}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -23821,7 +52526,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   disabled={savingEditInvoice}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -23853,7 +52654,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               </FormField>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -23901,7 +52798,151 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             <div className="grid grid-cols-2 gap-3">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -23933,7 +52974,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 <Input
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -23965,7 +53102,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   value={editInvoice.amount}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -23997,7 +53230,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   placeholder="280000"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -24029,6 +53358,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 />
 
 
@@ -24045,7 +53422,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               </FormField>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -24077,6 +53550,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 <Input
 
 
@@ -24093,7 +53614,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   type="date"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -24125,7 +53742,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   onChange={e => setEditInvoice({ ...editInvoice, invoiceDate: e.target.value })}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -24157,6 +53870,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 />
 
 
@@ -24173,7 +53934,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               </FormField>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -24221,7 +54078,151 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             <div className="grid grid-cols-2 gap-3">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -24253,6 +54254,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 <Input
 
 
@@ -24269,7 +54318,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-                  type="date"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                  type="date" min={editInvoice.invoiceDate || undefined}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -24301,6 +54446,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   onChange={e => setEditInvoice({ ...editInvoice, dueDate: e.target.value })}
 
 
@@ -24317,7 +54510,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   disabled={savingEditInvoice}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -24349,7 +54638,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               </FormField>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -24381,7 +54766,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 <Select
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -24413,7 +54894,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   onChange={e => setEditInvoice({ ...editInvoice, status: e.target.value })}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -24445,7 +55022,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 >
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -24477,12 +55150,123 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   {editInvoiceTarget?.status && (
+
+
+
                     <option value={editInvoiceTarget.status}>{editInvoiceTarget.status} (Current)</option>
+
+
+
                   )}
+
+
+
                   {getValidNextStatuses(editInvoiceTarget?.status).map(status => (
+
+
+
                     <option key={status} value={status}>{status}</option>
+
+
+
                   ))}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -24514,6 +55298,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               </FormField>
 
 
@@ -24530,7 +55362,151 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -24578,6 +55554,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <FormField label="Payment Terms">
 
 
@@ -24594,7 +55618,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 <Input
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -24626,7 +55746,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   onChange={e => setEditInvoice({ ...editInvoice, paymentTerms: e.target.value })}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -24658,7 +55874,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   disabled={savingEditInvoice}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -24690,7 +56002,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               </FormField>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -24722,7 +56130,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 <Input
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -24754,7 +56258,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   value={editInvoice.email}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -24786,7 +56386,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   placeholder="customer@example.com"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -24818,7 +56514,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -24850,7 +56642,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -24882,6 +56770,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         </Modal>
 
 
@@ -24898,7 +56834,151 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -24946,7 +57026,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       {showDeleteInvoice && deleteInvoiceTarget && (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -24978,7 +57154,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           open={showDeleteInvoice}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -25010,7 +57282,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             if (deletingInvoice) return;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -25042,7 +57410,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             setDeleteInvoiceTarget(null);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -25074,7 +57538,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           }}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -25106,7 +57666,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           footer={
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -25138,7 +57794,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <Button
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -25170,7 +57922,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 onClick={() => {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -25202,7 +58050,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   setShowDeleteInvoice(false);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -25234,7 +58178,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   setError(null);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -25266,7 +58306,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 disabled={deletingInvoice}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -25298,6 +58434,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 Cancel
 
 
@@ -25314,7 +58498,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               </Button>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -25346,7 +58626,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 {deletingInvoice ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -25378,6 +58754,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               </Button>
 
 
@@ -25394,7 +58818,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -25426,7 +58946,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         >
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -25458,7 +59074,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             {error && (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -25490,7 +59202,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 {error}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -25522,7 +59330,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -25554,7 +59458,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <p className="text-sm text-[var(--text-primary)] font-semibold">Are you sure you want to delete this invoice?</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -25586,7 +59586,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <p className="text-xs text-[var(--text-muted)] mt-2">This cannot be undone.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -25618,7 +59714,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -25650,7 +59842,151 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -25698,7 +60034,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       {showAssignInvoice && assignInvoiceTarget && (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -25730,7 +60162,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           open={showAssignInvoice}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -25762,7 +60290,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             setShowAssignInvoice(false);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -25794,7 +60418,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             setAssignToUser('');
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -25826,7 +60546,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           title={`Assign Invoice — ${assignInvoiceTarget.invoiceNumber || assignInvoiceTarget.id}`}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -25858,7 +60674,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             <div className="flex gap-2 justify-end">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -25890,7 +60802,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 variant="ghost"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -25922,7 +60930,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   setShowAssignInvoice(false);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -25954,7 +61058,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   setAssignToUser('');
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -25986,7 +61186,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               >
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -26018,7 +61314,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               </Button>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -26050,7 +61442,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 Save
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -26082,7 +61570,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -26114,7 +61698,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         >
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -26146,7 +61826,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             {error && (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -26178,7 +61954,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 {error}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -26210,7 +62082,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -26242,7 +62210,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <Select value={assignToUser} onChange={(e) => setAssignToUser(e.target.value)}>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -26274,7 +62338,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               </Select>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -26306,7 +62466,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -26338,7 +62594,151 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -26386,7 +62786,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       {showReminderModal && selectedReminderInvoice && (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -26402,7 +62874,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           open={showReminderModal}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -26418,7 +62938,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             setShowReminderModal(false);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -26450,7 +63042,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             setReminderForm({ reminderType: 'Gentle', customerEmail: '', messageBody: '' });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -26482,6 +63170,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             setError(null);
 
 
@@ -26490,7 +63226,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           }}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -26522,7 +63330,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           footer={
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -26546,7 +63450,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <Button
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -26562,6 +63514,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 onClick={() => {
 
 
@@ -26570,7 +63546,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   setShowReminderModal(false);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -26602,7 +63650,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   setReminderForm({ reminderType: 'Gentle', customerEmail: '', messageBody: '' });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -26634,6 +63778,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   setError(null);
 
 
@@ -26642,7 +63834,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 }}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -26674,7 +63938,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               >
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -26706,7 +64066,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               </Button>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -26722,7 +64154,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 onClick={handleSendReminder}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -26754,7 +64258,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               >
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -26786,7 +64386,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 {sendingReminder ? ' Sending...' : reminderSuccess ? ' Sent!' : ' Send Reminder'}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -26818,7 +64514,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -26850,7 +64642,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         >
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -26882,7 +64770,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             {error && (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -26914,7 +64898,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 {error}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -26946,7 +65026,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -26978,7 +65154,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -27010,6 +65282,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               </div>
 
 
@@ -27026,7 +65346,127 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -27066,6 +65506,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             <div className="grid grid-cols-2 gap-3 text-xs">
 
 
@@ -27082,7 +65570,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <div className="glass-card p-2">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -27114,7 +65698,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 <div className="font-semibold text-[var(--text-primary)]">{selectedReminderInvoice.invoiceNumber || selectedReminderInvoice.id}</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -27146,7 +65826,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <div className="glass-card p-2">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -27178,7 +65954,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 <div className="font-semibold text-[var(--text-primary)]">{selectedReminderInvoice.customerName}</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -27210,7 +66082,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <div className="glass-card p-2">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -27242,6 +66210,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 <div className="font-semibold text-red-400">{fmt(selectedReminderInvoice.balance || 0)}</div>
 
 
@@ -27258,7 +66274,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -27290,7 +66402,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 <div className="text-[var(--text-muted)] mb-0.5">Due Date</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -27322,6 +66530,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               </div>
 
 
@@ -27338,7 +66594,151 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -27386,7 +66786,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             <FormField label="Reminder Type">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -27410,6 +66882,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 value={reminderForm.reminderType}
 
 
@@ -27418,7 +66938,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 onChange={e => setReminderForm({ ...reminderForm, reminderType: e.target.value })}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -27450,7 +67042,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               >
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -27482,7 +67170,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 <option value="Due Today">Due Today</option>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -27514,6 +67298,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               </Select>
 
 
@@ -27530,7 +67362,151 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -27578,6 +67554,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             <FormField label="Customer Email">
 
 
@@ -27586,7 +67610,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <Input
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -27618,6 +67714,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 value={reminderForm.customerEmail}
 
 
@@ -27626,7 +67770,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 onChange={e => setReminderForm({ ...reminderForm, customerEmail: e.target.value })}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -27658,7 +67874,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 disabled={sendingReminder || reminderSuccess}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -27690,7 +68002,151 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -27738,7 +68194,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             <FormField label="Message (Optional)">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -27770,6 +68322,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 value={reminderForm.messageBody}
 
 
@@ -27778,7 +68378,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 onChange={e => setReminderForm({ ...reminderForm, messageBody: e.target.value })}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -27810,7 +68482,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 disabled={sendingReminder || reminderSuccess}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -27842,7 +68610,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -27874,7 +68738,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -27906,7 +68866,151 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -27954,7 +69058,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       {showTimeline && timelineInvoice && (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -27978,6 +69178,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           <div
 
 
@@ -27986,7 +69210,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             className="absolute inset-0 bg-black/50"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -28018,7 +69314,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -28050,7 +69442,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             <div className="p-4 border-b border-[var(--border-base)] flex items-center justify-between">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -28082,7 +69570,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 <h3 className="text-sm font-semibold text-[var(--text-primary)]">Invoice Timeline</h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -28114,6 +69698,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               </div>
 
 
@@ -28122,7 +69754,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <button
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -28154,7 +69858,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 className="p-2 hover:bg-[var(--bg-elevated)] rounded-lg transition-colors"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -28186,7 +69986,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 <X size={16} />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -28218,7 +70114,151 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -28266,7 +70306,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               {loadingTimeline ? (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -28298,6 +70434,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   <Loader2 className="w-6 h-6 animate-spin text-[var(--accent)]" />
 
 
@@ -28314,7 +70498,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -28346,7 +70626,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 <div className="text-center py-8">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -28378,7 +70754,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   <p className="text-sm text-[var(--text-muted)]">No timeline activity found.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -28410,7 +70882,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               ) : (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -28442,7 +71010,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   {timelineData.map((activity, index) => (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -28474,7 +71138,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                       <div className="flex flex-col items-center">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -28506,7 +71266,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                           {activity.action === 'INVOICE_CREATED' && <FileText size={14} className="text-blue-400" />}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -28538,7 +71394,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                           {activity.action === 'STATUS_CHANGED' && <RefreshCw size={14} className="text-purple-400" />}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -28570,7 +71522,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                           {activity.action === 'REMINDER_SENT' && <Clock size={14} className="text-orange-400" />}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -28602,7 +71650,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                         {index < timelineData.length - 1 && (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -28634,7 +71778,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                         )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -28666,7 +71906,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                       <div className="flex-1 pb-4">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -28698,7 +72034,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                           <div className="flex items-center justify-between mb-2">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -28730,7 +72162,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                               {activity.action.replace(/_/g, ' ')}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -28762,7 +72290,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                             <span className="text-[10px] text-[var(--text-muted)]">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -28778,6 +72378,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                                 day: '2-digit',
 
 
@@ -28786,7 +72410,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                                 month: 'short',
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -28818,7 +72514,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                                 hour: '2-digit',
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -28850,6 +72642,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                               })}
 
 
@@ -28866,7 +72706,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                             </span>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -28906,7 +72842,127 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                           {activity.metadata && (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -28938,7 +72994,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                               {activity.action === 'PAYMENT_ADDED' && (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -28970,7 +73122,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                               )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -29002,6 +73250,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                                 <p>{activity.metadata.previousStatus} → {activity.metadata.newStatus}</p>
 
 
@@ -29018,7 +73314,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                               )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -29050,6 +73442,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                                 <p>Reminder sent to {activity.metadata.sentTo}</p>
 
 
@@ -29066,7 +73506,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                               )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -29098,7 +73634,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                                 <p>Amount: {fmt(activity.metadata.amount || 0)} for {activity.metadata.customerName}</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -29130,6 +73762,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                             </div>
 
 
@@ -29146,7 +73826,127 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                           )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -29186,7 +73986,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                             <p className="text-[10px] text-[var(--text-faint)] mt-2">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -29218,7 +74114,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                             </p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -29250,7 +74242,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                         </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -29282,7 +74370,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -29314,7 +74498,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -29346,7 +74626,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -29378,7 +74754,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -29426,7 +74898,127 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       {/* Record Payment Modal */}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -29442,7 +75034,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         open={showRecordPayment}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -29466,6 +75106,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           if (submittingPayment) return;
 
 
@@ -29474,7 +75162,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           setShowRecordPayment(false);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -29506,7 +75266,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           setRecordPaymentErrors({});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -29538,7 +75394,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         title="Record Payment"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -29570,7 +75522,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           <div className="flex gap-2 justify-end">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -29586,7 +75610,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               variant="ghost"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -29610,6 +75682,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 if (submittingPayment) return;
 
 
@@ -29618,7 +75738,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 setShowRecordPayment(false);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -29650,7 +75842,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 setRecordPaymentErrors({});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -29682,6 +75970,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               disabled={submittingPayment}
 
 
@@ -29698,7 +76034,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             >
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -29730,6 +76162,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </Button>
 
 
@@ -29738,7 +76218,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             <Button
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -29770,7 +76322,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               disabled={submittingPayment}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -29802,7 +76450,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               {submittingPayment ? <Loader2 size={13} className="animate-spin" /> : <IndianRupee size={13} />}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -29834,7 +76578,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </Button>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -29866,7 +76706,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -29898,7 +76834,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         <div className="space-y-4 pb-4">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -29930,7 +76962,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -29962,7 +77090,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30010,7 +77234,151 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           <div className="grid grid-cols-2 gap-3">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30042,7 +77410,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <Select
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30074,7 +77538,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 onChange={e => {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30098,6 +77658,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   setRecordPayment({
 
 
@@ -30106,7 +77690,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     ...recordPayment,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30138,7 +77794,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     referenceType: newType === 'Customer Payment' ? 'Invoice' : 'Vendor',
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30170,7 +77922,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     customerName: '',
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30202,7 +78050,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     vendorName: '',
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30234,7 +78178,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     maxAmount: 0,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30266,7 +78306,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   if (recordPaymentErrors.referenceId) setRecordPaymentErrors(prev => ({ ...prev, referenceId: undefined }));
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30298,7 +78434,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 disabled={submittingPayment}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30330,7 +78562,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 <option value="Customer Payment">Customer Payment</option>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30362,6 +78690,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               </Select>
 
 
@@ -30378,7 +78754,151 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30426,7 +78946,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <Select
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30458,7 +79074,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 onChange={e => {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30490,7 +79202,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   if (recordPaymentErrors.referenceId) setRecordPaymentErrors(prev => ({ ...prev, referenceId: undefined }));
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30522,7 +79330,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 disabled={submittingPayment}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30554,7 +79458,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 {recordPayment.paymentType === 'Customer Payment' ? (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30586,7 +79586,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 ) : (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30618,7 +79714,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30650,6 +79842,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </FormField>
 
 
@@ -30666,7 +79906,151 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30714,7 +80098,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             <Select
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30746,7 +80226,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               onChange={e => {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30778,7 +80354,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 if (!nextId) {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30794,7 +80442,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   if (recordPaymentErrors.referenceId) setRecordPaymentErrors(prev => ({ ...prev, referenceId: undefined }));
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30810,7 +80506,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30834,7 +80602,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   const inv = (invoices || []).find(i => String(i._id || i.id) === String(nextId));
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30850,7 +80666,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   const max = Math.max(0, outstanding || 0);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30866,6 +80730,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     ...recordPayment,
 
 
@@ -30874,7 +80762,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     referenceId: nextId,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30890,7 +80826,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     invoiceNumber: inv?.invoiceNumber || '',
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30906,7 +80890,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     maxAmount: max,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30922,7 +80954,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30938,7 +81018,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   const v = (payables || []).find(p => String(p.vendorObjectId || p.vendorId) === String(nextId));
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30954,7 +81082,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   setRecordPayment({
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30970,7 +81146,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     referenceId: nextId,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30986,7 +81210,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     customerName: '',
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -31002,7 +81274,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     maxAmount: max,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -31018,6 +81338,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   });
 
 
@@ -31026,7 +81370,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -31058,7 +81474,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               }}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -31090,7 +81602,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             >
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -31114,7 +81722,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               {recordPayment.paymentType === 'Customer Payment'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -31138,7 +81818,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   <option key={inv._id || inv.id} value={inv._id || inv.id}>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -31154,6 +81882,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   </option>
 
 
@@ -31162,7 +81914,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 ))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -31186,7 +82010,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   <option key={p.vendorObjectId || p.vendorId} value={p.vendorObjectId || p.vendorId}>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -31202,6 +82074,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   </option>
 
 
@@ -31210,7 +82106,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 ))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -31242,7 +82210,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </Select>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -31274,6 +82338,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <div className="text-[11px] text-red-400 mt-1">{recordPaymentErrors.referenceId}</div>
 
 
@@ -31290,7 +82402,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -31338,7 +82546,151 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           <div className="grid grid-cols-2 gap-3">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -31362,7 +82714,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <Input
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -31394,7 +82818,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 value={recordPayment.amount}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -31426,6 +82946,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   const v = clampAmount(e.target.value, Number(recordPayment.maxAmount || 0));
 
 
@@ -31434,7 +83002,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   setRecordPayment({ ...recordPayment, amount: v });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -31466,7 +83106,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 }}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -31498,7 +83234,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 max={recordPayment.maxAmount || undefined}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -31530,7 +83362,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -31562,7 +83490,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 <div className="text-[11px] text-red-400 mt-1">{recordPaymentErrors.amount}</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -31594,7 +83618,151 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -31634,7 +83802,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <Input
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -31666,7 +83906,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 value={recordPayment.paymentDate}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -31698,7 +84034,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   setRecordPayment({ ...recordPayment, paymentDate: e.target.value });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -31730,7 +84162,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 }}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -31762,7 +84290,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -31794,7 +84418,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 <div className="text-[11px] text-red-400 mt-1">{recordPaymentErrors.paymentDate}</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -31826,6 +84546,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </FormField>
 
 
@@ -31842,7 +84610,151 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -31890,7 +84802,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             <Select
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -31922,7 +84930,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               onChange={e => {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -31954,7 +85058,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 if (recordPaymentErrors.paymentMethod) setRecordPaymentErrors(prev => ({ ...prev, paymentMethod: undefined }));
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -31986,7 +85186,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               disabled={submittingPayment}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32018,7 +85314,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <option value="Cash">Cash</option>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32050,7 +85442,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <option value="UPI">UPI</option>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32082,7 +85570,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <option value="Other">Other</option>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32114,7 +85698,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             {recordPaymentErrors.paymentMethod && (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32146,6 +85826,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             )}
 
 
@@ -32162,7 +85890,151 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           </FormField>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32210,7 +86082,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             <textarea
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32242,7 +86210,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               onChange={e => setRecordPayment({ ...recordPayment, notes: e.target.value })}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32274,7 +86338,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               disabled={submittingPayment}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32306,7 +86466,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32338,6 +86594,54 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         </div>
 
 
@@ -32354,7 +86658,103 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       </Modal>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32378,7 +86778,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       <Modal
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32394,7 +86842,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         onClose={() => {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32410,7 +86906,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           setShowAdjustModal(false);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32426,7 +86970,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           setAdjustErrors({});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32442,7 +87034,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         title="Manual Adjustment"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32458,7 +87098,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           <div className="flex gap-2 justify-end">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32474,7 +87162,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               variant="ghost"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32490,7 +87226,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 if (submittingAdjust) return;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32506,7 +87290,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 setAdjustError(null);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32522,7 +87354,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               }}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32538,7 +87418,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             >
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32554,7 +87482,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </Button>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32570,7 +87546,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               {submittingAdjust ? <Loader2 size={13} className="animate-spin" /> : <TrendingUp size={13} />}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32586,7 +87610,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </Button>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32602,7 +87674,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32618,7 +87738,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         <div className="space-y-[64px] pb-4">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32634,7 +87802,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32650,6 +87866,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </div>
 
 
@@ -32658,7 +87898,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32682,7 +87994,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             <FormField label="Type">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32698,7 +88058,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 value={adjustForm.type}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32714,7 +88122,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   setAdjustForm({ ...adjustForm, type: e.target.value, category: '' });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32730,7 +88186,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 }}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32746,7 +88250,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               >
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32762,7 +88314,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 <option value="debit">Debit (- Subtract Amount)</option>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32778,7 +88378,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32802,7 +88474,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <Select
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32818,7 +88538,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 onChange={e => {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32834,7 +88602,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   if (value === '__add_new__') {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32850,7 +88666,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     setNewCategory({ categoryName: '', type: adjustForm.type });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32866,7 +88730,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32882,7 +88794,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   if (adjustErrors.category) setAdjustErrors(prev => ({ ...prev, category: undefined }));
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32898,7 +88858,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 disabled={submittingAdjust}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32914,7 +88922,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 <option value="">Select Category</option>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32930,7 +88986,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   .filter(cat => cat.type === adjustForm.type)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32946,7 +89050,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     <option key={cat._id || cat.id} value={cat.categoryName}>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32962,7 +89114,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     </option>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -32978,13 +89178,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 {/* Special payment categories are already included in adjustmentCategories from API */}
 
 
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 <option value="__add_new__">+ Add New Category</option>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33000,7 +89266,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               {adjustErrors.category && (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33016,6 +89330,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               )}
 
 
@@ -33024,7 +89362,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33040,241 +89426,991 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           {/* Invoice Selection for Customer Payment (Credit - Invoice Amount Received) */}
+
+
+
+
+
+
 
           {adjustForm.type === 'credit' && adjustForm.category === 'Invoice Amount Received' && (
 
+
+
+
+
+
+
             <div className="mt-4">
+
+
+
+
+
+
 
               <FormField label="Select Invoice *">
 
+
+
+
+
+
+
                 <Select
+
+
+
+
+
+
 
                   value={adjustForm.selectedInvoiceId}
 
+
+
+
+
+
+
                   onChange={e => {
+
+
+
+
+
+
 
                     const selectedInv = invoices.find(inv => (inv._id || inv.id) === e.target.value);
 
+
+
+
+
+
+
                     setAdjustForm({ 
+
+
+
+
+
+
 
                       ...adjustForm, 
 
+
+
+
+
+
+
                       selectedInvoiceId: e.target.value,
+
+
+
+
+
+
 
                       amount: selectedInv ? String(selectedInv.amount - (selectedInv.paid || 0)) : ''
 
+
+
+
+
+
+
                     });
+
+
+
+
+
+
 
                     if (adjustErrors.selectedInvoiceId) setAdjustErrors(prev => ({ ...prev, selectedInvoiceId: undefined }));
 
+
+
+
+
+
+
                   }}
+
+
+
+
+
+
 
                   disabled={submittingAdjust}
 
+
+
+
+
+
+
                 >
+
+
+
+
+
+
 
                   <option value="">Select an invoice</option>
 
+
+
+
+
+
+
                   {invoices
+
+
+
+
+
+
 
                     .filter(inv => ['Sent', 'Partial', 'Overdue', 'Pending'].includes(inv.status))
 
+
+
+
+
+
+
                     .map(inv => {
+
+
+
+
+
+
 
                       const id = inv._id || inv.id;
 
+
+
+
+
+
+
                       return (
+
+
+
+
+
+
 
                         <option key={id} value={id}>
 
+
+
+
+
+
+
                           {inv.invoiceNumber} - {inv.customerName} | Total: {fmt(inv.amount)} | Outstanding: {fmt(inv.amount - (inv.paid || 0))}
+
+
+
+
+
+
 
                         </option>
 
+
+
+
+
+
+
                       );
+
+
+
+
+
+
 
                     })}
 
+
+
+
+
+
+
                 </Select>
+
+
+
+
+
+
 
                 {adjustErrors.selectedInvoiceId && (
 
+
+
+
+
+
+
                   <div className="text-[11px] text-red-400 mt-1">{adjustErrors.selectedInvoiceId}</div>
 
+
+
+
+
+
+
                 )}
+
+
+
+
+
+
 
                 {adjustForm.selectedInvoiceId && (
 
+
+
+
+
+
+
                   <div className="text-[11px] text-[var(--text-muted)] mt-2">
+
+
+
+
+
+
 
                     {(() => {
 
+
+
+
+
+
+
                       const inv = invoices.find(i => (i._id || i.id) === adjustForm.selectedInvoiceId);
+
+
+
+
+
+
 
                       if (!inv) return null;
 
+
+
+
+
+
+
                       const outstanding = inv.amount - (inv.paid || 0);
+
+
+
+
+
+
 
                       return (
 
+
+
+
+
+
+
                         <div className="p-2 bg-[var(--bg-elevated)] rounded border border-[var(--border-muted)]">
+
+
+
+
+
+
 
                           <div className="font-medium">Invoice Details:</div>
 
+
+
+
+
+
+
                           <div>Customer: {inv.customerName}</div>
+
+
+
+
+
+
 
                           <div>Total Amount: {fmt(inv.amount)}</div>
 
+
+
+
+
+
+
                           <div>Paid: {fmt(inv.paid || 0)}</div>
+
+
+
+
+
+
 
                           <div className="font-semibold text-amber-400">Outstanding: {fmt(outstanding)}</div>
 
+
+
+
+
+
+
                           <div className="text-[10px] text-gray-500 mt-1">ID: {inv._id || inv.id}</div>
+
+
+
+
+
+
 
                         </div>
 
+
+
+
+
+
+
                       );
+
+
+
+
+
+
 
                     })()}
 
+
+
+
+
+
+
                   </div>
+
+
+
+
+
+
 
                 )}
 
+
+
+
+
+
+
               </FormField>
+
+
+
+
+
+
 
             </div>
 
+
+
+
+
+
+
           )}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
           {/* Vendor Selection for Vendor Payment (Debit - Vendor Payment) */}
 
+
+
+
+
+
+
           {adjustForm.type === 'debit' && adjustForm.category === 'Vendor Payment' && (
+
+
+
+
+
+
 
             <div className="mt-4">
 
+
+
+
+
+
+
               <FormField label="Select Vendor *">
+
+
+
+
+
+
 
                 <Select
 
+
+
+
+
+
+
                   value={adjustForm.selectedVendorId}
+
+
+
+
+
+
 
                   onChange={e => {
 
+
+
+
+
+
+
                     const selectedVendor = payables.find(p => String(p.vendorObjectId || p.vendorId) === e.target.value);
+
+
+
+
+
+
 
                     setAdjustForm({ 
 
+
+
+
+
+
+
                       ...adjustForm, 
+
+
+
+
+
+
 
                       selectedVendorId: e.target.value,
 
+
+
+
+
+
+
                       amount: selectedVendor ? String(selectedVendor.outstandingAmount) : ''
+
+
+
+
+
+
 
                     });
 
+
+
+
+
+
+
                     if (adjustErrors.selectedVendorId) setAdjustErrors(prev => ({ ...prev, selectedVendorId: undefined }));
+
+
+
+
+
+
 
                   }}
 
+
+
+
+
+
+
                   disabled={submittingAdjust}
+
+
+
+
+
+
 
                 >
 
+
+
+
+
+
+
                   <option value="">Select a vendor</option>
+
+
+
+
+
+
 
                   {(() => {
 
+
+
+
+
+
+
                     console.log('Vendor dropdown - payables data:', payables);
+
+
+
+
+
+
 
                     console.log('Vendor dropdown - filtered payables:', payables.filter(p => (p.outstandingAmount || 0) > 0));
 
+
+
+
+
+
+
                     
+
+
+
+
+
+
 
                     const vendorsWithOutstanding = payables.filter(p => (p.outstandingAmount || 0) > 0);
 
+
+
+
+
+
+
                     
+
+
+
+
+
+
 
                     if (vendorsWithOutstanding.length === 0) {
 
+
+
+
+
+
+
                       return (
+
+
+
+
+
+
 
                         <option disabled>No vendors with outstanding payments found</option>
 
+
+
+
+
+
+
                       );
+
+
+
+
+
+
 
                     }
 
+
+
+
+
+
+
                     
+
+
+
+
+
+
 
                     return vendorsWithOutstanding.map(p => (
 
+
+
+
+
+
+
                       <option key={p.vendorObjectId || p.vendorId} value={String(p.vendorObjectId || p.vendorId)}>
+
+
+
+
+
+
 
                         {p.vendorName} | Outstanding: {fmt(p.outstandingAmount)}
 
+
+
+
+
+
+
                       </option>
+
+
+
+
+
+
 
                     ));
 
+
+
+
+
+
+
                   })()}
+
+
+
+
+
+
 
                 </Select>
 
+
+
+
+
+
+
                 {adjustErrors.selectedVendorId && (
+
+
+
+
+
+
 
                   <div className="text-[11px] text-red-400 mt-1">{adjustErrors.selectedVendorId}</div>
 
+
+
+
+
+
+
                 )}
+
+
+
+
+
+
 
                 {adjustForm.selectedVendorId && (
 
+
+
+
+
+
+
                   <div className="text-[11px] text-[var(--text-muted)] mt-2">
+
+
+
+
+
+
 
                     {(() => {
 
+
+
+
+
+
+
                       const vendor = payables.find(p => String(p.vendorObjectId || p.vendorId) === adjustForm.selectedVendorId);
+
+
+
+
+
+
 
                       if (!vendor) return null;
 
+
+
+
+
+
+
                       return (
+
+
+
+
+
+
 
                         <div className="p-2 bg-[var(--bg-elevated)] rounded border border-[var(--border-muted)]">
 
+
+
+
+
+
+
                           <div className="font-medium">Vendor Details:</div>
+
+
+
+
+
+
 
                           <div>Vendor: {vendor.vendorName}</div>
 
+
+
+
+
+
+
                           <div>Total Payable: {fmt(vendor.totalPayableAmount)}</div>
+
+
+
+
+
+
 
                           <div>Paid: {fmt(vendor.amountPaid || 0)}</div>
 
+
+
+
+
+
+
                           <div className="font-semibold text-amber-400">Outstanding: {fmt(vendor.outstandingAmount)}</div>
+
+
+
+
+
+
 
                         </div>
 
+
+
+
+
+
+
                       );
+
+
+
+
+
+
 
                     })()}
 
+
+
+
+
+
+
                   </div>
+
+
+
+
+
+
 
                 )}
 
+
+
+
+
+
+
               </FormField>
+
+
+
+
+
+
 
             </div>
 
+
+
+
+
+
+
           )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
 
 
           <div className="grid grid-cols-2 gap-3 mt-4">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33290,7 +90426,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <Input
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33306,7 +90490,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 value={adjustForm.amount}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33322,7 +90554,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   setAdjustForm({ ...adjustForm, amount: e.target.value });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33338,7 +90618,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 }}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33354,7 +90682,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 disabled={submittingAdjust}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33370,7 +90746,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               {adjustErrors.amount && (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33386,6 +90810,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               )}
 
 
@@ -33394,7 +90842,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33418,7 +90938,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <Input
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33434,7 +91002,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 value={adjustForm.lf || ''}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33450,7 +91066,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   const val = e.target.value;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33466,7 +91130,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   if (val === '' || (/^\d+$/.test(val) && parseInt(val) >= 1 && parseInt(val) <= 1000)) {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33486,7 +91198,67 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33502,7 +91274,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 }}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33518,7 +91338,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 min="1"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33534,7 +91402,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 disabled={submittingAdjust}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33550,7 +91466,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               {adjustErrors.lf && (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33566,6 +91530,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               )}
 
 
@@ -33574,7 +91562,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33598,7 +91658,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <Input
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33614,7 +91722,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 value={adjustForm.date}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33630,7 +91786,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   setAdjustForm({ ...adjustForm, date: e.target.value });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33646,7 +91850,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 }}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33662,7 +91914,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33678,7 +91978,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 <div className="text-[11px] text-red-400 mt-1">{adjustErrors.date}</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33694,7 +92042,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </FormField>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33718,7 +92114,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           <div className="mt-4">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33734,7 +92202,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               <Input
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33750,7 +92266,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 onChange={e => setAdjustForm({ ...adjustForm, reason: e.target.value })}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33766,7 +92330,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 disabled={submittingAdjust}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33782,6 +92394,30 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </FormField>
 
 
@@ -33790,7 +92426,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33814,7 +92522,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             <FormField label="Reference (Optional)">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33830,7 +92586,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 value={adjustForm.reference}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33846,7 +92650,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 placeholder="e.g., ADJ-001, Journal entry reference"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33862,7 +92714,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33878,7 +92778,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33894,7 +92842,79 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       </Modal>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33918,7 +92938,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       <Modal
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33934,7 +93002,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         onClose={() => {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33950,7 +93066,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           setShowAddCategoryModal(false);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33966,7 +93130,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         }}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33982,7 +93194,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         footer={
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33998,7 +93258,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             <Button
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -34014,7 +93322,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               onClick={() => {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -34030,7 +93386,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 setShowAddCategoryModal(false);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -34046,7 +93450,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               }}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -34062,7 +93514,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             >
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -34078,7 +93578,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             </Button>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -34094,7 +93642,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               onClick={async () => {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -34110,7 +93706,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   toast.error('Category name is required');
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -34126,7 +93770,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -34142,7 +93834,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   setAddingCategory(true);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -34158,7 +93898,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     categoryName: newCategory.categoryName.trim(),
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -34174,7 +93962,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -34190,7 +94026,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   const newCat = result?.category || result;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -34206,7 +94090,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     setAdjustmentCategories(prev => [...prev, newCat]);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -34222,7 +94154,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     if (newCat.type === adjustForm.type) {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -34238,7 +94218,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -34254,7 +94282,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   toast.success(`Category "${newCategory.categoryName}" created successfully`);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -34270,7 +94346,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   setNewCategory({ categoryName: '', type: 'credit' });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -34286,7 +94410,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   toast.error(err.message || 'Failed to create category');
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -34302,7 +94474,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   setAddingCategory(false);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -34318,7 +94538,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               }}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -34334,7 +94602,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             >
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -34350,7 +94666,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               {addingCategory ? ' Saving...' : ' Save Category'}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -34366,7 +94730,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -34382,7 +94794,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       >
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -34398,7 +94858,55 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           <FormField label="Category Name">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -34414,1399 +94922,376 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
               value={newCategory.categoryName}
-
-
-
-
-
-
 
               onChange={e => setNewCategory({ ...newCategory, categoryName: e.target.value })}
 
-
-
-
-
-
-
               placeholder="e.g., Customer Advance, Bank Charges"
 
-
-
-
-
-
-
               disabled={addingCategory}
-
-
-
-
-
-
 
               autoFocus
 
-
-
-
-
-
-
             />
 
-
-
-
-
-
-
           </FormField>
-
-
-
-
-
-
 
           <FormField label="Type">
 
-
-
-
-
-
-
             <Select
 
-
-
-
-
-
-
               value={newCategory.type}
-
-
-
-
-
-
-
               onChange={e => setNewCategory({ ...newCategory, type: e.target.value })}
 
-
-
-
-
-
-
               disabled={addingCategory}
-
-
-
-
-
-
-
             >
-
-
-
-
-
-
 
               <option value="credit">Credit</option>
 
-
-
-
-
-
-
               <option value="debit">Debit</option>
-
-
-
-
-
-
 
             </Select>
 
-
-
-
-
-
-
           </FormField>
-
-
-
-
-
-
 
         </div>
 
-
-
-
-
-
-
       </Modal>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
       {/* Journal Entry Detail Modal */}
 
-
-
-
-
-
-
       {showJournalEntryModal && selectedJournalEntry && (
 
-
-
-
-
-
-
         <Modal
-
-
-
-
-
-
-
           isOpen={showJournalEntryModal}
-
-
-
-
-
-
 
           onClose={() => {
 
-
-
-
-
-
-
             setShowJournalEntryModal(false);
-
-
-
-
-
-
 
             setSelectedJournalEntry(null);
 
-
-
-
-
-
-
             setSelectedJournalEntryIndex(null);
-
-
-
-
-
-
 
           }}
 
-
-
-
-
-
-
           title={`Journal Entry — JE-${String(selectedJournalEntryIndex || 1).padStart(3, '0')}`}
-
-
-
-
-
-
 
           footer={
 
-
-
-
-
-
-
             <div className="flex gap-2 justify-end">
-
-
-
-
-
-
 
               <Button
 
-
-
-
-
-
-
                 variant="ghost"
-
-
-
-
-
-
 
                 onClick={() => {
 
-
-
-
-
-
-
                   setShowJournalEntryModal(false);
-
-
-
-
-
-
 
                   setSelectedJournalEntry(null);
 
-
-
-
-
-
-
                   setSelectedJournalEntryIndex(null);
-
-
-
-
-
-
 
                 }}
 
-
-
-
-
-
-
               >
 
-
-
-
-
-
-
                 Close
-
-
-
-
-
-
 
               </Button>
 
 
-
-
-
-
-
             </div>
-
-
-
-
-
-
 
           }
 
 
-
-
-
-
-
         >
-
-
-
-
-
-
-
           <div className="space-y-4 pb-4">
-
-
-
-
-
-
 
             {/* Entry Info */}
 
-
-
-
-
-
-
             <div className="grid grid-cols-2 gap-3 text-xs">
 
-
-
-
-
-
-
               <div className="glass-card p-2">
-
-
-
-
-
-
 
                 <div className="text-[var(--text-muted)] mb-0.5">Date</div>
 
-
-
-
-
-
-
                 <div className="font-semibold text-[var(--text-primary)]">
-
-
 
                   {new Date(selectedJournalEntry.date).toLocaleDateString('en-IN', {
 
-
-
                     day: '2-digit',
-
-
 
                     month: '2-digit',
 
-
-
                     year: 'numeric'
-
-
-
-
-
-
 
                   })}
 
-
-
-
-
-
-
                 </div>
-
-
-
-
-
-
 
               </div>
 
-
-
-
-
-
-
               <div className="glass-card p-2">
-
-
-
-
-
-
 
                 <div className="text-[var(--text-muted)] mb-0.5">Reference</div>
 
-
-
-
-
-
-
                 <div className="font-semibold text-[var(--text-primary)]">
-
-
-
-
-
 
 
                   {selectedJournalEntry.reference || '—'}
 
 
-
-
-
-
-
                 </div>
-
-
-
-
-
-
 
               </div>
 
-
-
-
-
-
-
               <div className="glass-card p-2">
-
-
-
-
-
-
 
                 <div className="text-[var(--text-muted)] mb-0.5">Category</div>
 
-
-
-
-
-
-
                 <div className="font-semibold text-[var(--text-primary)]">
 
-
-
                   {selectedJournalEntry.narration
-
-
 
                     ? selectedJournalEntry.narration.split(':')[0]?.trim()
 
 
-
-
-
-
-
                     : (selectedJournalEntry.category || '—')}
-
-
-
-
-
-
 
                 </div>
 
-
-
-
-
-
-
               </div>
 
-
-
-
-
-
-
               <div className="glass-card p-2">
-
-
-
-
-
-
 
                 <div className="text-[var(--text-muted)] mb-0.5">Type</div>
 
-
-
-
-
-
-
                 <div className={`font-semibold ${selectedJournalEntry.type === 'credit' ? 'text-emerald-400' : 'text-red-400'}`}>
-
-
-
-
-
-
 
                   {selectedJournalEntry.type === 'credit' ? 'Credit (+)' : 'Debit (-)'}
 
-
-
-
-
-
-
                 </div>
 
-
-
-
-
-
-
               </div>
-
-
-
-
-
-
 
               <div className="glass-card p-2">
 
-
-
-
-
-
-
                 <div className="text-[var(--text-muted)] mb-0.5">L.F.</div>
-
-
-
-
-
-
 
                 <div className="font-semibold text-[var(--text-primary)]">
 
-
-
-
-
-
-
                   {selectedJournalEntry.lf || '—'}
-
-
-
-
-
-
 
                 </div>
 
-
-
-
-
-
-
               </div>
-
-
-
-
-
-
 
             </div>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             {/* Journal Lines Table */}
-
-
-
-
-
-
 
             <div className="border border-[var(--border-base)] rounded-lg overflow-hidden">
 
-
-
-
-
-
-
               {/* Table Header */}
-
-
-
-
-
-
 
               <div className="grid grid-cols-12 text-[11px] font-semibold text-[var(--text-primary)] border-b-2 border-[var(--border-base)] p-2 bg-[var(--bg-surface)]">
 
-
-
-
-
-
-
                 <div className="col-span-6 border-r-2 border-[var(--border-base)] px-1">Account</div>
-
-
-
-
-
-
 
                 <div className="col-span-3 border-r-2 border-[var(--border-base)] px-1 text-right">Debit (₹)</div>
 
-
-
-
-
-
-
                 <div className="col-span-3 pl-1 text-right">Credit (₹)</div>
-
-
-
-
-
-
 
               </div>
 
-
-
-
-
-
-
-
-
-
-
               {/* Debit Lines */}
-
-
-
-
-
-
 
               {(selectedJournalEntry.lines || [])
 
-
-
-
-
-
-
                 .filter(l => l.debitAmount > 0)
-
-
-
-
-
-
 
                 .map((line, idx) => (
 
-
-
                   <div
-
-
-
-
-
-
 
                     key={`debit-${idx}`}
 
-
-
-
-
-
-
                     className="grid grid-cols-12 text-xs border-b border-[var(--border-muted)]"
-
-
-
-
-
-
 
                   >
 
-
-
-
-
-
-
                     <div className="col-span-6 border-r-2 border-[var(--border-base)] px-3 py-2 text-[var(--text-primary)]">
-
-
-
-
-
-
 
                       {line.accountName} <span className="text-[var(--text-muted)]">Dr.</span>
 
-
-
-
-
-
-
                     </div>
-
-
-
-
-
-
 
                     <div className="col-span-3 border-r-2 border-[var(--border-base)] px-3 py-2 text-right font-medium text-[var(--text-primary)]">
 
-
-
-
-
-
-
                       {fmt(line.debitAmount)}
-
-
-
-
-
-
 
                     </div>
 
-
-
-
-
-
-
                     <div className="col-span-3 px-3 py-2 text-right">-</div>
-
-
-
-
-
-
 
                   </div>
 
 
-
-
-
-
-
                 ))}
-
-
-
-
-
-
-
-
-
-
 
               {/* Credit Lines */}
 
-
-
-
-
-
-
               {(selectedJournalEntry.lines || [])
-
-
-
-
-
-
 
                 .filter(l => l.creditAmount > 0)
 
-
-
-
-
-
-
                 .map((line, idx) => (
-
-
 
                   <div
 
-
-
-
-
-
-
                     key={`credit-${idx}`}
-
-
-
-
-
-
 
                     className="grid grid-cols-12 text-xs border-b border-[var(--border-muted)]"
 
-
-
-
-
-
-
                   >
 
-
-
-
-
-
-
                     <div className="col-span-6 border-r-2 border-[var(--border-base)] px-3 py-2 text-[var(--text-primary)] pl-6">
-
-
-
-
-
-
 
                       <span className="text-[var(--text-muted)]">To</span> {line.accountName}
 
 
-
-
-
-
-
                     </div>
-
-
-
-
-
-
 
                     <div className="col-span-3 border-r-2 border-[var(--border-base)] px-3 py-2 text-right">-</div>
 
 
-
-
-
-
-
                     <div className="col-span-3 px-3 py-2 text-right font-medium text-[var(--text-primary)]">
-
-
-
-
-
-
 
                       {fmt(line.creditAmount)}
 
-
-
-
-
-
-
                     </div>
-
-
-
-
-
-
 
                   </div>
 
-
-
-
-
-
-
                 ))}
-
-
-
-
-
-
-
-
-
-
 
               {/* Total Row */}
 
-
-
-
-
-
-
               <div className="grid grid-cols-12 text-xs font-semibold bg-[var(--bg-surface)] p-2 border-t-2 border-[var(--border-base)]">
-
-
-
-
-
-
 
                 <div className="col-span-6 border-r-2 border-[var(--border-base)] px-1">Total</div>
 
-
-
-
-
-
-
                 <div className="col-span-3 border-r-2 border-[var(--border-base)] px-1 text-right">
 
-
-
-
-
-
-
                   {fmt((selectedJournalEntry.lines || [])
-
-
-
-
-
-
 
                     .reduce((sum, l) => sum + (l.debitAmount || 0), 0))}
 
-
-
-
-
-
-
                 </div>
-
-
-
-
-
-
 
                 <div className="col-span-3 pl-1 text-right">
 
-
-
-
-
-
-
                   {fmt((selectedJournalEntry.lines || [])
-
-
-
-
-
-
 
                     .reduce((sum, l) => sum + (l.creditAmount || 0), 0))}
 
-
-
-
-
-
-
                 </div>
 
-
-
-
-
-
-
               </div>
-
-
-
-
-
-
 
             </div>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             {/* Narration */}
-
-
-
-
-
-
 
             {selectedJournalEntry.narration && (
 
-
-
-
-
-
-
               <div className="glass-card p-3">
-
-
-
-
-
-
 
                 <div className="text-[var(--text-muted)] mb-1 text-xs">Narration</div>
 
-
-
-
-
-
-
                 <div className="text-sm text-[var(--text-primary)] italic">
 
-
-
-
-
-
-
                   ({selectedJournalEntry.narration})
-
-
-
-
-
-
 
                 </div>
 
 
-
-
-
-
-
               </div>
-
-
-
-
-
-
 
             )}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             {/* Reason */}
-
-
-
-
-
-
 
             {selectedJournalEntry.reason && (
 
 
-
-
-
-
-
               <div className="glass-card p-3">
-
-
-
-
-
-
 
                 <div className="text-[var(--text-muted)] mb-1 text-xs">Reason</div>
 
 
-
-
-
-
-
                 <div className="text-sm text-[var(--text-primary)]">
-
-
-
-
-
-
 
                   {selectedJournalEntry.reason}
 
 
 
-
-
-
-
                 </div>
 
-
-
-
-
-
-
               </div>
-
-
-
-
-
 
 
             )}
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
             {/* Created Info */}
-
-
-
-
-
 
 
             <div className="text-[10px] text-[var(--text-muted)] text-right">
 
 
-
-
-
-
-
               Created: {selectedJournalEntry.createdAt ? new Date(selectedJournalEntry.createdAt).toLocaleString('en-IN') : '—'}
-
-
-
-
-
 
 
             </div>
 
-
-
-
-
-
-
           </div>
 
-
-
-
-
-
-
         </Modal>
-
-
-
-
-
-
-
       )}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   );
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 export default FinancePage;
-
-
-
-
-
-
-

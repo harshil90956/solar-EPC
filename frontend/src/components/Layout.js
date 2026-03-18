@@ -130,43 +130,53 @@ const Layout = ({ currentPage, onNavigate, children }) => {
   const unreadCount = ALERTS.filter(a => a.severity === 'critical' || a.severity === 'warning').length;
   const totalReminderAlerts = activeNotifications.length + upcomingCount + overdueCount;
 
+  const userId = user?.id || user?._id;
+  const roleId = user?.roleId || user?.role;
+  const userRole = (user?.role || '').toLowerCase();
+  const isAdminLike = user?.isSuperAdmin || userRole === 'admin' || userRole === 'superadmin';
+  const canViewSettings = isAdminLike ? true : (resolvePermission(userId, roleId, 'settings', 'view') === true);
+
   // Sidebar visibility:
   // - Admin (role='Admin'/'admin', or isSuperAdmin): always sees all enabled modules
   // - Custom role / employee: only shows modules where view = true in Role Builder
   const visibleSections = NAV_CONFIG.map(section => ({
     ...section,
-    items: section.items.filter(item => {
-      // 1. Feature Flag Check (Highest Priority)
-      if (!isModuleEnabled(item.id)) return false;
+    items: section.items
+      .map(item => {
+        // 1. Feature Flag Check (Highest Priority)
+        if (!isModuleEnabled(item.id)) return null;
 
-      // 2. Admin Bypass
-      const userRole = (user?.role || '').toLowerCase();
-      if (user?.isSuperAdmin || userRole === 'admin' || userRole === 'superadmin') return true;
+        // 2. Admin Bypass
+        // 3. Custom Role / Employee check
 
-      // 3. Custom Role / Employee check
-      const roleId = user?.roleId || user?.role;
-      const userId = user?.id || user?._id;
+        // Parent items with children (e.g. HRM): filter children by permissions.
+        if (Array.isArray(item.children) && item.children.length > 0) {
+          const filteredChildren = item.children.filter(child => {
+            const enabled = isModuleEnabled(child.id);
+            if (!enabled) return false;
 
-      // If parent has children (e.g. HRM), show it when at least one child is viewable.
-      if (Array.isArray(item.children) && item.children.length > 0) {
-        const hasVisibleChild = item.children.some(child => {
-          const enabled = isModuleEnabled(child.id);
-          const permitted = resolvePermission(userId, roleId, child.id, 'view');
-          return enabled && permitted;
-        });
-        return hasVisibleChild;
-      }
+            // Respect adminOnly children
+            if (child.adminOnly && !isAdminLike) return false;
 
-      // Single module check
-      const isPermitted = resolvePermission(userId, roleId, item.id, 'view');
-      
-      // DEBUG: Log visibility decision for non-admin custom roles
-      if (roleId && String(roleId).startsWith('custom_')) {
-        console.log(`[SIDEBAR VISIBILITY] Module: ${item.id}, Permitted: ${isPermitted}, Role: ${roleId}`);
-      }
+            // HRM permissions screen should be admin-only
+            if (child.id === 'hrm-permissions' && !isAdminLike) return false;
 
-      return isPermitted === true;
-    }),
+            const permitted = isAdminLike ? true : (resolvePermission(userId, roleId, child.id, 'view') === true);
+
+            return permitted;
+          });
+
+          if (filteredChildren.length === 0) return null;
+          return { ...item, children: filteredChildren };
+        }
+
+        // Single module check
+        if (isAdminLike) return item;
+        const isPermitted = resolvePermission(userId, roleId, item.id, 'view');
+
+        return isPermitted === true ? item : null;
+      })
+      .filter(Boolean),
   })).filter(s => s.items.length > 0);
 
   /* ── Derive layout dimensions from customization ── */
@@ -422,19 +432,21 @@ const Layout = ({ currentPage, onNavigate, children }) => {
         </div>
 
         {/* Settings shortcut */}
-        <button
-          onClick={() => { onNavigate('settings'); setNotifOpen(false); setUserMenuOpen(false); setThemeMenuOpen(false); }}
-          title="Settings & Control Center"
-          className={cn(
-            'w-8 h-8 rounded-lg flex items-center justify-center border transition-colors',
-            currentPage === 'settings'
-              ? 'text-[var(--accent)] border-[var(--accent)]/40 bg-[var(--accent)]/8'
-              : topbarHasCustomColor
-                ? 'text-white/70 hover:text-white border-white/15 hover:border-white/30 bg-white/10'
-                : 'text-[var(--text-faint)] hover:text-[var(--text-primary)] border-[var(--border-base)] hover:border-[var(--border-muted)] bg-[var(--bg-elevated)]'
-          )}>
-          <Settings size={14} />
-        </button>
+        {canViewSettings && (
+          <button
+            onClick={() => { onNavigate('settings'); setNotifOpen(false); setUserMenuOpen(false); setThemeMenuOpen(false); }}
+            title="Settings & Control Center"
+            className={cn(
+              'w-8 h-8 rounded-lg flex items-center justify-center border transition-colors',
+              currentPage === 'settings'
+                ? 'text-[var(--accent)] border-[var(--accent)]/40 bg-[var(--accent)]/8'
+                : topbarHasCustomColor
+                  ? 'text-white/70 hover:text-white border-white/15 hover:border-white/30 bg-white/10'
+                  : 'text-[var(--text-faint)] hover:text-[var(--text-primary)] border-[var(--border-base)] hover:border-[var(--border-muted)] bg-[var(--bg-elevated)]'
+            )}>
+            <Settings size={14} />
+          </button>
+        )}
 
         {/* Theme picker */}
         <div className="relative">
@@ -494,7 +506,18 @@ const Layout = ({ currentPage, onNavigate, children }) => {
                 : 'bg-[var(--bg-elevated)] border-[var(--border-base)] hover:border-[var(--border-muted)]'
             )}
           >
-            <Avatar size="xs">{user?.avatar}</Avatar>
+            {user?.profileImage ? (
+              <img
+                src={user.profileImage}
+                alt="Profile"
+                className="w-5 h-5 rounded-lg object-cover"
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+            ) : (
+              <div className="w-5 h-5 rounded-lg bg-[var(--primary)] flex items-center justify-center text-white text-[10px] font-bold">
+                {user?.name?.[0]?.toUpperCase() || 'U'}
+              </div>
+            )}
             <span className={cn('hidden sm:block text-xs font-medium', topbarHasCustomColor ? 'text-white/90' : 'text-[var(--text-secondary)]')}>{user?.name?.split(' ')[0]}</span>
             <ChevronDown size={11} className={cn('hidden sm:block', topbarHasCustomColor ? 'text-white/50' : 'text-[var(--text-faint)]')} />
           </button>
@@ -508,14 +531,19 @@ const Layout = ({ currentPage, onNavigate, children }) => {
                   <p className="text-[10px] text-[var(--text-faint)] mt-0.5">{user?.email}</p>
                   <Badge variant="blue" className="mt-2 text-[9px]">{user?.role}</Badge>
                 </div>
-                <button className="flex items-center gap-2.5 w-full px-4 py-2.5 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors">
+                <button
+                  onClick={() => { onNavigate('profile'); setUserMenuOpen(false); }}
+                  className="flex items-center gap-2.5 w-full px-4 py-2.5 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+                >
                   <User size={12} /> My Profile
                 </button>
-                <button
-                  onClick={() => { onNavigate('settings'); setUserMenuOpen(false); }}
-                  className="flex items-center gap-2.5 w-full px-4 py-2.5 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors">
-                  <Settings size={12} /> Settings
-                </button>
+                {canViewSettings && (
+                  <button
+                    onClick={() => { onNavigate('settings'); setUserMenuOpen(false); }}
+                    className="flex items-center gap-2.5 w-full px-4 py-2.5 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors">
+                    <Settings size={12} /> Settings
+                  </button>
+                )}
                 <div className="border-t border-[var(--border-base)] mt-1 pt-1">
                   <button
                     onClick={() => { logout(); setUserMenuOpen(false); }}

@@ -390,8 +390,12 @@ export class DocumentService {
     const updateData: any = { status };
     if (status === DocumentStatus.SENT) {
       updateData.sentAt = new Date();
+    } else if (status === DocumentStatus.VIEWED) {
+      updateData.viewedAt = new Date();
     } else if (status === DocumentStatus.ACCEPTED) {
       updateData.acceptedAt = new Date();
+    } else if (status === DocumentStatus.REJECTED) {
+      updateData.rejectedAt = new Date();
     }
 
     const result = await this.documentModel

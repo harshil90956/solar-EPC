@@ -84,7 +84,6 @@ export class DepartmentService {
       .sort({ createdAt: -1 })
       .exec();
     
-    console.log('[DEBUG DepartmentService] Filtered result count:', result.length);
     return result;
   }
 

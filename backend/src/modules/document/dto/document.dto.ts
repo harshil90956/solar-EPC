@@ -9,6 +9,10 @@ export class DocumentItemDto {
   @IsString()
   description!: string;
 
+  @IsOptional()
+  @IsString()
+  brand?: string;
+
   @IsNumber()
   @Type(() => Number)
   quantity!: number;
@@ -20,6 +24,28 @@ export class DocumentItemDto {
   @IsNumber()
   @Type(() => Number)
   total!: number;
+}
+
+export class ProjectBenefitsDto {
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  yearlySavings?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  co2Reduction?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  paybackPeriod?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  warrantyYears?: number;
 }
 
 export class CreateDocumentDto {
@@ -54,6 +80,10 @@ export class CreateDocumentDto {
 
   @IsOptional()
   @IsString()
+  companyName?: string;
+
+  @IsOptional()
+  @IsString()
   customerEmail?: string;
 
   @IsOptional()
@@ -64,9 +94,56 @@ export class CreateDocumentDto {
   @IsString()
   customerAddress?: string;
 
+  // Solar Project Specific Fields
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  systemCapacity?: number;
+
+  @IsOptional()
+  @IsString()
+  projectType?: string;
+
+  @IsOptional()
+  @IsString()
+  installationType?: string;
+
+  @IsOptional()
+  @IsString()
+  projectLocation?: string;
+
+  // Cost Breakdown
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  equipmentCost?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  installationCost?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  engineeringCost?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  transportationCost?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  miscellaneousCost?: number;
+
   @IsOptional()
   @IsArray()
   items?: DocumentItemDto[];
+
+  @IsOptional()
+  benefits?: ProjectBenefitsDto;
 
   @IsOptional()
   @IsNumber()
@@ -133,6 +210,10 @@ export class UpdateDocumentDto {
 
   @IsOptional()
   @IsString()
+  companyName?: string;
+
+  @IsOptional()
+  @IsString()
   customerEmail?: string;
 
   @IsOptional()
@@ -143,9 +224,56 @@ export class UpdateDocumentDto {
   @IsString()
   customerAddress?: string;
 
+  // Solar Project Specific Fields
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  systemCapacity?: number;
+
+  @IsOptional()
+  @IsString()
+  projectType?: string;
+
+  @IsOptional()
+  @IsString()
+  installationType?: string;
+
+  @IsOptional()
+  @IsString()
+  projectLocation?: string;
+
+  // Cost Breakdown
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  equipmentCost?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  installationCost?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  engineeringCost?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  transportationCost?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  miscellaneousCost?: number;
+
   @IsOptional()
   @IsArray()
   items?: DocumentItemDto[];
+
+  @IsOptional()
+  benefits?: ProjectBenefitsDto;
 
   @IsOptional()
   @IsNumber()

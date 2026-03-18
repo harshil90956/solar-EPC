@@ -105,7 +105,11 @@ export const leadsApi = {
 
   // Update lead stage (with tracker update)
   async updateStage(id, stage) {
-    return api.patch(`/leads/${id}/stage`, { stage });
+    const res = await api.patch(`/leads/${id}/stage`, { stage });
+    if (typeof window !== 'undefined' && window?.dispatchEvent) {
+      window.dispatchEvent(new Event('leadStageUpdated'));
+    }
+    return res;
   },
 
   // Bulk archive leads
@@ -121,6 +125,10 @@ export const leadsApi = {
   // Bulk update stage
   async bulkUpdateStage(ids, stage) {
     return api.post(`/leads/bulk/stage/${stage}`, { ids });
+  },
+
+  async reassignStatusKey(fromStatusKey, toStatusKey) {
+    return api.post('/leads/reassign-status', { fromStatusKey, toStatusKey });
   },
 
   // Recalculate all scores

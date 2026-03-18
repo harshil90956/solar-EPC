@@ -14,6 +14,7 @@ import {
     ACTION_DEFS,
 } from '../config/features.config';
 import { settingsApi } from '../services/settingsApi';
+import { getRolePermissions } from '../config/roles.config';
 
 const SettingsContext = createContext(null);
 
@@ -33,15 +34,18 @@ const buildDefaultRBAC = () => {
     
     ROLE_DEFS.forEach(role => {
         rbac[role.id] = {};
+        const base = getRolePermissions(role.id);
+        const allowedModules = Array.isArray(base?.modules) ? base.modules : [];
         modules.forEach(mod => {
+            const canView = allowedModules.includes(mod);
             rbac[role.id][mod] = {
-                view: true,
-                create: role.id === 'admin' || role.id === 'manager',
-                edit: role.id === 'admin' || role.id === 'manager',
-                delete: role.id === 'admin',
-                export: role.id === 'admin' || role.id === 'manager',
-                approve: role.id === 'admin' || role.id === 'manager',
-                assign: role.id === 'admin' || role.id === 'manager',
+                view: canView,
+                create: canView ? !!base?.canCreate : false,
+                edit: canView ? !!base?.canEdit : false,
+                delete: canView ? !!base?.canDelete : false,
+                export: canView ? !!base?.canExport : false,
+                approve: canView ? !!base?.canApprove : false,
+                assign: false,
             };
         });
     });
@@ -910,33 +914,147 @@ export const SettingsProvider = ({ children }) => {
         // Normalize roleId to lowercase for case-insensitive matching
         const normalizedRoleId = roleIdTrimmed.toLowerCase();
 
+        const savedUser = (typeof window !== 'undefined')
+            ? JSON.parse(localStorage.getItem('solar_user') || '{}')
+            : {};
+        const isAdminLike = savedUser?.isSuperAdmin || normalizedRoleId === 'admin' || normalizedRoleId === 'superadmin';
+
         // STEP 1: Check Backend HRM Permissions from user.permissions (highest priority for HRM modules)
         // Get user object to check backend permissions
         const user = (typeof window !== 'undefined') 
             ? JSON.parse(localStorage.getItem('solar_user') || '{}')
             : {};
+
+        // Highest priority: normalized permissions object stored on user
+        // Supports mapping of hrm-* nav ids to HRM module keys.
+        const permModuleKey = (typeof moduleId === 'string' && moduleId.startsWith('hrm-'))
+            ? moduleId.replace('hrm-', '')
+            : moduleId;
+        const userPermVal = user?.permissions?.[permModuleKey]?.[actionId];
+        if (userPermVal === true) {
+            console.log('  ✅ Permission granted via user.permissions object');
+            return true;
+        }
+        if (userPermVal === false) {
+            console.log('  ❌ Permission denied via user.permissions object');
+            return false;
+        }
         
-        const backendPermissions = user?.permissions || [];
+        const backendPermissionsRaw = user?.permissions || [];
+        const backendPermissions = Array.isArray(backendPermissionsRaw)
+            ? backendPermissionsRaw
+                .filter(p => typeof p === 'string')
+                .map(p => (p.includes(':') ? p.replace(':', '.') : p))
+            : [];
         
-        // Check if this is an HRM module
-        const isHrmModule = moduleId?.startsWith('hrm-');
+        // Check if this is an HRM module or the parent HRM module
+        const isHrmModule = moduleId === 'hrm' || moduleId?.startsWith('hrm-');
         
-        if (isHrmModule && Array.isArray(backendPermissions) && backendPermissions.length > 0) {
-            // Find matching backend permission key for this module/action
-            const matchingBackendKeys = Object.entries(backendPermissionMapping)
-                .filter(([_, mapped]) => mapped?.moduleId === moduleId && mapped?.actionId === actionId)
-                .map(([key]) => key);
+        // For HRM modules, check backend permissions first (from JWT/user.permissions OR user.modulePermissions)
+        if (isHrmModule) {
+            // Check modulePermissions structure (from JWT payload)
+            // modulePermissions format: { employees: { actions: ['view', ...], dataScope: 'OWN' }, ... }
+            const modulePermissions = user?.modulePermissions || {};
+            const permissionsArray = user?.permissions || []; // From AuthContext (HRM permissions)
             
-            // Check if user has any of the matching backend permissions
-            const hasBackendPermission = matchingBackendKeys.some(key => backendPermissions.includes(key));
+            // If checking parent 'hrm', we should return true if ANY hrm submodule has 'view' permission
+            if (moduleId === 'hrm' && actionId === 'view') {
+                const hasAnyChildPermission = Object.values(modulePermissions).some(p => p.actions?.includes('view')) ||
+                                             (Array.isArray(permissionsArray) && permissionsArray.some(p => p.includes('.view'))) ||
+                                             (typeof permissionsArray === 'object' && Object.values(permissionsArray).some(p => p.view === true));
+                
+                if (hasAnyChildPermission) {
+                    console.log('  ✅ HRM Parent permission granted because at least one submodule is visible');
+                    return true;
+                }
+            }
+
+            // DEBUG: Log actual structure
+            console.log('🔍 HRM Permission Check Debug:', {
+                moduleId,
+                moduleKey: moduleId === 'hrm' ? 'hrm' : moduleId.replace('hrm-', ''),
+                availableModules: Object.keys(modulePermissions),
+                permissionsArray: permissionsArray,
+                fullModulePermissions: modulePermissions
+            });
             
-            if (hasBackendPermission) {
-                console.log('  ✅ Backend permission granted:', matchingBackendKeys);
-                return true;
+            const moduleKey = moduleId === 'hrm' ? 'hrm' : moduleId.replace('hrm-', ''); // hrm -> hrm, hrm-employees -> employees
+            const modulePerms = modulePermissions[moduleKey];
+            
+            // Check 1: modulePermissions object format
+            if (modulePerms) {
+                console.log('  📋 Found modulePerms for', moduleKey, ':', modulePerms);
+                if (Array.isArray(modulePerms.actions)) {
+                    const hasAction = modulePerms.actions.includes(actionId);
+                    console.log('  🔍 Checking actions:', { actionId, actions: modulePerms.actions, hasAction });
+                    if (hasAction) {
+                        console.log('  ✅ Module permission granted via modulePermissions');
+                        return true;
+                    }
+                } else {
+                    console.log('  ⚠️ modulePerms.actions is not an array:', modulePerms.actions);
+                }
             }
             
-            // If no backend permission found for HRM, deny access
-            console.log('  ❌ No backend permission for HRM module:', { moduleId, actionId, checkedKeys: matchingBackendKeys, userHas: backendPermissions });
+            // Check 2: permissions object/array format (from AuthContext.fetchHrmPermissions)
+            // Can be either: ['employees.view', 'attendance.checkin'] or { employees: { view: true }, ... }
+            const rawPermissions = user?.permissions;
+            
+            if (Array.isArray(rawPermissions) && rawPermissions.length > 0) {
+                // Array format: ['employees.view', 'attendance.checkin', etc.]
+                const permissionPrefix = moduleKey; // employees, leaves, attendance, etc.
+                const fullPermission = `${permissionPrefix}.${actionId}`; // employees.view
+                const hasPermission = rawPermissions.includes(fullPermission);
+                
+                console.log('  🔍 Checking permissions array:', { 
+                    permissionPrefix, 
+                    fullPermission, 
+                    hasPermission,
+                    availablePermissions: rawPermissions 
+                });
+                
+                if (hasPermission) {
+                    console.log('  ✅ Module permission granted via permissions array');
+                    return true;
+                }
+            } else if (rawPermissions && typeof rawPermissions === 'object' && !Array.isArray(rawPermissions)) {
+                // Object format: { employees: { view: true, checkin: true }, ... }
+                const modulePermissionsObj = rawPermissions[moduleKey];
+                if (modulePermissionsObj && typeof modulePermissionsObj === 'object') {
+                    // Check if actionId exists and is true
+                    if (modulePermissionsObj[actionId] === true) {
+                        console.log('  ✅ Module permission granted via permissions object:', { moduleKey, actionId });
+                        return true;
+                    }
+                    // Also check nested structure like { employees: { view: true } }
+                    if (modulePermissionsObj.view === true && actionId === 'view') {
+                        console.log('  ✅ Module permission granted via permissions object (view)');
+                        return true;
+                    }
+                }
+                // Direct check: permissions.employees.view
+                if (rawPermissions[moduleKey]?.[actionId] === true) {
+                    console.log('  ✅ Module permission granted via nested permissions object');
+                    return true;
+                }
+            }
+            
+            // Also check backendPermissionMapping (dot notation)
+            if (Array.isArray(backendPermissions) && backendPermissions.length > 0) {
+                const matchingBackendKeys = Object.entries(backendPermissionMapping)
+                    .filter(([_, mapped]) => mapped?.moduleId === moduleId && mapped?.actionId === actionId)
+                    .map(([key]) => key);
+                
+                const hasBackendPermission = matchingBackendKeys.some(key => backendPermissions.includes(key));
+                
+                if (hasBackendPermission) {
+                    console.log('  ✅ Backend permission granted:', matchingBackendKeys);
+                    return true;
+                }
+            }
+            
+            // No permission found for HRM module
+            console.log('  ❌ No permission for HRM module:', { moduleId, actionId, modulePermissions, permissionsArray, backendPermissions });
             return false;
         }
 

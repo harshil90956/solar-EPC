@@ -3,7 +3,7 @@
  * Provides role-based access control with column-level permissions
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/apiClient';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
@@ -42,6 +42,7 @@ export const usePermissions = (module) => {
   const userRole = user?.role || 'Employee';
   const userRoleId = user?.roleId || user?._id;
   const userPermissions = Array.isArray(user?.permissions) ? user.permissions : [];
+  const isAdminLike = userRole === 'Admin' || userRole === 'Super Admin' || user?.isSuperAdmin;
 
   // Fetch role permissions from API for ALL users with a roleId
   const { data: roleData, isLoading: roleLoading, error: roleError } = useQuery({
@@ -58,15 +59,14 @@ export const usePermissions = (module) => {
           columns: columnsRes.data?.columns || {},
         };
       } catch (error) {
-        console.error('Failed to fetch role permissions:', error);
         // Return empty permissions on error - will fallback to JWT permissions
         return { permissions: [], columns: {} };
       }
     },
     enabled: !!userRoleId,
-    staleTime: 2 * 60 * 1000, // Cache for 2 minutes
-    cacheTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
-    refetchOnWindowFocus: false,
+    staleTime: 10 * 1000, // Cache for 10 seconds only
+    cacheTime: 30 * 1000, // Keep in cache for 30 seconds
+    refetchOnWindowFocus: true, // Refresh when user returns to tab
   });
 
   // Combine JWT permissions with API permissions (API takes precedence)
@@ -189,6 +189,21 @@ export const usePermissions = (module) => {
     return can('generate');
   }, [can]);
 
+  // Check if user can manage (generic management permission)
+  const canManage = useCallback(() => {
+    return can('manage');
+  }, [can]);
+
+  // Check if user can check-in/out (for attendance)
+  const canCheckin = useCallback(() => {
+    return can('checkin') || can('checkout') || can('checkin_checkout');
+  }, [can]);
+
+  // Check if user can view all records (for attendance)
+  const canViewAll = useCallback(() => {
+    return can('view_all') || can('viewAll');
+  }, [can]);
+
   // Feature flags support - checks if a feature is enabled (e.g., 'kanban_view', 'analytics_view')
   const feature = useCallback((featureName) => {
     if (userRole === 'Admin' || userRole === 'Super Admin') {
@@ -236,6 +251,9 @@ export const usePermissions = (module) => {
     canApprove,
     canAssign,
     canGenerate,
+    canManage,
+    canCheckin,
+    canViewAll,
     // Feature flags
     feature,
     // Module/Feature enabled checks
