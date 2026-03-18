@@ -360,6 +360,8 @@ export class PermissionService implements OnModuleInit {
     return perm?.isVisible ?? true; // Default to visible if not set
   }
 
+  // ==================== HELPER METHODS FOR CONTROLLERS ====================
+
   async copyColumnPermissions(sourceRoleId: string, targetRoleId: string): Promise<void> {
     const sourcePermissions = await this.roleColumnPermissionModel.find({ roleId: sourceRoleId }).exec();
     
