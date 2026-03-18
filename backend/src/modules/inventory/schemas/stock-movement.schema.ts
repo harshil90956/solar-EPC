@@ -75,6 +75,9 @@ export class StockMovement extends Document {
   @Prop({ required: true, type: String })
   tenantId!: string;
 
+  @Prop({ type: String, required: false })
+  customerName?: string;
+
   @Prop(BaseSchemaDefinition.isDeleted)
   isDeleted!: boolean;
 }
