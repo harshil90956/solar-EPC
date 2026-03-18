@@ -16,7 +16,46 @@ export class PermissionEngineService {
   private readonly logger = new Logger(PermissionEngineService.name);
   private readonly ttlSeconds = 300;
 
+  private isAdminLike(role: string | undefined, isSuperAdmin?: boolean): boolean {
+    if (isSuperAdmin === true) return true;
+    const raw = String(role || '').trim();
+    if (!raw) return false;
+    const normalized = raw
+      .toUpperCase()
+      .replace(/\s+/g, '_')
+      .replace(/-+/g, '_');
+    return normalized === 'ADMIN' || normalized === 'SUPER_ADMIN' || normalized === 'SUPERADMIN';
+  }
+
+  private shouldDebugLog(): boolean {
+    return (
+      String(process.env.PERMISSION_DEBUG_LOGS || '').toLowerCase() === 'true' ||
+      String(process.env.PERMISSION_DEBUG || '').toLowerCase() === 'true'
+    );
+  }
+
+  private summarizePermissions(perms: PermissionObject): {
+    modules: number;
+    actions: number;
+    granted: number;
+  } {
+    let modules = 0;
+    let actions = 0;
+    let granted = 0;
+
+    for (const modulePerms of Object.values(perms || {})) {
+      modules += 1;
+      for (const v of Object.values(modulePerms || {})) {
+        actions += 1;
+        if (v === true) granted += 1;
+      }
+    }
+
+    return { modules, actions, granted };
+  }
+
   private readonly fixedSchema: Record<string, string[]> = {
+    dashboard: ['view'],
     hrm: ['view'],
     employees: ['view', 'create', 'edit', 'delete'],
     attendance: ['view', 'checkin', 'checkout', 'edit'],
@@ -25,11 +64,26 @@ export class PermissionEngineService {
     increments: ['view', 'create', 'edit', 'delete'],
     departments: ['view', 'create', 'edit', 'delete'],
     crm: ['view', 'create', 'edit', 'delete', 'assign', 'convert'],
+    survey: ['view', 'create', 'edit', 'delete', 'export', 'assign'],
+    design: ['view', 'create', 'edit', 'delete', 'export', 'approve'],
+    documents: ['view', 'create', 'edit', 'delete', 'export'],
     inventory: ['view', 'create', 'edit', 'delete'],
     procurement: ['view', 'create', 'approve'],
     projects: ['view', 'create', 'edit', 'delete'],
+    project: ['view', 'create', 'edit', 'delete'],
+    logistics: ['view', 'create', 'edit', 'delete', 'assign', 'approve', 'export'],
     installation: ['view', 'assign', 'update'],
+    commissioning: ['view', 'assign', 'update', 'approve', 'export'],
     finance: ['view', 'create', 'approve', 'export'],
+    service: ['view', 'create', 'edit', 'delete', 'assign', 'approve', 'export'],
+    compliance: ['view', 'create', 'edit', 'delete', 'export', 'approve'],
+    admin: ['view', 'create', 'edit', 'delete', 'export', 'approve', 'assign'],
+    settings: ['view', 'create', 'edit', 'delete', 'export', 'approve', 'assign'],
+    intelligence: ['view'],
+    tickets: ['view', 'create', 'edit', 'delete', 'assign', 'approve', 'export'],
+    quotation: ['view', 'create', 'edit', 'delete', 'export', 'approve'],
+    quotations: ['view', 'create', 'edit', 'delete', 'export', 'approve'],
+    leads: ['view', 'create', 'edit', 'delete', 'export', 'assign', 'convert'],
   };
 
   constructor(
@@ -56,7 +110,24 @@ export class PermissionEngineService {
   }
 
   private getAllowedActions(moduleId: string): string[] {
-    return this.fixedSchema[moduleId] || ['view'];
+    if (this.fixedSchema[moduleId]) return this.fixedSchema[moduleId];
+    const defaults = new Set<string>([
+      'view',
+      'create',
+      'edit',
+      'delete',
+      'export',
+      'approve',
+      'assign',
+      'convert',
+      'update',
+      'checkin',
+      'checkout',
+      'apply',
+      'generate',
+      'reject',
+    ]);
+    return Array.from(defaults);
   }
 
   private ensureModuleShape(perms: PermissionObject, moduleId: string): void {
@@ -107,6 +178,22 @@ export class PermissionEngineService {
     return out;
   }
 
+  private async buildFullAccessMatrix(tenantId: string | undefined): Promise<{ permissions: PermissionObject; dataScope: DataScopeObject }> {
+    const modules = await this.getAllKnownModules(tenantId);
+    const permissions: PermissionObject = {};
+    const dataScope: DataScopeObject = {};
+
+    for (const moduleId of modules) {
+      this.ensureModuleShape(permissions, moduleId);
+      for (const actionId of this.getAllowedActions(moduleId)) {
+        this.setPermission(permissions, moduleId, actionId, true);
+      }
+      dataScope[moduleId] = 'ALL';
+    }
+
+    return { permissions, dataScope };
+  }
+
   private normalizeNestedPermissions(raw: any): Record<string, Record<string, boolean>> {
     const out: Record<string, Record<string, boolean>> = {};
     if (!raw || typeof raw !== 'object') return out;
@@ -121,18 +208,58 @@ export class PermissionEngineService {
     return out;
   }
 
-  async getPermissions(userId: string, tenantId: string, roleId: string): Promise<{ permissions: PermissionObject; dataScope: DataScopeObject }> {
-    const cached = await this.redisService.get(this.permissionKey(tenantId, userId));
-    const cachedScope = await this.redisService.get(this.dataScopeKey(tenantId, userId));
+  async getPermissions(
+    userId: string,
+    tenantId: string,
+    roleId: string,
+    isSuperAdmin?: boolean,
+  ): Promise<{ permissions: PermissionObject; dataScope: DataScopeObject }> {
+    if (this.isAdminLike(roleId, isSuperAdmin)) {
+      console.log('[ADMIN OVERRIDE ACTIVE]', userId);
+      if (this.shouldDebugLog()) {
+        this.logger.debug(
+          `[PERMISSION_DEBUG] admin override active tenantId=${tenantId} userId=${userId} roleId=${roleId} isSuperAdmin=${String(isSuperAdmin === true)}`,
+        );
+      }
+      return this.buildFullAccessMatrix(tenantId);
+    }
+
+    const permKey = this.permissionKey(tenantId, userId);
+    const scopeKey = this.dataScopeKey(tenantId, userId);
+
+    if (this.shouldDebugLog()) {
+      this.logger.debug(
+        `[PERMISSION_DEBUG] getPermissions start tenantId=${tenantId} userId=${userId} roleId=${roleId} permKey=${permKey} scopeKey=${scopeKey} ttl=${this.ttlSeconds}s`,
+      );
+    }
+
+    const cached = await this.redisService.get(permKey);
+    const cachedScope = await this.redisService.get(scopeKey);
 
     if (cached && cachedScope) {
       try {
-        return {
-          permissions: JSON.parse(cached),
-          dataScope: JSON.parse(cachedScope),
-        };
+        const permissions = JSON.parse(cached);
+        const dataScope = JSON.parse(cachedScope);
+
+        if (this.shouldDebugLog()) {
+          const summary = this.summarizePermissions(permissions);
+          this.logger.debug(
+            `[PERMISSION_DEBUG] redis HIT tenantId=${tenantId} userId=${userId} summary=${JSON.stringify(summary)} scopeModules=${Object.keys(dataScope || {}).length}`,
+          );
+        }
+
+        return { permissions, dataScope };
       } catch {
+        if (this.shouldDebugLog()) {
+          this.logger.warn(
+            `[PERMISSION_DEBUG] redis PARSE_ERROR tenantId=${tenantId} userId=${userId} -> rebuilding`,
+          );
+        }
       }
+    } else if (this.shouldDebugLog()) {
+      this.logger.debug(
+        `[PERMISSION_DEBUG] redis MISS tenantId=${tenantId} userId=${userId} hasPerm=${Boolean(cached)} hasScope=${Boolean(cachedScope)} -> building`,
+      );
     }
 
     const result = await this.buildAndCachePermissions(userId, tenantId, roleId);
@@ -140,6 +267,8 @@ export class PermissionEngineService {
   }
 
   async buildAndCachePermissions(userId: string, tenantId: string, roleId: string): Promise<{ permissions: PermissionObject; dataScope: DataScopeObject }> {
+    const startedAt = Date.now();
+
     const [modules, rbacDocs, userOverrideDoc] = await Promise.all([
       this.getAllKnownModules(tenantId),
       this.rbacConfigModel.find({ tenantId: this.toObjectId(tenantId), roleId }).lean(),
@@ -148,10 +277,32 @@ export class PermissionEngineService {
 
     const effectiveRoleId = (userOverrideDoc as any)?.customRoleId || roleId;
 
+    if (this.shouldDebugLog()) {
+      this.logger.debug(
+        `[PERMISSION_DEBUG] buildAndCachePermissions sources tenantId=${tenantId} userId=${userId} roleId=${roleId} effectiveRoleId=${effectiveRoleId} modules=${modules?.length || 0} rbacDocs=${rbacDocs?.length || 0} hasUserOverride=${Boolean(userOverrideDoc)}`,
+      );
+    }
+
+    const tid = this.toObjectId(tenantId);
     const [customRoleDoc, hrmModulePerms] = await Promise.all([
-      this.customRoleModel.findOne({ tenantId: this.toObjectId(tenantId), roleId: effectiveRoleId }).lean(),
-      this.roleModulePermissionModel.find({ tenantId: this.toObjectId(tenantId), roleId: effectiveRoleId }).lean(),
+      this.customRoleModel.findOne({ tenantId: tid, roleId: effectiveRoleId }).lean(),
+      this.roleModulePermissionModel
+        .find({
+          roleId: effectiveRoleId,
+          $or: [
+            ...(tid ? [{ tenantId: tid }] : []),
+            { tenantId: { $exists: false } },
+            { tenantId: null },
+          ],
+        })
+        .lean(),
     ]);
+
+    if (this.shouldDebugLog()) {
+      this.logger.debug(
+        `[PERMISSION_DEBUG] buildAndCachePermissions roleSources tenantId=${tenantId} userId=${userId} effectiveRoleId=${effectiveRoleId} hasCustomRole=${Boolean(customRoleDoc)} hrmModulePerms=${hrmModulePerms?.length || 0}`,
+      );
+    }
 
     const permissions: PermissionObject = {};
     const dataScope: DataScopeObject = {};
@@ -213,11 +364,34 @@ export class PermissionEngineService {
     }
 
     try {
+      const permKey = this.permissionKey(tenantId, userId);
+      const scopeKey = this.dataScopeKey(tenantId, userId);
+
       await Promise.all([
-        this.redisService.set(this.permissionKey(tenantId, userId), JSON.stringify(permissions), this.ttlSeconds),
-        this.redisService.set(this.dataScopeKey(tenantId, userId), JSON.stringify(dataScope), this.ttlSeconds),
+        this.redisService.set(permKey, JSON.stringify(permissions), this.ttlSeconds),
+        this.redisService.set(scopeKey, JSON.stringify(dataScope), this.ttlSeconds),
       ]);
+
+      if (this.shouldDebugLog()) {
+        const summary = this.summarizePermissions(permissions);
+        this.logger.debug(
+          `[PERMISSION_DEBUG] redis SET_OK tenantId=${tenantId} userId=${userId} permKey=${permKey} scopeKey=${scopeKey} ttl=${this.ttlSeconds}s summary=${JSON.stringify(summary)} scopeModules=${Object.keys(dataScope || {}).length} durationMs=${Date.now() - startedAt}`,
+        );
+      }
     } catch {
+      if (this.shouldDebugLog()) {
+        const summary = this.summarizePermissions(permissions);
+        this.logger.warn(
+          `[PERMISSION_DEBUG] redis SET_FAIL tenantId=${tenantId} userId=${userId} ttl=${this.ttlSeconds}s summary=${JSON.stringify(summary)} durationMs=${Date.now() - startedAt}`,
+        );
+      }
+    }
+
+    if (this.shouldDebugLog()) {
+      const summary = this.summarizePermissions(permissions);
+      this.logger.debug(
+        `[PERMISSION_DEBUG] buildAndCachePermissions done tenantId=${tenantId} userId=${userId} summary=${JSON.stringify(summary)} durationMs=${Date.now() - startedAt}`,
+      );
     }
 
     return { permissions, dataScope };

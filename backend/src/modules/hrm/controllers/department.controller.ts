@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Req, HttpCode, HttpStatus, UseGuards, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Req, HttpCode, HttpStatus, UseGuards, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { DepartmentService } from '../services/department.service';
 import { CreateDepartmentDto, UpdateDepartmentDto } from '../dto/department.dto';
 import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
@@ -12,6 +12,23 @@ export class DepartmentController {
     private readonly departmentService: DepartmentService,
     private readonly permissionEngine: PermissionEngineService,
   ) {}
+
+  private async getDataScope(req: any, moduleId: string): Promise<string> {
+    const user = req.user;
+    const tenantId = req.tenant?.id || req.user?.tenantId;
+    const userId = user?.id || user?._id || user?.sub;
+    const roleIdRaw = user?.roleId || user?.customRoleId || user?.role;
+    const roleId = typeof roleIdRaw === 'string' ? roleIdRaw : (roleIdRaw ? String(roleIdRaw) : '');
+    if (!tenantId || !userId || !roleId) return 'all';
+
+    const { dataScope } = await this.permissionEngine.getPermissions(
+      String(userId),
+      String(tenantId),
+      String(roleId),
+    );
+    const scopeRaw = dataScope?.[moduleId] || 'all';
+    return String(scopeRaw).toLowerCase();
+  }
 
   private async checkPermission(req: any, permission: string) {
     const user = req.user;
@@ -62,6 +79,14 @@ export class DepartmentController {
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'] || req.query.tenantId;
 
     const data = await this.departmentService.findAll(tenantId, req.user);
+
+    const scope = await this.getDataScope(req, 'departments');
+    if (scope === 'own' || scope === 'department') {
+      const deptName = req.user?.department;
+      const filtered = deptName ? (data || []).filter((d: any) => String(d?.name || '') === String(deptName)) : [];
+      return { success: true, data: filtered };
+    }
+
     return { success: true, data };
   }
 
@@ -71,6 +96,15 @@ export class DepartmentController {
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'] || req.query.tenantId;
 
     const data = await this.departmentService.findOne(id, tenantId, req.user);
+
+    const scope = await this.getDataScope(req, 'departments');
+    if (scope === 'own' || scope === 'department') {
+      const deptName = req.user?.department;
+      if (!deptName || String(data?.name || '') !== String(deptName)) {
+        throw new NotFoundException('Department not found');
+      }
+    }
+
     return { success: true, data };
   }
 

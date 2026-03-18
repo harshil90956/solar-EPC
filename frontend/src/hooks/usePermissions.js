@@ -60,6 +60,15 @@ export const usePermissions = (module) => {
     return allColumns.filter(col => user?.permissions?.[module]?.columns?.[col] !== false);
   }, [module, user?.permissions]);
 
+  const columns = useMemo(() => {
+    const allColumns = MODULE_COLUMNS[module] || [];
+    const columnState = user?.permissions?.[module]?.columns;
+    return allColumns.reduce((acc, col) => {
+      acc[col] = columnState?.[col] !== false;
+      return acc;
+    }, {});
+  }, [module, user?.permissions]);
+
   // Module/feature enabled checks from SettingsContext
   const moduleOn = useCallback((mod) => isModuleEnabled(mod), [isModuleEnabled]);
   const featureOn = useCallback((mod, featureName) => isFeatureEnabled(mod, featureName), [isFeatureEnabled]);
@@ -90,6 +99,7 @@ export const usePermissions = (module) => {
     // Column visibility
     isColumnVisible,
     visibleColumns,
+    columns,
     // Meta
     isLoading: false,
     userRole: user?.role || 'Employee',

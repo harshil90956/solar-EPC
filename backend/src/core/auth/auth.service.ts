@@ -169,6 +169,7 @@ export class AuthService {
         tenantId: employee.tenantId ? String(employee.tenantId) : null,
         isSuperAdmin: false,
         roleId: employee.roleId || null,
+        department: employee.department || null,
         isEmployee: true,
       };
 
@@ -184,6 +185,7 @@ export class AuthService {
           isSuperAdmin: false,
           roleId: employee.roleId || null,
           isEmployee: true,
+          department: employee.department || null,
           firstName: employee.firstName,
           lastName: employee.lastName,
           employeeId: employee.employeeId,

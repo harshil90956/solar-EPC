@@ -4,6 +4,30 @@ import axios from 'axios';
 const BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api';
 const TIMEOUT = parseInt(process.env.REACT_APP_API_TIMEOUT || '30000', 10);
 
+const shouldDebugLog = () => {
+    const v = String(process.env.REACT_APP_PERMISSION_DEBUG_LOGS || process.env.REACT_APP_AUTH_DEBUG_LOGS || '').toLowerCase();
+    return v === 'true';
+};
+
+const summarizePermissions = (perms) => {
+    let modules = 0;
+    let actions = 0;
+    let granted = 0;
+
+    if (!perms || typeof perms !== 'object') return { modules, actions, granted };
+
+    Object.values(perms).forEach((modulePerms) => {
+        modules += 1;
+        if (!modulePerms || typeof modulePerms !== 'object') return;
+        Object.values(modulePerms).forEach((v) => {
+            actions += 1;
+            if (v === true) granted += 1;
+        });
+    });
+
+    return { modules, actions, granted };
+};
+
 export const apiClient = axios.create({
     baseURL: BASE_URL,
     timeout: TIMEOUT,
@@ -35,7 +59,11 @@ apiClient.interceptors.request.use(
             localStorage.getItem('solar_token') ||
             localStorage.getItem('accessToken') ||
             localStorage.getItem('token');
-        console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url} - Token: ${token ? 'present' : 'missing'}`);
+        if (shouldDebugLog()) {
+            console.log(
+                `[API_DEBUG] req method=${config.method?.toUpperCase()} url=${config.url} tokenPresent=${token ? 'true' : 'false'}`,
+            );
+        }
         if (token) config.headers.Authorization = `Bearer ${token}`;
         const tenantId = getTenantId();
         // Only add tenant header if tenantId exists (not for superadmin)
@@ -49,7 +77,26 @@ apiClient.interceptors.request.use(
 
 // ── Response Interceptor: normalize errors ──
 apiClient.interceptors.response.use(
-    (response) => response.data,
+    (response) => {
+        if (shouldDebugLog()) {
+            const url = response?.config?.url;
+            const method = response?.config?.method?.toUpperCase();
+            const status = response?.status;
+
+            if (String(url || '').includes('/auth/me')) {
+                const data = response?.data?.data || response?.data;
+                const permSummary = summarizePermissions(data?.permissions);
+                const scopeModules = data?.dataScope && typeof data?.dataScope === 'object' ? Object.keys(data.dataScope).length : 0;
+                console.log(
+                    `[API_DEBUG] res method=${method || ''} url=${url || ''} status=${status} permSummary=${JSON.stringify(permSummary)} scopeModules=${scopeModules}`,
+                );
+            } else {
+                console.log(`[API_DEBUG] res method=${method || ''} url=${url || ''} status=${status}`);
+            }
+        }
+
+        return response.data;
+    },
     (error) => {
         const status = error?.response?.status;
         const responseData = error?.response?.data;
@@ -61,7 +108,11 @@ apiClient.interceptors.response.use(
 
         const url = error?.response?.config?.url;
         const method = error?.response?.config?.method?.toUpperCase();
-        console.log(`[API Error] ${method || ''} ${url || ''} Status: ${status}, Message: ${message}`, responseData);
+        if (shouldDebugLog()) {
+            console.log(`[API_DEBUG] err method=${method || ''} url=${url || ''} status=${status} message=${message}`);
+        } else {
+            console.log(`[API Error] ${method || ''} ${url || ''} Status: ${status}, Message: ${message}`, responseData);
+        }
         
         if (status === 401) {
             console.warn('[API Error] 401 Unauthorized - clearing token and redirecting to login');

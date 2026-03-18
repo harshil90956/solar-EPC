@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, HttpCode, HttpStatus, UseGuards, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, HttpCode, HttpStatus, UseGuards, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { SalaryIncrementService } from '../services/salary-increment.service';
 import { CreateIncrementDto, GetIncrementQueryDto, UpdateIncrementDto } from '../dto/salary-increment.dto';
 import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
@@ -52,14 +52,15 @@ export class SalaryIncrementController {
     const userId = user?.id || user?._id || user?.sub;
     const roleIdRaw = user?.roleId || user?.customRoleId || user?.role;
     const roleId = typeof roleIdRaw === 'string' ? roleIdRaw : (roleIdRaw ? String(roleIdRaw) : '');
-    if (!tenantId || !userId || !roleId) return 'ALL';
+    if (!tenantId || !userId || !roleId) return 'all';
 
     const { dataScope } = await this.permissionEngine.getPermissions(
       String(userId),
       String(tenantId),
       String(roleId),
     );
-    return dataScope?.[moduleId] || 'ALL';
+    const scopeRaw = dataScope?.[moduleId] || 'all';
+    return String(scopeRaw).toLowerCase();
   }
 
   @Post()
@@ -78,7 +79,7 @@ export class SalaryIncrementController {
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
 
     const scope = await this.getDataScope(req, 'increments');
-    const targetEmployeeId = scope === 'OWN' ? req.user.sub : query.employeeId;
+    const targetEmployeeId = scope === 'own' ? req.user.sub : query.employeeId;
 
     const data = await this.incrementService.findAll(targetEmployeeId, tenantId, req.user);
     return { success: true, data };
@@ -92,8 +93,8 @@ export class SalaryIncrementController {
     const data = await this.incrementService.findOne(id, tenantId, req.user);
     
     const scope = await this.getDataScope(req, 'increments');
-    if (scope === 'OWN' && data.employeeId?.toString() !== req.user.sub) {
-      throw new ForbiddenException('You can only view your own increments');
+    if (scope === 'own' && data.employeeId?.toString() !== req.user.sub) {
+      throw new NotFoundException('Increment not found');
     }
     
     return { success: true, data };
@@ -105,11 +106,9 @@ export class SalaryIncrementController {
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
 
     const scope = await this.getDataScope(req, 'increments');
-    if (scope === 'OWN' && employeeId !== req.user.sub) {
-      throw new ForbiddenException('You can only view your own increments');
-    }
+    const effectiveEmployeeId = scope === 'own' ? req.user.sub : employeeId;
     
-    const data = await this.incrementService.findByEmployeeId(employeeId, tenantId, req.user);
+    const data = await this.incrementService.findByEmployeeId(effectiveEmployeeId, tenantId, req.user);
     return { success: true, data };
   }
 
@@ -119,11 +118,9 @@ export class SalaryIncrementController {
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
 
     const scope = await this.getDataScope(req, 'increments');
-    if (scope === 'OWN' && employeeId !== req.user.sub) {
-      throw new ForbiddenException('You can only view your own increments');
-    }
+    const effectiveEmployeeId = scope === 'own' ? req.user.sub : employeeId;
     
-    const data = await this.incrementService.getIncrementHistory(employeeId, tenantId, req.user);
+    const data = await this.incrementService.getIncrementHistory(effectiveEmployeeId, tenantId, req.user);
     return { success: true, data };
   }
 
@@ -133,11 +130,9 @@ export class SalaryIncrementController {
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
 
     const scope = await this.getDataScope(req, 'increments');
-    if (scope === 'OWN' && employeeId !== req.user.sub) {
-      throw new ForbiddenException('You can only view your own increments');
-    }
+    const effectiveEmployeeId = scope === 'own' ? req.user.sub : employeeId;
     
-    const data = await this.incrementService.getLatestSalary(employeeId, tenantId, req.user);
+    const data = await this.incrementService.getLatestSalary(effectiveEmployeeId, tenantId, req.user);
     return { success: true, data };
   }
 

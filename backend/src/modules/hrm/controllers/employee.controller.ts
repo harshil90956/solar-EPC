@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Req, Headers, Query, HttpCode, HttpStatus, UnauthorizedException, UseGuards, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Req, Headers, Query, HttpCode, HttpStatus, UnauthorizedException, UseGuards, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EmployeeService } from '../services/employee.service';
 import { CreateEmployeeDto, UpdateEmployeeDto } from '../dto/employee.dto';
@@ -61,13 +61,14 @@ export class EmployeeController {
       String(roleId),
     );
 
-    const scope = dataScope?.[module];
+    const scopeRaw = dataScope?.[module] || 'all';
+    const scope = String(scopeRaw).toLowerCase();
     switch (scope) {
-      case 'OWN':
+      case 'own':
         return { employeeId: user?.sub };
-      case 'DEPARTMENT':
+      case 'department':
         return userDepartment ? { department: userDepartment } : { employeeId: user?.sub };
-      case 'ALL':
+      case 'all':
       default:
         return {};
     }
@@ -113,6 +114,7 @@ export class EmployeeController {
         role: 'Employee',
         roleId,
         tenantId: effectiveTenantId,
+        department: employee.department,
         isEmployee: true,
       },
       jwtSecret,
@@ -228,11 +230,11 @@ export class EmployeeController {
     const scopeFilter = await this.getDataScopeFilter(req, 'employees');
 
     if (scopeFilter.employeeId && data._id?.toString() !== req.user?.sub && data.employeeId !== req.user?.sub) {
-      throw new ForbiddenException('You can only view your own employee record');
+      throw new NotFoundException('Employee not found');
     }
 
     if (scopeFilter.department && data.department !== scopeFilter.department) {
-      throw new ForbiddenException('You can only view employees in your department');
+      throw new NotFoundException('Employee not found');
     }
 
     return { success: true, data };
@@ -293,7 +295,7 @@ export class EmployeeController {
     const scopeFilter = await this.getDataScopeFilter(req, 'employees');
 
     if (scopeFilter.department && scopeFilter.department !== department) {
-      throw new ForbiddenException('You can only view employees in your department');
+      return { success: true, data: [] };
     }
 
     const data = await this.employeeService.findByDepartment(department, tenantId);
