@@ -278,19 +278,34 @@ const EstimatePage = () => {
   // ── Handlers ─────────────────────────────────────────────────────────────────
   const handleCreateEstimate = async (data) => {
     try {
+      // Ensure items have all required fields before saving
+      const itemsWithUnit = data.items?.map(item => ({
+        ...item,
+        unit: item.unit || 'Piece',
+        category: item.category || 'misc',
+        total: (item.quantity || 0) * (item.unitPrice || 0)
+      })) || [];
+      
       const payload = {
         ...data,
+        items: itemsWithUnit,
         type: 'estimate',
         title: data.projectName,
         status: 'draft'
       };
-      await documentsApi.create(payload);
+      
+      console.log('[EstimatePage] Creating estimate with payload:', JSON.stringify(payload, null, 2));
+      console.log('[EstimatePage] Items being saved:', itemsWithUnit);
+      
+      const response = await documentsApi.create(payload);
+      console.log('[EstimatePage] Create response:', response);
+      
       toast.success('Estimate created successfully');
       fetchEstimates();
       setIsCreateModalOpen(false);
     } catch (error) {
-      console.error('Error creating estimate:', error);
-      toast.error('Failed to create estimate');
+      console.error('[EstimatePage] Error creating estimate:', error);
+      toast.error('Failed to create estimate: ' + (error?.response?.data?.message || error.message));
     }
   };
 
@@ -994,7 +1009,7 @@ const CreateEstimateForm = ({ initialData, estimates, onSubmit, onCancel }) => {
     terms: '50% advance, 50% on completion. 5 year warranty on installation.',
   });
 
-  const [activeSection, setActiveSection] = useState('customer');
+  const [activeSection, setActiveSection] = useState('equipment');
   const [isAddingItem, setIsAddingItem] = useState(false);
   const [isEquipmentLibraryOpen, setIsEquipmentLibraryOpen] = useState(false);
   const [newItem, setNewItem] = useState({
@@ -1004,6 +1019,7 @@ const CreateEstimateForm = ({ initialData, estimates, onSubmit, onCancel }) => {
     brand: '',
     model: '',
     quantity: 1,
+    unit: 'Piece',
     unitPrice: 0,
     total: 0,
   });
@@ -1030,7 +1046,23 @@ const CreateEstimateForm = ({ initialData, estimates, onSubmit, onCancel }) => {
   }, [formData.items, formData.installationCost, formData.engineeringCost, formData.transportationCost, formData.miscellaneousCost, formData.gstRate]);
 
   const handleAddItem = () => {
-    if (!newItem.name || !newItem.unitPrice) return;
+    // Validate required fields
+    if (!newItem.name?.trim()) {
+      toast.error('Item name is required');
+      return;
+    }
+    if (!newItem.category) {
+      toast.error('Category is required');
+      return;
+    }
+    if (!newItem.quantity || newItem.quantity <= 0) {
+      toast.error('Valid quantity is required');
+      return;
+    }
+    if (!newItem.unit) {
+      toast.error('Unit is required');
+      return;
+    }
 
     const item = {
       ...newItem,
@@ -1049,10 +1081,12 @@ const CreateEstimateForm = ({ initialData, estimates, onSubmit, onCancel }) => {
       brand: '',
       model: '',
       quantity: 1,
+      unit: 'Piece',
       unitPrice: 0,
       total: 0,
     });
     setIsAddingItem(false);
+    toast.success('Item added successfully');
   };
 
   const handleRemoveItem = (index) => {
@@ -1067,6 +1101,7 @@ const CreateEstimateForm = ({ initialData, estimates, onSubmit, onCancel }) => {
       name: item.name,
       description: item.description,
       category: item.category,
+      unit: item.unit || 'Piece',
       brand: item.brand,
       model: item.model,
       quantity: item.quantity,
@@ -1077,6 +1112,7 @@ const CreateEstimateForm = ({ initialData, estimates, onSubmit, onCancel }) => {
       ...prev,
       items: [...prev.items, newItemData],
     }));
+    toast.success(`${item.name} added to estimate`);
   };
 
   const handleSubmit = async (e) => {
@@ -1111,6 +1147,7 @@ const CreateEstimateForm = ({ initialData, estimates, onSubmit, onCancel }) => {
   };
 
   const sectionTabs = [
+    { key: 'equipment', label: 'Equipment', icon: Zap },
     { key: 'customer', label: 'Customer', icon: User },
     { key: 'project', label: 'Project', icon: Sun },
     { key: 'costs', label: 'Costs', icon: DollarSign },
@@ -1326,6 +1363,7 @@ const CreateEstimateForm = ({ initialData, estimates, onSubmit, onCancel }) => {
                         <th className="text-left py-2 text-[10px] font-medium text-[var(--text-muted)]">Category</th>
                         <th className="text-left py-2 text-[10px] font-medium text-[var(--text-muted)]">Brand/Model</th>
                         <th className="text-center py-2 text-[10px] font-medium text-[var(--text-muted)]">Qty</th>
+                        <th className="text-center py-2 text-[10px] font-medium text-[var(--text-muted)]">Unit</th>
                         <th className="text-right py-2 text-[10px] font-medium text-[var(--text-muted)]">Unit Price</th>
                         <th className="text-right py-2 text-[10px] font-medium text-[var(--text-muted)]">Total</th>
                         <th className="text-center py-2 text-[10px] font-medium text-[var(--text-muted)]">Action</th>
@@ -1345,6 +1383,7 @@ const CreateEstimateForm = ({ initialData, estimates, onSubmit, onCancel }) => {
                             {item.brand} {item.model}
                           </td>
                           <td className="py-2 text-center text-xs text-[var(--text-primary)]">{item.quantity}</td>
+                          <td className="py-2 text-center text-xs text-[var(--text-muted)]">{item.unit || 'Piece'}</td>
                           <td className="py-2 text-right text-xs text-[var(--text-primary)]">{fmt(item.unitPrice)}</td>
                           <td className="py-2 text-right text-xs font-bold text-emerald-500">{fmt(item.total)}</td>
                           <td className="py-2 text-center">
@@ -1361,7 +1400,7 @@ const CreateEstimateForm = ({ initialData, estimates, onSubmit, onCancel }) => {
                     </tbody>
                     <tfoot>
                       <tr className="border-t-2 border-[var(--border-base)]">
-                        <td colSpan={5} className="text-right py-2 text-xs font-bold text-[var(--text-primary)]">Equipment Cost:</td>
+                        <td colSpan={6} className="text-right py-2 text-xs font-bold text-[var(--text-primary)]">Equipment Cost:</td>
                         <td className="text-right py-2 text-xs font-bold text-emerald-500">{fmt(formData.equipmentCost)}</td>
                         <td></td>
                       </tr>
@@ -1395,12 +1434,15 @@ const CreateEstimateForm = ({ initialData, estimates, onSubmit, onCancel }) => {
                         placeholder="Brief description"
                       />
                     </FormField>
-                    <FormField label="Category">
+                    <FormField label="Category *" required>
                       <Select
                         value={newItem.category}
-                        onChange={(v) => setNewItem({ ...newItem, category: v })}
-                        options={EQUIPMENT_CATEGORIES}
-                      />
+                        onChange={(e) => setNewItem({ ...newItem, category: e.target.value })}
+                      >
+                        {EQUIPMENT_CATEGORIES.map(cat => (
+                          <option key={cat.value} value={cat.value}>{cat.label}</option>
+                        ))}
+                      </Select>
                     </FormField>
                     <FormField label="Brand">
                       <Input
@@ -1416,16 +1458,35 @@ const CreateEstimateForm = ({ initialData, estimates, onSubmit, onCancel }) => {
                         placeholder="e.g., WS-550"
                       />
                     </FormField>
-                    <FormField label="Quantity">
+                    <FormField label="Quantity *" required className="col-span-1">
                       <Input
                         type="number"
+                        min={1}
                         value={newItem.quantity}
                         onChange={(e) => setNewItem({ ...newItem, quantity: parseInt(e.target.value) || 0 })}
                       />
                     </FormField>
-                    <FormField label="Unit Price (₹)">
+                    <FormField label="Unit *" required className="col-span-1">
+                      <Select
+                        value={newItem.unit}
+                        onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })}
+                      >
+                        <option value="Piece">Piece</option>
+                        <option value="Set">Set</option>
+                        <option value="Meter">Meter</option>
+                        <option value="Kg">Kg</option>
+                        <option value="Liter">Liter</option>
+                        <option value="kW">kW</option>
+                        <option value="Unit">Unit</option>
+                        <option value="Bundle">Bundle</option>
+                        <option value="Pair">Pair</option>
+                        <option value="Nos">Nos</option>
+                      </Select>
+                    </FormField>
+                    <FormField label="Unit Price (₹) *" required className="col-span-2">
                       <Input
                         type="number"
+                        min={0}
                         value={newItem.unitPrice}
                         onChange={(e) => setNewItem({ ...newItem, unitPrice: parseFloat(e.target.value) || 0 })}
                         placeholder="0"
@@ -1575,7 +1636,7 @@ const CreateEstimateForm = ({ initialData, estimates, onSubmit, onCancel }) => {
           </Button>
         </div>
         <div className="flex items-center gap-2">
-          {activeSection !== 'customer' && (
+          {activeSection !== 'equipment' && (
             <Button
               type="button"
               variant="secondary"
@@ -1593,6 +1654,11 @@ const CreateEstimateForm = ({ initialData, estimates, onSubmit, onCancel }) => {
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                // Validation: Equipment tab requires at least 1 item
+                if (activeSection === 'equipment' && formData.items.length === 0) {
+                  toast.error('Please add at least one equipment item');
+                  return;
+                }
                 const currentIndex = sectionTabs.findIndex(s => s.key === activeSection);
                 if (currentIndex < sectionTabs.length - 1) {
                   setActiveSection(sectionTabs[currentIndex + 1].key);

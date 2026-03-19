@@ -319,6 +319,13 @@ export class UpdateDocumentDto {
   @IsOptional()
   @IsString()
   assignedTo?: string;
+
+  @IsOptional()
+  canvasData?: {
+    canvasElements: any[];
+    canvasSize: { width: number; height: number };
+    savedAt: string;
+  };
 }
 
 export class QueryDocumentDto {
