@@ -27,6 +27,10 @@ export class CheckOutDto {
 
   @IsString()
   @IsOptional()
+  location?: string;
+
+  @IsString()
+  @IsOptional()
   notes?: string;
 }
 

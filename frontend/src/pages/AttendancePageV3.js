@@ -14,6 +14,7 @@ import {
   Settings
 } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfDay, endOfDay, subDays, addDays, isSameDay } from 'date-fns';
+import { cn } from '../lib/utils';
 
 import { PageHeader } from '../components/ui/PageHeader';
 import { KPICard } from '../components/ui/KPICard';
@@ -222,9 +223,77 @@ const AttendancePageV3 = () => {
   // ==================== VIEW STATE ====================
   const [viewAttendance, setViewAttendance] = useState(null);
 
+  // ==================== GEOLOCATION (MANDATORY) ====================
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoEnabled, setGeoEnabled] = useState(false);
+  const [geoLocationText, setGeoLocationText] = useState('');
+
+  const requestLocation = async () => {
+    if (!('geolocation' in navigator)) {
+      toast.error('Location is not supported in this browser');
+      setGeoEnabled(false);
+      setGeoLocationText('');
+      return null;
+    }
+
+    setGeoLoading(true);
+    try {
+      const position = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 0,
+        });
+      });
+
+      const lat = position?.coords?.latitude;
+      const lng = position?.coords?.longitude;
+      const accuracy = position?.coords?.accuracy;
+      const ts = position?.timestamp ? new Date(position.timestamp) : new Date();
+
+      let address = '';
+      try {
+        const res = await attendanceApi.reverseGeocode(lat, lng);
+        console.log('[DEBUG] Reverse geocode response:', res.data);
+        // The API returns { success: true, data: { address: "..." } }
+        if (res.data?.success && res.data?.data?.address) {
+          address = res.data.data.address;
+        } else if (res.data?.address) {
+          address = res.data.address;
+        }
+      } catch (e) {
+        console.error('Reverse geocode failed:', e);
+        address = '';
+      }
+
+      const coordsText = `Lat ${Number(lat).toFixed(6)}, Lng ${Number(lng).toFixed(6)}${accuracy ? ` (±${Math.round(accuracy)}m)` : ''}`;
+      const text = address
+        ? `${address} · ${coordsText} · ${format(ts, 'dd MMM yyyy, hh:mm a')}`
+        : `${coordsText} · ${format(ts, 'dd MMM yyyy, hh:mm a')}`;
+
+      console.log('[DEBUG] Setting location text to:', text);
+      setGeoEnabled(true);
+      setGeoLocationText(text);
+      return text;
+    } catch (err) {
+      setGeoEnabled(false);
+      setGeoLocationText('');
+
+      if (err?.code === 1) {
+        toast.error('Location permission is required to mark attendance');
+      } else {
+        toast.error('Unable to fetch location. Please enable GPS and try again');
+      }
+      return null;
+    } finally {
+      setGeoLoading(false);
+    }
+  };
+
   // ==================== MOUNT EFFECT ====================
   useEffect(() => {
     setMounted(true);
+    requestLocation();
     fetchEmployees();
     fetchTodaySummary();
     fetchAttendance();
@@ -307,8 +376,11 @@ const AttendancePageV3 = () => {
       return;
     }
 
+    const locText = await requestLocation();
+    if (!locText) return;
+
     try {
-      await attendanceApi.checkIn(attendanceForm);
+      await attendanceApi.checkIn({ ...attendanceForm, location: locText });
       toast.success('Check-in successful');
       setShowCheckInModal(false);
       resetForm();
@@ -320,8 +392,11 @@ const AttendancePageV3 = () => {
   };
 
   const handleCheckOut = async (employeeId) => {
+    const locText = await requestLocation();
+    if (!locText) return;
+
     try {
-      await attendanceApi.checkOut({ employeeId });
+      await attendanceApi.checkOut({ employeeId, location: locText });
       toast.success('Check-out successful');
       fetchAttendance();
       fetchTodaySummary();
@@ -540,7 +615,6 @@ const AttendancePageV3 = () => {
   }, [attendanceRecords, searchQuery, departmentFilter, statusFilter, workModeFilter, lateFilter, selectedCalendarDate]);
 
   // ==================== PAGINATION ====================
-  const totalPages = Math.ceil(filteredRecords.length / itemsPerPage);
   const paginatedRecords = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
     return filteredRecords.slice(start, start + itemsPerPage);
@@ -572,8 +646,10 @@ const AttendancePageV3 = () => {
       header: 'Employee',
       render: (_, record) => (
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] font-bold"
-            style={{ background: 'var(--primary)' }}>
+          <div
+            className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] font-bold"
+            style={{ background: 'var(--primary)' }}
+          >
             {record.employeeId?.firstName?.[0]}{record.employeeId?.lastName?.[0]}
           </div>
           <div>
@@ -656,23 +732,10 @@ const AttendancePageV3 = () => {
         const config = ATTENDANCE_STATUS[val] || ATTENDANCE_STATUS.absent;
         const Icon = config.icon;
         return (
-          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-semibold"
-            style={{ color: config.color, background: `${config.color}15`, border: `1px solid ${config.color}30` }}>
-            <Icon size={10} />
-            {config.label}
-          </div>
-        );
-      },
-    },
-    {
-      key: 'type',
-      header: 'Work Mode',
-      render: (val) => {
-        const config = WORK_MODE[val] || WORK_MODE.office;
-        const Icon = config.icon;
-        return (
-          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-medium"
-            style={{ color: config.color, background: `${config.color}10` }}>
+          <div
+            className="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-semibold"
+            style={{ color: config.color, background: `${config.color}15`, border: `1px solid ${config.color}30` }}
+          >
             <Icon size={10} />
             {config.label}
           </div>
@@ -685,22 +748,15 @@ const AttendancePageV3 = () => {
       render: (val) => val ? (
         <div className="flex items-center gap-1 text-[var(--text-secondary)]">
           <MapPin size={10} />
-          <span className="text-[10px] truncate max-w-[80px]" title={val}>{val}</span>
+          <span className="text-[10px] truncate max-w-[140px]" title={val}>{val}</span>
         </div>
-      ) : <span className="text-xs text-[var(--text-muted)]">-</span>,
-    },
-    {
-      key: 'isLate',
-      header: 'Late Mark',
-      render: (_, record) => record.status === 'late' ? (
-        <span className="text-xs font-semibold text-[#f59e0b]">⚠️ Late</span>
       ) : <span className="text-xs text-[var(--text-muted)]">-</span>,
     },
     {
       key: 'isEarlyExit',
       header: 'Early Exit',
       render: (_, record) => record.isEarlyExit ? (
-        <span className="text-xs font-semibold text-[#ef4444]">🚨 Early</span>
+        <span className="text-xs font-semibold text-[#ef4444]"> Early</span>
       ) : <span className="text-xs text-[var(--text-muted)]">-</span>,
     },
     {
@@ -708,7 +764,7 @@ const AttendancePageV3 = () => {
       header: 'Actions',
       render: (_, record) => (
         <div className="flex items-center gap-1">
-          {!record.checkOut && record.checkIn && (
+          {record.checkIn && !record.checkOut && (
             <button
               onClick={() => handleCheckOut(record.employeeId?._id || record.employeeId)}
               className="p-1 rounded hover:bg-[#3b82f6]/10 text-[var(--text-muted)] hover:text-[#3b82f6]"
@@ -736,36 +792,19 @@ const AttendancePageV3 = () => {
     },
   ];
 
-  // ==================== RENDER ====================
   if (!mounted) return null;
 
-  // Guard against undefined user (auth context not initialized yet)
-  if (!user) {
-    return <div className="p-4 text-center text-[var(--text-muted)]">Loading...</div>;
-  }
-
   return (
-    <div className="p-3 space-y-3">
-      {/* ==================== HEADER ==================== */}
+    <div className="space-y-4">
       <PageHeader
         title="Advanced Attendance Management"
         subtitle="Real-time tracking · GPS location · Face recognition · Bulk operations"
         actions={[
           {
             type: 'button',
-            label: 'Policy Settings',
-            icon: Settings,
-            variant: 'outline',
-            onClick: () => {
-              // Navigate to HRM page with attendance policy tab
-              window.location.href = '/hrm?tab=attendance-policy';
-            },
-          },
-          {
-            type: 'button',
             label: 'View Calendar',
             icon: Calendar,
-            variant: 'outline',
+            variant: 'secondary',
             onClick: () => setShowCalendarModal(true),
           },
           {
@@ -773,12 +812,10 @@ const AttendancePageV3 = () => {
             label: 'Mark Attendance',
             icon: Plus,
             variant: 'primary',
-            onClick: () => {
-              resetForm();
-              // Auto-populate employeeId for OWN scope users
-              if (isOwnScope && currentEmployee?._id) {
-                setAttendanceForm(prev => ({ ...prev, employeeId: currentEmployee._id }));
-              }
+            disabled: geoLoading || !geoEnabled,
+            onClick: async () => {
+              const locText = await requestLocation();
+              if (!locText) return;
               setShowCheckInModal(true);
             },
           },
@@ -786,525 +823,219 @@ const AttendancePageV3 = () => {
             type: 'button',
             label: 'Refresh',
             icon: RefreshCw,
-            variant: 'outline',
-            onClick: fetchAttendance,
+            variant: 'secondary',
+            onClick: () => {
+              fetchAttendance();
+              fetchTodaySummary();
+            },
           },
         ]}
       />
 
-      {/* ==================== KPI CARDS ==================== */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        {kpiData.map((kpi, idx) => (
+      <div className="flex items-center justify-between gap-2 p-3 rounded-xl border border-[var(--border-base)] bg-[var(--bg-elevated)]">
+        <div className="flex items-center gap-2 min-w-0">
+          <MapPin size={14} className={geoEnabled ? 'text-emerald-500' : 'text-amber-500'} />
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-[var(--text-primary)]">Location</p>
+            <p className="text-[11px] text-[var(--text-muted)] truncate">
+              {geoLoading
+                ? 'Fetching location…'
+                : geoEnabled
+                  ? (geoLocationText || 'Location enabled')
+                  : 'Location permission is required to mark attendance'}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {!geoEnabled && (
+            <Button
+              size="sm"
+              variant="primary"
+              loading={geoLoading}
+              onClick={() => requestLocation()}
+            >
+              Enable Location
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+        {kpiData.map((kpi) => (
           <KPICard
-            key={idx}
+            key={kpi.label}
             label={kpi.label}
             value={kpi.value}
             icon={kpi.icon}
             variant={kpi.variant}
-            onClick={() => {
-              // Auto-expand first matching record
-              setTimeout(() => {
-                if (paginatedRecords.length > 0) {
-                  setViewAttendance(paginatedRecords[0]);
-                } else {
-                  setViewAttendance(null);
-                }
-              }, 100);
-            }}
           />
         ))}
       </div>
 
-      {/* ==================== MAIN LAYOUT: FULL WIDTH TABLE ==================== */}
-      <div className="space-y-3">
-        {/* ==================== ATTENDANCE TABLE (FULL WIDTH) ==================== */}
-        <div className="bg-white border border-[var(--border-base)]">
-          {/* ==================== COMPACT FILTERS ROW ==================== */}
-          <div className="bg-white border border-[var(--border-base)] p-2 space-y-2">
-            {/* First Row - 6 Filters */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-2">
-              <Input
-                placeholder="Search employee..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-7 text-xs"
-                icon={Search}
-              />
-
-              <Select
-                value={departmentFilter}
-                onChange={(e) => setDepartmentFilter(e.target.value)}
-                className="h-7 text-xs"
-              >
-                <option value="all">All Departments</option>
-                {departments.map(dept => (
-                  <option key={dept} value={dept}>{dept}</option>
-                ))}
-              </Select>
-
-              <Select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="h-7 text-xs"
-              >
-                <option value="all">All Status</option>
-                <option value="present">Present</option>
-                <option value="absent">Absent</option>
-                <option value="late">Late</option>
-                <option value="half_day">Half Day</option>
-                <option value="wfh">Work From Home</option>
-              </Select>
-
-              <Select
-                value={workModeFilter}
-                onChange={(e) => setWorkModeFilter(e.target.value)}
-                className="h-7 text-xs"
-              >
-                <option value="all">All Work Mode</option>
-                <option value="office">Office</option>
-                <option value="remote">Remote</option>
-                <option value="hybrid">Hybrid</option>
-                <option value="site">Site</option>
-              </Select>
-
-              <Input
-                type="date"
-                value={dateRangeFilter.start}
-                onChange={(e) => setDateRangeFilter({ ...dateRangeFilter, start: e.target.value })}
-                className="h-7 text-xs"
-                placeholder="Start Date"
-              />
-
-              <Input
-                type="date"
-                value={dateRangeFilter.end}
-                onChange={(e) => setDateRangeFilter({ ...dateRangeFilter, end: e.target.value })}
-                className="h-7 text-xs"
-                placeholder="End Date"
-              />
-            </div>
-
-            {/* Second Row - Actions */}
-            <div className="flex items-center justify-between pt-1 border-t border-[var(--border-base)]">
-              <div className="flex items-center gap-2">
-                <label className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
-                  <input
-                    type="checkbox"
-                    checked={lateFilter}
-                    onChange={(e) => setLateFilter(e.target.checked)}
-                    className="w-3 h-3 rounded border-[var(--border-base)]"
-                  />
-                  Late Only
-                </label>
-
-                {selectedCalendarDate && (
-                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-[var(--primary)]/10 text-xs">
-                    <Calendar size={10} style={{ color: 'var(--primary)' }} />
-                    {format(new Date(selectedCalendarDate), 'dd MMM yyyy')}
-                    <button onClick={() => setSelectedCalendarDate(null)} className="ml-1">
-                      <X size={10} />
-                    </button>
-                  </div>
-                )}
-
-                <span className="text-xs text-[var(--text-muted)]">
-                  {filteredRecords.length} record(s)
-                </span>
-              </div>
-
-              <div className="flex items-center gap-1">
-                {selectedIds.length > 0 && (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleBulkMarkPresent}
-                      className="h-6 text-xs px-2"
-                    >
-                      <Check size={10} /> Mark Present ({selectedIds.length})
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleBulkDelete}
-                      className="h-6 text-xs px-2 text-[#ef4444] border-[#ef4444] hover:bg-[#ef4444]/10"
-                    >
-                      <Trash2 size={10} /> Delete ({selectedIds.length})
-                    </Button>
-                  </>
-                )}
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleExport('excel')}
-                  className="h-6 text-xs px-2"
-                >
-                  <Download size={10} /> Excel
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleExport('csv')}
-                  className="h-6 text-xs px-2"
-                >
-                  <Download size={10} /> CSV
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleExport('pdf')}
-                  className="h-6 text-xs px-2"
-                >
-                  <Download size={10} /> PDF
-                </Button>
-
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={resetFilters}
-                  className="h-6 text-xs px-2"
-                >
-                  <X size={10} /> Reset
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          {/* ==================== DATA TABLE ==================== */}
-          <div className="bg-white border border-[var(--border-base)]">
-            <DataTable
-              columns={tableColumns}
-              data={paginatedRecords}
-              loading={loading}
-              emptyMessage="No attendance records found"
-              rowKey="_id"
-              onRowClick={(row) => setViewAttendance(row)}
-              expandedRowKey={viewAttendance?._id}
-              renderExpanded={(record) => (
-                <div className="p-4 border-t border-[var(--border-muted)] bg-gradient-to-b from-white to-[var(--bg-elevated)]">
-                  <AttendanceViewModal record={record} onClose={() => setViewAttendance(null)} onEdit={() => {}} inline />
-                </div>
-              )}
+      <div className="p-3 rounded-xl border border-[var(--border-base)] bg-[var(--bg-surface)] space-y-3">
+        <div className="grid grid-cols-1 lg:grid-cols-6 gap-2">
+          <div className="lg:col-span-2">
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search employee…"
+              className="h-9"
             />
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between px-3 py-2 border-t border-[var(--border-base)]">
-                <p className="text-xs text-[var(--text-muted)]">
-                  Page {currentPage} of {totalPages} · {filteredRecords.length} total records
-                </p>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                    className="h-6 px-2"
-                  >
-                    <ChevronLeft size={12} />
-                  </Button>
-                  <span className="text-xs text-[var(--text-secondary)] px-2">{currentPage}</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                    className="h-6 px-2"
-                  >
-                    <ChevronRight size={12} />
-                  </Button>
-                </div>
-              </div>
-            )}
+          </div>
+          <Select value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)} className="h-9">
+            <option value="all">All Departments</option>
+            {departments.map((d) => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </Select>
+          <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-9">
+            <option value="all">All Status</option>
+            {Object.entries(ATTENDANCE_STATUS).map(([k, v]) => (
+              <option key={k} value={k}>{v.label}</option>
+            ))}
+          </Select>
+          <Select value={workModeFilter} onChange={(e) => setWorkModeFilter(e.target.value)} className="h-9">
+            <option value="all">All Work Mode</option>
+            {Object.entries(WORK_MODE).map(([k, v]) => (
+              <option key={k} value={k}>{v.label}</option>
+            ))}
+          </Select>
+          <div className="flex items-center gap-2">
+            <Input
+              type="date"
+              value={dateRangeFilter.start}
+              onChange={(e) => setDateRangeFilter(prev => ({ ...prev, start: e.target.value }))}
+              className="h-9"
+            />
+            <Input
+              type="date"
+              value={dateRangeFilter.end}
+              onChange={(e) => setDateRangeFilter(prev => ({ ...prev, end: e.target.value }))}
+              className="h-9"
+            />
           </div>
         </div>
-
-      {/* ==================== CALENDAR MODAL (ONLY IN MODAL, NOT ON PAGE) ==================== */}
-      {showCalendarModal && (
-        <Modal
-          open={showCalendarModal}
-          onClose={() => setShowCalendarModal(false)}
-          title="Attendance Calendar"
-          size="xl"
-        >
-          <div className="p-4">
-            {/* Month/Year Filter Controls */}
-            <div className="flex items-center gap-2 mb-3 pb-3 border-b border-[var(--border-base)]">
-              <Select
-                value={calendarMonth}
-                onChange={(e) => {
-                  const newMonth = parseInt(e.target.value);
-                  setCalendarMonth(newMonth);
-                  if (calendarRef.current) {
-                    calendarRef.current.getApi().gotoDate(new Date(calendarYear, newMonth, 1));
-                  }
-                }}
-                className="h-9 flex-1"
-              >
-                {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map((month, idx) => (
-                  <option key={idx} value={idx}>{month}</option>
-                ))}
-              </Select>
-              <Select
-                value={calendarYear}
-                onChange={(e) => {
-                  const newYear = parseInt(e.target.value);
-                  setCalendarYear(newYear);
-                  if (calendarRef.current) {
-                    calendarRef.current.getApi().gotoDate(new Date(newYear, calendarMonth, 1));
-                  }
-                }}
-                className="h-9 w-24"
-              >
-                {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map((year) => (
-                  <option key={year} value={year}>{year}</option>
-                ))}
-              </Select>
-              <div className="ml-auto text-sm text-[var(--text-muted)]">
-                {attendanceRecords.filter(r => {
-                  const date = new Date(r.date);
-                  return date.getMonth() === calendarMonth && date.getFullYear() === calendarYear;
-                }).length} records this month
-              </div>
-            </div>
-
-            <style>{`
-              .fc {
-                font-family: inherit;
-                font-size: 0.75rem;
-              }
-              .fc .fc-toolbar-title {
-                font-size: 0.875rem;
-                font-weight: 600;
-                color: var(--primary);
-              }
-              .fc .fc-button {
-                background: #f3f4f6;
-                border: 1px solid #d1d5db;
-                color: #374151;
-                font-weight: 500;
-                padding: 0.25rem 0.5rem;
-                border-radius: 0.25rem;
-                font-size: 0.75rem;
-              }
-              .fc .fc-button:hover {
-                background: #e5e7eb;
-              }
-              .fc .fc-button-primary {
-                background: var(--primary);
-                border-color: var(--primary);
-                color: white;
-              }
-              .fc .fc-button-primary:hover {
-                background: var(--primary-hover, var(--primary));
-              }
-              .fc .fc-col-header-cell {
-                padding: 0.25rem 0;
-                font-weight: 600;
-                color: #374151;
-                font-size: 0.7rem;
-              }
-              .fc .fc-col-header-cell.fc-day-sun {
-                color: #ef4444;
-              }
-              .fc .fc-daygrid-day {
-                border: 1px solid #e5e7eb;
-              }
-              .fc .fc-daygrid-day-number {
-                font-size: 0.75rem;
-                color: #6b7280;
-                padding: 0.25rem;
-              }
-              .fc .fc-day-today {
-                background: #fef3c7 !important;
-              }
-              .fc .fc-event {
-                font-size: 0.65rem;
-                padding: 0.0625rem 0.125rem;
-                border-radius: 0.125rem;
-                cursor: pointer;
-              }
-              .fc .fc-h-event .fc-event-main {
-                font-weight: 500;
-              }
-              .fc .fc-daygrid-event-harness {
-                margin: 1px 0;
-              }
-              .fc .fc-daygrid-day-events {
-                min-height: 1.5em;
-              }
-            `}</style>
-            <FullCalendar
-              ref={calendarRef}
-              plugins={[dayGridPlugin, interactionPlugin]}
-              initialView="dayGridMonth"
-              initialDate={new Date(calendarYear, calendarMonth, 1)}
-              headerToolbar={{
-                left: 'title',
-                center: '',
-                right: 'prev,next'
-              }}
-              datesSet={(dateInfo) => {
-                setCalendarMonth(dateInfo.view.currentStart.getMonth());
-                setCalendarYear(dateInfo.view.currentStart.getFullYear());
-              }}
-              events={attendanceRecords.map(record => ({
-                id: record._id,
-                title: `${record.employeeId?.firstName || ''} ${record.employeeId?.lastName || ''}`,
-                start: record.date,
-                allDay: true,
-                backgroundColor: record.status === 'present' ? '#86efac' :
-                  record.status === 'absent' ? '#fca5a5' :
-                    record.status === 'late' ? '#fde68a' :
-                      record.status === 'half_day' ? '#fde68a' : '#bfdbfe',
-                borderColor: record.status === 'present' ? '#22c55e' :
-                  record.status === 'absent' ? '#ef4444' :
-                    record.status === 'late' ? '#f59e0b' :
-                      record.status === 'half_day' ? '#f59e0b' : '#60a5fa',
-                textColor: record.status === 'present' ? '#166534' :
-                  record.status === 'absent' ? '#991b1b' :
-                    record.status === 'late' ? '#92400e' :
-                      record.status === 'half_day' ? '#92400e' : '#1e40af',
-                extendedProps: {
-                  status: record.status,
-                  employee: `${record.employeeId?.firstName || ''} ${record.employeeId?.lastName || ''}`,
-                  checkIn: record.checkIn,
-                  checkOut: record.checkOut
-                }
-              }))}
-              height="auto"
-              dayMaxEvents={2}
-              eventClick={(info) => {
-                toast.info(`${info.event.extendedProps.employee} - ${info.event.extendedProps.status}`);
-              }}
-              dateClick={(info) => {
-                const clickedDate = format(info.date, 'yyyy-MM-dd');
-                setSelectedCalendarDateForView(clickedDate);
-                handleCalendarDateClick(clickedDate);
-              }}
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <label className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
+            <input
+              type="checkbox"
+              checked={lateFilter}
+              onChange={(e) => setLateFilter(e.target.checked)}
+              className="w-3.5 h-3.5 rounded border-[var(--border-base)]"
             />
-
-            {/* Calendar Legend */}
-            <div className="pt-3 border-t border-[var(--border-base)] mt-3 space-y-2">
-              <p className="text-xs font-bold text-[var(--text-muted)] uppercase">Legend</p>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-3 h-3 rounded-full bg-[#22c55e]" />
-                  <span className="text-xs text-[var(--text-secondary)]">Present</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-3 h-3 rounded-full bg-[#ef4444]" />
-                  <span className="text-xs text-[var(--text-secondary)]">Absent</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-3 h-3 rounded-full bg-[#f59e0b]" />
-                  <span className="text-xs text-[var(--text-secondary)]">Late</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-3 h-3 rounded-full bg-[#3b82f6]" />
-                  <span className="text-xs text-[var(--text-secondary)]">WFH</span>
-                </div>
-              </div>
-            </div>
+            Late Only
+          </label>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="secondary" onClick={() => handleExport('csv')} disabled={!canExport()}>
+              <Download size={14} /> CSV
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => resetFilters()}>
+              Reset
+            </Button>
           </div>
-        </Modal>
-      )}
+        </div>
+      </div>
 
-      {/* ==================== CHECK-IN MODAL ==================== */}
-      {showCheckInModal && (
-        <Modal
-          open={showCheckInModal}
-          onClose={() => {
-            setShowCheckInModal(false);
-            resetForm();
-          }}
-          title="Mark Attendance - Check In"
-          footer={
-            <div className="flex gap-2 justify-end">
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setShowCheckInModal(false);
-                  resetForm();
-                }}
-              >
-                Cancel
-              </Button>
-              <Button onClick={handleCheckIn} disabled={!attendanceForm.employeeId}>
-                <LogIn size={14} /> Check In
-              </Button>
-            </div>
-          }
-        >
-          <div className="space-y-3">
-            {/* Show employee dropdown for ALL/DEPARTMENT scope, show current user for OWN scope */}
-            {isOwnScope && currentEmployee ? (
-              <div className="p-3 bg-[var(--bg-elevated)] rounded-lg border border-[var(--border-base)]">
-                <p className="text-xs text-[var(--text-muted)] uppercase tracking-wide mb-2">Employee</p>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-[var(--primary)] text-white flex items-center justify-center text-sm font-medium">
-                    {currentEmployee.firstName?.[0]}{currentEmployee.lastName?.[0]}
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-[var(--text-primary)]">
-                      {currentEmployee.firstName} {currentEmployee.lastName}
-                    </p>
-                    <p className="text-xs text-[var(--text-muted)]">
-                      {currentEmployee.employeeId} · {currentEmployee.role || 'Employee'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <FormField label="Select Employee">
-                <Select
-                  value={attendanceForm.employeeId}
-                  onChange={(e) => setAttendanceForm({ ...attendanceForm, employeeId: e.target.value })}
-                >
-                  <option value="">Choose an employee</option>
-                  {employees.map((emp) => (
-                    <option key={emp._id} value={emp._id}>
-                      {emp.firstName} {emp.lastName} ({emp.employeeId})
-                    </option>
-                  ))}
-                </Select>
-              </FormField>
-            )}
+      <DataTable
+        columns={tableColumns}
+        data={paginatedRecords}
+        total={filteredRecords.length}
+        page={currentPage}
+        pageSize={itemsPerPage}
+        onPageChange={(p) => setCurrentPage(p)}
+        onPageSizeChange={() => { /* itemsPerPage is fixed in this page */ }}
+        loading={loading}
+        emptyText="No attendance records found."
+        hideSearch
+        hideColumnToggle={false}
+        onRowClick={(row) => setViewAttendance(row)}
+      />
 
-            <FormField label="Work Mode">
-              <Select
-                value={attendanceForm.type}
-                onChange={(e) => setAttendanceForm({ ...attendanceForm, type: e.target.value })}
-              >
-                <option value="office">Office</option>
-                <option value="remote">Remote / Work From Home</option>
-                <option value="hybrid">Hybrid</option>
-                <option value="site">Site</option>
-              </Select>
-            </FormField>
+      <AttendanceViewModal
+        record={viewAttendance}
+        onClose={() => setViewAttendance(null)}
+        onEdit={(rec) => handleEdit(rec)}
+      />
 
-            <FormField label="Location (Optional)">
-              <Input
-                value={attendanceForm.location}
-                onChange={(e) => setAttendanceForm({ ...attendanceForm, location: e.target.value })}
-                placeholder="GPS location will be auto-captured"
-              />
-            </FormField>
-
-            <FormField label="Notes (Optional)">
-              <Textarea
-                value={attendanceForm.notes}
-                onChange={(e) => setAttendanceForm({ ...attendanceForm, notes: e.target.value })}
-                placeholder="Any notes about today..."
-                rows={2}
-              />
-            </FormField>
+      <Modal
+        open={showCheckInModal}
+        onClose={() => {
+          setShowCheckInModal(false);
+          resetForm();
+        }}
+        title="Mark Attendance"
+        footer={
+          <div className="flex gap-2 justify-end">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setShowCheckInModal(false);
+                resetForm();
+              }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleCheckIn} 
+              className={cn(
+                "bg-[var(--primary)] text-white hover:opacity-90",
+                (!attendanceForm.employeeId || geoLoading || !geoEnabled) && "opacity-50 cursor-not-allowed"
+              )}
+            >
+              <LogIn size={14} /> Check In
+            </Button>
           </div>
-        </Modal>
-      )}
+        }
+      >
+        <div className="space-y-3">
+          <FormField label="Employee">
+            <Select
+              value={attendanceForm.employeeId}
+              onChange={(e) => setAttendanceForm({ ...attendanceForm, employeeId: e.target.value })}
+              disabled={isOwnScope}
+            >
+              <option value="">Choose an employee</option>
+              {(isOwnScope && currentEmployee?._id) ? (
+                <option value={currentEmployee._id}>
+                  {currentEmployee.firstName} {currentEmployee.lastName}
+                </option>
+              ) : (
+                employees.map((emp) => (
+                  <option key={emp._id} value={emp._id}>
+                    {emp.firstName} {emp.lastName} ({emp.employeeId})
+                  </option>
+                ))
+              )}
+            </Select>
+          </FormField>
 
-      {/* ==================== EDIT MODAL ==================== */}
+          <FormField label="Work Mode">
+            <Select
+              value={attendanceForm.type}
+              onChange={(e) => setAttendanceForm({ ...attendanceForm, type: e.target.value })}
+            >
+              <option value="office">Office</option>
+              <option value="remote">Remote</option>
+              <option value="hybrid">Hybrid</option>
+              <option value="site">Site</option>
+            </Select>
+          </FormField>
+
+          <FormField label="Location">
+            <Input value={geoLocationText} disabled placeholder="Enable location to fetch" />
+          </FormField>
+
+          <FormField label="Notes">
+            <Textarea
+              value={attendanceForm.notes}
+              onChange={(e) => setAttendanceForm({ ...attendanceForm, notes: e.target.value })}
+              placeholder="Notes…"
+              rows={2}
+            />
+          </FormField>
+        </div>
+      </Modal>
+
       {showEditModal && (
         <Modal
           open={showEditModal}
@@ -1371,8 +1102,7 @@ const AttendancePageV3 = () => {
           </div>
         </Modal>
       )}
-      </div>
-      </div>
+    </div>
   );
 };
 

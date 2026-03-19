@@ -37,6 +37,12 @@ export class Attendance {
   @Prop({ default: '' })
   location!: string;
 
+  @Prop({ type: String, default: '' })
+  checkInLocation?: string;
+
+  @Prop({ type: String, default: '' })
+  checkOutLocation?: string;
+
   @Prop({ enum: AttendanceStatus, default: AttendanceStatus.PRESENT })
   status!: AttendanceStatus;
 
