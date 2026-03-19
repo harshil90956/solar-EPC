@@ -10,11 +10,15 @@ export class EmailService {
     // Log SMTP configuration (without password)
     this.logger.log(`SMTP Configuration: HOST=${process.env.SMTP_HOST || 'smtp.gmail.com'}, PORT=${process.env.SMTP_PORT || 587}, USER=${process.env.SMTP_USER || 'NOT_SET'}`);
     
-    // Configure nodemailer with SMTP settings
+    // Configure nodemailer with SMTP settings - FIXED for Gmail App Password
     this.transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST || 'smtp.gmail.com',
       port: Number(process.env.SMTP_PORT) || 587,
-      secure: false,
+      secure: false, // true for 465, false for other ports
+      requireTLS: true,
+      tls: {
+        rejectUnauthorized: false, // Allow self-signed certs
+      },
       auth: {
         user: process.env.SMTP_USER || '',
         pass: process.env.SMTP_PASS || '',
@@ -54,8 +58,11 @@ export class EmailService {
       
       this.logger.log(`Sending email to: ${to}, subject: ${subject}, from: ${from || process.env.SMTP_USER}`);
 
+      // Ensure from address matches authenticated user (Gmail requirement)
+      const fromAddress = from || process.env.SMTP_USER;
+      
       const info = await this.transporter.sendMail({
-        from: from || process.env.SMTP_USER,
+        from: `"Solar EPC System" <${fromAddress}>`,
         to,
         subject,
         text,

@@ -17,7 +17,8 @@ import {
   Loader2,
   Box,
   Layers,
-  Scale
+  Scale,
+  Mail
 } from 'lucide-react';
 import api from '../lib/apiClient';
 import { toast } from '../components/ui/Toast';
@@ -30,6 +31,7 @@ import { cn } from '../lib/utils';
 const QuotationBuilderPage = () => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
   const [inventoryItems, setInventoryItems] = useState([]);
   const [categories, setCategories] = useState([]);
   const [units, setUnits] = useState([]);
@@ -319,6 +321,47 @@ const QuotationBuilderPage = () => {
     }
   };
 
+  const handleSendEmail = async () => {
+    if (!quotation.customerEmail) {
+      toast.error('Please enter a customer email');
+      return;
+    }
+    if (!quotation.customerName || quotation.materials.length === 0) {
+      toast.error('Please add customer and materials first');
+      return;
+    }
+
+    setSendingEmail(true);
+    try {
+      toast.info('Sending quotation via email...');
+      
+      // First save the quotation to get an ID
+      const payload = { ...quotation, status: 'Draft' };
+      const res = await api.post('/quotations', payload);
+      const savedQuotation = res.data || res;
+      const id = savedQuotation._id || savedQuotation.id;
+
+      if (!id) {
+        toast.error('Failed to save quotation');
+        return;
+      }
+
+      // Send email with PDF
+      await api.post(`/quotations/${id}/email`, {
+        email: quotation.customerEmail,
+        subject: `Solar Quotation - ${quotation.customerName}`,
+        message: `Dear ${quotation.customerName},\n\nPlease find attached your solar quotation.\n\nBest regards,\nSolar EPC Team`
+      });
+
+      toast.success(`Quotation sent to ${quotation.customerEmail}`);
+    } catch (err) {
+      console.error('Email send error:', err);
+      toast.error('Failed to send email. Please try again.');
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
   if (loading) return <div className="flex h-96 items-center justify-center"><Loader2 className="animate-spin text-orange-500" size={40} /></div>;
 
   return (
@@ -372,10 +415,29 @@ const QuotationBuilderPage = () => {
                 />
               </FormField>
               <FormField label="Email">
-                <Input 
-                  value={quotation.customerEmail}
-                  onChange={(e) => setQuotation(prev => ({ ...prev, customerEmail: e.target.value }))}
-                />
+                <div className="flex gap-2">
+                  <Input 
+                    value={quotation.customerEmail}
+                    onChange={(e) => setQuotation(prev => ({ ...prev, customerEmail: e.target.value }))}
+                    placeholder="customer@example.com"
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSendEmail}
+                    disabled={!quotation.customerEmail || sendingEmail}
+                    className="px-3"
+                    title="Send PDF to this email"
+                  >
+                    {sendingEmail ? (
+                      <Loader2 size={18} className="animate-spin" />
+                    ) : (
+                      <Mail size={18} />
+                    )}
+                  </Button>
+                </div>
               </FormField>
               <FormField label="Phone">
                 <Input 

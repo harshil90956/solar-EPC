@@ -6,6 +6,7 @@ import { DocumentEntity, DocumentEntitySchema } from './schemas/document.schema'
 import { Tenant, TenantSchema } from '../../core/tenant/schemas/tenant.schema';
 import { Lead, LeadSchema } from '../leads/schemas/lead.schema';
 import { Project, ProjectSchema } from '../projects/schemas/project.schema';
+import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { Project, ProjectSchema } from '../projects/schemas/project.schema';
       { name: Lead.name, schema: LeadSchema },
       { name: Project.name, schema: ProjectSchema },
     ]),
+    EmailModule,
   ],
   controllers: [DocumentController],
   providers: [DocumentService],
