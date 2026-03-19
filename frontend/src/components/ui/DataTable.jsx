@@ -138,6 +138,10 @@ const DataTable = ({
 
     const setSelected = onSelectRows != null ? onSelectRows : setInternalSelected;
 
+    const selectionEnabled = useMemo(() => {
+        return Boolean(onSelectRows != null || controlledSelected != null);
+    }, [onSelectRows, controlledSelected]);
+
 
 
     // Use controlled sort if provided, otherwise use internal
@@ -439,7 +443,7 @@ const DataTable = ({
 
                             <tr className="border-b border-[var(--border-base)] bg-[var(--bg-raised)]">
 
-                                {bulkActions.length > 0 && (
+                                {selectionEnabled && (
 
                                     <th className="w-10 px-3 py-3 sticky left-0 z-10 bg-[var(--bg-raised)]">
 
@@ -509,7 +513,7 @@ const DataTable = ({
 
                                     <tr key={i} className="border-b border-[var(--border-base)]">
 
-                                        {bulkActions.length > 0 && (
+                                        {selectionEnabled && (
 
                                             <td className="px-3 py-3.5">
 
@@ -537,7 +541,7 @@ const DataTable = ({
 
                                 <tr>
 
-                                    <td colSpan={visibleColumns.length + (bulkActions.length ? 1 : 0) + (allRowActions.length ? 1 : 0)}
+                                    <td colSpan={visibleColumns.length + (selectionEnabled ? 1 : 0) + (allRowActions.length ? 1 : 0)}
 
                                         className="text-center py-16 text-[var(--text-faint)] text-sm">
 
@@ -556,7 +560,7 @@ const DataTable = ({
                                         onClick={() => onRowClick?.(row)}
                                     >
 
-                                        {bulkActions.length > 0 && (
+                                        {selectionEnabled && (
                                             <td className="px-3 py-3.5 sticky left-0 z-10 bg-[var(--bg-surface)] group-hover:bg-[var(--bg-hover)] transition-colors"
                                                 onClick={e => e.stopPropagation()}>
 
@@ -618,7 +622,7 @@ const DataTable = ({
                                     {/* ── Inline expanded detail row ── */}
                                     {renderExpanded && expandedRowKey === (row[rowKey] || index) && (
                                         <tr className="border-b border-[var(--border-base)] bg-[var(--bg-elevated)]">
-                                            <td colSpan={visibleColumns.length + (bulkActions.length ? 1 : 0) + (allRowActions.length ? 1 : 0)} className="px-0 py-0">
+                                            <td colSpan={visibleColumns.length + (selectionEnabled ? 1 : 0) + (allRowActions.length ? 1 : 0)} className="px-0 py-0">
                                                 <div className="animate-fade-in">
                                                     {renderExpanded(row)}
                                                 </div>
