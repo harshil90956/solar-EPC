@@ -1,4 +1,4 @@
-﻿// Solar OS â€“ EPC Edition â€” FinancePage.js  (Kanban + Table)  
+﻿// Solar OS - EPC Edition - FinancePage.js  (Kanban + Table)  
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 
@@ -148,7 +148,7 @@ const InvCard = ({ inv, onDragStart, onClick }) => {
  
       <div className="flex items-center gap-1 text-[9px] text-[var(--text-muted)]">
 
-        <Calendar size={9} /><span>Due: {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : 'â€”'}</span>
+        <Calendar size={9} /><span>Due: {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : '-'}</span>
   
         {isOverdue && <AlertCircle size={9} className="text-red-400 ml-auto" />}
    
@@ -287,7 +287,7 @@ const INVOICE_COLUMNS = [
 
   { key: 'customerName', header: 'Customer', sortable: true, render: v => <span className="text-xs font-semibold text-[var(--text-primary)]">{v}</span> },
 
-  { key: 'email', header: 'Email', render: v => <span className="text-xs text-[var(--text-muted)]">{v || 'â€”'}</span> },
+  { key: 'email', header: 'Email', render: v => <span className="text-xs text-[var(--text-muted)]">{v || '-'}</span> },
 
   { key: 'amount', header: 'Invoice Amt', sortable: true, render: v => <span className="text-xs font-bold text-[var(--text-primary)]">{fmt(v)}</span> },
 
@@ -297,12 +297,12 @@ const INVOICE_COLUMNS = [
 
   { key: 'status', header: 'Status', render: v => <StatusBadge domain="invoice" value={v} /> },
 
-  { key: 'invoiceDate', header: 'Date', render: v => <span className="text-xs text-[var(--text-muted)]">{v ? new Date(v).toLocaleDateString() : 'â€”'}</span> },
+  { key: 'invoiceDate', header: 'Date', render: v => <span className="text-xs text-[var(--text-muted)]">{v ? new Date(v).toLocaleDateString() : '-'}</span> },
 
-  { key: 'dueDate', header: 'Due Date', render: v => <span className="text-xs text-[var(--text-muted)]">{v ? new Date(v).toLocaleDateString() : 'â€”'}</span> },
+  { key: 'dueDate', header: 'Due Date', render: v => <span className="text-xs text-[var(--text-muted)]">{v ? new Date(v).toLocaleDateString() : '-'}</span> },
 
 
-  { key: 'paidDate', header: 'Paid On', render: v => <span className="text-xs text-[var(--text-muted)]">{v ? new Date(v).toLocaleDateString() : 'â€”'}</span> },
+  { key: 'paidDate', header: 'Paid On', render: v => <span className="text-xs text-[var(--text-muted)]">{v ? new Date(v).toLocaleDateString() : '-'}</span> },
 
 
   {
@@ -331,7 +331,7 @@ const INVOICE_COLUMNS = [
 
         ) : (
 
-          <span className="text-xs text-[var(--text-faint)]">â€”</span>
+          <span className="text-xs text-[var(--text-faint)]">-</span>
 
         )}
 
@@ -640,74 +640,54 @@ const FinancePage = ({ onNavigate }) => {
 
  
   const [newCategory, setNewCategory] = useState({
-
- 
     categoryName: '',
- 
-
     type: 'credit',
- 
-
   });
- 
+
   const [addingCategory, setAddingCategory] = useState(false);
 
- 
   // Journal entries state
- 
   const [journalEntries, setJournalEntries] = useState([]);
- 
-
-
   const [selectedJournalEntry, setSelectedJournalEntry] = useState(null);
-
- 
-
   const [selectedJournalEntryIndex, setSelectedJournalEntryIndex] = useState(null);
-
- 
-
   const [showJournalEntryModal, setShowJournalEntryModal] = useState(false);
- 
 
-  const journalTotals = useMemo(() => {
-
- 
-
+  const { debitTotal, creditTotal } = useMemo(() => {
     let debitTotal = 0;
- 
     let creditTotal = 0;
 
- 
-
-
-
     (journalEntries || []).forEach((entry) => {
- 
       (entry?.lines || []).forEach((line) => {
-
- 
         const d = Number(line?.debitAmount || 0);
-
- 
         const c = Number(line?.creditAmount || 0);
 
- 
         if (!Number.isNaN(d)) debitTotal += d;
- 
         if (!Number.isNaN(c)) creditTotal += c;
- 
       });
- 
     });
 
- 
-
-
     return { debitTotal, creditTotal };
- 
   }, [journalEntries]);
- 
+
+  // Fetch adjustment categories when modal opens or type changes
+  useEffect(() => {
+    if (!showAdjustModal) return;
+    const type = adjustForm.type || 'credit';
+    
+    // Set today's date as default if date is empty
+    if (!adjustForm.date) {
+      setAdjustForm(prev => ({ ...prev, date: new Date().toISOString().slice(0, 10) }));
+    }
+    
+    (async () => {
+      try {
+        const cats = await financeApi.getAdjustmentCategories(type);
+        setAdjustmentCategories(cats || []);
+      } catch (err) {
+        console.error("Failed to fetch adjustment categories:", err);
+      }
+    })();
+  }, [showAdjustModal, adjustForm.type]);
 
   // Filtered data by selected year from calendar
  
@@ -14791,7 +14771,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-      if (amountNum > manualBalance) {
+      if (amountNum > cashPosition) {
 
 
 
@@ -14799,7 +14779,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-        nextErrors.amount = `Amount cannot exceed available cash position of ${fmt(manualBalance)}`;
+        nextErrors.amount = `Amount cannot exceed available cash position of ${fmt(cashPosition)}`;
 
 
 
@@ -14807,7 +14787,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-        toast.error(`Cannot debit more than available cash position of ${fmt(manualBalance)}`);
+        toast.error(`Cannot debit more than available cash position of ${fmt(cashPosition)}`);
 
 
 
@@ -16592,17 +16572,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-          console.log('âœ… Saved to backend');
-
-
-
-
-
-
-
-          
+          console.log('✓ Saved to backend');
 
 
 
@@ -16610,7 +16580,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-          // Note: Local journal entry already added above with lf field
+          // Update local payables state AFTER successful API call
 
 
 
@@ -16618,7 +16588,127 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-          // Backend may not return lf, so we keep local state
+          setPayables(prev => {
+
+
+
+
+
+
+
+            const updatedPayables = prev.map(p => {
+
+
+
+
+
+
+
+              if (String(p.vendorObjectId || p.vendorId) === adjustForm.selectedVendorId) {
+
+
+
+
+
+
+
+                const newPaid = (p.amountPaid || 0) + amountNum;
+
+
+
+
+
+
+
+                const newOutstanding = (p.outstandingAmount || 0) - amountNum;
+
+
+
+
+
+
+
+                return {
+
+
+
+
+
+
+
+                  ...p,
+
+
+
+
+
+
+
+                  amountPaid: newPaid,
+
+
+
+
+
+
+
+                  outstandingAmount: newOutstanding,
+
+
+
+
+
+
+
+                  status: newOutstanding <= 0 ? 'Paid' : 'Partial'
+
+
+
+
+
+
+
+                };
+
+
+
+
+
+
+
+              }
+
+
+
+
+
+
+
+              return p;
+
+
+
+
+
+
+
+            });
+
+
+
+
+
+
+
+            return updatedPayables;
+
+
+
+
+
+
+
+          });
 
 
 
@@ -16642,159 +16732,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
+          toast.error('Failed to save vendor payment to backend');
+
+
+
+
+
+
+
+          return;
+
+
+
+
+
+
+
         }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        // Update local payables state to reflect the payment
-
-
-
-
-
-
-
-        setPayables(prev => {
-
-
-
-
-
-
-
-          const updatedPayables = prev.map(p => {
-
-
-
-
-
-
-
-            if (String(p.vendorObjectId || p.vendorId) === adjustForm.selectedVendorId) {
-
-
-
-
-
-
-
-              const newPaid = (p.amountPaid || 0) + amountNum;
-
-
-
-
-
-
-
-              const newOutstanding = (p.outstandingAmount || 0) - amountNum;
-
-
-
-
-
-
-
-              return { 
-
-
-
-
-
-
-
-                ...p, 
-
-
-
-
-
-
-
-                amountPaid: newPaid, 
-
-
-
-
-
-
-
-                outstandingAmount: newOutstanding,
-
-
-
-
-
-
-
-                status: newOutstanding <= 0 ? 'Paid' : 'Partial'
-
-
-
-
-
-
-
-              };
-
-
-
-
-
-
-
-            }
-
-
-
-
-
-
-
-            return p;
-
-
-
-
-
-
-
-          });
-
-
-
-
-
-
-
-          return updatedPayables;
-
-
-
-
-
-
-
-        });
-
-
-
-
-
-
-
-
 
 
 
@@ -16811,14 +16765,6 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
         setManualBalance(prev => prev - amountNum);
-
-
-
-
-
-
-
-
 
 
 
@@ -29746,7 +29692,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-          <p className="text-xs text-[var(--text-muted)] mt-0.5 hidden sm:block">Revenue Â· receivables Â· payables Â· cash flow Â· invoices</p>
+          <p className="text-xs text-[var(--text-muted)] mt-0.5 hidden sm:block">Revenue . receivables . payables . cash flow . invoices</p>
 
 
 
@@ -36085,7 +36031,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-                      <div className="text-right">Last PO</div>
+                      <div className="text-right">Last Payment</div>
 
 
 
@@ -36757,7 +36703,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-                          <div className="text-xs text-right text-[var(--text-muted)]">{p.lastPurchaseOrderDate || 'â€”'}</div>
+                          <div className="text-xs text-right text-[var(--text-muted)]">{p.lastPurchaseOrderDate || '-'}</div>
 
 
 
@@ -38774,10 +38720,6 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
                           })()}
-
-
-
-
 
 
 
@@ -46517,7 +46459,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-        <Modal isOpen={!!selected} onClose={() => setSelected(null)} title={`Invoice â€” ${selected.invoiceNumber || selected.id}`}
+        <Modal isOpen={!!selected} onClose={() => setSelected(null)} title={`Invoice - ${selected.invoiceNumber || selected.id}`}
 
 
 
@@ -47157,7 +47099,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-              ['Email', selected.email || 'â€”'],
+              ['Email', selected.email || '-'],
 
 
 
@@ -47477,7 +47419,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-              ['Invoice Date', selected.invoiceDate ? new Date(selected.invoiceDate).toLocaleDateString() : 'â€”'],
+              ['Invoice Date', selected.invoiceDate ? new Date(selected.invoiceDate).toLocaleDateString() : '-'],
 
 
 
@@ -47541,7 +47483,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-              ['Due Date', selected.dueDate ? new Date(selected.dueDate).toLocaleDateString() : 'â€”'],
+              ['Due Date', selected.dueDate ? new Date(selected.dueDate).toLocaleDateString() : '-'],
 
 
 
@@ -47605,7 +47547,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-              ['Paid On', selected.paidDate ? new Date(selected.paidDate).toLocaleDateString() : 'â€”'],
+              ['Paid On', selected.paidDate ? new Date(selected.paidDate).toLocaleDateString() : '-'],
 
 
 
@@ -47669,7 +47611,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-              ['Last Reminder', selected.lastReminderSentAt ? new Date(selected.lastReminderSentAt).toLocaleDateString() : 'â€”'],
+              ['Last Reminder', selected.lastReminderSentAt ? new Date(selected.lastReminderSentAt).toLocaleDateString() : '-'],
 
 
 
@@ -49077,7 +49019,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-          title={`Edit Invoice â€” ${editInvoiceTarget.invoiceNumber || editInvoiceTarget.id}`}
+          title={`Edit Invoice - ${editInvoiceTarget.invoiceNumber || editInvoiceTarget.id}`}
 
 
 
@@ -55081,102 +55023,10 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+ 
                   placeholder="Net 30"
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    
                   disabled={savingEditInvoice}
 
 
@@ -58825,7 +58675,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-              <p className="text-xs text-[var(--text-muted)] mt-1">{deleteInvoiceTarget.invoiceNumber || deleteInvoiceTarget.id} â€¢ {deleteInvoiceTarget.customerName}</p>
+              <p className="text-xs text-[var(--text-muted)] mt-1">{deleteInvoiceTarget.invoiceNumber || deleteInvoiceTarget.id} - {deleteInvoiceTarget.customerName}</p>
 
 
 
@@ -59850,7 +59700,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-          title={`Assign Invoice â€” ${assignInvoiceTarget.invoiceNumber || assignInvoiceTarget.id}`}
+          title={`Assign Invoice - ${assignInvoiceTarget.invoiceNumber || assignInvoiceTarget.id}`}
 
 
 
@@ -62529,7 +62379,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-          title={`Send Reminder â€” ${selectedReminderInvoice.invoiceNumber || selectedReminderInvoice.id}`}
+          title={`Send Reminder - ${selectedReminderInvoice.invoiceNumber || selectedReminderInvoice.id}`}
 
 
 
@@ -65729,7 +65579,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
 
 
-                <div className="font-semibold text-[var(--text-primary)]">{selectedReminderInvoice.dueDate ? new Date(selectedReminderInvoice.dueDate).toLocaleDateString() : 'â€”'}</div>
+                <div className="font-semibold text-[var(--text-primary)]">{selectedReminderInvoice.dueDate ? new Date(selectedReminderInvoice.dueDate).toLocaleDateString() : '-'}</div>
 
 
 
@@ -85937,7 +85787,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
                 {adjustmentCategories
  
 
-                  .filter(cat => cat.type === adjustForm.type)
+                  .filter(cat => cat.type === (adjustForm.type || 'credit'))
  
 
                   .map(cat => (
@@ -91529,7 +91379,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
           }}
 
-          title={`Journal Entry â€” JE-${String(selectedJournalEntryIndex || 1).padStart(3, '0')}`}
+          title={`Journal Entry - JE-${String(selectedJournalEntryIndex || 1).padStart(3, '0')}`}
 
           footer={
 
@@ -91595,7 +91445,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
                 <div className="font-semibold text-[var(--text-primary)]">
 
 
-                  {selectedJournalEntry.reference || 'â€”'}
+                  {selectedJournalEntry.reference || '-'}
 
 
                 </div>
@@ -91613,7 +91463,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
                     ? selectedJournalEntry.narration.split(':')[0]?.trim()
 
 
-                    : (selectedJournalEntry.category || 'â€”')}
+                    : (selectedJournalEntry.category || '-')}
 
                 </div>
 
@@ -91637,7 +91487,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
 
                 <div className="font-semibold text-[var(--text-primary)]">
 
-                  {selectedJournalEntry.lf || 'â€”'}
+                  {selectedJournalEntry.lf || '-'}
 
                 </div>
 
@@ -91807,7 +91657,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
             <div className="text-[10px] text-[var(--text-muted)] text-right">
 
 
-              Created: {selectedJournalEntry.createdAt ? new Date(selectedJournalEntry.createdAt).toLocaleString('en-IN') : 'â€”'}
+              Created: {selectedJournalEntry.createdAt ? new Date(selectedJournalEntry.createdAt).toLocaleString('en-IN') : '-'}
 
 
             </div>

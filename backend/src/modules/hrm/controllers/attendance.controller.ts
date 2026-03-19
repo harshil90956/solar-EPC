@@ -134,6 +134,15 @@ export class AttendanceController {
     return { success: true, data };
   }
 
+  @Get('reverse-geocode')
+  async reverseGeocode(@Query('lat') lat: string, @Query('lng') lng: string, @Req() req: any) {
+    await this.checkPermission(req, 'attendance', 'view');
+    const latitude = Number(lat);
+    const longitude = Number(lng);
+    const data = await this.attendanceService.reverseGeocode(latitude, longitude);
+    return { success: true, data };
+  }
+
   @Get(':employeeId')
   async findByEmployee(@Param('employeeId') employeeId: string, @Req() req: any) {
     await this.checkPermission(req, 'attendance', 'view');

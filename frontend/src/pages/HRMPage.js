@@ -71,33 +71,34 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
   }, [initialTab]);
   const [loading, setLoading] = useState(false);
 
-  // SINGLE SOURCE OF TRUTH: Direct permission checks from AuthContext
-  const canViewEmployees = can('employees', 'view');
-  const canManageEmployees = can('employees', 'edit') || can('employees', 'create');
-  const canDeleteEmployees = can('employees', 'delete');
-
-  const canViewLeaves = can('leaves', 'view');
-  const canApplyLeave = can('leaves', 'create');
-  const canApproveLeave = can('leaves', 'approve');
-
-  const canViewAttendance = can('attendance', 'view');
-  const canCheckIn = can('attendance', 'checkin');
-  const canCheckOut = can('attendance', 'checkout');
-  const canManageAttendance = can('attendance', 'edit');
-
-  const canViewPayroll = can('payroll', 'view');
-  const canManagePayroll = can('payroll', 'edit') || can('payroll', 'create');
-  const canApprovePayroll = can('payroll', 'approve');
-
-  const canViewIncrements = can('increments', 'view');
-  const canManageIncrements = can('increments', 'edit') || can('increments', 'create');
-
-  const canViewDepartments = can('departments', 'view');
-  const canManageDepartments = can('departments', 'edit') || can('departments', 'create');
-
-  const canViewHrDashboard = can('hrm', 'view');
-
   const isAdmin = user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'superadmin' || user?.isSuperAdmin;
+
+  // SINGLE SOURCE OF TRUTH: Direct permission checks from AuthContext
+  // Admin bypass: Admin users get all permissions automatically
+  const canViewEmployees = isAdmin || can('employees', 'view');
+  const canManageEmployees = isAdmin || can('employees', 'edit') || can('employees', 'create');
+  const canDeleteEmployees = isAdmin || can('employees', 'delete');
+
+  const canViewLeaves = isAdmin || can('leaves', 'view');
+  const canApplyLeave = isAdmin || can('leaves', 'create');
+  const canApproveLeave = isAdmin || can('leaves', 'approve');
+
+  const canViewAttendance = isAdmin || can('attendance', 'view');
+  const canCheckIn = isAdmin || can('attendance', 'checkin');
+  const canCheckOut = isAdmin || can('attendance', 'checkout');
+  const canManageAttendance = isAdmin || can('attendance', 'edit');
+
+  const canViewPayroll = isAdmin || can('payroll', 'view');
+  const canManagePayroll = isAdmin || can('payroll', 'edit') || can('payroll', 'create');
+  const canApprovePayroll = isAdmin || can('payroll', 'approve');
+
+  const canViewIncrements = isAdmin || can('increments', 'view');
+  const canManageIncrements = isAdmin || can('increments', 'edit') || can('increments', 'create');
+
+  const canViewDepartments = isAdmin || can('departments', 'view');
+  const canManageDepartments = isAdmin || can('departments', 'edit') || can('departments', 'create');
+
+  const canViewHrDashboard = isAdmin || can('hrm', 'view');
 
   // Get data scope for attendance - single source of truth
   const attendanceDataScope = getDataScope('attendance');

@@ -26,15 +26,21 @@ export const usePermissions = (module) => {
   const { user, can, getDataScope } = useAuth();
   const { isModuleEnabled, isFeatureEnabled } = useSettings();
 
+  // Check if user is admin - admin gets all permissions
+  const userRole = user?.role || 'Employee';
+  const isAdminLike = userRole.toLowerCase() === 'admin' || userRole.toLowerCase() === 'superadmin' || userRole.toLowerCase() === 'super admin' || user?.isSuperAdmin === true;
+
   // Get data scope for this module
   const dataScope = useMemo(() => {
     return getDataScope(module);
   }, [getDataScope, module]);
 
   // Permission check functions - use can() from AuthContext (single source of truth)
+  // Admin bypass: Admin users get all permissions automatically
   const canDo = useCallback((action) => {
+    if (isAdminLike) return true; // Admin bypass
     return can(module, action);
-  }, [can, module]);
+  }, [can, module, isAdminLike]);
 
   const canView = useCallback(() => canDo('view'), [canDo]);
   const canCreate = useCallback(() => canDo('create'), [canDo]);
