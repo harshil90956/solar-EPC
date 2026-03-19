@@ -407,13 +407,6 @@ const StockMovements = () => {
           </select>
           <input
             type="text"
-            placeholder="Item ID..."
-            value={filterItem}
-            onChange={(e) => setFilterItem(e.target.value)}
-            className="px-2 py-1.5 text-xs bg-[var(--bg-elevated)] border border-[var(--border-base)] rounded-lg w-24 flex-shrink-0"
-          />
-          <input
-            type="text"
             placeholder="Warehouse..."
             value={filterWarehouse}
             onChange={(e) => setFilterWarehouse(e.target.value)}

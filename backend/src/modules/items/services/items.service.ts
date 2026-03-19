@@ -54,8 +54,13 @@ export class ItemsService {
         const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
           ? new Types.ObjectId(userId)
           : userId;
-        query.assignedTo = objectId;
-        console.log(`[ITEMS VISIBILITY] Applied STRICT assignedTo filter:`, objectId);
+        // Show items assigned to user OR items with no assignedTo (for backward compatibility)
+        query.$or = [
+          { assignedTo: objectId },
+          { assignedTo: { $exists: false } },
+          { assignedTo: null }
+        ];
+        console.log(`[ITEMS VISIBILITY] Applied ASSIGNED filter (including unassigned items):`, objectId);
       }
     } else {
       console.log(`[ITEMS VISIBILITY] No filter - ALL scope or no user`);
