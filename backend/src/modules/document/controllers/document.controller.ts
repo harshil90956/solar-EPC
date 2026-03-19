@@ -278,4 +278,46 @@ export class DocumentController {
       throw error;
     }
   }
+
+  // ============================================
+  // Canvas Operations
+  // ============================================
+  @Post(':id/canvas')
+  @HttpCode(HttpStatus.OK)
+  async saveCanvas(
+    @Param('id') id: string,
+    @Body() canvasData: any,
+    @Request() req: any,
+  ) {
+    try {
+      const tenantId = req.tenant?.id;
+      const result = await this.documentService.saveCanvas(id, canvasData, tenantId);
+      return { success: true, data: result };
+    } catch (error: any) {
+      this.logger.error(`Save canvas for document ${id} failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
+
+  // ============================================
+  // Send with PDF
+  // ============================================
+  @Post(':id/send-pdf')
+  @HttpCode(HttpStatus.OK)
+  async sendWithPdf(
+    @Param('id') id: string,
+    @Body() body: { sendDto: SendDocumentDto; pdfBase64: string },
+    @Request() req: any,
+  ) {
+    try {
+      const tenantId = req.tenant?.id;
+      // Convert base64 PDF to buffer
+      const pdfBuffer = Buffer.from(body.pdfBase64, 'base64');
+      const result = await this.documentService.sendWithPdf(id, body.sendDto, pdfBuffer, tenantId);
+      return { success: true, data: result };
+    } catch (error: any) {
+      this.logger.error(`Send with PDF for document ${id} failed: ${error?.message || 'Unknown error'}`, error?.stack);
+      throw error;
+    }
+  }
 }

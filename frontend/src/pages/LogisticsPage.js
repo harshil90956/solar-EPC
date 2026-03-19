@@ -1793,12 +1793,6 @@ const LogisticsPage = () => {
           /* Vendors Tab Buttons */
           <>
             <button
-              onClick={() => { setVendorView('kanban'); setShowVendorVisualization(false); }}
-              className={`px-3 py-1.5 text-xs rounded-md transition-colors ${vendorView === 'kanban' && !showVendorVisualization ? 'bg-[var(--primary)] text-white' : 'bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
-            >
-              <LayoutGrid size={12} className="inline mr-1" /> Kanban
-            </button>
-            <button
               onClick={() => { setVendorView('table'); setShowVendorVisualization(false); }}
               className={`px-3 py-1.5 text-xs rounded-md transition-colors ${vendorView === 'table' && !showVendorVisualization ? 'bg-[var(--primary)] text-white' : 'bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
             >
@@ -1984,28 +1978,6 @@ const LogisticsPage = () => {
 
           {showVendorVisualization ? (
             <VendorVisualizationView vendors={vendors} />
-          ) : vendorView === 'kanban' ? (
-            <>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs text-[var(--text-muted)]">
-                  Showing {vendors.length} vendors in Kanban view. Click any card to view details.
-                </p>
-              </div>
-              <VendorKanbanBoard 
-                vendors={vendors.filter(v =>
-                  !vendorSearch || v.name?.toLowerCase().includes(vendorSearch.toLowerCase()) ||
-                  v.city?.toLowerCase().includes(vendorSearch.toLowerCase()) ||
-                  v.category?.toLowerCase().includes(vendorSearch.toLowerCase())
-                )} 
-                categories={vendorCategories}
-                onCardClick={setSelectedVendor}
-                onEditVendor={(vendor) => {
-                  setSelectedVendor(vendor);
-                  setEditedVendor({ ...vendor });
-                  setIsEditingVendor(true);
-                }}
-              />
-            </>
           ) : (
             <DataTable columns={VENDOR_COLUMNS} data={vendors.filter(v =>
               !vendorSearch || v.name?.toLowerCase().includes(vendorSearch.toLowerCase()) ||

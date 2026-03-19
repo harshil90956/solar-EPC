@@ -27,7 +27,7 @@ export class ItemsController {
     const user = req?.user ? {
       id: String(req.user.id || req.user._id),
       _id: String(req.user.id || req.user._id),
-      dataScope: (req.user.dataScope as 'ALL' | 'ASSIGNED') || 'ASSIGNED',
+      dataScope: (req.user.dataScope as 'ALL' | 'ASSIGNED') || 'ALL',
     } : undefined;
     console.log(`[ITEMS CTRL] user.dataScope:`, user?.dataScope);
     return this.itemsService.findAll(tenantId, user, search, itemGroupId);
@@ -113,17 +113,13 @@ export class ItemsController {
     return this.itemsService.stockOut(tenantId, id, quantity, projectId, issuedDate, remarks);
   }
 
-  @Post(':id/transfer')
+  @Post('transfers')
   transfer(
     @Headers('x-tenant-id') headerTenantId: string,
     @Query('tenantId') queryTenantId: string,
-    @Param('id') id: string,
-    @Body('toWarehouseId') toWarehouseId: string,
-    @Body('quantity') quantity: number,
-    @Body('remarks') remarks?: string,
-    @Body('fromWarehouseName') fromWarehouseName?: string,
+    @Body() transferDto: { fromInventoryId: string; toWarehouseId: string; quantity: number; remarks?: string },
   ) {
     const tenantId = headerTenantId || queryTenantId;
-    return this.inventoryService.transfer(tenantId, id, toWarehouseId, quantity, remarks, fromWarehouseName);
+    return this.itemsService.transfer(tenantId, transferDto.fromInventoryId, transferDto.toWarehouseId, transferDto.quantity, transferDto.remarks);
   }
 }

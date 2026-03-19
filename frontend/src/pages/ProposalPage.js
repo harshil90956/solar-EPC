@@ -378,6 +378,7 @@ const ProposalPage = () => {
   const [showDetailPanel, setShowDetailPanel] = useState(false);
   const [isReminderModalOpen, setIsReminderModalOpen] = useState(false);
   const [isCanvasEditorOpen, setIsCanvasEditorOpen] = useState(false);
+  const [showEmailOnCanvasOpen, setShowEmailOnCanvasOpen] = useState(false);
 
   // ── Filter Proposals ────────────────────────────────────────────────────────
   const filteredProposals = useMemo(() => {
@@ -868,6 +869,18 @@ const ProposalPage = () => {
     }
   };
 
+  const handleSendEmail = async (doc) => {
+    if (!doc.customerEmail) {
+      toast.error('No customer email available');
+      return;
+    }
+    // Open canvas editor with email input visible
+    setSelectedProposal(doc);
+    setShowEmailOnCanvasOpen(true);
+    setIsCanvasEditorOpen(true);
+    setShowDetailPanel(false);
+  };
+
   const handleProposalClick = (proposal) => {
     setSelectedProposal(proposal);
     setShowDetailPanel(true);
@@ -882,6 +895,7 @@ const ProposalPage = () => {
   // ── Open Canvas Editor with Proposal Data ───────────────────────────────────
   const handleOpenCanvasEditor = (proposal) => {
     setSelectedProposal(proposal);
+    setShowEmailOnCanvasOpen(false);
     setIsCanvasEditorOpen(true);
     setShowDetailPanel(false);
   };
@@ -965,6 +979,21 @@ const ProposalPage = () => {
           </button>
           <button className="p-1 text-gray-400 hover:text-blue-500">
             <Edit size={14} />
+          </button>
+          <button
+            className={`p-1 transition-colors ${
+              doc.customerEmail 
+                ? 'text-gray-400 hover:text-blue-600 hover:bg-blue-50' 
+                : 'text-gray-300 cursor-not-allowed'
+            }`}
+            disabled={!doc.customerEmail}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleSendEmail(doc);
+            }}
+            title={doc.customerEmail ? `Send PDF to ${doc.customerEmail}` : 'No email available'}
+          >
+            <Mail size={14} />
           </button>
         </div>
       ),
@@ -1257,21 +1286,19 @@ const ProposalPage = () => {
                             );
                           })()}
                         </td>
-                        <td className="py-3 px-4 text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <button 
-                              onClick={(e) => { e.stopPropagation(); handleProposalClick(proposal); }}
-                              className="p-1 text-gray-400 hover:text-gray-600"
-                            >
-                              <Eye size={14} />
-                            </button>
-                            <button 
-                              onClick={(e) => { e.stopPropagation(); handleProposalClick(proposal); setIsEditMode(true); }}
-                              className="p-1 text-gray-400 hover:text-blue-500"
-                            >
-                              <Edit size={14} />
-                            </button>
-                          </div>
+                        <td className="py-3 px-4">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleSendEmail(proposal); }}
+                            disabled={!proposal.customerEmail}
+                            className={`p-1 transition-colors ${
+                              proposal.customerEmail 
+                                ? 'text-gray-400 hover:text-blue-600 hover:bg-blue-50' 
+                                : 'text-gray-600 cursor-not-allowed'
+                            }`}
+                            title={proposal.customerEmail ? `Send PDF to ${proposal.customerEmail}` : 'No email available'}
+                          >
+                            <Mail size={14} />
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -1438,19 +1465,83 @@ const ProposalPage = () => {
       {/* Canvas Editor Modal */}
       <Modal
         isOpen={isCanvasEditorOpen}
-        onClose={() => setIsCanvasEditorOpen(false)}
+        onClose={() => {
+          setIsCanvasEditorOpen(false);
+          setShowEmailOnCanvasOpen(false);
+        }}
         title="Visual Proposal Designer (Canva-Style)"
         size="full"
       >
         <ProposalCanvasEditor
-          key={`canvas-${selectedProposal?.id || 'new'}-${Date.now()}`}
+          key={`canvas-${selectedProposal?.id || 'new'}`}
           initialData={selectedProposal}
-          onSave={(data) => {
-            console.log('Canvas data saved:', data);
-            toast.success('Proposal canvas saved!');
-            setIsCanvasEditorOpen(false);
+          showEmailOnOpen={showEmailOnCanvasOpen}
+          onSave={async (canvasData) => {
+            console.log('[Canvas] Saving canvas data:', canvasData);
+            
+            if (!selectedProposal?.id && !selectedProposal?.documentId) {
+              toast.error('Proposal ID not found. Cannot save canvas.');
+              return;
+            }
+            
+            try {
+              // Save canvas data to backend
+              const proposalId = selectedProposal.id || selectedProposal.documentId;
+              await api.post(`/documents/${proposalId}/canvas`, {
+                canvasElements: canvasData.canvasElements,
+                canvasSize: canvasData.canvasSize,
+                savedAt: new Date().toISOString()
+              });
+              
+              toast.success('Proposal canvas saved successfully!');
+              setIsCanvasEditorOpen(false);
+              setShowEmailOnCanvasOpen(false);
+              fetchProposals(); // Refresh proposals list
+            } catch (error) {
+              console.error('[Canvas] Error saving canvas:', error);
+              toast.error('Failed to save canvas. Please try again.');
+            }
           }}
-          onCancel={() => setIsCanvasEditorOpen(false)}
+          onSendEmail={async (pdfBlob, emailData) => {
+            console.log('[Canvas] Sending email with PDF:', emailData);
+            
+            if (!selectedProposal?.id && !selectedProposal?.documentId) {
+              toast.error('Proposal ID not found. Cannot send email.');
+              return;
+            }
+            
+            try {
+              const proposalId = selectedProposal.id || selectedProposal.documentId;
+              
+              // Convert PDF blob to base64
+              const reader = new FileReader();
+              reader.readAsDataURL(pdfBlob);
+              reader.onloadend = async () => {
+                const base64data = reader.result.split(',')[1];
+                
+                // Send email with PDF via backend
+                await api.post(`/documents/${proposalId}/send-pdf`, {
+                  sendDto: {
+                    email: emailData.email,
+                    message: emailData.message
+                  },
+                  pdfBase64: base64data
+                });
+                
+                toast.success(`Proposal sent to ${emailData.email}`);
+                setIsCanvasEditorOpen(false);
+                setShowEmailOnCanvasOpen(false);
+                fetchProposals(); // Refresh proposals list
+              };
+            } catch (error) {
+              console.error('[Canvas] Error sending email:', error);
+              toast.error('Failed to send email. Please try again.');
+            }
+          }}
+          onCancel={() => {
+            setIsCanvasEditorOpen(false);
+            setShowEmailOnCanvasOpen(false);
+          }}
           readOnly={false}
         />
       </Modal>

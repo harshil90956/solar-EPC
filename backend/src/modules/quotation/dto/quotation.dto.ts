@@ -94,6 +94,22 @@ export class CreateQuotationDto {
 
   @IsNumber()
   @IsOptional()
+  gstPercentage?: number;
+
+  @IsNumber()
+  @IsOptional()
+  paymentTerms?: number;
+
+  @IsNumber()
+  @IsOptional()
+  visitInMonth?: number;
+
+  @IsNumber()
+  @IsOptional()
+  totalVisit?: number;
+
+  @IsNumber()
+  @IsOptional()
   tax?: number;
 
   @IsNumber()

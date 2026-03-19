@@ -21,14 +21,14 @@ import StockMovements from '../components/inventory/StockMovements';
 const fmt = CURRENCY.format;
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api/v1';
 const PROJECT_API_BASE_URL = process.env.REACT_APP_PROJECT_API_BASE_URL || 'http://localhost:3000/api/v1';
-const TENANT_ID = 'solarcorp';
+const TENANT_ID = localStorage.getItem('tenantId') || 'solarcorp';
 
 const getStockStatus = (item) => {
   const available = (item.stock || 0) - (item.reserved || 0);
   // Priority: Out of Stock > Low Stock > Reserved > Available
   if (available === 0) return 'out-of-stock';
-  if (available < (item.minStock || 0)) return 'low-stock';
   if ((item.reserved || 0) > 0) return 'reserved';
+  if (available < (item.minStock || 0)) return 'low-stock';
   return 'available';
 };
 
@@ -590,12 +590,22 @@ const InventoryPage = () => {
 
     setSubmitting(true);
     try {
+<<<<<<< HEAD
       // Call the new transfer endpoint
       await api.post(`/items/${item._id}/transfer`, {
         toWarehouseId: transferToWarehouse,
         quantity: qty,
         remarks: transferRemarks || `Transfer from ${transferFromWarehouse} to ${transferToWarehouse}`,
         fromWarehouseName: transferFromWarehouse,
+=======
+      // Use the unified transfer endpoint which handles source reduction, 
+      // destination increase/creation, and stock movement logging in one transaction.
+      await api.post('/inventory/transfers', {
+        fromInventoryId: item._id,
+        toWarehouseId: warehouses.find(w => w.name === transferToWarehouse)?._id,
+        quantity: qty,
+        remarks: transferRemarks || 'Stock transfer',
+>>>>>>> bad7a651a3df0cf2c27869ecf16f14354aa2687c
       }, { headers: { 'x-tenant-id': TENANT_ID } });
 
       // Refresh inventory
@@ -766,16 +776,52 @@ const InventoryPage = () => {
       const token = localStorage.getItem('solar_token') || localStorage.getItem('accessToken') || localStorage.getItem('token');
       if (!token) return;
       
-      const res = await api.get('/documents/estimates-proposals-quotations', {
-        headers: { 'x-tenant-id': TENANT_ID },
-        params: { type: 'quotation', status: 'accepted' },
+      console.log('[DEBUG STOCK OUT] Fetching approved quotations...');
+
+      const tenantIdForRequest = localStorage.getItem('tenantId');
+      console.log('[DEBUG STOCK OUT] tenantId used:', tenantIdForRequest);
+
+      const normalize = (v) => (v ?? '').toString().trim().toLowerCase();
+      const APPROVED_STATUSES = ['accepted', 'approved', 'signed', 'confirmed'];
+      const isApprovedLike = (s) => APPROVED_STATUSES.includes(normalize(s)) || normalize(s) === 'approved';
+
+      const qRes = await api.get('/quotations');
+      const quotations = Array.isArray(qRes?.data) ? qRes.data : (Array.isArray(qRes) ? qRes : []);
+
+      const qFiltered = quotations.filter((q) => {
+        const id = (q?.quotationId ?? q?.documentId ?? '').toString().trim().toUpperCase();
+        const isQtn = id.startsWith('QTN-');
+        return isQtn && isApprovedLike(q?.status);
       });
-      const docs = res?.data || [];
-      setApprovedQuotations(
-        docs.filter((q) => q.status === 'accepted' || q.status === 'ACCEPTED'),
-      );
+
+      console.log('TOTAL DOCS:', quotations.length);
+      console.log('FILTERED DOCS:', qFiltered.length);
+      console.log('STATUSES:', [...new Set(quotations.map((d) => d?.status))]);
+
+      if (qFiltered.length > 0) {
+        setApprovedQuotations(qFiltered);
+        return;
+      }
+
+      const res = await api.get('/documents/all', {
+        headers: tenantIdForRequest ? { 'x-tenant-id': tenantIdForRequest } : undefined,
+        params: { page: 1, limit: 1000 },
+      });
+
+      const payload = res?.data;
+      const docs = Array.isArray(payload?.data) ? payload.data : (Array.isArray(payload) ? payload : []);
+      const docFiltered = docs.filter((d) => {
+        const docId = (d?.documentId ?? '').toString().trim().toUpperCase();
+        return docId.startsWith('QTN-') && isApprovedLike(d?.status);
+      });
+
+      console.log('TOTAL DOCS:', docs.length);
+      console.log('FILTERED DOCS:', docFiltered.length);
+      console.log('STATUSES:', [...new Set(docs.map((d) => d?.status))]);
+
+      setApprovedQuotations(docFiltered);
     } catch (err) {
-      console.error('Failed to fetch approved quotations:', err);
+      console.error('[DEBUG STOCK OUT] Failed to fetch documents:', err);
       setApprovedQuotations([]);
     }
   };
@@ -1410,7 +1456,7 @@ const InventoryPage = () => {
       }); 
       setStockIn(true); 
     } }] : []),
-    ...(canAssign ? [{ label: 'Stock Out', icon: ArrowDown, onClick: row => { setStockOutForm(f => ({ ...f })); setShowStockOut(true); } }] : []),
+    ...((canAssign || canEdit) ? [{ label: 'Stock Out', icon: ArrowDown, onClick: row => { setStockOutForm(f => ({ ...f })); setShowStockOut(true); } }] : []),
     ...(canDelete ? [{ label: 'Delete', icon: Trash2, onClick: row => handleDeleteItem(row), danger: true }] : []),
   ];
 
@@ -1979,7 +2025,7 @@ const InventoryPage = () => {
                   className={`view-toggle-btn ${view === 'table' ? 'active' : ''}`}><List size={14} /></button>
               </div>
               {canCreate && <Button variant="ghost" onClick={() => setStockIn(true)}><ArrowUp size={13} /> Stock In</Button>}
-              {canAssign && <Button variant="ghost" onClick={() => setShowStockOut(true)}><ArrowDown size={13} /> Stock Out</Button>}
+              {(canAssign || canEdit) && <Button variant="ghost" onClick={() => setShowStockOut(true)}><ArrowDown size={13} /> Stock Out</Button>}
               <Button variant="ghost" onClick={() => setShowCardsInViews(!showCardsInViews)}>
                 <Layers size={13} /> {showCardsInViews ? 'Hide Cards' : 'Show Cards'}
               </Button>
@@ -3481,8 +3527,8 @@ const InventoryPage = () => {
               value={stockOutForm.quotationId} 
               onChange={e => {
                 const quotationId = e.target.value;
-                const selectedQuotation = approvedQuotations.find(q => (q._id || q.dbId) === quotationId || q.documentId === quotationId);
-                const items = selectedQuotation?.items || [];
+                const selectedQuotation = approvedQuotations.find(q => (q._id || q.dbId) === quotationId || q.documentId === quotationId || q.quotationId === quotationId);
+                const items = selectedQuotation?.materials || selectedQuotation?.items || [];
                 setSelectedQuotationItems(items);
                 setSelectedQuotationItemIndexes(items.map((_, idx) => idx));
                 setStockOutRows(items.map((it, idx) => {
@@ -3509,7 +3555,7 @@ const InventoryPage = () => {
               <option value="">Select Approved Quotation</option>
               {approvedQuotations.map(q => (
                 <option key={q._id || q.dbId} value={q._id || q.dbId}>
-                  {q.documentId || q.quotationId || q._id} - {q.customerName || 'Unknown'} ({(q.items || []).length} items)
+                  {q.documentId || q.quotationId || q._id} - {q.customerName || 'Unknown'} ({((q.materials || q.items) || []).length} items)
                 </option>
               ))}
             </Select>

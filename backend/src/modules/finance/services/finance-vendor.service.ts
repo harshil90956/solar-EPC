@@ -24,7 +24,8 @@ export class FinanceVendorService {
     const tid = this.toObjectId(tenantId);
     const query: any = { isDeleted: false };
     if (tid) {
-      query.tenantId = tid;
+      // Include vendors with matching tenantId OR vendors without tenantId (for backwards compatibility)
+      query.$or = [{ tenantId: tid }, { tenantId: { $exists: false } }, { tenantId: null }];
     }
     return this.financeVendorModel.find(query).sort({ vendorName: 1 }).lean();
   }
@@ -76,8 +77,14 @@ export class FinanceVendorService {
         updateData.totalPurchaseOrders = vendorData.totalPurchaseOrders;
       }
       if (vendorData.totalPaid !== undefined) {
-        updateData.totalPaid = vendorData.totalPaid;
-        updateData.outstandingAmount = (vendorData.totalPayable || existing.totalPayable || 0) - vendorData.totalPaid;
+        // Only update totalPaid if it's from manual payments (recordVendorPayment)
+        // NOT from PO-based sync - preserve existing manual payments
+        const existingTotalPaid = existing.totalPaid || 0;
+        const newTotalPaid = vendorData.totalPaid > existingTotalPaid 
+          ? vendorData.totalPaid  // If new value is higher, use it (manual payment recorded)
+          : existingTotalPaid;     // Otherwise keep existing (don't reduce from PO sync)
+        updateData.totalPaid = newTotalPaid;
+        updateData.outstandingAmount = (vendorData.totalPayable || existing.totalPayable || 0) - newTotalPaid;
       }
 
       const updated = await this.financeVendorModel.findOneAndUpdate(
@@ -126,9 +133,26 @@ export class FinanceVendorService {
       query.tenantId = tid;
     }
 
-    const vendor = await this.financeVendorModel.findOne(query);
+    let vendor = await this.financeVendorModel.findOne(query);
+    
+    // If vendor doesn't exist, create it first
     if (!vendor) {
-      throw new NotFoundException('Finance vendor not found');
+      // Get vendor info from procurement vendors (if available)
+      // For now, create with basic info
+      const newVendor = new this.financeVendorModel({
+        vendorId: vid,
+        vendorName: paymentData.notes || 'Unknown Vendor',
+        vendorCode: `V-${vendorId.slice(-4)}`,
+        tenantId: tid,
+        totalPayable: 0,
+        totalPaid: 0,
+        outstandingAmount: 0,
+        totalPurchaseOrders: 0,
+        status: 'Active',
+        paymentHistory: [],
+        isDeleted: false,
+      });
+      vendor = await newVendor.save();
     }
 
     const currentPaid = vendor.totalPaid || 0;
@@ -145,7 +169,7 @@ export class FinanceVendorService {
     };
 
     const updated = await this.financeVendorModel.findOneAndUpdate(
-      query,
+      { _id: vendor._id },
       {
         $set: {
           totalPaid: newPaid,
@@ -173,12 +197,25 @@ export class FinanceVendorService {
     const totalPaid = purchaseOrders.reduce((sum, po) => sum + Number((po as any).amountPaid || 0), 0);
     const outstanding = totalPayable - totalPaid;
 
+    // Get existing vendor to preserve totalPaid from financeVendors (if any)
+    const tid = this.toObjectId(tenantId);
+    const vid = this.toObjectId(vendorId);
+    const query: any = { vendorId: vid };
+    if (tid) {
+      query.tenantId = tid;
+    }
+    const existingVendor = await this.financeVendorModel.findOne(query);
+    
+    // If vendor exists, preserve its totalPaid (payments recorded via adjust amount)
+    // Otherwise use the PO-based calculation
+    const finalTotalPaid = existingVendor ? (existingVendor.totalPaid || 0) : totalPaid;
+
     return this.createOrUpdateVendor(tenantId, {
       vendorId: String(vendorId),
       vendorName: procurementVendor.name || procurementVendor.vendorName || 'Unknown',
       vendorCode: procurementVendor.id || procurementVendor.vendorCode || procurementVendor.code || `V-${String(vendorId).slice(-4)}`,
       totalPayable,
-      totalPaid,
+      totalPaid: finalTotalPaid,
       totalPurchaseOrders: purchaseOrders.length,
     });
   }

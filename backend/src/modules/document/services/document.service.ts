@@ -3,11 +3,13 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { DocumentEntity, DocumentEntityDocument, DocumentStatus } from '../schemas/document.schema';
 import { CreateDocumentDto, UpdateDocumentDto, QueryDocumentDto, SendDocumentDto } from '../dto/document.dto';
+import { EmailService } from '../../email/email.service';
 
 @Injectable()
 export class DocumentService {
   constructor(
     @InjectModel(DocumentEntity.name) private documentModel: Model<DocumentEntityDocument>,
+    private readonly emailService: EmailService,
   ) {}
 
   private startOfMonth(d: Date): Date {
@@ -53,7 +55,8 @@ export class DocumentService {
 
   async findAll(query: QueryDocumentDto, tenantId?: string): Promise<{ data: DocumentEntity[]; total: number }> {
     const tid = this.toObjectId(tenantId);
-    const { page = 1, limit = 20, search, type, status, leadId, projectId, customerId } = query;
+    const { page = 1, limit, search, type, status, leadId, projectId, customerId } = query;
+    const safeLimit = limit === undefined || limit === null ? 1000 : limit;
 
     const filter: any = { isDeleted: false };
     if (tid) filter.tenantId = tid;
@@ -71,9 +74,9 @@ export class DocumentService {
       ];
     }
 
-    const skip = (page - 1) * limit;
+    const skip = (page - 1) * safeLimit;
     const [data, total] = await Promise.all([
-      this.documentModel.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean().exec(),
+      this.documentModel.find(filter).sort({ createdAt: -1 }).skip(skip).limit(safeLimit).lean().exec(),
       this.documentModel.countDocuments(filter),
     ]);
 
@@ -288,7 +291,51 @@ export class DocumentService {
   async send(id: string, sendDto: SendDocumentDto, tenantId?: string): Promise<DocumentEntity> {
     const tid = this.toObjectId(tenantId);
 
-    const doc = await this.documentModel
+    // First find the document to get email info
+    const doc = await this.findOne(id, tenantId);
+    
+    if (!doc) {
+      throw new NotFoundException(`Document with id ${id} not found`);
+    }
+
+    // Determine the recipient email
+    const recipientEmail = sendDto.email || doc.customerEmail;
+    
+    if (!recipientEmail) {
+      throw new BadRequestException('No recipient email available');
+    }
+
+    // Send email with PDF if it's an EPQ type
+    if (['estimate', 'proposal', 'quotation'].includes(doc.type)) {
+      try {
+        // Create PDF content placeholder - in production this would generate actual PDF
+        const emailSubject = `${doc.type.charAt(0).toUpperCase() + doc.type.slice(1)}: ${doc.title || doc.documentId}`;
+        const emailBody = `Dear ${doc.customerName || 'Customer'},\n\nPlease find attached your ${doc.type} document.\n\nDocument ID: ${doc.documentId}\nTotal Amount: ${doc.total || 'N/A'}\n\nRegards,\nSolar EPC Team`;
+        
+        // Send email (without PDF for now - just the email notification)
+        await this.emailService.sendEmail(
+          recipientEmail,
+          emailSubject,
+          emailBody,
+          `<div style="font-family: Arial, sans-serif; padding: 20px;">
+            <h2>${emailSubject}</h2>
+            <p>Dear ${doc.customerName || 'Customer'},</p>
+            <p>Please find attached your ${doc.type} document.</p>
+            <table style="margin: 20px 0; border-collapse: collapse;">
+              <tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Document ID:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${doc.documentId}</td></tr>
+              <tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Total Amount:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${doc.total || 'N/A'}</td></tr>
+            </table>
+            <p>Regards,<br>Solar EPC Team</p>
+          </div>`
+        );
+      } catch (error: any) {
+        console.error('Failed to send email:', error);
+        throw new BadRequestException('Failed to send email: ' + (error?.message || 'Unknown error'));
+      }
+    }
+
+    // Update document status
+    const updatedDoc = await this.documentModel
       .findOneAndUpdate(
         {
           $or: [{ _id: this.toObjectId(id) }, { documentId: id }],
@@ -307,11 +354,7 @@ export class DocumentService {
       .lean()
       .exec();
 
-    if (!doc) {
-      throw new NotFoundException(`Document with id ${id} not found`);
-    }
-
-    return doc as DocumentEntity;
+    return updatedDoc as DocumentEntity;
   }
 
   async duplicate(id: string, tenantId?: string): Promise<DocumentEntity> {
@@ -410,5 +453,119 @@ export class DocumentService {
       .exec();
 
     return { updated: result.modifiedCount };
+  }
+
+  // ============================================
+  // Canvas Operations
+  // ============================================
+  async saveCanvas(id: string, canvasData: any, tenantId?: string): Promise<DocumentEntity> {
+    const tid = this.toObjectId(tenantId);
+
+    const doc = await this.documentModel
+      .findOneAndUpdate(
+        {
+          $or: [{ _id: this.toObjectId(id) }, { documentId: id }],
+          ...(tid && { tenantId: tid }),
+          isDeleted: false,
+        },
+        {
+          $set: {
+            canvasData: {
+              ...canvasData,
+              savedAt: new Date().toISOString(),
+            },
+          },
+        },
+        { new: true },
+      )
+      .lean()
+      .exec();
+
+    if (!doc) {
+      throw new NotFoundException(`Document with id ${id} not found`);
+    }
+
+    return doc as DocumentEntity;
+  }
+
+  // ============================================
+  // Email with PDF
+  // ============================================
+  async sendWithPdf(
+    id: string,
+    sendDto: SendDocumentDto,
+    pdfBuffer: Buffer,
+    tenantId?: string,
+  ): Promise<DocumentEntity> {
+    const tid = this.toObjectId(tenantId);
+
+    // First find the document to get email info
+    const doc = await this.findOne(id, tenantId);
+
+    if (!doc) {
+      throw new NotFoundException(`Document with id ${id} not found`);
+    }
+
+    // Determine the recipient email
+    const recipientEmail = sendDto.email || doc.customerEmail;
+
+    if (!recipientEmail) {
+      throw new BadRequestException('No recipient email available');
+    }
+
+    // Send email with PDF attachment
+    try {
+      const emailSubject = `${doc.type.charAt(0).toUpperCase() + doc.type.slice(1)}: ${doc.title || doc.documentId}`;
+      const emailBody = `Dear ${doc.customerName || 'Customer'},\n\nPlease find attached your ${doc.type} document.\n\nDocument ID: ${doc.documentId}\nTotal Amount: ₹${doc.total || 'N/A'}\n\nRegards,\nSolar EPC Team`;
+
+      // Send email with PDF attachment
+      await this.emailService.sendEmail(
+        recipientEmail,
+        emailSubject,
+        emailBody,
+        `<div style="font-family: Arial, sans-serif; padding: 20px;">
+          <h2>${emailSubject}</h2>
+          <p>Dear ${doc.customerName || 'Customer'},</p>
+          <p>Please find attached your ${doc.type} document.</p>
+          <table style="margin: 20px 0; border-collapse: collapse;">
+            <tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Document ID:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${doc.documentId}</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Total Amount:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">₹${doc.total || 'N/A'}</td></tr>
+          </table>
+          <p>Regards,<br>Solar EPC Team</p>
+        </div>`,
+        [
+          {
+            filename: `${doc.type}_${doc.documentId}.pdf`,
+            content: pdfBuffer,
+            contentType: 'application/pdf',
+          },
+        ],
+      );
+    } catch (error: any) {
+      console.error('Failed to send email with PDF:', error);
+      throw new BadRequestException('Failed to send email: ' + (error?.message || 'Unknown error'));
+    }
+
+    // Update document status
+    const updatedDoc = await this.documentModel
+      .findOneAndUpdate(
+        {
+          $or: [{ _id: this.toObjectId(id) }, { documentId: id }],
+          ...(tid && { tenantId: tid }),
+          isDeleted: false,
+        },
+        {
+          $set: {
+            status: DocumentStatus.SENT,
+            sentAt: new Date(),
+            ...(sendDto.email && { customerEmail: sendDto.email }),
+          },
+        },
+        { new: true },
+      )
+      .lean()
+      .exec();
+
+    return updatedDoc as DocumentEntity;
   }
 }
