@@ -217,18 +217,24 @@ export class InventoryService {
   }
 
   // Transfer stock between warehouses
-  async transfer(tenantId: string, fromInventoryId: string, toWarehouseId: string, quantity: number, remarks?: string) {
+  async transfer(tenantId: string, fromItemId: string, toWarehouseId: string, quantity: number, remarks?: string, fromWarehouseName?: string) {
     const actualTenantId = await this.getTenantId(tenantId);
 
-    // Get source inventory
-    const sourceInv = await this.inventoryModel.findOne({
-      tenantId: actualTenantId,
-      _id: new Types.ObjectId(fromInventoryId),
-      isDeleted: false,
-    }).exec();
+    // Get source inventory by itemId reference (ObjectId) and warehouse name
+    let sourceInv = null;
+    
+    // Try to find by itemId (as ObjectId reference to Item) + warehouseName
+    if (Types.ObjectId.isValid(fromItemId)) {
+      sourceInv = await this.inventoryModel.findOne({
+        tenantId: actualTenantId,
+        itemId: new Types.ObjectId(fromItemId),
+        warehouseName: fromWarehouseName,
+        isDeleted: false,
+      }).exec();
+    }
 
     if (!sourceInv) {
-      throw new NotFoundException(`Source inventory record not found`);
+      throw new NotFoundException(`Source inventory record not found for item ${fromItemId} in warehouse ${fromWarehouseName}`);
     }
 
     const available = (sourceInv.stock || 0) - (sourceInv.reserved || 0);

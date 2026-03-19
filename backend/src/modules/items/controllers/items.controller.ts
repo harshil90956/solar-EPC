@@ -3,12 +3,16 @@ import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
 import { PermissionGuard } from '../../settings/guards/permission.guard';
 import { ItemsService } from '../services/items.service';
+import { InventoryService } from '../services/inventory.service';
 import { CreateItemDto, UpdateItemDto } from '../dto/item.dto';
 
 @Controller('items')
 @UseGuards(JwtAuthGuard, TenantGuard, PermissionGuard)
 export class ItemsController {
-  constructor(private readonly itemsService: ItemsService) {}
+  constructor(
+    private readonly itemsService: ItemsService,
+    private readonly inventoryService: InventoryService,
+  ) {}
 
   @Get()
   async findAll(
@@ -107,5 +111,19 @@ export class ItemsController {
   ) {
     const tenantId = headerTenantId || queryTenantId;
     return this.itemsService.stockOut(tenantId, id, quantity, projectId, issuedDate, remarks);
+  }
+
+  @Post(':id/transfer')
+  transfer(
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
+    @Param('id') id: string,
+    @Body('toWarehouseId') toWarehouseId: string,
+    @Body('quantity') quantity: number,
+    @Body('remarks') remarks?: string,
+    @Body('fromWarehouseName') fromWarehouseName?: string,
+  ) {
+    const tenantId = headerTenantId || queryTenantId;
+    return this.inventoryService.transfer(tenantId, id, toWarehouseId, quantity, remarks, fromWarehouseName);
   }
 }

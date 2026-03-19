@@ -590,55 +590,13 @@ const InventoryPage = () => {
 
     setSubmitting(true);
     try {
-      // First, check if item exists in destination warehouse
-      const existingItemInDest = inventory.find(i => i.itemId === transferItem && i.warehouse === transferToWarehouse);
-
-      if (existingItemInDest) {
-        // Transfer between existing items - directly update stock (don't use stock-out which increments reserved)
-        // Source: decrease stock
-        await api.patch(`/items/${item._id || item.itemId}`, {
-          stock: (item.stock || 0) - qty,
-        }, { headers: { 'x-tenant-id': TENANT_ID } });
-
-        // Destination: increase stock
-        await api.patch(`/items/${existingItemInDest._id || existingItemInDest.itemId}`, {
-          stock: (existingItemInDest.stock || 0) + qty,
-        }, { headers: { 'x-tenant-id': TENANT_ID } });
-
-        // Add transfer record to remarks/history if needed
-        await api.post('/inventory/transfers', {
-          itemId: item.itemId,
-          fromWarehouse: transferFromWarehouse,
-          toWarehouse: transferToWarehouse,
-          quantity: qty,
-          remarks: transferRemarks || 'Stock transfer',
-          date: new Date().toISOString(),
-        }, { headers: { 'x-tenant-id': TENANT_ID } }).catch(() => {
-          // Ignore if transfers endpoint doesn't exist
-        });
-      } else {
-        // Create new item in destination warehouse
-        const newItemData = {
-          itemId: item.itemId,
-          description: item.name || item.description,
-          category: item.category,
-          unit: item.unit,
-          stock: qty,
-          reserved: 0,
-          minStock: item.minStock || 0,
-          rate: item.rate || 0,
-          warehouse: transferToWarehouse,
-          status: 'In Stock',
-        };
-
-        // Create new item in destination warehouse
-        const createdItem = await api.post('/items', newItemData, { headers: { 'x-tenant-id': TENANT_ID } });
-
-        // Reduce stock from source warehouse directly (don't use stock-out which affects reserved)
-        await api.patch(`/items/${item._id}`, {
-          stock: (item.stock || 0) - qty,
-        }, { headers: { 'x-tenant-id': TENANT_ID } });
-      }
+      // Call the new transfer endpoint
+      await api.post(`/items/${item._id}/transfer`, {
+        toWarehouseId: transferToWarehouse,
+        quantity: qty,
+        remarks: transferRemarks || `Transfer from ${transferFromWarehouse} to ${transferToWarehouse}`,
+        fromWarehouseName: transferFromWarehouse,
+      }, { headers: { 'x-tenant-id': TENANT_ID } });
 
       // Refresh inventory
       const data = await api.get('/items', { headers: { 'x-tenant-id': TENANT_ID } });
