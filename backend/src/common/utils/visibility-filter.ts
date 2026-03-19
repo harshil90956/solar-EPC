@@ -3,6 +3,7 @@ import { Types } from 'mongoose';
 export interface UserWithVisibility {
   _id?: Types.ObjectId;
   id?: string;
+  email?: string;
   tenantId?: string | Types.ObjectId;
   dataScope: 'ALL' | 'ASSIGNED';
   role?: string;
