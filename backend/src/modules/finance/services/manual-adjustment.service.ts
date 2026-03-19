@@ -299,12 +299,16 @@ export class ManualAdjustmentService {
             console.log('[Vendor Payment] Recorded in financeVendors successfully');
           } catch (fvErr) {
             console.error('[Vendor Payment] Failed to record in financeVendors:', fvErr);
-            // Don't fail if financeVendor update fails
+            // Re-throw so the error is visible
+            throw new Error(`Failed to record vendor payment: ${fvErr instanceof Error ? fvErr.message : String(fvErr)}`);
           }
         }
       } catch (poErr) {
         console.error('[Vendor Payment] Failed to update Purchase Orders:', poErr);
-        // Don't fail the adjustment if PO update fails
+        // Don't fail the adjustment if PO update fails, but DO fail if financeVendors recording failed
+        if (poErr instanceof Error && poErr.message.includes('Failed to record vendor payment')) {
+          throw poErr;
+        }
       }
     }
 
