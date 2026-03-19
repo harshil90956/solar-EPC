@@ -1,64 +1,67 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, Req, Headers, HttpCode, HttpStatus, UseGuards, ForbiddenException } from '@nestjs/common';
 import { AttendanceService } from '../services/attendance.service';
-import { PermissionService } from '../services/permission.service';
 import { DataScope } from '../schemas/permission.schema';
 import { CheckInDto, CheckOutDto, GetAttendanceQueryDto } from '../dto/attendance.dto';
 import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
+import { PermissionEngineService } from '../../../common/services/permission-engine.service';
 
 @Controller('hrm/attendance')
 @UseGuards(JwtAuthGuard, TenantGuard)
 export class AttendanceController {
   constructor(
     private readonly attendanceService: AttendanceService,
-    private readonly permissionService: PermissionService,
+    private readonly permissionEngine: PermissionEngineService,
   ) {}
 
   private async checkPermission(req: any, module: string, action: string) {
     const user = req.user;
     if (!user) throw new ForbiddenException('User not authenticated');
 
-    const tenantId = req.tenant?.id || req.user?.tenantId || req.headers?.['x-tenant-id'] || req.query?.tenantId;
-    console.log('[PERMISSION BACKEND]', { roleId: user?.roleId || user?.role, module, action, tenantId });
-
-    // Fast-path: honor permissions already present on JWT/user payload
-    // Supports:
-    // 1. permissions array: ["employees.view", "employees:view"]
-    // 2. modulePermissions object: { employees: { actions: ["view"], ... } }
-    const userPerms: string[] = Array.isArray(user?.permissions) ? user.permissions : [];
-    const modulePerms = user?.modulePermissions?.[module];
-    
-    const keyColon = `${module}:${action}`;
-    const keyDot = `${module}.${action}`;
-    
-    if (userPerms.includes(keyColon) || userPerms.includes(keyDot)) {
-      return;
+    const tenantId = req.tenant?.id || req.user?.tenantId;
+    if (!tenantId) {
+      throw new ForbiddenException('Tenant context missing. Access denied.');
     }
 
-    if (modulePerms?.actions?.includes(action)) {
-      return;
+    const userId = user.id || user._id || user.sub;
+    const roleIdRaw = user.roleId || user.customRoleId || user.role;
+    const roleId = typeof roleIdRaw === 'string' ? roleIdRaw : (roleIdRaw ? String(roleIdRaw) : '');
+
+    if (!userId || !roleId) {
+      throw new ForbiddenException('User ID or role not found in token');
     }
 
-    const roleId = user.roleId || user.role;
-    if (!roleId) throw new ForbiddenException('User has no role assigned');
+    const { permissions } = await this.permissionEngine.getPermissions(
+      String(userId),
+      String(tenantId),
+      String(roleId),
+    );
 
-    const hasPermission = await this.permissionService.checkModuleAction(roleId, module, action, tenantId);
-    if (!hasPermission) {
+    if (permissions?.[module]?.[action] !== true) {
       throw new ForbiddenException(`Permission denied: ${module}.${action} required`);
     }
   }
 
   private async getDataScopeFilter(req: any, module: string): Promise<any> {
     const user = req.user;
-    const roleId = user?.roleId || user?.role;
-    const tenantId = req.tenant?.id;
-
-    if (!roleId) return { employeeId: user?.sub };
-
-    const dataScope = await this.permissionService.getDataScope(roleId, module, tenantId);
     const userDepartment = user?.department;
 
-    switch (dataScope) {
+    const tenantId = req.tenant?.id || req.user?.tenantId;
+    const userId = user?.id || user?._id || user?.sub;
+    const roleIdRaw = user?.roleId || user?.customRoleId || user?.role;
+    const roleId = typeof roleIdRaw === 'string' ? roleIdRaw : (roleIdRaw ? String(roleIdRaw) : '');
+
+    if (!tenantId || !userId || !roleId) return { employeeId: user?.sub };
+
+    const { dataScope } = await this.permissionEngine.getPermissions(
+      String(userId),
+      String(tenantId),
+      String(roleId),
+    );
+
+    const scope = dataScope?.[module];
+
+    switch (scope) {
       case DataScope.OWN:
         return { employeeId: user?.sub };
       case DataScope.DEPARTMENT:
@@ -90,26 +93,32 @@ export class AttendanceController {
   @Get()
   async findAll(@Query() query: GetAttendanceQueryDto, @Req() req: any) {
     await this.checkPermission(req, 'attendance', 'view');
-    const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
+    const tenantId = req.tenant?.id || req.user?.tenantId || req.headers['x-tenant-id'];
  
     // Get data scope filter
     const scopeFilter = await this.getDataScopeFilter(req, 'attendance');
 
+    // Normalize dates to a full-day range to avoid timezone edge cases
+    const startDate = query.startDate ? new Date(query.startDate) : undefined;
+    if (startDate) startDate.setHours(0, 0, 0, 0);
+    const endDate = query.endDate ? new Date(query.endDate) : undefined;
+    if (endDate) endDate.setHours(23, 59, 59, 999);
+
     let data;
     if (scopeFilter.employeeId) {
       // Own scope - only own attendance
-      data = await this.attendanceService.findByEmployee(req.user.sub, query.startDate, query.endDate, tenantId, req.user);
+      data = await this.attendanceService.findByEmployee(String(scopeFilter.employeeId), startDate, endDate, tenantId, req.user);
     } else if (scopeFilter.department) {
       // Department scope - filter by department
-      data = await this.attendanceService.findAll(query.employeeId, query.startDate, query.endDate, tenantId, req.user);
+      data = await this.attendanceService.findAll(query.employeeId, startDate, endDate, tenantId, req.user);
       // Filter by department
       data = data.filter((a: any) => a.department === scopeFilter.department);
     } else {
       // All scope - full access
       data = await this.attendanceService.findAll(
         query.employeeId,
-        query.startDate,
-        query.endDate,
+        startDate,
+        endDate,
         tenantId,
         req.user,
       );
@@ -125,6 +134,15 @@ export class AttendanceController {
     return { success: true, data };
   }
 
+  @Get('reverse-geocode')
+  async reverseGeocode(@Query('lat') lat: string, @Query('lng') lng: string, @Req() req: any) {
+    await this.checkPermission(req, 'attendance', 'view');
+    const latitude = Number(lat);
+    const longitude = Number(lng);
+    const data = await this.attendanceService.reverseGeocode(latitude, longitude);
+    return { success: true, data };
+  }
+
   @Get(':employeeId')
   async findByEmployee(@Param('employeeId') employeeId: string, @Req() req: any) {
     await this.checkPermission(req, 'attendance', 'view');
@@ -133,11 +151,9 @@ export class AttendanceController {
     // Check data scope
     const scopeFilter = await this.getDataScopeFilter(req, 'attendance');
 
-    if (scopeFilter.employeeId && employeeId !== scopeFilter.employeeId) {
-      throw new ForbiddenException('You can only view your own attendance');
-    }
+    const effectiveEmployeeId = scopeFilter.employeeId ? scopeFilter.employeeId : employeeId;
 
-    const data = await this.attendanceService.findByEmployeeId(employeeId, tenantId, req.user);
+    const data = await this.attendanceService.findByEmployeeId(effectiveEmployeeId, tenantId, req.user);
     return { success: true, data };
   }
 
@@ -154,11 +170,9 @@ export class AttendanceController {
     // Check data scope
     const scopeFilter = await this.getDataScopeFilter(req, 'attendance');
 
-    if (scopeFilter.employeeId && employeeId !== scopeFilter.employeeId) {
-      throw new ForbiddenException('You can only view your own attendance summary');
-    }
+    const effectiveEmployeeId = scopeFilter.employeeId ? scopeFilter.employeeId : employeeId;
 
-    const data = await this.attendanceService.getMonthlySummary(employeeId, month, year, tenantId, req.user);
+    const data = await this.attendanceService.getMonthlySummary(effectiveEmployeeId, month, year, tenantId, req.user);
     return { success: true, data };
   }
 

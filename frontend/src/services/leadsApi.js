@@ -41,32 +41,38 @@ export const leadsApi = {
     return api.get('/leads/dashboard/overview');
   },
 
-  async getDashboardKpis() {
-    return api.get('/leads/dashboard/kpis');
+  // UNIFIED DASHBOARD API - Single call for all dashboard data
+  async getDashboard(params = {}) {
+    return api.get('/leads/dashboard', params);
   },
 
-  async getDashboardFunnel() {
-    return api.get('/leads/dashboard/funnel');
+  // DEPRECATED - Use getDashboard() instead
+  async getDashboardKpis(params = {}) {
+    return api.get('/leads/dashboard/kpis', params);
   },
 
-  async getDashboardSources() {
-    return api.get('/leads/dashboard/sources');
+  async getDashboardFunnel(params = {}) {
+    return api.get('/leads/dashboard/funnel', params);
+  },
+
+  async getDashboardSources(params = {}) {
+    return api.get('/leads/dashboard/sources', params);
   },
 
   async getDashboardSource() {
     return api.get('/leads/dashboard/source');
   },
 
-  async getDashboardMonthly() {
-    return api.get('/leads/dashboard/monthly');
+  async getDashboardMonthly(params = {}) {
+    return api.get('/leads/dashboard/monthly', params);
   },
 
   async getDashboardTrend() {
     return api.get('/leads/dashboard/trend');
   },
 
-  async getDashboardTopPerformers() {
-    return api.get('/leads/dashboard/top-performers');
+  async getDashboardTopPerformers(params = {}) {
+    return api.get('/leads/dashboard/top-performers', params);
   },
 
   async getDashboardActivity() {

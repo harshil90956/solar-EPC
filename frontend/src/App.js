@@ -79,6 +79,7 @@ import IntelligenceDashboardPage from './pages/IntelligenceDashboardPage';
 import RemindersPage from './pages/RemindersPage';
 import HrmPermissionsPage from './pages/HrmPermissionsPage';
 import ProfilePage from './pages/ProfilePage';
+import TasksPage from './pages/TasksPage';
 import NotificationSystem from './components/NotificationSystem';
 
 
@@ -143,11 +144,9 @@ const PAGE_MAP = {
   settings: { component: SettingsPage, title: 'Settings' },
   'hrm-permissions': { component: HrmPermissionsPage, title: 'HRM Permissions' },
   intelligence: { component: IntelligenceDashboardPage, title: 'AI Intelligence' },
-
   documents: { component: DocumentPage, title: 'Documents' },
-
   profile: { component: ProfilePage, title: 'My Profile' },
-
+  tasks: { component: TasksPage, title: 'Tasks' },
 };
 
 
@@ -317,20 +316,14 @@ const AppInner = () => {
 
   // Custom role / employee: only modules where view = true in Role Builder
 
+  const userRole = (user?.role || '').toLowerCase();
+  const isAdmin = userRole === 'admin' || userRole === 'superadmin' || user?.isSuperAdmin;
+
   const hasAccess = (page) => {
-
-    if (page === 'dashboard') return true;
-
     if (!isModuleEnabled(page)) return false;
-
-    const userRole = (user?.role || '').toLowerCase();
-
-    if (user?.isSuperAdmin || userRole === 'admin' || userRole === 'superadmin') return true;
-
-    const roleId = user?.roleId || user?.role;
-
-    return resolvePermission(user?.id, roleId, page, 'view');
-
+    // Admin bypass - admins can access all enabled modules
+    if (isAdmin) return true;
+    return resolvePermission(page, 'view') === true;
   };
 
 

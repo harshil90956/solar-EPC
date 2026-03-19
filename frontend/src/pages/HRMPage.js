@@ -16,7 +16,7 @@ import { Modal } from '../components/ui/Modal';
 import { Input, FormField, Select, Textarea } from '../components/ui/Input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/Tabs';
 import DataTable from '../components/ui/DataTable';
-import { StatusBadge } from '../components/ui/Badge';
+import { Badge } from '../components/ui/Badge'; // Fix component usage to match import name
 import { employeeApi, attendanceApi, leaveApi, payrollApi, incrementApi, departmentApi } from '../services/hrmApi';
 import { api } from '../lib/apiClient';
 import { useQuery } from '@tanstack/react-query';
@@ -70,33 +70,34 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
   }, [initialTab]);
   const [loading, setLoading] = useState(false);
 
-  // SINGLE SOURCE OF TRUTH: Direct permission checks from AuthContext
-  const canViewEmployees = can('employees', 'view');
-  const canManageEmployees = can('employees', 'edit') || can('employees', 'create');
-  const canDeleteEmployees = can('employees', 'delete');
-
-  const canViewLeaves = can('leaves', 'view');
-  const canApplyLeave = can('leaves', 'create');
-  const canApproveLeave = can('leaves', 'approve');
-
-  const canViewAttendance = can('attendance', 'view');
-  const canCheckIn = can('attendance', 'checkin');
-  const canCheckOut = can('attendance', 'checkout');
-  const canManageAttendance = can('attendance', 'edit');
-
-  const canViewPayroll = can('payroll', 'view');
-  const canManagePayroll = can('payroll', 'edit') || can('payroll', 'create');
-  const canApprovePayroll = can('payroll', 'approve');
-
-  const canViewIncrements = can('increments', 'view');
-  const canManageIncrements = can('increments', 'edit') || can('increments', 'create');
-
-  const canViewDepartments = can('departments', 'view');
-  const canManageDepartments = can('departments', 'edit') || can('departments', 'create');
-
-  const canViewHrDashboard = can('hrm', 'view');
-
   const isAdmin = user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'superadmin' || user?.isSuperAdmin;
+
+  // SINGLE SOURCE OF TRUTH: Direct permission checks from AuthContext
+  // Admin bypass: Admin users get all permissions automatically
+  const canViewEmployees = isAdmin || can('employees', 'view');
+  const canManageEmployees = isAdmin || can('employees', 'edit') || can('employees', 'create');
+  const canDeleteEmployees = isAdmin || can('employees', 'delete');
+
+  const canViewLeaves = isAdmin || can('leaves', 'view');
+  const canApplyLeave = isAdmin || can('leaves', 'create');
+  const canApproveLeave = isAdmin || can('leaves', 'approve');
+
+  const canViewAttendance = isAdmin || can('attendance', 'view');
+  const canCheckIn = isAdmin || can('attendance', 'checkin');
+  const canCheckOut = isAdmin || can('attendance', 'checkout');
+  const canManageAttendance = isAdmin || can('attendance', 'edit');
+
+  const canViewPayroll = isAdmin || can('payroll', 'view');
+  const canManagePayroll = isAdmin || can('payroll', 'edit') || can('payroll', 'create');
+  const canApprovePayroll = isAdmin || can('payroll', 'approve');
+
+  const canViewIncrements = isAdmin || can('increments', 'view');
+  const canManageIncrements = isAdmin || can('increments', 'edit') || can('increments', 'create');
+
+  const canViewDepartments = isAdmin || can('departments', 'view');
+  const canManageDepartments = isAdmin || can('departments', 'edit') || can('departments', 'create');
+
+  const canViewHrDashboard = isAdmin || can('hrm', 'view');
 
   // Get data scope for attendance - single source of truth
   const attendanceDataScope = getDataScope('attendance');
@@ -229,12 +230,12 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
   }, [user, canViewEmployees, canViewAttendance, canViewLeaves, canViewPayroll, canViewIncrements, canViewDepartments]);
 
   useEffect(() => {
-    if (activeTab === 'attendance') fetchAttendance();
-    if (activeTab === 'leaves') fetchLeaves();
-    if (activeTab === 'payroll') fetchPayrolls();
-    if (activeTab === 'increments') fetchIncrements();
-    if (activeTab === 'departments') fetchDepartments();
-  }, [activeTab]);
+    if (activeTab === 'attendance' && canViewAttendance) fetchAttendance();
+    if (activeTab === 'leaves' && canViewLeaves) fetchLeaves();
+    if (activeTab === 'payroll' && canViewPayroll) fetchPayrolls();
+    if (activeTab === 'increments' && canViewIncrements) fetchIncrements();
+    if (activeTab === 'departments' && canViewDepartments) fetchDepartments();
+  }, [activeTab, canViewAttendance, canViewLeaves, canViewPayroll, canViewIncrements, canViewDepartments]);
 
   // Debug: Track activeTab changes
   useEffect(() => {
@@ -331,10 +332,10 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
 
   // Fetch departments when employee modal opens
   useEffect(() => {
-    if (showEmployeeModal) {
+    if (showEmployeeModal && canViewDepartments) {
       fetchDepartments();
     }
-  }, [showEmployeeModal]);
+  }, [showEmployeeModal, canViewDepartments]);
   const handleCreateEmployee = async () => {
     // Validate required fields
     if (!employeeForm.roleId) {

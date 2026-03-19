@@ -1711,7 +1711,7 @@ const UserPermissionsPanel = () => {
 
     const getEffectivePerm = (moduleId, actionId) => {
         if (!selectedUser) return false;
-        return resolvePermission(selectedUser.id, selectedUser.role, moduleId, actionId);
+        return resolvePermission(moduleId, actionId);
     };
 
     const getOverrideState = (moduleId, actionId) => {
@@ -1926,11 +1926,11 @@ const ViewAsPanel = () => {
     const previewUser = enrichedUsers.find(u => u.id === selectedUserId);
     const filteredMods = MODULE_DEFS.filter(m => !modFilter || m.label.toLowerCase().includes(modFilter.toLowerCase()));
 
-    const getPerms = (moduleId) => {
+    const getPermSnapshot = (moduleId) => {
         if (!previewUser) return {};
         return Object.fromEntries(ACTION_DEFS.map(act => [
             act.id,
-            resolvePermission(previewUser.id, previewUser.role, moduleId, act.id),
+            resolvePermission(moduleId, act.id),
         ]));
     };
 
@@ -2031,7 +2031,7 @@ const ViewAsPanel = () => {
                                     </thead>
                                     <tbody>
                                         {filteredMods.map((mod, i) => {
-                                            const perms = getPerms(mod.id);
+                                            const perms = getPermSnapshot(mod.id);
                                             const count = Object.values(perms).filter(Boolean).length;
                                             const ovr = userOverrides[previewUser.id]?.overrides?.[mod.id];
                                             const hasModOvr = ovr && Object.values(ovr).some(v => v !== null && v !== undefined);

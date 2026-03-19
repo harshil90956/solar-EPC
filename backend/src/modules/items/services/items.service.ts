@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException, Inject } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Item } from '../schemas/item.schema';
 import { InventoryReservation } from '../../inventory/schemas/inventory-reservation.schema';
 import { Tenant } from '../../../core/tenant/schemas/tenant.schema';
+import { StockMovementService } from '../../inventory/services/stock-movement.service';
 import { CreateItemDto, UpdateItemDto } from '../dto/item.dto';
 
 interface UserWithVisibility {
@@ -18,6 +19,7 @@ export class ItemsService {
     @InjectModel(Item.name) private readonly itemModel: Model<Item>,
     @InjectModel(InventoryReservation.name) private readonly reservationModel: Model<InventoryReservation>,
     @InjectModel(Tenant.name) private readonly tenantModel: Model<Tenant>,
+    @Inject(forwardRef(() => StockMovementService)) private readonly stockMovementService: StockMovementService,
   ) {}
 
   private async getTenantId(tenantCode: string): Promise<string> {
@@ -52,8 +54,13 @@ export class ItemsService {
         const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
           ? new Types.ObjectId(userId)
           : userId;
-        query.assignedTo = objectId;
-        console.log(`[ITEMS VISIBILITY] Applied STRICT assignedTo filter:`, objectId);
+        // Show items assigned to user OR items with no assignedTo (for backward compatibility)
+        query.$or = [
+          { assignedTo: objectId },
+          { assignedTo: { $exists: false } },
+          { assignedTo: null }
+        ];
+        console.log(`[ITEMS VISIBILITY] Applied ASSIGNED filter (including unassigned items):`, objectId);
       }
     } else {
       console.log(`[ITEMS VISIBILITY] No filter - ALL scope or no user`);
@@ -97,6 +104,13 @@ export class ItemsService {
   async update(tenantId: string, id: string, updateItemDto: UpdateItemDto) {
     // Resolve tenant code to actual ObjectId
     const actualTenantId = await this.getTenantId(tenantId);
+    
+    // Get original item to compare stock changes
+    const originalItem = await this.itemModel.findOne({
+      tenantId: actualTenantId,
+      _id: new Types.ObjectId(id),
+    }).exec();
+    
     const item = await this.itemModel.findOneAndUpdate(
       { tenantId: actualTenantId, _id: new Types.ObjectId(id) },
       { $set: updateItemDto },
@@ -105,6 +119,46 @@ export class ItemsService {
 
     if (!item) {
       throw new NotFoundException(`Item ${id} not found`);
+    }
+
+    // Log stock movement if stock increased (PURCHASE)
+    if (updateItemDto.stock !== undefined && originalItem && updateItemDto.stock > (originalItem.stock || 0)) {
+      const quantity = updateItemDto.stock - (originalItem.stock || 0);
+      try {
+        console.log(`[ITEMS UPDATE] Logging PURCHASE movement for item: ${item._id.toString()}, qty: ${quantity}`);
+        await this.stockMovementService.logMovement(tenantId, {
+          itemId: item._id.toString(),
+          type: 'PURCHASE',
+          quantity: quantity,
+          reference: 'Direct Update',
+          referenceType: 'PO',
+          note: `Stock increased by ${quantity} units via item update`,
+          warehouseName: item.warehouse,
+        });
+        console.log(`[ITEMS UPDATE] PURCHASE logged successfully`);
+      } catch (err) {
+        console.error('[ITEMS UPDATE] Failed to log PURCHASE:', err);
+      }
+    }
+
+    // Log stock movement if reserved increased (RESERVE)
+    if (updateItemDto.reserved !== undefined && originalItem && updateItemDto.reserved > (originalItem.reserved || 0)) {
+      const quantity = updateItemDto.reserved - (originalItem.reserved || 0);
+      try {
+        console.log(`[ITEMS UPDATE] Logging RESERVE movement for item: ${item._id.toString()}, qty: ${quantity}`);
+        await this.stockMovementService.logMovement(tenantId, {
+          itemId: item._id.toString(),
+          type: 'RESERVE',
+          quantity: quantity,
+          reference: 'Project Reservation',
+          referenceType: 'PROJECT',
+          note: `Reserved ${quantity} units via item update`,
+          warehouseName: item.warehouse,
+        });
+        console.log(`[ITEMS UPDATE] RESERVE logged successfully`);
+      } catch (err) {
+        console.error('[ITEMS UPDATE] Failed to log RESERVE:', err);
+      }
     }
 
     return item;
@@ -203,6 +257,24 @@ export class ItemsService {
           ...(poReference ? { poReference } : {}),
         });
         const saved = await newWarehouseItem.save();
+        
+        // Log stock movement for PURCHASE (new warehouse)
+        try {
+          console.log(`[ITEMS STOCK-IN] Logging PURCHASE movement for new warehouse`);
+          await this.stockMovementService.logMovement(tenantId, {
+            itemId: saved._id.toString(),
+            type: 'PURCHASE',
+            quantity: quantity,
+            reference: poReference,
+            referenceType: 'PO',
+            note: remarks || `Stock in: ${quantity} units to ${warehouse}`,
+            warehouseName: warehouse,
+          });
+          console.log(`[ITEMS STOCK-IN] PURCHASE logged successfully`);
+        } catch (err) {
+          console.error('[ITEMS STOCK-IN] Failed to log PURCHASE:', err);
+        }
+        
         return { data: saved, message: `Stock in successful. Created ${quantity} units in ${warehouse}.` };
       }
     }
@@ -216,6 +288,23 @@ export class ItemsService {
       },
       { new: true },
     ).exec();
+
+    // Log stock movement for PURCHASE (same warehouse)
+    try {
+      console.log(`[ITEMS STOCK-IN] Logging PURCHASE movement for item: ${updated?._id?.toString()}`);
+      await this.stockMovementService.logMovement(tenantId, {
+        itemId: updated?._id?.toString() || id,
+        type: 'PURCHASE',
+        quantity: quantity,
+        reference: poReference,
+        referenceType: 'PO',
+        note: remarks || `Stock in: ${quantity} units`,
+        warehouseName: updated?.warehouse || warehouse,
+      });
+      console.log(`[ITEMS STOCK-IN] PURCHASE logged successfully`);
+    } catch (err) {
+      console.error('[ITEMS STOCK-IN] Failed to log PURCHASE:', err);
+    }
 
     return { data: updated, message: `Stock in successful. Added ${quantity} units.` };
   }
@@ -261,6 +350,23 @@ export class ItemsService {
         console.log('[STOCK-OUT] Reservation object created:', reservation);
         const saved = await reservation.save();
         console.log('[STOCK-OUT] Reservation saved successfully:', saved);
+        
+        // Log stock movement for RESERVE
+        try {
+          console.log(`[ITEMS STOCK-OUT] Logging RESERVE movement for item: ${item._id.toString()}`);
+          await this.stockMovementService.logMovement(tenantId, {
+            itemId: item._id.toString(),
+            type: 'RESERVE',
+            quantity: quantity,
+            reference: projectId,
+            referenceType: 'PROJECT',
+            note: remarks || `Reserved ${quantity} units for project ${projectId}`,
+            warehouseName: item.warehouse,
+          });
+          console.log(`[ITEMS STOCK-OUT] RESERVE logged successfully`);
+        } catch (err) {
+          console.error('[ITEMS STOCK-OUT] Failed to log RESERVE:', err);
+        }
       } catch (err) {
         console.error('[STOCK-OUT] Failed to create reservation record:', err);
         // Don't fail the stock-out if reservation creation fails

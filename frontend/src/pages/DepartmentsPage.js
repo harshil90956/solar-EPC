@@ -157,8 +157,10 @@ const DepartmentsPage = () => {
 
   useEffect(() => {
     setMounted(true);
-    fetchDepartments();
-    fetchEmployees();
+    if (canView()) {
+      fetchDepartments();
+      fetchEmployees();
+    }
   }, []);
 
   if (!mounted) return null;
@@ -434,7 +436,12 @@ const DepartmentsPage = () => {
         <p className="text-sm text-[var(--text-muted)]">
           {filteredDepartments.length} of {departments.length} departments
         </p>
-        <Button variant="outline" onClick={fetchDepartments} className="ml-auto flex items-center gap-2">
+        <Button
+          variant="outline"
+          onClick={canView() ? fetchDepartments : undefined}
+          disabled={!canView()}
+          className="ml-auto flex items-center gap-2"
+        >
           <RefreshCw size={14} /> Refresh
         </Button>
       </div>
@@ -449,6 +456,7 @@ const DepartmentsPage = () => {
           'No departments found.'
         }
         loading={loading}
+        onRowClick={(row) => setViewDepartment(row)}
         expandedRowKey={viewDepartment?._id}
         renderExpanded={(dept) => (
           <div className="p-4 border-t border-[var(--border-muted)] bg-gradient-to-b from-white to-[var(--bg-elevated)]">
@@ -460,7 +468,7 @@ const DepartmentsPage = () => {
                 setEditingDepartment(d);
                 setDepartmentForm({ name: d.name, code: d.code || '', description: d.description || '' }); 
                 setShowDepartmentModal(true); 
-              } : null} 
+              } : () => {}} 
               inline 
             />
           </div>

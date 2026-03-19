@@ -6550,6 +6550,16 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+  // Projects data state for looking up site information
+
+  const [projects, setProjects] = useState([]);
+
+
+
+
+
+
+
   // Newly scheduled visits in this session (for table below dropdown)
 
 
@@ -6652,7 +6662,11 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
     { key: 'id', header: 'Ticket ID', render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span> },
+
+
 
 
 
@@ -6660,7 +6674,11 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
     { key: 'type', header: 'Type', render: v => <span className="text-xs text-[var(--text-secondary)]">{v}</span> },
+
+
 
 
 
@@ -6668,7 +6686,11 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
     { key: 'priority', header: 'Priority', render: v => <PriorityBadge value={v} /> },
+
+
 
 
 
@@ -6676,51 +6698,101 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-    {
+
+
+    { key: 'nextSchedule', header: 'Next Schedule', render: (v, ticket) => { 
 
 
 
-      key: 'assignedTo', header: 'Assigned To', render: (v, ticket) => {
+
+
+        // Find next scheduled visit for this ticket (visit.contractId matches ticket.id)
 
 
 
-        // Look up engineer name from engineers list using ID
+
+
+        const nextVisit = visits.find(visit => 
 
 
 
-        const engineer = engineers.find(e => e.id === v || e._id === v);
+
+
+          visit.contractId === ticket.id && 
 
 
 
-        const displayName = engineer?.name || engineer?.email?.split('@')[0] || v || '—';
+
+
+          visit.status === 'Scheduled' 
 
 
 
-        return (
+
+
+        ); 
 
 
 
-          <div className="flex items-center gap-1.5">
+
+
+        if (!nextVisit) return <span className="text-xs text-[var(--text-muted)]">—</span>; 
 
 
 
-            <Avatar name={displayName} size="xs" />
+
+
+        const date = nextVisit.scheduled_date || nextVisit.scheduledDate; 
 
 
 
-            <span className="text-xs text-[var(--text-muted)]">{displayName}</span>
+
+
+        const time = nextVisit.scheduled_time || nextVisit.scheduledTime; 
 
 
 
-          </div>
+
+
+        return ( 
 
 
 
-        );
+
+
+          <div className="flex flex-col"> 
 
 
 
-      }
+
+
+            <span className="text-xs text-[var(--text-primary)]">{date}</span> 
+
+
+
+
+
+            <span className="text-[10px] text-[var(--text-muted)]">{time}</span> 
+
+
+
+
+
+          </div> 
+
+
+
+
+
+        ); 
+
+
+
+
+
+      } 
+
+
 
 
 
@@ -6728,11 +6800,17 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-    { key: 'created', header: 'Created', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
-
 
 
     { key: 'resolved', header: 'Resolved', render: v => <span className="text-xs text-[var(--text-muted)]">{v ?? '—'}</span> },
+
+
+
+
+
+    { key: 'created', header: 'Created', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
+
+
 
 
 
@@ -11826,6 +11904,19 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+  // Fetch projects for site lookup
+  const fetchProjects = async () => {
+    try {
+      const res = await api.get('/projects', { tenantId: TENANT_ID });
+      const data = res?.data ?? res;
+      const projectsArray = Array.isArray(data) ? data : (data?.data || []);
+      setProjects(projectsArray);
+    } catch (err) {
+      console.error('Projects fetch error:', err);
+      setProjects([]);
+    }
+  };
+
   // Fetch total AMC contracts count (without pagination for tab count)
 
   const fetchTotalAmcContracts = async () => {
@@ -11991,6 +12082,8 @@ const ServicePage = ({ onNavigate, initialTab }) => {
     fetchEngineers(); // Load engineers for Team Overview card
 
     fetchAmcContracts(); // Load AMC contracts with pagination
+
+    fetchProjects(); // Load projects for site lookup in Schedule Visit table
 
     // Fetch total counts for tabs
 
@@ -14969,645 +15062,28 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
   const handleAssignEngineer = async () => {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     if (!selectedEngineer || !assignModal.ticket) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       console.log('Assign cancelled: no engineer or ticket selected');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       return;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    console.log('Assigning engineer:', selectedEngineer, 'to ticket:', assignModal.ticket.id);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    console.log('Selecting engineer:', selectedEngineer, 'for ticket:', assignModal.ticket.id);
     setAssigning(true);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     try {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      const result = await updateTicket(assignModal.ticket.id, { assignedTo: selectedEngineer });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      console.log('Assign success:', result);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      setTickets(prev => prev.map(t => t.id === assignModal.ticket.id ? { ...t, assignedTo: selectedEngineer } : t));
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+      // Find engineer object to get the ID
+      const engineer = engineers.find(e => e.name === selectedEngineer || e.email === selectedEngineer);
+      if (engineer) {
+        // Save engineerId to visitForm for later use when scheduling visit
+        setVisitForm(prev => ({ ...prev, engineerId: String(engineer.id || engineer._id) }));
+        console.log('Engineer selected:', engineer.name, 'ID:', engineer.id || engineer._id);
+      }
       closeAssignModal();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      showToast(`Engineer "${selectedEngineer}" assigned successfully`, 'success');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+      showToast(`Engineer "${selectedEngineer}" selected`, 'success');
     } catch (err) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      console.error('Assign error:', err);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      showToast('Failed to assign engineer: ' + (err.message || 'Unknown error'), 'error');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+      console.error('Select engineer error:', err);
+      showToast('Failed to select engineer: ' + (err.message || 'Unknown error'), 'error');
     } finally {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       setAssigning(false);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   };
 
 
@@ -15736,7 +15212,10 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-      await createTicket(newTicket);
+      // Remove empty assignedTo to prevent Cast to ObjectId error
+      const { assignedTo, ...ticketData } = newTicket;
+      const ticketPayload = assignedTo ? newTicket : ticketData;
+      await createTicket(ticketPayload);
 
 
 
@@ -22909,111 +22388,10 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
     { label: 'Edit', icon: Pencil, onClick: row => openEditModal(row) },
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    { label: 'Assign Engineer', icon: Wrench, onClick: row => openAssignModal(row) },
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    { label: 'Mark Resolved', icon: CheckCircle, onClick: (row) => handleStageChange(row.id, 'Resolved') },
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    { label: 'Delete', icon: Trash2, danger: true, onClick: (row) => handleDeleteTicket(row.id) },
-
     { label: 'Schedule Visit', icon: Clock, onClick: (row) => openScheduleVisitModal(row) },
-
-
-
-
-
-
-
+    { label: 'Mark Resolved', icon: CheckCircle, onClick: (row) => handleStageChange(row.id, 'Resolved') },
+    { label: 'Delete', icon: Trash2, danger: true, onClick: (row) => handleDeleteTicket(row.id) },
+    // ... (rest of the code remains the same)
 
 
 
@@ -26620,37 +25998,17 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+      // Assign engineer to ticket first
+      if (engineerId && scheduleVisitModal.contract?.id) {
+        try {
+          await updateTicket(scheduleVisitModal.contract.id, { assignedTo: engineerId });
+          showToast('Engineer assigned to ticket', 'success');
+        } catch (assignErr) {
+          console.error('Failed to assign engineer to ticket:', assignErr);
+        }
+      }
+
       // Create the visit (this will show in Schedule Visit tab)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
       await createVisit(visitData);
 
@@ -34126,943 +33484,6 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-            {/* Select Customer Dropdown */}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            <div className="glass-card p-4">
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-              <FormField label="Select Customer *">
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                <Select
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                  value={selectedCustomerForVisit}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                  onChange={e => {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                    const customer = e.target.value;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                    setSelectedCustomerForVisit(customer);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                    if (customer) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                      // Find first contract for this customer
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                      const contract = amcContracts.find(c => c.customer === customer);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                      if (contract) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                        openScheduleVisitModal(contract);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                      }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                  }}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                >
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                  <option value="">Select a customer...</option>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                  {[...new Set(amcContracts.map(c => c.customer))].map(customer => (
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                    <option key={customer} value={customer}>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                      {customer}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                    </option>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                  ))}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                </Select>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                {amcContracts.length === 0 && (
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                  <p className="text-xs text-[var(--text-muted)] mt-2">No AMC contracts available.</p>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                )}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-              </FormField>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -36262,7 +34683,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-                          <td className="py-3 px-3 text-xs text-[var(--text-primary)]">{visit.customer || '—'}</td>
+                          <td className="py-3 px-3 text-xs text-[var(--text-primary)]">
+
+                            {(() => {
+
+                              // If visit has customer, use it
+
+                              if (visit.customer && visit.customer !== 'Unknown') return visit.customer;
+
+                              // Otherwise lookup from tickets using contract_id
+
+                              const ticket = tickets.find(t => t.id === (visit.contract_id || visit.contractId));
+
+                              return ticket?.customerName || '—';
+
+                            })()}
+
+                          </td>
 
 
 
@@ -36294,7 +34731,21 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-                          <td className="py-3 px-3 text-xs text-[var(--text-muted)]">{visit.site || '—'}</td>
+                          <td className="py-3 px-3 text-xs text-[var(--text-muted)]">
+                            {(() => {
+                              // If visit has site, use it
+                              if (visit.site && visit.site !== 'Unknown') return visit.site;
+                              // Otherwise lookup from projects using customer name
+                              const project = projects.find(p => 
+                                p.customerName === visit.customer || 
+                                p.customerName === (() => {
+                                  const ticket = tickets.find(t => t.id === (visit.contract_id || visit.contractId));
+                                  return ticket?.customerName;
+                                })()
+                              );
+                              return project?.site || '—';
+                            })()}
+                          </td>
 
 
 
@@ -40395,29 +38846,20 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-                ['Assigned To', (() => {
+                ['Next Schedule', (() => {
 
+                  const nextVisit = visits.find(visit => 
+                    visit.contractId === selected.id && 
+                    visit.status === 'Scheduled' 
+                  );
 
+                  if (!nextVisit) return '—';
 
+                  const date = nextVisit.scheduled_date || nextVisit.scheduledDate;
 
+                  const time = nextVisit.scheduled_time || nextVisit.scheduledTime;
 
-
-
-                  const engineer = engineers.find(e => e.id === selected.assignedTo || e._id === selected.assignedTo);
-
-
-
-
-
-
-
-                  return engineer?.name || engineer?.email?.split('@')[0] || selected.assignedTo || '—';
-
-
-
-
-
-
+                  return `${date} ${time}`;
 
                 })()],
 

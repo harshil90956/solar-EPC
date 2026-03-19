@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Item, ItemSchema } from './schemas/item.schema';
 import { Warehouse, WarehouseSchema } from './schemas/warehouse.schema';
@@ -13,6 +13,8 @@ import { ItemsService } from './services/items.service';
 import { InventoryService } from './services/inventory.service';
 import { LookupService } from './services/lookup.service';
 import { SettingsModule } from '../settings/settings.module';
+import { InventoryModule } from '../inventory/inventory.module';
+import { CommonModule } from '../../common/common.module';
 
 @Module({
   imports: [
@@ -26,6 +28,7 @@ import { SettingsModule } from '../settings/settings.module';
       { name: Tenant.name, schema: TenantSchema }
     ]),
     SettingsModule,
+    forwardRef(() => InventoryModule),
   ],
   controllers: [ItemsController, LookupController],
   providers: [ItemsService, InventoryService, LookupService],

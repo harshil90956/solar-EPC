@@ -14,7 +14,7 @@ import {
     ACTION_DEFS,
 } from '../config/features.config';
 import { settingsApi } from '../services/settingsApi';
-import { getRolePermissions } from '../config/roles.config';
+import { useAuth } from './AuthContext';
 
 const SettingsContext = createContext(null);
 
@@ -27,6 +27,8 @@ const fullPerms = () =>
 // NOTE: buildDefaultRBAC removed - using single source of truth from AuthContext user.permissions
 
 export const SettingsProvider = ({ children }) => {
+
+    const { permissions, dataScope } = useAuth();
 
     // ── Core state ────────────────────────────────────────────────────────────
     const [flags, setFlagsState] = useState(buildDefaultFlags());
@@ -393,20 +395,22 @@ export const SettingsProvider = ({ children }) => {
                             permsObj[moduleId] = modulePerms;
                         }
                     }
-                    rolesObj[roleId] = {
-                        id: roleId,
-                        label: r.label,
-                        description: r.description,
-                        baseRole: r.baseRole,
-                        color: r.color,
-                        bg: r.bg,
-                        isCustom: true,
-                        dataScope: r.dataScope || 'ALL',
-                        permissions: perms,
-                        createdAt: r.createdAt,
-                        updatedAt: r.updatedAt,
-                    };
+                    perms = permsObj;
                 }
+
+                rolesObj[roleId] = {
+                    id: roleId,
+                    label: normalizeLabel(r.label) || 'Custom Role',
+                    description: typeof r.description === 'string' ? r.description : '',
+                    baseRole: r.baseRole,
+                    color: r.color,
+                    bg: r.bg,
+                    isCustom: true,
+                    dataScope: r.dataScope || 'ALL',
+                    permissions: perms,
+                    createdAt: r.createdAt,
+                    updatedAt: r.updatedAt,
+                };
             });
             setCustomRoles(rolesObj);
             console.log('[SETTINGS] Refreshed custom roles:', Object.keys(rolesObj));
@@ -857,52 +861,33 @@ export const SettingsProvider = ({ children }) => {
      * SINGLE SOURCE OF TRUTH: Only checks user.permissions from localStorage
      * NO fallback, NO dual permission system
      */
-    const resolvePermission = useCallback((userId, roleId, moduleId, actionId) => {
-        // Get user from localStorage (single source of truth)
-        const user = (typeof window !== 'undefined') 
-            ? JSON.parse(localStorage.getItem('solar_user') || '{}')
-            : {};
-        
-        // Handle hrm- prefix (e.g., hrm-attendance -> attendance)
-        const permModuleKey = (typeof moduleId === 'string' && moduleId.startsWith('hrm-'))
-            ? moduleId.replace('hrm-', '')
-            : moduleId;
-        
-        // Direct permission check from user.permissions object
-        const hasPermission = user?.permissions?.[permModuleKey]?.[actionId] === true;
-        
-        console.log('[PERMISSION CHECK]', { 
-            moduleId, 
-            permModuleKey, 
-            actionId, 
-            hasPermission,
-            userPermissions: user?.permissions 
-        });
-        
-        return hasPermission;
-    }, []);
+    const resolvePermission = useCallback((moduleId, actionId) => {
+        if (!moduleId) return false;
+
+        if (typeof moduleId === 'string' && moduleId.startsWith('hrm-')) {
+            if (permissions?.[moduleId]?.[actionId] === true) return true;
+            const stripped = moduleId.replace('hrm-', '');
+            return permissions?.[stripped]?.[actionId] === true;
+        }
+
+        return permissions?.[moduleId]?.[actionId] === true;
+    }, [permissions]);
 
     /**
      * getDataScope(moduleId)
      * Returns dataScope for a module from user.dataScope
      */
     const getDataScope = useCallback((moduleId) => {
-        const user = (typeof window !== 'undefined') 
-            ? JSON.parse(localStorage.getItem('solar_user') || '{}')
-            : {};
-        
-        // Handle hrm- prefix
-        const scopeModuleKey = (typeof moduleId === 'string' && moduleId.startsWith('hrm-'))
-            ? moduleId.replace('hrm-', '')
-            : moduleId;
-        
-        // dataScope can be string (legacy) or object (new format)
-        if (typeof user?.dataScope === 'object' && !Array.isArray(user.dataScope)) {
-            return user.dataScope[scopeModuleKey] || 'ALL';
+        if (!moduleId) return 'ALL';
+
+        if (typeof moduleId === 'string' && moduleId.startsWith('hrm-')) {
+            if (typeof dataScope === 'object' && dataScope?.[moduleId]) return dataScope[moduleId];
+            const stripped = moduleId.replace('hrm-', '');
+            return dataScope?.[stripped] || 'ALL';
         }
-        
-        return user?.dataScope || 'ALL';
-    }, []);
+
+        return dataScope?.[moduleId] || 'ALL';
+    }, [dataScope]);
 
     /** Backward-compat: role-only check (no user id) */
     const hasPermission = useCallback((role, moduleId, actionId) =>
@@ -910,7 +895,7 @@ export const SettingsProvider = ({ children }) => {
         [isModuleEnabled, canRoleDo]);
 
     const hasPermissionForUser = useCallback((userId, roleId, moduleId, actionId) =>
-        resolvePermission(userId, roleId, moduleId, actionId), [resolvePermission]);
+        resolvePermission(moduleId, actionId), [resolvePermission]);
 
     // ── Derived lists ─────────────────────────────────────────────────────────
     const allRoles = useMemo(() => [

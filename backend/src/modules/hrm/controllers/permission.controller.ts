@@ -5,6 +5,7 @@ import { AdminGuard } from '../../../core/auth/guards/admin.guard';
 import { Permission } from '../schemas/permission.schema';
 import { Role } from '../schemas/role.schema';
 import { PermissionCacheService } from '../../../common/services/permission-cache.service';
+import { PermissionEngineService } from '../../../common/services/permission-engine.service';
 
 @Controller('hrm/permissions')
 @UseGuards(JwtAuthGuard)
@@ -12,6 +13,7 @@ export class PermissionController {
   constructor(
     private readonly permissionService: PermissionService,
     private readonly permissionCacheService: PermissionCacheService,
+    private readonly permissionEngine: PermissionEngineService,
   ) {}
 
   @Get()
@@ -206,7 +208,7 @@ export class PermissionController {
     @Request() req: any,
     @Query('tenantId') tenantId?: string,
   ): Promise<any> {
-    const tid = tenantId || req?.tenant?.id;
+    const tid = tenantId || req?.tenant?.id || req?.user?.tenantId;
     const permission = await this.permissionService.setRoleModulePermission(
       roleId,
       module,
@@ -217,6 +219,10 @@ export class PermissionController {
     
     // Invalidate cache for this role to ensure fresh permissions
     this.permissionCacheService.invalidateRoleCache(roleId, tid);
+
+    if (tid) {
+      await this.permissionEngine.invalidateTenantPermissions(String(tid));
+    }
     
     return {
       success: true,
@@ -231,7 +237,7 @@ export class PermissionController {
     @Request() req: any,
     @Query('tenantId') tenantId?: string,
   ): Promise<any> {
-    const tid = tenantId || req?.tenant?.id;
+    const tid = tenantId || req?.tenant?.id || req?.user?.tenantId;
     const results = [];
     for (const [module, config] of Object.entries(body.permissions)) {
       const permission = await this.permissionService.setRoleModulePermission(
@@ -246,6 +252,10 @@ export class PermissionController {
     
     // Invalidate cache after bulk update
     this.permissionCacheService.invalidateRoleCache(roleId, tid);
+
+    if (tid) {
+      await this.permissionEngine.invalidateTenantPermissions(String(tid));
+    }
     
     return {
       success: true,

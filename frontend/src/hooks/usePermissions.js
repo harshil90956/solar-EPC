@@ -26,8 +26,9 @@ export const usePermissions = (module) => {
   const { user, can, getDataScope } = useAuth();
   const { isModuleEnabled, isFeatureEnabled } = useSettings();
 
+  // Check if user is admin - admin gets all permissions
   const userRole = user?.role || 'Employee';
-  const isAdminLike = userRole === 'Admin' || userRole === 'Super Admin' || user?.isSuperAdmin;
+  const isAdminLike = userRole.toLowerCase() === 'admin' || userRole.toLowerCase() === 'superadmin' || userRole.toLowerCase() === 'super admin' || user?.isSuperAdmin === true;
 
   // Get data scope for this module
   const dataScope = useMemo(() => {
@@ -35,10 +36,9 @@ export const usePermissions = (module) => {
   }, [getDataScope, module]);
 
   // Permission check functions - use can() from AuthContext (single source of truth)
+  // Admin bypass: Admin users get all permissions automatically
   const canDo = useCallback((action) => {
-    // Admin/Super Admin have all permissions
-    if (isAdminLike) return true;
-    // Use AuthContext.can() which reads from user.permissions object
+    if (isAdminLike) return true; // Admin bypass
     return can(module, action);
   }, [can, module, isAdminLike]);
 
@@ -57,17 +57,23 @@ export const usePermissions = (module) => {
   // Check if a specific column should be visible
   const isColumnVisible = useCallback((columnKey) => {
     const allColumns = MODULE_COLUMNS[module] || [];
-    if (isAdminLike) return true;
-    // Check if user.permissions has column-specific settings
     return user?.permissions?.[module]?.columns?.[columnKey] !== false;
-  }, [module, isAdminLike, user?.permissions]);
+  }, [module, user?.permissions]);
 
   // Get all visible columns
   const visibleColumns = useMemo(() => {
     const allColumns = MODULE_COLUMNS[module] || [];
-    if (isAdminLike) return allColumns;
     return allColumns.filter(col => user?.permissions?.[module]?.columns?.[col] !== false);
-  }, [module, isAdminLike, user?.permissions]);
+  }, [module, user?.permissions]);
+
+  const columns = useMemo(() => {
+    const allColumns = MODULE_COLUMNS[module] || [];
+    const columnState = user?.permissions?.[module]?.columns;
+    return allColumns.reduce((acc, col) => {
+      acc[col] = columnState?.[col] !== false;
+      return acc;
+    }, {});
+  }, [module, user?.permissions]);
 
   // Module/feature enabled checks from SettingsContext
   const moduleOn = useCallback((mod) => isModuleEnabled(mod), [isModuleEnabled]);
@@ -99,9 +105,10 @@ export const usePermissions = (module) => {
     // Column visibility
     isColumnVisible,
     visibleColumns,
+    columns,
     // Meta
     isLoading: false,
-    userRole,
+    userRole: user?.role || 'Employee',
   };
 };
 

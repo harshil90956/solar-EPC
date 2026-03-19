@@ -850,6 +850,13 @@ const CRMPage = ({ onNavigate }) => {
   });
   const [showDateRangeDropdown, setShowDateRangeDropdown] = useState(false);
   const dateRangeRef = useRef(null);
+  const [showDateRangeInfo, setShowDateRangeInfo] = useState(false);
+  const dateRangeInfoRef = useRef(null);
+  // Kanban drag-to-scroll state
+  const kanbanScrollRef = useRef(null);
+  const [isKanbanDragging, setIsKanbanDragging] = useState(false);
+  const [kanbanDragStartX, setKanbanDragStartX] = useState(0);
+  const [kanbanScrollStartX, setKanbanScrollStartX] = useState(0);
   // Date range preset options
   const dateRangeOptions = [
     { id: 'all', label: 'All Time', days: null },
@@ -918,6 +925,24 @@ const CRMPage = ({ onNavigate }) => {
     });
   }, [crmPerms, can]);
   const { user } = useAuth();
+
+  useEffect(() => {
+    if (!showDateRangeInfo) return;
+    const onDocClick = (e) => {
+      const el = dateRangeInfoRef.current;
+      if (!el) return;
+      if (!el.contains(e.target)) {
+        setShowDateRangeInfo(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [showDateRangeInfo]);
+
+  const isAdminLike = useMemo(() => {
+    const role = String(user?.role || '').toLowerCase();
+    return role === 'admin' || role === 'superadmin' || user?.isSuperAdmin === true;
+  }, [user?.role, user?.isSuperAdmin]);
 
   // Get user's data scope for visibility indicator
   const userDataScope = user?.dataScope || 'ASSIGNED';
@@ -1789,7 +1814,7 @@ const CRMPage = ({ onNavigate }) => {
   };
 
   const guardDelete = () => {
-    if (!can('crm', 'delete')) {
+    if (!(isAdminLike || can('crm', 'delete'))) {
       toast.error('Permission denied: Cannot delete leads');
       return false;
     }
@@ -1797,7 +1822,7 @@ const CRMPage = ({ onNavigate }) => {
   };
 
   const guardEdit = () => {
-    if (!can('crm', 'edit')) {
+    if (!(isAdminLike || can('crm', 'edit'))) {
       toast.error('Permission denied: Cannot edit leads');
       return false;
     }
@@ -1805,7 +1830,7 @@ const CRMPage = ({ onNavigate }) => {
   };
 
   const guardExport = () => {
-    if (!can('crm', 'export')) {
+    if (!(isAdminLike || can('crm', 'export'))) {
       toast.error('Permission denied: Cannot export leads');
       return false;
     }
@@ -2280,7 +2305,7 @@ const CRMPage = ({ onNavigate }) => {
     return {
       kanban: crmPerms.feature('kanban_view'),
       analytics: crmPerms.feature('analytics_view'),
-      importCsv: crmPerms.feature('csv_import'),
+      importCsv: crmPerms.feature('import_csv') || crmPerms.feature('csv_import'),
       bulkActions: crmPerms.feature('bulk_actions'),
     };
   }, [crmPerms]);
@@ -2310,15 +2335,31 @@ const CRMPage = ({ onNavigate }) => {
               <span className="text-xs text-[var(--text-muted)]">Date Range:</span>
               <Input
                 type="date"
-                value={dateRange.start}
-                onChange={e => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                value={dateRangeFilter.type === 'custom' ? dateRangeFilter.startDate || '' : dateRange.start}
+                onChange={e => {
+                  const newDate = e.target.value;
+                  setDateRange(prev => ({ ...prev, start: newDate }));
+                  setDateRangeFilter(prev => ({
+                    type: 'custom',
+                    startDate: newDate,
+                    endDate: prev.endDate || dateRange.end
+                  }));
+                }}
                 className="h-7 text-xs w-32"
               />
               <span className="text-xs text-[var(--text-muted)]">to</span>
               <Input
                 type="date"
-                value={dateRange.end}
-                onChange={e => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                value={dateRangeFilter.type === 'custom' ? dateRangeFilter.endDate || '' : dateRange.end}
+                onChange={e => {
+                  const newDate = e.target.value;
+                  setDateRange(prev => ({ ...prev, end: newDate }));
+                  setDateRangeFilter(prev => ({
+                    type: 'custom',
+                    startDate: prev.startDate || dateRange.start,
+                    endDate: newDate
+                  }));
+                }}
                 className="h-7 text-xs w-32"
               />
             </div>
@@ -2367,6 +2408,11 @@ const CRMPage = ({ onNavigate }) => {
                   setDateRange({
                     start: format(subMonths(new Date(), 6), 'yyyy-MM-dd'),
                     end: format(new Date(), 'yyyy-MM-dd')
+                  });
+                  setDateRangeFilter({
+                    type: 'custom',
+                    startDate: format(subMonths(new Date(), 6), 'yyyy-MM-dd'),
+                    endDate: format(new Date(), 'yyyy-MM-dd')
                   });
                   setSelectedYear(new Date().getFullYear());
                   setSelectedMonth(new Date().getMonth() + 1);
@@ -2572,28 +2618,62 @@ const CRMPage = ({ onNavigate }) => {
 
       {/* ── Kanban Board View ── */}
       {view === 'kanban' && crmFeatures.kanban && (
-        <div className="space-y-4">
+        <div className="h-[calc(100vh-180px)] flex flex-col">
           {(() => { console.log('[KANBAN DEBUG] statusOptions:', statusOptions); console.log('[KANBAN DEBUG] enhancedLeads first 3:', enhancedLeads.slice(0, 3).map(l => ({ name: l.name, statusKey: l.statusKey, status: l.status }))); return null; })()}
-          <div className="overflow-x-auto pb-3 cursor-grab active:cursor-grabbing" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 transparent' }}>
-            <div className="min-w-max px-1">
-              {/* Header Row */}
-              <div className="flex items-center justify-between mb-3 px-1">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-lg font-bold text-[var(--text-primary)]">Pipeline Kanban Board</h3>
-                  <span className="text-xs text-[var(--text-muted)]">{enhancedLeads.length} total leads</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button className="px-3 py-1 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] text-[10px] font-medium text-[var(--text-muted)] hover:bg-[var(--bg-hovered)] transition-colors">
-                    <FilterX size={10} className="inline mr-1" /> Clear Filters
-                  </button>
-                  <button className="px-3 py-1 rounded-lg bg-[var(--primary)] text-white text-[10px] font-medium hover:opacity-90 transition-opacity">
-                    <Plus size={10} className="inline mr-1" /> Add Stage
-                  </button>
-                </div>
-              </div>
+          
+          {/* Header Row */}
+          <div className="flex items-center justify-between mb-3 px-1 shrink-0">
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-bold text-[var(--text-primary)]">Pipeline Kanban Board</h3>
+              <span className="text-xs text-[var(--text-muted)]">{enhancedLeads.length} total leads</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button className="px-3 py-1 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] text-[10px] font-medium text-[var(--text-muted)] hover:bg-[var(--bg-hovered)] transition-colors">
+                <FilterX size={10} className="inline mr-1" /> Clear Filters
+              </button>
+              <button className="px-3 py-1 rounded-lg bg-[var(--primary)] text-white text-[10px] font-medium hover:opacity-90 transition-opacity">
+                <Plus size={10} className="inline mr-1" /> Add Stage
+              </button>
+            </div>
+          </div>
 
+          {/* Scrollable Kanban Area - with drag-to-scroll support */}
+          <div 
+            ref={kanbanScrollRef}
+            className={`flex-1 overflow-x-auto overflow-y-hidden pb-2 ${isKanbanDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+            style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 transparent', userSelect: 'none' }}
+            onMouseDown={(e) => {
+              // Only left mouse button and not on interactive elements
+              if (e.button !== 0) return;
+              const target = e.target;
+              if (target.closest('[data-kanban-card="true"]') || 
+                  target.closest('button') || 
+                  target.closest('a') ||
+                  target.closest('input') ||
+                  target.closest('select')) {
+                return;
+              }
+              setIsKanbanDragging(true);
+              setKanbanDragStartX(e.pageX);
+              setKanbanScrollStartX(e.currentTarget.scrollLeft);
+            }}
+            onMouseMove={(e) => {
+              if (!isKanbanDragging) return;
+              e.preventDefault();
+              const x = e.pageX;
+              const walk = (x - kanbanDragStartX) * 1.5; // Multiply for faster scroll
+              e.currentTarget.scrollLeft = kanbanScrollStartX - walk;
+            }}
+            onMouseUp={() => {
+              setIsKanbanDragging(false);
+            }}
+            onMouseLeave={() => {
+              setIsKanbanDragging(false);
+            }}
+          >
+            <div className="min-w-max h-full px-1">
               {/* Kanban Columns */}
-              <div className="flex gap-4">
+              <div className="flex gap-4 h-full">
                 {(statusOptions || []).map((stage, stageIndex) => {
                 // Filter leads that match this stage's key
                 // Also match survey-related keys to the same column
@@ -2619,7 +2699,7 @@ const CRMPage = ({ onNavigate }) => {
 
                 return (
                   <div key={`stage-${stage.key || stageIndex}-${stageIndex}`}
-                    className={`flex flex-col w-64 rounded-[14px] border border-[#F1F5F9] bg-[#F8FAFC] p-2.5 transition-colors h-[530px]`}
+                    className={`flex flex-col w-64 rounded-[14px] border border-[#F1F5F9] bg-[#F8FAFC] p-2.5 transition-colors h-full`}
                     onDragOver={e => { e.preventDefault(); }}
                     onDragEnter={() => {
                       if (!dragRef.current) return;
@@ -2627,7 +2707,7 @@ const CRMPage = ({ onNavigate }) => {
                       dragRef.current.destIndex = stageLeadIds.length;
                     }}
                     onDrop={(e) => {
-                      if (!can('crm', 'edit')) {
+                      if (!(isAdminLike || can('crm', 'edit'))) {
                         toast.error('Permission denied: Cannot change lead status');
                         return;
                       }
@@ -2849,15 +2929,39 @@ const CRMPage = ({ onNavigate }) => {
 
               {/* Date Range Picker */}
               <div className="relative" ref={dateRangeRef}>
-                <Button
-                  variant="outline"
-                  onClick={() => setShowDateRangeDropdown(!showDateRangeDropdown)}
-                  className={showDateRangeDropdown ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : ''}
-                >
-                  <Calendar size={14} className="mr-1" />
-                  {getDateRangeLabel()}
-                  <ChevronDown size={12} className="ml-1" />
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowDateRangeDropdown(!showDateRangeDropdown)}
+                    className={showDateRangeDropdown ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : ''}
+                  >
+                    <Calendar size={14} className="mr-1" />
+                    {getDateRangeLabel()}
+                    <ChevronDown size={12} className="ml-1" />
+                  </Button>
+                  
+                  {/* Info Icon - inline with date picker */}
+                  {dateRangeFilter.type !== 'custom' && (
+                    <div className="relative" ref={dateRangeInfoRef}>
+                      <button
+                        type="button"
+                        onClick={() => setShowDateRangeInfo(v => !v)}
+                        className="h-8 w-8 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-600 hover:bg-blue-500/15 transition-colors flex items-center justify-center"
+                        title="Info"
+                      >
+                        <Info size={14} />
+                      </button>
+                      {showDateRangeInfo && (
+                        <div className="absolute left-0 top-10 w-72 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] shadow-lg p-3 text-xs text-[var(--text-secondary)] z-50">
+                          <div className="font-semibold text-[var(--text-primary)] mb-1">Date Range</div>
+                          <div>
+                            Showing leads from <span className="font-semibold">{getDateRangeLabel()}</span>. Use the date filter to view older leads.
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 {showDateRangeDropdown && (
                   <div className="absolute left-0 top-full mt-2 w-56 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] shadow-lg z-50">
@@ -2952,7 +3056,7 @@ const CRMPage = ({ onNavigate }) => {
               )}
             </div>
             <div className="flex items-center gap-2">
-              {can('crm', 'create') && (
+              {(isAdminLike || can('crm', 'create')) && (
                 <Button variant="outline" onClick={() => setShowAddModal(true)}><Plus size={14} /> Add Lead</Button>
               )}
               <ImportExport
@@ -2960,23 +3064,13 @@ const CRMPage = ({ onNavigate }) => {
                 fields={crmFields}
                 onImport={handleImport}
                 onExport={handleExport}
-                hideImport={!crmFeatures.importCsv || !can('crm', 'create')}
+                hideImport={!crmFeatures.importCsv || !(isAdminLike || can('crm', 'create'))}
                 hideGuide={!crmFeatures.importCsv}
-                hideExport={!can('crm', 'export')}
+                hideExport={!(isAdminLike || can('crm', 'export'))}
               />
             </div>
           </div>
 
-          {/* Date Range Status Message */}
-          {dateRangeFilter.type !== 'custom' && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs text-blue-600">
-              <Info size={14} />
-              <span>
-                Showing leads from the <strong>{getDateRangeLabel()}</strong>.
-                Use the date filter to view older leads.
-              </span>
-            </div>
-          )}
           {dateRangeFilter.type === 'custom' && dateRangeFilter.startDate && dateRangeFilter.endDate && (
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-600">
               <CheckCircle2 size={14} />
@@ -3143,25 +3237,25 @@ const CRMPage = ({ onNavigate }) => {
             onSearch={setSearch}
             selectedRows={selected}
             onSelectRows={setSelected}
-            bulkActions={crmFeatures.bulkActions ? [
-              ...(can('crm', 'export') ? [{
+            bulkActions={(crmFeatures.bulkActions || isAdminLike) ? [
+              ...((isAdminLike || can('crm', 'export')) ? [{
                 label: 'Export',
                 icon: Download,
                 onClick: (selectedIds) => {
                   if (guardExport()) handleBulkExport(selectedIds);
                 }
               }] : []),
-              ...(can('crm', 'edit') ? [{ label: 'Score Boost', icon: Brain, onClick: (selectedIds) => { if (guardEdit()) handleOpenScoreBoostModal(selectedIds); } }] : []),
-              ...(can('crm', 'assign') ? [{ label: 'Assign', icon: UserCheck, onClick: (selectedIds) => handleOpenAssignModal(selectedIds) }] : []),
-              ...(can('crm', 'delete') ? [{ label: 'Delete', icon: Trash2, onClick: (selectedIds) => { if (guardDelete()) handleBulkDelete(selectedIds); }, danger: true }] : []),
+              ...((isAdminLike || can('crm', 'edit')) ? [{ label: 'Score Boost', icon: Brain, onClick: (selectedIds) => { if (guardEdit()) handleOpenScoreBoostModal(selectedIds); } }] : []),
+              ...((isAdminLike || can('crm', 'assign')) ? [{ label: 'Assign', icon: UserCheck, onClick: (selectedIds) => handleOpenAssignModal(selectedIds) }] : []),
+              ...((isAdminLike || can('crm', 'delete')) ? [{ label: 'Delete', icon: Trash2, onClick: (selectedIds) => { if (guardDelete()) handleBulkDelete(selectedIds); }, danger: true }] : []),
             ] : []}
             rowActions={[
               { label: 'View', icon: Eye, onClick: handleViewLead },
               { label: 'Lead Tracker', icon: Target, onClick: handleViewTracker },
-              ...(can('crm', 'edit') ? [{ label: 'Edit', icon: Edit2, onClick: handleEditLead }] : []),
-              ...(can('crm', 'assign') ? [{ label: 'Assign Lead', icon: UserCheck, onClick: (lead) => handleOpenAssignModal([lead._id || lead.id]) }] : []),
+              ...((isAdminLike || can('crm', 'edit')) ? [{ label: 'Edit', icon: Edit2, onClick: handleEditLead }] : []),
+              ...((isAdminLike || can('crm', 'assign')) ? [{ label: 'Assign Lead', icon: UserCheck, onClick: (lead) => handleOpenAssignModal([lead._id || lead.id]) }] : []),
               { label: 'Score', icon: Brain, onClick: handleRecalculateScore },
-              ...(can('crm', 'delete') ? [{ label: 'Delete', icon: Trash2, onClick: handleDeleteLead, danger: true }] : []),
+              ...((isAdminLike || can('crm', 'delete')) ? [{ label: 'Delete', icon: Trash2, onClick: handleDeleteLead, danger: true }] : []),
               { label: 'Activity Log', icon: Activity, onClick: handleViewActivity },
             ]}
           />
@@ -3272,7 +3366,7 @@ const CRMPage = ({ onNavigate }) => {
             footer={
               <div className="flex gap-2 justify-end">
                 <Button variant="ghost" onClick={() => setSelectedLead(null)}>Close</Button>
-                {can('crm', 'edit') && (
+                {(isAdminLike || can('crm', 'edit')) && (
                   <Button variant="outline" onClick={() => handleEditLead(selectedLead)}><Edit2 size={13} /> Edit</Button>
                 )}
                 <Button onClick={() => handleCallLead(selectedLead)}><Phone size={13} /> Call Lead</Button>

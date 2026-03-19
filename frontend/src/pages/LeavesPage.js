@@ -142,13 +142,16 @@ const LeavesPage = () => {
   
   // Get permissions for leaves module
   const { 
+    can,
     canView, 
     canCreate, 
     canEdit, 
     canDelete, 
     canApprove,
-    visibleColumns: columns 
+    columns 
   } = usePermissions('leaves');
+
+  const canApplyLeave = canCreate() || can('apply');
   
   const [mounted, setMounted] = useState(false);
   const [employees, setEmployees] = useState([]);
@@ -334,7 +337,7 @@ const LeavesPage = () => {
       icon: Calendar,
       color: '#3b82f6'
     },
-  ];
+  ].filter(Boolean);
 
   // Build columns dynamically based on permissions
   const tableColumns = [
@@ -459,6 +462,18 @@ const LeavesPage = () => {
     },
   ].filter(Boolean);
 
+  const renderExpanded = (leave) => (
+    <div className="p-4 border-t border-[var(--border-muted)]">
+      <LeaveViewModal 
+        leave={leave} 
+        onClose={() => setViewLeave(null)} 
+        onApprove={canApprove() ? handleApproveLeave : null}
+        onReject={canApprove() ? handleRejectLeave : null}
+        inline 
+      />
+    </div>
+  );
+
   return (
     <div className="animate-fade-in space-y-5">
       {/* Header with Apply Leave + Calendar Button */}
@@ -475,7 +490,7 @@ const LeavesPage = () => {
           >
             <Calendar size={16} className="mr-1.5" /> View Calendar
           </Button>
-          {canCreate() && (
+          {canApplyLeave && (
             <Button
               variant="primary"
               onClick={() => {
@@ -884,22 +899,15 @@ const LeavesPage = () => {
 
       {/* Data Table */}
       <DataTable
-        columns={tableColumns}
+        columns={tableColumns.filter(Boolean)}
         data={filteredLeaves}
+        total={filteredLeaves.length}
+        rowKey="_id"
         emptyText={kpiFilter ? `No ${kpiFilter} leaves found.` : "No leaves found."}
         loading={loading}
+        onRowClick={(row) => setViewLeave(row)}
         expandedRowKey={viewLeave?._id}
-        renderExpanded={(leave) => (
-          <div className="p-4 border-t border-[var(--border-muted)]">
-            <LeaveViewModal 
-              leave={leave} 
-              onClose={() => setViewLeave(null)} 
-              onApprove={canApprove() ? handleApproveLeave : null}
-              onReject={canApprove() ? handleRejectLeave : null}
-              inline 
-            />
-          </div>
-        )}
+        renderExpanded={renderExpanded}
       />
 
       {/* Add/Edit Leave Modal */}
