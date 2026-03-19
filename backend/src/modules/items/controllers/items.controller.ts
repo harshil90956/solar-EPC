@@ -23,7 +23,7 @@ export class ItemsController {
     const user = req?.user ? {
       id: String(req.user.id || req.user._id),
       _id: String(req.user.id || req.user._id),
-      dataScope: (req.user.dataScope as 'ALL' | 'ASSIGNED') || 'ASSIGNED',
+      dataScope: (req.user.dataScope as 'ALL' | 'ASSIGNED') || 'ALL',
     } : undefined;
     console.log(`[ITEMS CTRL] user.dataScope:`, user?.dataScope);
     return this.itemsService.findAll(tenantId, user, search, itemGroupId);

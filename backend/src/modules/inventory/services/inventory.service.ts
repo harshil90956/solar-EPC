@@ -532,7 +532,8 @@ export class InventoryService {
 
     const tenantId = await this.resolveTenantObjectId(tenantCode);
 
-    
+    console.log(`[DEBUG getReservationsByProject] tenantCode: ${tenantCode}, projectId: ${projectId}`);
+    console.log(`[DEBUG getReservationsByProject] resolved tenantId: ${tenantId}`);
 
     // Build projectId variants to match both string and ObjectId formats
 
@@ -544,9 +545,26 @@ export class InventoryService {
 
     }
 
-    
+    try {
+      const projectDoc: any = await this.inventoryModel.db.collection('projects').findOne(
+        {
+          tenantId: tenantId,
+          projectId: projectId,
+          isDeleted: false,
+        },
+        { projection: { _id: 1 } },
+      );
+      if (projectDoc?._id) {
+        searchProjectIds.push(projectDoc._id);
+        console.log(`[DEBUG getReservationsByProject] Found project _id: ${projectDoc._id}`);
+      }
+    } catch (e) {
+      console.log(`[DEBUG getReservationsByProject] Error finding project:`, e);
+    }
 
-    return this.reservationModel
+    console.log(`[DEBUG getReservationsByProject] searchProjectIds:`, searchProjectIds);
+
+    const reservations = await this.reservationModel
 
       .find({ 
 
@@ -585,6 +603,11 @@ export class InventoryService {
       .sort({ createdAt: -1 })
 
       .exec();
+
+    console.log(`[DEBUG getReservationsByProject] Found ${reservations.length} reservations`);
+    console.log(`[DEBUG getReservationsByProject] Reservations:`, reservations.map(r => ({ itemId: r.itemId, projectId: r.projectId, status: r.status, quantity: r.quantity })));
+
+    return reservations;
 
   }
 

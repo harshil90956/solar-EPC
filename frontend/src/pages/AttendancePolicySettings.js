@@ -47,8 +47,8 @@ const AttendancePolicySettings = () => {
     setLoading(true);
     try {
       const response = await api.get('/hrm/attendance/policy');
-      if (response.data?.success && response.data?.data) {
-        setPolicy({ ...defaultPolicy, ...response.data.data });
+      if (response?.success && response?.data) {
+        setPolicy({ ...defaultPolicy, ...response.data });
         setHasExistingPolicy(true);
       }
     } catch (error) {
@@ -63,12 +63,17 @@ const AttendancePolicySettings = () => {
     setSaving(true);
     try {
       const response = await api.post('/hrm/attendance/policy', policy);
-      if (response.data?.success) {
+      // apiClient returns response.data directly (not the Axios response)
+      // Most endpoints use { success: boolean, data?: any, message?: string }
+      const isExplicitFailure = response?.success === false;
+      if (!isExplicitFailure) {
         toast.success('Attendance policy saved successfully');
         setHasExistingPolicy(true);
+      } else {
+        toast.error(response?.message || 'Failed to save policy');
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to save policy');
+      toast.error(error?.message || 'Failed to save policy');
     } finally {
       setSaving(false);
     }
