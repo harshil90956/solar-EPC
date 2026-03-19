@@ -278,6 +278,12 @@ export class ProjectsService {
           }
           if (reservation.itemId) {
             candidates.push({ itemId: reservation.itemId });
+            const itemIdStr = String(reservation.itemId);
+            if (itemIdStr.startsWith('INV')) {
+              candidates.push({ itemId: itemIdStr.replace(/^INV/, '') });
+            } else {
+              candidates.push({ itemId: 'INV' + itemIdStr });
+            }
           }
           if (reservation.itemId && Types.ObjectId.isValid(String(reservation.itemId))) {
             candidates.push({ _id: new Types.ObjectId(String(reservation.itemId)) });
@@ -286,8 +292,9 @@ export class ProjectsService {
           let inventory: any = null;
 
           // Tenant-safe lookup first
+          const tenantMatch: any = { $or: [{ tenantId }, { tenantId: tenantId.toString() }] };
           for (const c of candidates) {
-            inventory = await this.inventoryModel.findOne({ tenantId, isDeleted: false, ...c }).session(session);
+            inventory = await this.inventoryModel.findOne({ $and: [tenantMatch, { isDeleted: false, ...c }] }).session(session);
             if (inventory) break;
           }
           console.log(`[DEBUG INVENTORY] Lookup with tenant filter: ${reservation.itemId}, found: ${inventory ? 'YES' : 'NO'}`);

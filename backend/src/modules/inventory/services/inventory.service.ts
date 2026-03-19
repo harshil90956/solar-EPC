@@ -261,309 +261,98 @@ export class InventoryService {
       .limit(10)
       .exec();
     console.log(`[DEBUG getReservationsByItem] ALL reservations for tenant (${allReservations.length}):`, allReservations.map(r => ({ itemId: r.itemId, projectId: r.projectId, status: r.status })));
-
-
-
     const reservations = await this.reservationModel
-
       .find({
-
         $or: [
-
           { tenantId: tenantId },
-
           { tenantId: tenantId.toString() },
-
         ],
-
         itemId: { $in: searchItemIds },
-
         status: { $in: ['active', 'fulfilled', 'Pending', 'Active', 'pending'] },
-
       })
-
       .sort({ createdAt: -1 })
-
       .exec();
-
-
-
     console.log(`[DEBUG getReservationsByItem] Filtered reservations count: ${reservations.length}`);
-
     console.log(`[DEBUG getReservationsByItem] Filtered reservations:`, reservations.map(r => ({ itemId: r.itemId, projectId: r.projectId, status: r.status, quantity: r.quantity })));
-
-
-
     // Transform reservations to include project details
-
     const transformedReservations = await Promise.all(
-
       reservations.map(async (res) => {
-
         const resObj = res.toObject();
-
-        
-
         // Try to find project details - projectId could be string or ObjectId
-
         let projectDetails = null;
-
         try {
-
           const projectIdStr = res.projectId?.toString();
-
           // Try to find by projectId as string (e.g., P3262)
-
           const query: any = { projectId: projectIdStr };
-
           // Also try _id if projectId is a valid ObjectId
-
           if (Types.ObjectId.isValid(res.projectId)) {
-
             query.$or = [
-
               { projectId: projectIdStr },
-
               { _id: new Types.ObjectId(res.projectId) }
-
             ];
-
             delete query.projectId;
-
           }
-
           projectDetails = await this.inventoryModel.db.collection('projects').findOne(query, { projection: { projectId: 1, customerName: 1, name: 1, status: 1 } });
-
           console.log(`[DEBUG getReservationsByItem] Project lookup for ${projectIdStr}:`, projectDetails);
-
         } catch (e) {
-
           console.error(`[DEBUG getReservationsByItem] Error looking up project:`, e);
-
         }
-
-
-
         return {
-
           ...resObj,
-
           projectId: res.projectId?.toString(),
-
           project: projectDetails || {
-
             projectId: res.projectId?.toString(),
-
             customerName: (res as any).projectName || 'Unknown Project'
-
           }
-
         };
-
-      })
-
+      }
+    )
     );
 
-
-
     console.log(`[DEBUG getReservationsByItem] Returning ${transformedReservations.length} reservations`);
-
     return transformedReservations;
-
   }
-
-
-
-
-
-
-
   async updateReservation(
-
     tenantCode: string, 
-
     reservationId: string, 
-
     updateDto: UpdateReservationDto
-
   ) {
-
     const tenantId = await this.resolveTenantObjectId(tenantCode);
-
-
-
-    
-
-
-
     const reservation = await this.reservationModel.findOne({ tenantId, reservationId }).exec();
-
-
-
     if (!reservation) {
-
-
-
       throw new NotFoundException(`Reservation ${reservationId} not found`);
-
-
-
     }
-
-
-
-
-
-
-
     if (updateDto.quantity && updateDto.quantity !== reservation.quantity) {
-
-
-
       const item = await this.inventoryModel.findOne({ 
-
-
-
         tenantId, 
-
-
-
         itemId: reservation.itemId 
-
-
-
       }).exec();
-
-
-
-      
-
-
-
       if (item) {
-
-
-
         const quantityDiff = updateDto.quantity - reservation.quantity;
-
-
-
-        
-
-
-
         if (item.available < quantityDiff) {
-
-
-
           throw new BadRequestException(`Insufficient available stock for this update`);
-
-
-
         }
-
-
-
-
-
-
-
         const newReserved = item.reserved + quantityDiff;
-
-
-
         const newAvailable = item.stock - newReserved;
-
-
-
-
-
-
-
         await this.inventoryModel.findOneAndUpdate(
-
-
-
           { tenantId, itemId: reservation.itemId },
-
-
-
           {
-
-
-
             $set: {
-
-
-
               reserved: newReserved,
-
-
-
               available: newAvailable,
-
-
-
               lastUpdated: new Date().toISOString().split('T')[0],
-
-
-
             }
-
-
-
           },
-
-
-
         ).exec();
-
-
-
       }
-
-
-
     }
-
-
-
-
-
-
-
     if (updateDto.status === 'cancelled' && reservation.status !== 'cancelled') {
-
-
-
       const item = await this.inventoryModel.findOne({ 
-
-
-
         tenantId, 
-
-
-
         itemId: reservation.itemId 
-
-
-
       }).exec();
-
-
-
-      
-
-
-
       if (item) {
-
-
-
         const newReserved = Math.max(0, item.reserved - reservation.quantity);
-
-
-
         const newAvailable = item.stock - newReserved;
         await this.inventoryModel.findOneAndUpdate(
           { tenantId, itemId: reservation.itemId },
@@ -593,9 +382,10 @@ export class InventoryService {
     remarks?: string,
   ): Promise<{ fromItem: Inventory; toItem: Inventory }> {
     const tenantId = await this.resolveTenantObjectId(tenantCode);
-    let fromItem = await this.inventoryModel.findOne({ tenantId, itemId: fromInventoryId }).exec();
+    const tenantMatch: any = { $or: [{ tenantId }, { tenantId: tenantId.toString() }] };
+    let fromItem = await this.inventoryModel.findOne({ $and: [tenantMatch, { itemId: fromInventoryId }] }).exec();
     if (!fromItem && Types.ObjectId.isValid(fromInventoryId)) {
-      fromItem = await this.inventoryModel.findOne({ tenantId, _id: new Types.ObjectId(fromInventoryId) }).exec();
+      fromItem = await this.inventoryModel.findOne({ $and: [tenantMatch, { _id: new Types.ObjectId(fromInventoryId) }] }).exec();
     }
     if (!fromItem) {
       throw new NotFoundException(`Source inventory item ${fromInventoryId} not found`);
@@ -605,11 +395,7 @@ export class InventoryService {
         `Insufficient available stock. Available: ${fromItem.available}, Requested: ${quantity}`,
       );
     }
-    let toItem = await this.inventoryModel.findOne({
-      tenantId,
-      name: fromItem.name,
-      warehouse: toWarehouseId,
-    }).exec();
+    let toItem = await this.inventoryModel.findOne({ $and: [tenantMatch, { name: fromItem.name, warehouse: toWarehouseId }] }).exec();
     if (!toItem) {
       const newItem = new this.inventoryModel({
         tenantId,
@@ -632,7 +418,7 @@ export class InventoryService {
       const newStock = toItem.stock + quantity;
       const newAvailable = newStock - toItem.reserved;
       toItem = await this.inventoryModel.findOneAndUpdate(
-        { tenantId, _id: toItem._id },
+        { $and: [tenantMatch, { _id: toItem._id }] },
         {
           $set: {
             stock: newStock,
@@ -646,7 +432,7 @@ export class InventoryService {
     const newFromStock = fromItem.stock - quantity;
     const newFromAvailable = newFromStock - fromItem.reserved;
     const updatedFromItem = await this.inventoryModel.findOneAndUpdate(
-      { tenantId, _id: fromItem._id },
+      { $and: [tenantMatch, { _id: fromItem._id }] },
       {
         $set: {
           stock: newFromStock,
@@ -670,146 +456,41 @@ export class InventoryService {
     const [item, reservations] = await Promise.all([
       this.inventoryModel.findOne({ tenantId, itemId, isDeleted: false }).exec(),
       this.reservationModel
-
-
         .find({ tenantId, itemId, status: 'active' })
-
-
         .select('reservationId projectId quantity reservedDate notes')
-
-
-
         .sort({ reservedDate: -1 })
-
-
-
         .exec()
-
-
-
     ]);
-
-
     if (!item) {
-
       throw new NotFoundException(`Item ${itemId} not found`);
     }
-
     return {
-
-
-
       ...item.toObject(),
-
-
-
       reservations
 
-
-
     };
-
-
-
   }
-
-
-
-
-
-
-
   async stockIn(tenantCode: string, itemId: string, stockInDto: StockInDto) {
-
     const tenantId = await this.resolveTenantObjectId(tenantCode);
-
     const item = await this.inventoryModel.findOne({ tenantId, itemId }).exec();
-
-
-
-
-
-
-
     if (!item) {
-
-
-
       throw new NotFoundException(`Item ${itemId} not found`);
-
-
-
     }
-
-
-
-
-
-
-
     const newStock = item.stock + stockInDto.quantity;
-
-
-
     const newAvailable = newStock - item.reserved;
-
-
-
-
-
-
-
     const updatedItem = await this.inventoryModel.findOneAndUpdate(
-
-
-
       { tenantId, itemId },
-
-
-
       {
-
-
-
         $set: {
-
-
-
           stock: newStock,
-
-
-
           available: newAvailable,
-
-
-
           lastUpdated: new Date().toISOString().split('T')[0],
-
-
-
         }
-
-
-
       },
-
-
-
       { new: true },
 
-
-
     ).exec();
-
-
-
-
-
-
-
     return updatedItem;
-
-
 
   }
   async stockOut(tenantCode: string, itemId: string, stockOutDto: StockOutDto) {
@@ -831,35 +512,58 @@ export class InventoryService {
           available: newAvailable,
           lastUpdated: new Date().toISOString().split('T')[0],
         }
-
-
-
       },
-
-
-
       { new: true },
-
-
-
     ).exec();
-
-
-
-
-
-
-
     return updatedItem;
-
-
-
   }
 
 
-
-
-
+  async addStock(itemName: string, quantity: number, remarks?: string, referenceId?: string, tenantCode: string = 'solarcorp') {
+    const tenantId = await this.resolveTenantObjectId(tenantCode);
+    let item: any = await this.inventoryModel.findOne({ tenantId, name: itemName, isDeleted: false }).exec();
+    if (!item) {
+      item = await this.inventoryModel.findOne({ tenantId, itemId: itemName, isDeleted: false }).exec();
+    }
+    if (!item && Types.ObjectId.isValid(itemName)) {
+      item = await this.inventoryModel.findOne({ tenantId, _id: new Types.ObjectId(itemName), isDeleted: false }).exec();
+    }
+    if (!item) {
+      throw new NotFoundException(`Inventory item "${itemName}" not found`);
+    }
+    const newStock = (Number(item.stock) || 0) + quantity;
+    const newAvailable = newStock - (Number(item.reserved) || 0);
+    const updatedItem = await this.inventoryModel.findOneAndUpdate(
+      { tenantId, _id: item._id },
+      { $set: { stock: newStock, available: newAvailable, lastUpdated: new Date().toISOString().split('T')[0] } },
+      { new: true },
+    ).exec();
+    return updatedItem;
+  }
+  async removeStock(itemName: string, quantity: number, remarks?: string, referenceId?: string, tenantCode: string = 'solarcorp') {
+    const tenantId = await this.resolveTenantObjectId(tenantCode);
+    let item: any = await this.inventoryModel.findOne({ tenantId, name: itemName, isDeleted: false }).exec();
+    if (!item) {
+      item = await this.inventoryModel.findOne({ tenantId, itemId: itemName, isDeleted: false }).exec();
+    }
+    if (!item && Types.ObjectId.isValid(itemName)) {
+      item = await this.inventoryModel.findOne({ tenantId, _id: new Types.ObjectId(itemName), isDeleted: false }).exec();
+    }
+    if (!item) {
+      throw new NotFoundException(`Inventory item "${itemName}" not found`);
+    }
+    if ((Number(item.available) || 0) < quantity) {
+      throw new BadRequestException(`Insufficient stock for "${itemName}". Available: ${item.available}, Requested: ${quantity}`);
+    }
+    const newStock = (Number(item.stock) || 0) - quantity;
+    const newAvailable = newStock - (Number(item.reserved) || 0);
+    const updatedItem = await this.inventoryModel.findOneAndUpdate(
+      { tenantId, _id: item._id },
+      { $set: { stock: newStock, available: newAvailable, lastUpdated: new Date().toISOString().split('T')[0] } },
+      { new: true },
+    ).exec();
+    return updatedItem;
+  }
 
 
   async remove(tenantCode: string, itemId: string) {
@@ -867,8 +571,6 @@ export class InventoryService {
     const tenantId = await this.resolveTenantObjectId(tenantCode);
 
     const item = await this.inventoryModel.findOneAndUpdate(
-
-
 
       { tenantId, itemId },
 
@@ -880,217 +582,91 @@ export class InventoryService {
   }
   async getCategories(tenantCode: string, user?: UserWithVisibility): Promise<string[]> {
     const tenantId = await this.resolveTenantObjectId(tenantCode);
-
-    console.log(`[INVENTORY CATEGORIES SERVICE] tenantCode: ${tenantCode}, tenantId: ${tenantId}`);
-
-    console.log(`[INVENTORY CATEGORIES SERVICE] user:`, JSON.stringify(user));
-
-    
-
-    // Build match query with dataScope filter
-
-    const matchQuery: any = {
-
-      tenantId,
-
-      isDeleted: false,
-
-    };
-
-    
-
-    // Apply visibility filter based on user's dataScope
-
+    const matchQuery: any = { tenantId, isDeleted: false };
     if (user?.dataScope === 'ASSIGNED') {
-
       const userId = user._id || user.id;
-
       if (userId) {
-
-        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
-
-          ? new Types.ObjectId(userId)
-
-          : userId;
-
+        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId) ? new Types.ObjectId(userId) : userId;
         matchQuery.assignedTo = objectId;
-
-        console.log(`[INVENTORY CATEGORIES SERVICE] Applied assignedTo filter:`, objectId);
-
       }
-
-    } else {
-
-      console.log(`[INVENTORY CATEGORIES SERVICE] No assignedTo filter - returning ALL categories`);
-
     }
-
-    
-
-    console.log(`[INVENTORY CATEGORIES SERVICE] Match query:`, JSON.stringify(matchQuery));
-
-    
-
-    // Get distinct categories
-
     const categories = await this.inventoryModel.distinct('category', matchQuery);
-
-    console.log(`[INVENTORY CATEGORIES SERVICE] Raw distinct result:`, categories);
-    // Filter out null/empty values and sort
-
-    const filteredCategories = categories.filter(cat => cat && cat.trim() !== '').sort();
-    console.log(`[INVENTORY CATEGORIES SERVICE] Filtered categories:`, filteredCategories);
-    return filteredCategories;
+    return categories.filter((cat: string) => cat && cat.trim() !== '').sort();
   }
   async getUnits(tenantCode: string, user?: UserWithVisibility): Promise<string[]> {
     const tenantId = await this.resolveTenantObjectId(tenantCode);
-    console.log(`[INVENTORY UNITS SERVICE] tenantCode: ${tenantCode}, tenantId: ${tenantId}`);
-    console.log(`[INVENTORY UNITS SERVICE] user:`, JSON.stringify(user));
-
-    // Build match query with dataScope filter
-    const matchQuery: any = {
-      tenantId,
-      isDeleted: false,
-    }; 
-
-    // Apply visibility filter based on user's dataScope
-
+    const matchQuery: any = { tenantId, isDeleted: false };
     if (user?.dataScope === 'ASSIGNED') {
-
       const userId = user._id || user.id;
-
       if (userId) {
-
-        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
-
-          ? new Types.ObjectId(userId)
-
-          : userId;
-
+        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId) ? new Types.ObjectId(userId) : userId;
         matchQuery.assignedTo = objectId;
-
-        console.log(`[INVENTORY UNITS SERVICE] Applied assignedTo filter:`, objectId);
-
       }
-
-    } else {
-
-      console.log(`[INVENTORY UNITS SERVICE] No assignedTo filter - returning ALL units`);
-
     }
-
-    console.log(`[INVENTORY UNITS SERVICE] Match query:`, JSON.stringify(matchQuery));
-    // Get distinct units
-
     const units = await this.inventoryModel.distinct('unit', matchQuery);
-
-    console.log(`[INVENTORY UNITS SERVICE] Raw distinct result:`, units);
-    // Filter out null/empty values and sort
-    const filteredUnits = units.filter(unit => unit && unit.trim() !== '').sort();
-    console.log(`[INVENTORY UNITS SERVICE] Filtered units:`, filteredUnits);
-    return filteredUnits;
+    return units.filter((unit: string) => unit && unit.trim() !== '').sort();
   }
-  // Backward compatibility methods for logistics service
-  async addStock(
-    itemName: string,
-    quantity: number,
-    reason: string,
-    tenantCode: string,
-    referenceId?: string,
-  ): Promise<Inventory | null> {
-
+  async getStats(tenantCode: string, user?: UserWithVisibility) {
     const tenantId = await this.resolveTenantObjectId(tenantCode);
-
-
-
-    // Try to find item by name first, then by description
-
-    let item = await this.inventoryModel.findOne({ tenantId, name: itemName }).exec();
-
-    
-
-    if (!item) {
-
-      // Create new inventory item if it doesn't exist
-
-      const newItem = new this.inventoryModel({
-
-        tenantId,
-
-        itemId: `INV${Date.now().toString(36).toUpperCase()}`,
-
-        name: itemName,
-
-        description: itemName,
-
-        category: 'Auto-created',
-
-        stock: quantity,
-
-        available: quantity,
-
-        reserved: 0,
-
-        minStock: 0,
-
-        rate: 0,
-
-        unit: 'Nos',
-
-        warehouse: 'Main',
-
-        status: 'In Stock',
-
-        lastUpdated: new Date().toISOString().split('T')[0],
-
-      });
-      item = await newItem.save();
-
-      return item;
-
+    const matchQuery: any = { tenantId, isDeleted: false };
+    if (user?.dataScope === 'ASSIGNED') {
+      const userId = user._id || user.id;
+      if (userId) {
+        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId) ? new Types.ObjectId(userId) : userId;
+        matchQuery.assignedTo = objectId;
+      }
     }
-    const newStock = item.stock + quantity;
-    const newAvailable = newStock - item.reserved;
-    return this.inventoryModel.findOneAndUpdate(
-      { tenantId, _id: item._id },
-      {
-        $set: {
-          stock: newStock,
-          available: newAvailable,
-          lastUpdated: new Date().toISOString().split('T')[0],
-        }
-      },
-
-      { new: true },
-
-    ).exec();
-
+    const items: any[] = await this.inventoryModel.find(matchQuery).lean();
+    const totalItems = items.length;
+    const totalStock = items.reduce((sum, it) => sum + (Number(it.stock) || 0), 0);
+    const lowStockItems = items.filter((it) => {
+      const available = Number(it.available) || 0;
+      const minStock = Number(it.minStock) || 0;
+      return available > 0 && available <= minStock;
+    }).length;
+    const outOfStockItems = items.filter((it) => (Number(it.available) || 0) <= 0).length;
+    const reservedItems = items.filter((it) => (Number(it.reserved) || 0) > 0).length;
+    return { totalItems, totalStock, lowStockItems, outOfStockItems, reservedItems };
+  }
+  async getItemsByCategory(tenantCode: string, user?: UserWithVisibility) {
+    const tenantId = await this.resolveTenantObjectId(tenantCode);
+    const matchQuery: any = { tenantId, isDeleted: false };
+    if (user?.dataScope === 'ASSIGNED') {
+      const userId = user._id || user.id;
+      if (userId) {
+        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId) ? new Types.ObjectId(userId) : userId;
+        matchQuery.assignedTo = objectId;
+      }
+    }
+    return this.inventoryModel.aggregate([
+      { $match: matchQuery },
+      { $group: { _id: '$category', count: { $sum: 1 }, totalStock: { $sum: '$stock' }, totalAvailable: { $sum: '$available' } } },
+      { $project: { _id: 0, category: '$_id', count: 1, totalStock: 1, totalAvailable: 1 } },
+      { $sort: { category: 1 } },
+    ]).exec();
   }
 
-  async removeStock(
+/*
+  return updatedItem;
+}
 
-    itemName: string,
+async remove(tenantCode: string, itemId: string) {
+  const tenantId = await this.resolveTenantObjectId(tenantCode);
+  const item = await this.inventoryModel.findOneAndUpdate(
+    { tenantId, itemId },
+    { $set: { isDeleted: true } },
+    { new: true },
+  ).exec();
+}
 
-    quantity: number,
-
-    reason: string,
-
-    tenantCode: string,
-
-    referenceId?: string,
-
-  ): Promise<Inventory | null> {
-
-    const tenantId = await this.resolveTenantObjectId(tenantCode);
-    // Try to find item by name first, then by description
-
-    let item = await this.inventoryModel.findOne({ tenantId, name: itemName }).exec();
-
-    // If not found by name, try searching by description
-    if (!item) {
-
-      item = await this.inventoryModel.findOne({ tenantId, description: itemName }).exec();
-
+async getCategories(tenantCode: string, user?: UserWithVisibility): Promise<string[]> {
+  const tenantId = await this.resolveTenantObjectId(tenantCode);
+  const matchQuery: any = { tenantId, isDeleted: false };
+  if (user?.dataScope === 'ASSIGNED') {
+    const userId = user._id || user.id;
+    if (userId) {
+      const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId) ? new Types.ObjectId(userId) : userId;
+      matchQuery.assignedTo = objectId;
     }
 
     // If still not found, try searching by itemId
@@ -1174,4 +750,6 @@ export class InventoryService {
 
   }
 
+}
+*/
 }
