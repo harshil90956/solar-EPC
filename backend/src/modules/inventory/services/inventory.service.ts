@@ -18,41 +18,25 @@ export class InventoryService {
     @InjectModel(Inventory.name) private readonly inventoryModel: Model<Inventory>,
     @InjectModel(InventoryReservation.name) private readonly reservationModel: Model<InventoryReservation>,
     @InjectModel(Tenant.name) private readonly tenantModel: Model<Tenant>,
-
   ) {}
 
   private async getTenantId(tenantCode: string): Promise<Types.ObjectId> {
-
     return this.resolveTenantObjectId(tenantCode);
-
   }
 
   private async resolveTenantObjectId(tenantId: string): Promise<Types.ObjectId> {
-
     if (!tenantId) {
-
       throw new BadRequestException('Tenant context is missing');
-
     }
-
     if (Types.ObjectId.isValid(tenantId)) {
-
       return new Types.ObjectId(tenantId);
-
     }
-
     // Try to find by code if it's not a valid ObjectId
-
     const tenant = await this.tenantModel.findOne({ code: tenantId }).lean();
-
     if (!tenant) {
-
       throw new BadRequestException(`Tenant not found for identifier: ${tenantId}`);
-
     }
-
     return (tenant as any)._id as Types.ObjectId;
-
   }
 
   async findAll(tenantCode: string, user?: UserWithVisibility, category?: string, search?: string) {
@@ -61,58 +45,36 @@ export class InventoryService {
     console.log(`[INVENTORY VISIBILITY] user:`, JSON.stringify(user));
     console.log(`[INVENTORY VISIBILITY] user?.dataScope:`, user?.dataScope);
     // Apply visibility filter based on user's dataScope
-
     if (user?.dataScope === 'ASSIGNED') {
       const userId = user._id || user.id;
-
       console.log(`[INVENTORY VISIBILITY] userId:`, userId);
-
       if (userId) {
-
         const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
-
           ? new Types.ObjectId(userId)
-
           : userId;
-
         // STRICT: Only show items explicitly assigned to this user
-
         query.assignedTo = objectId;
-
         console.log(`[INVENTORY VISIBILITY] Applied STRICT assignedTo filter:`, objectId);
-
       }
-
     } else {
-
       console.log(`[INVENTORY VISIBILITY] No filter applied - ALL scope or no user`);
-
     }
     if (category && category !== 'All') {
       query.category = category;
     }
     if (search) {
       query.$text = { $search: search };
-
     }
-       console.log(`[INVENTORY VISIBILITY] Final query:`, JSON.stringify(query));
+    console.log(`[INVENTORY VISIBILITY] Final query:`, JSON.stringify(query));
     return this.inventoryModel.find(query).sort({ createdAt: -1 }).exec();
-
   }
 
   async findOne(tenantCode: string, itemId: string) {
     const tenantId = await this.resolveTenantObjectId(tenantCode);
-    const item = await this.inventoryModel.findOne({
-      tenantId,
-      itemId,
-      isDeleted: false,
-    }).exec();
-
+    const item = await this.inventoryModel.findOne({ tenantId, itemId, isDeleted: false }).exec();
     if (!item) {
-
       throw new NotFoundException(`Item ${itemId} not found`);
     }
-
     return item;
   }
 
@@ -122,7 +84,6 @@ export class InventoryService {
     const available = createDto.available || 0;
     const minStock = createDto.minStock || 0;
     let status: string;
-
     if (available === 0) {
       status = 'Out of Stock';
     } else if (available <= minStock) {
@@ -156,7 +117,6 @@ export class InventoryService {
     if (!item) {
       throw new NotFoundException(`Item ${itemId} not found`);
     }
-
     return item;
   }
   async createReservation(tenantCode: string, createDto: CreateReservationDto) {
@@ -289,35 +249,17 @@ export class InventoryService {
       searchItemIds.push('INV' + itemId);
 
     }
-
-
-
     console.log(`[DEBUG getReservationsByItem] searchItemIds:`, searchItemIds);
-
-
-
     // First, let's check ALL reservations for this tenant to see what exists
-
     const allReservations = await this.reservationModel
-
       .find({
-
         $or: [
-
           { tenantId: tenantId },
-
           { tenantId: tenantId.toString() },
-
         ],
-
       })
-
       .limit(10)
-
       .exec();
-
-    
-
     console.log(`[DEBUG getReservationsByItem] ALL reservations for tenant (${allReservations.length}):`, allReservations.map(r => ({ itemId: r.itemId, projectId: r.projectId, status: r.status })));
 
 
@@ -875,71 +817,19 @@ export class InventoryService {
     const item = await this.inventoryModel.findOne({ tenantId, itemId }).exec();
     if (!item) {
       throw new NotFoundException(`Item ${itemId} not found`);
-
     }
-
-
-
-
-
-
-
     if (item.available < stockOutDto.quantity) {
-
-
-
       throw new NotFoundException(`Insufficient stock. Available: ${item.available}`);
-
-
-
     }
-
-
-
-
-
-
-
     const newStock = item.stock - stockOutDto.quantity;
-
-
-
     const newAvailable = newStock - item.reserved;
-
-
-
-
-
-
-
     const updatedItem = await this.inventoryModel.findOneAndUpdate(
-
-
-
       { tenantId, itemId },
-
-
-
       {
-
-
-
         $set: {
-
-
-
           stock: newStock,
-
-
-
           available: newAvailable,
-
-
-
           lastUpdated: new Date().toISOString().split('T')[0],
-
-
-
         }
 
 
@@ -985,237 +875,11 @@ export class InventoryService {
 
 
       { $set: { isDeleted: true } },
-
-
-
       { new: true },
-
-
-
     ).exec();
-
-
-
-
-
-
-
-    if (!item) {
-
-
-
-      throw new NotFoundException(`Item ${itemId} not found`);
-
-
-
-    }
-
-
-
-
-
-
-
-    return { message: `Item ${itemId} deleted successfully` };
-
-
-
   }
-
-
-
-
-
-
-
-  async getStats(tenantCode: string, user?: UserWithVisibility) {
-
-    const tenantId = await this.resolveTenantObjectId(tenantCode);
-
-    
-
-    const query: any = { tenantId, isDeleted: false };
-
-    
-
-    console.log(`[INVENTORY STATS VISIBILITY] user param:`, JSON.stringify(user));
-
-    console.log(`[INVENTORY STATS VISIBILITY] user?.dataScope:`, user?.dataScope);
-
-    
-
-    // Apply visibility filter based on user's dataScope
-
-    if (user?.dataScope === 'ASSIGNED') {
-
-      const userId = user._id || user.id;
-
-      if (userId) {
-
-        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
-
-          ? new Types.ObjectId(userId)
-
-          : userId;
-
-        // STRICT: Only include items explicitly assigned to this user
-
-        query.assignedTo = objectId;
-
-        console.log(`[INVENTORY STATS VISIBILITY] Applied assignedTo filter:`, objectId);
-
-      }
-
-    } else {
-
-      console.log(`[INVENTORY STATS VISIBILITY] SKIPPING filter - dataScope is not ASSIGNED`);
-
-    }
-
-    
-
-    console.log(`[INVENTORY STATS VISIBILITY] Final Query:`, JSON.stringify(query));
-
-    
-
-    const items = await this.inventoryModel.find(query).exec();
-
-    
-
-    const totalItems = items.length;
-
-    const totalValue = items.reduce((sum, item) => sum + (item.stock * item.rate), 0);
-
-    const lowStockItems = items.filter(item => item.available <= item.minStock && item.available > 0).length;
-
-    const outOfStockItems = items.filter(item => item.available === 0).length;
-
-
-
-    return {
-
-      totalItems,
-
-      totalValue,
-
-      lowStockItems,
-
-      outOfStockItems,
-
-    };
-
-  }
-
-
-
-
-
-
-
-  async getItemsByCategory(tenantCode: string, user?: UserWithVisibility) {
-
-    const tenantId = await this.resolveTenantObjectId(tenantCode);
-
-    
-
-    console.log(`[INVENTORY CATEGORY VISIBILITY] user:`, JSON.stringify(user));
-
-    console.log(`[INVENTORY CATEGORY VISIBILITY] user?.dataScope:`, user?.dataScope);
-
-    
-
-    // Build match query with dataScope filter
-
-    const matchQuery: any = {
-
-      tenantId,
-
-      isDeleted: false,
-
-    };
-
-    
-
-    // Apply visibility filter based on user's dataScope
-
-    if (user?.dataScope === 'ASSIGNED') {
-
-      const userId = user._id || user.id;
-
-      if (userId) {
-
-        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
-
-          ? new Types.ObjectId(userId)
-
-          : userId;
-
-        matchQuery.assignedTo = objectId;
-
-        console.log(`[INVENTORY CATEGORY VISIBILITY] Applied assignedTo filter:`, objectId);
-
-      }
-
-    } else {
-
-      console.log(`[INVENTORY CATEGORY VISIBILITY] No filter - ALL scope or no user`);
-
-    }
-
-
-
-    return this.inventoryModel.aggregate([
-
-
-
-      {
-
-
-
-        $match: matchQuery,
-
-
-
-      },
-      {
-
-
-
-        $group: {
-
-
-
-          _id: '$category',
-          count: { $sum: 1 },
-          totalStock: { $sum: '$stock' },
-
-
-
-          totalValue: { $sum: { $multiply: ['$stock', '$rate'] } },
-
-
-
-        },
-
-
-
-      },
-
-
-
-    ]).exec();
-
-
-
-  }
-
-
-
   async getCategories(tenantCode: string, user?: UserWithVisibility): Promise<string[]> {
-
     const tenantId = await this.resolveTenantObjectId(tenantCode);
-
-    
 
     console.log(`[INVENTORY CATEGORIES SERVICE] tenantCode: ${tenantCode}, tenantId: ${tenantId}`);
 
@@ -1501,26 +1165,13 @@ export class InventoryService {
 
 
         }
-
-
-
       },
 
-
-
       { new: true },
-
-
-
     ).exec();
 
 
 
   }
 
-
-
 }
-
-
-
