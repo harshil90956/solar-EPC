@@ -13,7 +13,7 @@ import {
   Activity, PieChart as PieChartIcon,
   BarChart3, Target, Zap,
   Sun, Hammer,
-  MoreVertical, CheckCircle,
+  MoreVertical, CheckCircle, Eye,
 } from 'lucide-react';
 import {
   BarChart, Bar, PieChart, Pie, Cell,
@@ -1049,6 +1049,144 @@ const DocumentPage = () => {
   const DocumentListView = () => {
     const [selectedDocForView, setSelectedDocForView] = useState(null);
     const [statusFilter, setStatusFilter] = useState('all');
+
+    // ── Table Columns ────────────────────────────────────────────────────────────
+    const tableColumns = [
+      {
+        key: 'id',
+        header: 'Proposal #',
+        render: v => <span className="text-xs font-medium text-red-500 hover:text-red-600 cursor-pointer">{v}</span>,
+      },
+      {
+        key: 'customerName',
+        header: 'Customer',
+        render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span>,
+      },
+      {
+        key: 'title',
+        header: 'Project',
+        render: v => <span className="text-xs text-[var(--text-muted)] line-clamp-1">{v}</span>,
+      },
+      {
+        key: 'total',
+        header: 'Total',
+        render: v => <span className="text-xs font-bold text-[var(--text-primary)]">{fmt(v)}</span>,
+      },
+      {
+        key: 'status',
+        header: 'Status',
+        render: v => {
+          const config = DOCUMENT_STATUS[v] || DOCUMENT_STATUS.draft;
+          return (
+            <span
+              className="px-2.5 py-1 rounded-full text-[10px] font-medium"
+              style={{ background: config.bg, color: config.color }}
+            >
+              {config.label}
+            </span>
+          );
+        },
+      },
+      {
+        key: 'actions',
+        header: 'Actions',
+        render: (v, doc) => (
+          <div className="flex items-center gap-1">
+            {/* View Button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedDocForView(doc);
+              }}
+              disabled={isProcessing}
+              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-blue-600 transition-colors"
+              title="View Document"
+            >
+              <Eye size={16} />
+            </button>
+            
+            {/* Email Button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleSendEmailAndComplete(doc);
+              }}
+              disabled={isProcessing || !doc.customerEmail}
+              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-blue-600 transition-colors disabled:opacity-40"
+              title={doc.customerEmail ? `Send PDF to ${doc.customerEmail}` : 'No email available'}
+            >
+              <Mail size={16} />
+            </button>
+            
+            {/* More Options Dropdown */}
+            <div className="relative">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActionMenuOpen(actionMenuOpen === doc.id ? null : doc.id);
+                }}
+                disabled={isProcessing}
+                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <MoreVertical size={16} />
+              </button>
+              
+              {actionMenuOpen === doc.id && (
+                <div className="action-menu-container absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleApproveDocument(doc);
+                    }}
+                    disabled={isProcessing || doc.status === 'approved'}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  >
+                    <CheckCircle size={14} className="text-emerald-500" />
+                    <span>Approve & Create Project</span>
+                  </button>
+                  
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSendEmailAndComplete(doc);
+                    }}
+                    disabled={isProcessing || !doc.customerEmail}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  >
+                    <Mail size={14} className="text-blue-500" />
+                    <span>Send Email & Complete</span>
+                  </button>
+                  
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleMarkAsCompleted(doc);
+                    }}
+                    disabled={isProcessing}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  >
+                    <FileCheck size={14} className="text-purple-500" />
+                    <span>Mark as Completed</span>
+                  </button>
+                  
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteDocument(doc);
+                      setActionMenuOpen(null);
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-red-50 text-red-500 transition-colors"
+                  >
+                    <Trash2 size={14} />
+                    <span>Delete</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        ),
+      },
+    ];
 
     const filteredByStatus = useMemo(() => {
       if (statusFilter === 'all') return filteredDocuments;
