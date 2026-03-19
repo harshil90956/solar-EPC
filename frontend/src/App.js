@@ -316,11 +316,14 @@ const AppInner = () => {
 
   // Custom role / employee: only modules where view = true in Role Builder
 
+  const userRole = (user?.role || '').toLowerCase();
+  const isAdmin = userRole === 'admin' || userRole === 'superadmin' || user?.isSuperAdmin;
+
   const hasAccess = (page) => {
     if (!isModuleEnabled(page)) return false;
-
+    // Admin bypass - admins can access all enabled modules
+    if (isAdmin) return true;
     return resolvePermission(page, 'view') === true;
-
   };
 
 

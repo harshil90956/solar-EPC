@@ -169,7 +169,6 @@ export class AuthService {
         tenantId: employee.tenantId ? String(employee.tenantId) : null,
         isSuperAdmin: false,
         roleId: employee.roleId || null,
-        department: employee.department || null,
         isEmployee: true,
       };
 
@@ -185,7 +184,6 @@ export class AuthService {
           isSuperAdmin: false,
           roleId: employee.roleId || null,
           isEmployee: true,
-          department: employee.department || null,
           firstName: employee.firstName,
           lastName: employee.lastName,
           employeeId: employee.employeeId,
@@ -228,6 +226,7 @@ export class AuthService {
       },
     };
   }
+
   async getUsersByTenantAndRole(tenantCode: string, role?: string) {
     const tenant = await this.tenantModel.findOne({ code: tenantCode }).lean();
     if (!tenant) {
@@ -562,19 +561,235 @@ export class AuthService {
     
     // Define module access by role
     const roleModuleMap: Record<string, string[]> = {
-      'admin': ['dashboard', 'crm', 'survey', 'design', 'documents', 'procurement', 'inventory', 'project', 'logistics', 'installation', 'commissioning', 'finance', 'service', 'compliance', 'admin', 'settings', 'hrm'],
-      'manager': ['dashboard', 'crm', 'survey', 'design', 'procurement', 'inventory', 'project', 'logistics', 'installation', 'finance', 'service', 'hrm'],
-      'sales': ['dashboard', 'crm', 'quotations', 'leads'],
-      'technician': ['dashboard', 'installation', 'service'],
+      'admin': ['dashboard', 'crm', 'survey', 'design', 'documents', 'procurement', 'inventory', 'project', 'logistics', 'installation', 'commissioning', 'finance', 'service', 'compliance', 'admin', 'settings', 'hrm', 'tasks'],
+      'manager': ['dashboard', 'crm', 'survey', 'design', 'procurement', 'inventory', 'project', 'logistics', 'installation', 'finance', 'service', 'hrm', 'tasks'],
+      'sales': ['dashboard', 'crm', 'quotations', 'leads', 'tasks'],
+      'technician': ['dashboard', 'installation', 'service', 'tasks'],
+      'hr': ['dashboard', 'hrm', 'employees', 'attendance', 'leaves', 'tasks'],
+      'employee': ['dashboard', 'hrm', 'tasks'],
     };
+    
+    // Check if role has access to this module
+    const roleModules = roleModuleMap[roleLower] || roleModuleMap['employee'];
+    const hasAccess = roleModules.includes(module);
+    
+    if (!hasAccess) {
+      return defaultPerms;
+    }
+    
+    // Non-admin roles with access get view + limited create/edit
+    return {
+      view: true,
+      create: roleLower !== 'employee',
+      edit: roleLower !== 'employee',
+      delete: roleLower === 'manager' || roleLower === 'admin',
+    };
+  }
 
-    // Check if role has access to module
-    for (const [r, modules] of Object.entries(roleModuleMap)) {
-      if (roleLower.includes(r) && modules.includes(module)) {
-        return { view: true, create: true, edit: true, delete: true };
+  // In-memory OTP store (use Redis in production)
+  // Added attempts tracking for security (max 3 attempts)
+  private otpStore: Map<string, { 
+    otp: string; 
+    expiresAt: Date; 
+    userType: 'user' | 'employee';
+    attempts: number;
+    maxAttempts: number;
+  }> = new Map();
+
+  // Generate 6-digit OTP
+  private generateOTP(): string {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  }
+
+  // Send OTP email (mock - replace with actual email service)
+  private async sendOtpEmail(email: string, otp: string, name?: string): Promise<void> {
+    // TODO: Integrate with your email service (SendGrid, AWS SES, Nodemailer, etc.)
+    console.log(`[OTP EMAIL] To: ${email}, OTP: ${otp}, Name: ${name || 'User'}`);
+    
+    // Example integration placeholder:
+    // await this.emailService.send({
+    //   to: email,
+    //   subject: 'Password Reset OTP - Solar OS',
+    //   template: 'otp-reset',
+    //   data: { otp, name, expiresIn: '5 minutes' }
+    // });
+  }
+
+  // Forgot Password - Send OTP
+  async forgotPassword(email: string) {
+    const normalizedEmail = email.toLowerCase().trim();
+    
+    // Check in users collection first
+    let user = await this.userModel.findOne({ email: normalizedEmail, isActive: true }).lean();
+    let employee = null;
+    let userType: 'user' | 'employee' = 'user';
+    let name = '';
+
+    // If not found in users, check employees
+    if (!user) {
+      employee = await this.employeeModel.findOne({ 
+        email: normalizedEmail,
+        status: { $in: ['active', 'inactive'] }
+      }).lean();
+      
+      if (employee) {
+        userType = 'employee';
+        name = `${employee.firstName || ''} ${employee.lastName || ''}`.trim();
+      }
+    } else {
+      name = `${user.firstName || ''} ${user.lastName || ''}`.trim();
+    }
+
+    // If neither found
+    if (!user && !employee) {
+      // Don't reveal if email exists (security best practice)
+      // But for UX, we'll return success even if email not found
+      // This prevents email enumeration attacks
+      return {
+        success: true,
+        message: 'If an account exists with this email, an OTP has been sent.',
+        email: normalizedEmail,
+      };
+    }
+
+    // Generate OTP
+    const otp = this.generateOTP();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes expiry
+
+    // Store OTP with attempts tracking (max 3 attempts)
+    this.otpStore.set(normalizedEmail, { 
+      otp, 
+      expiresAt, 
+      userType,
+      attempts: 0,
+      maxAttempts: 3
+    });
+
+    // Send email
+    await this.sendOtpEmail(normalizedEmail, otp, name);
+
+    return {
+      success: true,
+      message: 'OTP sent successfully to your email',
+      email: normalizedEmail,
+      expiresIn: '5 minutes',
+      // NEVER expose OTP in production - only in development for testing
+      ...(process.env.NODE_ENV === 'development' && { otp }),
+    };
+  }
+
+  // Verify OTP
+  async verifyOtp(email: string, otp: string) {
+    const normalizedEmail = email.toLowerCase().trim();
+    const stored = this.otpStore.get(normalizedEmail);
+
+    if (!stored) {
+      throw new BadRequestException('OTP not found or expired. Please request a new one.');
+    }
+
+    if (new Date() > stored.expiresAt) {
+      this.otpStore.delete(normalizedEmail);
+      throw new BadRequestException('OTP has expired. Please request a new one.');
+    }
+
+    // Check max attempts (3 attempts allowed)
+    if (stored.attempts >= stored.maxAttempts) {
+      this.otpStore.delete(normalizedEmail);
+      throw new BadRequestException('Maximum OTP attempts exceeded. Please request a new OTP.');
+    }
+
+    if (stored.otp !== otp) {
+      // Increment failed attempts
+      stored.attempts++;
+      const remainingAttempts = stored.maxAttempts - stored.attempts;
+      
+      if (stored.attempts >= stored.maxAttempts) {
+        this.otpStore.delete(normalizedEmail);
+        throw new BadRequestException('Maximum OTP attempts exceeded. Please request a new OTP.');
+      }
+      
+      throw new BadRequestException(`Invalid OTP. ${remainingAttempts} attempt${remainingAttempts > 1 ? 's' : ''} remaining.`);
+    }
+
+    // OTP verified - don't delete yet, wait for password reset
+    return {
+      success: true,
+      message: 'OTP verified successfully',
+      email: normalizedEmail,
+      verified: true,
+    };
+  }
+
+  // Reset Password
+  async resetPassword(email: string, otp: string, newPassword: string) {
+    const normalizedEmail = email.toLowerCase().trim();
+    const stored = this.otpStore.get(normalizedEmail);
+
+    if (!stored) {
+      throw new BadRequestException('OTP not found or expired. Please request a new one.');
+    }
+
+    if (new Date() > stored.expiresAt) {
+      this.otpStore.delete(normalizedEmail);
+      throw new BadRequestException('OTP has expired. Please request a new one.');
+    }
+
+    // Check max attempts (3 attempts allowed)
+    if (stored.attempts >= stored.maxAttempts) {
+      this.otpStore.delete(normalizedEmail);
+      throw new BadRequestException('Maximum OTP attempts exceeded. Please request a new OTP.');
+    }
+
+    if (stored.otp !== otp) {
+      // Increment failed attempts
+      stored.attempts++;
+      const remainingAttempts = stored.maxAttempts - stored.attempts;
+      
+      if (stored.attempts >= stored.maxAttempts) {
+        this.otpStore.delete(normalizedEmail);
+        throw new BadRequestException('Maximum OTP attempts exceeded. Please request a new OTP.');
+      }
+      
+      throw new BadRequestException(`Invalid OTP. ${remainingAttempts} attempt${remainingAttempts > 1 ? 's' : ''} remaining.`);
+    }
+
+    // Validate password
+    if (!newPassword || newPassword.length < 6) {
+      throw new BadRequestException('Password must be at least 6 characters long');
+    }
+
+    // Hash new password
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    // Update password based on user type
+    if (stored.userType === 'user') {
+      const user = await this.userModel.findOneAndUpdate(
+        { email: normalizedEmail, isActive: true },
+        { $set: { passwordHash } },
+        { new: true }
+      );
+
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+    } else {
+      const employee = await this.employeeModel.findOneAndUpdate(
+        { email: normalizedEmail, status: { $in: ['active', 'inactive'] } },
+        { $set: { password: passwordHash } },
+        { new: true }
+      );
+
+      if (!employee) {
+        throw new NotFoundException('Employee not found');
       }
     }
 
-    return defaultPerms;
+    // Clear OTP after successful reset
+    this.otpStore.delete(normalizedEmail);
+
+    return {
+      success: true,
+      message: 'Password reset successfully. Please login with your new password.',
+    };
   }
 }

@@ -20,6 +20,7 @@ export const attendanceApi = {
   getMonthlySummary: (employeeId, month, year) =>
     apiClient.get(`/hrm/attendance/summary/${employeeId}`, { params: { month, year } }),
   getTodaySummary: () => apiClient.get('/hrm/attendance/today-summary'),
+  reverseGeocode: (lat, lng) => apiClient.get('/hrm/attendance/reverse-geocode', { params: { lat, lng } }),
   update: (id, data) => apiClient.put(`/hrm/attendance/${id}`, data),
   delete: (id) => apiClient.delete(`/hrm/attendance/${id}`),
   bulkUpdate: (data) => apiClient.patch('/hrm/attendance/bulk-update', data),

@@ -22,22 +22,6 @@ export const NAV_CONFIG = [
             { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, badge: null },
             { id: 'crm', label: 'CRM & Sales', icon: Users, badge: hotLeads || null },
             { id: 'tasks', label: 'Tasks', icon: CheckSquare, badge: null },
-            {
-                id: 'hrm',
-                label: 'HRM',
-                icon: Briefcase,
-                badge: null,
-                badgeVariant: 'accent',
-                children: [
-                    { id: 'hrm-employees', label: 'Employees', icon: UserCircle },
-                    { id: 'hrm-leaves', label: 'Leaves', icon: Calendar },
-                    { id: 'hrm-attendance', label: 'Attendance', icon: Clock },
-                    { id: 'hrm-payroll', label: 'Payroll', icon: Wallet },
-                    { id: 'hrm-increments', label: 'Increments', icon: TrendingUp },
-                    { id: 'hrm-departments', label: 'Departments', icon: Building2 },
-                    { id: 'hrm-permissions', label: 'Permissions', icon: Shield, adminOnly: true },
-                ]
-            },
             { id: 'intelligence', label: 'AI Intelligence', icon: Brain, badge: null, badgeVariant: 'accent' },
         ],
     },
@@ -81,6 +65,22 @@ export const NAV_CONFIG = [
     {
         section: 'STAFF MANAGEMENT',
         items: [
+            {
+                id: 'hrm',
+                label: 'HRM',
+                icon: Briefcase,
+                badge: null,
+                badgeVariant: 'accent',
+                children: [
+                    { id: 'hrm-employees', label: 'Employees', icon: UserCircle },
+                    { id: 'hrm-leaves', label: 'Leaves', icon: Calendar },
+                    { id: 'hrm-attendance', label: 'Attendance', icon: Clock },
+                    { id: 'hrm-payroll', label: 'Payroll', icon: Wallet },
+                    { id: 'hrm-increments', label: 'Increments', icon: TrendingUp },
+                    { id: 'hrm-departments', label: 'Departments', icon: Building2 },
+                    { id: 'hrm-permissions', label: 'Permissions', icon: Shield, adminOnly: true },
+                ]
+            },
             { id: 'admin', label: 'Admin', icon: Shield, badge: null, badgeVariant: 'red' },
         ],
     },

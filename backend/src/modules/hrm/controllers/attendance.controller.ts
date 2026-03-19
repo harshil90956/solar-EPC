@@ -93,26 +93,32 @@ export class AttendanceController {
   @Get()
   async findAll(@Query() query: GetAttendanceQueryDto, @Req() req: any) {
     await this.checkPermission(req, 'attendance', 'view');
-    const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
+    const tenantId = req.tenant?.id || req.user?.tenantId || req.headers['x-tenant-id'];
  
     // Get data scope filter
     const scopeFilter = await this.getDataScopeFilter(req, 'attendance');
 
+    // Normalize dates to a full-day range to avoid timezone edge cases
+    const startDate = query.startDate ? new Date(query.startDate) : undefined;
+    if (startDate) startDate.setHours(0, 0, 0, 0);
+    const endDate = query.endDate ? new Date(query.endDate) : undefined;
+    if (endDate) endDate.setHours(23, 59, 59, 999);
+
     let data;
     if (scopeFilter.employeeId) {
       // Own scope - only own attendance
-      data = await this.attendanceService.findByEmployee(req.user.sub, query.startDate, query.endDate, tenantId, req.user);
+      data = await this.attendanceService.findByEmployee(String(scopeFilter.employeeId), startDate, endDate, tenantId, req.user);
     } else if (scopeFilter.department) {
       // Department scope - filter by department
-      data = await this.attendanceService.findAll(query.employeeId, query.startDate, query.endDate, tenantId, req.user);
+      data = await this.attendanceService.findAll(query.employeeId, startDate, endDate, tenantId, req.user);
       // Filter by department
       data = data.filter((a: any) => a.department === scopeFilter.department);
     } else {
       // All scope - full access
       data = await this.attendanceService.findAll(
         query.employeeId,
-        query.startDate,
-        query.endDate,
+        startDate,
+        endDate,
         tenantId,
         req.user,
       );
@@ -125,6 +131,15 @@ export class AttendanceController {
     await this.checkPermission(req, 'attendance', 'view');
     const tenantId = req.tenant?.id || req.headers['x-tenant-id'];
     const data = await this.attendanceService.getTodaySummary(tenantId, req.user);
+    return { success: true, data };
+  }
+
+  @Get('reverse-geocode')
+  async reverseGeocode(@Query('lat') lat: string, @Query('lng') lng: string, @Req() req: any) {
+    await this.checkPermission(req, 'attendance', 'view');
+    const latitude = Number(lat);
+    const longitude = Number(lng);
+    const data = await this.attendanceService.reverseGeocode(latitude, longitude);
     return { success: true, data };
   }
 

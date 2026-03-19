@@ -14,6 +14,7 @@ import { InventoryService } from './services/inventory.service';
 import { LookupService } from './services/lookup.service';
 import { SettingsModule } from '../settings/settings.module';
 import { InventoryModule } from '../inventory/inventory.module';
+import { CommonModule } from '../../common/common.module';
 
 @Module({
   imports: [

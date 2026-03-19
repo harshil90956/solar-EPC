@@ -21,7 +21,7 @@ import { employeeApi, attendanceApi, leaveApi, payrollApi, incrementApi, departm
 import { api } from '../lib/apiClient';
 import { useQuery } from '@tanstack/react-query';
 import { useSettings } from '../context/SettingsContext';
-import { useAuth } from '../context/AuthContext'; // Fix component usage to match import name
+import { useAuth } from '../context/AuthContext';
 import HrmPermissionsPage from './HrmPermissionsPage';
 import AttendancePolicySettings from './AttendancePolicySettings';
 import { toast } from '../components/ui/Toast';
@@ -229,12 +229,12 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
   }, [user, canViewEmployees, canViewAttendance, canViewLeaves, canViewPayroll, canViewIncrements, canViewDepartments]);
 
   useEffect(() => {
-    if (activeTab === 'attendance') fetchAttendance();
-    if (activeTab === 'leaves') fetchLeaves();
-    if (activeTab === 'payroll') fetchPayrolls();
-    if (activeTab === 'increments') fetchIncrements();
-    if (activeTab === 'departments') fetchDepartments();
-  }, [activeTab]);
+    if (activeTab === 'attendance' && canViewAttendance) fetchAttendance();
+    if (activeTab === 'leaves' && canViewLeaves) fetchLeaves();
+    if (activeTab === 'payroll' && canViewPayroll) fetchPayrolls();
+    if (activeTab === 'increments' && canViewIncrements) fetchIncrements();
+    if (activeTab === 'departments' && canViewDepartments) fetchDepartments();
+  }, [activeTab, canViewAttendance, canViewLeaves, canViewPayroll, canViewIncrements, canViewDepartments]);
 
   // Debug: Track activeTab changes
   useEffect(() => {
@@ -331,10 +331,10 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
 
   // Fetch departments when employee modal opens
   useEffect(() => {
-    if (showEmployeeModal) {
+    if (showEmployeeModal && canViewDepartments) {
       fetchDepartments();
     }
-  }, [showEmployeeModal]);
+  }, [showEmployeeModal, canViewDepartments]);
   const handleCreateEmployee = async () => {
     // Validate required fields
     if (!employeeForm.roleId) {
