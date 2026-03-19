@@ -186,6 +186,14 @@ export class DocumentEntity {
 
   @Prop({ type: Boolean, default: false })
   isDeleted!: boolean;
+
+  // Canvas design data for proposals
+  @Prop({ type: Object, default: null })
+  canvasData?: {
+    canvasElements: any[];
+    canvasSize: { width: number; height: number };
+    savedAt: string;
+  } | null;
 }
 
 export const DocumentEntitySchema = SchemaFactory.createForClass(DocumentEntity);

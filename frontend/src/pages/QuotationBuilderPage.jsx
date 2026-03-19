@@ -53,6 +53,8 @@ const QuotationBuilderPage = () => {
       mountingStructure: ''
     },
     paymentTerms: '', // User will enter payment terms percentage
+    visitInMonth: '', // Number of visits per month
+    totalVisit: '', // Total number of visits
     materials: [{
       itemId: `TEMP-${Date.now()}`,
       name: '',
@@ -495,6 +497,28 @@ const QuotationBuilderPage = () => {
                   onChange={(e) => setQuotation(prev => ({ 
                     ...prev, 
                     paymentTerms: e.target.value === '' ? '' : parseFloat(e.target.value)
+                  }))}
+                />
+              </FormField>
+              <FormField label="Visit in Month">
+                <Input 
+                  type="number"
+                  placeholder="e.g., 2"
+                  value={quotation.visitInMonth}
+                  onChange={(e) => setQuotation(prev => ({ 
+                    ...prev, 
+                    visitInMonth: e.target.value === '' ? '' : parseInt(e.target.value)
+                  }))}
+                />
+              </FormField>
+              <FormField label="Total Visit">
+                <Input 
+                  type="number"
+                  placeholder="e.g., 24"
+                  value={quotation.totalVisit}
+                  onChange={(e) => setQuotation(prev => ({ 
+                    ...prev, 
+                    totalVisit: e.target.value === '' ? '' : parseInt(e.target.value)
                   }))}
                 />
               </FormField>

@@ -1,11 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, Search, Plus, Check, Zap, Sun, Wrench, Cable, 
-  Droplets, Gauge, HardHat, FileCheck, Cpu, Battery 
+  Droplets, Gauge, HardHat, FileCheck, Cpu, Battery,
+  Loader2
 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input, FormField } from '../ui/Input';
+import { inventoryApi } from '../../services/inventoryApi';
+import { toast } from '../ui/Toast';
 
 // Pre-defined Solar Equipment Library
 export const SOLAR_EQUIPMENT_LIBRARY = [
@@ -342,24 +345,105 @@ const CATEGORY_STYLES = {
 };
 
 /**
- * EquipmentLibrary Modal - Select equipment from predefined library
+ * EquipmentLibrary Modal - Select equipment from inventory
  */
 export const EquipmentLibrary = ({ isOpen, onClose, onSelect }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedItem, setSelectedItem] = useState(null);
   const [quantity, setQuantity] = useState(1);
+  const [inventoryItems, setInventoryItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [categories, setCategories] = useState(['all']);
 
-  // Get unique categories
-  const categories = ['all', ...new Set(SOLAR_EQUIPMENT_LIBRARY.map(item => item.category))];
+  // Fetch inventory from backend
+  useEffect(() => {
+    if (isOpen) {
+      fetchInventory();
+    }
+  }, [isOpen]);
+
+  const fetchInventory = async () => {
+    setLoading(true);
+    try {
+      console.log('[EquipmentLibrary] Fetching inventory from backend...');
+      // Fetch inventory items
+      const response = await inventoryApi.getAll();
+      console.log('[EquipmentLibrary] Raw response:', response);
+      
+      const items = response?.data?.data || response?.data || response || [];
+      console.log('[EquipmentLibrary] Extracted items:', items);
+      console.log('[EquipmentLibrary] Items count:', items.length);
+      
+      if (items.length === 0) {
+        console.warn('[EquipmentLibrary] No inventory items found in backend');
+        toast.error('No inventory items found. Please add items in Inventory module first.');
+        // Still use static library as fallback
+        setInventoryItems(SOLAR_EQUIPMENT_LIBRARY);
+        setCategories(['all', ...new Set(SOLAR_EQUIPMENT_LIBRARY.map(item => item.category))]);
+        return;
+      }
+      
+      // Transform backend items to frontend format
+      const transformedItems = items.map(item => ({
+        id: item._id || item.id,
+        category: item.category || 'misc',
+        categoryLabel: item.category?.replace(/_/g, ' ')?.replace(/\b\w/g, l => l.toUpperCase()) || 'Miscellaneous',
+        icon: getCategoryIcon(item.category),
+        name: item.name,
+        brand: item.brand || item.make || '',
+        model: item.model || item.code || '',
+        description: item.description || '',
+        unitPrice: item.unitPrice || item.price || 0,
+        specs: item.specifications || `${item.unit || 'Unit'} | Stock: ${item.currentStock || 0}`,
+        unit: item.unit || 'Piece',
+        currentStock: item.currentStock || 0,
+      }));
+      
+      console.log('[EquipmentLibrary] Transformed items:', transformedItems);
+      setInventoryItems(transformedItems);
+
+      // Extract unique categories
+      const uniqueCategories = ['all', ...new Set(transformedItems.map(item => item.category))];
+      setCategories(uniqueCategories);
+      toast.success(`Loaded ${transformedItems.length} items from inventory`);
+    } catch (error) {
+      console.error('[EquipmentLibrary] Failed to fetch inventory:', error);
+      toast.error('Failed to load inventory. Using default library.');
+      // Fallback to static library
+      setInventoryItems(SOLAR_EQUIPMENT_LIBRARY);
+      setCategories(['all', ...new Set(SOLAR_EQUIPMENT_LIBRARY.map(item => item.category))]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Get icon based on category
+  const getCategoryIcon = (category) => {
+    const iconMap = {
+      solar_panel: Sun,
+      inverter: Cpu,
+      structure: Wrench,
+      cable_dc: Cable,
+      cable_ac: Cable,
+      earthing: Droplets,
+      lightning: Zap,
+      meter: Gauge,
+      battery: Battery,
+      labor: HardHat,
+      accessories: Zap,
+      misc: FileCheck,
+    };
+    return iconMap[category] || Zap;
+  };
   
   // Filter items
-  const filteredItems = SOLAR_EQUIPMENT_LIBRARY.filter(item => {
+  const filteredItems = inventoryItems.filter(item => {
     const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
     const matchesSearch = !searchQuery || 
-      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.brand.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.model.toLowerCase().includes(searchQuery.toLowerCase());
+      item.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.brand?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.model?.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
 
@@ -368,6 +452,8 @@ export const EquipmentLibrary = ({ isOpen, onClose, onSelect }) => {
       onSelect({
         ...selectedItem,
         quantity: quantity,
+        unit: selectedItem.unit || 'Piece',
+        category: selectedItem.category,
         total: selectedItem.unitPrice * quantity
       });
       onClose();
@@ -418,55 +504,68 @@ export const EquipmentLibrary = ({ isOpen, onClose, onSelect }) => {
 
         {/* Equipment Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[400px] overflow-y-auto p-1">
-          {filteredItems.map((item) => {
-            const styles = CATEGORY_STYLES[item.category] || { color: '#64748b', bg: 'rgba(100,116,139,0.1)' };
-            const Icon = item.icon;
-            const isSelected = selectedItem?.id === item.id;
-            
-            return (
-              <button
-                key={item.id}
-                onClick={() => setSelectedItem(item)}
-                className={`p-3 rounded-xl border text-left transition-all ${
-                  isSelected 
-                    ? 'border-[var(--primary)] bg-[var(--primary)]/5 ring-1 ring-[var(--primary)]' 
-                    : 'border-[var(--border-base)] hover:border-[var(--primary)]/50 hover:bg-[var(--bg-hover)]'
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  <div 
-                    className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
-                    style={{ background: styles.bg, color: styles.color }}
-                  >
-                    <Icon size={20} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span 
-                        className="text-[10px] font-medium px-1.5 py-0.5 rounded"
-                        style={{ background: styles.bg, color: styles.color }}
-                      >
-                        {item.categoryLabel}
-                      </span>
-                      {isSelected && <Check size={14} className="text-[var(--primary)]" />}
+          {loading ? (
+            <div className="col-span-2 flex flex-col items-center justify-center py-12 text-[var(--text-muted)]">
+              <Loader2 size={32} className="animate-spin mb-3" />
+              <p className="text-sm">Loading inventory...</p>
+            </div>
+          ) : filteredItems.length === 0 ? (
+            <div className="col-span-2 flex flex-col items-center justify-center py-12 text-[var(--text-muted)]">
+              <Search size={32} className="mb-3 opacity-50" />
+              <p className="text-sm">No equipment found</p>
+              <p className="text-xs mt-1">Try adjusting your search or category filter</p>
+            </div>
+          ) : (
+            filteredItems.map((item) => {
+              const styles = CATEGORY_STYLES[item.category] || { color: '#64748b', bg: 'rgba(100,116,139,0.1)' };
+              const Icon = item.icon;
+              const isSelected = selectedItem?.id === item.id;
+              
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setSelectedItem(item)}
+                  className={`p-3 rounded-xl border text-left transition-all ${
+                    isSelected 
+                      ? 'border-[var(--primary)] bg-[var(--primary)]/5 ring-1 ring-[var(--primary)]' 
+                      : 'border-[var(--border-base)] hover:border-[var(--primary)]/50 hover:bg-[var(--bg-hover)]'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div 
+                      className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+                      style={{ background: styles.bg, color: styles.color }}
+                    >
+                      <Icon size={20} />
                     </div>
-                    <p className="font-medium text-sm text-[var(--text-primary)] mt-1 truncate">
-                      {item.name}
-                    </p>
-                    <p className="text-xs text-[var(--text-muted)] truncate">
-                      {item.brand} {item.model}
-                    </p>
-                    <p className="text-[10px] text-[var(--text-faint)] mt-0.5">
-                      {item.specs}
-                    </p>
-                    <p className="text-sm font-semibold text-emerald-500 mt-2">
-                      ₹{item.unitPrice.toLocaleString('en-IN')}
-                    </p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span 
+                          className="text-[10px] font-medium px-1.5 py-0.5 rounded"
+                          style={{ background: styles.bg, color: styles.color }}
+                        >
+                          {item.categoryLabel}
+                        </span>
+                        {isSelected && <Check size={14} className="text-[var(--primary)]" />}
+                      </div>
+                      <p className="font-medium text-sm text-[var(--text-primary)] mt-1 truncate">
+                        {item.name}
+                      </p>
+                      <p className="text-xs text-[var(--text-muted)] truncate">
+                        {item.brand} {item.model}
+                      </p>
+                      <p className="text-[10px] text-[var(--text-faint)] mt-0.5">
+                        {item.specs}
+                      </p>
+                      <p className="text-sm font-semibold text-emerald-500 mt-2">
+                        ₹{item.unitPrice?.toLocaleString('en-IN')}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              </button>
-            );
-          })}
+                </button>
+              );
+            })
+          )}
         </div>
 
         {/* Selected Item Preview */}

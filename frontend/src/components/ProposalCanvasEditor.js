@@ -8,15 +8,17 @@ import {
   Download, Save, Undo, Redo, ZoomIn, ZoomOut, RotateCcw,
   ChevronUp, ChevronDown, Eye, Lock, Unlock, Layers,
   Plus, Minus, Settings, FileText, Sparkles, Frame,
-  TextCursor, Highlighter, StickyNote, Shapes, X, Loader2
+  TextCursor, Highlighter, StickyNote, Shapes, X, Loader2, Send
 } from 'lucide-react';
 
 // ── Canva-Style Visual Proposal Editor ─────────────────────────────────────
 const ProposalCanvasEditor = ({ 
   initialData, 
   onSave, 
+  onSendEmail,
   onCancel,
-  readOnly = false 
+  readOnly = false,
+  showEmailOnOpen = false
 }) => {
   const canvasRef = useRef(null);
   const [scale, setScale] = useState(1);
@@ -37,6 +39,9 @@ const ProposalCanvasEditor = ({
   // Canvas elements state - starts empty, populated from proposal data
   const [elements, setElements] = useState([]);
   const [exporting, setExporting] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [emailInput, setEmailInput] = useState(initialData?.customerEmail || '');
+  const [showEmailInput, setShowEmailInput] = useState(showEmailOnOpen);
 
   // Text formatting state with toggle support
   const [textFormat, setTextFormat] = useState({
@@ -385,39 +390,149 @@ const ProposalCanvasEditor = ({
     onSave?.(data);
   };
 
-  // Export canvas as PDF
+  // Send email with PDF
+  const handleSendEmail = async () => {
+    if (!emailInput || !onSendEmail) return;
+    
+    if (!canvasRef.current) return;
+    
+    setSending(true);
+    try {
+      // Wait for any rendering to complete
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Get exact canvas dimensions
+      const canvasElement = canvasRef.current;
+      
+      // Generate high-quality image from canvas
+      const canvasImage = await html2canvas(canvasElement, {
+        scale: 2, // Reduced from 3 to keep file size under 25MB
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        width: canvasSize.width,
+        height: canvasSize.height,
+        windowWidth: canvasSize.width,
+        windowHeight: canvasSize.height,
+        x: 0,
+        y: 0,
+        scrollX: 0,
+        scrollY: 0
+      });
+      
+      // Create PDF with exact A4 dimensions
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      
+      const pdfWidth = pdf.internal.pageSize.getWidth(); // 210mm
+      const pdfHeight = pdf.internal.pageSize.getHeight(); // 297mm
+      
+      // Calculate canvas aspect ratio
+      const canvasWidth = canvasSize.width;
+      const canvasHeight = canvasSize.height;
+      const canvasAspect = canvasWidth / canvasHeight;
+      
+      // Calculate PDF aspect ratio
+      const pdfAspect = pdfWidth / pdfHeight;
+      
+      let imgWidth, imgHeight, imgX, imgY;
+      
+      // Fit canvas to PDF maintaining aspect ratio
+      if (canvasAspect > pdfAspect) {
+        // Canvas is wider relative to height - fit to width
+        imgWidth = pdfWidth - 20; // 10mm margin on each side
+        imgHeight = imgWidth / canvasAspect;
+        imgX = 10;
+        imgY = (pdfHeight - imgHeight) / 2;
+      } else {
+        // Canvas is taller relative to width - fit to height
+        imgHeight = pdfHeight - 20; // 10mm margin top and bottom
+        imgWidth = imgHeight * canvasAspect;
+        imgX = (pdfWidth - imgWidth) / 2;
+        imgY = 10;
+      }
+      
+      // Add canvas image to PDF with JPEG compression for smaller file size
+      const imgData = canvasImage.toDataURL('image/jpeg', 0.7); // Use JPEG with 70% quality
+      pdf.addImage(imgData, 'JPEG', imgX, imgY, imgWidth, imgHeight);
+      
+      // Convert PDF to blob with compression
+      const pdfBlob = pdf.output('blob', { compress: true });
+      
+      // Send email with PDF
+      await onSendEmail(pdfBlob, {
+        email: emailInput,
+        message: `Please find attached your proposal from ${initialData?.companyName || 'Solar EPC'}`
+      });
+      
+      setShowEmailInput(false);
+    } catch (error) {
+      console.error('Send Email Error:', error);
+      const errorMessage = error?.response?.data?.message || error?.message || 'Failed to send email. Please try again.';
+      alert(errorMessage);
+    } finally {
+      setSending(false);
+    }
+  };
+
   const handleExport = async () => {
     if (!canvasRef.current) return;
     
     setExporting(true);
     try {
-      const canvas = canvasRef.current;
+      const canvasElement = canvasRef.current;
       
-      // Use html2canvas to capture the canvas
-      const canvasImage = await html2canvas(canvas, {
-        scale: 2,
+      // Generate high-quality image from canvas
+      const canvasImage = await html2canvas(canvasElement, {
+        scale: 2, // Reduced scale to keep file size reasonable
         useCORS: true,
         allowTaint: true,
         backgroundColor: '#ffffff',
-        logging: false
+        logging: false,
+        width: canvasSize.width,
+        height: canvasSize.height,
+        windowWidth: canvasSize.width,
+        windowHeight: canvasSize.height,
+        x: 0,
+        y: 0,
+        scrollX: 0,
+        scrollY: 0
       });
       
-      // Calculate PDF dimensions (A4)
-      const imgData = canvasImage.toDataURL('image/png');
+      // Create PDF with exact A4 dimensions
       const pdf = new jsPDF('p', 'mm', 'a4');
       
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
       
-      // Calculate image dimensions to fit A4
-      const imgWidth = canvasImage.width;
-      const imgHeight = canvasImage.height;
-      const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
+      // Calculate canvas aspect ratio
+      const canvasWidth = canvasSize.width;
+      const canvasHeight = canvasSize.height;
+      const canvasAspect = canvasWidth / canvasHeight;
       
-      const imgX = (pdfWidth - imgWidth * ratio) / 2;
-      const imgY = 10; // 10mm margin from top
+      // Calculate PDF aspect ratio
+      const pdfAspect = pdfWidth / pdfHeight;
       
-      pdf.addImage(imgData, 'PNG', imgX, imgY, imgWidth * ratio, imgHeight * ratio);
+      let imgWidth, imgHeight, imgX, imgY;
+      
+      // Fit canvas to PDF maintaining aspect ratio
+      if (canvasAspect > pdfAspect) {
+        // Canvas is wider - fit to width
+        imgWidth = pdfWidth - 20;
+        imgHeight = imgWidth / canvasAspect;
+        imgX = 10;
+        imgY = (pdfHeight - imgHeight) / 2;
+      } else {
+        // Canvas is taller - fit to height
+        imgHeight = pdfHeight - 20;
+        imgWidth = imgHeight * canvasAspect;
+        imgX = (pdfWidth - imgWidth) / 2;
+        imgY = 10;
+      }
+      
+      // Add canvas image to PDF with JPEG compression
+      const imgData = canvasImage.toDataURL('image/jpeg', 0.7); // JPEG with 70% quality
+      pdf.addImage(imgData, 'JPEG', imgX, imgY, imgWidth, imgHeight);
       
       // Generate filename
       const customerName = initialData?.customerName || 'Proposal';
@@ -512,13 +627,24 @@ const ProposalCanvasEditor = ({
     if (initialData && (initialData.id || initialData.proposalNumber)) {
       console.log('[Canvas] Received initialData:', initialData);
       
-      // Create new elements with real data
-      const newElements = createElementsFromData(initialData);
-      setElements(newElements);
-      
-      // Reset history with new elements
-      setHistory([JSON.parse(JSON.stringify(newElements))]);
-      setHistoryIndex(0);
+      // Check if there's saved canvas data
+      if (initialData.canvasData?.canvasElements?.length > 0) {
+        console.log('[Canvas] Loading saved canvas data:', initialData.canvasData);
+        setElements(initialData.canvasData.canvasElements);
+        if (initialData.canvasData.canvasSize) {
+          setCanvasSize(initialData.canvasData.canvasSize);
+        }
+        // Reset history with saved elements
+        setHistory([JSON.parse(JSON.stringify(initialData.canvasData.canvasElements))]);
+        setHistoryIndex(0);
+      } else {
+        // Create new elements from proposal data
+        const newElements = createElementsFromData(initialData);
+        setElements(newElements);
+        // Reset history with new elements
+        setHistory([JSON.parse(JSON.stringify(newElements))]);
+        setHistoryIndex(0);
+      }
     } else {
       // No data - clear canvas
       setElements([]);
@@ -1111,6 +1237,41 @@ const ProposalCanvasEditor = ({
 
           {/* Right Actions */}
           <div className="flex items-center gap-2">
+            {showEmailInput && (
+              <div className="flex items-center gap-2 mr-2">
+                <input
+                  type="email"
+                  value={emailInput}
+                  onChange={(e) => setEmailInput(e.target.value)}
+                  placeholder="Enter email..."
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                />
+                <button
+                  onClick={handleSendEmail}
+                  disabled={sending || !emailInput}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-white bg-green-600 hover:bg-green-700 rounded-lg transition-all disabled:opacity-50"
+                >
+                  {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                  Send
+                </button>
+                <button
+                  onClick={() => setShowEmailInput(false)}
+                  className="p-1.5 text-gray-500 hover:text-gray-700"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            )}
+            {!showEmailInput && (
+              <button
+                onClick={() => setShowEmailInput(true)}
+                disabled={sending}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-all"
+              >
+                <Send size={16} />
+                Send Email
+              </button>
+            )}
             <button
               onClick={handleExport}
               disabled={exporting}

@@ -86,6 +86,12 @@ export class Quotation {
   paymentTerms!: number; // Payment terms percentage (e.g., 50 for 50% advance)
 
   @Prop({ default: 0 })
+  visitInMonth!: number; // Number of visits per month
+
+  @Prop({ default: 0 })
+  totalVisit!: number; // Total number of visits
+
+  @Prop({ default: 0 })
   tax!: number;
 
   @Prop({ required: true })
