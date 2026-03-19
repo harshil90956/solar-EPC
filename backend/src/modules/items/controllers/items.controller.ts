@@ -108,4 +108,14 @@ export class ItemsController {
     const tenantId = headerTenantId || queryTenantId;
     return this.itemsService.stockOut(tenantId, id, quantity, projectId, issuedDate, remarks);
   }
+
+  @Post('transfers')
+  transfer(
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
+    @Body() transferDto: { fromInventoryId: string; toWarehouseId: string; quantity: number; remarks?: string },
+  ) {
+    const tenantId = headerTenantId || queryTenantId;
+    return this.itemsService.transfer(tenantId, transferDto.fromInventoryId, transferDto.toWarehouseId, transferDto.quantity, transferDto.remarks);
+  }
 }

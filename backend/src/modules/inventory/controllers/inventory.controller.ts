@@ -155,6 +155,16 @@ export class InventoryController {
     return this.inventoryService.stockOut(tenantId, itemId, stockOutDto);
   }
 
+  @Post('transfers')
+  async transfer(
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
+    @Body() transferDto: { fromInventoryId: string; toWarehouseId: string; quantity: number; remarks?: string },
+  ) {
+    const tenantId = headerTenantId || queryTenantId || 'solarcorp';
+    return this.inventoryService.transfer(tenantId, transferDto.fromInventoryId, transferDto.toWarehouseId, transferDto.quantity, transferDto.remarks);
+  }
+
   @Delete(':itemId')
   async remove(
     @Headers('x-tenant-id') headerTenantId: string,
