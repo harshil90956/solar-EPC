@@ -4,6 +4,7 @@ import { Model, Types } from 'mongoose';
 import { Expense, ExpenseDocument } from '../schemas/expense.schema';
 import { CreateExpenseDto, UpdateExpenseDto } from '../dto/expense.dto';
 import { Tenant, TenantDocument } from '../../../core/tenant/schemas/tenant.schema';
+import { FinanceVendorService } from './finance-vendor.service';
 
 interface UserWithVisibility {
   id?: string;
@@ -16,6 +17,7 @@ export class ExpenseService {
   constructor(
     @InjectModel(Expense.name) private readonly expenseModel: Model<ExpenseDocument>,
     @InjectModel(Tenant.name) private readonly tenantModel: Model<TenantDocument>,
+    private readonly financeVendorService: FinanceVendorService,
   ) {}
 
   private async resolveTenantObjectId(tenantId: string): Promise<Types.ObjectId> {
@@ -122,42 +124,33 @@ export class ExpenseService {
   }
 
   async getPayablesSummary(tenantId: string, user?: UserWithVisibility): Promise<any> {
-    const query: any = {
-      ...this.notDeletedMatch(),
-      status: { $in: ['Pending', 'Approved'] },
-    };
-    if (tenantId && Types.ObjectId.isValid(tenantId)) {
-      query.tenantId = new Types.ObjectId(tenantId);
-    } else if (tenantId !== '') {
-      throw new BadRequestException('Invalid Tenant ID');
-    }
-    // If tenantId is '', query across all tenants (SuperAdmin)
+    // Get vendor data from financeVendors collection where paid amounts are persisted
+    const vendors = await this.financeVendorService.findAll(tenantId);
     
-    // Apply visibility filter based on user's dataScope
-    if (user?.dataScope === 'ASSIGNED') {
-      const userId = user._id || user.id;
-      if (userId) {
-        const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
-          ? new Types.ObjectId(userId)
-          : userId;
-        query.assignedTo = objectId;
-      }
-    }
-
-    const expenses = await this.expenseModel.find(query).lean();
-
-    const totalPayables = expenses.reduce((sum, exp) => sum + exp.amount, 0);
-    const dueIn30Days = expenses.filter(exp => {
-      if (!exp.dueDate) return false;
-      const daysDiff = Math.ceil((new Date(exp.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-      return daysDiff <= 30;
-    });
+    const totalPayables = vendors.reduce((sum, v) => sum + (v.totalPayable || 0), 0);
+    const totalPaid = vendors.reduce((sum, v) => sum + (v.totalPaid || 0), 0);
+    const totalOutstanding = vendors.reduce((sum, v) => sum + (v.outstandingAmount || 0), 0);
+    
+    // Map to the format expected by frontend
+    const vendorWise = vendors.map(v => ({
+      vendorId: v.vendorId,
+      vendorName: v.vendorName,
+      vendorCode: v.vendorCode,
+      totalPurchaseOrders: v.totalPurchaseOrders || 0,
+      totalPayable: v.totalPayable || 0,
+      amountPaid: v.totalPaid || 0,
+      outstandingAmount: v.outstandingAmount || 0,
+      lastPaymentDate: v.lastPaymentDate,
+      lastPaymentAmount: v.lastPaymentAmount || 0,
+      status: v.status,
+    }));
 
     return {
       totalPayables,
-      count: expenses.length,
-      dueIn30Days: dueIn30Days.reduce((sum, exp) => sum + exp.amount, 0),
-      items: expenses,
+      totalPaid,
+      totalOutstanding,
+      count: vendors.length,
+      vendorWise,
     };
   }
 }

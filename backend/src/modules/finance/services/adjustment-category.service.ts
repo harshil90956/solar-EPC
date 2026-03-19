@@ -35,11 +35,8 @@ export class AdjustmentCategoryService {
     const query: any = { isDeleted: false, type };
     if (tenantId && Types.ObjectId.isValid(tenantId)) {
       query.tenantId = new Types.ObjectId(tenantId);
-    } else if (tenantId === '') {
-      return [];
-    } else {
-      throw new BadRequestException('Invalid Tenant ID');
     }
+    // If tenantId is empty or invalid, don't filter by tenantId (return all categories of this type)
 
     const results = await this.categoryModel
       .find(query)
