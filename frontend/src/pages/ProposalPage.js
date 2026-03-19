@@ -868,6 +868,25 @@ const ProposalPage = () => {
     }
   };
 
+  const handleSendEmail = async (doc) => {
+    if (!doc.customerEmail) {
+      toast.error('No customer email available');
+      return;
+    }
+    if (!window.confirm(`Send proposal PDF to ${doc.customerEmail}?`)) return;
+    
+    setIsProcessing(true);
+    try {
+      await documentsApi.send(doc.id);
+      toast.success('Proposal PDF sent via email');
+    } catch (error) {
+      console.error('Send email error:', error);
+      toast.error(error?.response?.data?.message || 'Failed to send email');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleProposalClick = (proposal) => {
     setSelectedProposal(proposal);
     setShowDetailPanel(true);
@@ -965,6 +984,21 @@ const ProposalPage = () => {
           </button>
           <button className="p-1 text-gray-400 hover:text-blue-500">
             <Edit size={14} />
+          </button>
+          <button
+            className={`p-1 transition-colors ${
+              doc.customerEmail 
+                ? 'text-gray-400 hover:text-blue-600 hover:bg-blue-50' 
+                : 'text-gray-300 cursor-not-allowed'
+            }`}
+            disabled={!doc.customerEmail}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleSendEmail(doc);
+            }}
+            title={doc.customerEmail ? `Send PDF to ${doc.customerEmail}` : 'No email available'}
+          >
+            <Mail size={14} />
           </button>
         </div>
       ),
@@ -1257,21 +1291,19 @@ const ProposalPage = () => {
                             );
                           })()}
                         </td>
-                        <td className="py-3 px-4 text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <button 
-                              onClick={(e) => { e.stopPropagation(); handleProposalClick(proposal); }}
-                              className="p-1 text-gray-400 hover:text-gray-600"
-                            >
-                              <Eye size={14} />
-                            </button>
-                            <button 
-                              onClick={(e) => { e.stopPropagation(); handleProposalClick(proposal); setIsEditMode(true); }}
-                              className="p-1 text-gray-400 hover:text-blue-500"
-                            >
-                              <Edit size={14} />
-                            </button>
-                          </div>
+                        <td className="py-3 px-4">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleSendEmail(proposal); }}
+                            disabled={!proposal.customerEmail}
+                            className={`p-1 transition-colors ${
+                              proposal.customerEmail 
+                                ? 'text-gray-400 hover:text-blue-600 hover:bg-blue-50' 
+                                : 'text-gray-600 cursor-not-allowed'
+                            }`}
+                            title={proposal.customerEmail ? `Send PDF to ${proposal.customerEmail}` : 'No email available'}
+                          >
+                            <Mail size={14} />
+                          </button>
                         </td>
                       </tr>
                     ))}

@@ -54,6 +54,17 @@ export class QuotationController {
     res.end(pdfBuffer);
   }
 
+  @Post(':id/email')
+  async sendEmail(
+    @Param('id') id: string, 
+    @Body('email') email: string,
+    @Body('subject') subject: string,
+    @Body('message') message: string,
+    @Req() req: RequestWithUser
+  ) {
+    return this.quotationService.sendEmail(id, email, subject, message, req.user.tenantId);
+  }
+
   @Post(':id/approve')
   approve(@Param('id') id: string, @Req() req: RequestWithUser) {
     return this.quotationService.approve(id, req.user.id, req.user.tenantId);
