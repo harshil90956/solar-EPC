@@ -75,11 +75,56 @@ export class QuotationService {
 
   async generatePdf(id: string, tenantId: string): Promise<Buffer> {
     const quotation = await this.findOne(id, tenantId);
-    return this.pdfService.generateQuotationPdf({
-      ...quotation.toObject(),
-      date: new Date((quotation as any).createdAt).toLocaleDateString(),
-      validUntil: quotation.validUntil ? new Date(quotation.validUntil).toLocaleDateString() : 'N/A',
-    });
+    const quotationObj = quotation.toObject();
+    
+    // Format data properly for PDF template
+    const pdfData = {
+      ...quotationObj,
+      // Ensure proper date formatting
+      date: new Date((quotation as any).createdAt).toLocaleDateString('en-IN'),
+      validUntil: quotation.validUntil 
+        ? new Date(quotation.validUntil).toLocaleDateString('en-IN') 
+        : 'N/A',
+      
+      // Ensure materials array exists and has proper format
+      materials: (quotationObj.materials || []).map((m: any) => ({
+        name: m.name || '',
+        category: m.category || '',
+        quantity: m.quantity || 0,
+        unit: m.unit || '',
+        unitPrice: m.unitPrice || 0,
+        totalPrice: m.totalPrice || (m.unitPrice * m.quantity) || 0,
+      })),
+      
+      // Ensure systemConfig exists
+      systemConfig: quotationObj.systemConfig || {
+        systemSize: 0,
+        panelCount: 0,
+        inverterType: '',
+        batteryOption: '',
+        mountingStructure: '',
+      },
+      
+      // Ensure all pricing fields exist
+      materialTotal: quotationObj.materialTotal || 0,
+      installationCost: quotationObj.installationCost || 0,
+      transportCost: quotationObj.transportCost || 0,
+      gstPercentage: quotationObj.gstPercentage || 18,
+      tax: quotationObj.tax || 0,
+      finalQuotationPrice: quotationObj.finalQuotationPrice || 0,
+      
+      // Ensure customer fields exist
+      customerName: quotationObj.customerName || '',
+      customerEmail: quotationObj.customerEmail || '',
+      customerPhone: quotationObj.customerPhone || '',
+      customerAddress: quotationObj.customerAddress || '',
+      
+      // Status and notes
+      status: quotationObj.status || 'Draft',
+      notes: quotationObj.notes || '',
+    };
+    
+    return this.pdfService.generateQuotationPdf(pdfData);
   }
 
   async send(id: string, userId: string, tenantId: string): Promise<{ success: boolean; message: string }> {
@@ -97,6 +142,7 @@ export class QuotationService {
       [{
         filename: `Quotation_${quotation.quotationId}.pdf`,
         content: pdfBuffer,
+        contentType: 'application/pdf',
       }]
     );
 
@@ -104,6 +150,33 @@ export class QuotationService {
       await this.update(id, { status: 'Sent' }, userId, tenantId);
       await this.logHistory(id, 'sent', userId, tenantId, `Quotation emailed to ${quotation.customerEmail}`);
     }
+
+    return emailResult;
+  }
+
+  async sendEmail(
+    id: string, 
+    email: string, 
+    subject: string, 
+    message: string, 
+    tenantId: string
+  ): Promise<{ success: boolean; message: string }> {
+    const quotation = await this.findOne(id, tenantId);
+    
+    // Generate PDF
+    const pdfBuffer = await this.generatePdf(id, tenantId);
+
+    // Send Email with custom subject and message
+    const emailResult = await this.emailService.sendEmail(
+      email,
+      subject || 'Solar System Quotation',
+      message || `Dear ${quotation.customerName},\n\nPlease find attached your solar quotation.\n\nRegards,\nSolar Company`,
+      undefined,
+      [{
+        filename: `Quotation_${quotation.quotationId}.pdf`,
+        content: pdfBuffer,
+      }]
+    );
 
     return emailResult;
   }

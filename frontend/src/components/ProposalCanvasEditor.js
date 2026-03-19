@@ -1,4 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 import { 
   Type, Square, Circle, Triangle, Image as ImageIcon, Table, 
   MousePointer, Move, Trash2, Copy, AlignLeft, AlignCenter, 
@@ -6,7 +8,7 @@ import {
   Download, Save, Undo, Redo, ZoomIn, ZoomOut, RotateCcw,
   ChevronUp, ChevronDown, Eye, Lock, Unlock, Layers,
   Plus, Minus, Settings, FileText, Sparkles, Frame,
-  TextCursor, Highlighter, StickyNote, Shapes, X
+  TextCursor, Highlighter, StickyNote, Shapes, X, Loader2
 } from 'lucide-react';
 
 // ── Canva-Style Visual Proposal Editor ─────────────────────────────────────
@@ -34,6 +36,7 @@ const ProposalCanvasEditor = ({
 
   // Canvas elements state - starts empty, populated from proposal data
   const [elements, setElements] = useState([]);
+  const [exporting, setExporting] = useState(false);
 
   // Text formatting state with toggle support
   const [textFormat, setTextFormat] = useState({
@@ -382,9 +385,52 @@ const ProposalCanvasEditor = ({
     onSave?.(data);
   };
 
-  // Export as image (simplified - would need html2canvas in production)
-  const handleExport = () => {
-    alert('Export functionality would generate PDF/PNG from canvas');
+  // Export canvas as PDF
+  const handleExport = async () => {
+    if (!canvasRef.current) return;
+    
+    setExporting(true);
+    try {
+      const canvas = canvasRef.current;
+      
+      // Use html2canvas to capture the canvas
+      const canvasImage = await html2canvas(canvas, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        logging: false
+      });
+      
+      // Calculate PDF dimensions (A4)
+      const imgData = canvasImage.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      
+      // Calculate image dimensions to fit A4
+      const imgWidth = canvasImage.width;
+      const imgHeight = canvasImage.height;
+      const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
+      
+      const imgX = (pdfWidth - imgWidth * ratio) / 2;
+      const imgY = 10; // 10mm margin from top
+      
+      pdf.addImage(imgData, 'PNG', imgX, imgY, imgWidth * ratio, imgHeight * ratio);
+      
+      // Generate filename
+      const customerName = initialData?.customerName || 'Proposal';
+      const proposalNumber = initialData?.proposalNumber || initialData?.documentId || 'Unknown';
+      const filename = `Proposal_${proposalNumber}_${customerName.replace(/\s+/g, '_')}.pdf`;
+      
+      pdf.save(filename);
+    } catch (error) {
+      console.error('PDF Export Error:', error);
+      alert('Failed to export PDF. Please try again.');
+    } finally {
+      setExporting(false);
+    }
   };
 
   useEffect(() => {
@@ -407,6 +453,51 @@ const ProposalCanvasEditor = ({
       window.removeEventListener('mouseup', handleGlobalMouseUp);
     };
   }, [draggingElement, resizingElement, handleMouseMove, handleResizeMove]);
+
+  // Auto-size elements based on content
+  useEffect(() => {
+    const autoSizeElements = () => {
+      const updatedElements = elements.map(el => {
+        if (el.type === 'text') {
+          // Create a temporary div to measure content height
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = el.content;
+          tempDiv.style.cssText = `
+            position: absolute;
+            visibility: hidden;
+            width: ${el.width}px;
+            font-size: ${el.style?.fontSize || 14}px;
+            font-weight: ${el.style?.fontWeight || 'normal'};
+            font-family: ${el.style?.fontFamily || 'Inter, sans-serif'};
+            line-height: ${el.style?.lineHeight || 1.4};
+            padding: 8px;
+            word-wrap: break-word;
+          `;
+          document.body.appendChild(tempDiv);
+          const contentHeight = tempDiv.scrollHeight + 16; // Add padding
+          document.body.removeChild(tempDiv);
+          
+          // Only increase height, never decrease below minimum
+          const newHeight = Math.max(el.height, contentHeight);
+          
+          if (newHeight > el.height) {
+            return { ...el, height: newHeight };
+          }
+        }
+        return el;
+      });
+      
+      // Only update if there are changes
+      const hasChanges = updatedElements.some((el, idx) => el.height !== elements[idx].height);
+      if (hasChanges) {
+        setElements(updatedElements);
+      }
+    };
+    
+    // Run auto-sizing after a short delay to ensure DOM is ready
+    const timer = setTimeout(autoSizeElements, 100);
+    return () => clearTimeout(timer);
+  }, [elements]);
 
   // Initialize history
   useEffect(() => {
@@ -443,8 +534,18 @@ const ProposalCanvasEditor = ({
       return []; // Return empty array if no real data
     }
     
-    const today = new Date().toISOString().split('T')[0];
-    const validUntil = data.validUntil || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const formatDate = (dateStr) => {
+      if (!dateStr) return '';
+      try {
+        const date = new Date(dateStr);
+        return date.toISOString().split('T')[0];
+      } catch {
+        return dateStr;
+      }
+    };
+    
+    const today = formatDate(new Date());
+    const validUntil = formatDate(data.validUntil) || formatDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
     
     // Parse address fields - use individual fields if available, otherwise parse from customerAddress
     const parseAddressFields = () => {
@@ -540,7 +641,7 @@ const ProposalCanvasEditor = ({
       {
         id: 'proposal-box',
         type: 'shape',
-        x: 580, y: 20, width: 190, height: 90,
+        x: 550, y: 15, width: 230, height: 100,
         shapeType: 'rectangle',
         style: { backgroundColor: 'rgba(255,255,255,0.15)', borderColor: 'rgba(255,255,255,0.3)', borderWidth: 1, borderRadius: 8 },
         zIndex: 1
@@ -548,7 +649,7 @@ const ProposalCanvasEditor = ({
       {
         id: 'proposal-label',
         type: 'text',
-        x: 590, y: 32, width: 170, height: 18,
+        x: 560, y: 28, width: 210, height: 18,
         content: '<div style="font-size: 10px; color: rgba(255,255,255,0.85); text-align: center; letter-spacing: 3px; font-weight: 600;">PROPOSAL</div>',
         style: { fontSize: 10, color: 'rgba(255,255,255,0.85)', textAlign: 'center', fontFamily: 'Inter, system-ui, sans-serif' },
         zIndex: 2
@@ -556,9 +657,9 @@ const ProposalCanvasEditor = ({
       {
         id: 'proposal-number',
         type: 'text',
-        x: 590, y: 55, width: 170, height: 30,
-        content: `<div style="font-size: 22px; font-weight: 700; color: white; text-align: center; letter-spacing: 1px;">${proposalNumber}</div>`,
-        style: { fontSize: 22, fontWeight: '700', color: '#ffffff', textAlign: 'center', fontFamily: 'Inter, system-ui, sans-serif' },
+        x: 560, y: 52, width: 210, height: 50,
+        content: `<div style="font-size: 18px; font-weight: 700; color: white; text-align: center; letter-spacing: 0.5px; line-height: 1.3;">${proposalNumber}</div>`,
+        style: { fontSize: 18, fontWeight: '700', color: '#ffffff', textAlign: 'center', fontFamily: 'Inter, system-ui, sans-serif', lineHeight: 1.3 },
         zIndex: 2
       },
       // Company Info
@@ -573,7 +674,7 @@ const ProposalCanvasEditor = ({
       {
         id: 'company-address',
         type: 'text',
-        x: 40, y: 180, width: 350, height: 100,
+        x: 40, y: 180, width: 350, height: 140,
         content: `<div style="font-size: 12px; color: #4b5563; line-height: 1.7;">${companyAddress}<br>Opp. Sarthana Nature Park, ${companyCity} - ${companyZip}<br>${companyState} - India<br>📞 ${companyPhone}<br>✉️ ${companyEmail}</div>`,
         style: { fontSize: 12, color: '#4b5563', fontFamily: 'Inter, system-ui, sans-serif', lineHeight: 1.7 },
         zIndex: 2
@@ -1012,9 +1113,10 @@ const ProposalCanvasEditor = ({
           <div className="flex items-center gap-2">
             <button
               onClick={handleExport}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-all"
+              disabled={exporting}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-all disabled:opacity-50"
             >
-              <Download size={16} />
+              {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
               Export
             </button>
             <button
@@ -1345,8 +1447,8 @@ const CanvasElement = ({
               lineHeight: element.style?.lineHeight || 1.4,
               backgroundColor: element.style?.backgroundColor || 'transparent',
               outline: isEditing ? '2px solid #3b82f6' : 'none',
-              overflow: 'hidden',
-              wordWrap: 'break-word'
+              wordWrap: 'break-word',
+              whiteSpace: 'pre-wrap'
             }}
           />
         );
