@@ -55,7 +55,8 @@ export class DocumentService {
 
   async findAll(query: QueryDocumentDto, tenantId?: string): Promise<{ data: DocumentEntity[]; total: number }> {
     const tid = this.toObjectId(tenantId);
-    const { page = 1, limit = 20, search, type, status, leadId, projectId, customerId } = query;
+    const { page = 1, limit, search, type, status, leadId, projectId, customerId } = query;
+    const safeLimit = limit === undefined || limit === null ? 1000 : limit;
 
     const filter: any = { isDeleted: false };
     if (tid) filter.tenantId = tid;
@@ -73,9 +74,9 @@ export class DocumentService {
       ];
     }
 
-    const skip = (page - 1) * limit;
+    const skip = (page - 1) * safeLimit;
     const [data, total] = await Promise.all([
-      this.documentModel.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean().exec(),
+      this.documentModel.find(filter).sort({ createdAt: -1 }).skip(skip).limit(safeLimit).lean().exec(),
       this.documentModel.countDocuments(filter),
     ]);
 

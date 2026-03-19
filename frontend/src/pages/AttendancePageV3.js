@@ -23,6 +23,7 @@ import { Button } from '../components/ui/Button';
 import { Input, FormField, Select, Textarea } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { toast } from '../components/ui/Toast';
+import AttendancePolicySettings from './AttendancePolicySettings';
 import { attendanceApi, employeeApi } from '../services/hrmApi';
 import { useAuth } from '../context/AuthContext';
 import { useDataScope } from '../hooks/useDataScope';
@@ -209,6 +210,7 @@ const AttendancePageV3 = () => {
   const [showCheckInModal, setShowCheckInModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showCalendarModal, setShowCalendarModal] = useState(false);
+  const [showPolicyModal, setShowPolicyModal] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [attendanceForm, setAttendanceForm] = useState({
     employeeId: '',
@@ -743,23 +745,6 @@ const AttendancePageV3 = () => {
       },
     },
     {
-      key: 'location',
-      header: 'Location',
-      render: (val) => val ? (
-        <div className="flex items-center gap-1 text-[var(--text-secondary)]">
-          <MapPin size={10} />
-          <span className="text-[10px] truncate max-w-[140px]" title={val}>{val}</span>
-        </div>
-      ) : <span className="text-xs text-[var(--text-muted)]">-</span>,
-    },
-    {
-      key: 'isEarlyExit',
-      header: 'Early Exit',
-      render: (_, record) => record.isEarlyExit ? (
-        <span className="text-xs font-semibold text-[#ef4444]"> Early</span>
-      ) : <span className="text-xs text-[var(--text-muted)]">-</span>,
-    },
-    {
       key: 'actions',
       header: 'Actions',
       render: (_, record) => (
@@ -800,6 +785,13 @@ const AttendancePageV3 = () => {
         title="Advanced Attendance Management"
         subtitle="Real-time tracking · GPS location · Face recognition · Bulk operations"
         actions={[
+          {
+            type: 'button',
+            label: 'System Policy',
+            icon: Settings,
+            variant: 'secondary',
+            onClick: () => setShowPolicyModal(true),
+          },
           {
             type: 'button',
             label: 'View Calendar',
@@ -1099,6 +1091,19 @@ const AttendancePageV3 = () => {
                 rows={2}
               />
             </FormField>
+          </div>
+        </Modal>
+      )}
+
+      {showPolicyModal && (
+        <Modal
+          open={showPolicyModal}
+          onClose={() => setShowPolicyModal(false)}
+          title="Attendance Policy Settings"
+          size="xl"
+        >
+          <div className="p-1">
+            <AttendancePolicySettings />
           </div>
         </Modal>
       )}

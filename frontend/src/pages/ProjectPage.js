@@ -29,7 +29,7 @@ import { employeeApi, departmentApi } from '../services/hrmApi';
 
 const fmt = CURRENCY.format;
 
-const TENANT_ID = 'solarcorp'; // Default tenant for seed data
+const TENANT_ID = localStorage.getItem('tenantId') || 'solarcorp'; // Default tenant for seed data
 
 const KANBAN_STAGES = [
   { id: 'Logistics', label: 'Logistics', color: '#8b5cf6', bg: 'rgba(139,92,246,0.12)' },
@@ -484,13 +484,14 @@ const ProjectPage = () => {
   // Fetch project reservations from inventory when project is selected
   useEffect(() => {
     const fetchProjectReservations = async () => {
-      if (!selected?.projectId) {
+      const pid = selected?.projectId || selected?.id;
+      if (!pid) {
         setProjectReservations([]);
         return;
       }
       setLoadingProjectReservations(true);
       try {
-        const res = await api.get(`/inventory/reservations/by-project/${selected.projectId}`, { tenantId: TENANT_ID });
+        const res = await api.get(`/inventory/reservations/by-project/${pid}`);
         const data = res?.data ?? res;
         setProjectReservations(data?.data || data || []);
       } catch (err) {
@@ -501,7 +502,30 @@ const ProjectPage = () => {
       }
     };
     fetchProjectReservations();
-  }, [selected?.projectId]);
+  }, [selected?.projectId, selected?.id]);
+
+  useEffect(() => {
+    const fetchFullProjectDetails = async () => {
+      const pid = selected?.projectId || selected?.id;
+      if (!pid) return;
+      if (selected?._fullDetailsLoaded) return;
+      try {
+        const res = await api.get(`/projects/${pid}`);
+        const result = res?.data ?? res;
+        const projectData = result?.data || result;
+        if (!projectData) return;
+        setSelected((prev) => ({
+          ...prev,
+          ...projectData,
+          id: projectData.projectId || prev?.id,
+          _fullDetailsLoaded: true,
+        }));
+      } catch (err) {
+        console.error('Error fetching full project details:', err);
+      }
+    };
+    fetchFullProjectDetails();
+  }, [selected?.projectId, selected?.id, selected?._fullDetailsLoaded]);
 
   // Fetch customers from CRM module for dropdown
   useEffect(() => {
