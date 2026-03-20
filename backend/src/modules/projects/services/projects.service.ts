@@ -309,7 +309,69 @@ export class ProjectsService {
           }
 
           if (!inventory) {
-            console.error('PROJECT CANCEL INVENTORY RELEASE - inventory item not found, aborting to avoid silent skip', {
+            // Fallback: UI stock is driven by Items module, so try releasing reserved qty on Item directly.
+            const itemIdStr = String(reservation.itemId || '');
+            const itemIdVariants = Array.from(new Set([
+              itemIdStr,
+              itemIdStr.startsWith('INV') ? itemIdStr.replace(/^INV/, '') : `INV${itemIdStr}`,
+            ].filter(Boolean)));
+
+            let itemDoc: any = null;
+            for (const v of itemIdVariants) {
+              itemDoc = await this.itemModel.findOne({ tenantId, itemId: v, isDeleted: false }).session(session);
+              if (itemDoc) break;
+            }
+
+            if (itemDoc) {
+              const itemReservedBefore = Number(itemDoc.reserved || 0);
+              const itemReleasedQty = Math.max(0, Math.min(qty, itemReservedBefore));
+              const itemReservedAfter = Math.max(0, itemReservedBefore - itemReleasedQty);
+
+              console.log('[DEBUG ITEM RELEASE] Releasing reserved from item (fallback)', {
+                projectId,
+                itemId: itemDoc.itemId,
+                qty,
+                itemReservedBefore,
+                itemReleasedQty,
+                itemReservedAfter,
+              });
+
+              await this.itemModel.updateOne(
+                { _id: itemDoc._id },
+                { $set: { reserved: itemReservedAfter } },
+                { session },
+              );
+
+              await this.reservationModel.updateOne(
+                { _id: reservation._id },
+                { $set: { status: 'Cancelled' } },
+                { session },
+              );
+
+              const updatedRes = await this.reservationModel.findById(reservation._id).session(session);
+              console.log('[DEBUG ITEM RELEASE] Reservation status after update (fallback)', {
+                reservationId: reservation._id,
+                status: updatedRes?.status,
+              });
+
+              try {
+                await this.stockMovementService.logMovement(tenantCode, {
+                  itemId: itemDoc._id.toString(),
+                  type: 'RELEASE',
+                  quantity: qty,
+                  reference: projectId,
+                  referenceType: 'PROJECT',
+                  note: `Released ${qty} units from cancelled project ${projectId}`,
+                  warehouseName: (itemDoc as any).warehouse || 'Main Warehouse',
+                });
+              } catch (err) {
+                console.error('[STOCK MOVEMENT] Failed to log RELEASE for cancelled project (item fallback):', err);
+              }
+
+              continue;
+            }
+
+            console.error('PROJECT CANCEL INVENTORY RELEASE - inventory item not found (inventory+items), aborting to avoid silent skip', {
               projectId,
               reservationId: reservation._id,
               itemId: reservation.itemId,

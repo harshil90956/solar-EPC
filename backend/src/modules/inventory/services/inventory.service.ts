@@ -4,6 +4,7 @@ import { Model, Types } from 'mongoose';
 import { Inventory } from '../schemas/inventory.schema';
 import { InventoryReservation } from '../schemas/inventory-reservation.schema';
 import { Tenant, TenantSchema } from '../../../core/tenant/schemas/tenant.schema';
+import { StockMovementService } from './stock-movement.service';
 import { CreateInventoryDto, UpdateInventoryDto, StockInDto, StockOutDto, CreateReservationDto, UpdateReservationDto } from '../dto/inventory.dto';
 
 interface UserWithVisibility {
@@ -18,6 +19,7 @@ export class InventoryService {
     @InjectModel(Inventory.name) private readonly inventoryModel: Model<Inventory>,
     @InjectModel(InventoryReservation.name) private readonly reservationModel: Model<InventoryReservation>,
     @InjectModel(Tenant.name) private readonly tenantModel: Model<Tenant>,
+    private readonly stockMovementService: StockMovementService,
   ) {}
 
   private async getTenantId(tenantCode: string): Promise<Types.ObjectId> {
@@ -382,20 +384,48 @@ export class InventoryService {
     remarks?: string,
   ): Promise<{ fromItem: Inventory; toItem: Inventory }> {
     const tenantId = await this.resolveTenantObjectId(tenantCode);
-    const tenantMatch: any = { $or: [{ tenantId }, { tenantId: tenantId.toString() }] };
-    let fromItem = await this.inventoryModel.findOne({ $and: [tenantMatch, { itemId: fromInventoryId }] }).exec();
-    if (!fromItem && Types.ObjectId.isValid(fromInventoryId)) {
-      fromItem = await this.inventoryModel.findOne({ $and: [tenantMatch, { _id: new Types.ObjectId(fromInventoryId) }] }).exec();
-    }
+    const tenantIdStr = tenantId.toString();
+    
+    console.log(`[DEBUG TRANSFER] tenantCode: ${tenantCode}, resolved tenantId: ${tenantIdStr}`);
+    console.log(`[DEBUG TRANSFER] fromInventoryId: ${fromInventoryId}, toWarehouseId: ${toWarehouseId}`);
+    
+    // Try multiple lookup strategies
+    let fromItem: any = null;
+    
+    // Strategy 1: By itemId with tenantId
+    fromItem = await this.inventoryModel.findOne({ tenantId, itemId: fromInventoryId, isDeleted: false }).exec();
+    console.log(`[DEBUG TRANSFER] Lookup by itemId: ${fromItem ? 'FOUND' : 'NOT FOUND'}`);
+    
+    // Strategy 2: By itemId with tenantId as string
     if (!fromItem) {
+      fromItem = await this.inventoryModel.findOne({ tenantId: tenantIdStr, itemId: fromInventoryId, isDeleted: false }).exec();
+      console.log(`[DEBUG TRANSFER] Lookup by tenantId string: ${fromItem ? 'FOUND' : 'NOT FOUND'}`);
+    }
+    
+    // Strategy 3: By _id if valid ObjectId
+    if (!fromItem && Types.ObjectId.isValid(fromInventoryId)) {
+      fromItem = await this.inventoryModel.findOne({ tenantId, _id: new Types.ObjectId(fromInventoryId), isDeleted: false }).exec();
+      console.log(`[DEBUG TRANSFER] Lookup by _id: ${fromItem ? 'FOUND' : 'NOT FOUND'}`);
+    }
+    
+    // Strategy 4: Without tenant filter (fallback)
+    if (!fromItem) {
+      fromItem = await this.inventoryModel.findOne({ itemId: fromInventoryId, isDeleted: false }).exec();
+      console.log(`[DEBUG TRANSFER] Lookup without tenant: ${fromItem ? 'FOUND' : 'NOT FOUND'}`);
+    }
+    
+    if (!fromItem) {
+      console.error(`[DEBUG TRANSFER] All lookup strategies failed for itemId: ${fromInventoryId}`);
       throw new NotFoundException(`Source inventory item ${fromInventoryId} not found`);
     }
+    
+    console.log(`[DEBUG TRANSFER] Found fromItem: ${fromItem.itemId}, warehouse: ${fromItem.warehouse}, available: ${fromItem.available}`);
     if (fromItem.available < quantity) {
       throw new BadRequestException(
         `Insufficient available stock. Available: ${fromItem.available}, Requested: ${quantity}`,
       );
     }
-    let toItem = await this.inventoryModel.findOne({ $and: [tenantMatch, { name: fromItem.name, warehouse: toWarehouseId }] }).exec();
+    let toItem = await this.inventoryModel.findOne({ tenantId, name: fromItem.name, warehouse: toWarehouseId }).exec();
     if (!toItem) {
       const newItem = new this.inventoryModel({
         tenantId,
@@ -418,7 +448,7 @@ export class InventoryService {
       const newStock = toItem.stock + quantity;
       const newAvailable = newStock - toItem.reserved;
       toItem = await this.inventoryModel.findOneAndUpdate(
-        { $and: [tenantMatch, { _id: toItem._id }] },
+        { tenantId, _id: toItem._id },
         {
           $set: {
             stock: newStock,
@@ -432,7 +462,7 @@ export class InventoryService {
     const newFromStock = fromItem.stock - quantity;
     const newFromAvailable = newFromStock - fromItem.reserved;
     const updatedFromItem = await this.inventoryModel.findOneAndUpdate(
-      { $and: [tenantMatch, { _id: fromItem._id }] },
+      { tenantId, _id: fromItem._id },
       {
         $set: {
           stock: newFromStock,
@@ -442,6 +472,36 @@ export class InventoryService {
       },
       { new: true },
     ).exec();
+
+    // Log stock movements for TRANSFER
+    try {
+      // Outgoing from source warehouse
+      await this.stockMovementService.logMovement(tenantCode, {
+        itemId: fromItem.itemId || fromItem._id.toString(),
+        type: 'TRANSFER',
+        quantity: -quantity,
+        reference: `To: ${toWarehouseId}`,
+        referenceType: 'TRANSFER',
+        note: `Transferred ${quantity} units to warehouse ${toWarehouseId}${remarks ? ': ' + remarks : ''}`,
+        warehouseName: fromItem.warehouse || 'Main Warehouse',
+      });
+
+      // Incoming to destination warehouse
+      if (toItem) {
+        await this.stockMovementService.logMovement(tenantCode, {
+          itemId: toItem.itemId || toItem._id.toString(),
+          type: 'TRANSFER',
+          quantity: quantity,
+          reference: `From: ${fromItem.warehouse || 'Main Warehouse'}`,
+          referenceType: 'TRANSFER',
+          note: `Received ${quantity} units from warehouse ${fromItem.warehouse || 'Main Warehouse'}${remarks ? ': ' + remarks : ''}`,
+          warehouseName: toWarehouseId,
+        });
+      }
+    } catch (err) {
+      console.error('[STOCK MOVEMENT] Failed to log TRANSFER movements:', err);
+    }
+
     return { fromItem: updatedFromItem!, toItem: toItem! };
   }
   async cancelReservation(tenantCode: string, reservationId: string) {
