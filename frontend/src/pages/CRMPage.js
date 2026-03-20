@@ -15,7 +15,8 @@ import {
   MailOpen, Send, CheckSquare, Square, ArrowRight, Sparkles,
   Brain, ZapOff, BatteryCharging, Wind, Sun, Moon, Cloud,
   Gauge, Targeted, FilterX, SearchX, UserPlus, UserMinus,
-  Save, GitCommit, ChevronDown, Info, LayoutGrid
+  Save, GitCommit, ChevronDown, Info, LayoutGrid, Package,
+  HardHat, Wrench
 } from 'lucide-react';
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
@@ -25,6 +26,8 @@ import {
 } from 'recharts';
 import { USERS } from '../data/mockData';
 import { leadsApi } from '../services/leadsApi';
+import { projectsApi } from '../services/projectsApi';
+import { inventoryApi } from '../services/inventoryApi';
 import { surveysApi } from '../services/surveysApi';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
@@ -775,6 +778,74 @@ const CRMPage = ({ onNavigate }) => {
   const [customersPageSize, setCustomersPageSize] = useState(25);
   const [customersSearch, setCustomersSearch] = useState('');
 
+  // Project Creation Modal State
+  const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
+  const [selectedCustomerForProject, setSelectedCustomerForProject] = useState(null);
+  const [projectForm, setProjectForm] = useState({
+    name: '',
+    description: '',
+    status: 'planning',
+    startDate: '',
+    endDate: '',
+    budget: 0,
+    siteAddress: '',
+    boqTemplate: 'residential_5kw',
+    createTransfer: true,
+    assignedTo: '',
+    department: ''
+  });
+  const [boqTemplates, setBoqTemplates] = useState([
+    { id: 'residential_5kw', name: 'Residential 5kW System', items: [
+      { itemId: 'solar-panel-550w', name: 'Solar Panel 550W', quantity: 10, unit: 'pcs' },
+      { itemId: 'inverter-5kw', name: 'Inverter 5kW', quantity: 1, unit: 'pcs' },
+      { itemId: 'mounting-structure', name: 'Mounting Structure', quantity: 1, unit: 'set' },
+      { itemId: 'dc-cable-4mm', name: 'DC Cable 4mm', quantity: 100, unit: 'm' },
+      { itemId: 'ac-cable-10mm', name: 'AC Cable 10mm', quantity: 20, unit: 'm' },
+      { itemId: 'mc4-connector', name: 'MC4 Connector', quantity: 20, unit: 'pairs' },
+      { itemId: 'earthing-kit', name: 'Earthing Kit', quantity: 1, unit: 'set' },
+      { itemId: 'surge-protector', name: 'Surge Protector', quantity: 1, unit: 'pcs' }
+    ]},
+    { id: 'residential_10kw', name: 'Residential 10kW System', items: [
+      { itemId: 'solar-panel-550w', name: 'Solar Panel 550W', quantity: 20, unit: 'pcs' },
+      { itemId: 'inverter-10kw', name: 'Inverter 10kW', quantity: 1, unit: 'pcs' },
+      { itemId: 'mounting-structure', name: 'Mounting Structure', quantity: 1, unit: 'set' },
+      { itemId: 'dc-cable-4mm', name: 'DC Cable 4mm', quantity: 200, unit: 'm' },
+      { itemId: 'ac-cable-16mm', name: 'AC Cable 16mm', quantity: 30, unit: 'm' },
+      { itemId: 'mc4-connector', name: 'MC4 Connector', quantity: 40, unit: 'pairs' },
+      { itemId: 'earthing-kit', name: 'Earthing Kit', quantity: 2, unit: 'set' },
+      { itemId: 'surge-protector', name: 'Surge Protector', quantity: 2, unit: 'pcs' }
+    ]},
+    { id: 'commercial_50kw', name: 'Commercial 50kW System', items: [
+      { itemId: 'solar-panel-550w', name: 'Solar Panel 550W', quantity: 100, unit: 'pcs' },
+      { itemId: 'inverter-50kw', name: 'Inverter 50kW', quantity: 1, unit: 'pcs' },
+      { itemId: 'mounting-structure', name: 'Mounting Structure', quantity: 5, unit: 'set' },
+      { itemId: 'dc-cable-6mm', name: 'DC Cable 6mm', quantity: 800, unit: 'm' },
+      { itemId: 'ac-cable-35mm', name: 'AC Cable 35mm', quantity: 100, unit: 'm' },
+      { itemId: 'mc4-connector', name: 'MC4 Connector', quantity: 200, unit: 'pairs' },
+      { itemId: 'earthing-kit', name: 'Earthing Kit', quantity: 5, unit: 'set' },
+      { itemId: 'surge-protector', name: 'Surge Protector', quantity: 5, unit: 'pcs' },
+      { itemId: 'dcdb', name: 'DC Distribution Box', quantity: 1, unit: 'pcs' },
+      { itemId: 'acdb', name: 'AC Distribution Box', quantity: 1, unit: 'pcs' }
+    ]},
+    { id: 'industrial_100kw', name: 'Industrial 100kW System', items: [
+      { itemId: 'solar-panel-550w', name: 'Solar Panel 550W', quantity: 200, unit: 'pcs' },
+      { itemId: 'inverter-100kw', name: 'Inverter 100kW', quantity: 1, unit: 'pcs' },
+      { itemId: 'mounting-structure', name: 'Mounting Structure', quantity: 10, unit: 'set' },
+      { itemId: 'dc-cable-6mm', name: 'DC Cable 6mm', quantity: 1500, unit: 'm' },
+      { itemId: 'ac-cable-70mm', name: 'AC Cable 70mm', quantity: 150, unit: 'm' },
+      { itemId: 'mc4-connector', name: 'MC4 Connector', quantity: 400, unit: 'pairs' },
+      { itemId: 'earthing-kit', name: 'Earthing Kit', quantity: 10, unit: 'set' },
+      { itemId: 'surge-protector', name: 'Surge Protector', quantity: 10, unit: 'pcs' },
+      { itemId: 'dcdb', name: 'DC Distribution Box', quantity: 2, unit: 'pcs' },
+      { itemId: 'acdb', name: 'AC Distribution Box', quantity: 2, unit: 'pcs' }
+    ]}
+  ]);
+  const [projectCreateLoading, setProjectCreateLoading] = useState(false);
+  const [departments, setDepartments] = useState([]);
+  const [hrmEmployees, setHrmEmployees] = useState([]);
+  const [selectedDepartment, setSelectedDepartment] = useState('');
+  const [filteredHrmEmployees, setFilteredHrmEmployees] = useState([]);
+
   const normalizeStageKey = (lead) => (lead?.statusKey || lead?.status || 'new').toString().toLowerCase();
   const getLeadId = (lead) => String(lead?._id || lead?.id || '');
   const dragRef = useRef(null);
@@ -1211,6 +1282,208 @@ const CRMPage = ({ onNavigate }) => {
   const handleViewTracker = (lead) => {
     setTrackerLeadId(lead._id);
     setShowTrackerDrawer(true);
+  };
+
+  // Project Creation Handlers
+  const handleOpenCreateProjectModal = (customer) => {
+    setSelectedCustomerForProject(customer);
+    setProjectForm({
+      name: `${customer.name} - Solar Project`,
+      description: `Solar installation project for ${customer.company || customer.name}`,
+      status: 'planning',
+      startDate: format(new Date(), 'yyyy-MM-dd'),
+      endDate: format(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'),
+      budget: 0,
+      siteAddress: customer.address || '',
+      boqTemplate: 'residential_5kw',
+      createTransfer: true,
+      assignedTo: '',
+      department: ''
+    });
+    setSelectedDepartment('');
+    setFilteredHrmEmployees([]);
+    setShowCreateProjectModal(true);
+
+    // Load departments and employees from HRM
+    fetchHrmDepartmentsAndEmployees();
+  };
+
+  const fetchHrmDepartmentsAndEmployees = async () => {
+    try {
+      // Fetch departments from HRM API
+      const deptsResult = await leadsApi.getHrmDepartments();
+      const deptsData = deptsResult?.data?.data || deptsResult?.data || [];
+      setDepartments(Array.isArray(deptsData) ? deptsData : []);
+
+      // Fetch employees from HRM API
+      const empsResult = await leadsApi.getHrmEmployees();
+      const empsData = empsResult?.data?.data || empsResult?.data || [];
+      setHrmEmployees(Array.isArray(empsData) ? empsData : []);
+    } catch (err) {
+      console.error('[PROJECT] Failed to fetch HRM data:', err);
+      setDepartments([]);
+      setHrmEmployees([]);
+    }
+  };
+
+  const handleDepartmentChange = (deptId) => {
+    setSelectedDepartment(deptId);
+    setProjectForm(prev => ({ ...prev, department: deptId, assignedTo: '' }));
+
+    // Filter employees by selected department
+    if (deptId) {
+      const filtered = hrmEmployees.filter(emp => {
+        // Handle various department field formats
+        const empDeptId = emp.department?._id || emp.department?.id || emp.departmentId || emp.department_id || emp.department;
+        // Also check if department is a string (department name)
+        if (typeof emp.department === 'string') {
+          // Find department name from departments list
+          const dept = departments.find(d => d._id === deptId || d.id === deptId);
+          return dept && emp.department.toLowerCase() === dept.name?.toLowerCase();
+        }
+        return empDeptId === deptId;
+      });
+      setFilteredHrmEmployees(filtered);
+    } else {
+      setFilteredHrmEmployees([]);
+    }
+  };
+
+  const handleCloseCreateProjectModal = () => {
+    setShowCreateProjectModal(false);
+    setSelectedCustomerForProject(null);
+    setProjectForm({
+      name: '',
+      description: '',
+      status: 'planning',
+      startDate: '',
+      endDate: '',
+      budget: 0,
+      siteAddress: '',
+      boqTemplate: 'residential_5kw',
+      createTransfer: true,
+      assignedTo: '',
+      department: ''
+    });
+    setSelectedDepartment('');
+    setFilteredHrmEmployees([]);
+    setDepartments([]);
+    setHrmEmployees([]);
+  };
+
+  const handleCreateProject = async () => {
+    if (!selectedCustomerForProject) return;
+
+    try {
+      setProjectCreateLoading(true);
+
+      // Get selected BOQ template items
+      const selectedTemplate = boqTemplates.find(t => t.id === projectForm.boqTemplate);
+      const boqItems = selectedTemplate ? selectedTemplate.items : [];
+
+      // Create project data
+      const projectData = {
+        name: projectForm.name,
+        description: projectForm.description,
+        customerId: selectedCustomerForProject._id || selectedCustomerForProject.id,
+        customerName: selectedCustomerForProject.name,
+        customerEmail: selectedCustomerForProject.email,
+        customerPhone: selectedCustomerForProject.phone,
+        siteAddress: projectForm.siteAddress,
+        status: projectForm.status,
+        startDate: projectForm.startDate,
+        endDate: projectForm.endDate,
+        budget: Number(projectForm.budget) || 0,
+        boqItems: boqItems,
+        boqTemplate: projectForm.boqTemplate,
+        source: 'crm',
+        assignedTo: projectForm.assignedTo,
+        department: projectForm.department
+      };
+
+      console.log('[PROJECT] Creating project:', projectData);
+
+      // Create project via API
+      const projectResult = await projectsApi.create(projectData);
+      const createdProject = projectResult?.data?.data || projectResult?.data || projectResult;
+
+      console.log('[PROJECT] Project created:', createdProject);
+
+      // If status is 'accepted' and createTransfer is true, trigger stock transfer
+      if (projectForm.status === 'accepted' && projectForm.createTransfer && boqItems.length > 0) {
+        console.log('[PROJECT] Status is accepted - triggering stock transfer');
+        await handleStockTransferForProject(createdProject, boqItems);
+      }
+
+      toast.success(`Project "${projectForm.name}" created successfully`);
+      handleCloseCreateProjectModal();
+
+      // Navigate to projects page if onNavigate is available
+      if (onNavigate) {
+        onNavigate('projects');
+      }
+
+    } catch (err) {
+      console.error('[PROJECT] Failed to create project:', err);
+      toast.error(err?.response?.data?.message || 'Failed to create project');
+    } finally {
+      setProjectCreateLoading(false);
+    }
+  };
+
+  // Handle stock transfer for accepted projects
+  const handleStockTransferForProject = async (project, boqItems) => {
+    try {
+      console.log('[TRANSFER] Starting stock transfer for project:', project._id || project.id);
+
+      const transferPromises = boqItems.map(async (item) => {
+        try {
+          // Transfer from Main Warehouse to On-Site Warehouse
+          const transferData = {
+            itemId: item.itemId,
+            itemName: item.name,
+            fromWarehouse: 'Main Warehouse',
+            toWarehouse: 'On-Site Warehouse',
+            quantity: item.quantity,
+            unit: item.unit,
+            projectId: project._id || project.id,
+            projectName: project.name,
+            reference: `Project: ${project.name}`,
+            referenceType: 'PROJECT_TRANSFER',
+            remarks: `Auto-transfer for accepted project - ${item.name}`
+          };
+
+          console.log('[TRANSFER] Transferring item:', transferData);
+
+          // Call inventory transfer API
+          await inventoryApi.transferStock(transferData);
+
+          return { success: true, item: item.name };
+        } catch (itemErr) {
+          console.error(`[TRANSFER] Failed to transfer item ${item.name}:`, itemErr);
+          return { success: false, item: item.name, error: itemErr.message };
+        }
+      });
+
+      const results = await Promise.all(transferPromises);
+      const successCount = results.filter(r => r.success).length;
+      const failCount = results.length - successCount;
+
+      if (successCount > 0) {
+        toast.success(`${successCount} items transferred from Main Warehouse to On-Site Warehouse`);
+      }
+
+      if (failCount > 0) {
+        const failedItems = results.filter(r => !r.success).map(r => r.item).join(', ');
+        toast.warning(`Failed to transfer ${failCount} items: ${failedItems}`);
+      }
+
+      console.log('[TRANSFER] Transfer results:', results);
+
+    } catch (err) {
+      console.error('[TRANSFER] Stock transfer failed:', err);
+      toast.error('Failed to transfer stock for project');
+    }
   };
 
   const handleEditLead = async (lead) => {
@@ -3885,6 +4158,204 @@ const CRMPage = ({ onNavigate }) => {
               <Button variant="secondary" size="sm" onClick={() => setScoreBoostValue(15)}>+15</Button>
               <Button variant="secondary" size="sm" onClick={() => setScoreBoostValue(20)}>+20</Button>
               <Button variant="secondary" size="sm" onClick={() => setScoreBoostValue(25)}>+25</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+      {/* CREATE PROJECT MODAL */}
+      {showCreateProjectModal && selectedCustomerForProject && (
+        <Modal
+          open={showCreateProjectModal}
+          onClose={handleCloseCreateProjectModal}
+          title={`Create Project — ${selectedCustomerForProject.name}`}
+          footer={
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" onClick={handleCloseCreateProjectModal}>Cancel</Button>
+              <Button
+                onClick={handleCreateProject}
+                disabled={projectCreateLoading || !projectForm.name}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                {projectCreateLoading ? 'Creating...' : <><Package size={14} /> Create Project</>}
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+            {/* Customer Info */}
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-emerald-50 border border-emerald-100">
+              <div className="w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-lg">
+                {selectedCustomerForProject.name[0]}
+              </div>
+              <div>
+                <p className="font-semibold text-emerald-900">{selectedCustomerForProject.name}</p>
+                <p className="text-xs text-emerald-600">{selectedCustomerForProject.email} · {selectedCustomerForProject.phone}</p>
+              </div>
+            </div>
+
+            {/* Project Name */}
+            <FormField label="Project Name *">
+              <Input
+                value={projectForm.name}
+                onChange={(e) => setProjectForm({ ...projectForm, name: e.target.value })}
+                placeholder="Enter project name"
+              />
+            </FormField>
+
+            {/* Description */}
+            <FormField label="Description">
+              <Textarea
+                rows={2}
+                value={projectForm.description}
+                onChange={(e) => setProjectForm({ ...projectForm, description: e.target.value })}
+                placeholder="Project description"
+              />
+            </FormField>
+
+            {/* Status & BOQ Template */}
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Status">
+                <Select
+                  value={projectForm.status}
+                  onChange={(e) => setProjectForm({ ...projectForm, status: e.target.value })}
+                >
+                  <option value="planning">Planning</option>
+                  <option value="accepted">Accepted (Auto-Transfer Stock)</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="on_hold">On Hold</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                </Select>
+              </FormField>
+              <FormField label="BOQ Template">
+                <Select
+                  value={projectForm.boqTemplate}
+                  onChange={(e) => setProjectForm({ ...projectForm, boqTemplate: e.target.value })}
+                >
+                  {boqTemplates.map(template => (
+                    <option key={template.id} value={template.id}>{template.name}</option>
+                  ))}
+                </Select>
+              </FormField>
+            </div>
+
+            {/* Dates */}
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Start Date">
+                <Input
+                  type="date"
+                  value={projectForm.startDate}
+                  onChange={(e) => setProjectForm({ ...projectForm, startDate: e.target.value })}
+                />
+              </FormField>
+              <FormField label="End Date">
+                <Input
+                  type="date"
+                  value={projectForm.endDate}
+                  onChange={(e) => setProjectForm({ ...projectForm, endDate: e.target.value })}
+                />
+              </FormField>
+            </div>
+
+            {/* Budget & Site Address */}
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Budget (₹)">
+                <Input
+                  type="number"
+                  value={projectForm.budget}
+                  onChange={(e) => setProjectForm({ ...projectForm, budget: parseInt(e.target.value) || 0 })}
+                  placeholder="Project budget"
+                />
+              </FormField>
+              <FormField label="Site Address">
+                <Input
+                  value={projectForm.siteAddress}
+                  onChange={(e) => setProjectForm({ ...projectForm, siteAddress: e.target.value })}
+                  placeholder="Installation site address"
+                />
+              </FormField>
+            </div>
+
+            {/* Department & Assign Employee - Dynamic from HRM */}
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Department">
+                <Select
+                  value={selectedDepartment}
+                  onChange={(e) => handleDepartmentChange(e.target.value)}
+                >
+                  <option value="">Select Department</option>
+                  {departments.map(dept => (
+                    <option key={dept._id || dept.id} value={dept._id || dept.id}>
+                      {dept.name}
+                    </option>
+                  ))}
+                </Select>
+              </FormField>
+              <FormField label="Assign Employee">
+                <Select
+                  value={projectForm.assignedTo}
+                  onChange={(e) => setProjectForm({ ...projectForm, assignedTo: e.target.value })}
+                  disabled={!selectedDepartment}
+                >
+                  <option value="">
+                    {!selectedDepartment
+                      ? 'Select department first'
+                      : filteredHrmEmployees.length === 0
+                        ? 'No employees in this dept'
+                        : 'Select Employee'
+                    }
+                  </option>
+                  {filteredHrmEmployees.map(emp => {
+                    // Handle various field name formats from HRM API
+                    const firstName = emp.firstName || emp.firstname || emp.first_name || '';
+                    const lastName = emp.lastName || emp.lastname || emp.last_name || '';
+                    const name = emp.name || '';
+                    const fullName = `${firstName} ${lastName}`.trim() || name || 'Unnamed';
+                    const empId = emp.employeeId || emp.employee_id || emp.empId || emp.id || 'N/A';
+                    return (
+                      <option key={emp._id || emp.id} value={emp._id || emp.id}>
+                        {fullName} ({empId})
+                      </option>
+                    );
+                  })}
+                </Select>
+              </FormField>
+            </div>
+
+            {/* Auto-Transfer Option */}
+            {projectForm.status === 'accepted' && (
+              <div className="p-3 rounded-lg bg-amber-50 border border-amber-200">
+                <div className="flex items-start gap-3">
+                  <Package size={18} className="text-amber-600 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-amber-900 text-sm">Stock Transfer Enabled</p>
+                    <p className="text-xs text-amber-700 mt-1">
+                      When status is &quot;Accepted&quot;, all BOQ items will be automatically transferred from
+                      <strong> Main Warehouse</strong> to <strong>On-Site Warehouse</strong>.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* BOQ Items Preview */}
+            <div className="border border-[var(--border-base)] rounded-lg overflow-hidden">
+              <div className="bg-[var(--bg-elevated)] px-3 py-2 border-b border-[var(--border-base)]">
+                <p className="text-xs font-semibold text-[var(--text-muted)] uppercase">BOQ Items Preview</p>
+              </div>
+              <div className="max-h-40 overflow-y-auto">
+                {boqTemplates.find(t => t.id === projectForm.boqTemplate)?.items.map((item, idx) => (
+                  <div key={idx} className="flex items-center justify-between px-3 py-2 border-b border-[var(--border-subtle)] last:border-0">
+                    <div className="flex items-center gap-2">
+                      <Wrench size={12} className="text-[var(--text-muted)]" />
+                      <span className="text-sm text-[var(--text-primary)]">{item.name}</span>
+                    </div>
+                    <span className="text-sm font-medium text-[var(--accent)]">
+                      {item.quantity} {item.unit}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </Modal>

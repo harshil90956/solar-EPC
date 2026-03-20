@@ -1,7 +1,7 @@
 // Solar OS – EPC Edition — InventoryPage.js
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
-  Package, Plus, AlertTriangle, Warehouse, ArrowUp, ArrowDown, Zap, LayoutGrid, List, Edit2, Trash2, Eye, ArrowRightLeft, Scale, Tag, LayoutDashboard, TrendingUp, BarChart2, PieChartIcon, Activity, DollarSign, Target, Layers, Download, Calendar
+  Package, Plus, AlertTriangle, Warehouse, ArrowUp, ArrowDown, Zap, LayoutGrid, List, Edit2, Trash2, Eye, ArrowRightLeft, Scale, Tag, LayoutDashboard, TrendingUp, BarChart2, PieChartIcon, Activity, DollarSign, Target, Layers, Download, Calendar, FileText, ClipboardList, AlertCircle, Check
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, Legend, AreaChart, Area } from 'recharts';
 import { StatusBadge } from '../components/ui/Badge';
@@ -24,11 +24,18 @@ const PROJECT_API_BASE_URL = process.env.REACT_APP_PROJECT_API_BASE_URL || 'http
 const TENANT_ID = localStorage.getItem('tenantId') || 'solarcorp';
 
 const getStockStatus = (item) => {
-  const available = (item.stock || 0) - (item.reserved || 0);
-  // Priority: Out of Stock > Low Stock > Reserved > Available
+  const available = (item?.stock || 0) - (item?.reserved || 0);
+  const minStock = item?.minStock || 0;
+  const reserved = item?.reserved || 0;
+
+  // Rules (priority order):
+  // 1) available === 0 => out-of-stock
+  // 2) available <= minStock => low-stock
+  // 3) reserved >= 1 => reserved
+  // 4) reserved === 0 => available
   if (available === 0) return 'out-of-stock';
-  if ((item.reserved || 0) > 0) return 'reserved';
-  if (available < (item.minStock || 0)) return 'low-stock';
+  if (available <= minStock) return 'low-stock';
+  if (reserved >= 1) return 'reserved';
   return 'available';
 };
 
@@ -266,7 +273,7 @@ const InvKanbanBoard = ({ items, onCardClick, onDrop, inventoryStats }) => {
 };
 
 /* ── Main Page ── */
-const InventoryPage = () => {
+const InventoryPage = ({ onNavigate }) => {
   const perm = usePermissions('inventory');
   const canView = perm.canView();
   const canCreate = perm.canCreate();
@@ -303,6 +310,31 @@ const InventoryPage = () => {
   const [categoryData, setCategoryData] = useState([]);
   const [units, setUnits] = useState([]);
   const [unitData, setUnitData] = useState([]);
+  const [inventory, setInventory] = useState([]);
+
+  const uniqueBaseItems = useMemo(() => {
+    const isBase = (item) => {
+      const wh = (item?.warehouse ?? '').toString().trim();
+      return !wh || wh === '—' || wh === '-';
+    };
+    const keyOf = (item) => {
+      const itemId = (item?.itemId ?? '').toString().trim();
+      if (itemId) return `itemId:${itemId}`;
+      const desc = (item?.description ?? item?.name ?? '').toString().trim().toLowerCase();
+      if (desc) return `desc:${desc}`;
+      const id = (item?._id ?? '').toString().trim();
+      return id ? `id:${id}` : '';
+    };
+
+    const map = new Map();
+    for (const item of Array.isArray(inventory) ? inventory : []) {
+      if (!isBase(item)) continue;
+      const k = keyOf(item);
+      if (!k) continue;
+      if (!map.has(k)) map.set(k, item);
+    }
+    return Array.from(map.values());
+  }, [inventory]);
   const [newCategory, setNewCategory] = useState('');
   const [newUnit, setNewUnit] = useState('');
   const [editingCategory, setEditingCategory] = useState(null);
@@ -322,7 +354,8 @@ const InventoryPage = () => {
   const [selectedQuotationItems, setSelectedQuotationItems] = useState([]);
   const [selectedQuotationItemIndexes, setSelectedQuotationItemIndexes] = useState([]);
   const [stockOutRows, setStockOutRows] = useState([]);
-  const [inventory, setInventory] = useState([]);
+  const [stockOutMode, setStockOutMode] = useState('quotation'); // 'quotation' or 'direct'
+  const [directStockOutItems, setDirectStockOutItems] = useState([]); // For direct stock out mode
   
   // Dynamic month options based on inventory dates
   const inventoryMonthOptions = useMemo(() => {
@@ -1169,7 +1202,18 @@ const InventoryPage = () => {
   };
 
   const handleStockOut = async () => {
-    if (!selectedQuotationItemIndexes.length) return;
+    // Validate based on mode
+    if (stockOutMode === 'quotation') {
+      if (!selectedQuotationItemIndexes.length) {
+        alert('Please select at least one item from the quotation');
+        return;
+      }
+    } else {
+      if (!directStockOutItems.length || !directStockOutItems.some(item => item.inventoryId && item.quantity)) {
+        alert('Please add at least one item with quantity for stock out');
+        return;
+      }
+    }
 
     if (!stockOutForm.projectId) {
       alert('Please select a project to reserve/issue stock');
@@ -1178,18 +1222,30 @@ const InventoryPage = () => {
 
     setSubmitting(true);
     try {
-      for (const idx of selectedQuotationItemIndexes) {
-        const row = stockOutRows.find(r => r.idx === idx);
+      const itemsToProcess = stockOutMode === 'quotation' 
+        ? selectedQuotationItemIndexes.map(idx => stockOutRows.find(r => r.idx === idx)).filter(Boolean)
+        : directStockOutItems.filter(item => item.inventoryId && item.quantity);
+
+      for (const row of itemsToProcess) {
         if (!row?.inventoryId) {
-          throw new Error('Please select item for all selected rows');
+          throw new Error('Please select item for all rows');
         }
         if (!row?.quantity || Number(row.quantity) <= 0) {
-          throw new Error('Please enter quantity for all selected rows');
+          throw new Error('Please enter valid quantity for all rows');
         }
 
         const item = inventory.find(i => i._id === row.inventoryId);
         if (!item || !item._id) {
           throw new Error('Item not found');
+        }
+
+        // Validate available stock
+        const available = (item.stock || 0) - (item.reserved || 0);
+        if (available <= 0) {
+          throw new Error(`Cannot issue ${item.name || item.description}: No available stock (Available: ${available})`);
+        }
+        if (Number(row.quantity) > available) {
+          throw new Error(`Cannot issue ${item.name || item.description}: Requested ${row.quantity} but only ${available} available`);
         }
 
         const updatedItem = await api.post(`/items/${item._id}/stock-out`, {
@@ -1212,11 +1268,14 @@ const InventoryPage = () => {
         setInventory(prev => prev.map(i => i._id === item._id ? transformedItem : i));
       }
 
+      // Reset form and close modal
       setShowStockOut(false);
       setStockOutForm({ projectId: '', issuedDate: '', remarks: '', quotationId: '' });
       setSelectedQuotationItems([]);
       setSelectedQuotationItemIndexes([]);
       setStockOutRows([]);
+      setDirectStockOutItems([]);
+      setStockOutMode('quotation');
       alert('Stock issued successfully! Project reservation recorded.');
     } catch (err) {
       alert(err.message || 'Failed to issue stock. Please try again.');
@@ -1229,9 +1288,9 @@ const InventoryPage = () => {
   const handleKanbanDrop = async (itemId, targetStage) => {
     // Map stage IDs to status values
     const stageToStatus = {
-      'in-stock': 'Available',
+      'in-stock': 'In Stock',
       'reserved': 'Reserved',
-      'available': 'Available',
+      'available': 'In Stock',
       'low-stock': 'Low Stock',
       'out-of-stock': 'Out of Stock'
     };
@@ -1248,9 +1307,8 @@ const InventoryPage = () => {
         return;
       }
 
-      const updatedItem = await api.patch(`/items/${item._id || itemId}`, { status: newStatus }, { headers: { 'x-tenant-id': TENANT_ID } });
-      const itemData = updatedItem.data || updatedItem;
-      setInventory(prev => prev.map(i => (i._id || i.itemId) === (itemData._id || itemData.itemId) ? { ...i, status: newStatus } : i));
+      await api.patch(`/items/${item._id || itemId}`, { status: newStatus }, { headers: { 'x-tenant-id': TENANT_ID } });
+      setInventory(prev => prev.map(i => (i._id || i.itemId) === (item._id || item.itemId) ? { ...i, status: newStatus } : i));
 
       // Refresh stats
       const statsData = await api.get('/inventory/stats', { headers: { 'x-tenant-id': TENANT_ID } });
@@ -2807,7 +2865,7 @@ const InventoryPage = () => {
                     onClick={() => {
                       const selectedData = categories.filter(cat => selectedCategories.has(cat)).map(cat => ({
                         category: cat,
-                        itemsCount: inventory.filter(i => i.category === cat).length
+                        itemsCount: uniqueBaseItems.filter(i => i.category === cat).length
                       }));
                       const columns = [{ key: 'category', header: 'Category Name' }, { key: 'itemsCount', header: 'Items Count' }];
                       const headers = columns.map(c => c.header).join(',');
@@ -2863,7 +2921,7 @@ const InventoryPage = () => {
               <Button variant="outline" size="sm" onClick={() => exportToCSV(
                 categories.map(cat => ({
                   category: cat,
-                  itemsCount: inventory.filter(i => i.category === cat).length
+                  itemsCount: uniqueBaseItems.filter(i => i.category === cat).length
                 })),
                 'categories',
                 [{ key: 'category', header: 'Category Name' }, { key: 'itemsCount', header: 'Items Count' }]
@@ -2880,7 +2938,7 @@ const InventoryPage = () => {
           {showCategoryCards && (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
               {categories.map((cat, index) => {
-                const catItems = inventory.filter(i => i.category === cat);
+                const catItems = uniqueBaseItems.filter(i => i.category === cat);
                 if (catItems.length === 0) return null;
                 const colors = ['bg-gradient-to-br from-emerald-100 to-emerald-200 border-emerald-200', 'bg-gradient-to-br from-blue-100 to-sky-200 border-blue-200', 'bg-gradient-to-br from-amber-100 to-orange-200 border-amber-200', 'bg-gradient-to-br from-rose-100 to-rose-200 border-rose-200', 'bg-gradient-to-br from-violet-100 to-purple-200 border-violet-200', 'bg-gradient-to-br from-cyan-100 to-teal-200 border-cyan-200', 'bg-gradient-to-br from-orange-100 to-orange-200 border-orange-200', 'bg-gradient-to-br from-pink-100 to-pink-200 border-pink-200'];
                 const iconColors = ['text-emerald-700', 'text-blue-700', 'text-amber-700', 'text-rose-700', 'text-violet-700', 'text-cyan-700', 'text-orange-700', 'text-pink-700'];
@@ -2970,7 +3028,7 @@ const InventoryPage = () => {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="text-[10px] text-[var(--text-muted)]">{inventory.filter(i => i.category === cat).length} items</span>
+                        <span className="text-[10px] text-[var(--text-muted)]">{uniqueBaseItems.filter(i => i.category === cat).length} items</span>
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
@@ -3491,162 +3549,319 @@ const InventoryPage = () => {
       <Modal open={showStockOut} onClose={() => setShowStockOut(false)} title="Stock Out — Issue Materials"
         footer={<div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={() => setShowStockOut(false)}>Cancel</Button>
-          <Button onClick={handleStockOut} disabled={submitting || selectedQuotationItemIndexes.length === 0}>
+          <Button onClick={handleStockOut} disabled={submitting || (stockOutMode === 'quotation' && selectedQuotationItemIndexes.length === 0) || (stockOutMode === 'direct' && directStockOutItems.length === 0)}>
             {submitting ? 'Processing...' : <><ArrowDown size={13} /> Confirm Issue</>}
           </Button>
         </div>}>
-        <div className="space-y-3 max-h-[60vh] sm:max-h-[70vh] overflow-y-auto">
-          {/* Approved Quotation Selection */}
-          <FormField label="Approved Quotation">
-            <Select 
-              value={stockOutForm.quotationId} 
-              onChange={e => {
-                const quotationId = e.target.value;
-                const selectedQuotation = approvedQuotations.find(q => (q._id || q.dbId) === quotationId || q.documentId === quotationId || q.quotationId === quotationId);
-                const items = selectedQuotation?.materials || selectedQuotation?.items || [];
-                setSelectedQuotationItems(items);
-                setSelectedQuotationItemIndexes(items.map((_, idx) => idx));
-                setStockOutRows(items.map((it, idx) => {
-                  const candidates = inventory.filter(i =>
-                    i.name?.toLowerCase() === it.name?.toLowerCase() ||
-                    i.description?.toLowerCase() === it.name?.toLowerCase()
-                  );
-                  const preferred = candidates[0];
-                  return {
-                    idx,
-                    name: it.name,
-                    quantity: String(it.quantity || 1),
-                    price: it.unitPrice ?? it.unitPricePerItem ?? it.unitPricePerUnit ?? it.rate ?? '',
-                    inventoryId: preferred?._id || '',
-                  };
-                }));
-                setStockOutForm(f => ({ 
-                  ...f, 
-                  quotationId,
-                  projectId: selectedQuotation?.projectId || ''
-                }));
-              }}
+        <div className="space-y-4 max-h-[60vh] sm:max-h-[70vh] overflow-y-auto">
+          {/* Stock Out Mode Toggle */}
+          <div className="flex items-center gap-2 p-1 bg-[var(--bg-elevated)] rounded-lg border border-[var(--border-base)]">
+            <button
+              onClick={() => setStockOutMode('quotation')}
+              className={`flex-1 px-3 py-2 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-2 ${
+                stockOutMode === 'quotation'
+                  ? 'bg-[var(--primary)] text-white shadow-sm'
+                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
             >
-              <option value="">Select Approved Quotation</option>
-              {approvedQuotations.map(q => (
-                <option key={q._id || q.dbId} value={q._id || q.dbId}>
-                  {q.documentId || q.quotationId || q._id} - {q.customerName || 'Unknown'} ({((q.materials || q.items) || []).length} items)
-                </option>
-              ))}
-            </Select>
-          </FormField>
+              <FileText size={14} />
+              With Quotation
+            </button>
+            <button
+              onClick={() => setStockOutMode('direct')}
+              className={`flex-1 px-3 py-2 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-2 ${
+                stockOutMode === 'direct'
+                  ? 'bg-[var(--primary)] text-white shadow-sm'
+                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
+            >
+              <Package size={14} />
+              Direct Stock Out
+            </button>
+          </div>
 
-          {/* Quotation Items List */}
-          {selectedQuotationItems.length > 0 && (
-            <div className="glass-card p-3 border border-[var(--border-base)]">
-              <h4 className="text-xs font-semibold text-[var(--text-primary)] mb-2">Quotation Items</h4>
-              <div className="space-y-2 max-h-40 overflow-y-auto">
-                {selectedQuotationItems.map((item, idx) => {
-                  const inventoryItem = inventory.find(i => 
-                    i.name?.toLowerCase() === item.name?.toLowerCase() || 
-                    i.description?.toLowerCase() === item.name?.toLowerCase()
-                  );
-                  const available = inventoryItem ? (inventoryItem.stock || 0) - (inventoryItem.reserved || 0) : 0;
-                  const isSelected = selectedQuotationItemIndexes.includes(idx);
+          {/* Quotation Mode */}
+          {stockOutMode === 'quotation' && (
+            <>
+              {/* Approved Quotation Selection */}
+              <FormField label="Approved Quotation">
+                <Select 
+                  value={stockOutForm.quotationId} 
+                  onChange={e => {
+                    const quotationId = e.target.value;
+                    const selectedQuotation = approvedQuotations.find(q => (q._id || q.dbId) === quotationId || q.documentId === quotationId || q.quotationId === quotationId);
+                    const items = selectedQuotation?.materials || selectedQuotation?.items || [];
+                    setSelectedQuotationItems(items);
+                    setSelectedQuotationItemIndexes(items.map((_, idx) => idx));
+                    setStockOutRows(items.map((it, idx) => {
+                      const candidates = inventory.filter(i =>
+                        (i.name?.toLowerCase() === it.name?.toLowerCase() ||
+                        i.description?.toLowerCase() === it.name?.toLowerCase()) &&
+                        i.warehouse && i.warehouse !== '—' && i.warehouse !== '-'
+                      );
+                      const preferred = candidates[0];
+                      return {
+                        idx,
+                        name: it.name,
+                        quantity: String(it.quantity || 1),
+                        price: it.unitPrice ?? it.unitPricePerItem ?? it.unitPricePerUnit ?? it.rate ?? '',
+                        inventoryId: preferred?._id || '',
+                      };
+                    }));
+                    setStockOutForm(f => ({ 
+                      ...f, 
+                      quotationId,
+                      projectId: selectedQuotation?.projectId || ''
+                    }));
+                  }}
+                >
+                  <option value="">Select Approved Quotation</option>
+                  {approvedQuotations.map(q => (
+                    <option key={q._id || q.dbId} value={q._id || q.dbId}>
+                      {q.documentId || q.quotationId || q._id} - {q.customerName || 'Unknown'} ({((q.materials || q.items) || []).length} items)
+                    </option>
+                  ))}
+                </Select>
+              </FormField>
+
+              {/* Quotation Items List - Responsive & Attractive */}
+              {selectedQuotationItems.length > 0 && (
+                <div className="glass-card p-4 border border-[var(--border-base)] rounded-xl bg-gradient-to-br from-[var(--bg-surface)] to-[var(--bg-elevated)]">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                      <ClipboardList size={16} className="text-[var(--primary)]" />
+                      Quotation Items
+                    </h4>
+                    <span className="text-xs px-2 py-1 bg-[var(--primary)]/10 text-[var(--primary)] rounded-full font-medium">
+                      {selectedQuotationItemIndexes.length}/{selectedQuotationItems.length} selected
+                    </span>
+                  </div>
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {selectedQuotationItems.map((item, idx) => {
+                      // Find ALL matching inventory items (across all warehouses)
+                      const matchingItems = inventory.filter(i => 
+                        i.name?.toLowerCase() === item.name?.toLowerCase() || 
+                        i.description?.toLowerCase() === item.name?.toLowerCase()
+                      );
+                      // Aggregate available stock across all warehouses
+                      const available = matchingItems.reduce((sum, i) => sum + ((i.stock || 0) - (i.reserved || 0)), 0);
+                      const hasStock = available > 0;
+                      const isSelected = selectedQuotationItemIndexes.includes(idx);
+                      const isLowStock = available < item.quantity;
+                      
+                      return (
+                        <div 
+                          key={idx} 
+                          onClick={() => {
+                            if (!hasStock) return; // Don't allow selection if no stock
+                            setSelectedQuotationItemIndexes((prev) => (
+                              prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]
+                            ));
+                          }}
+                          className={`group p-3 rounded-xl transition-all duration-200 border-2 ${
+                            !hasStock 
+                              ? 'bg-gray-100 border-gray-200 cursor-not-allowed opacity-60'
+                              : isSelected 
+                                ? 'bg-[var(--primary)]/5 border-[var(--primary)] shadow-sm cursor-pointer' 
+                                : 'bg-[var(--bg-surface)] border-[var(--border-base)] hover:border-[var(--primary)]/30 hover:shadow-sm cursor-pointer'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            {/* Checkbox */}
+                            <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
+                              !hasStock
+                                ? 'bg-gray-200 border-gray-300'
+                                : isSelected 
+                                  ? 'bg-[var(--primary)] border-[var(--primary)]' 
+                                  : 'border-[var(--border-base)] group-hover:border-[var(--primary)]/50'
+                            }`}>
+                              {isSelected && hasStock && <Check size={12} className="text-white" />}
+                              {!hasStock && <span className="text-gray-400 text-[10px]">×</span>}
+                            </div>
+                            
+                            {/* Item Info */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className={`text-sm font-medium truncate ${hasStock ? 'text-[var(--text-primary)]' : 'text-gray-500'}`}>{item.name}</span>
+                                {!hasStock && (
+                                  <span className="text-[10px] px-1.5 py-0.5 bg-gray-200 text-gray-600 rounded-full font-medium flex items-center gap-1">
+                                    <AlertCircle size={10} />
+                                    Out of Stock
+                                  </span>
+                                )}
+                                {hasStock && isLowStock && (
+                                  <span className="text-[10px] px-1.5 py-0.5 bg-red-100 text-red-600 rounded-full font-medium flex items-center gap-1">
+                                    <AlertCircle size={10} />
+                                    Low Stock
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-3 mt-1 text-xs text-[var(--text-muted)]">
+                                <span className="flex items-center gap-1">
+                                  <Package size={10} />
+                                  Req: {item.quantity}
+                                </span>
+                                <span className={`flex items-center gap-1 font-medium ${!hasStock ? 'text-gray-400' : isLowStock ? 'text-red-500' : 'text-green-600'}`}>
+                                  <Warehouse size={10} />
+                                  Avail: {available}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Selected Items Table */}
+              {selectedQuotationItems.length > 0 && selectedQuotationItemIndexes.length > 0 && (
+                <div className="glass-card p-4 border border-[var(--border-base)] rounded-xl">
+                  <h4 className="text-sm font-semibold text-[var(--text-primary)] mb-3 flex items-center gap-2">
+                    <Package size={16} className="text-[var(--primary)]" />
+                    Selected Items
+                  </h4>
+                  <div className="w-full overflow-x-auto rounded-lg border border-[var(--border-base)]">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-[var(--bg-elevated)] border-b border-[var(--border-base)]">
+                          <th className="text-left py-3 px-3 font-semibold text-[var(--text-secondary)]">Item</th>
+                          <th className="text-left py-3 px-3 font-semibold text-[var(--text-secondary)] w-28">Quantity</th>
+                          <th className="text-left py-3 px-3 font-semibold text-[var(--text-secondary)] w-24">Price</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {stockOutRows
+                            .filter(r => selectedQuotationItemIndexes.includes(r.idx))
+                            .map((row) => {
+                              const candidates = inventory.filter(i =>
+                                (i.name?.toLowerCase() === row.name?.toLowerCase() ||
+                                i.description?.toLowerCase() === row.name?.toLowerCase()) &&
+                                i.warehouse && i.warehouse !== '—' && i.warehouse !== '-'
+                              );
+
+
+                              return (
+                                <tr key={row.idx} className="border-b border-[var(--border-base)]/50 last:border-0 hover:bg-[var(--bg-hover)]">
+                                  <td className="py-3 px-3 min-w-[200px]">
+                                    <Select
+                                      value={row.inventoryId}
+                                      onChange={(e) => {
+                                        const inventoryId = e.target.value;
+                                        setStockOutRows((prev) => prev.map(r => r.idx === row.idx ? { ...r, inventoryId } : r));
+                                      }}
+                                      className="text-xs"
+                                    >
+                                      <option value="">Select Item</option>
+                                      {candidates.map(i => (
+                                        <option key={i._id} value={i._id}>
+                                          {(i.name || i.description)} ({i.warehouse})
+                                        </option>
+                                      ))}
+                                    </Select>
+                                  </td>
+                                  <td className="py-3 px-3">
+                                    <Input
+                                      type="number"
+                                      value={row.quantity}
+                                      onChange={(e) => {
+                                        const quantity = e.target.value;
+                                        setStockOutRows((prev) => prev.map(r => r.idx === row.idx ? { ...r, quantity } : r));
+                                      }}
+                                      className="h-8 text-xs"
+                                    />
+                                  </td>
+                                  <td className="py-3 px-3">
+                                    <Input type="number" value={row.price ?? ''} disabled className="h-8 text-xs bg-[var(--bg-elevated)]" />
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Direct Stock Out Mode */}
+          {stockOutMode === 'direct' && (
+            <div className="glass-card p-4 border border-[var(--border-base)] rounded-xl">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                  <Package size={16} className="text-[var(--primary)]" />
+                  Select Items to Issue
+                </h4>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setDirectStockOutItems(prev => [...prev, { id: Date.now(), inventoryId: '', quantity: '' }])}
+                >
+                  <Plus size={14} /> Add Item
+                </Button>
+              </div>
+              
+              <div className="space-y-2">
+                {directStockOutItems.map((item, idx) => {
+                  const selectedItem = inventory.find(i => i._id === item.inventoryId);
+                  const available = selectedItem ? (selectedItem.stock || 0) - (selectedItem.reserved || 0) : 0;
                   
+
                   return (
-                    <div 
-                      key={idx} 
-                      onClick={() => {
-                        setSelectedQuotationItemIndexes((prev) => (
-                          prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]
-                        ));
-                      }}
-                      className={`p-2 rounded-lg cursor-pointer transition-all border ${
-                        isSelected 
-                          ? 'bg-[var(--primary)]/10 border-[var(--primary)]' 
-                          : 'bg-[var(--bg-elevated)] border-[var(--border-base)] hover:border-[var(--primary)]/50'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <input 
-                            type="checkbox" 
-                            checked={isSelected} 
-                            onChange={() => {}}
-                            className="accent-[var(--primary)]"
-                          />
-                          <span className="text-xs font-medium text-[var(--text-primary)]">{item.name}</span>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-xs text-[var(--text-muted)]">Qty: {item.quantity}</span>
-                          {inventoryItem && (
-                            <span className={`text-xs ml-2 ${available < item.quantity ? 'text-red-500' : 'text-green-500'}`}>
-                              (Avail: {available})
-                            </span>
-                          )}
-                        </div>
+                    <div key={item.id} className="flex items-center gap-2 p-3 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-base)]">
+                      <div className="flex-1 min-w-0">
+                        <Select
+                          value={item.inventoryId}
+                          onChange={(e) => {
+                            const inventoryId = e.target.value;
+                            setDirectStockOutItems(prev => prev.map((it, i) => i === idx ? { ...it, inventoryId } : it));
+                          }}
+                          className="text-xs"
+                        >
+                          <option value="">Select Item</option>
+                          {inventory.filter(i => i.warehouse && i.warehouse !== '—' && i.warehouse !== '-').map(i => (
+                            <option key={i._id} value={i._id}>
+                              {(i.name || i.description)} ({i.warehouse}) - Stock: {i.stock || 0}
+                            </option>
+                          ))}
+                        </Select>
                       </div>
+                      <div className="w-24">
+                        <Input
+                          type="number"
+                          placeholder="Qty"
+                          value={item.quantity}
+                          onChange={(e) => {
+                            const quantity = e.target.value;
+                            setDirectStockOutItems(prev => prev.map((it, i) => i === idx ? { ...it, quantity } : it));
+                          }}
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                      {selectedItem && (
+                        <span className={`text-xs font-medium whitespace-nowrap ${available < Number(item.quantity) ? 'text-red-500' : 'text-green-600'}`}>
+                          Avail: {available}
+                        </span>
+                      )}
+                      <button
+                        onClick={() => setDirectStockOutItems(prev => prev.filter((_, i) => i !== idx))}
+                        className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-red-500 hover:bg-red-500/10"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </div>
                   );
                 })}
-              </div>
-            </div>
-          )}
-
-          {/* Selected Items Table */}
-          {selectedQuotationItems.length > 0 && (
-            <div className="glass-card p-3 border border-[var(--border-base)]">
-              <h4 className="text-xs font-semibold text-[var(--text-primary)] mb-2">Selected Items</h4>
-              <div className="w-full overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="text-[10px] text-[var(--text-muted)] border-b border-[var(--border-base)]">
-                      <th className="text-left py-2 pr-2">Item</th>
-                      <th className="text-left py-2 pr-2">Quantity</th>
-                      <th className="text-left py-2">Price</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {stockOutRows
-                      .filter(r => selectedQuotationItemIndexes.includes(r.idx))
-                      .map((row) => {
-                        const candidates = inventory.filter(i =>
-                          i.name?.toLowerCase() === row.name?.toLowerCase() ||
-                          i.description?.toLowerCase() === row.name?.toLowerCase()
-                        );
-
-                        return (
-                          <tr key={row.idx} className="border-b border-[var(--border-base)]/40">
-                            <td className="py-2 pr-2 min-w-[220px]">
-                              <Select
-                                value={row.inventoryId}
-                                onChange={(e) => {
-                                  const inventoryId = e.target.value;
-                                  setStockOutRows((prev) => prev.map(r => r.idx === row.idx ? { ...r, inventoryId } : r));
-                                }}
-                              >
-                                <option value="">Select Item</option>
-                                {candidates.map(i => (
-                                  <option key={i._id} value={i._id}>
-                                    {(i.name || i.description)} ({i.warehouse || '—'})
-                                  </option>
-                                ))}
-                              </Select>
-                            </td>
-                            <td className="py-2 pr-2 w-[120px]">
-                              <Input
-                                type="number"
-                                value={row.quantity}
-                                onChange={(e) => {
-                                  const quantity = e.target.value;
-                                  setStockOutRows((prev) => prev.map(r => r.idx === row.idx ? { ...r, quantity } : r));
-                                }}
-                              />
-                            </td>
-                            <td className="py-2 w-[100px]">
-                              <Input type="number" value={row.price ?? ''} disabled />
-                            </td>
-                          </tr>
-                        );
-                      })}
-                  </tbody>
-                </table>
+                
+                {directStockOutItems.length === 0 && (
+                  <div className="text-center py-6 text-[var(--text-muted)]">
+                    <Package size={32} className="mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">No items added</p>
+                    <p className="text-xs">Click "Add Item" to select items for stock out</p>
+                  </div>
+                )}
               </div>
             </div>
           )}
