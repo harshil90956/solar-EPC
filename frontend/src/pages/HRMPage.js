@@ -20,7 +20,7 @@ import { employeeApi, attendanceApi, leaveApi, payrollApi, incrementApi, departm
 import { api } from '../lib/apiClient';
 import { useQuery } from '@tanstack/react-query';
 import { useSettings } from '../context/SettingsContext';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext'; // Fix component usage to match import name
 import HrmPermissionsPage from './HrmPermissionsPage';
 import AttendancePolicySettings from './AttendancePolicySettings';
 import { toast } from '../components/ui/Toast';
