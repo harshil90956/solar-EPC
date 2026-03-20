@@ -214,10 +214,16 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   // Simple permission check - reads directly from user.permissions object
+  // Admin bypass: Admin users get all permissions automatically
   const can = useCallback((module, action) => {
+    // Admin bypass - admin users get all permissions
+    const userRole = user?.role || '';
+    const isAdminLike = userRole.toLowerCase() === 'admin' || userRole.toLowerCase() === 'superadmin' || userRole.toLowerCase() === 'super admin' || user?.isSuperAdmin === true;
+    if (isAdminLike) return true;
+    
     if (!permissions) return false;
     return permissions[module]?.[action] === true;
-  }, [permissions]);
+  }, [permissions, user]);
 
   // Get data scope for a module
   const getDataScope = useCallback((module) => {

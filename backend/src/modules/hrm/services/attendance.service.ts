@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import axios from 'axios';
 import { Attendance, AttendanceDocument, AttendanceStatus } from '../schemas/attendance.schema';
 import { Employee, EmployeeSchema } from '../schemas/employee.schema';
 import { CheckInDto, CheckOutDto } from '../dto/attendance.dto';
@@ -99,6 +100,7 @@ export class AttendanceService {
       existingAttendance.checkIn = now;
       existingAttendance.type = checkInDto.type || existingAttendance.type;
       existingAttendance.location = checkInDto.location || existingAttendance.location;
+      existingAttendance.checkInLocation = checkInDto.location || existingAttendance.checkInLocation;
       existingAttendance.notes = checkInDto.notes || existingAttendance.notes;
       existingAttendance.status = status;
       return existingAttendance.save();
@@ -112,6 +114,7 @@ export class AttendanceService {
       status,
       type: checkInDto.type,
       location: checkInDto.location,
+      checkInLocation: checkInDto.location,
       notes: checkInDto.notes,
       tenantId: employeeTenantId,
     });
@@ -227,6 +230,10 @@ export class AttendanceService {
     
     if (checkOutDto.notes) {
       attendance.notes = checkOutDto.notes;
+    }
+
+    if (checkOutDto.location) {
+      attendance.checkOutLocation = checkOutDto.location;
     }
 
     return attendance.save();
@@ -441,5 +448,51 @@ export class AttendanceService {
       absent,
       checkedOut,
     };
+  }
+
+  async reverseGeocode(lat: number, lng: number): Promise<{ address: string }> {
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      throw new BadRequestException('Invalid latitude/longitude');
+    }
+
+    try {
+      const res = await axios.get('https://nominatim.openstreetmap.org/reverse', {
+        params: {
+          format: 'json',
+          lat,
+          lon: lng,
+          zoom: 18,
+          addressdetails: 1,
+        },
+        headers: {
+          'User-Agent': 'SolarOS-Attendance/1.0',
+        },
+        timeout: 10000,
+      });
+
+      const data = res?.data;
+      const addr = data?.address || {};
+
+      const addressParts = [
+        addr.neighbourhood,
+        addr.suburb,
+        addr.village,
+        addr.town,
+        addr.city,
+        addr.county,
+        addr.state_district,
+        addr.state,
+        addr.postcode,
+        addr.country,
+      ].filter(Boolean);
+
+      const address = addressParts.length > 0
+        ? Array.from(new Set(addressParts)).join(', ')
+        : (data?.display_name || '');
+
+      return { address };
+    } catch (e) {
+      return { address: '' };
+    }
   }
 }

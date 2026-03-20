@@ -3,12 +3,16 @@ import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../../../core/tenant/guards/tenant.guard';
 import { PermissionGuard } from '../../settings/guards/permission.guard';
 import { ItemsService } from '../services/items.service';
+import { InventoryService } from '../services/inventory.service';
 import { CreateItemDto, UpdateItemDto } from '../dto/item.dto';
 
 @Controller('items')
 @UseGuards(JwtAuthGuard, TenantGuard, PermissionGuard)
 export class ItemsController {
-  constructor(private readonly itemsService: ItemsService) {}
+  constructor(
+    private readonly itemsService: ItemsService,
+    private readonly inventoryService: InventoryService,
+  ) {}
 
   @Get()
   async findAll(
@@ -23,7 +27,7 @@ export class ItemsController {
     const user = req?.user ? {
       id: String(req.user.id || req.user._id),
       _id: String(req.user.id || req.user._id),
-      dataScope: (req.user.dataScope as 'ALL' | 'ASSIGNED') || 'ASSIGNED',
+      dataScope: (req.user.dataScope as 'ALL' | 'ASSIGNED') || 'ALL',
     } : undefined;
     console.log(`[ITEMS CTRL] user.dataScope:`, user?.dataScope);
     return this.itemsService.findAll(tenantId, user, search, itemGroupId);
@@ -107,5 +111,15 @@ export class ItemsController {
   ) {
     const tenantId = headerTenantId || queryTenantId;
     return this.itemsService.stockOut(tenantId, id, quantity, projectId, issuedDate, remarks);
+  }
+
+  @Post('transfers')
+  transfer(
+    @Headers('x-tenant-id') headerTenantId: string,
+    @Query('tenantId') queryTenantId: string,
+    @Body() transferDto: { fromInventoryId: string; toWarehouseId: string; quantity: number; remarks?: string },
+  ) {
+    const tenantId = headerTenantId || queryTenantId;
+    return this.itemsService.transfer(tenantId, transferDto.fromInventoryId, transferDto.toWarehouseId, transferDto.quantity, transferDto.remarks);
   }
 }

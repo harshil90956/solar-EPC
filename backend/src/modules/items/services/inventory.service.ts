@@ -217,18 +217,24 @@ export class InventoryService {
   }
 
   // Transfer stock between warehouses
-  async transfer(tenantId: string, fromInventoryId: string, toWarehouseId: string, quantity: number, remarks?: string) {
+  async transfer(tenantId: string, fromItemId: string, toWarehouseId: string, quantity: number, remarks?: string, fromWarehouseName?: string) {
     const actualTenantId = await this.getTenantId(tenantId);
 
-    // Get source inventory
-    const sourceInv = await this.inventoryModel.findOne({
-      tenantId: actualTenantId,
-      _id: new Types.ObjectId(fromInventoryId),
-      isDeleted: false,
-    }).exec();
+    // Get source inventory by itemId reference (ObjectId) and warehouse name
+    let sourceInv = null;
+    
+    // Try to find by itemId (as ObjectId reference to Item) + warehouseName
+    if (Types.ObjectId.isValid(fromItemId)) {
+      sourceInv = await this.inventoryModel.findOne({
+        tenantId: actualTenantId,
+        itemId: new Types.ObjectId(fromItemId),
+        warehouseName: fromWarehouseName,
+        isDeleted: false,
+      }).exec();
+    }
 
     if (!sourceInv) {
-      throw new NotFoundException(`Source inventory record not found`);
+      throw new NotFoundException(`Source inventory record not found for item ${fromItemId} in warehouse ${fromWarehouseName}`);
     }
 
     const available = (sourceInv.stock || 0) - (sourceInv.reserved || 0);
@@ -287,21 +293,38 @@ export class InventoryService {
       { $inc: { stock: -quantity } },
     ).exec();
 
-    // Log stock movement for TRANSFER
+    // Log stock movement for TRANSFER (source - outgoing, negative)
     try {
-      console.log(`[INVENTORY TRANSFER] Logging TRANSFER movement from ${sourceInv.warehouseName} to ${destWarehouse.name}, qty: ${quantity}`);
+      console.log(`[INVENTORY TRANSFER] Logging TRANSFER movement from source ${sourceInv.warehouseName}, qty: -${quantity}`);
+      await this.stockMovementService.logMovement(tenantId, {
+        itemId: sourceInv.itemId.toString(),
+        type: 'TRANSFER',
+        quantity: -quantity,
+        reference: `Transfer to ${destWarehouse.name}`,
+        referenceType: 'TRANSFER',
+        note: remarks || `Transferred out ${quantity} units from ${sourceInv.warehouseName} to ${destWarehouse.name}`,
+        warehouseName: sourceInv.warehouseName,
+      });
+      console.log(`[INVENTORY TRANSFER] Source TRANSFER logged successfully`);
+    } catch (err) {
+      console.error('[INVENTORY TRANSFER] Failed to log source TRANSFER:', err);
+    }
+
+    // Log stock movement for TRANSFER (destination - incoming, positive)
+    try {
+      console.log(`[INVENTORY TRANSFER] Logging TRANSFER movement to destination ${destWarehouse.name}, qty: ${quantity}`);
       await this.stockMovementService.logMovement(tenantId, {
         itemId: sourceInv.itemId.toString(),
         type: 'TRANSFER',
         quantity: quantity,
-        reference: `From ${sourceInv.warehouseName} to ${destWarehouse.name}`,
+        reference: `Transfer from ${sourceInv.warehouseName}`,
         referenceType: 'TRANSFER',
-        note: remarks || `Transferred ${quantity} units from ${sourceInv.warehouseName} to ${destWarehouse.name}`,
-        warehouseName: `${sourceInv.warehouseName} → ${destWarehouse.name}`,
+        note: remarks || `Received ${quantity} units from ${sourceInv.warehouseName} to ${destWarehouse.name}`,
+        warehouseName: destWarehouse.name,
       });
-      console.log(`[INVENTORY TRANSFER] TRANSFER logged successfully`);
+      console.log(`[INVENTORY TRANSFER] Destination TRANSFER logged successfully`);
     } catch (err) {
-      console.error('[INVENTORY TRANSFER] Failed to log TRANSFER:', err);
+      console.error('[INVENTORY TRANSFER] Failed to log destination TRANSFER:', err);
     }
 
     return {

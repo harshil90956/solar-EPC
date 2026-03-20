@@ -169,7 +169,6 @@ export class AuthService {
         tenantId: employee.tenantId ? String(employee.tenantId) : null,
         isSuperAdmin: false,
         roleId: employee.roleId || null,
-        department: employee.department || null,
         isEmployee: true,
       };
 
@@ -185,7 +184,6 @@ export class AuthService {
           isSuperAdmin: false,
           roleId: employee.roleId || null,
           isEmployee: true,
-          department: employee.department || null,
           firstName: employee.firstName,
           lastName: employee.lastName,
           employeeId: employee.employeeId,
@@ -228,6 +226,7 @@ export class AuthService {
       },
     };
   }
+
   async getUsersByTenantAndRole(tenantCode: string, role?: string) {
     const tenant = await this.tenantModel.findOne({ code: tenantCode }).lean();
     if (!tenant) {
@@ -562,19 +561,28 @@ export class AuthService {
     
     // Define module access by role
     const roleModuleMap: Record<string, string[]> = {
-      'admin': ['dashboard', 'crm', 'survey', 'design', 'documents', 'procurement', 'inventory', 'project', 'logistics', 'installation', 'commissioning', 'finance', 'service', 'compliance', 'admin', 'settings', 'hrm'],
-      'manager': ['dashboard', 'crm', 'survey', 'design', 'procurement', 'inventory', 'project', 'logistics', 'installation', 'finance', 'service', 'hrm'],
-      'sales': ['dashboard', 'crm', 'quotations', 'leads'],
-      'technician': ['dashboard', 'installation', 'service'],
+      'admin': ['dashboard', 'crm', 'survey', 'design', 'documents', 'procurement', 'inventory', 'project', 'logistics', 'installation', 'commissioning', 'finance', 'service', 'compliance', 'admin', 'settings', 'hrm', 'tasks'],
+      'manager': ['dashboard', 'crm', 'survey', 'design', 'procurement', 'inventory', 'project', 'logistics', 'installation', 'finance', 'service', 'hrm', 'tasks'],
+      'sales': ['dashboard', 'crm', 'quotations', 'leads', 'tasks'],
+      'technician': ['dashboard', 'installation', 'service', 'tasks'],
+      'hr': ['dashboard', 'hrm', 'employees', 'attendance', 'leaves', 'tasks'],
+      'employee': ['dashboard', 'hrm', 'tasks'],
     };
-
-    // Check if role has access to module
-    for (const [r, modules] of Object.entries(roleModuleMap)) {
-      if (roleLower.includes(r) && modules.includes(module)) {
-        return { view: true, create: true, edit: true, delete: true };
-      }
+    
+    // Check if role has access to this module
+    const roleModules = roleModuleMap[roleLower] || roleModuleMap['employee'];
+    const hasAccess = roleModules.includes(module);
+    
+    if (!hasAccess) {
+      return defaultPerms;
     }
-
-    return defaultPerms;
+    
+    // Non-admin roles with access get view + limited create/edit
+    return {
+      view: true,
+      create: roleLower !== 'employee',
+      edit: roleLower !== 'employee',
+      delete: roleLower === 'manager' || roleLower === 'admin',
+    };
   }
 }

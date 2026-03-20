@@ -445,13 +445,23 @@ const computeTransactionAnalytics = (manualAdjustments) => {
 // Chart 1: Revenue vs Cost
 const RevenueVsCostChart = ({ monthlyRevenue }) => {
   return (
-    <div className="glass-card p-5 rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 animate-fade-in">
-      <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2">
-        <BarChart3 size={16} className="text-emerald-400" />
+    <div className="glass-card p-5 rounded-2xl shadow-lg hover:shadow-2xl hover:shadow-emerald-500/10 hover:scale-[1.02] transition-all duration-500 animate-fade-in group">
+      <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2 group-hover:text-emerald-400 transition-colors">
+        <BarChart3 size={16} className="text-emerald-400 group-hover:scale-110 transition-transform" />
         Revenue vs Cost
       </h3>
       <ResponsiveContainer width="100%" height={260}>
         <BarChart data={monthlyRevenue} barSize={28} barGap={6} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+          <defs>
+            <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#22c55e" stopOpacity={1} />
+              <stop offset="100%" stopColor="#16a34a" stopOpacity={0.8} />
+            </linearGradient>
+            <linearGradient id="costGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#3b82f6" stopOpacity={1} />
+              <stop offset="100%" stopColor="#2563eb" stopOpacity={0.8} />
+            </linearGradient>
+          </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
           <XAxis
             dataKey="month"
@@ -469,19 +479,21 @@ const RevenueVsCostChart = ({ monthlyRevenue }) => {
           <Legend iconSize={10} wrapperStyle={{ fontSize: 11, paddingTop: 10 }} />
           <Bar
             dataKey="revenue"
-            fill="#22c55e"
-            radius={[6, 6, 0, 0]}
+            fill="url(#revenueGrad)"
+            radius={[8, 8, 0, 0]}
             name="Revenue"
             animationDuration={1500}
             animationBegin={0}
+            className="hover:opacity-80 transition-opacity"
           />
           <Bar
             dataKey="cost"
-            fill="#3b82f6"
-            radius={[6, 6, 0, 0]}
+            fill="url(#costGrad)"
+            radius={[8, 8, 0, 0]}
             name="Cost"
             animationDuration={1500}
             animationBegin={300}
+            className="hover:opacity-80 transition-opacity"
           />
         </BarChart>
       </ResponsiveContainer>
@@ -492,20 +504,20 @@ const RevenueVsCostChart = ({ monthlyRevenue }) => {
 // Chart 2: Cash Flow Trend
 const CashFlowTrendChart = ({ cashFlow }) => {
   return (
-    <div className="glass-card p-5 rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 animate-fade-in" style={{ animationDelay: '100ms' }}>
-      <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2">
-        <Activity size={16} className="text-cyan-400" />
+    <div className="glass-card p-5 rounded-2xl shadow-lg hover:shadow-2xl hover:shadow-cyan-500/10 hover:scale-[1.02] transition-all duration-500 animate-fade-in group" style={{ animationDelay: '100ms' }}>
+      <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2 group-hover:text-cyan-400 transition-colors">
+        <Activity size={16} className="text-cyan-400 group-hover:scale-110 transition-transform" />
         Cash Flow Trend
       </h3>
       <ResponsiveContainer width="100%" height={260}>
         <AreaChart data={cashFlow} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="inflowGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.4} />
+              <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.5} />
               <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.05} />
             </linearGradient>
             <linearGradient id="outflowGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.4} />
+              <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.5} />
               <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.05} />
             </linearGradient>
           </defs>
@@ -535,6 +547,7 @@ const CashFlowTrendChart = ({ cashFlow }) => {
             name="Inflow"
             animationDuration={2000}
             animationBegin={0}
+            className="hover:opacity-80 transition-opacity"
           />
           <Area
             type="monotone"
@@ -545,6 +558,7 @@ const CashFlowTrendChart = ({ cashFlow }) => {
             name="Outflow"
             animationDuration={2000}
             animationBegin={400}
+            className="hover:opacity-80 transition-opacity"
           />
         </AreaChart>
       </ResponsiveContainer>
@@ -552,7 +566,7 @@ const CashFlowTrendChart = ({ cashFlow }) => {
   );
 };
 
-// Chart 3: Invoice Status Distribution (Doughnut)
+// Chart 3: Invoice Status Distribution (Pie)
 const InvoiceStatusChart = ({ invoices }) => {
   const data = useMemo(() => {
     const statusCounts = { Draft: 0, Sent: 0, Partial: 0, Paid: 0, Overdue: 0 };
@@ -586,26 +600,39 @@ const InvoiceStatusChart = ({ invoices }) => {
   }
 
   return (
-    <div className="glass-card p-5 rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 animate-fade-in" style={{ animationDelay: '200ms' }}>
-      <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2">
-        <PieChart size={16} className="text-purple-400" />
+    <div className="glass-card p-5 rounded-2xl shadow-lg hover:shadow-2xl hover:shadow-purple-500/10 hover:scale-[1.02] transition-all duration-500 animate-fade-in group" style={{ animationDelay: '200ms' }}>
+      <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2 group-hover:text-purple-400 transition-colors">
+        <PieChart size={16} className="text-purple-400 group-hover:scale-110 transition-transform" />
         Invoice Status Distribution
         <span className="text-[10px] text-[var(--text-muted)] font-normal ml-2">({invoices.length} total)</span>
       </h3>
       <ResponsiveContainer width="100%" height={200}>
         <RePieChart>
+          <defs>
+            <filter id="pieShadow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.3"/>
+            </filter>
+          </defs>
           <Pie
             data={data}
             cx="50%"
             cy="50%"
             outerRadius={80}
+            innerRadius={30}
             paddingAngle={3}
             dataKey="value"
             animationDuration={1500}
             animationBegin={0}
+            filter="url(#pieShadow)"
           >
             {data.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={entry.color} stroke="var(--bg-surface)" strokeWidth={2} />
+              <Cell 
+                key={`cell-${index}`} 
+                fill={entry.color} 
+                stroke="var(--bg-surface)" 
+                strokeWidth={2} 
+                className="hover:opacity-80 transition-opacity"
+              />
             ))}
           </Pie>
           <Tooltip content={<CustomTooltip />} />
@@ -613,7 +640,7 @@ const InvoiceStatusChart = ({ invoices }) => {
       </ResponsiveContainer>
       <div className="grid grid-cols-3 gap-2 mt-2">
         {data.map((item) => (
-          <div key={item.name} className="flex items-center gap-1.5 text-[10px]">
+          <div key={item.name} className="flex items-center gap-1.5 text-[10px] group/item hover:scale-105 transition-transform cursor-pointer">
             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
             <span className="text-[var(--text-muted)]">{item.name}</span>
             <span className="font-semibold text-[var(--text-primary)]">{item.value}</span>
@@ -658,24 +685,24 @@ const ReceivableAgingChart = ({ invoices }) => {
   const maxAmount = Math.max(...data.map(d => d.amount), 1);
 
   return (
-    <div className="glass-card p-5 rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 animate-fade-in" style={{ animationDelay: '300ms' }}>
-      <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2">
-        <Clock size={16} className="text-amber-400" />
+    <div className="glass-card p-5 rounded-2xl shadow-lg hover:shadow-2xl hover:shadow-amber-500/10 hover:scale-[1.02] transition-all duration-500 animate-fade-in group" style={{ animationDelay: '300ms' }}>
+      <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2 group-hover:text-amber-400 transition-colors">
+        <Clock size={16} className="text-amber-400 group-hover:scale-110 transition-transform" />
         Receivable Aging
       </h3>
       <div className="space-y-3">
         {data.map((item, index) => (
-          <div key={item.bucket} className="group">
+          <div key={item.bucket} className="group/item cursor-pointer">
             <div className="flex items-center justify-between text-xs mb-1">
-              <span className="text-[var(--text-muted)]">{item.bucket}</span>
+              <span className="text-[var(--text-muted)] group-hover/item:text-[var(--text-primary)] transition-colors">{item.bucket}</span>
               <span className="font-semibold text-[var(--text-primary)]">{fmt(item.amount)}</span>
             </div>
             <div className="h-3 bg-[var(--bg-elevated)] rounded-full overflow-hidden">
               <div
-                className="h-full rounded-full transition-all duration-1000 ease-out"
+                className="h-full rounded-full transition-all duration-1000 ease-out group-hover/item:brightness-110"
                 style={{
                   width: `${(item.amount / maxAmount) * 100}%`,
-                  backgroundColor: item.color,
+                  background: `linear-gradient(90deg, ${item.color} 0%, ${item.color}dd 100%)`,
                   animationDelay: `${index * 200}ms`,
                 }}
               />
@@ -709,9 +736,9 @@ const VendorPayablesChart = ({ payables }) => {
   }
 
   return (
-    <div className="glass-card p-5 rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 animate-fade-in" style={{ animationDelay: '400ms' }}>
-      <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2">
-        <Users size={16} className="text-rose-400" />
+    <div className="glass-card p-5 rounded-2xl shadow-lg hover:shadow-2xl hover:shadow-rose-500/10 hover:scale-[1.02] transition-all duration-500 animate-fade-in group" style={{ animationDelay: '400ms' }}>
+      <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2 group-hover:text-rose-400 transition-colors">
+        <Users size={16} className="text-rose-400 group-hover:scale-110 transition-transform" />
         Vendor Payables Breakdown
       </h3>
       <ResponsiveContainer width="100%" height={200}>
@@ -727,7 +754,7 @@ const VendorPayablesChart = ({ payables }) => {
             animationBegin={200}
           >
             {data.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={entry.color} stroke="var(--bg-surface)" strokeWidth={2} />
+              <Cell key={`cell-${index}`} fill={entry.color} stroke="var(--bg-surface)" strokeWidth={2} className="hover:opacity-80 transition-opacity" />
             ))}
           </Pie>
           <Tooltip content={<CustomTooltip />} />
@@ -735,7 +762,7 @@ const VendorPayablesChart = ({ payables }) => {
       </ResponsiveContainer>
       <div className="grid grid-cols-2 gap-1 mt-2">
         {data.map((item) => (
-          <div key={item.name} className="flex items-center gap-1.5 text-[10px]">
+          <div key={item.name} className="flex items-center gap-1.5 text-[10px] hover:scale-105 transition-transform cursor-pointer">
             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
             <span className="text-[var(--text-muted)] truncate">{item.name}</span>
           </div>
@@ -802,13 +829,23 @@ const MonthlyCollectionChart = ({ invoices, payments, calendarFilterYear, calend
   };
 
   return (
-    <div className="glass-card p-5 rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 animate-fade-in" style={{ animationDelay: '500ms' }}>
-      <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2">
-        <TrendIcon size={16} className="text-indigo-400" />
+    <div className="glass-card p-5 rounded-2xl shadow-lg hover:shadow-2xl hover:shadow-indigo-500/10 hover:scale-[1.02] transition-all duration-500 animate-fade-in group" style={{ animationDelay: '500ms' }}>
+      <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2 group-hover:text-indigo-400 transition-colors">
+        <TrendIcon size={16} className="text-indigo-400 group-hover:scale-110 transition-transform" />
         {getDynamicTitle()}
       </h3>
       <ResponsiveContainer width="100%" height={260}>
-        <LineChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+        <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+          <defs>
+            <linearGradient id="invoiceGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.05} />
+            </linearGradient>
+            <linearGradient id="paymentGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="#22c55e" stopOpacity={0.05} />
+            </linearGradient>
+          </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
           <XAxis
             dataKey="month"
@@ -827,10 +864,11 @@ const MonthlyCollectionChart = ({ invoices, payments, calendarFilterYear, calend
           />
           <Tooltip content={<CustomTooltip />} />
           <Legend iconSize={10} wrapperStyle={{ fontSize: 11, paddingTop: 10 }} />
-          <Line
+          <Area
             type="monotone"
             dataKey="invoices"
             stroke="#8b5cf6"
+            fill="url(#invoiceGrad)"
             strokeWidth={3}
             dot={{ fill: '#8b5cf6', r: 4 }}
             activeDot={{ r: 6 }}
@@ -838,10 +876,11 @@ const MonthlyCollectionChart = ({ invoices, payments, calendarFilterYear, calend
             animationDuration={2000}
             animationBegin={0}
           />
-          <Line
+          <Area
             type="monotone"
             dataKey="payments"
             stroke="#22c55e"
+            fill="url(#paymentGrad)"
             strokeWidth={3}
             dot={{ fill: '#22c55e', r: 4 }}
             activeDot={{ r: 6 }}
@@ -849,7 +888,7 @@ const MonthlyCollectionChart = ({ invoices, payments, calendarFilterYear, calend
             animationDuration={2000}
             animationBegin={300}
           />
-        </LineChart>
+        </AreaChart>
       </ResponsiveContainer>
     </div>
   );
@@ -877,9 +916,9 @@ const IncomeByCategoryChart = ({ transactionAnalytics }) => {
   }
 
   return (
-    <div className="glass-card p-5 rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 animate-fade-in" style={{ animationDelay: '500ms' }}>
-      <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-2 flex items-center gap-2">
-        <TrendingUp size={16} className="text-emerald-400" />
+    <div className="glass-card p-5 rounded-2xl shadow-lg hover:shadow-2xl hover:shadow-emerald-500/10 hover:scale-[1.02] transition-all duration-500 animate-fade-in group" style={{ animationDelay: '500ms' }}>
+      <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-2 flex items-center gap-2 group-hover:text-emerald-400 transition-colors">
+        <TrendingUp size={16} className="text-emerald-400 group-hover:scale-110 transition-transform" />
         Income by Category
         <span className="text-[10px] text-[var(--text-muted)] font-normal ml-auto">{fmt(total)}</span>
       </h3>
@@ -897,7 +936,7 @@ const IncomeByCategoryChart = ({ transactionAnalytics }) => {
             animationBegin={0}
           >
             {data.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={entry.color} stroke="var(--bg-surface)" strokeWidth={2} />
+              <Cell key={`cell-${index}`} fill={entry.color} stroke="var(--bg-surface)" strokeWidth={2} className="hover:opacity-80 transition-opacity" />
             ))}
           </Pie>
           <Tooltip content={<CustomTooltip />} />
@@ -905,7 +944,7 @@ const IncomeByCategoryChart = ({ transactionAnalytics }) => {
       </ResponsiveContainer>
       <div className="grid grid-cols-2 gap-1 mt-2 max-h-[80px] overflow-y-auto">
         {data.map((item) => (
-          <div key={item.name} className="flex items-center gap-1.5 text-[10px]">
+          <div key={item.name} className="flex items-center gap-1.5 text-[10px] hover:scale-105 transition-transform cursor-pointer">
             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
             <span className="text-[var(--text-muted)] truncate">{item.name}</span>
             <span className="font-semibold text-[var(--text-primary)]">{fmt(item.value)}</span>
@@ -939,14 +978,20 @@ const ExpenseByCategoryChart = ({ transactionAnalytics }) => {
   }
 
   return (
-    <div className="glass-card p-5 rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 animate-fade-in" style={{ animationDelay: '600ms' }}>
-      <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2">
-        <TrendingDown size={16} className="text-red-400" />
+    <div className="glass-card p-5 rounded-2xl shadow-lg hover:shadow-2xl hover:shadow-red-500/10 hover:scale-[1.02] transition-all duration-500 animate-fade-in group" style={{ animationDelay: '600ms' }}>
+      <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2 group-hover:text-red-400 transition-colors">
+        <TrendingDown size={16} className="text-red-400 group-hover:scale-110 transition-transform" />
         Expense by Category
         <span className="text-[10px] text-[var(--text-muted)] font-normal ml-auto">{fmt(total)}</span>
       </h3>
       <ResponsiveContainer width="100%" height={220}>
         <BarChart data={data} layout="vertical" margin={{ top: 5, right: 30, left: 80, bottom: 5 }}>
+          <defs>
+            <linearGradient id="expenseGrad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#ef4444" stopOpacity={1} />
+              <stop offset="100%" stopColor="#dc2626" stopOpacity={0.8} />
+            </linearGradient>
+          </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" horizontal={false} />
           <XAxis
             type="number"
@@ -968,10 +1013,11 @@ const ExpenseByCategoryChart = ({ transactionAnalytics }) => {
           <Tooltip content={<CustomTooltip />} />
           <Bar
             dataKey="amount"
-            fill="#ef4444"
+            fill="url(#expenseGrad)"
             radius={[0, 4, 4, 0]}
             animationDuration={1500}
             animationBegin={200}
+            className="hover:opacity-80 transition-opacity"
           />
         </BarChart>
       </ResponsiveContainer>
@@ -999,13 +1045,23 @@ const IncomeExpenseTrendChart = ({ adjustmentTrend }) => {
   }
 
   return (
-    <div className="glass-card p-5 rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 animate-fade-in" style={{ animationDelay: '700ms' }}>
-      <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2">
-        <Activity size={16} className="text-blue-400" />
+    <div className="glass-card p-5 rounded-2xl shadow-lg hover:shadow-2xl hover:shadow-blue-500/10 hover:scale-[1.02] transition-all duration-500 animate-fade-in group" style={{ animationDelay: '700ms' }}>
+      <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2 group-hover:text-blue-400 transition-colors">
+        <Activity size={16} className="text-blue-400 group-hover:scale-110 transition-transform" />
         Income vs Expense
       </h3>
       <ResponsiveContainer width="100%" height={220}>
-        <LineChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+        <AreaChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+          <defs>
+            <linearGradient id="incomeTrendGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="#22c55e" stopOpacity={0.05} />
+            </linearGradient>
+            <linearGradient id="expenseTrendGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="#ef4444" stopOpacity={0.05} />
+            </linearGradient>
+          </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
           <XAxis
             dataKey="label"
@@ -1021,27 +1077,29 @@ const IncomeExpenseTrendChart = ({ adjustmentTrend }) => {
           />
           <Tooltip content={<CustomTooltip />} />
           <Legend iconSize={10} wrapperStyle={{ fontSize: 11, paddingTop: 10 }} />
-          <Line
+          <Area
             type="monotone"
             dataKey="income"
             stroke="#22c55e"
+            fill="url(#incomeTrendGrad)"
             strokeWidth={3}
             dot={{ fill: '#22c55e', r: 4 }}
             name="Income"
             animationDuration={2000}
             animationBegin={0}
           />
-          <Line
+          <Area
             type="monotone"
             dataKey="expense"
             stroke="#ef4444"
+            fill="url(#expenseTrendGrad)"
             strokeWidth={3}
             dot={{ fill: '#ef4444', r: 4 }}
             name="Expense"
             animationDuration={2000}
             animationBegin={300}
           />
-        </LineChart>
+        </AreaChart>
       </ResponsiveContainer>
     </div>
   );

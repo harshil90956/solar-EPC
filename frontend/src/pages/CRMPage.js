@@ -15,7 +15,8 @@ import {
   MailOpen, Send, CheckSquare, Square, ArrowRight, Sparkles,
   Brain, ZapOff, BatteryCharging, Wind, Sun, Moon, Cloud,
   Gauge, Targeted, FilterX, SearchX, UserPlus, UserMinus,
-  Save, GitCommit, ChevronDown, Info, LayoutGrid
+  Save, GitCommit, ChevronDown, Info, LayoutGrid, Package,
+  HardHat, Wrench
 } from 'lucide-react';
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
@@ -25,6 +26,8 @@ import {
 } from 'recharts';
 import { USERS } from '../data/mockData';
 import { leadsApi } from '../services/leadsApi';
+import { projectsApi } from '../services/projectsApi';
+import { inventoryApi } from '../services/inventoryApi';
 import { surveysApi } from '../services/surveysApi';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
@@ -775,6 +778,74 @@ const CRMPage = ({ onNavigate }) => {
   const [customersPageSize, setCustomersPageSize] = useState(25);
   const [customersSearch, setCustomersSearch] = useState('');
 
+  // Project Creation Modal State
+  const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
+  const [selectedCustomerForProject, setSelectedCustomerForProject] = useState(null);
+  const [projectForm, setProjectForm] = useState({
+    name: '',
+    description: '',
+    status: 'planning',
+    startDate: '',
+    endDate: '',
+    budget: 0,
+    siteAddress: '',
+    boqTemplate: 'residential_5kw',
+    createTransfer: true,
+    assignedTo: '',
+    department: ''
+  });
+  const [boqTemplates, setBoqTemplates] = useState([
+    { id: 'residential_5kw', name: 'Residential 5kW System', items: [
+      { itemId: 'solar-panel-550w', name: 'Solar Panel 550W', quantity: 10, unit: 'pcs' },
+      { itemId: 'inverter-5kw', name: 'Inverter 5kW', quantity: 1, unit: 'pcs' },
+      { itemId: 'mounting-structure', name: 'Mounting Structure', quantity: 1, unit: 'set' },
+      { itemId: 'dc-cable-4mm', name: 'DC Cable 4mm', quantity: 100, unit: 'm' },
+      { itemId: 'ac-cable-10mm', name: 'AC Cable 10mm', quantity: 20, unit: 'm' },
+      { itemId: 'mc4-connector', name: 'MC4 Connector', quantity: 20, unit: 'pairs' },
+      { itemId: 'earthing-kit', name: 'Earthing Kit', quantity: 1, unit: 'set' },
+      { itemId: 'surge-protector', name: 'Surge Protector', quantity: 1, unit: 'pcs' }
+    ]},
+    { id: 'residential_10kw', name: 'Residential 10kW System', items: [
+      { itemId: 'solar-panel-550w', name: 'Solar Panel 550W', quantity: 20, unit: 'pcs' },
+      { itemId: 'inverter-10kw', name: 'Inverter 10kW', quantity: 1, unit: 'pcs' },
+      { itemId: 'mounting-structure', name: 'Mounting Structure', quantity: 1, unit: 'set' },
+      { itemId: 'dc-cable-4mm', name: 'DC Cable 4mm', quantity: 200, unit: 'm' },
+      { itemId: 'ac-cable-16mm', name: 'AC Cable 16mm', quantity: 30, unit: 'm' },
+      { itemId: 'mc4-connector', name: 'MC4 Connector', quantity: 40, unit: 'pairs' },
+      { itemId: 'earthing-kit', name: 'Earthing Kit', quantity: 2, unit: 'set' },
+      { itemId: 'surge-protector', name: 'Surge Protector', quantity: 2, unit: 'pcs' }
+    ]},
+    { id: 'commercial_50kw', name: 'Commercial 50kW System', items: [
+      { itemId: 'solar-panel-550w', name: 'Solar Panel 550W', quantity: 100, unit: 'pcs' },
+      { itemId: 'inverter-50kw', name: 'Inverter 50kW', quantity: 1, unit: 'pcs' },
+      { itemId: 'mounting-structure', name: 'Mounting Structure', quantity: 5, unit: 'set' },
+      { itemId: 'dc-cable-6mm', name: 'DC Cable 6mm', quantity: 800, unit: 'm' },
+      { itemId: 'ac-cable-35mm', name: 'AC Cable 35mm', quantity: 100, unit: 'm' },
+      { itemId: 'mc4-connector', name: 'MC4 Connector', quantity: 200, unit: 'pairs' },
+      { itemId: 'earthing-kit', name: 'Earthing Kit', quantity: 5, unit: 'set' },
+      { itemId: 'surge-protector', name: 'Surge Protector', quantity: 5, unit: 'pcs' },
+      { itemId: 'dcdb', name: 'DC Distribution Box', quantity: 1, unit: 'pcs' },
+      { itemId: 'acdb', name: 'AC Distribution Box', quantity: 1, unit: 'pcs' }
+    ]},
+    { id: 'industrial_100kw', name: 'Industrial 100kW System', items: [
+      { itemId: 'solar-panel-550w', name: 'Solar Panel 550W', quantity: 200, unit: 'pcs' },
+      { itemId: 'inverter-100kw', name: 'Inverter 100kW', quantity: 1, unit: 'pcs' },
+      { itemId: 'mounting-structure', name: 'Mounting Structure', quantity: 10, unit: 'set' },
+      { itemId: 'dc-cable-6mm', name: 'DC Cable 6mm', quantity: 1500, unit: 'm' },
+      { itemId: 'ac-cable-70mm', name: 'AC Cable 70mm', quantity: 150, unit: 'm' },
+      { itemId: 'mc4-connector', name: 'MC4 Connector', quantity: 400, unit: 'pairs' },
+      { itemId: 'earthing-kit', name: 'Earthing Kit', quantity: 10, unit: 'set' },
+      { itemId: 'surge-protector', name: 'Surge Protector', quantity: 10, unit: 'pcs' },
+      { itemId: 'dcdb', name: 'DC Distribution Box', quantity: 2, unit: 'pcs' },
+      { itemId: 'acdb', name: 'AC Distribution Box', quantity: 2, unit: 'pcs' }
+    ]}
+  ]);
+  const [projectCreateLoading, setProjectCreateLoading] = useState(false);
+  const [departments, setDepartments] = useState([]);
+  const [hrmEmployees, setHrmEmployees] = useState([]);
+  const [selectedDepartment, setSelectedDepartment] = useState('');
+  const [filteredHrmEmployees, setFilteredHrmEmployees] = useState([]);
+
   const normalizeStageKey = (lead) => (lead?.statusKey || lead?.status || 'new').toString().toLowerCase();
   const getLeadId = (lead) => String(lead?._id || lead?.id || '');
   const dragRef = useRef(null);
@@ -850,6 +921,13 @@ const CRMPage = ({ onNavigate }) => {
   });
   const [showDateRangeDropdown, setShowDateRangeDropdown] = useState(false);
   const dateRangeRef = useRef(null);
+  const [showDateRangeInfo, setShowDateRangeInfo] = useState(false);
+  const dateRangeInfoRef = useRef(null);
+  // Kanban drag-to-scroll state
+  const kanbanScrollRef = useRef(null);
+  const [isKanbanDragging, setIsKanbanDragging] = useState(false);
+  const [kanbanDragStartX, setKanbanDragStartX] = useState(0);
+  const [kanbanScrollStartX, setKanbanScrollStartX] = useState(0);
   // Date range preset options
   const dateRangeOptions = [
     { id: 'all', label: 'All Time', days: null },
@@ -918,6 +996,24 @@ const CRMPage = ({ onNavigate }) => {
     });
   }, [crmPerms, can]);
   const { user } = useAuth();
+
+  useEffect(() => {
+    if (!showDateRangeInfo) return;
+    const onDocClick = (e) => {
+      const el = dateRangeInfoRef.current;
+      if (!el) return;
+      if (!el.contains(e.target)) {
+        setShowDateRangeInfo(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [showDateRangeInfo]);
+
+  const isAdminLike = useMemo(() => {
+    const role = String(user?.role || '').toLowerCase();
+    return role === 'admin' || role === 'superadmin' || user?.isSuperAdmin === true;
+  }, [user?.role, user?.isSuperAdmin]);
 
   // Get user's data scope for visibility indicator
   const userDataScope = user?.dataScope || 'ASSIGNED';
@@ -1186,6 +1282,208 @@ const CRMPage = ({ onNavigate }) => {
   const handleViewTracker = (lead) => {
     setTrackerLeadId(lead._id);
     setShowTrackerDrawer(true);
+  };
+
+  // Project Creation Handlers
+  const handleOpenCreateProjectModal = (customer) => {
+    setSelectedCustomerForProject(customer);
+    setProjectForm({
+      name: `${customer.name} - Solar Project`,
+      description: `Solar installation project for ${customer.company || customer.name}`,
+      status: 'planning',
+      startDate: format(new Date(), 'yyyy-MM-dd'),
+      endDate: format(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'),
+      budget: 0,
+      siteAddress: customer.address || '',
+      boqTemplate: 'residential_5kw',
+      createTransfer: true,
+      assignedTo: '',
+      department: ''
+    });
+    setSelectedDepartment('');
+    setFilteredHrmEmployees([]);
+    setShowCreateProjectModal(true);
+
+    // Load departments and employees from HRM
+    fetchHrmDepartmentsAndEmployees();
+  };
+
+  const fetchHrmDepartmentsAndEmployees = async () => {
+    try {
+      // Fetch departments from HRM API
+      const deptsResult = await leadsApi.getHrmDepartments();
+      const deptsData = deptsResult?.data?.data || deptsResult?.data || [];
+      setDepartments(Array.isArray(deptsData) ? deptsData : []);
+
+      // Fetch employees from HRM API
+      const empsResult = await leadsApi.getHrmEmployees();
+      const empsData = empsResult?.data?.data || empsResult?.data || [];
+      setHrmEmployees(Array.isArray(empsData) ? empsData : []);
+    } catch (err) {
+      console.error('[PROJECT] Failed to fetch HRM data:', err);
+      setDepartments([]);
+      setHrmEmployees([]);
+    }
+  };
+
+  const handleDepartmentChange = (deptId) => {
+    setSelectedDepartment(deptId);
+    setProjectForm(prev => ({ ...prev, department: deptId, assignedTo: '' }));
+
+    // Filter employees by selected department
+    if (deptId) {
+      const filtered = hrmEmployees.filter(emp => {
+        // Handle various department field formats
+        const empDeptId = emp.department?._id || emp.department?.id || emp.departmentId || emp.department_id || emp.department;
+        // Also check if department is a string (department name)
+        if (typeof emp.department === 'string') {
+          // Find department name from departments list
+          const dept = departments.find(d => d._id === deptId || d.id === deptId);
+          return dept && emp.department.toLowerCase() === dept.name?.toLowerCase();
+        }
+        return empDeptId === deptId;
+      });
+      setFilteredHrmEmployees(filtered);
+    } else {
+      setFilteredHrmEmployees([]);
+    }
+  };
+
+  const handleCloseCreateProjectModal = () => {
+    setShowCreateProjectModal(false);
+    setSelectedCustomerForProject(null);
+    setProjectForm({
+      name: '',
+      description: '',
+      status: 'planning',
+      startDate: '',
+      endDate: '',
+      budget: 0,
+      siteAddress: '',
+      boqTemplate: 'residential_5kw',
+      createTransfer: true,
+      assignedTo: '',
+      department: ''
+    });
+    setSelectedDepartment('');
+    setFilteredHrmEmployees([]);
+    setDepartments([]);
+    setHrmEmployees([]);
+  };
+
+  const handleCreateProject = async () => {
+    if (!selectedCustomerForProject) return;
+
+    try {
+      setProjectCreateLoading(true);
+
+      // Get selected BOQ template items
+      const selectedTemplate = boqTemplates.find(t => t.id === projectForm.boqTemplate);
+      const boqItems = selectedTemplate ? selectedTemplate.items : [];
+
+      // Create project data
+      const projectData = {
+        name: projectForm.name,
+        description: projectForm.description,
+        customerId: selectedCustomerForProject._id || selectedCustomerForProject.id,
+        customerName: selectedCustomerForProject.name,
+        customerEmail: selectedCustomerForProject.email,
+        customerPhone: selectedCustomerForProject.phone,
+        siteAddress: projectForm.siteAddress,
+        status: projectForm.status,
+        startDate: projectForm.startDate,
+        endDate: projectForm.endDate,
+        budget: Number(projectForm.budget) || 0,
+        boqItems: boqItems,
+        boqTemplate: projectForm.boqTemplate,
+        source: 'crm',
+        assignedTo: projectForm.assignedTo,
+        department: projectForm.department
+      };
+
+      console.log('[PROJECT] Creating project:', projectData);
+
+      // Create project via API
+      const projectResult = await projectsApi.create(projectData);
+      const createdProject = projectResult?.data?.data || projectResult?.data || projectResult;
+
+      console.log('[PROJECT] Project created:', createdProject);
+
+      // If status is 'accepted' and createTransfer is true, trigger stock transfer
+      if (projectForm.status === 'accepted' && projectForm.createTransfer && boqItems.length > 0) {
+        console.log('[PROJECT] Status is accepted - triggering stock transfer');
+        await handleStockTransferForProject(createdProject, boqItems);
+      }
+
+      toast.success(`Project "${projectForm.name}" created successfully`);
+      handleCloseCreateProjectModal();
+
+      // Navigate to projects page if onNavigate is available
+      if (onNavigate) {
+        onNavigate('projects');
+      }
+
+    } catch (err) {
+      console.error('[PROJECT] Failed to create project:', err);
+      toast.error(err?.response?.data?.message || 'Failed to create project');
+    } finally {
+      setProjectCreateLoading(false);
+    }
+  };
+
+  // Handle stock transfer for accepted projects
+  const handleStockTransferForProject = async (project, boqItems) => {
+    try {
+      console.log('[TRANSFER] Starting stock transfer for project:', project._id || project.id);
+
+      const transferPromises = boqItems.map(async (item) => {
+        try {
+          // Transfer from Main Warehouse to On-Site Warehouse
+          const transferData = {
+            itemId: item.itemId,
+            itemName: item.name,
+            fromWarehouse: 'Main Warehouse',
+            toWarehouse: 'On-Site Warehouse',
+            quantity: item.quantity,
+            unit: item.unit,
+            projectId: project._id || project.id,
+            projectName: project.name,
+            reference: `Project: ${project.name}`,
+            referenceType: 'PROJECT_TRANSFER',
+            remarks: `Auto-transfer for accepted project - ${item.name}`
+          };
+
+          console.log('[TRANSFER] Transferring item:', transferData);
+
+          // Call inventory transfer API
+          await inventoryApi.transferStock(transferData);
+
+          return { success: true, item: item.name };
+        } catch (itemErr) {
+          console.error(`[TRANSFER] Failed to transfer item ${item.name}:`, itemErr);
+          return { success: false, item: item.name, error: itemErr.message };
+        }
+      });
+
+      const results = await Promise.all(transferPromises);
+      const successCount = results.filter(r => r.success).length;
+      const failCount = results.length - successCount;
+
+      if (successCount > 0) {
+        toast.success(`${successCount} items transferred from Main Warehouse to On-Site Warehouse`);
+      }
+
+      if (failCount > 0) {
+        const failedItems = results.filter(r => !r.success).map(r => r.item).join(', ');
+        toast.warning(`Failed to transfer ${failCount} items: ${failedItems}`);
+      }
+
+      console.log('[TRANSFER] Transfer results:', results);
+
+    } catch (err) {
+      console.error('[TRANSFER] Stock transfer failed:', err);
+      toast.error('Failed to transfer stock for project');
+    }
   };
 
   const handleEditLead = async (lead) => {
@@ -1789,7 +2087,7 @@ const CRMPage = ({ onNavigate }) => {
   };
 
   const guardDelete = () => {
-    if (!can('crm', 'delete')) {
+    if (!(isAdminLike || can('crm', 'delete'))) {
       toast.error('Permission denied: Cannot delete leads');
       return false;
     }
@@ -1797,7 +2095,7 @@ const CRMPage = ({ onNavigate }) => {
   };
 
   const guardEdit = () => {
-    if (!can('crm', 'edit')) {
+    if (!(isAdminLike || can('crm', 'edit'))) {
       toast.error('Permission denied: Cannot edit leads');
       return false;
     }
@@ -1805,7 +2103,7 @@ const CRMPage = ({ onNavigate }) => {
   };
 
   const guardExport = () => {
-    if (!can('crm', 'export')) {
+    if (!(isAdminLike || can('crm', 'export'))) {
       toast.error('Permission denied: Cannot export leads');
       return false;
     }
@@ -2280,7 +2578,7 @@ const CRMPage = ({ onNavigate }) => {
     return {
       kanban: crmPerms.feature('kanban_view'),
       analytics: crmPerms.feature('analytics_view'),
-      importCsv: crmPerms.feature('csv_import'),
+      importCsv: crmPerms.feature('import_csv') || crmPerms.feature('csv_import'),
       bulkActions: crmPerms.feature('bulk_actions'),
     };
   }, [crmPerms]);
@@ -2593,28 +2891,62 @@ const CRMPage = ({ onNavigate }) => {
 
       {/* ── Kanban Board View ── */}
       {view === 'kanban' && crmFeatures.kanban && (
-        <div className="space-y-4">
+        <div className="h-[calc(100vh-180px)] flex flex-col">
           {(() => { console.log('[KANBAN DEBUG] statusOptions:', statusOptions); console.log('[KANBAN DEBUG] enhancedLeads first 3:', enhancedLeads.slice(0, 3).map(l => ({ name: l.name, statusKey: l.statusKey, status: l.status }))); return null; })()}
-          <div className="overflow-x-auto pb-3 cursor-grab active:cursor-grabbing" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 transparent' }}>
-            <div className="min-w-max px-1">
-              {/* Header Row */}
-              <div className="flex items-center justify-between mb-3 px-1">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-lg font-bold text-[var(--text-primary)]">Pipeline Kanban Board</h3>
-                  <span className="text-xs text-[var(--text-muted)]">{enhancedLeads.length} total leads</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button className="px-3 py-1 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] text-[10px] font-medium text-[var(--text-muted)] hover:bg-[var(--bg-hovered)] transition-colors">
-                    <FilterX size={10} className="inline mr-1" /> Clear Filters
-                  </button>
-                  <button className="px-3 py-1 rounded-lg bg-[var(--primary)] text-white text-[10px] font-medium hover:opacity-90 transition-opacity">
-                    <Plus size={10} className="inline mr-1" /> Add Stage
-                  </button>
-                </div>
-              </div>
+          
+          {/* Header Row */}
+          <div className="flex items-center justify-between mb-3 px-1 shrink-0">
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-bold text-[var(--text-primary)]">Pipeline Kanban Board</h3>
+              <span className="text-xs text-[var(--text-muted)]">{enhancedLeads.length} total leads</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button className="px-3 py-1 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] text-[10px] font-medium text-[var(--text-muted)] hover:bg-[var(--bg-hovered)] transition-colors">
+                <FilterX size={10} className="inline mr-1" /> Clear Filters
+              </button>
+              <button className="px-3 py-1 rounded-lg bg-[var(--primary)] text-white text-[10px] font-medium hover:opacity-90 transition-opacity">
+                <Plus size={10} className="inline mr-1" /> Add Stage
+              </button>
+            </div>
+          </div>
 
+          {/* Scrollable Kanban Area - with drag-to-scroll support */}
+          <div 
+            ref={kanbanScrollRef}
+            className={`flex-1 overflow-x-auto overflow-y-hidden pb-2 ${isKanbanDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+            style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 transparent', userSelect: 'none' }}
+            onMouseDown={(e) => {
+              // Only left mouse button and not on interactive elements
+              if (e.button !== 0) return;
+              const target = e.target;
+              if (target.closest('[data-kanban-card="true"]') || 
+                  target.closest('button') || 
+                  target.closest('a') ||
+                  target.closest('input') ||
+                  target.closest('select')) {
+                return;
+              }
+              setIsKanbanDragging(true);
+              setKanbanDragStartX(e.pageX);
+              setKanbanScrollStartX(e.currentTarget.scrollLeft);
+            }}
+            onMouseMove={(e) => {
+              if (!isKanbanDragging) return;
+              e.preventDefault();
+              const x = e.pageX;
+              const walk = (x - kanbanDragStartX) * 1.5; // Multiply for faster scroll
+              e.currentTarget.scrollLeft = kanbanScrollStartX - walk;
+            }}
+            onMouseUp={() => {
+              setIsKanbanDragging(false);
+            }}
+            onMouseLeave={() => {
+              setIsKanbanDragging(false);
+            }}
+          >
+            <div className="min-w-max h-full px-1">
               {/* Kanban Columns */}
-              <div className="flex gap-4">
+              <div className="flex gap-4 h-full">
                 {(statusOptions || []).map((stage, stageIndex) => {
                 // Filter leads that match this stage's key
                 // Also match survey-related keys to the same column
@@ -2640,7 +2972,7 @@ const CRMPage = ({ onNavigate }) => {
 
                 return (
                   <div key={`stage-${stage.key || stageIndex}-${stageIndex}`}
-                    className={`flex flex-col w-64 rounded-[14px] border border-[#F1F5F9] bg-[#F8FAFC] p-2.5 transition-colors h-[530px]`}
+                    className={`flex flex-col w-64 rounded-[14px] border border-[#F1F5F9] bg-[#F8FAFC] p-2.5 transition-colors h-full`}
                     onDragOver={e => { e.preventDefault(); }}
                     onDragEnter={() => {
                       if (!dragRef.current) return;
@@ -2648,7 +2980,7 @@ const CRMPage = ({ onNavigate }) => {
                       dragRef.current.destIndex = stageLeadIds.length;
                     }}
                     onDrop={(e) => {
-                      if (!can('crm', 'edit')) {
+                      if (!(isAdminLike || can('crm', 'edit'))) {
                         toast.error('Permission denied: Cannot change lead status');
                         return;
                       }
@@ -2870,15 +3202,39 @@ const CRMPage = ({ onNavigate }) => {
 
               {/* Date Range Picker */}
               <div className="relative" ref={dateRangeRef}>
-                <Button
-                  variant="outline"
-                  onClick={() => setShowDateRangeDropdown(!showDateRangeDropdown)}
-                  className={showDateRangeDropdown ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : ''}
-                >
-                  <Calendar size={14} className="mr-1" />
-                  {getDateRangeLabel()}
-                  <ChevronDown size={12} className="ml-1" />
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowDateRangeDropdown(!showDateRangeDropdown)}
+                    className={showDateRangeDropdown ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : ''}
+                  >
+                    <Calendar size={14} className="mr-1" />
+                    {getDateRangeLabel()}
+                    <ChevronDown size={12} className="ml-1" />
+                  </Button>
+                  
+                  {/* Info Icon - inline with date picker */}
+                  {dateRangeFilter.type !== 'custom' && (
+                    <div className="relative" ref={dateRangeInfoRef}>
+                      <button
+                        type="button"
+                        onClick={() => setShowDateRangeInfo(v => !v)}
+                        className="h-8 w-8 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-600 hover:bg-blue-500/15 transition-colors flex items-center justify-center"
+                        title="Info"
+                      >
+                        <Info size={14} />
+                      </button>
+                      {showDateRangeInfo && (
+                        <div className="absolute left-0 top-10 w-72 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] shadow-lg p-3 text-xs text-[var(--text-secondary)] z-50">
+                          <div className="font-semibold text-[var(--text-primary)] mb-1">Date Range</div>
+                          <div>
+                            Showing leads from <span className="font-semibold">{getDateRangeLabel()}</span>. Use the date filter to view older leads.
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 {showDateRangeDropdown && (
                   <div className="absolute left-0 top-full mt-2 w-56 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] shadow-lg z-50">
@@ -2973,7 +3329,7 @@ const CRMPage = ({ onNavigate }) => {
               )}
             </div>
             <div className="flex items-center gap-2">
-              {can('crm', 'create') && (
+              {(isAdminLike || can('crm', 'create')) && (
                 <Button variant="outline" onClick={() => setShowAddModal(true)}><Plus size={14} /> Add Lead</Button>
               )}
               <ImportExport
@@ -2981,23 +3337,13 @@ const CRMPage = ({ onNavigate }) => {
                 fields={crmFields}
                 onImport={handleImport}
                 onExport={handleExport}
-                hideImport={!crmFeatures.importCsv || !can('crm', 'create')}
+                hideImport={!crmFeatures.importCsv || !(isAdminLike || can('crm', 'create'))}
                 hideGuide={!crmFeatures.importCsv}
-                hideExport={!can('crm', 'export')}
+                hideExport={!(isAdminLike || can('crm', 'export'))}
               />
             </div>
           </div>
 
-          {/* Date Range Status Message */}
-          {dateRangeFilter.type !== 'custom' && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs text-blue-600">
-              <Info size={14} />
-              <span>
-                Showing leads from the <strong>{getDateRangeLabel()}</strong>.
-                Use the date filter to view older leads.
-              </span>
-            </div>
-          )}
           {dateRangeFilter.type === 'custom' && dateRangeFilter.startDate && dateRangeFilter.endDate && (
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-600">
               <CheckCircle2 size={14} />
@@ -3164,25 +3510,25 @@ const CRMPage = ({ onNavigate }) => {
             onSearch={setSearch}
             selectedRows={selected}
             onSelectRows={setSelected}
-            bulkActions={crmFeatures.bulkActions ? [
-              ...(can('crm', 'export') ? [{
+            bulkActions={(crmFeatures.bulkActions || isAdminLike) ? [
+              ...((isAdminLike || can('crm', 'export')) ? [{
                 label: 'Export',
                 icon: Download,
                 onClick: (selectedIds) => {
                   if (guardExport()) handleBulkExport(selectedIds);
                 }
               }] : []),
-              ...(can('crm', 'edit') ? [{ label: 'Score Boost', icon: Brain, onClick: (selectedIds) => { if (guardEdit()) handleOpenScoreBoostModal(selectedIds); } }] : []),
-              ...(can('crm', 'assign') ? [{ label: 'Assign', icon: UserCheck, onClick: (selectedIds) => handleOpenAssignModal(selectedIds) }] : []),
-              ...(can('crm', 'delete') ? [{ label: 'Delete', icon: Trash2, onClick: (selectedIds) => { if (guardDelete()) handleBulkDelete(selectedIds); }, danger: true }] : []),
+              ...((isAdminLike || can('crm', 'edit')) ? [{ label: 'Score Boost', icon: Brain, onClick: (selectedIds) => { if (guardEdit()) handleOpenScoreBoostModal(selectedIds); } }] : []),
+              ...((isAdminLike || can('crm', 'assign')) ? [{ label: 'Assign', icon: UserCheck, onClick: (selectedIds) => handleOpenAssignModal(selectedIds) }] : []),
+              ...((isAdminLike || can('crm', 'delete')) ? [{ label: 'Delete', icon: Trash2, onClick: (selectedIds) => { if (guardDelete()) handleBulkDelete(selectedIds); }, danger: true }] : []),
             ] : []}
             rowActions={[
               { label: 'View', icon: Eye, onClick: handleViewLead },
               { label: 'Lead Tracker', icon: Target, onClick: handleViewTracker },
-              ...(can('crm', 'edit') ? [{ label: 'Edit', icon: Edit2, onClick: handleEditLead }] : []),
-              ...(can('crm', 'assign') ? [{ label: 'Assign Lead', icon: UserCheck, onClick: (lead) => handleOpenAssignModal([lead._id || lead.id]) }] : []),
+              ...((isAdminLike || can('crm', 'edit')) ? [{ label: 'Edit', icon: Edit2, onClick: handleEditLead }] : []),
+              ...((isAdminLike || can('crm', 'assign')) ? [{ label: 'Assign Lead', icon: UserCheck, onClick: (lead) => handleOpenAssignModal([lead._id || lead.id]) }] : []),
               { label: 'Score', icon: Brain, onClick: handleRecalculateScore },
-              ...(can('crm', 'delete') ? [{ label: 'Delete', icon: Trash2, onClick: handleDeleteLead, danger: true }] : []),
+              ...((isAdminLike || can('crm', 'delete')) ? [{ label: 'Delete', icon: Trash2, onClick: handleDeleteLead, danger: true }] : []),
               { label: 'Activity Log', icon: Activity, onClick: handleViewActivity },
             ]}
           />
@@ -3293,7 +3639,7 @@ const CRMPage = ({ onNavigate }) => {
             footer={
               <div className="flex gap-2 justify-end">
                 <Button variant="ghost" onClick={() => setSelectedLead(null)}>Close</Button>
-                {can('crm', 'edit') && (
+                {(isAdminLike || can('crm', 'edit')) && (
                   <Button variant="outline" onClick={() => handleEditLead(selectedLead)}><Edit2 size={13} /> Edit</Button>
                 )}
                 <Button onClick={() => handleCallLead(selectedLead)}><Phone size={13} /> Call Lead</Button>
@@ -3812,6 +4158,204 @@ const CRMPage = ({ onNavigate }) => {
               <Button variant="secondary" size="sm" onClick={() => setScoreBoostValue(15)}>+15</Button>
               <Button variant="secondary" size="sm" onClick={() => setScoreBoostValue(20)}>+20</Button>
               <Button variant="secondary" size="sm" onClick={() => setScoreBoostValue(25)}>+25</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+      {/* CREATE PROJECT MODAL */}
+      {showCreateProjectModal && selectedCustomerForProject && (
+        <Modal
+          open={showCreateProjectModal}
+          onClose={handleCloseCreateProjectModal}
+          title={`Create Project — ${selectedCustomerForProject.name}`}
+          footer={
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" onClick={handleCloseCreateProjectModal}>Cancel</Button>
+              <Button
+                onClick={handleCreateProject}
+                disabled={projectCreateLoading || !projectForm.name}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                {projectCreateLoading ? 'Creating...' : <><Package size={14} /> Create Project</>}
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+            {/* Customer Info */}
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-emerald-50 border border-emerald-100">
+              <div className="w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-lg">
+                {selectedCustomerForProject.name[0]}
+              </div>
+              <div>
+                <p className="font-semibold text-emerald-900">{selectedCustomerForProject.name}</p>
+                <p className="text-xs text-emerald-600">{selectedCustomerForProject.email} · {selectedCustomerForProject.phone}</p>
+              </div>
+            </div>
+
+            {/* Project Name */}
+            <FormField label="Project Name *">
+              <Input
+                value={projectForm.name}
+                onChange={(e) => setProjectForm({ ...projectForm, name: e.target.value })}
+                placeholder="Enter project name"
+              />
+            </FormField>
+
+            {/* Description */}
+            <FormField label="Description">
+              <Textarea
+                rows={2}
+                value={projectForm.description}
+                onChange={(e) => setProjectForm({ ...projectForm, description: e.target.value })}
+                placeholder="Project description"
+              />
+            </FormField>
+
+            {/* Status & BOQ Template */}
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Status">
+                <Select
+                  value={projectForm.status}
+                  onChange={(e) => setProjectForm({ ...projectForm, status: e.target.value })}
+                >
+                  <option value="planning">Planning</option>
+                  <option value="accepted">Accepted (Auto-Transfer Stock)</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="on_hold">On Hold</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                </Select>
+              </FormField>
+              <FormField label="BOQ Template">
+                <Select
+                  value={projectForm.boqTemplate}
+                  onChange={(e) => setProjectForm({ ...projectForm, boqTemplate: e.target.value })}
+                >
+                  {boqTemplates.map(template => (
+                    <option key={template.id} value={template.id}>{template.name}</option>
+                  ))}
+                </Select>
+              </FormField>
+            </div>
+
+            {/* Dates */}
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Start Date">
+                <Input
+                  type="date"
+                  value={projectForm.startDate}
+                  onChange={(e) => setProjectForm({ ...projectForm, startDate: e.target.value })}
+                />
+              </FormField>
+              <FormField label="End Date">
+                <Input
+                  type="date"
+                  value={projectForm.endDate}
+                  onChange={(e) => setProjectForm({ ...projectForm, endDate: e.target.value })}
+                />
+              </FormField>
+            </div>
+
+            {/* Budget & Site Address */}
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Budget (₹)">
+                <Input
+                  type="number"
+                  value={projectForm.budget}
+                  onChange={(e) => setProjectForm({ ...projectForm, budget: parseInt(e.target.value) || 0 })}
+                  placeholder="Project budget"
+                />
+              </FormField>
+              <FormField label="Site Address">
+                <Input
+                  value={projectForm.siteAddress}
+                  onChange={(e) => setProjectForm({ ...projectForm, siteAddress: e.target.value })}
+                  placeholder="Installation site address"
+                />
+              </FormField>
+            </div>
+
+            {/* Department & Assign Employee - Dynamic from HRM */}
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Department">
+                <Select
+                  value={selectedDepartment}
+                  onChange={(e) => handleDepartmentChange(e.target.value)}
+                >
+                  <option value="">Select Department</option>
+                  {departments.map(dept => (
+                    <option key={dept._id || dept.id} value={dept._id || dept.id}>
+                      {dept.name}
+                    </option>
+                  ))}
+                </Select>
+              </FormField>
+              <FormField label="Assign Employee">
+                <Select
+                  value={projectForm.assignedTo}
+                  onChange={(e) => setProjectForm({ ...projectForm, assignedTo: e.target.value })}
+                  disabled={!selectedDepartment}
+                >
+                  <option value="">
+                    {!selectedDepartment
+                      ? 'Select department first'
+                      : filteredHrmEmployees.length === 0
+                        ? 'No employees in this dept'
+                        : 'Select Employee'
+                    }
+                  </option>
+                  {filteredHrmEmployees.map(emp => {
+                    // Handle various field name formats from HRM API
+                    const firstName = emp.firstName || emp.firstname || emp.first_name || '';
+                    const lastName = emp.lastName || emp.lastname || emp.last_name || '';
+                    const name = emp.name || '';
+                    const fullName = `${firstName} ${lastName}`.trim() || name || 'Unnamed';
+                    const empId = emp.employeeId || emp.employee_id || emp.empId || emp.id || 'N/A';
+                    return (
+                      <option key={emp._id || emp.id} value={emp._id || emp.id}>
+                        {fullName} ({empId})
+                      </option>
+                    );
+                  })}
+                </Select>
+              </FormField>
+            </div>
+
+            {/* Auto-Transfer Option */}
+            {projectForm.status === 'accepted' && (
+              <div className="p-3 rounded-lg bg-amber-50 border border-amber-200">
+                <div className="flex items-start gap-3">
+                  <Package size={18} className="text-amber-600 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-amber-900 text-sm">Stock Transfer Enabled</p>
+                    <p className="text-xs text-amber-700 mt-1">
+                      When status is &quot;Accepted&quot;, all BOQ items will be automatically transferred from
+                      <strong> Main Warehouse</strong> to <strong>On-Site Warehouse</strong>.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* BOQ Items Preview */}
+            <div className="border border-[var(--border-base)] rounded-lg overflow-hidden">
+              <div className="bg-[var(--bg-elevated)] px-3 py-2 border-b border-[var(--border-base)]">
+                <p className="text-xs font-semibold text-[var(--text-muted)] uppercase">BOQ Items Preview</p>
+              </div>
+              <div className="max-h-40 overflow-y-auto">
+                {boqTemplates.find(t => t.id === projectForm.boqTemplate)?.items.map((item, idx) => (
+                  <div key={idx} className="flex items-center justify-between px-3 py-2 border-b border-[var(--border-subtle)] last:border-0">
+                    <div className="flex items-center gap-2">
+                      <Wrench size={12} className="text-[var(--text-muted)]" />
+                      <span className="text-sm text-[var(--text-primary)]">{item.name}</span>
+                    </div>
+                    <span className="text-sm font-medium text-[var(--accent)]">
+                      {item.quantity} {item.unit}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </Modal>

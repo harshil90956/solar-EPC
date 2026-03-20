@@ -117,8 +117,11 @@ export class ProjectsService {
 
     // Normalize status (frontend may send different casing like CANCELLED)
     const incomingStatus = updateStatusDto?.status;
+    console.log(`[DEBUG CANCEL] updateStatus called with status: ${incomingStatus}, userRole: ${user?.role}`);
+    
     if (incomingStatus && String(incomingStatus).toLowerCase() === 'cancelled') {
       (updateStatusDto as any).status = 'Cancelled';
+      console.log(`[DEBUG CANCEL] Status normalized to 'Cancelled'`);
     }
     
     // Extract user role and ID from user object
@@ -127,14 +130,18 @@ export class ProjectsService {
     
     // Role validation for Cancelled status
     if (updateStatusDto.status === 'Cancelled') {
+      console.log(`[DEBUG CANCEL] Checking role permissions. userRole: ${userRole}, allowed: ['Admin', 'Project Manager']`);
       const allowedRoles = ['Admin', 'Project Manager'];
       if (!userRole || !allowedRoles.includes(userRole)) {
+        console.error(`[DEBUG CANCEL] ROLE CHECK FAILED: ${userRole} not in allowed roles`);
         throw new UnauthorizedException('Only Admin or Project Manager can cancel a project');
       }
+      console.log(`[DEBUG CANCEL] Role check passed`);
     }
     
     // Cancelled needs to be ATOMIC + IDEMPOTENT because it has financial stock impact
     if (updateStatusDto.status === 'Cancelled') {
+      console.log(`[DEBUG CANCEL] Calling cancelProjectAndRestoreInventory for ${projectId}`);
       return this.cancelProjectAndRestoreInventory(tenantCode, tenantId, projectId, updateStatusDto, userId);
     }
 
@@ -169,14 +176,19 @@ export class ProjectsService {
     updateStatusDto: UpdateProjectStatusDto,
     userId?: any,
   ) {
+    console.log(`[DEBUG CANCEL] cancelProjectAndRestoreInventory START for project ${projectId}`);
     const session = await this.projectModel.db.startSession();
+    console.log(`[DEBUG CANCEL] MongoDB session created`);
 
     try {
       await session.withTransaction(async () => {
+        console.log(`[DEBUG CANCEL] Transaction started for ${projectId}`);
         const project = await this.projectModel.findOne({ tenantId, projectId, isDeleted: false }).session(session);
         if (!project) {
+          console.error(`[DEBUG CANCEL] Project ${projectId} not found`);
           throw new NotFoundException(`Project ${projectId} not found`);
         }
+        console.log(`[DEBUG CANCEL] Project found: ${project.projectId}, current status: ${project.status}, inventoryRestored: ${project.inventoryRestored}`);
 
         const updateData: any = { status: 'Cancelled', cancelledAt: new Date() };
 
@@ -197,16 +209,21 @@ export class ProjectsService {
           updateData.cancelledBy = objectId;
         }
 
-        // Idempotency guard: if inventory already restored, we only update status metadata
-        const needsRestore = project.inventoryRestored !== true;
+        // Idempotency guard: if inventory already restored AND project was already cancelled, skip
+        // But if project is moving from non-Cancelled to Cancelled, always process
+        const wasAlreadyCancelled = project.status === 'Cancelled';
+        const needsRestore = !wasAlreadyCancelled || project.inventoryRestored !== true;
+        console.log(`[DEBUG CANCEL] wasAlreadyCancelled: ${wasAlreadyCancelled}, needsRestore: ${needsRestore}, inventoryRestored: ${project.inventoryRestored}`);
 
         await this.projectModel.updateOne(
           { _id: project._id },
           { $set: updateData },
           { session },
         );
+        console.log(`[DEBUG CANCEL] Project status updated to Cancelled`);
 
         if (!needsRestore) {
+          console.log(`[DEBUG CANCEL] Inventory already restored, skipping restore logic`);
           return;
         }
 
@@ -249,82 +266,191 @@ export class ProjectsService {
             continue;
           }
 
-          // Inventory is stored in Item collection (not Inventory collection)
-          // Item schema: itemId, stock, reserved, tenantId (as string)
-          // Search by both itemId and description/name to be robust
-          // Also try to find by inventoryId if present in reservation
-          const itemQuery: any = {
-            isDeleted: false,
-            $or: [
-              { tenantId: tenantIdStr },
-              { tenantId: tenantId.toString() },
-            ],
-          };
-
+          // STRICT RULES:
+          // - Only affect RESERVED and AVAILABLE quantities
+          // - DO NOT modify TOTAL quantity (stock)
+          // We restore by: reserved -= releasedQty, available += releasedQty
+          // (releasedQty is capped to current reserved to avoid underflow)
+          
+          const candidates: any[] = [];
           if (reservation.inventoryId) {
-            itemQuery.$or = [
-              { _id: reservation.inventoryId },
-              { itemId: reservation.itemId },
-              { description: reservation.itemId }
-            ];
-          } else {
-            itemQuery.$or = [
-              { itemId: reservation.itemId },
-              { description: reservation.itemId },
-              { name: reservation.itemId }
-            ];
+            candidates.push({ _id: reservation.inventoryId });
+          }
+          if (reservation.itemId) {
+            candidates.push({ itemId: reservation.itemId });
+            const itemIdStr = String(reservation.itemId);
+            if (itemIdStr.startsWith('INV')) {
+              candidates.push({ itemId: itemIdStr.replace(/^INV/, '') });
+            } else {
+              candidates.push({ itemId: 'INV' + itemIdStr });
+            }
+          }
+          if (reservation.itemId && Types.ObjectId.isValid(String(reservation.itemId))) {
+            candidates.push({ _id: new Types.ObjectId(String(reservation.itemId)) });
           }
 
-          const item = await this.itemModel.findOne(itemQuery).session(session);
+          let inventory: any = null;
 
-          if (!item) {
-            console.warn('PROJECT CANCEL INVENTORY RESTORE - item not found in items collection', {
+          // Tenant-safe lookup first
+          const tenantMatch: any = { $or: [{ tenantId }, { tenantId: tenantId.toString() }] };
+          for (const c of candidates) {
+            inventory = await this.inventoryModel.findOne({ $and: [tenantMatch, { isDeleted: false, ...c }] }).session(session);
+            if (inventory) break;
+          }
+          console.log(`[DEBUG INVENTORY] Lookup with tenant filter: ${reservation.itemId}, found: ${inventory ? 'YES' : 'NO'}`);
+
+          // Fallback: without tenant filter (data may have wrong tenant)
+          if (!inventory) {
+            for (const c of candidates) {
+              inventory = await this.inventoryModel.findOne({ isDeleted: false, ...c }).session(session);
+              if (inventory) break;
+            }
+            console.log(`[DEBUG INVENTORY] Lookup WITHOUT tenant filter: ${reservation.itemId}, found: ${inventory ? 'YES' : 'NO'}`);
+          }
+
+          if (!inventory) {
+            // Fallback: UI stock is driven by Items module, so try releasing reserved qty on Item directly.
+            const itemIdStr = String(reservation.itemId || '');
+            const itemIdVariants = Array.from(new Set([
+              itemIdStr,
+              itemIdStr.startsWith('INV') ? itemIdStr.replace(/^INV/, '') : `INV${itemIdStr}`,
+            ].filter(Boolean)));
+
+            let itemDoc: any = null;
+            for (const v of itemIdVariants) {
+              itemDoc = await this.itemModel.findOne({ tenantId, itemId: v, isDeleted: false }).session(session);
+              if (itemDoc) break;
+            }
+
+            if (itemDoc) {
+              const itemReservedBefore = Number(itemDoc.reserved || 0);
+              const itemReleasedQty = Math.max(0, Math.min(qty, itemReservedBefore));
+              const itemReservedAfter = Math.max(0, itemReservedBefore - itemReleasedQty);
+
+              console.log('[DEBUG ITEM RELEASE] Releasing reserved from item (fallback)', {
+                projectId,
+                itemId: itemDoc.itemId,
+                qty,
+                itemReservedBefore,
+                itemReleasedQty,
+                itemReservedAfter,
+              });
+
+              await this.itemModel.updateOne(
+                { _id: itemDoc._id },
+                { $set: { reserved: itemReservedAfter } },
+                { session },
+              );
+
+              await this.reservationModel.updateOne(
+                { _id: reservation._id },
+                { $set: { status: 'Cancelled' } },
+                { session },
+              );
+
+              const updatedRes = await this.reservationModel.findById(reservation._id).session(session);
+              console.log('[DEBUG ITEM RELEASE] Reservation status after update (fallback)', {
+                reservationId: reservation._id,
+                status: updatedRes?.status,
+              });
+
+              try {
+                await this.stockMovementService.logMovement(tenantCode, {
+                  itemId: itemDoc._id.toString(),
+                  type: 'RELEASE',
+                  quantity: qty,
+                  reference: projectId,
+                  referenceType: 'PROJECT',
+                  note: `Released ${qty} units from cancelled project ${projectId}`,
+                  warehouseName: (itemDoc as any).warehouse || 'Main Warehouse',
+                });
+              } catch (err) {
+                console.error('[STOCK MOVEMENT] Failed to log RELEASE for cancelled project (item fallback):', err);
+              }
+
+              continue;
+            }
+
+            console.error('PROJECT CANCEL INVENTORY RELEASE - inventory item not found (inventory+items), aborting to avoid silent skip', {
               projectId,
+              reservationId: reservation._id,
               itemId: reservation.itemId,
+              inventoryId: reservation.inventoryId,
               quantity: qty,
               tenantId: tenantIdStr,
             });
-
-            // Do NOT mark reservation cancelled if we couldn't restore inventory.
             missingInventoryCount += 1;
-            continue;
+            throw new Error(`Inventory not found for reservation ${reservation._id} (itemId=${reservation.itemId})`);
           }
+          
+          console.log(`[DEBUG INVENTORY] Found inventory: ${inventory.itemId}, _id: ${inventory._id}, tenantId: ${inventory.tenantId}`);
 
           const before = {
-            reserved: item.reserved || 0,
-            stock: item.stock || 0,
-            available: (item.stock || 0) - (item.reserved || 0),
+            reserved: inventory.reserved || 0,
+            available: inventory.available || 0,
+            stock: inventory.stock || 0,
           };
+          console.log(`[DEBUG INVENTORY] BEFORE UPDATE - Item: ${reservation.itemId}, Available: ${before.available}, Reserved: ${before.reserved}, Stock: ${before.stock}, Releasing: ${qty}`);
 
-          // Calculate new values (clamp reserved >= 0)
-          const newReserved = Math.max(0, (item.reserved || 0) - qty);
-          // Increment stock because it was decremented during issue/stock-out
-          const newStock = (item.stock || 0) + qty;
+          const reservedBefore = Number(inventory.reserved || 0);
+          const availableBefore = Number(inventory.available || 0);
+          const stockTotal = Number(inventory.stock || 0);
 
-          await this.itemModel.updateOne(
-            { _id: item._id },
+          const releasedQty = Math.max(0, Math.min(qty, reservedBefore));
+          if (reservedBefore < qty) {
+            console.warn('PROJECT CANCEL INVENTORY RELEASE - reserved underflow prevented by capping release to reserved', {
+              projectId,
+              itemId: reservation.itemId,
+              quantity: qty,
+              reserved: reservedBefore,
+              releasedQty,
+            });
+          }
+
+          const newReserved = Math.max(0, reservedBefore - releasedQty);
+          const newAvailable = Math.max(0, availableBefore + releasedQty);
+          if (stockTotal > 0 && newReserved + newAvailable !== stockTotal) {
+            console.warn('PROJECT CANCEL INVENTORY RELEASE - integrity mismatch (reserved+available != stock)', {
+              projectId,
+              itemId: reservation.itemId,
+              stock: stockTotal,
+              reservedBefore,
+              availableBefore,
+              reservedAfter: newReserved,
+              availableAfter: newAvailable,
+            });
+          }
+          console.log(`[DEBUG INVENTORY] CALCULATED - Item: ${reservation.itemId}, releasedQty: ${releasedQty}, NewReserved: ${newReserved}, NewAvailable: ${newAvailable}`);
+
+          await this.inventoryModel.updateOne(
+            { _id: inventory._id },
             {
               $set: {
                 reserved: newReserved,
-                stock: newStock,
+                available: newAvailable,
+                lastUpdated: new Date().toISOString().split('T')[0],
               },
             },
             { session },
           );
+          console.log(`[DEBUG INVENTORY] MongoDB updateOne executed for ${reservation.itemId}`);
 
-          const afterItem = await this.itemModel.findById(item._id).session(session);
+          const afterInv = await this.inventoryModel.findById(inventory._id).session(session);
           const after = {
-            reserved: afterItem?.reserved || 0,
-            stock: afterItem?.stock || 0,
-            available: (afterItem?.stock || 0) - (afterItem?.reserved || 0),
+            reserved: afterInv?.reserved || 0,
+            available: afterInv?.available || 0,
+            stock: afterInv?.stock || 0,
           };
+          console.log(`[DEBUG INVENTORY] AFTER UPDATE - Item: ${reservation.itemId}, Available: ${after.available} (was ${before.available}, +${after.available - before.available}), Reserved: ${after.reserved} (was ${before.reserved}, -${before.reserved - after.reserved})`);
 
-          console.log('PROJECT CANCEL INVENTORY RESTORE', {
+          console.log('PROJECT_CANCEL_INVENTORY_RELEASE', {
             projectId,
             itemId: reservation.itemId,
             quantity: qty,
             before,
             after,
+            deltaAvailable: after.available - before.available,
+            deltaReserved: before.reserved - after.reserved,
           });
 
           await this.reservationModel.updateOne(
@@ -336,28 +462,27 @@ export class ProjectsService {
           // Log stock movement for RELEASE (Cancelled Project)
           try {
             await this.stockMovementService.logMovement(tenantCode, {
-              itemId: item._id.toString(),
+              itemId: inventory._id.toString(),
               type: 'RELEASE',
               quantity: qty,
               reference: projectId,
               referenceType: 'PROJECT',
               note: `Released ${qty} units from cancelled project ${projectId}`,
-              warehouseName: item.warehouse || 'Main Warehouse',
+              warehouseName: inventory.warehouse || 'Main Warehouse',
             });
           } catch (err) {
             console.error('[STOCK MOVEMENT] Failed to log RELEASE for cancelled project:', err);
           }
         }
 
-        // Only mark inventory restored if every reservation could be applied.
-        // If some inventory records were missing, keep it false so you can retry.
-        if (missingInventoryCount === 0) {
-          await this.projectModel.updateOne(
-            { _id: project._id },
-            { $set: { inventoryRestored: true, inventoryRestoredAt: new Date() } },
-            { session },
-          );
-        }
+        // Mark inventory restored if we processed all reservations.
+        // Even if some inventory was missing, we still cancelled those reservations.
+        await this.projectModel.updateOne(
+          { _id: project._id },
+          { $set: { inventoryRestored: true, inventoryRestoredAt: new Date() } },
+          { session },
+        );
+        console.log(`[DEBUG CANCEL] Inventory restored flag set, missingInventoryCount: ${missingInventoryCount}`);
       });
     } finally {
       await session.endSession();

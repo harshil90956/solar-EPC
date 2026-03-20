@@ -54,8 +54,13 @@ export class ItemsService {
         const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
           ? new Types.ObjectId(userId)
           : userId;
-        query.assignedTo = objectId;
-        console.log(`[ITEMS VISIBILITY] Applied STRICT assignedTo filter:`, objectId);
+        // Show items assigned to user OR items with no assignedTo (for backward compatibility)
+        query.$or = [
+          { assignedTo: objectId },
+          { assignedTo: { $exists: false } },
+          { assignedTo: null }
+        ];
+        console.log(`[ITEMS VISIBILITY] Applied ASSIGNED filter (including unassigned items):`, objectId);
       }
     } else {
       console.log(`[ITEMS VISIBILITY] No filter - ALL scope or no user`);
@@ -371,5 +376,86 @@ export class ItemsService {
     }
 
     return { data: updated, message: `Stock out successful. Issued ${quantity} units to project ${projectId || 'N/A'}.` };
+  }
+
+  // Transfer stock between warehouses
+  async transfer(tenantId: string, fromItemId: string, toWarehouse: string, quantity: number, remarks?: string) {
+    const actualTenantId = await this.getTenantId(tenantId);
+
+    // Get source item
+    const sourceItem = await this.itemModel.findOne({
+      tenantId: actualTenantId,
+      _id: new Types.ObjectId(fromItemId),
+      isDeleted: false,
+    }).exec();
+
+    if (!sourceItem) {
+      throw new NotFoundException(`Source item not found`);
+    }
+
+    if ((sourceItem.stock || 0) < quantity) {
+      throw new NotFoundException(`Insufficient stock. Available: ${sourceItem.stock}`);
+    }
+
+    // Check if item exists in destination warehouse
+    let destItem = await this.itemModel.findOne({
+      tenantId: actualTenantId,
+      itemId: sourceItem.itemId,
+      warehouse: toWarehouse,
+      isDeleted: false,
+    }).exec();
+
+    // Update source stock
+    await this.itemModel.findOneAndUpdate(
+      { tenantId: actualTenantId, _id: sourceItem._id },
+      { $inc: { stock: -quantity } },
+    ).exec();
+
+    if (destItem) {
+      // Update existing destination item
+      await this.itemModel.findOneAndUpdate(
+        { tenantId: actualTenantId, _id: destItem._id },
+        { $inc: { stock: quantity } },
+      ).exec();
+    } else {
+      // Create new item in destination warehouse
+      destItem = new this.itemModel({
+        itemId: sourceItem.itemId,
+        description: sourceItem.description,
+        category: sourceItem.category,
+        unit: sourceItem.unit,
+        stock: quantity,
+        reserved: 0,
+        minStock: sourceItem.minStock,
+        rate: sourceItem.rate,
+        warehouse: toWarehouse,
+        tenantId: actualTenantId,
+      });
+      await destItem.save();
+    }
+
+    // Log stock movement for TRANSFER
+    try {
+      console.log(`[ITEMS TRANSFER] Logging TRANSFER movement from ${sourceItem.warehouse} to ${toWarehouse}, qty: ${quantity}`);
+      await this.stockMovementService.logMovement(tenantId, {
+        itemId: sourceItem._id.toString(),
+        type: 'TRANSFER',
+        quantity: quantity,
+        reference: `From ${sourceItem.warehouse} to ${toWarehouse}`,
+        referenceType: 'TRANSFER',
+        note: remarks || `Transferred ${quantity} units from ${sourceItem.warehouse} to ${toWarehouse}`,
+        warehouseName: `${sourceItem.warehouse} → ${toWarehouse}`,
+      });
+      console.log(`[ITEMS TRANSFER] TRANSFER logged successfully`);
+    } catch (err) {
+      console.error('[ITEMS TRANSFER] Failed to log TRANSFER:', err);
+    }
+
+    return {
+      message: `Transfer successful. ${quantity} units transferred from ${sourceItem.warehouse} to ${toWarehouse}.`,
+      source: sourceItem.warehouse,
+      destination: toWarehouse,
+      quantity,
+    };
   }
 }
