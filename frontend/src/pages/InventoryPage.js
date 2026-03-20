@@ -592,9 +592,9 @@ const InventoryPage = () => {
     try {
       // Use the unified transfer endpoint which handles source reduction, 
       // destination increase/creation, and stock movement logging in one transaction.
-      await api.post('/inventory/transfers', {
+      await api.post('/items/transfers', {
         fromInventoryId: item._id,
-        toWarehouseId: warehouses.find(w => w.name === transferToWarehouse)?._id,
+        toWarehouseId: transferToWarehouse,
         quantity: qty,
         remarks: transferRemarks || 'Stock transfer',
       }, { headers: { 'x-tenant-id': TENANT_ID } });
