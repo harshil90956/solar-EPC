@@ -1171,6 +1171,11 @@ const InventoryPage = () => {
   const handleStockOut = async () => {
     if (!selectedQuotationItemIndexes.length) return;
 
+    if (!stockOutForm.projectId) {
+      alert('Please select a project to reserve/issue stock');
+      return;
+    }
+
     setSubmitting(true);
     try {
       for (const idx of selectedQuotationItemIndexes) {
@@ -1195,27 +1200,6 @@ const InventoryPage = () => {
         }, { headers: { 'x-tenant-id': TENANT_ID } });
 
         const itemData = updatedItem.data || updatedItem;
-
-        // Create reservation record for the project
-        if (stockOutForm.projectId) {
-          try {
-            const project = projects.find(p => p.projectId === stockOutForm.projectId);
-            const projectName = project?.customerName || project?.name || 'Unknown Project';
-
-            await apiClient.post('/inventory/reservations', {
-              reservationId: `RES-${Date.now()}-${idx}`,
-              itemId: item?.itemId,
-              inventoryId: item?._id,
-              projectId: stockOutForm.projectId,
-              projectName: projectName,
-              quantity: parseInt(row.quantity),
-              notes: stockOutForm.remarks || `Stock issued on ${stockOutForm.issuedDate || new Date().toISOString().split('T')[0]}`,
-            }, { params: { tenantId: TENANT_ID } });
-          } catch (resErr) {
-            console.error('[FRONTEND] Reservation creation failed:', resErr);
-          }
-        }
-
         const transformedItem = {
           ...itemData,
           _id: itemData._id || itemData.id,
