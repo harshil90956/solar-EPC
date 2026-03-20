@@ -55,4 +55,18 @@ export const inventoryApi = {
   getStats: () => {
     return api.get('/inventory/stats');
   },
+
+  // Transfer stock between warehouses
+  transferStock: (data) => {
+    return api.post('/inventory/transfers', {
+      fromInventoryId: data.itemId,
+      toWarehouseId: data.toWarehouse,
+      quantity: data.quantity,
+      remarks: data.remarks || `Transfer from ${data.fromWarehouse} to ${data.toWarehouse}`,
+      reference: data.reference,
+      referenceType: data.referenceType,
+      projectId: data.projectId,
+      projectName: data.projectName
+    });
+  },
 };

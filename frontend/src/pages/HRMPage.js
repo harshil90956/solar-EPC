@@ -5,9 +5,8 @@ import {
   Briefcase, UserCircle, Calendar, Clock, Wallet, TrendingUp,
   CheckCircle, XCircle, AlertCircle, ChevronDown, MoreVertical,
   FileText, CheckSquare, XSquare, RefreshCw, Building2, Building,
-  Mail, Phone, MapPin, BadgeCheck, ArrowUpRight, ArrowDownRight,
   LayoutGrid, List, IndianRupee, LogIn, LogOut, Timer, ShieldCheck,
-  Settings
+  Settings, BadgeCheck, Mail, Phone, MapPin
 } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { KPICard } from '../components/ui/KPICard';
@@ -22,7 +21,7 @@ import { api } from '../lib/apiClient';
 import { useQuery } from '@tanstack/react-query';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
-import HRMPermissionsPage from './HRMPermissionsPage';
+import HrmPermissionsPage from './HrmPermissionsPage';
 import AttendancePolicySettings from './AttendancePolicySettings';
 import { toast } from '../components/ui/Toast';
 import { CURRENCY } from '../config/app.config';
@@ -1322,7 +1321,7 @@ const HRMPage = ({ activeTab: initialTab = 'employees', onNavigate }) => {
           {/* ── Role Permissions Tab ── */}
           {(activeTab === 'role-permissions' || activeTab === 'hrm-role-permissions') && (
             <div className="animate-fade-in">
-              <HRMPermissionsPage />
+              <HrmPermissionsPage />
             </div>
           )}
 

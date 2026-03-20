@@ -373,13 +373,19 @@ const ProjectPage = () => {
           console.log('[DEBUG] No PMs found, showing all employees:', employeesToShow.length);
         }
         // Map to format needed for dropdown
-        const pmList = employeesToShow.map(e => ({
-          id: e._id || e.id,
-          name: `${e.firstName} ${e.lastName}`.trim(),
-          email: e.email,
-          department: e.department,
-          role: e.roleId || e.designation || 'Staff'
-        }));
+        const pmList = employeesToShow.map(e => {
+          // Handle various field name formats from HRM API
+          const firstName = e.firstName || e.firstname || e.first_name || e.name || '';
+          const lastName = e.lastName || e.lastname || e.last_name || '';
+          const fullName = `${firstName} ${lastName}`.trim() || e.name || 'Unnamed';
+          return {
+            id: e._id || e.id,
+            name: fullName,
+            email: e.email,
+            department: e.department,
+            role: e.roleId || e.designation || e.role || 'Staff'
+          };
+        });
         setUsers(pmList);
       } catch (err) {
         console.error('Error fetching project managers from HRM:', err);
@@ -427,6 +433,7 @@ const ProjectPage = () => {
         const result = res?.data ?? res;
         const employees = Array.isArray(result) ? result : (result?.data || []);
         console.log('[DEBUG] Employees array:', employees);
+        console.log('[DEBUG] First employee fields:', employees[0] ? Object.keys(employees[0]) : 'none');
         setEmployeesByDept(employees);
       } catch (err) {
         console.error('[DEBUG] Error fetching employees by department:', err);
@@ -1780,7 +1787,20 @@ const ProjectPage = () => {
             <FormField label="Assign Employee">
               <Select value={form.pm} onChange={e => setForm(f => ({ ...f, pm: e.target.value }))} disabled={!form.department || employeesLoading}>
                 <option value="">{employeesLoading ? 'Loading...' : form.department ? 'Select Employee' : 'First select department'}</option>
-                {employeesByDept.map(e => <option key={e._id || e.id} value={`${e.firstName} ${e.lastName}`.trim()}>{`${e.firstName} ${e.lastName}`.trim()} {e.designation ? `(${e.designation})` : ''}</option>)}
+                {employeesByDept.map(e => {
+                  // Handle various field name formats from HRM API
+                  const firstName = e.firstName || e.firstname || e.first_name || '';
+                  const lastName = e.lastName || e.lastname || e.last_name || '';
+                  const name = e.name || '';
+                  const fullName = `${firstName} ${lastName}`.trim() || name || 'Unnamed';
+                  const designation = e.designation || e.role || e.roleId || e.position || '';
+                  const empId = e.employeeId || e.employee_id || e.empId || e.id || '';
+                  return (
+                    <option key={e._id || e.id} value={fullName}>
+                      {fullName}{empId ? ` (${empId})` : ''}{designation ? ` - ${designation}` : ''}
+                    </option>
+                  );
+                })}
               </Select>
             </FormField>
           </div>
@@ -1829,7 +1849,20 @@ const ProjectPage = () => {
             <FormField label="Assign Employee">
               <Select value={editForm.pm} onChange={e => setEditForm(f => ({ ...f, pm: e.target.value }))} disabled={!editForm.department || employeesLoading}>
                 <option value="">{employeesLoading ? 'Loading...' : editForm.department ? 'Select Employee' : 'First select department'}</option>
-                {employeesByDept.map(e => <option key={e._id || e.id} value={`${e.firstName} ${e.lastName}`.trim()}>{`${e.firstName} ${e.lastName}`.trim()} {e.designation ? `(${e.designation})` : ''}</option>)}
+                {employeesByDept.map(e => {
+                  // Handle various field name formats from HRM API
+                  const firstName = e.firstName || e.firstname || e.first_name || '';
+                  const lastName = e.lastName || e.lastname || e.last_name || '';
+                  const name = e.name || '';
+                  const fullName = `${firstName} ${lastName}`.trim() || name || 'Unnamed';
+                  const designation = e.designation || e.role || e.roleId || e.position || '';
+                  const empId = e.employeeId || e.employee_id || e.empId || e.id || '';
+                  return (
+                    <option key={e._id || e.id} value={fullName}>
+                      {fullName}{empId ? ` (${empId})` : ''}{designation ? ` - ${designation}` : ''}
+                    </option>
+                  );
+                })}
               </Select>
             </FormField>
           </div>

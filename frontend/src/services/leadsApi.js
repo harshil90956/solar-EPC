@@ -199,4 +199,14 @@ export const leadsApi = {
   async getCustomers(params = {}) {
     return api.get('/leads/customers', params);
   },
+
+  // Get HRM departments for project creation
+  async getHrmDepartments() {
+    return api.get('/hrm/departments');
+  },
+
+  // Get HRM employees for project creation
+  async getHrmEmployees() {
+    return api.get('/hrm/employees');
+  },
 };
