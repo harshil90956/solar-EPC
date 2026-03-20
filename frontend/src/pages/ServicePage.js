@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
 
 
 
@@ -1072,23 +1073,12 @@ import {
 
 
 
-
+import { employeeApi } from '../services/hrmApi';
 
 import { api } from '../lib/apiClient';
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+// API Base URL
+// ==================================================================================
 
 
 
@@ -5991,6 +5981,7 @@ const TICKET_STATUS_FILTERS = ['All', 'Open', 'Scheduled', 'In Progress', 'Resol
 
 
 const ServicePage = ({ onNavigate, initialTab }) => {
+  const { user } = useAuth();
 
 
 
@@ -6797,23 +6788,33 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
     },
-
-
-
-
-
-    { key: 'resolved', header: 'Resolved', render: v => <span className="text-xs text-[var(--text-muted)]">{v ?? '—'}</span> },
-
-
-
-
-
-    { key: 'created', header: 'Created', render: v => <span className="text-xs text-[var(--text-muted)]">{v}</span> },
-
-
-
-
-
+    { 
+      key: 'assignedTo', 
+      header: 'Assigned To', 
+      render: (v, ticket) => {
+        // Find visit for this ticket to get engineer name
+        const ticketVisit = visits.find(visit => 
+          String(visit.contract_id) === String(ticket.id) || 
+          String(visit.contractId) === String(ticket.id)
+        );
+        
+        // Get engineer name from visit data (stored when visit is created)
+        const engineerNameFromVisit = ticketVisit?.engineer_name || ticketVisit?.engineerName;
+        
+        // Fallback: Look up from engineers array if visit doesn't have it
+        let engineerName = engineerNameFromVisit;
+        if (!engineerName && ticket.assignedTo) {
+          const assignedEngineer = engineers.find(eng => 
+            String(eng.id) === String(ticket.assignedTo) || 
+            String(eng._id) === String(ticket.assignedTo)
+          );
+          engineerName = assignedEngineer?.name;
+        }
+        
+        // Final fallback: show assignedTo value or '—'
+        return <span className="text-xs text-[var(--text-secondary)]">{engineerName || ticket.assignedTo || '—'}</span>;
+      }
+    },
   ];
 
 
@@ -7491,72 +7492,28 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-
-
-
       console.log('Extracted tickets:', ticketsData);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      setTickets(ticketsData);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+      // Filter tickets for engineers - only show tickets assigned to them
+      const userEmail = user?.email;
+      const isEngineer = user?.department === 'engineer' || user?.role === 'engineer' || user?.role?.toLowerCase()?.includes('engineer');
+      
+      if (isEngineer && userEmail) {
+        console.log('[DEBUG] User is engineer, filtering tickets by email/name:', userEmail, user?.name);
+        const filteredForEngineer = ticketsData.filter(ticket => {
+          const match = (ticket.assignedEngineerEmail && ticket.assignedEngineerEmail.toLowerCase() === userEmail.toLowerCase()) || 
+                  (ticket.assignedTo && (
+                    ticket.assignedTo.toLowerCase() === user?.name?.toLowerCase() || 
+                    ticket.assignedTo.toLowerCase() === userEmail.toLowerCase()
+                  ));
+          if (match) console.log('[DEBUG] Match found for ticket:', ticket.id || ticket._id);
+          return match;
+        });
+        console.log('[DEBUG] Filtered tickets for engineer:', filteredForEngineer.length, 'of', ticketsData.length);
+        setTickets(filteredForEngineer);
+      } else {
+        setTickets(ticketsData);
+      }
 
       setError(null);
 
@@ -10630,7 +10587,24 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-      setVisits(visitsData);
+      // Filter visits for engineers - only show visits assigned to them
+      const userEmail = user?.email;
+      const isEngineer = user?.department === 'engineer' || user?.role === 'engineer' || user?.role?.toLowerCase()?.includes('engineer');
+      
+      if (isEngineer && userEmail) {
+        console.log('[DEBUG] User is engineer, filtering visits by email/name:', userEmail, user?.name);
+        const filteredVisits = visitsData.filter(visit => {
+          const match = (visit.engineerEmail && visit.engineerEmail.toLowerCase() === userEmail.toLowerCase()) || 
+                  (visit.engineerName && visit.engineerName.toLowerCase() === user?.name?.toLowerCase()) ||
+                  (visit.assignedEngineerEmail && visit.assignedEngineerEmail.toLowerCase() === userEmail.toLowerCase());
+          if (match) console.log('[DEBUG] Match found for visit:', visit.id || visit._id);
+          return match;
+        });
+        console.log('[DEBUG] Filtered visits for engineer:', filteredVisits.length, 'of', visitsData.length);
+        setVisits(filteredVisits);
+      } else {
+        setVisits(visitsData);
+      }
 
 
 
@@ -12007,7 +11981,22 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
       }
 
-      setTotalVisits(visitsData.length);
+      // Filter visits for engineers - only count visits assigned to them
+      const userEmail = user?.email;
+      const isEngineer = user?.department === 'engineer' || user?.role === 'engineer' || user?.role?.toLowerCase()?.includes('engineer');
+      
+      if (isEngineer && userEmail) {
+        console.log('[DEBUG] User is engineer, filtering total visits count by email/name:', userEmail, user?.name);
+        const filteredCount = visitsData.filter(visit => 
+          (visit.engineerEmail && visit.engineerEmail.toLowerCase() === userEmail.toLowerCase()) || 
+          (visit.engineerName && visit.engineerName.toLowerCase() === user?.name?.toLowerCase()) ||
+          (visit.assignedEngineerEmail && visit.assignedEngineerEmail.toLowerCase() === userEmail.toLowerCase())
+        ).length;
+        console.log('[DEBUG] Total visits filtered count:', filteredCount);
+        setTotalVisits(filteredCount);
+      } else {
+        setTotalVisits(visitsData.length);
+      }
 
     } catch (err) {
 
@@ -12045,7 +12034,24 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
       }
 
-      setTotalTickets(ticketsData.length);
+      // Filter tickets count for engineers - only count tickets assigned to them
+      const userEmail = user?.email;
+      const isEngineer = user?.department === 'engineer' || user?.role === 'engineer' || user?.role?.toLowerCase()?.includes('engineer');
+      
+      if (isEngineer && userEmail) {
+        console.log('[DEBUG] User is engineer, filtering total tickets count by email/name:', userEmail, user?.name);
+        const filteredCount = ticketsData.filter(ticket => 
+          (ticket.assignedEngineerEmail && ticket.assignedEngineerEmail.toLowerCase() === userEmail.toLowerCase()) || 
+          (ticket.assignedTo && (
+            ticket.assignedTo.toLowerCase() === user?.name?.toLowerCase() || 
+            ticket.assignedTo.toLowerCase() === userEmail.toLowerCase()
+          ))
+        ).length;
+        console.log('[DEBUG] Total tickets filtered count:', filteredCount);
+        setTotalTickets(filteredCount);
+      } else {
+        setTotalTickets(ticketsData.length);
+      }
 
     } catch (err) {
 
@@ -14069,259 +14075,62 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   const fetchEngineers = async () => {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    try {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      const response = await getEngineers();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      setEngineers(Array.isArray(response) ? response : response?.data || []);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    } catch (err) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    // Don't fetch engineers for engineer users (they don't have employees.view permission)
+    const isEngineerUser = user?.department === 'engineer' || user?.role === 'engineer' || user?.role?.toLowerCase()?.includes('engineer');
+    if (isEngineerUser) {
+      console.log('[DEBUG] Skipping engineers fetch for engineer user');
       setEngineers([]);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+      return;
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    
+    try {
+      console.log('[DEBUG] Fetching engineers from HRM...');
+      // Fetch employees from HRM module with department=engineer
+      const response = await employeeApi.getByDepartment('engineer');
+      console.log('[DEBUG] Raw response:', response);
+      
+      const employeesData = Array.isArray(response) ? response : response?.data || [];
+      console.log('[DEBUG] Employees data:', employeesData);
+      
+      // Map employee data to engineer format for compatibility
+      // Handle nested _doc structure from MongoDB/Mongoose
+      const mappedEngineers = employeesData.map(emp => {
+        // Get actual data from _doc if present (Mongoose document structure)
+        const empData = emp._doc || emp;
+        
+        return {
+          id: empData._id || empData.id,
+          name: empData.name || `${empData.firstName || ''} ${empData.lastName || ''}`.trim() || 'Unnamed Engineer',
+          email: empData.email,
+          department: empData.department,
+          role: empData.role
+        };
+      });
+      
+      console.log('[DEBUG] Mapped engineers:', mappedEngineers);
+      setEngineers(mappedEngineers);
+    } catch (err) {
+      console.error('[DEBUG] Engineers fetch error:', err);
+      setEngineers([]);
+    }
   };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -15069,18 +14878,25 @@ const ServicePage = ({ onNavigate, initialTab }) => {
     console.log('Selecting engineer:', selectedEngineer, 'for ticket:', assignModal.ticket.id);
     setAssigning(true);
     try {
-      // Find engineer object to get the ID
+      // Find engineer object to get the email and ID
       const engineer = engineers.find(e => e.name === selectedEngineer || e.email === selectedEngineer);
       if (engineer) {
+        // Save engineer assignment to ticket in backend
+        await updateTicket(assignModal.ticket.id, { 
+          assignedTo: engineer.name,
+          assignedEngineerEmail: engineer.email,
+          assignedEngineerId: engineer.id || engineer._id
+        });
+        
         // Save engineerId to visitForm for later use when scheduling visit
         setVisitForm(prev => ({ ...prev, engineerId: String(engineer.id || engineer._id) }));
-        console.log('Engineer selected:', engineer.name, 'ID:', engineer.id || engineer._id);
+        console.log('Engineer assigned:', engineer.name, 'Email:', engineer.email, 'Ticket:', assignModal.ticket.id);
+        showToast(`Engineer "${engineer.name}" assigned to ticket`, 'success');
       }
       closeAssignModal();
-      showToast(`Engineer "${selectedEngineer}" selected`, 'success');
     } catch (err) {
-      console.error('Select engineer error:', err);
-      showToast('Failed to select engineer: ' + (err.message || 'Unknown error'), 'error');
+      console.error('Assign engineer error:', err);
+      showToast('Failed to assign engineer: ' + (err.message || 'Unknown error'), 'error');
     } finally {
       setAssigning(false);
     }
@@ -22323,6 +22139,9 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
+  // Check if user is an engineer - used for filtering and permissions
+  const isEngineer = user?.department === 'engineer' || user?.role === 'engineer' || user?.role?.toLowerCase()?.includes('engineer');
+
   const TICKET_ACTIONS = [
 
 
@@ -22388,6 +22207,8 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
     { label: 'Edit', icon: Pencil, onClick: row => openEditModal(row) },
+    // Only show Assign Engineer to non-engineer users (admins/managers)
+    ...(!isEngineer ? [{ label: 'Assign Engineer', icon: Wrench, onClick: (row) => openAssignModal(row) }] : []),
     { label: 'Schedule Visit', icon: Clock, onClick: (row) => openScheduleVisitModal(row) },
     { label: 'Mark Resolved', icon: CheckCircle, onClick: (row) => handleStageChange(row.id, 'Resolved') },
     { label: 'Delete', icon: Trash2, danger: true, onClick: (row) => handleDeleteTicket(row.id) },
@@ -34684,21 +34505,19 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
                           <td className="py-3 px-3 text-xs text-[var(--text-primary)]">
-
                             {(() => {
-
-                              // If visit has customer, use it
-
-                              if (visit.customer && visit.customer !== 'Unknown') return visit.customer;
-
-                              // Otherwise lookup from tickets using contract_id
-
-                              const ticket = tickets.find(t => t.id === (visit.contract_id || visit.contractId));
-
-                              return ticket?.customerName || '—';
-
+                              // Priority 1: Visit's own customer field
+                              if (visit.customer && visit.customer !== 'Unknown' && visit.customer !== '—') return visit.customer;
+                              
+                              // Priority 2: Lookup from tickets using contract_id/contractId
+                              const contractId = visit.contract_id || visit.contractId;
+                              if (contractId) {
+                                const ticket = tickets.find(t => String(t.id) === String(contractId) || String(t._id) === String(contractId));
+                                if (ticket?.customerName) return ticket.customerName;
+                              }
+                              
+                              return '—';
                             })()}
-
                           </td>
 
 
@@ -34733,17 +34552,23 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
                           <td className="py-3 px-3 text-xs text-[var(--text-muted)]">
                             {(() => {
-                              // If visit has site, use it
-                              if (visit.site && visit.site !== 'Unknown') return visit.site;
-                              // Otherwise lookup from projects using customer name
-                              const project = projects.find(p => 
-                                p.customerName === visit.customer || 
-                                p.customerName === (() => {
-                                  const ticket = tickets.find(t => t.id === (visit.contract_id || visit.contractId));
-                                  return ticket?.customerName;
-                                })()
-                              );
-                              return project?.site || '—';
+                              // Priority 1: Visit's own site field
+                              if (visit.site && visit.site !== 'Unknown' && visit.site !== '—') return visit.site;
+                              
+                              // Priority 2: Lookup from tickets/projects
+                              const contractId = visit.contract_id || visit.contractId;
+                              const ticket = tickets.find(t => String(t.id) === String(contractId) || String(t._id) === String(contractId));
+                              const custName = visit.customer || ticket?.customerName;
+                              
+                              if (custName) {
+                                const project = projects.find(p => 
+                                  (p.customerName && p.customerName.toLowerCase() === custName.toLowerCase()) ||
+                                  (p.name && p.name.toLowerCase() === custName.toLowerCase())
+                                );
+                                if (project?.site) return project.site;
+                              }
+                              
+                              return ticket?.site || '—';
                             })()}
                           </td>
 
@@ -38751,6 +38576,22 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
                 ['Type', selected.type],
+                ['Assigned To', (() => {
+                  const ticketVisit = visits.find(visit => 
+                    String(visit.contract_id) === String(selected.id) || 
+                    String(visit.contractId) === String(selected.id)
+                  );
+                  const engineerNameFromVisit = ticketVisit?.engineer_name || ticketVisit?.engineerName;
+                  let engineerName = engineerNameFromVisit;
+                  if (!engineerName && selected.assignedTo) {
+                    const assignedEngineer = engineers.find(eng => 
+                      String(eng.id) === String(selected.assignedTo) || 
+                      String(eng._id) === String(selected.assignedTo)
+                    );
+                    engineerName = assignedEngineer?.name;
+                  }
+                  return engineerName || selected.assignedTo || '—';
+                })()],
 
 
 
@@ -38782,7 +38623,6 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-                ['Priority', <PriorityBadge value={selected.priority} />],
 
 
 
@@ -38794,27 +38634,6 @@ const ServicePage = ({ onNavigate, initialTab }) => {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                ['Status', <StatusBadge domain="ticket" value={selected.status} />],
 
 
 
