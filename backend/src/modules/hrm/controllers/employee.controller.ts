@@ -301,13 +301,16 @@ export class EmployeeController {
     const data = await this.employeeService.findByDepartment(department, tenantId);
 
     // Normalize data for frontend
-    const normalizedData = data.map((e: any) => ({
-      ...e,
-      _id: e._id?.toString(),
-      joiningDate: e.joiningDate ? new Date(e.joiningDate).toISOString() : null,
-      createdAt: e.createdAt ? new Date(e.createdAt).toISOString() : null,
-      updatedAt: e.updatedAt ? new Date(e.updatedAt).toISOString() : null,
-    }));
+    const normalizedData = data.map((e: any) => {
+      const obj = typeof e?.toObject === 'function' ? e.toObject() : e;
+      return {
+        ...obj,
+        _id: obj?._id?.toString?.() || e?._id?.toString?.(),
+        joiningDate: obj?.joiningDate ? new Date(obj.joiningDate).toISOString() : null,
+        createdAt: obj?.createdAt ? new Date(obj.createdAt).toISOString() : null,
+        updatedAt: obj?.updatedAt ? new Date(obj.updatedAt).toISOString() : null,
+      };
+    });
 
     return { success: true, data: normalizedData };
   }

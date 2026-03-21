@@ -180,6 +180,23 @@ const ProjectPage = () => {
   const canAssign = perm.canAssign();
   const { logStatusChange } = useAuditLog('project');
 
+  const getEmployeeDisplayName = (e) => {
+    const firstName =
+      e?.firstName || e?.firstname || e?.first_name ||
+      e?.user?.firstName || e?.user?.firstname || e?.user?.first_name ||
+      e?.personalDetails?.firstName || e?.personalDetails?.firstname || e?.personalDetails?.first_name ||
+      '';
+    const lastName =
+      e?.lastName || e?.lastname || e?.last_name ||
+      e?.user?.lastName || e?.user?.lastname || e?.user?.last_name ||
+      e?.personalDetails?.lastName || e?.personalDetails?.lastname || e?.personalDetails?.last_name ||
+      '';
+    const name = e?.name || e?.fullName || e?.user?.name || e?.user?.fullName || '';
+    const empId = e?.employeeId || e?.employee_id || e?.empId || e?.id || e?._id || '';
+    const email = e?.email || e?.user?.email || '';
+    return `${firstName} ${lastName}`.trim() || name || email || (empId ? String(empId) : '') || 'Unnamed';
+  };
+
   // Permission guard helper
   const guardCreate = () => {
     if (!canCreate) {
@@ -214,12 +231,12 @@ const ProjectPage = () => {
   const [selectedProjects, setSelectedProjects] = useState(new Set()); // For bulk selection
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [form, setForm] = useState({ customerName: '', site: '', systemSize: '', pm: '', department: '', value: '', estEndDate: '', email: '', mobileNumber: '', materials: [] });
+  const [form, setForm] = useState({ customerName: '', site: '', systemSize: '', pm: '', department: '', value: '', estEndDate: '', email: '', mobileNumber: '', paymentTerms: '', visitsPerMonth: '', totalVisits: '', materials: [] });
   const [items, setItems] = useState([]); // Items for material selection
   const [itemsLoading, setItemsLoading] = useState(false);
   const [projectReservations, setProjectReservations] = useState([]);
   const [loadingProjectReservations, setLoadingProjectReservations] = useState(false);
-  const [editForm, setEditForm] = useState({ customerName: '', site: '', systemSize: '', pm: '', department: '', value: '', estEndDate: '', email: '', mobileNumber: '', materials: [] });
+  const [editForm, setEditForm] = useState({ customerName: '', site: '', systemSize: '', pm: '', department: '', value: '', estEndDate: '', email: '', mobileNumber: '', paymentTerms: '', visitsPerMonth: '', totalVisits: '', materials: [] });
   const [submitting, setSubmitting] = useState(false);
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
@@ -374,14 +391,21 @@ const ProjectPage = () => {
         }
         // Map to format needed for dropdown
         const pmList = employeesToShow.map(e => {
-          // Handle various field name formats from HRM API
-          const firstName = e.firstName || e.firstname || e.first_name || e.name || '';
-          const lastName = e.lastName || e.lastname || e.last_name || '';
-          const fullName = `${firstName} ${lastName}`.trim() || e.name || 'Unnamed';
+          const firstName =
+            e.firstName || e.firstname || e.first_name ||
+            e.user?.firstName || e.user?.firstname || e.user?.first_name ||
+            e.personalDetails?.firstName || e.personalDetails?.firstname || e.personalDetails?.first_name ||
+            '';
+          const lastName =
+            e.lastName || e.lastname || e.last_name ||
+            e.user?.lastName || e.user?.lastname || e.user?.last_name ||
+            e.personalDetails?.lastName || e.personalDetails?.lastname || e.personalDetails?.last_name ||
+            '';
+          const name = e.name || e.fullName || e.user?.name || e.user?.fullName || '';
+          const fullName = `${firstName} ${lastName}`.trim() || name || 'Unnamed';
           return {
             id: e._id || e.id,
             name: fullName,
-            email: e.email,
             department: e.department,
             role: e.roleId || e.designation || e.role || 'Staff'
           };
@@ -421,6 +445,7 @@ const ProjectPage = () => {
   // Fetch employees when department is selected (for add form)
   useEffect(() => {
     const fetchEmployeesByDept = async () => {
+      if (!showAdd) return;
       if (!form.department) {
         setEmployeesByDept([]);
         return;
@@ -442,11 +467,12 @@ const ProjectPage = () => {
       }
     };
     fetchEmployeesByDept();
-  }, [form.department]);
+  }, [form.department, showAdd]);
 
   // Fetch employees when department is selected (for edit form)
   useEffect(() => {
     const fetchEditEmployeesByDept = async () => {
+      if (!showEdit) return;
       if (!editForm.department) {
         setEmployeesByDept([]);
         return;
@@ -464,7 +490,7 @@ const ProjectPage = () => {
       }
     };
     fetchEditEmployeesByDept();
-  }, [editForm.department]);
+  }, [editForm.department, showEdit]);
 
   // Fetch items for material selection
   useEffect(() => {
@@ -874,9 +900,17 @@ const ProjectPage = () => {
 
   const STEPPER_STEPS = selected?.milestones?.map(m => ({ name: m.name, status: m.status, date: m.date })) ?? [];
 
+  // Debug logging
+  console.log('[DEBUG Mark Stage] selected:', selected);
+  console.log('[DEBUG Mark Stage] STEPPER_STEPS:', STEPPER_STEPS);
+  console.log('[DEBUG Mark Stage] selected?.pm:', selected?.pm);
+  console.log('[DEBUG Mark Stage] selected?.assignedTo:', selected?.assignedTo);
+
   // Find first pending milestone index
   const firstPendingIndex = STEPPER_STEPS.findIndex(s => s.status === 'Pending' || s.status === 'In Progress');
   const canMarkComplete = firstPendingIndex !== -1;
+
+  console.log('[DEBUG Mark Stage] firstPendingIndex:', firstPendingIndex, 'canMarkComplete:', canMarkComplete);
 
   const handleMarkStageComplete = async () => {
     if (!selected || !canMarkComplete) return;
@@ -901,7 +935,7 @@ const ProjectPage = () => {
       else if (milestoneName === 'Installation') newStatus = 'Installation';
       else if (milestoneName === 'Commission') newStatus = 'Commissioned';
 
-      await api.post(`/projects/${selected.id}/status?tenantId=${TENANT_ID}`, {
+      await api.patch(`/projects/${selected.id}/status?tenantId=${TENANT_ID}`, {
         status: newStatus,
         progress: newProgress,
         milestones: updatedMilestones.map(m => ({ name: m.name, status: m.status, date: m.date })),
@@ -953,8 +987,11 @@ const ProjectPage = () => {
         estEndDate: form.estEndDate,
         email: form.email,
         mobileNumber: form.mobileNumber,
+        paymentTerms: form.paymentTerms ? parseFloat(form.paymentTerms) : undefined,
+        visitsPerMonth: form.visitsPerMonth ? parseInt(form.visitsPerMonth) : undefined,
+        totalVisits: form.totalVisits ? parseInt(form.totalVisits) : undefined,
         startDate: new Date().toISOString().split('T')[0],
-        status: 'Survey',
+        status: 'Logistics',
         progress: 0,
         milestones: [
           { name: 'Material Ready', status: 'Pending', date: null },
@@ -976,7 +1013,7 @@ const ProjectPage = () => {
       const projectData = createdProject?.data ?? createdProject;
       setProjects(prev => [...prev, { ...projectData, id: projectData.projectId }]);
       setShowAdd(false);
-      setForm({ customerName: '', site: '', systemSize: '', pm: '', value: '', estEndDate: '', email: '', mobileNumber: '', materials: [] });
+      setForm({ customerName: '', site: '', systemSize: '', pm: '', department: '', value: '', estEndDate: '', email: '', mobileNumber: '', paymentTerms: '', visitsPerMonth: '', totalVisits: '', materials: [] });
       alert('Project created successfully!');
     } catch (err) {
       console.error('Error creating project:', err);
@@ -1093,6 +1130,9 @@ const ProjectPage = () => {
       estEndDate: project.estEndDate || '',
       email: project.email || '',
       mobileNumber: project.mobileNumber || '',
+      paymentTerms: project.paymentTerms || '',
+      visitsPerMonth: project.visitsPerMonth || '',
+      totalVisits: project.totalVisits || '',
       materials: project.materials || []
     });
     setShowEdit(true);
@@ -1126,6 +1166,9 @@ const ProjectPage = () => {
         estEndDate: editForm.estEndDate,
         email: editForm.email,
         mobileNumber: editForm.mobileNumber,
+        paymentTerms: editForm.paymentTerms ? parseFloat(editForm.paymentTerms) : undefined,
+        visitsPerMonth: editForm.visitsPerMonth ? parseInt(editForm.visitsPerMonth) : undefined,
+        totalVisits: editForm.totalVisits ? parseInt(editForm.totalVisits) : undefined,
         materials: (editForm.materials || []).map(m => ({
           itemId: m.itemId,
           itemName: m.itemName,
@@ -1141,7 +1184,7 @@ const ProjectPage = () => {
       setProjects(prev => prev.map(p => p.id === editingProject.id ? { ...p, ...projectData } : p));
       setShowEdit(false);
       setEditingProject(null);
-      setEditForm({ customerName: '', site: '', systemSize: '', pm: '', value: '', estEndDate: '', email: '', mobileNumber: '', materials: [] });
+      setEditForm({ customerName: '', site: '', systemSize: '', pm: '', value: '', estEndDate: '', email: '', mobileNumber: '', materials: [], paymentTerms: '', visitsPerMonth: '', totalVisits: '' });
       alert('Project updated successfully!');
     } catch (err) {
       console.error('Error updating project:', err);
@@ -1788,11 +1831,7 @@ const ProjectPage = () => {
               <Select value={form.pm} onChange={e => setForm(f => ({ ...f, pm: e.target.value }))} disabled={!form.department || employeesLoading}>
                 <option value="">{employeesLoading ? 'Loading...' : form.department ? 'Select Employee' : 'First select department'}</option>
                 {employeesByDept.map(e => {
-                  // Handle various field name formats from HRM API
-                  const firstName = e.firstName || e.firstname || e.first_name || '';
-                  const lastName = e.lastName || e.lastname || e.last_name || '';
-                  const name = e.name || '';
-                  const fullName = `${firstName} ${lastName}`.trim() || name || 'Unnamed';
+                  const fullName = getEmployeeDisplayName(e);
                   const designation = e.designation || e.role || e.roleId || e.position || '';
                   const empId = e.employeeId || e.employee_id || e.empId || e.id || '';
                   return (
@@ -1806,6 +1845,11 @@ const ProjectPage = () => {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="Estimated End Date"><Input type="date" value={form.estEndDate} onChange={e => setForm(f => ({ ...f, estEndDate: e.target.value }))} /></FormField>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <FormField label="Payment Terms %"><Input type="number" placeholder="e.g., 50" value={form.paymentTerms} onChange={e => setForm(f => ({ ...f, paymentTerms: e.target.value }))} /></FormField>
+            <FormField label="Visit in Month"><Input type="number" placeholder="e.g., 2" value={form.visitsPerMonth} onChange={e => setForm(f => ({ ...f, visitsPerMonth: e.target.value }))} /></FormField>
+            <FormField label="Total Visit"><Input type="number" placeholder="e.g., 24" value={form.totalVisits} onChange={e => setForm(f => ({ ...f, totalVisits: e.target.value }))} /></FormField>
           </div>
         </div>
       </Modal>
@@ -1850,11 +1894,7 @@ const ProjectPage = () => {
               <Select value={editForm.pm} onChange={e => setEditForm(f => ({ ...f, pm: e.target.value }))} disabled={!editForm.department || employeesLoading}>
                 <option value="">{employeesLoading ? 'Loading...' : editForm.department ? 'Select Employee' : 'First select department'}</option>
                 {employeesByDept.map(e => {
-                  // Handle various field name formats from HRM API
-                  const firstName = e.firstName || e.firstname || e.first_name || '';
-                  const lastName = e.lastName || e.lastname || e.last_name || '';
-                  const name = e.name || '';
-                  const fullName = `${firstName} ${lastName}`.trim() || name || 'Unnamed';
+                  const fullName = getEmployeeDisplayName(e);
                   const designation = e.designation || e.role || e.roleId || e.position || '';
                   const empId = e.employeeId || e.employee_id || e.empId || e.id || '';
                   return (
@@ -1867,6 +1907,11 @@ const ProjectPage = () => {
             </FormField>
           </div>
           <FormField label="Estimated End Date"><Input type="date" value={editForm.estEndDate} onChange={e => setEditForm(f => ({ ...f, estEndDate: e.target.value }))} /></FormField>
+          <div className="grid grid-cols-3 gap-3">
+            <FormField label="Payment Terms %"><Input type="number" placeholder="e.g., 50" value={editForm.paymentTerms} onChange={e => setEditForm(f => ({ ...f, paymentTerms: e.target.value }))} /></FormField>
+            <FormField label="Visit in Month"><Input type="number" placeholder="e.g., 2" value={editForm.visitsPerMonth} onChange={e => setEditForm(f => ({ ...f, visitsPerMonth: e.target.value }))} /></FormField>
+            <FormField label="Total Visit"><Input type="number" placeholder="e.g., 24" value={editForm.totalVisits} onChange={e => setEditForm(f => ({ ...f, totalVisits: e.target.value }))} /></FormField>
+          </div>
         </div>
       </Modal>
 
@@ -1923,7 +1968,7 @@ const ProjectPage = () => {
         <Modal open={!!selected} onClose={() => setSelected(null)} title={`Project — ${selected.id}`}
           footer={<div className="flex gap-2 justify-end">
             <Button variant="ghost" onClick={() => setSelected(null)}>Close</Button>
-            {canMarkComplete && (
+            {canMarkComplete && (selected?.pm || selected?.assignedTo) && (
               <Button onClick={handleMarkStageComplete}>
                 <CheckCircle size={13} /> Mark Stage Complete
               </Button>
@@ -1933,6 +1978,7 @@ const ProjectPage = () => {
             <div className="grid grid-cols-2 gap-3 text-xs">
               {[['Customer', selected.customerName], ['Email', selected.email || '—'], ['Mobile', selected.mobileNumber || '—'], ['Site', selected.site], ['System Size', `${selected.systemSize} kW`], ['Project Manager', selected.pm],
               ['Status', <StatusBadge domain="project" value={selected.status} />], ['Value', fmt(selected.value)],
+              ['Payment Terms %', selected.paymentTerms || '—'], ['Visit in Month', selected.visitsPerMonth || '—'], ['Total Visit', selected.totalVisits || '—'],
                 // ...
               ].map(([k, v]) => (
                 <div key={k} className="glass-card p-2">
@@ -2032,6 +2078,18 @@ const ProjectPage = () => {
                 <div className="text-[var(--text-muted)] mb-0.5">Site</div>
                 <div className="font-semibold text-[var(--text-primary)]">{timelineProject.site}</div>
               </div>
+              <div className="glass-card p-2">
+                <div className="text-[var(--text-muted)] mb-0.5">Payment Terms %</div>
+                <div className="font-semibold text-[var(--text-primary)]">{timelineProject.paymentTerms || '—'}</div>
+              </div>
+              <div className="glass-card p-2">
+                <div className="text-[var(--text-muted)] mb-0.5">Visit in Month</div>
+                <div className="font-semibold text-[var(--text-primary)]">{timelineProject.visitsPerMonth || '—'}</div>
+              </div>
+              <div className="glass-card p-2">
+                <div className="text-[var(--text-muted)] mb-0.5">Total Visit</div>
+                <div className="font-semibold text-[var(--text-primary)]">{timelineProject.totalVisits || '—'}</div>
+              </div>
             </div>
             <div className="relative pl-4 border-l-2 border-[var(--border-base)] space-y-4">
               {[
@@ -2084,6 +2142,18 @@ const ProjectPage = () => {
               <div className="glass-card p-2">
                 <div className="text-[var(--text-muted)] mb-0.5">Site</div>
                 <div className="font-semibold text-[var(--text-primary)]">{activityProject.site}</div>
+              </div>
+              <div className="glass-card p-2">
+                <div className="text-[var(--text-muted)] mb-0.5">Payment Terms %</div>
+                <div className="font-semibold text-[var(--text-primary)]">{activityProject.paymentTerms || '—'}</div>
+              </div>
+              <div className="glass-card p-2">
+                <div className="text-[var(--text-muted)] mb-0.5">Visit in Month</div>
+                <div className="font-semibold text-[var(--text-primary)]">{activityProject.visitsPerMonth || '—'}</div>
+              </div>
+              <div className="glass-card p-2">
+                <div className="text-[var(--text-muted)] mb-0.5">Total Visit</div>
+                <div className="font-semibold text-[var(--text-primary)]">{activityProject.totalVisits || '—'}</div>
               </div>
             </div>
             <div className="space-y-3 max-h-[400px] overflow-y-auto">
