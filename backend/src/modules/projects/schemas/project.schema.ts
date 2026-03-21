@@ -139,6 +139,15 @@ export class Project extends Document {
   discount?: number;
 
   @Prop({ type: String, default: '' })
+  paymentTerms?: string;
+
+  @Prop({ type: String, default: '' })
+  visitsPerMonth?: string;
+
+  @Prop({ type: String, default: '' })
+  totalVisits?: string;
+
+  @Prop({ type: String, default: '' })
   notes?: string;
 }
 

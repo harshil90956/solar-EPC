@@ -1377,6 +1377,17 @@ const CRMPage = ({ onNavigate }) => {
     try {
       setProjectCreateLoading(true);
 
+      const normalizedStatus = (() => {
+        const s = String(projectForm.status || '').toLowerCase();
+        if (s === 'planning') return 'Survey';
+        if (s === 'accepted') return 'Procurement';
+        if (s === 'in_progress') return 'Installation';
+        if (s === 'on_hold') return 'On Hold';
+        if (s === 'completed') return 'Commissioned';
+        if (s === 'cancelled' || s === 'canceled') return 'Cancelled';
+        return projectForm.status;
+      })();
+
       // Get selected BOQ template items
       const selectedTemplate = boqTemplates.find(t => t.id === projectForm.boqTemplate);
       const boqItems = selectedTemplate ? selectedTemplate.items : [];
@@ -1390,7 +1401,7 @@ const CRMPage = ({ onNavigate }) => {
         customerEmail: selectedCustomerForProject.email,
         customerPhone: selectedCustomerForProject.phone,
         siteAddress: projectForm.siteAddress,
-        status: projectForm.status,
+        status: normalizedStatus,
         startDate: projectForm.startDate,
         endDate: projectForm.endDate,
         budget: Number(projectForm.budget) || 0,
@@ -4306,12 +4317,22 @@ const CRMPage = ({ onNavigate }) => {
                     }
                   </option>
                   {filteredHrmEmployees.map(emp => {
-                    // Handle various field name formats from HRM API
-                    const firstName = emp.firstName || emp.firstname || emp.first_name || '';
-                    const lastName = emp.lastName || emp.lastname || emp.last_name || '';
-                    const name = emp.name || '';
+                    const firstName =
+                      emp.firstName || emp.firstname || emp.first_name ||
+                      emp.user?.firstName || emp.user?.firstname || emp.user?.first_name ||
+                      emp.personalDetails?.firstName || emp.personalDetails?.firstname || emp.personalDetails?.first_name ||
+                      '';
+                    const lastName =
+                      emp.lastName || emp.lastname || emp.last_name ||
+                      emp.user?.lastName || emp.user?.lastname || emp.user?.last_name ||
+                      emp.personalDetails?.lastName || emp.personalDetails?.lastname || emp.personalDetails?.last_name ||
+                      '';
+                    const name = emp.name || emp.fullName || emp.user?.name || emp.user?.fullName || '';
                     const fullName = `${firstName} ${lastName}`.trim() || name || 'Unnamed';
-                    const empId = emp.employeeId || emp.employee_id || emp.empId || emp.id || 'N/A';
+                    const empId =
+                      emp.employeeId || emp.employee_id || emp.empId || emp.id ||
+                      emp.user?.employeeId || emp.user?.employee_id || emp.user?.empId || emp.user?.id ||
+                      'N/A';
                     return (
                       <option key={emp._id || emp.id} value={emp._id || emp.id}>
                         {fullName} ({empId})

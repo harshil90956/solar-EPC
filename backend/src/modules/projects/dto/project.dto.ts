@@ -1,13 +1,27 @@
 import { PartialType } from '@nestjs/mapped-types';
-import { IsString, IsNumber, IsOptional, IsEnum, Min, Max, IsArray, ValidateNested } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsEnum, Min, Max, IsArray, ValidateNested, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
+
+const PROJECT_STATUSES = [
+  'Survey',
+  'Design',
+  'Quotation',
+  'Procurement',
+  'Logistics',
+  'Installation',
+  'Commissioned',
+  'On Hold',
+  'Cancelled',
+] as const;
+
+const MILESTONE_STATUSES = ['Pending', 'In Progress', 'Done'] as const;
 
 export class MilestoneDto {
   @IsString()
   name!: string;
 
-  @IsEnum(['Pending', 'In Progress', 'Done'])
-  status!: 'Pending' | 'In Progress' | 'Done';
+  @IsIn(MILESTONE_STATUSES)
+  status!: (typeof MILESTONE_STATUSES)[number];
 
   @IsOptional()
   @IsString()
@@ -87,8 +101,8 @@ export class CreateProjectDto {
   @Min(0)
   systemSize!: number;
 
-  @IsEnum(['Procurement', 'Logistics', 'Installation', 'Commissioned', 'On Hold', 'Cancelled'])
-  status!: string;
+  @IsIn(PROJECT_STATUSES)
+  status!: (typeof PROJECT_STATUSES)[number];
 
   @IsString()
   pm!: string;
@@ -141,13 +155,25 @@ export class CreateProjectDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @IsString()
+  paymentTerms?: string;
+
+  @IsOptional()
+  @IsString()
+  visitsPerMonth?: string;
+
+  @IsOptional()
+  @IsString()
+  totalVisits?: string;
 }
 
 export class UpdateProjectDto extends PartialType(CreateProjectDto) {}
 
 export class UpdateProjectStatusDto {
-  @IsEnum(['Procurement', 'Logistics', 'Installation', 'Commissioned', 'On Hold', 'Cancelled'])
-  status!: string;
+  @IsIn(PROJECT_STATUSES)
+  status!: (typeof PROJECT_STATUSES)[number];
 
   @IsOptional()
   @IsNumber()
