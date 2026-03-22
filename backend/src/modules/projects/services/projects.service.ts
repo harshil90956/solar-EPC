@@ -317,30 +317,77 @@ export class ProjectsService {
             ].filter(Boolean)));
 
             let itemDoc: any = null;
-            for (const v of itemIdVariants) {
-              itemDoc = await this.itemModel.findOne({ tenantId, itemId: v, isDeleted: false }).session(session);
-              if (itemDoc) break;
+            
+            // Strategy 1: If we have itemObjectId (MongoDB _id), use it directly
+            if (reservation.itemObjectId) {
+              itemDoc = await this.itemModel.findById(reservation.itemObjectId).session(session);
+              console.log(`[DEBUG ITEM RELEASE] Lookup by itemObjectId: ${reservation.itemObjectId}, found: ${itemDoc ? 'YES' : 'NO'}`);
+            }
+            
+            // Strategy 2: If we have warehouse, find warehouse-specific instance
+            if (!itemDoc && reservation.warehouse) {
+              for (const v of itemIdVariants) {
+                itemDoc = await this.itemModel.findOne({ 
+                  tenantId, 
+                  itemId: v, 
+                  warehouse: reservation.warehouse,
+                  isDeleted: false 
+                }).session(session);
+                if (itemDoc) break;
+              }
+              console.log(`[DEBUG ITEM RELEASE] Lookup by warehouse (${reservation.warehouse}): ${itemDoc ? 'YES' : 'NO'}`);
+            }
+            
+            // Strategy 3: Fallback to base item (warehouse=null/undefined)
+            if (!itemDoc) {
+              for (const v of itemIdVariants) {
+                itemDoc = await this.itemModel.findOne({ 
+                  tenantId, 
+                  itemId: v, 
+                  $or: [{ warehouse: null }, { warehouse: '' }, { warehouse: { $exists: false } }],
+                  isDeleted: false 
+                }).session(session);
+                if (itemDoc) break;
+              }
+              console.log(`[DEBUG ITEM RELEASE] Lookup by base item: ${itemDoc ? 'YES' : 'NO'}`);
+            }
+            
+            // Strategy 4: Last resort - any item with this itemId
+            if (!itemDoc) {
+              for (const v of itemIdVariants) {
+                itemDoc = await this.itemModel.findOne({ tenantId, itemId: v, isDeleted: false }).session(session);
+                if (itemDoc) break;
+              }
+              console.log(`[DEBUG ITEM RELEASE] Lookup by itemId only: ${itemDoc ? 'YES' : 'NO'}`);
             }
 
             if (itemDoc) {
-              const itemReservedBefore = Number(itemDoc.reserved || 0);
-              const itemReleasedQty = Math.max(0, Math.min(qty, itemReservedBefore));
-              const itemReservedAfter = Math.max(0, itemReservedBefore - itemReleasedQty);
+              // Use $inc for atomic decrement (safer for concurrent updates)
+              const itemReleasedQty = Math.max(0, Math.min(qty, Number(itemDoc.reserved || 0)));
 
               console.log('[DEBUG ITEM RELEASE] Releasing reserved from item (fallback)', {
                 projectId,
                 itemId: itemDoc.itemId,
                 qty,
-                itemReservedBefore,
+                itemReservedBefore: itemDoc.reserved,
                 itemReleasedQty,
-                itemReservedAfter,
               });
 
+              // Use $inc to atomically decrease reserved
               await this.itemModel.updateOne(
                 { _id: itemDoc._id },
-                { $set: { reserved: itemReservedAfter } },
+                { $inc: { reserved: -itemReleasedQty } },
                 { session },
               );
+
+              // Verify the update
+              const updatedItem = await this.itemModel.findById(itemDoc._id).session(session);
+              console.log('[DEBUG ITEM RELEASE] Item after update', {
+                itemId: updatedItem?.itemId,
+                reserved: updatedItem?.reserved,
+                stock: updatedItem?.stock,
+                available: (updatedItem?.stock || 0) - (updatedItem?.reserved || 0),
+              });
 
               await this.reservationModel.updateOne(
                 { _id: reservation._id },

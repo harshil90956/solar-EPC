@@ -341,11 +341,13 @@ export class ItemsService {
         const reservation = new this.reservationModel({
           reservationId: `RES-${Date.now()}`,
           itemId: item.itemId,
+          itemObjectId: item._id, // Store MongoDB _id for direct lookup
           projectId: projectId,
           quantity: quantity,
           status: 'active',
           notes: remarks || `Stock issued on ${issuedDate || new Date().toISOString().split('T')[0]}`,
           tenantId: new Types.ObjectId(actualTenantId),
+          warehouse: item.warehouse || 'Main Warehouse', // Store warehouse for correct instance lookup
         });
         console.log('[STOCK-OUT] Reservation object created:', reservation);
         const saved = await reservation.save();

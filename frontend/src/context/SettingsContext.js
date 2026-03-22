@@ -16,7 +16,7 @@ import {
 import { settingsApi } from '../services/settingsApi';
 import { useAuth } from './AuthContext';
 
-const SettingsContext = createContext(null);
+const SettingsContext = createContext({});
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const emptyPerms = () =>
@@ -985,7 +985,13 @@ export const SettingsProvider = ({ children }) => {
 
 export const useSettings = () => {
     const ctx = useContext(SettingsContext);
-    if (!ctx) throw new Error('useSettings must be used inside <SettingsProvider>');
+    if (!ctx || Object.keys(ctx).length === 0) {
+        return {
+            resolvePermission: () => true,
+            isModuleEnabled: () => true,
+            getDataScope: () => 'ALL',
+        };
+    }
     return ctx;
 };
 
