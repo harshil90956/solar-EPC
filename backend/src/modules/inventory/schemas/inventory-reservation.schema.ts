@@ -27,8 +27,11 @@ export class InventoryReservation {
   @Prop({ required: true, enum: ['Pending', 'Fulfilled', 'Cancelled', 'active', 'fulfilled', 'cancelled'], default: 'Pending' })
   status!: string;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: false })
-  reservedBy?: Types.ObjectId;
+  @Prop({ type: String, required: false })
+  warehouse?: string;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Item', required: false })
+  itemObjectId?: Types.ObjectId;
 
   @Prop({ default: Date.now })
   reservedAt!: Date;
@@ -39,7 +42,8 @@ export const InventoryReservationSchema = SchemaFactory.createForClass(Inventory
 InventoryReservationSchema.index({ tenantId: 1, inventoryId: 1 });
 InventoryReservationSchema.index({ tenantId: 1, projectId: 1 });
 
-// Indexes for efficient querying
+InventoryReservationSchema.index({ tenantId: 1, warehouse: 1 });
+InventoryReservationSchema.index({ tenantId: 1, itemObjectId: 1 });
 InventoryReservationSchema.index({ tenantId: 1, projectId: 1 });
 InventoryReservationSchema.index({ tenantId: 1, itemId: 1 });
 InventoryReservationSchema.index({ tenantId: 1, status: 1 });
