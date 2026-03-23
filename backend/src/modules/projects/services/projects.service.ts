@@ -45,18 +45,32 @@ export class ProjectsService {
     console.log('[PROJECTS VISIBILITY] ===== FIND ALL CALLED =====');
     console.log('[PROJECTS VISIBILITY] user:', JSON.stringify(user));
     console.log('[PROJECTS VISIBILITY] user?.dataScope:', user?.dataScope);
-    console.log('[PROJECTS VISIBILITY] user?.isEmployee:', user?.isEmployee);
     
     // Apply visibility filter based on user's dataScope
     if (user?.dataScope === 'ASSIGNED') {
       const userId = user._id || user.id;
-      console.log('[PROJECTS VISIBILITY] userId:', userId);
+      // Build user identifiers from email, firstName, lastName
+      const userEmail = (user as any).email || '';
+      const userNameFromEmail = userEmail.split('@')[0];
+      const firstName = (user as any).firstName || '';
+      const lastName = (user as any).lastName || '';
+      const fullName = `${firstName} ${lastName}`.trim().toLowerCase();
+      const firstNameLower = firstName.toLowerCase();
+      console.log('[PROJECTS VISIBILITY] userId:', userId, 'emailPrefix:', userNameFromEmail, 'fullName:', fullName);
       if (userId) {
         const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
           ? new Types.ObjectId(userId)
           : userId;
-        query.assignedTo = objectId;
-        console.log('[PROJECTS VISIBILITY] Applied assignedTo filter - type:', typeof objectId, 'instance:', objectId instanceof Types.ObjectId, 'value:', objectId);
+        const pmOrConditions: any[] = [];
+        if (userNameFromEmail) pmOrConditions.push({ pm: { $regex: userNameFromEmail, $options: 'i' } });
+        if (firstNameLower) pmOrConditions.push({ pm: { $regex: firstNameLower, $options: 'i' } });
+        if (fullName) pmOrConditions.push({ pm: { $regex: fullName, $options: 'i' } });
+        // Filter by assignedTo OR pm field matching email prefix, firstName, or full name
+        query.$or = [
+          { assignedTo: objectId },
+          ...pmOrConditions,
+        ];
+        console.log('[PROJECTS VISIBILITY] Applied $or filter with name matching');
       }
     } else {
       console.log('[PROJECTS VISIBILITY] No filter applied - ALL scope or no user');

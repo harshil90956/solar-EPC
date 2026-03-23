@@ -46,6 +46,8 @@ export interface JwtPayload {
   department?: string;
   isEmployee?: boolean;
   dataScope?: string;
+  firstName?: string;
+  lastName?: string;
 }
 
 @Injectable()
@@ -100,6 +102,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       department: payload.department,
       isEmployee: payload.isEmployee || false,
       dataScope: dataScope,
+      firstName: payload.firstName,
+      lastName: payload.lastName,
     };
   }
 }
