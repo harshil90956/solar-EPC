@@ -204,6 +204,10 @@ export const financeApi = {
 
       customerName: data.customerName.trim(),
 
+      email: data.email?.trim() || undefined,
+
+      phone: data.phone?.trim() || undefined,
+
       amount: parseFloat(data.amount),
 
       invoiceDate: data.invoiceDate,

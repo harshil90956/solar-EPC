@@ -52,6 +52,12 @@ export class CreateInvoiceDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(20)
+  phone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
   paymentTerms?: string;
 
   @IsOptional()
@@ -115,6 +121,12 @@ export class UpdateInvoiceDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(20)
+  phone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
   paymentTerms?: string;
 
   @IsOptional()

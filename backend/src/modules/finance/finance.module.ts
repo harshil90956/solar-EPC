@@ -1,6 +1,7 @@
 ﻿import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { SettingsModule } from '../settings/settings.module';
+import { QuotationModule } from '../quotation/quotation.module';
 import { FinanceController } from './controllers/finance.controller';
 import { FinanceVendorController } from './controllers/finance-vendor.controller';
 import { Tenant, TenantSchema } from '../../core/tenant/schemas/tenant.schema';
@@ -26,8 +27,10 @@ import { Invoice, InvoiceSchema, Payment, PaymentSchema, Expense, ExpenseSchema,
       { name: FinanceVendor.name, schema: FinanceVendorSchema },
       { name: 'PurchaseOrder', schema: require('../procurement/schemas/purchase-order.schema').PurchaseOrderSchema },
       { name: Tenant.name, schema: TenantSchema },
+      { name: 'Quotation', schema: require('../quotation/schemas/quotation.schema').QuotationSchema },
     ]),
     SettingsModule,
+    QuotationModule,
   ],
   controllers: [FinanceController, FinanceVendorController],
 
