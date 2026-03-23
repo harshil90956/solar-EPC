@@ -42,16 +42,28 @@ export class ProjectsService {
     const tenantId = await this.resolveTenantObjectId(tenantCode);
     const query: any = { tenantId, isDeleted: false };
     
+    console.log('[PROJECTS VISIBILITY] ===== FIND ALL CALLED =====');
+    console.log('[PROJECTS VISIBILITY] user:', JSON.stringify(user));
+    console.log('[PROJECTS VISIBILITY] user?.dataScope:', user?.dataScope);
+    console.log('[PROJECTS VISIBILITY] user?.isEmployee:', user?.isEmployee);
+    
     // Apply visibility filter based on user's dataScope
     if (user?.dataScope === 'ASSIGNED') {
       const userId = user._id || user.id;
+      console.log('[PROJECTS VISIBILITY] userId:', userId);
       if (userId) {
         const objectId = typeof userId === 'string' && Types.ObjectId.isValid(userId)
           ? new Types.ObjectId(userId)
           : userId;
         query.assignedTo = objectId;
+        console.log('[PROJECTS VISIBILITY] Applied assignedTo filter - type:', typeof objectId, 'instance:', objectId instanceof Types.ObjectId, 'value:', objectId);
       }
+    } else {
+      console.log('[PROJECTS VISIBILITY] No filter applied - ALL scope or no user');
     }
+    
+    console.log('[PROJECTS VISIBILITY] Final query (stringified):', JSON.stringify(query));
+    console.log('[PROJECTS VISIBILITY] Query assignedTo type:', typeof query.assignedTo, 'instance:', query.assignedTo instanceof Types.ObjectId);
     
     if (status && status !== 'All') {
       query.status = status;
@@ -62,6 +74,7 @@ export class ProjectsService {
     }
 
     const result = await this.projectModel.find(query).sort({ createdAt: -1 }).exec();
+    console.log('[PROJECTS VISIBILITY] Query returned', result.length, 'records');
     return result;
   }
 
