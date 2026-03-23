@@ -716,6 +716,9 @@ export class ProjectsService {
       estEndDate: '',
       progress: 0,
       value: quotation.total,
+      paymentTerms: String((quotation as any).paymentTerms || ''),
+      visitsPerMonth: String((quotation as any).visitInMonth || ''),
+      totalVisits: String((quotation as any).totalVisit || ''),
       items: quotation.items.map((item, index) => ({
         itemId: `ITEM-${Date.now()}-${index}`,
         category: this.extractCategoryFromItem(item),
