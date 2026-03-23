@@ -860,9 +860,18 @@ export const SettingsProvider = ({ children }) => {
      * resolvePermission(userId, roleId, moduleId, actionId)
      * SINGLE SOURCE OF TRUTH: Only checks user.permissions from localStorage
      * NO fallback, NO dual permission system
+     * Supports projects/project alias for backward compatibility
      */
     const resolvePermission = useCallback((moduleId, actionId) => {
         if (!moduleId) return false;
+
+        // DEBUG logging
+        const isDebug = moduleId === 'project' || moduleId === 'projects';
+        if (isDebug) {
+            console.log(`[resolvePermission] Checking ${moduleId}:${actionId}`, permissions);
+            console.log(`[resolvePermission] permissions.project:`, permissions?.project);
+            console.log(`[resolvePermission] permissions.projects:`, permissions?.projects);
+        }
 
         if (typeof moduleId === 'string' && moduleId.startsWith('hrm-')) {
             if (permissions?.[moduleId]?.[actionId] === true) return true;
@@ -870,7 +879,13 @@ export const SettingsProvider = ({ children }) => {
             return permissions?.[stripped]?.[actionId] === true;
         }
 
-        return permissions?.[moduleId]?.[actionId] === true;
+        if (permissions?.[moduleId]?.[actionId] === true) return true;
+
+        if (moduleId === 'project' && permissions?.['projects']?.[actionId] === true) return true;
+        if (moduleId === 'projects' && permissions?.['project']?.[actionId] === true) return true;
+
+        if (isDebug) console.log(`[resolvePermission] Result: false`);
+        return false;
     }, [permissions]);
 
     /**
