@@ -67,10 +67,10 @@ export class PermissionEngineService {
     survey: ['view', 'create', 'edit', 'delete', 'export', 'assign'],
     design: ['view', 'create', 'edit', 'delete', 'export', 'approve'],
     documents: ['view', 'create', 'edit', 'delete', 'export'],
-    inventory: ['view', 'create', 'edit', 'delete'],
+    inventory: ['view', 'create', 'edit', 'delete', 'export', 'approve', 'assign'],
     procurement: ['view', 'create', 'approve'],
-    projects: ['view', 'create', 'edit', 'delete'],
-    project: ['view', 'create', 'edit', 'delete'],
+    projects: ['view', 'create', 'edit', 'delete', 'export', 'approve', 'assign'],
+    project: ['view', 'create', 'edit', 'delete', 'export', 'approve', 'assign'],
     logistics: ['view', 'create', 'edit', 'delete', 'assign', 'approve', 'export'],
     installation: ['view', 'assign', 'update'],
     commissioning: ['view', 'assign', 'update', 'approve', 'export'],
@@ -392,6 +392,25 @@ export class PermissionEngineService {
     const hrmChildren = Object.keys(hrmSidebarMap);
     const anyHrmVisible = hrmChildren.some(m => permissions?.[m]?.view === true);
     this.setPermission(permissions, 'hrm', 'view', anyHrmVisible);
+
+    // Keep Projects module IDs in sync (some pages use 'project' while RBAC preset uses 'projects')
+    const projectAliasPairs: Array<[string, string]> = [
+      ['projects', 'project'],
+    ];
+
+    for (const [canonicalModuleId, aliasModuleId] of projectAliasPairs) {
+      this.ensureModuleShape(permissions, canonicalModuleId);
+      this.ensureModuleShape(permissions, aliasModuleId);
+
+      for (const actionId of this.getAllowedActions(aliasModuleId)) {
+        const v = permissions?.[canonicalModuleId]?.[actionId] === true;
+        this.setPermission(permissions, aliasModuleId, actionId, v);
+      }
+
+      if (dataScope[canonicalModuleId]) {
+        dataScope[aliasModuleId] = dataScope[canonicalModuleId];
+      }
+    }
 
     try {
       const permKey = this.permissionKey(tenantId, userId);
