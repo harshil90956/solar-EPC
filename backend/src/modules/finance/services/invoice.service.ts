@@ -11,6 +11,7 @@ import { Activity, ActivityDocument, ActivityAction } from '../schemas/activity.
 import { CreateInvoiceDto, UpdateInvoiceDto, RecordPaymentDto } from '../dto/invoice.dto';
 import { CreatePaymentDto, UpdatePaymentDto } from '../dto/payment.dto';
 import { Tenant, TenantDocument } from '../../../core/tenant/schemas/tenant.schema';
+import { Quotation, QuotationDocument } from '../../quotation/schemas/quotation.schema';
 
 interface UserWithVisibility {
   id?: string;
@@ -47,6 +48,7 @@ export class InvoiceService {
     @InjectModel(ReminderLog.name) private readonly reminderLogModel: Model<ReminderLogDocument>,
     @InjectModel(Activity.name) private readonly activityModel: Model<ActivityDocument>,
     @InjectModel(Tenant.name) private readonly tenantModel: Model<TenantDocument>,
+    @InjectModel(Quotation.name) private readonly quotationModel: Model<QuotationDocument>,
   ) {}
 
   private toObjectId(id: string | undefined): Types.ObjectId | undefined {
@@ -121,7 +123,7 @@ export class InvoiceService {
     return this.projectModel.find({
       tenantId: tid,
       ...this.notDeletedMatch(),
-    }).select('_id name customerName email status value').sort({ name: 1 }).lean();
+    }).select('_id name customerName email mobileNumber status value').sort({ name: 1 }).lean();
   }
 
   async getProjectById(tenantId: string, id: string): Promise<Project> {
@@ -130,13 +132,29 @@ export class InvoiceService {
       _id: new Types.ObjectId(id),
       tenantId: tid,
       ...this.notDeletedMatch(),
-    }).select('_id name customerName email status value').lean();
+    }).select('_id name customerName email mobileNumber status value').lean();
 
     if (!project) {
       throw new NotFoundException('Project not found');
     }
 
-    return project;
+    // Fetch payment terms from quotation if project has quotationId
+    let paymentTerms: number | undefined;
+    const projectWithQuotation = project as any;
+    if (projectWithQuotation.quotationId) {
+      const quotation = await this.quotationModel.findOne({
+        _id: projectWithQuotation.quotationId,
+        tenantId: tid,
+        isDeleted: false,
+      }).select('paymentTerms').lean();
+      
+      if (quotation && typeof quotation.paymentTerms === 'number') {
+        paymentTerms = quotation.paymentTerms;
+      }
+    }
+
+    // Add paymentTerms to project response
+    return { ...project, paymentTerms } as Project;
   }
 
   async findAll(tenantId: string, status?: string, user?: UserWithVisibility): Promise<any[]> {
@@ -153,23 +171,9 @@ export class InvoiceService {
     
     let invoices = await this.invoiceModel.find(query).sort({ createdAt: -1 }).lean();
     
-    if (user?.dataScope === 'ASSIGNED') {
-      const userId = user._id || user.id;
-      if (userId) {
-        const projectQuery: any = {
-          ...this.notDeletedMatch(),
-          assignedTo: new Types.ObjectId(userId)
-        };
-        if (query.tenantId) projectQuery.tenantId = query.tenantId;
-
-        const assignedProjects = await this.projectModel.find(projectQuery).select('_id').lean();
-        
-        const assignedProjectIds = new Set(assignedProjects.map(p => p._id.toString()));
-        invoices = invoices.filter(inv => 
-          inv.projectId && assignedProjectIds.has(inv.projectId.toString())
-        );
-      }
-    }
+    // Note: Finance module does NOT filter by dataScope
+    // Finance users need to see ALL invoices regardless of project assignment
+    // This is different from other modules that respect dataScope
     
     // Auto-update overdue status for invoices with passed due dates
     const today = new Date();
@@ -207,11 +211,30 @@ export class InvoiceService {
     
     return invoices.map(inv => {
       const project = inv.projectId ? projectMap.get(inv.projectId.toString()) : null;
-      return {
+      const result = {
         ...inv,
         email: inv.email || project?.email || null,
         customerName: inv.customerName || project?.customerName || null,
+        phone: inv.phone || project?.phone || project?.mobileNumber || null,
+        paymentTerms: inv.paymentTerms || null,
       };
+      
+      // Log first invoice for debugging
+      if (invoices.length > 0 && inv._id === invoices[0]._id) {
+        console.log('[Invoice FindAll] First invoice raw data:', JSON.stringify({
+          id: inv._id,
+          invoiceNumber: inv.invoiceNumber,
+          phone: inv.phone,
+          paymentTerms: inv.paymentTerms,
+          projectId: inv.projectId,
+        }, null, 2));
+        console.log('[Invoice FindAll] First invoice mapped result:', JSON.stringify({
+          phone: result.phone,
+          paymentTerms: result.paymentTerms,
+        }, null, 2));
+      }
+      
+      return result;
     });
   }
 
@@ -232,6 +255,14 @@ export class InvoiceService {
       throw new NotFoundException('Invoice not found');
     }
 
+    console.log('[Invoice FindById] Invoice found:', JSON.stringify({
+      id: invoice._id,
+      invoiceNumber: invoice.invoiceNumber,
+      phone: invoice.phone,
+      paymentTerms: invoice.paymentTerms,
+      email: invoice.email,
+    }, null, 2));
+
     return invoice;
   }
 
@@ -241,12 +272,12 @@ export class InvoiceService {
       this.validatePaymentTerm(dto.paymentTerms, dto.projectStatus);
     }
 
+    const tenantObjectId = await this.resolveTenantObjectId(tenantId);
+
     // Generate milestones based on payment terms
     const milestones = dto.paymentTerms
       ? this.generateMilestones(dto.paymentTerms, dto.amount, new Date(dto.invoiceDate))
       : [];
-
-    const tenantObjectId = await this.resolveTenantObjectId(tenantId);
 
     // Check if due date is in the past (before today)
     const today = new Date();
@@ -270,7 +301,15 @@ export class InvoiceService {
       milestones,
     });
 
+    console.log('[Invoice Create] DTO received:', JSON.stringify(dto, null, 2));
+    console.log('[Invoice Create] Phone field in DTO:', dto.phone);
+    console.log('[Invoice Create] Payment Terms in DTO:', dto.paymentTerms);
+
     const saved = await invoice.save();
+    
+    console.log('[Invoice Create] Saved invoice ID:', saved._id);
+    console.log('[Invoice Create] Saved phone:', saved.phone);
+    console.log('[Invoice Create] Saved payment terms:', saved.paymentTerms);
     
     // If invoice is overdue (past due date), send overdue reminder email
     if (isOverdue && dto.projectId) {
@@ -1377,3 +1416,5 @@ Solar EPC Team`;
     }
   }
 }
+
+

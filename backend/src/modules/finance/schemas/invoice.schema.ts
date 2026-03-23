@@ -73,6 +73,9 @@ export class Invoice {
   paymentTerms?: string;
 
   @Prop({ required: false })
+  phone?: string;
+
+  @Prop({ required: false })
   email?: string;
 
   @Prop({
@@ -103,7 +106,6 @@ export class Invoice {
 
 export const InvoiceSchema = SchemaFactory.createForClass(Invoice);
 
-InvoiceSchema.index({ tenantId: 1, invoiceNumber: 1 }, { unique: true });
 InvoiceSchema.index({ tenantId: 1, status: 1 });
 InvoiceSchema.index({ tenantId: 1, customerName: 1 });
 InvoiceSchema.index({ tenantId: 1, dueDate: 1 });

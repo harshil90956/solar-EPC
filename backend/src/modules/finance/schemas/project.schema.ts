@@ -21,6 +21,9 @@ export class Project {
   @Prop({ required: false })
   email?: string;
 
+  @Prop({ required: false })
+  phone?: string;
+
   @Prop({ required: false, index: true })
   status?: string;
 }
