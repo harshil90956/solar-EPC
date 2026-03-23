@@ -26,6 +26,7 @@ import ImportExport from '../components/ui/ImportExport';
 import CompactCalendarFilter from '../components/ui/CompactCalendarFilter';
 import { leadsApi } from '../services/leadsApi';
 import { employeeApi, departmentApi } from '../services/hrmApi';
+import { useAuth } from '../context/AuthContext';
 
 const fmt = CURRENCY.format;
 
@@ -171,6 +172,7 @@ const KanbanBoard = ({ projects, onStageChange, onCardClick }) => {
 
 /* ── Main Page ── */
 const ProjectPage = () => {
+  const { user: authUser } = useAuth();
   const perm = usePermissions('project');
   const canView = perm.canView();
   const canCreate = perm.canCreate();
@@ -250,6 +252,14 @@ const ProjectPage = () => {
   const [projectsByStage, setProjectsByStage] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [customersLoading, setCustomersLoading] = useState(false);
+
+  const DEFAULT_MILESTONES = [
+    { name: 'Material Ready', status: 'Pending', date: null },
+    { name: 'Installation', status: 'Pending', date: null },
+    { name: 'Commission', status: 'Pending', date: null },
+    { name: 'Billing', status: 'Pending', date: null },
+    { name: 'Closure', status: 'Pending', date: null },
+  ];
 
   // Month filter state
   const [monthFilter, setMonthFilter] = useState('all');
@@ -898,7 +908,8 @@ const ProjectPage = () => {
     ...(canDelete ? [{ label: 'Delete', icon: Trash2, onClick: row => handleDeleteProject(row.id), danger: true }] : []),
   ];
 
-  const STEPPER_STEPS = selected?.milestones?.map(m => ({ name: m.name, status: m.status, date: m.date })) ?? [];
+  const effectiveMilestones = (selected?.milestones?.length > 0 ? selected.milestones : DEFAULT_MILESTONES);
+  const STEPPER_STEPS = effectiveMilestones.map(m => ({ name: m.name, status: m.status, date: m.date }));
 
   // Debug logging
   console.log('[DEBUG Mark Stage] selected:', selected);
@@ -906,20 +917,44 @@ const ProjectPage = () => {
   console.log('[DEBUG Mark Stage] selected?.pm:', selected?.pm);
   console.log('[DEBUG Mark Stage] selected?.assignedTo:', selected?.assignedTo);
 
-  // Find first pending milestone index
   const firstPendingIndex = STEPPER_STEPS.findIndex(s => s.status === 'Pending' || s.status === 'In Progress');
   const canMarkComplete = firstPendingIndex !== -1;
+
+  const isAdminLike = (() => {
+    const r = String(authUser?.role || '').toLowerCase();
+    return authUser?.isSuperAdmin === true || r === 'admin' || r === 'superadmin' || r === 'super admin';
+  })();
+
+  const isAssignedToMe = (() => {
+    if (!authUser) return false;
+    if (isAdminLike) return true;
+    const myId = String(authUser?.id || authUser?._id || '');
+    const assignedToRaw = selected?.assignedTo?._id || selected?.assignedTo;
+    const assignedToStr = assignedToRaw ? String(assignedToRaw) : '';
+    if (myId && assignedToStr && myId === assignedToStr) return true;
+    const email = String(authUser?.email || '');
+    const emailPrefix = email.includes('@') ? email.split('@')[0] : '';
+    const firstName = String(authUser?.firstName || '');
+    const lastName = String(authUser?.lastName || '');
+    const fullName = `${firstName} ${lastName}`.trim().toLowerCase();
+    const pm = String(selected?.pm || '').toLowerCase();
+    if (emailPrefix && pm.includes(emailPrefix.toLowerCase())) return true;
+    if (firstName && pm.includes(firstName.toLowerCase())) return true;
+    if (fullName && pm.includes(fullName)) return true;
+    return false;
+  })();
 
   console.log('[DEBUG Mark Stage] firstPendingIndex:', firstPendingIndex, 'canMarkComplete:', canMarkComplete);
 
   const handleMarkStageComplete = async () => {
     if (!selected || !canMarkComplete) return;
+    if (!isAssignedToMe) return;
 
     const milestoneName = STEPPER_STEPS[firstPendingIndex].name;
 
     try {
       // Update the milestone status in backend
-      const updatedMilestones = selected.milestones.map((m, idx) =>
+      const updatedMilestones = effectiveMilestones.map((m, idx) =>
         idx === firstPendingIndex
           ? { ...m, status: 'Done', date: new Date().toISOString().split('T')[0] }
           : m
@@ -931,7 +966,7 @@ const ProjectPage = () => {
 
       // Determine new project status based on milestones
       let newStatus = selected.status;
-      if (milestoneName === 'Material Ready') newStatus = 'Procurement';
+      if (milestoneName === 'Material Ready') newStatus = 'Installation';
       else if (milestoneName === 'Installation') newStatus = 'Installation';
       else if (milestoneName === 'Commission') newStatus = 'Commissioned';
 
@@ -1968,7 +2003,7 @@ const ProjectPage = () => {
         <Modal open={!!selected} onClose={() => setSelected(null)} title={`Project — ${selected.id}`}
           footer={<div className="flex gap-2 justify-end">
             <Button variant="ghost" onClick={() => setSelected(null)}>Close</Button>
-            {canMarkComplete && (selected?.pm || selected?.assignedTo) && (
+            {canMarkComplete && isAssignedToMe && (
               <Button onClick={handleMarkStageComplete}>
                 <CheckCircle size={13} /> Mark Stage Complete
               </Button>
