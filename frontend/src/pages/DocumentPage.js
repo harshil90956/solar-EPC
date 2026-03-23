@@ -248,6 +248,9 @@ const DocumentPage = () => {
             status,
             createdAt: q.createdAt,
             validUntil: q.validUntil,
+            paymentTerms: q.paymentTerms || '',
+            visitInMonth: q.visitInMonth || '',
+            totalVisit: q.totalVisit || '',
             items: (q.materials || []).map(m => ({
               name: m.name,
               quantity: m.quantity,
@@ -275,6 +278,9 @@ const DocumentPage = () => {
             status,
             createdAt: d.createdAt,
             validUntil: d.validUntil,
+            paymentTerms: d.paymentTerms || '',
+            visitInMonth: d.visitInMonth || '',
+            totalVisit: d.totalVisit || '',
             items: (d.items || []).map(i => ({
               name: i.name,
               quantity: i.quantity,
@@ -450,7 +456,11 @@ const DocumentPage = () => {
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           totalPrice: item.total
-        })) || []
+        })) || [],
+        // Copy payment terms and visit details from quotation
+        paymentTerms: doc.paymentTerms || '',
+        visitsPerMonth: doc.visitInMonth || '',
+        totalVisits: doc.totalVisit || '',
       };
       
       console.log('Creating project with data:', projectData);
