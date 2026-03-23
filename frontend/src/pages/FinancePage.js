@@ -1102,6 +1102,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
       setCanCreateInvoice(true);
       setProjectStatus('');
       setSelectedProjectContractValue(null);
+      setNewInvoice((prev) => ({ ...prev, paymentTerms: '' }));
       return; 
     }
     // Reset state immediately to avoid showing stale terms/status from previous project
@@ -1110,8 +1111,18 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
     setAllowedPaymentTerms([]);
     setCanCreateInvoice(false);
     setNewInvoice((prev) => ({ ...prev, paymentTerms: '', email: '', phone: '' }));
-    // Try to get email from projects list immediately
+    // Try to get payment terms, email, phone from projects list immediately
     const selectedProjectFromList = projects.find(p => (p._id || p.id) === newInvoice.projectId);
+    console.log('[Project Select] Selected project from list:', selectedProjectFromList);
+    console.log('[Project Select] Payment terms from list:', selectedProjectFromList?.paymentTerms);
+    
+    // Set payment terms from projects list if available
+    if (selectedProjectFromList?.paymentTerms !== undefined && selectedProjectFromList?.paymentTerms !== null) {
+      const pt = String(selectedProjectFromList.paymentTerms);
+      setNewInvoice(prev => ({ ...prev, paymentTerms: pt }));
+      console.log('[Project Select] Payment terms set from list:', pt);
+    }
+    
     if (selectedProjectFromList?.email) {
       setNewInvoice(prev => ({ ...prev, email: selectedProjectFromList.email }));
       console.log('Email from projects list:', selectedProjectFromList.email);
@@ -1165,25 +1176,23 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
         } else {
           setSelectedProjectContractValue(null);
         }
-        // Get payment terms from project response (from quotation)
-        const projectPaymentTerms = projectRes?.paymentTerms;
+        // Get payment terms from project response (from quotation) - PRIORITY OVER LIST
+        const projectPaymentTerms = projectRes?.paymentTerms || projectRes?.data?.paymentTerms || projectRes?.project?.paymentTerms;
         console.log('Payment Terms from API:', projectRes);
         console.log('Project Payment Terms:', projectPaymentTerms);
         if (typeof projectPaymentTerms === 'number') {
           // Use the payment terms from quotation as a single value
           setAllowedPaymentTerms([projectPaymentTerms]);
           setCanCreateInvoice(true);
-          // Set payment terms in new invoice form
-          setNewInvoice(prev => ({ ...prev, paymentTerms: String(projectPaymentTerms) }));
+          // Set payment terms in new invoice form (API takes priority)
+          const ptString = String(projectPaymentTerms);
+          setNewInvoice(prev => ({ ...prev, paymentTerms: ptString }));
+          console.log('[API] Payment terms set from API:', ptString);
         } else {
-          // No payment terms available
+          // No payment terms available from API, keep from list if available
           setAllowedPaymentTerms([]);
           setCanCreateInvoice(false);
-          console.log('No payment terms found for this project');
-        }
-        // Clear payment term if not in allowed list
-        if (projectPaymentTerms !== undefined && newInvoice.paymentTerms !== String(projectPaymentTerms)) {
-          setNewInvoice(prev => ({ ...prev, paymentTerms: '' }));
+          console.log('No payment terms found from API, keeping from list if available');
         }
       } catch (err) {
         console.error('Failed to fetch project status:', err);
@@ -1197,7 +1206,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
     return () => {
       mounted = false;
     };
-  }, [newInvoice.projectId]);
+  }, [newInvoice.projectId, projects]);
   const handleStageChange = async (id, newStage, skipConfirm = false) => {
     const existing = (invoices || []).find(i => String(i._id || i.id) === String(id));
     const previousStatus = existing?.status;
@@ -1274,6 +1283,35 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
           paymentMethod: 'Bank Transfer',
         });
         setShowAdjustModal(true);
+      }
+      
+      // Draft -> Sent with payment terms: Open adjust modal for advance payment
+      if (newStage === 'Sent' && previousStatus === 'Draft' && existing && existing.paymentTerms) {
+        const paymentTermsStr = String(existing.paymentTerms);
+        const percentageMatch = paymentTermsStr.match(/(\d+)/);
+        
+        if (percentageMatch) {
+          const percentage = parseFloat(percentageMatch[1]);
+          const totalAmount = Number(existing.amount || 0);
+          const advanceAmount = totalAmount * (percentage / 100);
+          
+          // Only show modal if advance amount > 0
+          if (advanceAmount > 0) {
+            setAdjustForm({ 
+              type: 'credit',
+              category: 'Invoice Amount Received',
+              amount: String(advanceAmount),
+              lf: '',
+              reason: `Advance payment for invoice ${existing.invoiceNumber || ''}`,
+              reference: existing._id || existing.id,
+              date: new Date().toISOString().slice(0, 10),
+              selectedInvoiceId: existing._id || existing.id,
+              selectedVendorId: '',
+              paymentMethod: 'Bank Transfer',
+            });
+            setShowAdjustModal(true);
+          }
+        }
       }
       // Create journal entry when invoice becomes Paid (from Sent or Partial)
       if (newStage === 'Paid' && existing) {
@@ -2340,6 +2378,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
           manualAdjustments={calendarFilterYear === 'all' ? manualAdjustments : filteredManualAdjustmentsByYear}
           monthlyRevenue={monthlyRevenue}
           cashFlow={cashFlow}
+          totalCollected={totalCollected}
           manualBalance={manualBalance}
           cashPosition={cashPosition}
           transactionAnalytics={transactionAnalytics}
@@ -2768,8 +2807,9 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
             </FormField>
             <FormField label="Payment Terms">
               <Input
-                value={allowedPaymentTerms.length > 0 ? String(allowedPaymentTerms[0]) : '-'}
+                value={newInvoice.paymentTerms && newInvoice.paymentTerms !== '' ? newInvoice.paymentTerms : '-'}
                 disabled={true}
+                readOnly
                 placeholder="-"
               />
             </FormField>
@@ -2824,6 +2864,48 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
               </div>
             ))}
           </div>
+          
+          {/* Advance Payment Information */}
+          {selected.paymentTerms && (() => {
+            // Extract percentage from paymentTerms (e.g., "50" or "50%" or "Net 30")
+            const paymentTermsStr = String(selected.paymentTerms);
+            const percentageMatch = paymentTermsStr.match(/(\d+)/);
+            
+            if (percentageMatch) {
+              const percentage = parseFloat(percentageMatch[1]);
+              const totalAmount = Number(selected.amount || 0);
+              const paidAmount = Number(selected.paid || 0);
+              
+              // Calculate advance amount based on percentage
+              const advanceRequired = totalAmount * (percentage / 100);
+              const advanceReceived = Math.min(paidAmount, advanceRequired);
+              const advancePending = Math.max(0, advanceRequired - advanceReceived);
+              
+              return (
+                <div className="mt-4 pt-4 border-t border-[var(--border-base)]">
+                  <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3 flex items-center gap-2">
+                    <TrendingUp size={16} />
+                    Advance Information
+                  </h3>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="glass-card p-3 bg-blue-500/5 border-blue-500/20">
+                      <div className="text-[10px] text-blue-400 mb-1">Advance Required ({percentage}%)</div>
+                      <div className="text-base font-bold text-blue-400">{fmt(advanceRequired)}</div>
+                    </div>
+                    <div className="glass-card p-3 bg-emerald-500/5 border-emerald-500/20">
+                      <div className="text-[10px] text-emerald-400 mb-1">Advance Received</div>
+                      <div className="text-base font-bold text-emerald-400">{fmt(advanceReceived)}</div>
+                    </div>
+                    <div className="glass-card p-3 bg-amber-500/5 border-amber-500/20">
+                      <div className="text-[10px] text-amber-400 mb-1">Advance Pending</div>
+                      <div className="text-base font-bold text-amber-400">{fmt(advancePending)}</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })()}
         </Modal>
       )}
       {/* Edit Invoice Modal */}
