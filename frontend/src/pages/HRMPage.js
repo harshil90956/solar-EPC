@@ -21,7 +21,7 @@ import { api } from '../lib/apiClient';
 import { useQuery } from '@tanstack/react-query';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext'; // Fix component usage to match import name
-import HRMPermissionsPage from './HrmPermissionsPage';
+import HRMPermissionsPage from './HRMPermissionsPage';
 import AttendancePolicySettings from './AttendancePolicySettings';
 import { toast } from '../components/ui/Toast';
 import { CURRENCY } from '../config/app.config';

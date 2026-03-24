@@ -913,9 +913,14 @@ const CRMPage = ({ onNavigate }) => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const sortDropdownRef = useRef(null);
   const columnsDropdownRef = useRef(null);
-  // Date Range Filter State
-  const [dateRangeFilter, setDateRangeFilter] = useState({
+  // Date Range Filter State - SEPARATE FOR DASHBOARD AND LEADS
+  const [dashboardDateRangeFilter, setDashboardDateRangeFilter] = useState({
     type: 'last7days', // today, yesterday, last7days, last30days, thisMonth, lastMonth, custom
+    startDate: null,
+    endDate: null
+  });
+  const [leadsDateRangeFilter, setLeadsDateRangeFilter] = useState({
+    type: 'last7days',
     startDate: null,
     endDate: null
   });
@@ -1118,10 +1123,10 @@ const CRMPage = ({ onNavigate }) => {
         endDate.setHours(23, 59, 59, 999);
         break;
       case 'custom':
-        if (dateRangeFilter.startDate && dateRangeFilter.endDate) {
-          startDate = new Date(dateRangeFilter.startDate);
+        if (leadsDateRangeFilter.startDate && leadsDateRangeFilter.endDate) {
+          startDate = new Date(leadsDateRangeFilter.startDate);
           startDate.setHours(0, 0, 0, 0);
-          endDate = new Date(dateRangeFilter.endDate);
+          endDate = new Date(leadsDateRangeFilter.endDate);
           endDate.setHours(23, 59, 59, 999);
         }
         break;
@@ -1131,7 +1136,7 @@ const CRMPage = ({ onNavigate }) => {
     }
 
     return { startDate, endDate };
-  }, [dateRangeFilter.startDate, dateRangeFilter.endDate]);
+  }, [leadsDateRangeFilter.startDate, leadsDateRangeFilter.endDate]);
 
   // Fetch leads from API with filters
   const fetchLeads = useCallback(async () => {
@@ -1162,7 +1167,7 @@ const CRMPage = ({ onNavigate }) => {
       }
 
       // Add date range filter
-      const { startDate, endDate } = getDateRangeFromPreset(dateRangeFilter.type);
+      const { startDate, endDate } = getDateRangeFromPreset(leadsDateRangeFilter.type);
       if (startDate && endDate) {
         params.startDate = startDate.toISOString();
         params.endDate = endDate.toISOString();
@@ -1200,7 +1205,7 @@ const CRMPage = ({ onNavigate }) => {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, debouncedSearch, sort.key, sort.dir, quickFilter, dateRangeFilter.type, getDateRangeFromPreset, filterStages, filterSources, filterScoreRanges, filterValueRanges]);
+  }, [page, pageSize, debouncedSearch, sort.key, sort.dir, quickFilter, leadsDateRangeFilter.type, getDateRangeFromPreset, filterStages, filterSources, filterScoreRanges, filterValueRanges]);
 
   // Fetch customers
   const fetchCustomers = useCallback(async () => {
@@ -2342,19 +2347,19 @@ const CRMPage = ({ onNavigate }) => {
 
   // Get formatted date range for display
   const getDateRangeLabel = useCallback(() => {
-    const option = dateRangeOptions.find(opt => opt.id === dateRangeFilter.type);
+    const option = dateRangeOptions.find(opt => opt.id === leadsDateRangeFilter.type);
     if (option) {
-      if (dateRangeFilter.type === 'custom' && dateRangeFilter.startDate && dateRangeFilter.endDate) {
-        return `${format(new Date(dateRangeFilter.startDate), 'MMM dd')} - ${format(new Date(dateRangeFilter.endDate), 'MMM dd')}`;
+      if (leadsDateRangeFilter.type === 'custom' && leadsDateRangeFilter.startDate && leadsDateRangeFilter.endDate) {
+        return `${format(new Date(leadsDateRangeFilter.startDate), 'MMM dd')} - ${format(new Date(leadsDateRangeFilter.endDate), 'MMM dd')}`;
       }
       return option.label;
     }
     return 'Last 7 Days';
-  }, [dateRangeFilter, dateRangeOptions]);
+  }, [leadsDateRangeFilter, dateRangeOptions]);
 
-  // Reset date range filter
+  // Reset date range filter (for leads view)
   const resetDateRangeFilter = () => {
-    setDateRangeFilter({
+    setLeadsDateRangeFilter({
       type: 'last7days',
       startDate: null,
       endDate: null
@@ -2619,11 +2624,11 @@ const CRMPage = ({ onNavigate }) => {
               <span className="text-xs text-[var(--text-muted)]">Date Range:</span>
               <Input
                 type="date"
-                value={dateRangeFilter.type === 'custom' ? dateRangeFilter.startDate || '' : dateRange.start}
+                value={leadsDateRangeFilter.type === 'custom' ? leadsDateRangeFilter.startDate || '' : dateRange.start}
                 onChange={e => {
                   const newDate = e.target.value;
                   setDateRange(prev => ({ ...prev, start: newDate }));
-                  setDateRangeFilter(prev => ({
+                  setLeadsDateRangeFilter(prev => ({
                     type: 'custom',
                     startDate: newDate,
                     endDate: prev.endDate || dateRange.end
@@ -2634,11 +2639,11 @@ const CRMPage = ({ onNavigate }) => {
               <span className="text-xs text-[var(--text-muted)]">to</span>
               <Input
                 type="date"
-                value={dateRangeFilter.type === 'custom' ? dateRangeFilter.endDate || '' : dateRange.end}
+                value={leadsDateRangeFilter.type === 'custom' ? leadsDateRangeFilter.endDate || '' : dateRange.end}
                 onChange={e => {
                   const newDate = e.target.value;
                   setDateRange(prev => ({ ...prev, end: newDate }));
-                  setDateRangeFilter(prev => ({
+                  setLeadsDateRangeFilter(prev => ({
                     type: 'custom',
                     startDate: prev.startDate || dateRange.start,
                     endDate: newDate
@@ -2693,7 +2698,7 @@ const CRMPage = ({ onNavigate }) => {
                     start: format(subMonths(new Date(), 6), 'yyyy-MM-dd'),
                     end: format(new Date(), 'yyyy-MM-dd')
                   });
-                  setDateRangeFilter({
+                  setLeadsDateRangeFilter({
                     type: 'custom',
                     startDate: format(subMonths(new Date(), 6), 'yyyy-MM-dd'),
                     endDate: format(new Date(), 'yyyy-MM-dd')
@@ -2713,7 +2718,11 @@ const CRMPage = ({ onNavigate }) => {
       {view === 'dashboard' && crmFeatures.analytics && (
         <LeadAnalyticsDashboard
           onNavigate={(nextView) => setView(nextView)}
-          dateFilter={dateRangeFilter}
+          dateFilter={dashboardDateRangeFilter}
+          onFilterChange={(newFilter) => {
+            // Update dashboard filter only
+            setDashboardDateRangeFilter(newFilter);
+          }}
           onFilter={(filterType) => {
             if (!filterType) return;
             // Navigate to leads view
@@ -2728,14 +2737,14 @@ const CRMPage = ({ onNavigate }) => {
                 setFilterSources([]);
                 setFilterScoreRanges([]);
                 setFilterValueRanges([]);
-                setDateRangeFilter({ type: 'today', startDate: null, endDate: null });
+                setLeadsDateRangeFilter({ type: 'today', startDate: null, endDate: null });
                 break;
               case 'converted':
                 // Clear all other filters first, then set stage to converted
                 setFilterSources([]);
                 setFilterScoreRanges([]);
                 setFilterValueRanges([]);
-                setDateRangeFilter({ type: 'all', startDate: null, endDate: null });
+                setLeadsDateRangeFilter({ type: 'all', startDate: null, endDate: null });
                 setFilterStages(['won', 'customer', 'converted']);
                 break;
               case 'all':
@@ -2745,7 +2754,7 @@ const CRMPage = ({ onNavigate }) => {
                 setFilterSources([]);
                 setFilterScoreRanges([]);
                 setFilterValueRanges([]);
-                setDateRangeFilter({ type: 'all', startDate: null, endDate: null });
+                setLeadsDateRangeFilter({ type: 'all', startDate: null, endDate: null });
                 break;
             }
           }}
@@ -3225,7 +3234,7 @@ const CRMPage = ({ onNavigate }) => {
                   </Button>
                   
                   {/* Info Icon - inline with date picker */}
-                  {dateRangeFilter.type !== 'custom' && (
+                  {leadsDateRangeFilter.type !== 'custom' && (
                     <div className="relative" ref={dateRangeInfoRef}>
                       <button
                         type="button"
@@ -3255,7 +3264,7 @@ const CRMPage = ({ onNavigate }) => {
                         <button
                           key={option.id}
                           onClick={() => {
-                            setDateRangeFilter(prev => ({
+                            setLeadsDateRangeFilter(prev => ({
                               ...prev,
                               type: option.id,
                               ...(option.id !== 'custom' ? { startDate: null, endDate: null } : {})
@@ -3266,18 +3275,18 @@ const CRMPage = ({ onNavigate }) => {
                               setPage(1); // Reset pagination
                             }
                           }}
-                          className={`w-full text-left px-3 py-2 rounded text-xs flex items-center justify-between hover:bg-[var(--bg-hovered)] ${dateRangeFilter.type === option.id
+                          className={`w-full text-left px-3 py-2 rounded text-xs flex items-center justify-between hover:bg-[var(--bg-hovered)] ${leadsDateRangeFilter.type === option.id
                             ? 'text-[var(--primary)] font-bold bg-[var(--primary)]/10'
                             : 'text-[var(--text-secondary)]'
                             }`}
                         >
                           {option.label}
-                          {dateRangeFilter.type === option.id && <CheckCircle2 size={12} />}
+                          {leadsDateRangeFilter.type === option.id && <CheckCircle2 size={12} />}
                         </button>
                       ))}
 
                       {/* Custom Range Inputs */}
-                      {dateRangeFilter.type === 'custom' && (
+                      {leadsDateRangeFilter.type === 'custom' && (
                         <div className="mt-2 pt-2 border-t border-[var(--border-base)] px-2">
                           <p className="text-[10px] text-[var(--text-muted)] mb-2">Custom Range</p>
                           <div className="space-y-2">
@@ -3285,8 +3294,8 @@ const CRMPage = ({ onNavigate }) => {
                               <span className="text-[10px] text-[var(--text-muted)] w-10">From:</span>
                               <Input
                                 type="date"
-                                value={dateRangeFilter.startDate || ''}
-                                onChange={(e) => setDateRangeFilter(prev => ({ ...prev, startDate: e.target.value }))}
+                                value={leadsDateRangeFilter.startDate || ''}
+                                onChange={(e) => setLeadsDateRangeFilter(prev => ({ ...prev, startDate: e.target.value }))}
                                 className="h-7 text-xs flex-1"
                               />
                             </div>
@@ -3294,8 +3303,8 @@ const CRMPage = ({ onNavigate }) => {
                               <span className="text-[10px] text-[var(--text-muted)] w-10">To:</span>
                               <Input
                                 type="date"
-                                value={dateRangeFilter.endDate || ''}
-                                onChange={(e) => setDateRangeFilter(prev => ({ ...prev, endDate: e.target.value }))}
+                                value={leadsDateRangeFilter.endDate || ''}
+                                onChange={(e) => setLeadsDateRangeFilter(prev => ({ ...prev, endDate: e.target.value }))}
                                 className="h-7 text-xs flex-1"
                               />
                             </div>
@@ -3303,12 +3312,12 @@ const CRMPage = ({ onNavigate }) => {
                               size="sm"
                               className="w-full mt-1"
                               onClick={() => {
-                                if (dateRangeFilter.startDate && dateRangeFilter.endDate) {
+                                if (leadsDateRangeFilter.startDate && leadsDateRangeFilter.endDate) {
                                   setShowDateRangeDropdown(false);
                                   setPage(1);
                                 }
                               }}
-                              disabled={!dateRangeFilter.startDate || !dateRangeFilter.endDate}
+                              disabled={!leadsDateRangeFilter.startDate || !leadsDateRangeFilter.endDate}
                             >
                               Apply
                             </Button>
@@ -3321,7 +3330,7 @@ const CRMPage = ({ onNavigate }) => {
               </div>
 
               {/* Reset Filter Button */}
-              {dateRangeFilter.type !== 'last7days' && (
+              {leadsDateRangeFilter.type !== 'last7days' && (
                 <button
                   onClick={resetDateRangeFilter}
                   className="px-3 py-1.5 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] text-xs text-[var(--text-muted)] hover:bg-[var(--bg-hovered)] transition-colors flex items-center gap-1"
@@ -3355,11 +3364,11 @@ const CRMPage = ({ onNavigate }) => {
             </div>
           </div>
 
-          {dateRangeFilter.type === 'custom' && dateRangeFilter.startDate && dateRangeFilter.endDate && (
+          {leadsDateRangeFilter.type === 'custom' && leadsDateRangeFilter.startDate && leadsDateRangeFilter.endDate && (
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-600">
               <CheckCircle2 size={14} />
               <span>
-                Showing leads from <strong>{format(new Date(dateRangeFilter.startDate), 'MMM dd')} - {format(new Date(dateRangeFilter.endDate), 'MMM dd')}</strong>
+                Showing leads from <strong>{format(new Date(leadsDateRangeFilter.startDate), 'MMM dd')} - {format(new Date(leadsDateRangeFilter.endDate), 'MMM dd')}</strong>
               </span>
             </div>
           )}
