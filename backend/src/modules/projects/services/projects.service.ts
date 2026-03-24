@@ -602,11 +602,13 @@ export class ProjectsService {
   async getStats(tenantCode: string, user?: UserWithVisibility) {
     const tenantId = await this.resolveTenantObjectId(tenantCode);
     
+    const allowedStatuses = ['Logistics', 'Installation', 'Commissioned', 'On Hold', 'Cancelled'];
+    
     // Build match conditions for aggregation
     const matchConditions: any = {
       tenantId,
       isDeleted: false,
-      status: { $ne: 'Cancelled' }, // Exclude cancelled projects from stats
+      status: { $in: allowedStatuses }, // Only include the 5 allowed statuses
     };
     
     // Apply visibility filter based on user's dataScope
@@ -653,12 +655,14 @@ export class ProjectsService {
 
   async getProjectsByStage(tenantCode: string) {
     const tenantId = await this.resolveTenantObjectId(tenantCode);
+    const allowedStatuses = ['Logistics', 'Installation', 'Commissioned', 'On Hold', 'Cancelled'];
+    
     return this.projectModel.aggregate([
       {
         $match: {
           tenantId,
           isDeleted: false,
-          // Include ALL statuses including Cancelled for the graph
+          status: { $in: allowedStatuses }, // Only include the 5 allowed statuses
         },
       },
       {
