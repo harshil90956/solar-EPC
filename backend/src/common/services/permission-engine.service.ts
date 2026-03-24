@@ -322,7 +322,12 @@ export class PermissionEngineService {
     }
 
     if (customRoleDoc) {
-      const nested = this.normalizeNestedPermissions((customRoleDoc as any).permissions);
+      const rawPermissions = (customRoleDoc as any).permissions;
+      this.logger.log(`[CUSTOM_ROLE_DEBUG] roleId=${effectiveRoleId} rawPermissions type=${typeof rawPermissions} isMap=${rawPermissions instanceof Map} keys=${rawPermissions ? Object.keys(rawPermissions) : 'null'}`);
+      
+      const nested = this.normalizeNestedPermissions(rawPermissions);
+      this.logger.log(`[CUSTOM_ROLE_DEBUG] normalized permissions keys=${Object.keys(nested)} project=${JSON.stringify(nested.projects)}`);
+      
       for (const [moduleId, actions] of Object.entries(nested)) {
         for (const [actionId, val] of Object.entries(actions)) {
           this.setPermission(permissions, moduleId, actionId, val === true);
@@ -394,23 +399,21 @@ export class PermissionEngineService {
     this.setPermission(permissions, 'hrm', 'view', anyHrmVisible);
 
     // Keep Projects module IDs in sync (some pages use 'project' while RBAC preset uses 'projects')
-    const projectAliasPairs: Array<[string, string]> = [
-      ['projects', 'project'],
-    ];
+    // Bidirectional sync: whichever exists, copy to the other
+    this.ensureModuleShape(permissions, 'projects');
+    this.ensureModuleShape(permissions, 'project');
 
-    for (const [canonicalModuleId, aliasModuleId] of projectAliasPairs) {
-      this.ensureModuleShape(permissions, canonicalModuleId);
-      this.ensureModuleShape(permissions, aliasModuleId);
-
-      for (const actionId of this.getAllowedActions(aliasModuleId)) {
-        const v = permissions?.[canonicalModuleId]?.[actionId] === true;
-        this.setPermission(permissions, aliasModuleId, actionId, v);
-      }
-
-      if (dataScope[canonicalModuleId]) {
-        dataScope[aliasModuleId] = dataScope[canonicalModuleId];
-      }
+    for (const actionId of this.getAllowedActions('projects')) {
+      // projects -> project
+      const v1 = permissions?.projects?.[actionId] === true;
+      if (v1) this.setPermission(permissions, 'project', actionId, true);
+      // project -> projects  
+      const v2 = permissions?.project?.[actionId] === true;
+      if (v2) this.setPermission(permissions, 'projects', actionId, true);
     }
+
+    if (dataScope.projects) dataScope.project = dataScope.projects;
+    if (dataScope.project) dataScope.projects = dataScope.project;
 
     try {
       const permKey = this.permissionKey(tenantId, userId);
