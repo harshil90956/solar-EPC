@@ -17,7 +17,7 @@ import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfDay, e
 import { cn } from '../lib/utils';
 
 import { PageHeader } from '../components/ui/PageHeader';
-import { KPICard } from '../components/ui/KPICard';
+import KpiCards from '../components/hrm/KpiCards';
 import DataTable from '../components/ui/DataTable';
 import { Button } from '../components/ui/Button';
 import { Input, FormField, Select, Textarea } from '../components/ui/Input';
@@ -28,6 +28,7 @@ import { attendanceApi, employeeApi } from '../services/hrmApi';
 import { useAuth } from '../context/AuthContext';
 import { useDataScope } from '../hooks/useDataScope';
 import { usePermissions } from '../hooks/usePermissions';
+import { api } from '../lib/apiClient';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
@@ -225,6 +226,28 @@ const AttendancePageV3 = () => {
   // ==================== VIEW STATE ====================
   const [viewAttendance, setViewAttendance] = useState(null);
 
+  // ==================== DASHBOARD METRICS ====================
+  const [dashboardMetrics, setDashboardMetrics] = useState(null);
+  const isAdmin = user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'superadmin' || user?.isSuperAdmin === true;
+
+  const fetchDashboardMetrics = async () => {
+    try {
+      const response = await api.get('/hrm/dashboard-metrics');
+      console.log('[DEBUG] Dashboard metrics API response:', response.data);
+      const metrics = response.data?.data || response.data;
+      console.log('[DEBUG] Extracted metrics:', metrics);
+      setDashboardMetrics(metrics || null);
+    } catch (error) {
+      console.error('Failed to fetch dashboard metrics:', error);
+      setDashboardMetrics({
+        attendance: { percentage: 0, presentToday: 0, totalToday: 0 },
+        leaves: { pending: 0 },
+        payroll: { totalPayroll: 0, unpaidCount: 0 },
+        employees: { atRiskCount: 0 }
+      });
+    }
+  };
+
   // ==================== GEOLOCATION (MANDATORY) ====================
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoEnabled, setGeoEnabled] = useState(false);
@@ -299,6 +322,7 @@ const AttendancePageV3 = () => {
     fetchEmployees();
     fetchTodaySummary();
     fetchAttendance();
+    fetchDashboardMetrics();
   }, []);
 
   useEffect(() => {
@@ -852,17 +876,11 @@ const AttendancePageV3 = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
-        {kpiData.map((kpi) => (
-          <KPICard
-            key={kpi.label}
-            label={kpi.label}
-            value={kpi.value}
-            icon={kpi.icon}
-            variant={kpi.variant}
-          />
-        ))}
-      </div>
+      {/* KPI Cards - Dynamic Role-Based */}
+      <KpiCards 
+        role={isAdmin ? 'admin' : 'employee'} 
+        metrics={dashboardMetrics} 
+      />
 
       <div className="p-3 rounded-xl border border-[var(--border-base)] bg-[var(--bg-surface)] space-y-3">
         <div className="grid grid-cols-1 lg:grid-cols-6 gap-2">

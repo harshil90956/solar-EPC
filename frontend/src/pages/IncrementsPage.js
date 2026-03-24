@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PageHeader } from '../components/ui/PageHeader';
-import { KPICard } from '../components/ui/KPICard';
+import KpiCards from '../components/hrm/KpiCards';
 import DataTable from '../components/ui/DataTable';
 import { Button } from '../components/ui/Button';
 import { Input, FormField, Select } from '../components/ui/Input';
@@ -10,6 +10,8 @@ import { Search, RefreshCw, Plus, TrendingUp, X, ArrowUp, Calendar, User } from 
 import { format } from 'date-fns';
 import { incrementApi, employeeApi } from '../services/hrmApi';
 import { usePermissions } from '../hooks/usePermissions';
+import { useAuth } from '../context/AuthContext';
+import { api } from '../lib/apiClient';
 
 // ── Increment Detail View Modal ───────────────────────────────────────────
 const IncrementViewModal = ({ increment, onClose }) => {
@@ -98,6 +100,32 @@ const IncrementsPage = () => {
     reason: '',
   });
 
+  // Dashboard metrics for new KpiCards component
+  const [dashboardMetrics, setDashboardMetrics] = useState(null);
+  const { user } = useAuth();
+  const isAdmin = user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'superadmin' || user?.isSuperAdmin === true;
+
+  const fetchDashboardMetrics = async () => {
+    try {
+      console.log('[DEBUG] Fetching dashboard metrics...');
+      const response = await api.get('/hrm/dashboard-metrics');
+      console.log('[DEBUG] Dashboard metrics response:', response);
+      const metrics = response.data?.data || response.data;
+      console.log('[DEBUG] Extracted metrics:', metrics);
+      setDashboardMetrics(metrics || null);
+    } catch (error) {
+      console.error('[DEBUG] Failed to fetch dashboard metrics:', error);
+      console.error('[DEBUG] Error response:', error.response?.data);
+      console.error('[DEBUG] Error status:', error.response?.status);
+      setDashboardMetrics({
+        attendance: { percentage: 0, presentToday: 0, totalToday: 0 },
+        leaves: { pending: 0 },
+        payroll: { totalPayroll: 0, unpaidCount: 0 },
+        employees: { atRiskCount: 0 }
+      });
+    }
+  };
+
   // Functions defined before useEffect
   const fetchEmployees = async () => {
     try {
@@ -132,6 +160,7 @@ const IncrementsPage = () => {
     setMounted(true);
     fetchIncrements();
     fetchEmployees();
+    fetchDashboardMetrics();
   }, []);
 
   if (!mounted) return null;
@@ -358,18 +387,11 @@ const IncrementsPage = () => {
         ] : []}
       />
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {kpis.map((kpi, index) => (
-          <KPICard
-            key={index}
-            label={kpi.label}
-            value={kpi.value}
-            icon={kpi.icon}
-            variant={kpi.variant}
-          />
-        ))}
-      </div>
+      {/* KPI Cards - Dynamic Role-Based */}
+      <KpiCards 
+        role={isAdmin ? 'admin' : 'employee'} 
+        metrics={dashboardMetrics} 
+      />
 
       {/* Filters */}
       <div className="flex items-center gap-3 flex-wrap">
