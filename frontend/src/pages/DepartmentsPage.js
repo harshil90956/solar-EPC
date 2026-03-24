@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PageHeader } from '../components/ui/PageHeader';
-import { KPICard } from '../components/ui/KPICard';
+import KpiCards from '../components/hrm/KpiCards';
 import DataTable from '../components/ui/DataTable';
 import { Button } from '../components/ui/Button';
 import { Input, FormField, Select } from '../components/ui/Input';
@@ -10,6 +10,8 @@ import { Search, RefreshCw, Plus, Building, X, Users, User, Calendar, Shield } f
 import { format } from 'date-fns';
 import { departmentApi, employeeApi } from '../services/hrmApi';
 import { usePermissions } from '../hooks/usePermissions';
+import { useAuth } from '../context/AuthContext';
+import { api } from '../lib/apiClient';
 
 // ── Department Detail View Modal ──────────────────────────────────────────
 const DepartmentViewModal = ({ department, employees, onClose, onEdit }) => {
@@ -114,6 +116,29 @@ const DepartmentsPage = () => {
     description: '',
   });
 
+  // Dashboard metrics for new KpiCards component
+  const [dashboardMetrics, setDashboardMetrics] = useState(null);
+  const { user } = useAuth();
+  const isAdmin = user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'superadmin' || user?.isSuperAdmin === true;
+
+  const fetchDashboardMetrics = async () => {
+    try {
+      const response = await api.get('/hrm/dashboard-metrics');
+      console.log('[DEBUG] Dashboard metrics API response:', response.data);
+      const metrics = response.data?.data || response.data;
+      console.log('[DEBUG] Extracted metrics:', metrics);
+      setDashboardMetrics(metrics || null);
+    } catch (error) {
+      console.error('Failed to fetch dashboard metrics:', error);
+      setDashboardMetrics({
+        attendance: { percentage: 0, presentToday: 0, totalToday: 0 },
+        leaves: { pending: 0 },
+        payroll: { totalPayroll: 0, unpaidCount: 0 },
+        employees: { atRiskCount: 0 }
+      });
+    }
+  };
+
   // Get permissions for departments module
   const { 
     canView, 
@@ -160,6 +185,7 @@ const DepartmentsPage = () => {
     if (canView()) {
       fetchDepartments();
       fetchEmployees();
+      fetchDashboardMetrics();
     }
   }, []);
 
@@ -408,19 +434,11 @@ const DepartmentsPage = () => {
         ] : []}
       />
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {kpis.map((kpi, index) => (
-          <KPICard
-            key={index}
-            label={kpi.label}
-            value={kpi.value}
-            icon={kpi.icon}
-            variant={kpi.variant}
-            onClick={kpi.onClick}
-          />
-        ))}
-      </div>
+      {/* KPI Cards - Dynamic Role-Based */}
+      <KpiCards 
+        role={isAdmin ? 'admin' : 'employee'} 
+        metrics={dashboardMetrics} 
+      />
 
       {/* Filters */}
       <div className="flex items-center gap-3 flex-wrap">

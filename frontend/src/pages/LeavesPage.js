@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { PageHeader } from '../components/ui/PageHeader';
-import { KPICard } from '../components/ui/KPICard';
+import KpiCards from '../components/hrm/KpiCards';
 import DataTable from '../components/ui/DataTable';
 import { Button } from '../components/ui/Button';
 import { Input, FormField, Select } from '../components/ui/Input';
@@ -11,6 +11,7 @@ import { Calendar, Plus, Search, RefreshCw, Check, X, Trash2, Edit, Clock, Check
 import { format } from 'date-fns';
 import { leaveApi, employeeApi } from '../services/hrmApi';
 import { usePermissions } from '../hooks/usePermissions';
+import { api } from '../lib/apiClient';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -170,6 +171,29 @@ const LeavesPage = () => {
   const [viewLeave, setViewLeave] = useState(null);
   // KPI filter state - shows filtered data in table instead of modal
   const [kpiFilter, setKpiFilter] = useState(null); // 'pending' | 'approved' | 'rejected' | null
+
+  // Dashboard metrics for new KpiCards component
+  const [dashboardMetrics, setDashboardMetrics] = useState(null);
+  const isAdmin = user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'superadmin' || user?.isSuperAdmin === true;
+
+  const fetchDashboardMetrics = async () => {
+    try {
+      const response = await api.get('/hrm/dashboard-metrics');
+      console.log('[DEBUG] Dashboard metrics API response:', response.data);
+      const metrics = response.data?.data || response.data;
+      console.log('[DEBUG] Extracted metrics:', metrics);
+      setDashboardMetrics(metrics || null);
+    } catch (error) {
+      console.error('Failed to fetch dashboard metrics:', error);
+      setDashboardMetrics({
+        attendance: { percentage: 0, presentToday: 0, totalToday: 0 },
+        leaves: { pending: 0 },
+        payroll: { totalPayroll: 0, unpaidCount: 0 },
+        employees: { atRiskCount: 0 }
+      });
+    }
+  };
+
   const [leaveForm, setLeaveForm] = useState({
     employeeId: '',
     leaveType: 'paid',
@@ -212,6 +236,7 @@ const LeavesPage = () => {
     setMounted(true);
     fetchLeaves();
     fetchEmployees();
+    fetchDashboardMetrics();
   }, []);
 
   if (!mounted) return null;
@@ -511,38 +536,11 @@ const LeavesPage = () => {
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {[
-          { label: 'Pending Leaves',  value: leaves.filter(l => l.status === 'pending').length,  icon: Calendar, color: '#f59e0b', filter: 'pending'  },
-          { label: 'Approved Leaves', value: leaves.filter(l => l.status === 'approved').length, icon: Calendar, color: '#22c55e', filter: 'approved' },
-          { label: 'Rejected Leaves', value: leaves.filter(l => l.status === 'rejected').length, icon: Calendar, color: '#ef4444', filter: 'rejected' },
-          { label: 'Total Leaves',    value: leaves.length,                                       icon: Calendar, color: '#3b82f6', filter: 'all'      },
-        ].map((kpi, index) => (
-          <KPICard
-            key={index}
-            label={kpi.label}
-            value={kpi.value}
-            icon={kpi.icon}
-            accentColor={kpi.color}
-            onClick={() => { 
-              setKpiFilter(kpi.filter === 'all' ? null : kpi.filter); 
-              setLeaveStatusFilter('all'); 
-              // Auto-expand first leave
-              setTimeout(() => {
-                const filtered = kpi.filter === 'all' || !kpi.filter 
-                  ? leaves 
-                  : leaves.filter(l => l.status === kpi.filter);
-                if (filtered.length > 0) {
-                  setViewLeave(filtered[0]);
-                } else {
-                  setViewLeave(null);
-                }
-              }, 100);
-            }}
-          />
-        ))}
-      </div>
+      {/* KPI Cards - Dynamic Role-Based */}
+      <KpiCards 
+        role={isAdmin ? 'admin' : 'employee'} 
+        metrics={dashboardMetrics} 
+      />
 
       {/* Calendar Modal with FullCalendar */}
       {showCalendarModal && (

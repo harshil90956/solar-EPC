@@ -62,7 +62,17 @@ const AttendancePolicySettings = () => {
     console.log('[DEBUG] handleSave called');
     setSaving(true);
     try {
-      const response = await api.post('/hrm/attendance/policy', policy);
+      const {
+        _id,
+        id,
+        tenantId,
+        createdAt,
+        updatedAt,
+        __v,
+        ...policyPayload
+      } = policy || {};
+
+      const response = await api.post('/hrm/attendance/policy', policyPayload);
       // apiClient returns response.data directly (not the Axios response)
       // Most endpoints use { success: boolean, data?: any, message?: string }
       const isExplicitFailure = response?.success === false;
@@ -120,7 +130,7 @@ const AttendancePolicySettings = () => {
           className="flex items-center gap-2"
         >
           <Save className="w-4 h-4" />
-          {saving ? 'Saving...' : 'Save Policy'}
+          {saving ? 'Saving...' : hasExistingPolicy ? 'Update Policy' : 'Create Policy'}
         </Button>
       </div>
 
