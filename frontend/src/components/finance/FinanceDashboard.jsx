@@ -1893,19 +1893,6 @@ const FinanceDashboard = ({
 
   return (
     <div className="space-y-6 pb-6">
-      {/* Header */}
-      <div className="flex items-center justify-between animate-fade-in">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--text-primary)] flex items-center gap-2">
-            <PieChart size={28} className="text-[var(--accent)]" />
-            Finance Dashboard
-          </h1>
-          <p className="text-sm text-[var(--text-muted)] mt-1">
-            Complete overview of your financial operations
-          </p>
-        </div>
-      </div>
-
       {/* Section 1: Financial Overview */}
       <section className="animate-fade-in">
         <h2 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-3">
