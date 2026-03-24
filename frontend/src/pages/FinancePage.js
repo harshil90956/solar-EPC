@@ -6,6 +6,7 @@ import {
   CheckCircle, Clock, Zap, FileText, Plus, IndianRupee,
   LayoutGrid, List, Calendar, AlertCircle, RefreshCw,
   Edit, Download, Trash2, Loader2, X, BarChart3, Eye, EyeOff,
+  PieChart, ChevronDown, ChevronRight
 } from 'lucide-react';
 import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { financeApi, getPaidAmount, getBalance } from '../lib/financeApi';
@@ -128,6 +129,112 @@ const InvKanbanBoard = ({ invoices, onStageChange, onCardClick }) => {
     </div>
   );
 };
+
+/* ── Purchase Order Details Component ───────────────────────────────────────── */
+const PurchaseOrderDetails = ({ vendorId, allPurchaseOrders }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  const vendorPOs = useMemo(() => {
+    return allPurchaseOrders.filter(po => {
+      const poVendorId = (po?.vendorId && typeof po.vendorId === 'object') ? po.vendorId?._id : po?.vendorId;
+      return String(poVendorId) === String(vendorId);
+    });
+  }, [vendorId, allPurchaseOrders]);
+  
+  if (vendorPOs.length === 0) return null;
+  
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '-';
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return '-';
+    return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+  
+  return (
+    <div className="col-span-7 mt-1 mb-2">
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="flex items-center gap-2 text-xs text-[var(--accent)] hover:text-[var(--primary)] transition-colors font-medium ml-[1.35rem]"
+      >
+        {isExpanded ? (
+          <>
+            <ChevronDown size={14} />
+            <span>Purchase Orders ({vendorPOs.length})</span>
+          </>
+        ) : (
+          <>
+            <ChevronRight size={14} />
+            <span>Purchase Orders ({vendorPOs.length})</span>
+          </>
+        )}
+      </button>
+      
+      {isExpanded && (
+        <div className="mt-2 space-y-1">
+          {/* Header Row - Column Labels */}
+          <div className="grid grid-cols-7 gap-2 text-[9px] font-semibold text-[var(--text-muted)] uppercase tracking-wide px-3 py-1.5 border-b border-[var(--border-base)]">
+            <div className="pl-2">PO Number</div>
+            <div className="">Amount</div>
+            <div className="text-right pr-2">Ordered</div>
+            <div className="text-right pr-2">Expected</div>
+            <div className="text-right pr-2">Delivered</div>
+            <div className="text-right pr-2">Paid</div>
+            <div className="text-right pr-2">Outstanding</div>
+          </div>
+          
+          {/* PO Rows - Perfect alignment with vendor columns */}
+          {vendorPOs.map((po, idx) => {
+            // Calculate paid amount for this PO from payment history
+            const poPaidAmount = po.paidAmount || 0;
+            const poOutstanding = (po.totalAmount || 0) - poPaidAmount;
+            const isFullyPaid = poOutstanding <= 0 && poPaidAmount > 0;
+            
+            return (
+              <div
+                key={po._id || po.id || idx}
+                className={`grid grid-cols-7 gap-2 text-[10px] px-3 py-1.5 rounded transition-colors ${
+                  isFullyPaid 
+                    ? 'bg-emerald-500/10 border border-emerald-500/30' 
+                    : idx % 2 === 0 
+                      ? 'bg-[var(--bg-surface)]' 
+                      : 'bg-[var(--bg-elevated)]'
+                } hover:bg-[var(--bg-hover)]`}
+              >
+                {/* Column 1: PO Number - aligns under Vendor Name */}
+                <div className="flex items-center pl-2">
+                  <div className="font-mono text-xs text-[var(--accent-light)] truncate">{po.id || 'N/A'}</div>
+                  {isFullyPaid && (
+                    <span className="inline-flex items-center gap-1 px-1 py-0.5 rounded text-[9px] font-medium bg-emerald-500/20 text-emerald-400 ml-1">
+                      <CheckCircle size={8} /> Paid
+                    </span>
+                  )}
+                </div>
+                
+                {/* Column 2: Amount - aligns under Vendor ID (starts at same position as Vendor ID) */}
+                <div className="text-xs font-medium text-[var(--text-primary)]">{fmt(po.totalAmount || 0)}</div>
+                
+                {/* Column 3: Ordered Date - aligns under Total POs */}
+                <div className="text-right text-xs text-[var(--text-muted)] pr-2">{formatDate(po.orderedDate)}</div>
+                
+                {/* Column 4: Expected Date - aligns under Total Payable */}
+                <div className="text-right text-xs font-medium text-[var(--accent)] pr-2">{formatDate(po.expectedDate)}</div>
+                
+                {/* Column 5: Delivered Date - aligns under Paid */}
+                <div className="text-right text-xs text-emerald-500 pr-2">{formatDate(po.deliveredDate)}</div>
+                
+                {/* Column 6: Paid Amount - aligns under Outstanding */}
+                <div className="text-right text-xs text-emerald-400 font-medium pr-2">{fmt(poPaidAmount)}</div>
+                
+                {/* Column 7: Outstanding Amount - aligns under Last Payment */}
+                <div className="text-right text-xs font-bold text-amber-400 pr-2">{fmt(poOutstanding)}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
 /* ── Table columns ──────────────────────────────────────────────────────────── */
 const INVOICE_COLUMNS = [
   { key: 'invoiceNumber', header: 'Invoice #', render: v => <span className="text-xs font-mono text-[var(--accent-light)]">{v}</span> },
@@ -222,6 +329,7 @@ const FinancePage = ({ onNavigate }) => {
   const [cashFlow, setCashFlow] = useState([]);
   const [adjustmentTrend, setAdjustmentTrend] = useState([]);
   const [payables, setPayables] = useState([]);
+  const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [transactionAnalytics, setTransactionAnalytics] = useState(null);
   const [projects, setProjects] = useState([]);
   const [allowedPaymentTerms, setAllowedPaymentTerms] = useState([]);
@@ -299,7 +407,7 @@ const FinancePage = ({ onNavigate }) => {
   const [recordPaymentErrors, setRecordPaymentErrors] = useState({});
   const [submittingPayment, setSubmittingPayment] = useState(false);
   const [showAdjustModal, setShowAdjustModal] = useState(false);
-  const [adjustForm, setAdjustForm] = useState({ amount: '', reason: '', description: '', type: '' });
+  const [adjustForm, setAdjustForm] = useState({ amount: '', reason: '', description: '', type: '', selectedPurchaseOrderId: '' });
   const [adjustErrors, setAdjustErrors] = useState({});
   const [adjustError, setAdjustError] = useState(null);
   const [submittingAdjust, setSubmittingAdjust] = useState(false);
@@ -428,6 +536,27 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
       return true;
     }); 
   }, [payables, calendarFilterYear, calendarFilterMonth, calendarFilterDay]);
+  
+  // Filter purchase orders by calendar for payables display
+  const filteredPurchaseOrdersByCalendar = useMemo(() => {
+    if (calendarFilterYear === 'all') return purchaseOrders;
+    return purchaseOrders.filter(po => {
+      // Filter based ONLY on expectedDate
+      if (!po.expectedDate) return false;
+      
+      const expectedDate = new Date(po.expectedDate);
+      
+      // Handle invalid dates
+      if (isNaN(expectedDate.getTime())) return false;
+      
+      // Check if expectedDate matches the selected calendar date
+      if (expectedDate.getFullYear().toString() !== calendarFilterYear) return false;
+      if (calendarFilterMonth !== undefined && expectedDate.getMonth() !== calendarFilterMonth) return false;
+      if (calendarFilterDay !== undefined && expectedDate.getDate() !== calendarFilterDay) return false;
+      
+      return true;
+    });
+  }, [purchaseOrders, calendarFilterYear, calendarFilterMonth, calendarFilterDay]);
   const filteredPaymentsByYear = useMemo(() => {
     if (calendarFilterYear === 'all') return payments;
     return payments.filter(p => {
@@ -501,7 +630,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
         financeApi.getExpenses(undefined, 'Vendor Payment'),
         financeApi.getDashboardStats(),
         api.get('/procurement/vendors'),
-        api.get('/procurement/purchase-orders'),
+        api.get('/finance/vendors/purchase-orders'),
         financeApi.getManualAdjustments(),
         financeApi.getManualAdjustmentBalance(),
         financeApi.getAdjustmentCategories(),
@@ -532,9 +661,10 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
       const vendors = Array.isArray(vendorsRes)
         ? vendorsRes
         : (vendorsRes?.data || []);
-      const purchaseOrders = Array.isArray(posRes)
+      const purchaseOrdersData = Array.isArray(posRes)
         ? posRes
         : (posRes?.data || []);
+      setPurchaseOrders(purchaseOrdersData);
       const safeDate = (d) => {
         if (!d) return null;
         if (d instanceof Date) {
@@ -654,28 +784,34 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
       try {
         const financeVendorsRes = await financeApi.getFinanceVendors();
         const financeVendors = Array.isArray(financeVendorsRes) ? financeVendorsRes : [];
+        console.log('[Finance] Finance Vendors from API:', financeVendors.map(fv => ({
+          vendorId: fv.vendorId,
+          vendorName: fv.vendorName,
+          totalPaid: fv.totalPaid,
+          totalPayable: fv.totalPayable
+        })));
         const vendors = Array.isArray(vendorsRes)
           ? vendorsRes
           : (vendorsRes?.data || []);
-        const purchaseOrders = Array.isArray(posRes)
+        const purchaseOrdersData2 = Array.isArray(posRes)
           ? posRes
           : (posRes?.data || []);
         // Build vendor rows from procurement vendors (source of truth) with calculated PO counts
         const vendorMap = new Map();
         console.log('[Finance] Total vendors:', vendors.length);
-        console.log('[Finance] Total purchase orders:', purchaseOrders.length);
+        console.log('[Finance] Total purchase orders:', purchaseOrdersData2.length);
         // First, add all procurement vendors who have POs
         for (const v of vendors) {
           const vendorId = v?._id || v?.id;
           if (!vendorId) continue;
-          const vendorPOs = purchaseOrders.filter(po => {
+          const vendorPOs = purchaseOrdersData2.filter(po => {
             const poVendorId = (po?.vendorId && typeof po.vendorId === 'object') ? po.vendorId?._id : po?.vendorId;
             return String(poVendorId) === String(vendorId);
           });
           console.log(`[Finance] Vendor ${v?.name} (${vendorId}): ${vendorPOs.length} POs`);
           if (vendorPOs.length > 0) {
             const totalPayable = vendorPOs.reduce((sum, po) => sum + Number(po?.totalAmount || 0), 0);
-            const totalPaid = vendorPOs.reduce((sum, po) => sum + Number(po?.amountPaid || 0), 0);
+            const totalPaid = vendorPOs.reduce((sum, po) => sum + Number(po?.paidAmount || 0), 0);
             vendorMap.set(String(vendorId), {
               vendorName: v?.name || v?.vendorName || 'Unknown',
               vendorId: v?.id || `V-${String(vendorId).slice(-4)}`,
@@ -701,8 +837,8 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
             // Keep calculated values but merge additional finance data
             existing.lastPurchaseOrderDate = fv?.lastPaymentDate ? new Date(fv.lastPaymentDate).toLocaleDateString('en-IN') : '';
             existing.status = fv?.status || 'Active';
-            // Add finance-paid amounts if any
-            existing.amountPaid += fv?.totalPaid || 0;
+            // NOTE: Don't add fv.totalPaid here - it's already included in PO paidAmount calculations above
+            // existing.amountPaid += fv?.totalPaid || 0;  // REMOVED - causes double counting!
             existing.outstandingAmount = existing.totalPayableAmount - existing.amountPaid;
           }
         }
@@ -713,12 +849,12 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
           if (!vendorId) continue;
           const exists = financeVendors.find(fv => String(fv.vendorId) === String(vendorId));
           // Always sync vendor data (new and existing)
-            const vendorPOs = purchaseOrders.filter(po => {
+            const vendorPOs = purchaseOrdersData2.filter(po => {
               const poVendorId = (po?.vendorId && typeof po.vendorId === 'object') ? po.vendorId?._id : po?.vendorId;
               return String(poVendorId) === String(vendorId);
             }); 
             const totalPayable = vendorPOs.reduce((sum, po) => sum + Number(po?.totalAmount || 0), 0);
-            const totalPaid = vendorPOs.reduce((sum, po) => sum + Number(po?.amountPaid || 0), 0);
+            const totalPaid = vendorPOs.reduce((sum, po) => sum + Number(po?.paidAmount || 0), 0);
             try {
               await financeApi.syncFinanceVendor({
                 vendorId: String(vendorId),
@@ -727,6 +863,8 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
                 totalPayable,
                 totalPaid,
                 totalPurchaseOrders: vendorPOs.length,
+                procurementVendor: v, // Send full procurement vendor object
+                purchaseOrders: vendorPOs, // Send all POs for this vendor
               });
             } catch (syncErr) {
               console.error('Failed to sync vendor:', vendorId, syncErr);
@@ -1720,6 +1858,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
           date: new Date().toISOString().slice(0, 10),
           selectedInvoiceId: '',
           selectedVendorId: '',
+          selectedPurchaseOrderId: '',
           paymentMethod: 'Bank Transfer',
         });
         setAdjustErrors({});
@@ -1736,8 +1875,10 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
           vendorId: adjustForm.selectedVendorId,
           vendorName: vendor?.vendorName,
           amount: amountNum,
-          outstandingAmount: vendor?.outstandingAmount
+          outstandingAmount: vendor?.outstandingAmount,
+          selectedPOId: adjustForm.selectedPurchaseOrderId
         });
+        
         // Create journal entry directly for UI display - Double entry format
         const journalEntry = {
           id: `ven-${Date.now()}`,
@@ -1774,11 +1915,14 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
           console.log('Updated journalEntries count:', updated.length);
           return updated;
         });
-        // Save to backend with tenantId
+        
+        // Save to backend - Use Manual Adjustment API which auto-allocates to oldest POs
         try {
           const tenantId = localStorage.getItem('tenantId') || 'solarcorp';
-          console.log('Saving to backend with tenantId:', tenantId);
-          await financeApi.createManualAdjustment({
+          console.log('Saving vendor payment via manual adjustment with tenantId:', tenantId);
+          
+          // Call createManualAdjustment API which auto-allocates payment to oldest POs first
+          const adjustmentResult = await financeApi.createManualAdjustment({
             type: 'debit',
             category: 'Vendor Payment',
             amount: amountNum,
@@ -1788,7 +1932,9 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
             tenantId,
             lf: adjustForm.lf ? parseInt(adjustForm.lf) : undefined
           });
-          console.log('? Saved to backend');
+          
+          console.log('✓ Saved vendor payment via manual adjustment, result:', adjustmentResult);
+          
           // Update local payables state AFTER successful API call
           setPayables(prev => {
             const updatedPayables = prev.map(p => {
@@ -1806,6 +1952,69 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
             });
             return updatedPayables;
           });
+          
+          // CRITICAL: Force update purchaseOrders state by fetching fresh data from backend
+          // This ensures PO Details table shows the correct paidAmount immediately
+          try {
+            const freshPOs = await api.get('/finance/vendors/purchase-orders');
+            const posData = Array.isArray(freshPOs) ? freshPOs : (freshPOs?.data || []);
+            console.log('[PAYMENT] Fetched fresh POs from finance API:', posData.length);
+            
+            // Find the specific PO that was paid
+            const paidPO = posData.find(po => 
+              String(po._id || po.id) === String(adjustForm.selectedPurchaseOrderId)
+            );
+            
+            if (paidPO) {
+              console.log('[PAYMENT] Found paid PO in fresh data:', {
+                id: paidPO.id || paidPO._id,
+                paidAmount: paidPO.paidAmount,
+                totalAmount: paidPO.totalAmount
+              });
+              
+              // Manually update this PO's paidAmount in state
+              setPurchaseOrders(prev => {
+                const updated = prev.map(po => {
+                  if (String(po._id || po.id) === String(adjustForm.selectedPurchaseOrderId)) {
+                    // Use the paidAmount from backend response or calculate it
+                    const backendPaidAmount = paidPO.paidAmount !== undefined 
+                      ? Number(paidPO.paidAmount) 
+                      : (Number(po.paidAmount || 0) + amountNum);
+                    
+                    return {
+                      ...po,
+                      paidAmount: backendPaidAmount,
+                      outstandingAmount: Number(po.totalAmount || 0) - backendPaidAmount
+                    };
+                  }
+                  return po;
+                });
+                console.log('[PAYMENT] Updated purchaseOrders, paid PO now has paidAmount:', 
+                  updated.find(po => String(po._id || po.id) === String(adjustForm.selectedPurchaseOrderId))?.paidAmount
+                );
+                return updated;
+              });
+            } else {
+              console.warn('[PAYMENT] Could not find paid PO in fresh data');
+            }
+          } catch (fetchErr) {
+            console.error('[PAYMENT] Failed to fetch fresh POs:', fetchErr);
+            // Fallback: manually update the PO
+            setPurchaseOrders(prev => {
+              const updatedPOs = prev.map(po => {
+                if (String(po._id || po.id) === String(adjustForm.selectedPurchaseOrderId)) {
+                  const currentPaid = Number(po.paidAmount || 0);
+                  return {
+                    ...po,
+                    paidAmount: currentPaid + amountNum,
+                    outstandingAmount: Number(po.totalAmount || 0) - (currentPaid + amountNum)
+                  };
+                }
+                return po;
+              });
+              return updatedPOs;
+            });
+          }
         } catch (err) {
           console.error('Backend save error:', err?.response?.data || err?.message);
           toast.error('Failed to save vendor payment to backend');
@@ -1824,11 +2033,12 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
           date: new Date().toISOString().slice(0, 10),
           selectedInvoiceId: '',
           selectedVendorId: '',
+          selectedPurchaseOrderId: '',
           paymentMethod: 'Bank Transfer',
         });
         setAdjustErrors({});
         setAdjustError(null);
-        toast.success(`Vendor payment of ${fmt(amountNum)} to ${vendor?.vendorName || 'Vendor'} recorded successfully`);
+        toast.success(`Vendor payment of ${fmt(amountNum)} to ${vendor?.vendorName || 'Vendor'} recorded successfully. Auto-allocated to oldest POs.`);
         // Refresh data from database to ensure changes persist
         await fetchData();
         return;
@@ -1923,6 +2133,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
         date: new Date().toISOString().slice(0, 10),
         selectedInvoiceId: '',
         selectedVendorId: '',
+        selectedPurchaseOrderId: '',
         paymentMethod: 'Bank Transfer',
       });
       setAdjustErrors({});
@@ -2262,87 +2473,104 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
   }
   return (
     <div className="animate-fade-in space-y-5 -mt-5">
-      <div className="page-header flex-wrap gap-2">
-        <div>
-          <h1 className="heading-page text-xl sm:text-2xl">Finance</h1>
-          <p className="text-xs text-[var(--text-muted)] mt-0.5 hidden sm:block">Revenue . receivables . payables . cash flow . invoices</p>
+      <div className="page-header flex-wrap items-start justify-between gap-4 mb-6">
+        <div className="flex-1 min-w-0">
+          {mainView === 'dashboard' ? (
+            <>
+              <h1 className="heading-page text-xl sm:text-2xl flex items-center gap-2">
+                <PieChart size={28} className="text-[var(--accent)]" />
+                Finance Dashboard
+              </h1>
+              <p className="text-xs text-[var(--text-muted)] mt-2 mb-3">Complete overview of your financial operations</p>
+            </>
+          ) : (
+            <>
+              <h1 className="heading-page text-xl sm:text-2xl">Finance</h1>
+              <p className="text-xs text-[var(--text-muted)] mt-2 mb-3">Revenue · receivables · payables · cash flow · invoices</p>
+            </>
+          )}
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              {/* Calendar Filter */}
-              <CalendarFilter 
-                onDateChange={(dateInfo) => {
-                  if (dateInfo) {
-                    setCalendarFilterYear(dateInfo.year.toString());
-                    setCalendarFilterMonth(dateInfo.month); // undefined for full year
-                    setCalendarFilterDay(dateInfo.day); // undefined unless Today selected
-                  } else 
-                  {
-                    setCalendarFilterYear('all');
-                    setCalendarFilterMonth(undefined);
-                    setCalendarFilterDay(undefined);
-                  }
-                }}
-                initialYear={calendarFilterYear !== 'all' ? parseInt(calendarFilterYear) : undefined}
-                initialMonth={calendarFilterMonth}
-                initialDay={calendarFilterDay}
-                availableYears={availableYears}
-              />
-              {/* View Toggle Buttons */}
-              <div className="flex items-center gap-1 bg-[var(--bg-elevated)] rounded-lg p-1 border border-[var(--border-base)]">
-                <button
-                  onClick={() => setMainView('dashboard')}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${mainView === 'dashboard'
-                      ? 'bg-[var(--primary)] text-white shadow-sm'
-                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
-                    }`}
-                >
-                  <BarChart3 size={14} /> Dashboard
-                </button>
-                <button
-                  onClick={() => setMainView('kanban')}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${mainView === 'kanban'
-                      ? 'bg-[var(--primary)] text-white shadow-sm'
-                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
-                    }`}
-                >
-                  <LayoutGrid size={14} /> Kanban
-                </button>
-                <button
-                  onClick={() => setMainView('table')}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${mainView === 'table'
-                      ? 'bg-[var(--primary)] text-white shadow-sm'
-                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
-                    }`}
-                >
-                  <List size={14} /> Table
-                </button>
-              </div>
-              {financePermissions?.create && (
-                <Button onClick={() => setShowInvoice(true)}><Plus size={13} /> New Invoice</Button>
-              )}
-            </div>
-            <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={async () => {
-                // Refresh categories from database before opening modal
-                try {
-                  const catsRes = await financeApi.getAdjustmentCategories();
-                  const cats = Array.isArray(catsRes) ? catsRes : (catsRes?.data || []);
-                  setAdjustmentCategories(cats);
-                  console.log('[Finance] Loaded', cats.length, 'adjustment categories');
-                } catch (err) {
-                  console.error('Failed to refresh adjustment categories:', err);
-                }
-                setShowAdjustModal(true);
-              }}><TrendingUp size={13} /> Adjust Amount</Button>
-            </div>
+        <div className="flex items-center gap-2.5 flex-shrink-0">
+          {/* View Toggle - Compact */}
+          <div className="flex items-center gap-0.5 bg-[var(--bg-elevated)] rounded-lg p-0.5 border border-[var(--border-base)]">
+            <button
+              onClick={() => setMainView('dashboard')}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${mainView === 'dashboard'
+                  ? 'bg-[var(--primary)] text-white shadow-sm'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                }`}
+              title="Dashboard View"
+            >
+              <BarChart3 size={13} />
+              <span className="hidden sm:inline">Dashboard</span>
+            </button>
+            <button
+              onClick={() => setMainView('kanban')}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${mainView === 'kanban'
+                  ? 'bg-[var(--primary)] text-white shadow-sm'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                }`}
+              title="Kanban Board"
+            >
+              <LayoutGrid size={13} />
+              <span className="hidden sm:inline">Kanban</span>
+            </button>
+            <button
+              onClick={() => setMainView('table')}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${mainView === 'table'
+                  ? 'bg-[var(--primary)] text-white shadow-sm'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                }`}
+              title="Table View"
+            >
+              <List size={13} />
+              <span className="hidden sm:inline">Table</span>
+            </button>
+          </div>
+          
+          {/* Calendar Filter */}
+          <CalendarFilter 
+            onDateChange={(dateInfo) => {
+              if (dateInfo) {
+                setCalendarFilterYear(dateInfo.year.toString());
+                setCalendarFilterMonth(dateInfo.month);
+                setCalendarFilterDay(dateInfo.day);
+              } else {
+                setCalendarFilterYear('all');
+                setCalendarFilterMonth(undefined);
+                setCalendarFilterDay(undefined);
+              }
+            }}
+            initialYear={calendarFilterYear !== 'all' ? parseInt(calendarFilterYear) : undefined}
+            initialMonth={calendarFilterMonth}
+            initialDay={calendarFilterDay}
+            availableYears={availableYears}
+          />
+          
+          {/* Action Buttons */}
+          <div className="flex items-center gap-2">
+            {financePermissions?.create && (
+              <Button size="sm" onClick={() => setShowInvoice(true)}>
+                <Plus size={13} /> <span className="hidden sm:inline">New Invoice</span>
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={async () => {
+              try {
+                const catsRes = await financeApi.getAdjustmentCategories();
+                const cats = Array.isArray(catsRes) ? catsRes : (catsRes?.data || []);
+                setAdjustmentCategories(cats);
+                console.log('[Finance] Loaded', cats.length, 'adjustment categories');
+              } catch (err) {
+                console.error('Failed to refresh adjustment categories:', err);
+              }
+              setShowAdjustModal(true);
+            }}>
+              <TrendingUp size={13} /> <span className="hidden sm:inline">Adjust</span>
+            </Button>
             {mainView === 'table' && (
-              <div className="flex justify-end">
-                <Button variant="outline" onClick={() => setShowSummaryCards(!showSummaryCards)}>
-                  {showSummaryCards ? <EyeOff size={13} /> : <Eye size={13} />}
-                </Button>
-              </div>
+              <Button variant="outline" size="sm" onClick={() => setShowSummaryCards(!showSummaryCards)} title="Toggle Summary Cards">
+                {showSummaryCards ? <EyeOff size={13} /> : <Eye size={13} />}
+              </Button>
             )}
           </div>
         </div>
@@ -2523,9 +2751,20 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
             </TabsContent>
             <TabsContent value="payables">
               <div className="glass-card p-4 space-y-3">
-                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Payables to Vendors</h3>
-                {payables.length === 0 ? (
-                  <p className="text-sm text-[var(--text-muted)] text-center py-8">No pending payables</p>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-[var(--text-primary)]">Payables to Vendors</h3>
+                  {calendarFilterYear !== 'all' && (
+                    <p className="text-xs text-[var(--text-muted)]">
+                      Filtered by selected date • {filteredPurchaseOrdersByCalendar.length} POs match
+                    </p>
+                  )}
+                </div>
+                {(calendarFilterYear === 'all' ? payables : filteredPayablesByYear).length === 0 ? (
+                  <p className="text-sm text-[var(--text-muted)] text-center py-8">
+                    {calendarFilterYear !== 'all' 
+                      ? 'No payables found for the selected period' 
+                      : 'No pending payables'}
+                  </p>
                 ) : (
                   <div className="space-y-2">
                     <div className="grid grid-cols-7 gap-2 text-[11px] text-[var(--text-muted)] px-2">
@@ -2537,27 +2776,41 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
                       <div className="text-right">Outstanding</div>
                       <div className="text-right">Last Payment</div>
                     </div>
-                    {payables.map((p) => {
+                    {(calendarFilterYear === 'all' ? payables : filteredPayablesByYear).map((p) => {
+                      const vendorPOs = (calendarFilterYear === 'all' ? purchaseOrders : filteredPurchaseOrdersByCalendar).filter(po => {
+                        const poVendorId = (po?.vendorId && typeof po.vendorId === 'object') ? po.vendorId?._id : po?.vendorId;
+                        return String(poVendorId) === String(p.vendorObjectId || p.vendorId);
+                      });
+                      
+                      // Skip vendor if no matching POs after filtering
+                      if (calendarFilterYear !== 'all' && vendorPOs.length === 0) return null;
+                      
                       const isFullyPaid = (p.outstandingAmount || 0) <= 0 && (p.amountPaid || 0) > 0;
                       return (
-                        <div
-                          key={p.vendorObjectId || p.vendorId}
-                          className={`grid grid-cols-7 gap-2 items-center p-3 rounded-lg border ${isFullyPaid ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-[var(--bg-elevated)] border-[var(--border-muted)]'}`}
-                        >
-                          <div className="text-xs font-semibold text-[var(--text-primary)] flex items-center gap-1.5">
-                            {p.vendorName}
-                            {isFullyPaid && (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/20 text-emerald-400">
-                                <CheckCircle size={10} /> Paid
-                              </span>
-                            )}
+                        <div key={p.vendorObjectId || p.vendorId}>
+                          <div
+                            className={`grid grid-cols-7 gap-2 items-center p-3 rounded-lg border ${isFullyPaid ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-[var(--bg-elevated)] border-[var(--border-muted)]'}`}
+                          >
+                            <div className="text-xs font-semibold text-[var(--text-primary)] flex items-center gap-1.5">
+                              {p.vendorName}
+                              {isFullyPaid && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/20 text-emerald-400">
+                                  <CheckCircle size={10} /> Paid
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-xs font-mono text-[var(--accent-light)]">{p.vendorId}</div>
+                            <div className="text-xs text-right text-[var(--text-primary)]">{vendorPOs.length || p.totalPurchaseOrders}</div>
+                            <div className="text-xs text-right text-[var(--text-primary)]">{fmt(p.totalPayableAmount)}</div>
+                            <div className="text-xs text-right text-[var(--text-primary)]">{fmt(p.amountPaid)}</div>
+                            <div className={`text-xs text-right font-bold ${isFullyPaid ? 'text-emerald-400' : 'text-amber-400'}`}>{fmt(p.outstandingAmount)}</div>
+                            <div className="text-xs text-right text-[var(--text-muted)]">{p.lastPurchaseOrderDate || '-'}</div>
                           </div>
-                          <div className="text-xs font-mono text-[var(--accent-light)]">{p.vendorId}</div>
-                          <div className="text-xs text-right text-[var(--text-primary)]">{p.totalPurchaseOrders}</div>
-                          <div className="text-xs text-right text-[var(--text-primary)]">{fmt(p.totalPayableAmount)}</div>
-                          <div className="text-xs text-right text-[var(--text-primary)]">{fmt(p.amountPaid)}</div>
-                          <div className={`text-xs text-right font-bold ${isFullyPaid ? 'text-emerald-400' : 'text-amber-400'}`}>{fmt(p.outstandingAmount)}</div>
-                          <div className="text-xs text-right text-[var(--text-muted)]">{p.lastPurchaseOrderDate || '-'}</div>
+                          {/* Purchase Order Details */}
+                          <PurchaseOrderDetails 
+                            vendorId={p.vendorObjectId || p.vendorId}
+                            allPurchaseOrders={calendarFilterYear === 'all' ? purchaseOrders : filteredPurchaseOrdersByCalendar}
+                          />
                         </div>
                       );
                     })}
@@ -3685,7 +3938,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
           )}
           {/* Vendor Selection for Vendor Payment (Debit - Vendor Payment) */}
           {adjustForm.type === 'debit' && adjustForm.category === 'Vendor Payment' && (
-            <div className="mt-4">
+            <div className="mt-4 space-y-4">
               <FormField label="Select Vendor *">
                 <Select
                   value={adjustForm.selectedVendorId}
@@ -3694,6 +3947,7 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
                     setAdjustForm({ 
                       ...adjustForm, 
                       selectedVendorId: e.target.value,
+                      selectedPurchaseOrderId: '', // Reset PO selection when vendor changes
                       amount: selectedVendor ? String(selectedVendor.outstandingAmount) : ''
                     });
                     if (adjustErrors.selectedVendorId) setAdjustErrors(prev => ({ ...prev, selectedVendorId: undefined }));
@@ -3702,8 +3956,6 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
                 >
                   <option value="">Select a vendor</option>
                   {(() => {
-                    console.log('Vendor dropdown - payables data:', payables);
-                    console.log('Vendor dropdown - filtered payables:', payables.filter(p => (p.outstandingAmount || 0) > 0));
                     const vendorsWithOutstanding = payables.filter(p => (p.outstandingAmount || 0) > 0);
                     if (vendorsWithOutstanding.length === 0) {
                       return (
@@ -3738,6 +3990,98 @@ const filteredManualAdjustmentsByYear = useMemo(() => {
                   </div>
                 )}
               </FormField>
+
+              {/* Purchase Order Selection */}
+              {adjustForm.selectedVendorId && (
+                <FormField label="Select Purchase Order (Optional)">
+                  <Select
+                    value={adjustForm.selectedPurchaseOrderId || ''}
+                    onChange={e => {
+                      const selectedPO = purchaseOrders.find(po => (po._id || po.id) === e.target.value);
+                      const vendor = payables.find(p => String(p.vendorObjectId || p.vendorId) === adjustForm.selectedVendorId);
+                      
+                      setAdjustForm({ 
+                        ...adjustForm, 
+                        selectedPurchaseOrderId: e.target.value,
+                        // Auto-fill reason with PO ID
+                        reason: selectedPO ? `Payment against PO: ${selectedPO.id || 'N/A'}` : '',
+                        // Set amount to PO total amount if PO is selected, otherwise use vendor outstanding
+                        amount: selectedPO ? String(selectedPO.totalAmount || 0) : (vendor ? String(vendor.outstandingAmount) : '')
+                      });
+                    }}
+                    disabled={submittingAdjust}
+                  >
+                    <option value="">Select PO (Optional)</option>
+                    {(() => {
+                      const vendorPOs = purchaseOrders.filter(po => {
+                        const poVendorId = (po?.vendorId && typeof po.vendorId === 'object') ? po.vendorId?._id : po?.vendorId;
+                        return String(poVendorId) === String(adjustForm.selectedVendorId);
+                      });
+                      if (vendorPOs.length === 0) {
+                        return (
+                          <option disabled>No purchase orders for this vendor</option>
+                        );
+                      }
+                      return vendorPOs.map(po => (
+                        <option key={po._id || po.id} value={po._id || po.id}>
+                          {po.id || 'N/A'} | Amount: {fmt(po.totalAmount || 0)} | Ordered: {po.orderedDate || '-'}
+                        </option>
+                      ));
+                    })()}
+                  </Select>
+                  
+                  {/* PO Details Display */}
+                  {adjustForm.selectedPurchaseOrderId && (
+                    <div className="text-[11px] text-[var(--text-muted)] mt-2">
+                      {(() => {
+                        const selectedPO = purchaseOrders.find(po => (po._id || po.id) === adjustForm.selectedPurchaseOrderId);
+                        if (!selectedPO) return null;
+                        
+                        // Use actual paid amount from PO
+                        const poPaidAmount = selectedPO.paidAmount || 0;
+                        const poOutstanding = (selectedPO.totalAmount || 0) - poPaidAmount;
+                        
+                        return (
+                          <div className="p-2 bg-[var(--bg-surface)] rounded border border-[var(--border-base)] space-y-1">
+                            <div className="flex justify-between">
+                              <span>PO Number:</span>
+                              <span className="font-mono text-[var(--accent-light)]">{selectedPO.id || 'N/A'}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Total Amount:</span>
+                              <span className="font-medium">{fmt(selectedPO.totalAmount || 0)}</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-[var(--border-base)]">
+                              <div className="text-center">
+                                <div className="text-[9px] uppercase text-[var(--text-muted)]">Paid Amount</div>
+                                <div className="text-xs font-semibold text-emerald-400">{fmt(poPaidAmount)}</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-[9px] uppercase text-[var(--text-muted)]">Outstanding</div>
+                                <div className="text-xs font-bold text-amber-400">{fmt(poOutstanding)}</div>
+                              </div>
+                            </div>
+                            <div className="flex justify-between pt-2">
+                              <span>Ordered Date:</span>
+                              <span>{selectedPO.orderedDate || '-'}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Expected Date:</span>
+                              <span className="text-[var(--accent)]">{selectedPO.expectedDate || '-'}</span>
+                            </div>
+                            {selectedPO.deliveredDate && (
+                              <div className="flex justify-between">
+                                <span>Delivered Date:</span>
+                                <span className="text-emerald-500">{selectedPO.deliveredDate}</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </FormField>
+              )}
             </div>
           )}
           <div className="grid grid-cols-2 gap-3 mt-4">
