@@ -513,11 +513,11 @@ const DocumentPage = () => {
       
       console.log('Email API response:', response);
       
-      // Check if response has data and success flag
-      const result = response.data || response;
+      // api interceptor returns response.data directly, so response is already the data object
+      const result = response;
       
-      if (!result.success) {
-        throw new Error(result.message || 'Failed to send email');
+      if (!result?.success) {
+        throw new Error(result?.message || 'Failed to send email');
       }
       
       // Mark document as completed after successful email send
