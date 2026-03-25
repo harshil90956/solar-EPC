@@ -2983,14 +2983,6 @@ const CRMPage = ({ onNavigate }) => {
               <h3 className="text-lg font-bold text-[var(--text-primary)]">Pipeline Kanban Board</h3>
               <span className="text-xs text-[var(--text-muted)]">{enhancedLeads.length} total leads</span>
             </div>
-            <div className="flex items-center gap-2">
-              <button className="px-3 py-1 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-base)] text-[10px] font-medium text-[var(--text-muted)] hover:bg-[var(--bg-hovered)] transition-colors">
-                <FilterX size={10} className="inline mr-1" /> Clear Filters
-              </button>
-              <button className="px-3 py-1 rounded-lg bg-[var(--primary)] text-white text-[10px] font-medium hover:opacity-90 transition-opacity">
-                <Plus size={10} className="inline mr-1" /> Add Stage
-              </button>
-            </div>
           </div>
 
           {/* Scrollable Kanban Area - with drag-to-scroll support */}
