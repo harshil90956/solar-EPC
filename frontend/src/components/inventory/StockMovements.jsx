@@ -401,9 +401,11 @@ const StockMovements = () => {
             className="px-2 py-1.5 text-xs bg-[var(--bg-elevated)] border border-[var(--border-base)] rounded-lg w-28 flex-shrink-0"
           >
             <option value="">All Types</option>
-            {Object.entries(MOVEMENT_TYPES).map(([type, config]) => (
-              <option key={type} value={type}>{config.label}</option>
-            ))}
+            {Object.entries(MOVEMENT_TYPES)
+              .filter(([type]) => !['DISPATCH', 'CONSUME', 'ADJUSTMENT'].includes(type))
+              .map(([type, config]) => (
+                <option key={type} value={type}>{config.label}</option>
+              ))}
           </select>
           <input
             type="text"
