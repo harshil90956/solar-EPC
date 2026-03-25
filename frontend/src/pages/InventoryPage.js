@@ -1268,6 +1268,19 @@ const InventoryPage = ({ onNavigate }) => {
         setInventory(prev => prev.map(i => i._id === item._id ? transformedItem : i));
       }
 
+      // Refresh full inventory to ensure consistency
+      const refreshData = await api.get('/items', { headers: { 'x-tenant-id': TENANT_ID } });
+      const refreshItemsArray = Array.isArray(refreshData) ? refreshData : (refreshData.data || []);
+      const refreshedInventoryData = refreshItemsArray.map(item => ({
+        ...item,
+        _id: item._id || item.id,
+        name: item.description || item.name || 'Unnamed Item',
+        reserved: item.reserved || 0,
+        available: (item.stock || 0) - (item.reserved || 0),
+        lastUpdated: item.updatedAt || new Date().toISOString().split('T')[0]
+      }));
+      setInventory(refreshedInventoryData);
+
       // Reset form and close modal
       setShowStockOut(false);
       setStockOutForm({ projectId: '', issuedDate: '', remarks: '', quotationId: '' });
