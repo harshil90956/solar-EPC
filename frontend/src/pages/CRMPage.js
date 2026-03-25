@@ -916,7 +916,7 @@ const CRMPage = ({ onNavigate }) => {
     start: '',
     end: ''
   });
-  const [dashboardQuickFilter, setDashboardQuickFilter] = useState('thisWeek'); // 'today', 'thisWeek', 'thisMonth', 'custom' - FOR DASHBOARD ONLY
+  const [dashboardQuickFilter, setDashboardQuickFilter] = useState('all'); // 'all', 'today', 'thisWeek', 'thisMonth', 'custom' - FOR DASHBOARD ONLY
   const sortDropdownRef = useRef(null);
   const columnsDropdownRef = useRef(null);
 
@@ -2665,11 +2665,17 @@ const CRMPage = ({ onNavigate }) => {
                 onChange={e => {
                   const filterType = e.target.value;
                   setDashboardQuickFilter(filterType);
+                  const now = new Date();
                   
                   // Calculate dates based on quick filter
                   let startDate, endDate;
-                  const now = new Date();
                   
+                  if (filterType === 'all') {
+                    setDateRange({ start: '', end: '' });
+                    setDashboardDateRangeFilter({ type: 'all', startDate: null, endDate: null });
+                    return;
+                  }
+
                   if (filterType === 'today') {
                     // Today: 00:00:00 to 23:59:59
                     startDate = format(now, 'yyyy-MM-dd');
@@ -2693,6 +2699,7 @@ const CRMPage = ({ onNavigate }) => {
                 }}
                 className="h-7 text-xs w-32"
               >
+                <option value="all">All Time</option>
                 <option value="today">Today</option>
                 <option value="thisWeek">This Week</option>
                 <option value="thisMonth">This Month</option>
@@ -2741,16 +2748,9 @@ const CRMPage = ({ onNavigate }) => {
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  setDashboardQuickFilter('thisWeek');
-                  // This Week = Last 7 Days (rolling)
-                  const now = new Date();
-                  const endDate = format(now, 'yyyy-MM-dd');
-                  const sevenDaysAgo = new Date(now);
-                  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
-                  const startDate = format(sevenDaysAgo, 'yyyy-MM-dd');
-                  
-                  setDateRange({ start: startDate, end: endDate });
-                  setDashboardDateRangeFilter({ type: 'thisWeek', startDate, endDate });
+                  setDashboardQuickFilter('all');
+                  setDateRange({ start: '', end: '' });
+                  setDashboardDateRangeFilter({ type: 'all', startDate: null, endDate: null });
                 }}
               >
                 <RefreshCw size={12} /> Reset

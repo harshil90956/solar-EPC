@@ -6,7 +6,7 @@ import { useState, useCallback } from 'react';
  */
 export function useDashboardFilters() {
   const [dateRangeFilter, setDateRangeFilter] = useState({
-    type: 'thisWeek', // Default to this week (7 days)
+    type: 'all',
     startDate: null, // Will be populated by quick filter
     endDate: null    // Will be populated by quick filter
   });
@@ -21,7 +21,7 @@ export function useDashboardFilters() {
   const resetDateRangeFilter = useCallback(() => {
     console.log('[DASHBOARD HOOK] Resetting filter to default');
     setDateRangeFilter({
-      type: 'thisWeek',
+      type: 'all',
       startDate: null,
       endDate: null
     });
