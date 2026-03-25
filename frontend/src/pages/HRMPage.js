@@ -23,7 +23,11 @@ import { useQuery } from '@tanstack/react-query';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext'; // Fix component usage to match import name
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 import HRMPermissionsPage from './HrmPermissionsPage';
+=======
+import HrmPermissionsPage from './HrmPermissionsPage';
+>>>>>>> Stashed changes
 =======
 import HrmPermissionsPage from './HrmPermissionsPage';
 >>>>>>> Stashed changes
