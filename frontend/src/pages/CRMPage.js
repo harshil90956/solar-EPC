@@ -1028,6 +1028,20 @@ const CRMPage = ({ onNavigate }) => {
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [showDateRangeInfo]);
 
+  // CRITICAL FIX: Close date range dropdown when clicking outside
+  useEffect(() => {
+    if (!showDateRangeDropdown) return;
+    const onDocClick = (e) => {
+      const el = dateRangeRef.current;
+      if (!el) return;
+      if (!el.contains(e.target)) {
+        setShowDateRangeDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [showDateRangeDropdown]);
+
   const isAdminLike = useMemo(() => {
     const role = String(user?.role || '').toLowerCase();
     return role === 'admin' || role === 'superadmin' || user?.isSuperAdmin === true;
@@ -1182,14 +1196,22 @@ const CRMPage = ({ onNavigate }) => {
         if (r?.max !== '' && r?.max !== undefined && r?.max !== '∞') params.maxValue = r.max;
       }
 
-      // Add date range filter - use dates directly from state
+      // Add date range filter
       console.log('[FILTER DEBUG] leadsDateRangeFilter:', leadsDateRangeFilter);
-      if (leadsDateRangeFilter.startDate && leadsDateRangeFilter.endDate) {
-        params.startDate = leadsDateRangeFilter.startDate;
-        params.endDate = leadsDateRangeFilter.endDate;
-        console.log('[FILTER DEBUG] Sending dates to API:', { startDate: params.startDate, endDate: params.endDate });
+      const type = String(leadsDateRangeFilter.type || 'all');
+      if (type !== 'all') {
+        const presetRange = getDateRangeFromPreset(type);
+        const start = leadsDateRangeFilter.startDate || (presetRange?.startDate ? presetRange.startDate.toISOString() : null);
+        const end = leadsDateRangeFilter.endDate || (presetRange?.endDate ? presetRange.endDate.toISOString() : null);
+        if (start && end) {
+          params.startDate = start;
+          params.endDate = end;
+          console.log('[FILTER DEBUG] Sending dates to API:', { startDate: params.startDate, endDate: params.endDate });
+        } else {
+          console.log('[FILTER DEBUG] Date preset selected but range missing - fallback to all');
+        }
       } else {
-        console.log('[FILTER DEBUG] No dates set - showing all leads');
+        console.log('[FILTER DEBUG] All time selected - showing all leads');
       }
 
       // Only add sort params if sort key is valid

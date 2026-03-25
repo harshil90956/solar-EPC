@@ -39,10 +39,20 @@ export function useDashboardFilters() {
  * These filters ONLY affect the leads table data
  */
 export function useLeadFilters() {
-  const [dateRangeFilter, setDateRangeFilter] = useState({
-    type: 'last7days', // Default to last 7 days
-    startDate: null,
-    endDate: null
+  const [dateRangeFilter, setDateRangeFilter] = useState(() => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endDate = new Date(today);
+    endDate.setHours(23, 59, 59, 999);
+    const startDate = new Date(today);
+    startDate.setDate(startDate.getDate() - 6);
+    startDate.setHours(0, 0, 0, 0);
+
+    return {
+      type: 'last7days', // Default to last 7 days
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+    };
   });
 
   console.log('[LEADS HOOK] Initial state:', dateRangeFilter);
@@ -54,10 +64,18 @@ export function useLeadFilters() {
 
   const resetDateRangeFilter = useCallback(() => {
     console.log('[LEADS HOOK] Resetting filter to default');
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endDate = new Date(today);
+    endDate.setHours(23, 59, 59, 999);
+    const startDate = new Date(today);
+    startDate.setDate(startDate.getDate() - 6);
+    startDate.setHours(0, 0, 0, 0);
+
     setDateRangeFilter({
       type: 'last7days', // Reset to last 7 days
-      startDate: null,
-      endDate: null
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
     });
   }, []);
 
