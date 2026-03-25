@@ -28,7 +28,7 @@ const fullPerms = () =>
 
 export const SettingsProvider = ({ children }) => {
 
-    const { permissions, dataScope } = useAuth();
+    const { permissions, dataScope, user } = useAuth();
 
     // ── Core state ────────────────────────────────────────────────────────────
     const [flags, setFlagsState] = useState(buildDefaultFlags());
@@ -861,9 +861,14 @@ export const SettingsProvider = ({ children }) => {
      * SINGLE SOURCE OF TRUTH: Only checks user.permissions from localStorage
      * NO fallback, NO dual permission system
      * Supports projects/project alias for backward compatibility
+     * Admin bypass: Admin users get all permissions automatically
      */
     const resolvePermission = useCallback((moduleId, actionId) => {
         if (!moduleId) return false;
+
+        // Admin bypass - admins get all permissions
+        const userRole = (user?.role || '')?.toLowerCase();
+        if (userRole === 'admin' || userRole === 'superadmin' || user?.isSuperAdmin) return true;
 
         // DEBUG logging
         const isDebug = moduleId === 'project' || moduleId === 'projects';
@@ -978,7 +983,7 @@ export const SettingsProvider = ({ children }) => {
     }), [
         flags, rbac, workflows, auditLogs,
         customRoles, userOverrides, viewAsUserId,
-        allRoles, isLoading,
+        allRoles, isLoading, user,
         projectTypeConfig,
         toggleModule, toggleFeature, toggleAction, resetFlags,
         toggleRBAC, setRolePreset, resetRBAC,

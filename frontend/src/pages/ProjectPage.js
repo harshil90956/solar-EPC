@@ -944,6 +944,17 @@ const ProjectPage = () => {
     return false;
   })();
 
+  // Check if any employee is assigned to the project
+  const hasEmployeeAssigned = (() => {
+    const pm = String(selected?.pm || '').trim();
+    const assignedTo = selected?.assignedTo;
+    // Check if PM exists and is not TBD/Unassigned/empty
+    const hasPM = pm && pm !== 'TBD' && pm !== 'Unassigned' && pm !== '';
+    // Check if assignedTo exists (ObjectId or string)
+    const hasAssignedTo = assignedTo && (assignedTo._id || assignedTo);
+    return hasPM || hasAssignedTo;
+  })();
+
   console.log('[DEBUG Mark Stage] firstPendingIndex:', firstPendingIndex, 'canMarkComplete:', canMarkComplete);
 
   const handleMarkStageComplete = async () => {
@@ -2003,7 +2014,7 @@ const ProjectPage = () => {
         <Modal open={!!selected} onClose={() => setSelected(null)} title={`Project — ${selected.id}`}
           footer={<div className="flex gap-2 justify-end">
             <Button variant="ghost" onClick={() => setSelected(null)}>Close</Button>
-            {canMarkComplete && isAssignedToMe && (
+            {canMarkComplete && isAssignedToMe && hasEmployeeAssigned && (
               <Button onClick={handleMarkStageComplete}>
                 <CheckCircle size={13} /> Mark Stage Complete
               </Button>
