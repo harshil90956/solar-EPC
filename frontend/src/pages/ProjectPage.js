@@ -1332,82 +1332,107 @@ const ProjectPage = () => {
 
       {(view === 'dashboard' || showCardsInViews) && (
         <>
-          {/* Summary Cards with Light Colors */}
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          {/* Summary Cards with Modern Attractive Design */}
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
             <div 
-              className="p-4 rounded-xl bg-gradient-to-br from-violet-100 to-purple-200 border border-violet-200 cursor-pointer hover:shadow-md transition-all"
+              className="group relative overflow-hidden p-5 rounded-2xl bg-gradient-to-br from-violet-100 to-purple-200 border border-violet-200 cursor-pointer hover:shadow-xl hover:shadow-violet-500/10 hover:-translate-y-1 hover:scale-[1.02] transition-all duration-300"
               onClick={() => { 
                 setView('table'); 
                 setFilter('All');
                 setShowNonCompletedOnly(false);
               }}
             >
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] uppercase tracking-wider text-violet-700 font-semibold">TOTAL PROJECTS</span>
-                <div className="w-8 h-8 rounded-lg bg-violet-200 flex items-center justify-center">
-                  <Layers size={16} className="text-violet-700" />
+              <div className="absolute inset-0 bg-gradient-to-br from-white/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="relative flex items-start justify-between">
+                <div>
+                  <span className="text-[10px] uppercase tracking-wider text-violet-700 font-bold">TOTAL PROJECTS</span>
+                  <div className="text-3xl font-bold text-gray-800 mt-2">{projectStats?.totalProjects ?? projects.length}</div>
+                  <div className="text-xs text-gray-600 mt-1 flex items-center gap-1">
+                    <TrendingUp size={10} className="text-violet-600" /> All projects
+                  </div>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-violet-200 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                  <Layers size={24} className="text-violet-700" />
                 </div>
               </div>
-              <div className="text-2xl font-bold text-gray-800">{projectStats?.totalProjects ?? projects.length}</div>
-              <div className="text-xs text-gray-500 mt-1">All projects</div>
             </div>
 
             <div 
-              className="p-4 rounded-xl bg-gradient-to-br from-blue-100 to-sky-200 border border-blue-200 cursor-pointer hover:shadow-md transition-all"
+              className="group relative overflow-hidden p-5 rounded-2xl bg-gradient-to-br from-blue-100 to-sky-200 border border-blue-200 cursor-pointer hover:shadow-xl hover:shadow-blue-500/10 hover:-translate-y-1 hover:scale-[1.02] transition-all duration-300"
               onClick={() => { 
                 setView('table'); 
                 setFilter('All');
                 setShowNonCompletedOnly(true);
               }}
             >
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] uppercase tracking-wider text-blue-700 font-semibold">ACTIVE PROJECTS</span>
-                <div className="w-8 h-8 rounded-lg bg-blue-200 flex items-center justify-center">
-                  <FolderOpen size={16} className="text-blue-700" />
+              <div className="absolute inset-0 bg-gradient-to-br from-white/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="relative flex items-start justify-between">
+                <div>
+                  <span className="text-[10px] uppercase tracking-wider text-blue-700 font-bold">ACTIVE PROJECTS</span>
+                  <div className="text-3xl font-bold text-gray-800 mt-2">{projectStats?.active ?? active}</div>
+                  <div className="text-xs text-gray-600 mt-1 flex items-center gap-1">
+                    <Zap size={10} className="text-blue-600" /> Currently executing
+                  </div>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-blue-200 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                  <FolderOpen size={24} className="text-blue-700" />
                 </div>
               </div>
-              <div className="text-2xl font-bold text-gray-800">{projectStats?.active ?? active}</div>
-              <div className="text-xs text-gray-500 mt-1">Currently executing</div>
             </div>
 
             <div 
-              className="p-4 rounded-xl bg-gradient-to-br from-cyan-100 to-teal-200 border border-cyan-200 cursor-pointer hover:shadow-md transition-all"
+              className="group relative overflow-hidden p-5 rounded-2xl bg-gradient-to-br from-emerald-100 to-green-200 border border-emerald-200 cursor-pointer hover:shadow-xl hover:shadow-emerald-500/10 hover:-translate-y-1 hover:scale-[1.02] transition-all duration-300"
               onClick={() => { 
                 setView('table'); 
                 setFilter('Commissioned');
                 setShowNonCompletedOnly(false);
               }}
             >
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] uppercase tracking-wider text-cyan-700 font-semibold">COMPLETED</span>
-                <div className="w-8 h-8 rounded-lg bg-cyan-200 flex items-center justify-center">
-                  <CheckCircle size={16} className="text-cyan-700" />
+              <div className="absolute inset-0 bg-gradient-to-br from-white/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="relative flex items-start justify-between">
+                <div>
+                  <span className="text-[10px] uppercase tracking-wider text-emerald-700 font-bold">COMPLETED</span>
+                  <div className="text-3xl font-bold text-gray-800 mt-2">{projectStats?.commissioned ?? commissioned}</div>
+                  <div className="text-xs text-gray-600 mt-1 flex items-center gap-1">
+                    <CheckCircle size={10} className="text-emerald-600" /> Finished projects
+                  </div>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-emerald-200 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                  <CheckCircle size={24} className="text-emerald-700" />
                 </div>
               </div>
-              <div className="text-2xl font-bold text-gray-800">{projectStats?.commissioned ?? commissioned}</div>
-              <div className="text-xs text-gray-500 mt-1">Finished projects</div>
             </div>
 
-            <div className="p-4 rounded-xl bg-gradient-to-br from-amber-100 to-orange-200 border border-amber-200">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] uppercase tracking-wider text-amber-700 font-semibold">TOTAL CAPACITY</span>
-                <div className="w-8 h-8 rounded-lg bg-amber-200 flex items-center justify-center">
-                  <Zap size={16} className="text-amber-700" />
+            <div className="group relative overflow-hidden p-5 rounded-2xl bg-gradient-to-br from-amber-100 to-orange-200 border border-amber-200 hover:shadow-xl hover:shadow-amber-500/10 hover:-translate-y-1 hover:scale-[1.02] transition-all duration-300">
+              <div className="absolute inset-0 bg-gradient-to-br from-white/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="relative flex items-start justify-between">
+                <div>
+                  <span className="text-[10px] uppercase tracking-wider text-amber-700 font-bold">TOTAL CAPACITY</span>
+                  <div className="text-3xl font-bold text-gray-800 mt-2">{Math.round(projectStats?.totalCapacity ?? totalKW)} <span className="text-lg font-normal text-gray-600">kW</span></div>
+                  <div className="text-xs text-gray-600 mt-1 flex items-center gap-1">
+                    <Zap size={10} className="text-amber-600" /> Pipeline capacity
+                  </div>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-amber-200 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                  <Zap size={24} className="text-amber-700" />
                 </div>
               </div>
-              <div className="text-2xl font-bold text-gray-800">{Math.round(projectStats?.totalCapacity ?? totalKW)} <span className="text-sm font-normal text-gray-600">kW</span></div>
-              <div className="text-xs text-gray-500 mt-1">Pipeline capacity</div>
             </div>
 
-            <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-100 to-green-200 border border-emerald-200">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] uppercase tracking-wider text-emerald-700 font-semibold">CURRENT PROGRESS</span>
-                <div className="w-8 h-8 rounded-lg bg-emerald-200 flex items-center justify-center">
-                  <TrendingUp size={16} className="text-emerald-700" />
+            <div className="group relative overflow-hidden p-5 rounded-2xl bg-gradient-to-br from-rose-100 to-pink-200 border border-rose-200 hover:shadow-xl hover:shadow-rose-500/10 hover:-translate-y-1 hover:scale-[1.02] transition-all duration-300">
+              <div className="absolute inset-0 bg-gradient-to-br from-white/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="relative flex items-start justify-between">
+                <div>
+                  <span className="text-[10px] uppercase tracking-wider text-rose-700 font-bold">AVG PROGRESS</span>
+                  <div className="text-3xl font-bold text-gray-800 mt-2">{Math.round(projectStats?.avgProgress ?? avgProgress)}%</div>
+                  <div className="text-xs text-gray-600 mt-1 flex items-center gap-1">
+                    <BarChart2 size={10} className="text-rose-600" /> Across all projects
+                  </div>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-rose-200 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                  <TrendingUp size={24} className="text-rose-700" />
                 </div>
               </div>
-              <div className="text-2xl font-bold text-gray-800">{Math.round(projectStats?.avgProgress ?? avgProgress)}%</div>
-              <div className="text-xs text-gray-500 mt-1">Across all projects</div>
             </div>
           </div>
         </>
