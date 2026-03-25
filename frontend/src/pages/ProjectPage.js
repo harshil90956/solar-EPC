@@ -27,6 +27,7 @@ import CompactCalendarFilter from '../components/ui/CompactCalendarFilter';
 import { leadsApi } from '../services/leadsApi';
 import { employeeApi, departmentApi } from '../services/hrmApi';
 import { useAuth } from '../context/AuthContext';
+import { useSettings } from '../context/SettingsContext';
 
 const fmt = CURRENCY.format;
 
@@ -247,19 +248,32 @@ const ProjectPage = () => {
   const [employeesByDept, setEmployeesByDept] = useState([]);
   const [employeesLoading, setEmployeesLoading] = useState(false);
   const [hiddenCols, setHiddenCols] = useState(new Set());
+  const { milestones: settingsMilestones, getMilestones } = useSettings();
   const [colToggleOpen, setColToggleOpen] = useState(false);
   const [projectStats, setProjectStats] = useState(null);
   const [projectsByStage, setProjectsByStage] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [customersLoading, setCustomersLoading] = useState(false);
 
-  const DEFAULT_MILESTONES = [
-    { name: 'Material Ready', status: 'Pending', date: null },
-    { name: 'Installation', status: 'Pending', date: null },
-    { name: 'Commission', status: 'Pending', date: null },
-    { name: 'Billing', status: 'Pending', date: null },
-    { name: 'Closure', status: 'Pending', date: null },
-  ];
+  // Use dynamic milestones from settings, fallback to hardcoded if not available
+  const DEFAULT_MILESTONES = useMemo(() => {
+    const dynamicMilestones = settingsMilestones || getMilestones?.() || [];
+    if (dynamicMilestones.length > 0) {
+      return dynamicMilestones.map(m => ({
+        name: m.name,
+        status: 'Pending',
+        date: null
+      }));
+    }
+    // Fallback default milestones
+    return [
+      { name: 'Material Ready', status: 'Pending', date: null },
+      { name: 'Installation', status: 'Pending', date: null },
+      { name: 'Commission', status: 'Pending', date: null },
+      { name: 'Billing', status: 'Pending', date: null },
+      { name: 'Closure', status: 'Pending', date: null },
+    ];
+  }, [settingsMilestones, getMilestones]);
 
   // Month filter state
   const [monthFilter, setMonthFilter] = useState('all');
@@ -682,13 +696,7 @@ const ProjectPage = () => {
           mobileNumber: row.mobileNumber || row.phone || '',
           estEndDate: row.estEndDate || '',
           startDate: row.startDate || new Date().toISOString().split('T')[0],
-          milestones: [
-            { name: 'Material Ready', status: 'Pending', date: null },
-            { name: 'Installation', status: 'Pending', date: null },
-            { name: 'Commission', status: 'Pending', date: null },
-            { name: 'Billing', status: 'Pending', date: null },
-            { name: 'Closure', status: 'Pending', date: null }
-          ],
+          milestones: DEFAULT_MILESTONES,
           materials: []
         };
 
@@ -765,34 +773,33 @@ const ProjectPage = () => {
     }
     
     // Sync milestones based on new status
-    let updatedMilestones = project?.milestones || [
-      { name: 'Material Ready', status: 'Pending', date: null },
-      { name: 'Installation', status: 'Pending', date: null },
-      { name: 'Commission', status: 'Pending', date: null },
-      { name: 'Billing', status: 'Pending', date: null },
-      { name: 'Closure', status: 'Pending', date: null }
-    ];
+    let updatedMilestones = project?.milestones || DEFAULT_MILESTONES;
     
     const today = new Date().toISOString().split('T')[0];
     
     // Update milestones based on status
+    const milestoneNames = updatedMilestones.map(m => m.name);
+    const firstMilestone = milestoneNames[0];
+    const secondMilestone = milestoneNames[1];
+    const thirdMilestone = milestoneNames[2];
+    
     if (newStage === 'Logistics') {
-      // Material logistics stage
+      // First milestone in progress
       updatedMilestones = updatedMilestones.map(m => 
-        m.name === 'Material Ready' ? { ...m, status: 'In Progress', date: null } :
+        m.name === firstMilestone ? { ...m, status: 'In Progress', date: null } :
         { ...m, status: 'Pending', date: null }
       );
     } else if (newStage === 'Installation') {
-      // Installation stage - Material Ready done, Installation in progress
+      // First milestone done, second in progress
       updatedMilestones = updatedMilestones.map(m => 
-        m.name === 'Material Ready' ? { ...m, status: 'Done', date: m.date || today } :
-        m.name === 'Installation' ? { ...m, status: 'In Progress', date: null } :
+        m.name === firstMilestone ? { ...m, status: 'Done', date: m.date || today } :
+        m.name === secondMilestone ? { ...m, status: 'In Progress', date: null } :
         { ...m, status: 'Pending', date: null }
       );
     } else if (newStage === 'Commissioned') {
-      // Commissioned - all main milestones done
+      // First 3 milestones done
       updatedMilestones = updatedMilestones.map(m => 
-        m.name === 'Material Ready' || m.name === 'Installation' || m.name === 'Commission' 
+        m.name === firstMilestone || m.name === secondMilestone || m.name === thirdMilestone
           ? { ...m, status: 'Done', date: m.date || today } :
         { ...m, status: 'Pending', date: null }
       );
@@ -908,7 +915,43 @@ const ProjectPage = () => {
     ...(canDelete ? [{ label: 'Delete', icon: Trash2, onClick: row => handleDeleteProject(row.id), danger: true }] : []),
   ];
 
-  const effectiveMilestones = (selected?.milestones?.length > 0 ? selected.milestones : DEFAULT_MILESTONES);
+  // Use dynamic milestone names from settings, but map status from stored project milestones
+  const effectiveMilestones = useMemo(() => {
+    const dynamicMilestones = settingsMilestones || getMilestones?.() || [];
+    const storedMilestones = selected?.milestones || [];
+    
+    // DEBUG: Log all values for diagnosis
+    console.log('[DEBUG effectiveMilestones] settingsMilestones:', settingsMilestones);
+    console.log('[DEBUG effectiveMilestones] dynamicMilestones:', dynamicMilestones);
+    console.log('[DEBUG effectiveMilestones] storedMilestones:', storedMilestones);
+    console.log('[DEBUG effectiveMilestones] dynamicMilestones.length:', dynamicMilestones.length);
+    
+    if (dynamicMilestones.length > 0) {
+      // Map dynamic names with stored status (by index)
+      const result = dynamicMilestones.map((m, idx) => {
+        const stored = storedMilestones[idx];
+        return {
+          name: m.name,
+          status: stored?.status || 'Pending',
+          date: stored?.date || null
+        };
+      });
+      console.log('[DEBUG effectiveMilestones] Using dynamic milestones:', result);
+      return result;
+    }
+    
+    // Fallback: use stored milestones or defaults
+    const fallback = storedMilestones.length > 0 ? storedMilestones : [
+      { name: 'Material Ready', status: 'Pending', date: null },
+      { name: 'Installation', status: 'Pending', date: null },
+      { name: 'Commission', status: 'Pending', date: null },
+      { name: 'Billing', status: 'Pending', date: null },
+      { name: 'Closure', status: 'Pending', date: null }
+    ];
+    console.log('[DEBUG effectiveMilestones] Using fallback milestones:', fallback);
+    return fallback;
+  }, [settingsMilestones, getMilestones, selected?.milestones]);
+  
   const STEPPER_STEPS = effectiveMilestones.map(m => ({ name: m.name, status: m.status, date: m.date }));
 
   // Debug logging
@@ -975,11 +1018,27 @@ const ProjectPage = () => {
       const completedCount = updatedMilestones.filter(m => m.status === 'Done').length;
       const newProgress = Math.round((completedCount / updatedMilestones.length) * 100);
 
-      // Determine new project status based on milestones
+      // Determine new project status based on milestone position
       let newStatus = selected.status;
-      if (milestoneName === 'Material Ready') newStatus = 'Installation';
-      else if (milestoneName === 'Installation') newStatus = 'Installation';
-      else if (milestoneName === 'Commission') newStatus = 'Commissioned';
+      const totalMilestones = updatedMilestones.length;
+      
+      // If all milestones complete, project is Commissioned
+      if (completedCount === totalMilestones) {
+        newStatus = 'Commissioned';
+      } else {
+        // Map milestone position to project status
+        // First 1/3 of milestones -> Logistics
+        // Middle 1/3 of milestones -> Installation  
+        // Last 1/3 of milestones -> Commissioned
+        const milestonePosition = firstPendingIndex + 1; // 1-based position after completing this milestone
+        if (milestonePosition <= Math.ceil(totalMilestones / 3)) {
+          newStatus = 'Logistics';
+        } else if (milestonePosition <= Math.ceil((2 * totalMilestones) / 3)) {
+          newStatus = 'Installation';
+        } else {
+          newStatus = 'Commissioned';
+        }
+      }
 
       await api.patch(`/projects/${selected.id}/status?tenantId=${TENANT_ID}`, {
         status: newStatus,
@@ -1039,13 +1098,7 @@ const ProjectPage = () => {
         startDate: new Date().toISOString().split('T')[0],
         status: 'Logistics',
         progress: 0,
-        milestones: [
-          { name: 'Material Ready', status: 'Pending', date: null },
-          { name: 'Installation', status: 'Pending', date: null },
-          { name: 'Commission', status: 'Pending', date: null },
-          { name: 'Billing', status: 'Pending', date: null },
-          { name: 'Closure', status: 'Pending', date: null }
-        ],
+        milestones: DEFAULT_MILESTONES,
         materials: form.materials.map(m => ({
           itemId: m.itemId,
           itemName: m.itemName,
