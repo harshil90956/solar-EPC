@@ -1727,14 +1727,31 @@ const InventoryPage = ({ onNavigate }) => {
             </div>
           </div>
 
+          {/* Section Header - Analytics Overview */}
+          <div className="flex items-center gap-3 mb-2 mt-6">
+            <div className="w-1 h-6 bg-gradient-to-b from-blue-500 to-cyan-600 rounded-full" />
+            <h2 className="text-base font-bold text-[var(--text-primary)] tracking-tight">Analytics Overview</h2>
+            <div className="flex-1 h-px bg-gradient-to-r from-[var(--border-base)] to-transparent" />
+          </div>
+
           {/* Charts Row 1 - 3 charts */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
             {/* Inventory Status Pie Chart */}
-            <div className="glass-card p-4">
-              <div className="flex items-center gap-2 mb-4">
-                <PieChartIcon size={16} className="text-[var(--accent)]" />
-                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Stock Status</h3>
-              </div>
+            <div className="group relative overflow-hidden bg-white rounded-2xl border border-gray-200 hover:shadow-2xl hover:shadow-blue-500/10 transition-all duration-300">
+              {/* Gradient Top Border */}
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-400 via-sky-500 to-blue-600 rounded-t-2xl" />
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-50/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              
+              <div className="relative p-5 pt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-400 to-sky-600 flex items-center justify-center shadow-md">
+                      <PieChartIcon size={16} className="text-white" />
+                    </div>
+                    <h3 className="text-sm font-bold text-[var(--text-primary)]">Stock Status</h3>
+                  </div>
+                  <span className="text-[10px] text-[var(--text-muted)] bg-blue-50 px-2 py-1 rounded-full">Inventory</span>
+                </div>
               <ResponsiveContainer width="100%" height={220}>
                 <PieChart margin={{ top: 20, right: 20, left: 20, bottom: 0 }}>
                   <Pie
@@ -1745,9 +1762,9 @@ const InventoryPage = ({ onNavigate }) => {
                     ].filter(d => d.value > 0)}
                     cx="50%"
                     cy="50%"
-                    innerRadius={35}
-                    outerRadius={60}
-                    paddingAngle={5}
+                    innerRadius={40}
+                    outerRadius={70}
+                    paddingAngle={4}
                     dataKey="value"
                     label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
                   >
@@ -1756,28 +1773,32 @@ const InventoryPage = ({ onNavigate }) => {
                       { name: 'Low Stock', value: dynamicStats.lowStockItems, color: '#f59e0b' },
                       { name: 'Out of Stock', value: dynamicStats.outOfStockItems, color: '#ef4444' },
                     ].filter(d => d.value > 0).map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
+                      <Cell key={`cell-${index}`} fill={entry.color} stroke="white" strokeWidth={2} />
                     ))}
                   </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      background: 'var(--bg-surface)',
-                      border: '1px solid var(--border-base)',
-                      borderRadius: 8,
-                      fontSize: 12
-                    }}
-                  />
-                  <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: 10, paddingTop: 10 }} />
+                  <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)', borderRadius: 12, fontSize: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
+                  <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: 11, paddingTop: 10 }} iconType="circle" />
                 </PieChart>
               </ResponsiveContainer>
+              </div>
             </div>
 
             {/* Category Distribution Donut */}
-            <div className="glass-card p-4">
-              <div className="flex items-center gap-2 mb-4">
-                <Tag size={16} className="text-[var(--accent)]" />
-                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Category Distribution</h3>
-              </div>
+            <div className="group relative overflow-hidden bg-white rounded-2xl border border-gray-200 hover:shadow-2xl hover:shadow-violet-500/10 transition-all duration-300">
+              {/* Gradient Top Border */}
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-400 via-purple-500 to-violet-600 rounded-t-2xl" />
+              <div className="absolute inset-0 bg-gradient-to-br from-violet-50/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              
+              <div className="relative p-5 pt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-400 to-purple-600 flex items-center justify-center shadow-md">
+                      <Tag size={16} className="text-white" />
+                    </div>
+                    <h3 className="text-sm font-bold text-[var(--text-primary)]">Category Distribution</h3>
+                  </div>
+                  <span className="text-[10px] text-[var(--text-muted)] bg-violet-50 px-2 py-1 rounded-full">By Items</span>
+                </div>
               <ResponsiveContainer width="100%" height={220}>
                 <PieChart margin={{ top: 20, right: 40, left: 40, bottom: 10 }}>
                   <Pie
@@ -1788,28 +1809,39 @@ const InventoryPage = ({ onNavigate }) => {
                     })).filter(d => d.value > 0)}
                     cx="50%"
                     cy="50%"
-                    innerRadius={35}
-                    outerRadius={60}
+                    innerRadius={40}
+                    outerRadius={70}
                     paddingAngle={3}
                     dataKey="value"
                     label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
                   >
                     {categories.map((cat, i) => (
-                      <Cell key={`cell-${i}`} fill={['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4'][i % 6]} />
+                      <Cell key={`cell-${i}`} fill={['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4'][i % 6]} stroke="white" strokeWidth={2} />
                     ))}
                   </Pie>
-                  <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)', borderRadius: 8, fontSize: 12 }} />
-                  <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: 10, paddingTop: 10 }} />
+                  <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)', borderRadius: 12, fontSize: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
+                  <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: 11, paddingTop: 10 }} iconType="circle" />
                 </PieChart>
               </ResponsiveContainer>
+              </div>
             </div>
 
             {/* Unit Distribution */}
-            <div className="glass-card p-4">
-              <div className="flex items-center gap-2 mb-4">
-                <Scale size={16} className="text-[var(--accent)]" />
-                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Unit Distribution</h3>
-              </div>
+            <div className="group relative overflow-hidden bg-white rounded-2xl border border-gray-200 hover:shadow-2xl hover:shadow-cyan-500/10 transition-all duration-300">
+              {/* Gradient Top Border */}
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-400 via-teal-500 to-cyan-600 rounded-t-2xl" />
+              <div className="absolute inset-0 bg-gradient-to-br from-cyan-50/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              
+              <div className="relative p-5 pt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-400 to-teal-600 flex items-center justify-center shadow-md">
+                      <Scale size={16} className="text-white" />
+                    </div>
+                    <h3 className="text-sm font-bold text-[var(--text-primary)]">Unit Distribution</h3>
+                  </div>
+                  <span className="text-[10px] text-[var(--text-muted)] bg-cyan-50 px-2 py-1 rounded-full">By Items</span>
+                </div>
               <ResponsiveContainer width="100%" height={220}>
                 <PieChart margin={{ top: 20, right: 30, left: 30, bottom: 0 }}>
                   <Pie
@@ -1820,54 +1852,65 @@ const InventoryPage = ({ onNavigate }) => {
                     })).filter(d => d.value > 0)}
                     cx="50%"
                     cy="50%"
-                    innerRadius={35}
-                    outerRadius={60}
+                    innerRadius={40}
+                    outerRadius={70}
                     paddingAngle={2}
                     dataKey="value"
                     label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
                   >
                     {units.map((unit, i) => (
-                      <Cell key={`cell-${i}`} fill={['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'][i % 6]} />
+                      <Cell key={`cell-${i}`} fill={['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'][i % 6]} stroke="white" strokeWidth={2} />
                     ))}
                   </Pie>
-                  <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)', borderRadius: 8, fontSize: 12 }} />
-                  <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: 10, paddingTop: 10 }} />
+                  <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)', borderRadius: 12, fontSize: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
+                  <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: 11, paddingTop: 10 }} iconType="circle" />
                 </PieChart>
               </ResponsiveContainer>
+              </div>
             </div>
           </div>
 
+          {/* Section Header - Category Analysis */}
+          <div className="flex items-center gap-3 mb-2 mt-6">
+            <div className="w-1 h-6 bg-gradient-to-b from-violet-500 to-purple-600 rounded-full" />
+            <h2 className="text-base font-bold text-[var(--text-primary)] tracking-tight">Category & Warehouse Analysis</h2>
+            <div className="flex-1 h-px bg-gradient-to-r from-[var(--border-base)] to-transparent" />
+          </div>
+
           {/* Charts Row 2 - Bar Charts */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {/* Items by Category Bar Chart */}
-            <div className="glass-card p-4">
-              <div className="flex items-center gap-2 mb-4">
-                <BarChart2 size={16} className="text-[var(--accent)]" />
-                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Items by Category</h3>
+            <div className="group relative overflow-hidden bg-white rounded-2xl p-5 shadow-lg shadow-black/5 border border-gray-200 hover:shadow-2xl hover:shadow-violet-500/10 hover:-translate-y-1 transition-all duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center">
+                    <BarChart2 size={16} className="text-violet-600" />
+                  </div>
+                  <h3 className="text-sm font-bold text-[var(--text-primary)]">Items by Category</h3>
+                </div>
+                <span className="text-[10px] text-[var(--text-muted)] bg-violet-50 px-2 py-1 rounded-full">Count</span>
               </div>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={categories.map(cat => ({ name: cat, count: inventory.filter(i => i.category === cat).length })).filter(c => c.count > 0)} barSize={30}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
                   <XAxis dataKey="name" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <Tooltip
-                    contentStyle={{
-                      background: 'var(--bg-surface)',
-                      border: '1px solid var(--border-base)',
-                      borderRadius: 8,
-                      fontSize: 12
-                    }}
-                  />
+                  <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)', borderRadius: 12, fontSize: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
                   <Bar dataKey="count" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
 
             {/* Inventory Value by Warehouse */}
-            <div className="glass-card p-4">
-              <div className="flex items-center gap-2 mb-4">
-                <Warehouse size={16} className="text-[var(--accent)]" />
-                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Value by Warehouse</h3>
+            <div className="group relative overflow-hidden bg-white rounded-2xl p-5 shadow-lg shadow-black/5 border border-gray-200 hover:shadow-2xl hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                    <Warehouse size={16} className="text-emerald-600" />
+                  </div>
+                  <h3 className="text-sm font-bold text-[var(--text-primary)]">Value by Warehouse</h3>
+                </div>
+                <span className="text-[10px] text-[var(--text-muted)] bg-emerald-50 px-2 py-1 rounded-full">₹ Value</span>
               </div>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={warehouses.map(wh => {
@@ -1875,31 +1918,35 @@ const InventoryPage = ({ onNavigate }) => {
                   const value = whItems.reduce((sum, i) => sum + ((i.stock || 0) * (i.rate || 0)), 0);
                   return { name: wh, value: value / 1000 };
                 })} barSize={40}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
                   <XAxis dataKey="name" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `₹${v}K`} />
-                  <Tooltip
-                    formatter={(value) => [`₹${value}K`, 'Value']}
-                    contentStyle={{
-                      background: 'var(--bg-surface)',
-                      border: '1px solid var(--border-base)',
-                      borderRadius: 8,
-                      fontSize: 12
-                    }}
-                  />
+                  <Tooltip formatter={(value) => [`₹${value}K`, 'Value']} contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)', borderRadius: 12, fontSize: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
                   <Bar dataKey="value" fill="#10b981" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
 
+          {/* Section Header - Stock Trends */}
+          <div className="flex items-center gap-3 mb-2 mt-6">
+            <div className="w-1 h-6 bg-gradient-to-b from-emerald-500 to-teal-600 rounded-full" />
+            <h2 className="text-base font-bold text-[var(--text-primary)] tracking-tight">Stock Trends & Analysis</h2>
+            <div className="flex-1 h-px bg-gradient-to-r from-[var(--border-base)] to-transparent" />
+          </div>
+
           {/* Charts Row 3 - 2x2 Grid Layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {/* Stock vs Reserved Area Chart */}
-            <div className="glass-card p-4">
-              <div className="flex items-center gap-2 mb-4">
-                <Activity size={16} className="text-[var(--accent)]" />
-                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Stock vs Reserved (Top 10 Items)</h3>
+            <div className="group relative overflow-hidden bg-white rounded-2xl p-5 shadow-lg shadow-black/5 border border-gray-200 hover:shadow-2xl hover:shadow-blue-500/10 hover:-translate-y-1 transition-all duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                    <Activity size={16} className="text-blue-600" />
+                  </div>
+                  <h3 className="text-sm font-bold text-[var(--text-primary)]">Stock vs Reserved</h3>
+                </div>
+                <span className="text-[10px] text-[var(--text-muted)] bg-blue-50 px-2 py-1 rounded-full">Top 10 Items</span>
               </div>
               <ResponsiveContainer width="100%" height={200}>
                 <AreaChart data={inventory.slice(0, 10).map(i => ({ name: (i.name || i.description || 'Unknown').slice(0, 15), stock: i.stock || 0, reserved: i.reserved || 0 }))} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -1913,11 +1960,11 @@ const InventoryPage = ({ onNavigate }) => {
                       <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
                   <XAxis dataKey="name" tick={{ fill: 'var(--text-muted)', fontSize: 9 }} axisLine={false} tickLine={false} angle={-15} textAnchor="end" height={50} />
                   <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)', borderRadius: 8, fontSize: 12 }} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)', borderRadius: 12, fontSize: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} iconType="circle" />
                   <Area type="monotone" dataKey="stock" name="Total Stock" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorStock)" />
                   <Area type="monotone" dataKey="reserved" name="Reserved" stroke="#f59e0b" strokeWidth={2} fillOpacity={1} fill="url(#colorReserved)" />
                 </AreaChart>
@@ -1925,10 +1972,15 @@ const InventoryPage = ({ onNavigate }) => {
             </div>
 
             {/* Inventory Value Trend */}
-            <div className="glass-card p-4">
-              <div className="flex items-center gap-2 mb-4">
-                <TrendingUp size={16} className="text-[var(--accent)]" />
-                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Inventory Value Trend (Simulated)</h3>
+            <div className="group relative overflow-hidden bg-white rounded-2xl p-5 shadow-lg shadow-black/5 border border-gray-200 hover:shadow-2xl hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                    <TrendingUp size={16} className="text-emerald-600" />
+                  </div>
+                  <h3 className="text-sm font-bold text-[var(--text-primary)]">Value Trend</h3>
+                </div>
+                <span className="text-[10px] text-[var(--text-muted)] bg-emerald-50 px-2 py-1 rounded-full">6 Months</span>
               </div>
               <ResponsiveContainer width="100%" height={200}>
                 <AreaChart data={[
@@ -1945,20 +1997,25 @@ const InventoryPage = ({ onNavigate }) => {
                       <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
                   <XAxis dataKey="month" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `₹${v.toFixed(1)}L`} />
-                  <Tooltip formatter={(value) => [`₹${value.toFixed(1)}L`, 'Value']} contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)', borderRadius: 8, fontSize: 12 }} />
+                  <Tooltip formatter={(value) => [`₹${value.toFixed(1)}L`, 'Value']} contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)', borderRadius: 12, fontSize: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
                   <Area type="monotone" dataKey="value" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorValue)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
 
             {/* Stock Movement Analysis */}
-            <div className="glass-card p-4">
-              <div className="flex items-center gap-2 mb-4">
-                <Activity size={16} className="text-[var(--accent)]" />
-                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Stock Movement Analysis (6 Months)</h3>
+            <div className="group relative overflow-hidden bg-white rounded-2xl p-5 shadow-lg shadow-black/5 border border-gray-200 hover:shadow-2xl hover:shadow-rose-500/10 hover:-translate-y-1 transition-all duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-rose-100 flex items-center justify-center">
+                    <Activity size={16} className="text-rose-600" />
+                  </div>
+                  <h3 className="text-sm font-bold text-[var(--text-primary)]">Stock Movement</h3>
+                </div>
+                <span className="text-[10px] text-[var(--text-muted)] bg-rose-50 px-2 py-1 rounded-full">In vs Out</span>
               </div>
               <ResponsiveContainer width="100%" height={200}>
                 <AreaChart data={[
@@ -1979,11 +2036,11 @@ const InventoryPage = ({ onNavigate }) => {
                       <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
                   <XAxis dataKey="month" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)', borderRadius: 8, fontSize: 12 }} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)', borderRadius: 12, fontSize: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} iconType="circle" />
                   <Area type="monotone" dataKey="stockIn" name="Stock In" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorStockIn)" />
                   <Area type="monotone" dataKey="stockOut" name="Stock Out" stroke="#ef4444" strokeWidth={2} fillOpacity={1} fill="url(#colorStockOut)" />
                 </AreaChart>
@@ -1991,10 +2048,15 @@ const InventoryPage = ({ onNavigate }) => {
             </div>
 
             {/* Category Value Comparison */}
-            <div className="glass-card p-4">
-              <div className="flex items-center gap-2 mb-4">
-                <BarChart2 size={16} className="text-[var(--accent)]" />
-                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Inventory Value by Category</h3>
+            <div className="group relative overflow-hidden bg-white rounded-2xl p-5 shadow-lg shadow-black/5 border border-gray-200 hover:shadow-2xl hover:shadow-purple-500/10 hover:-translate-y-1 transition-all duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
+                    <BarChart2 size={16} className="text-purple-600" />
+                  </div>
+                  <h3 className="text-sm font-bold text-[var(--text-primary)]">Value by Category</h3>
+                </div>
+                <span className="text-[10px] text-[var(--text-muted)] bg-purple-50 px-2 py-1 rounded-full">Value & Count</span>
               </div>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={categories.map(cat => {
@@ -2003,12 +2065,12 @@ const InventoryPage = ({ onNavigate }) => {
                   const count = catItems.length;
                   return { name: cat, value: value / 1000, count };
                 }).filter(c => c.value > 0)} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
                   <XAxis dataKey="name" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis yAxisId="left" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `₹${v}K`} />
                   <YAxis yAxisId="right" orientation="right" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)', borderRadius: 8, fontSize: 12 }} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-base)', borderRadius: 12, fontSize: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} iconType="circle" />
                   <Bar yAxisId="left" dataKey="value" name="Value (₹K)" fill="#8b5cf6" radius={[4, 4, 0, 0]} barSize={40} />
                   <Bar yAxisId="right" dataKey="count" name="Item Count" fill="#06b6d4" radius={[4, 4, 0, 0]} barSize={20} />
                 </BarChart>
@@ -2016,37 +2078,44 @@ const InventoryPage = ({ onNavigate }) => {
             </div>
           </div>
 
+          {/* Section Header - Quick Actions */}
+          <div className="flex items-center gap-3 mb-2 mt-6">
+            <div className="w-1 h-6 bg-gradient-to-b from-amber-500 to-orange-600 rounded-full" />
+            <h2 className="text-base font-bold text-[var(--text-primary)] tracking-tight">Quick Actions</h2>
+            <div className="flex-1 h-px bg-gradient-to-r from-[var(--border-base)] to-transparent" />
+          </div>
+
           {/* Quick Actions */}
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
             <button
               onClick={() => setActiveTab('inventory')}
-              className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-600 hover:bg-blue-500/20 transition-colors text-sm font-medium flex items-center gap-2"
+              className="group p-4 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 text-blue-700 hover:shadow-lg hover:shadow-blue-500/10 hover:-translate-y-0.5 transition-all duration-300 text-sm font-semibold flex items-center justify-center gap-2"
             >
-              <Package size={16} /> View Inventory
+              <Package size={18} className="group-hover:scale-110 transition-transform" /> View Inventory
             </button>
             <button
               onClick={() => setActiveTab('warehouse')}
-              className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 hover:bg-emerald-500/20 transition-colors text-sm font-medium flex items-center gap-2"
+              className="group p-4 rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-200 text-emerald-700 hover:shadow-lg hover:shadow-emerald-500/10 hover:-translate-y-0.5 transition-all duration-300 text-sm font-semibold flex items-center justify-center gap-2"
             >
-              <Warehouse size={16} /> Manage Warehouses
+              <Warehouse size={18} className="group-hover:scale-110 transition-transform" /> Warehouses
             </button>
             <button
               onClick={() => setActiveTab('items')}
-              className="p-3 rounded-xl bg-violet-500/10 border border-violet-500/20 text-violet-600 hover:bg-violet-500/20 transition-colors text-sm font-medium flex items-center gap-2"
+              className="group p-4 rounded-xl bg-gradient-to-br from-violet-50 to-violet-100 border border-violet-200 text-violet-700 hover:shadow-lg hover:shadow-violet-500/10 hover:-translate-y-0.5 transition-all duration-300 text-sm font-semibold flex items-center justify-center gap-2"
             >
-              <Plus size={16} /> Add Items
+              <Plus size={18} className="group-hover:scale-110 transition-transform" /> Add Items
             </button>
             <button
               onClick={() => setActiveTab('category')}
-              className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 hover:bg-amber-500/20 transition-colors text-sm font-medium flex items-center gap-2"
+              className="group p-4 rounded-xl bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 text-amber-700 hover:shadow-lg hover:shadow-amber-500/10 hover:-translate-y-0.5 transition-all duration-300 text-sm font-semibold flex items-center justify-center gap-2"
             >
-              <Tag size={16} /> Categories
+              <Tag size={18} className="group-hover:scale-110 transition-transform" /> Categories
             </button>
             <button
               onClick={() => setActiveTab('unit')}
-              className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-600 hover:bg-cyan-500/20 transition-colors text-sm font-medium flex items-center gap-2"
+              className="group p-4 rounded-xl bg-gradient-to-br from-cyan-50 to-cyan-100 border border-cyan-200 text-cyan-700 hover:shadow-lg hover:shadow-cyan-500/10 hover:-translate-y-0.5 transition-all duration-300 text-sm font-semibold flex items-center justify-center gap-2"
             >
-              <Scale size={16} /> Units
+              <Scale size={18} className="group-hover:scale-110 transition-transform" /> Units
             </button>
           </div>
             </>
